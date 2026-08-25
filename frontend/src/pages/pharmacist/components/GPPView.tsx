@@ -24,7 +24,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
     setLoading(true);
     try {
       // Fetch real sales orders from backend
-      const res = await orderService.getOrders({ limit: 100 });
+      const res = await orderService.listSalesOrders();
       const list = res.data || res || [];
       setOrders(Array.isArray(list) ? list : []);
     } catch (err) {

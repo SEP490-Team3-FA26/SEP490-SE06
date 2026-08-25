@@ -1910,6 +1910,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
           </div>
         </div>
       </div>
+    </div>
     )}
     </div>
   );
