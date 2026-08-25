@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
   Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter
@@ -699,6 +699,108 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const hasWarfarin = cart.some(it => it.name?.toLowerCase().includes("warfarin") || it.active_ingredient?.toLowerCase().includes("warfarin"));
   const hasInteraction = hasCiprofloxacin && hasWarfarin;
 
+  // 🧠 AI Gợi ý Thực Phẩm Chức Năng Bổ Trợ Bệnh Mãn Tính (Dựa trên Phác đồ GPP)
+  const chronicCareSuggestions = useMemo(() => {
+    const list: any[] = [];
+    const fullText = cart.map(it => `${it.name} ${it.active_ingredient || ""}`).join(" ").toLowerCase();
+
+    // 1. Huyết áp & Tim mạch
+    if (fullText.includes("amlodipine") || fullText.includes("losartan") || fullText.includes("telmisartan") || 
+        fullText.includes("captopril") || fullText.includes("enalapril") || fullText.includes("bisoprolol") || 
+        fullText.includes("nifedipine") || fullText.includes("plavix") || fullText.includes("aspirin") || fullText.includes("huyết áp")) {
+      list.push({
+        id: "CARDIO",
+        title: "Bệnh Mãn Tính: Tăng Huyết Áp & Tim Mạch",
+        badge: "Khuyến nghị Tim mạch",
+        badgeColor: "bg-rose-50 text-rose-700 border-rose-200",
+        icon: "❤️",
+        supplements: [
+          {
+            name: "Coenzyme Q10 (CoQ10) 100mg",
+            desc: "Tăng cường năng lượng cơ tim, hỗ trợ hạ áp tâm thu tự nhiên và giảm mệt mỏi.",
+            timing: "1 viên/ngày sau bữa ăn sáng"
+          },
+          {
+            name: "Dầu cá Omega-3 Tim Mạch (EPA/DHA)",
+            desc: "Giúp làm sạch mỡ máu, duy trì độ dẻo dai của thành mạch máu.",
+            timing: "1 viên/ngày sau ăn"
+          }
+        ],
+        caution: "CẢNH BÁO CHỐNG CHỈ ĐỊNH: Tuyệt đối không dùng chung với Nhân Sâm, Cam Thảo hoặc thuốc co mạch trị sổ mũi (nguy cơ tăng vọt huyết áp kịch phát)."
+      });
+    }
+
+    // 2. Đái tháo đường (Tiểu đường)
+    if (fullText.includes("metformin") || fullText.includes("gliclazide") || fullText.includes("glimepiride") || 
+        fullText.includes("januvia") || fullText.includes("forxiga") || fullText.includes("jardiance") || fullText.includes("tiểu đường")) {
+      list.push({
+        id: "DIABETES",
+        title: "Bệnh Mãn Tính: Đái Tháo Đường Type 2",
+        badge: "Khuyến nghị Nội tiết",
+        badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+        icon: "🩸",
+        supplements: [
+          {
+            name: "Vitamin B12 500mcg (Methylcobalamin)",
+            desc: "Bổ sung dự phòng do dùng Metformin dài ngày gây cản trở hấp thu B12, phòng ngừa biến chứng tê bì châm chích đầu chi.",
+            timing: "1 viên/ngày sau ăn sáng"
+          },
+          {
+            name: "Trà Dây Thìa Canh Chuẩn Hóa",
+            desc: "Hỗ trợ ổn định đường huyết, tăng tiết insulin tự nhiên.",
+            timing: "Uống sau ăn 30 phút"
+          }
+        ],
+        caution: "LƯU Ý: Tránh các loại TPCN dạng siro hoặc viên sủi có chứa đường saccharose."
+      });
+    }
+
+    // 3. Kháng sinh đường uống
+    if (fullText.includes("amoxicillin") || fullText.includes("augmentin") || fullText.includes("cefixime") || 
+        fullText.includes("ciprofloxacin") || fullText.includes("azithromycin") || fullText.includes("klamentin")) {
+      list.push({
+        id: "ANTIBIOTIC",
+        title: "Phác Đồ Kháng Sinh Đường Uống",
+        badge: "Bảo vệ Tiêu hóa",
+        badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+        icon: "🛡️",
+        supplements: [
+          {
+            name: "Men Vi Sinh Probiotics (Enterogermina / Bio-acimin)",
+            desc: "Phục hồi hệ vi khuẩn có lợi đường ruột, ngăn ngừa tiêu chảy và rối loạn tiêu hóa do kháng sinh.",
+            timing: "Uống cách kháng sinh ít nhất 2 giờ"
+          }
+        ]
+      });
+    }
+
+    // 4. Xương khớp & Giảm đau kháng viêm NSAID
+    if (fullText.includes("celecoxib") || fullText.includes("meloxicam") || fullText.includes("diclofenac") || 
+        fullText.includes("ibuprofen") || fullText.includes("glucosamine")) {
+      list.push({
+        id: "JOINT",
+        title: "Bệnh Lý Cơ Xương Khớp & Kháng Viêm",
+        badge: "Bổ trợ Khớp & Dạ dày",
+        badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        icon: "🦴",
+        supplements: [
+          {
+            name: "Canxi Nano D3 + K2 (MK7)",
+            desc: "Bổ sung canxi đưa thẳng vào xương, tăng mật độ xương và phòng loãng xương.",
+            timing: "1 viên/ngày vào buổi sáng"
+          },
+          {
+            name: "Thuốc Bao Niêm Mạc Dạ Dày (Esomeprazole 20mg)",
+            desc: "Bảo vệ dạ dày khỏi tác dụng phụ gây loét của thuốc kháng viêm giảm đau NSAID.",
+            timing: "Uống trước ăn sáng 30 phút"
+          }
+        ]
+      });
+    }
+
+    return list;
+  }, [cart]);
+
   return (
     <div className="h-full flex flex-col xl:flex-row gap-6 overflow-hidden">
       {/* Cột trái: Tìm kiếm & Giỏ hàng */}
@@ -888,6 +990,63 @@ export default function RetailView({ showToast }: RetailViewProps) {
               <p className="text-[#ba1a1a] text-[13px]">
                 Sử dụng đồng thời <span className="font-bold">Ciprofloxacin</span> và <span className="font-bold">Warfarin</span> có thể làm tăng tác dụng chống đông của Warfarin một cách đột ngột, tăng đáng kể nguy cơ chảy máu nghiêm trọng. Vui lòng kiểm tra lại đơn!
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* 🧠 AI CLINICAL & SUPPLEMENT ASSISTANT (GỢI Ý TPCN BỔ TRỢ THEO BỆNH MÃN TÍNH) */}
+        {chronicCareSuggestions.length > 0 && (
+          <div className="bg-gradient-to-br from-indigo-50/90 via-white to-blue-50/90 border-2 border-indigo-200 rounded-[20px] p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow">
+                  <Sparkles size={18} className="animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm uppercase tracking-wide flex items-center gap-2">
+                    AI Tư Vấn Phác Đồ & Thực Phẩm Chức Năng Bổ Trợ
+                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">GPP Clinical Shield</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">Phát hiện bệnh mãn tính từ phác đồ đang bán & gợi ý TPCN chuẩn y khoa</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {chronicCareSuggestions.map((item, idx) => (
+                <div key={idx} className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-xs flex flex-col justify-between gap-3">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                        <span>{item.icon}</span>
+                        <span>{item.title}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {item.supplements.map((sup: any, sIdx: number) => (
+                        <div key={sIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-1">
+                          <div className="font-bold text-xs text-indigo-950 flex items-center justify-between">
+                            <span>✨ {sup.name}</span>
+                            <span className="text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded">{sup.timing}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{sup.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {item.caution && (
+                      <div className="mt-2.5 p-2 bg-rose-50 border border-rose-200 rounded-xl text-[10px] font-bold text-rose-800 flex items-start gap-1.5">
+                        <AlertTriangle size={13} className="shrink-0 text-rose-600 mt-0.5" />
+                        <span>{item.caution}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

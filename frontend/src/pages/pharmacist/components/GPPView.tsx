@@ -14,11 +14,70 @@ export default function GPPView({ showToast }: GPPViewProps) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [directionFilter, setDirectionFilter] = useState("ALL"); // ALL, OUTWARD, INWARD
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [isResyncing, setIsResyncing] = useState<string | null>(null);
+
+  // Mẫu Phiếu Nhập Kho liên thông CSDL Dược Quốc gia (GPP/GDP Inward)
+  const inwardReceipts = [
+    {
+      _id: "PNK-DHG-8821",
+      nationalSyncCode: "DQG-IN-20260825-992143",
+      nationalFacilityCode: "79-001234",
+      direction: "INWARD",
+      type: "NHAP_KHO_NCC",
+      supplierName: "Công ty Cổ phần Dược Hậu Giang (DHG Pharma)",
+      vatInvoiceNumber: "HD-VAT-009214",
+      patientName: "NCC: Dược Hậu Giang (DHG)",
+      totalAmount: 18500000,
+      createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+      nationalSyncStatus: "SYNCED",
+      items: [
+        {
+          medicineId: "6a21a9a84f7acd1b57259761",
+          name: "Cao dán Salonpas Diclofenac Patch Hisamitsu (15 gói x 2 miếng)",
+          quantity: 200,
+          unit: "Hộp",
+          exchangeValue: 30,
+          baseQuantity: 6000,
+          baseUnit: "Miếng",
+          price: 92500,
+          dosageInstructions: "Kiểm định đạt tiêu chuẩn Cục Quản lý Dược",
+          batches: [{ batchNo: "LOT-DHG-2026", quantity: 200 }]
+        }
+      ]
+    },
+    {
+      _id: "PNK-IMEX-4412",
+      nationalSyncCode: "DQG-IN-20260825-881204",
+      nationalFacilityCode: "79-001234",
+      direction: "INWARD",
+      type: "NHAP_KHO_NCC",
+      supplierName: "Công ty CP Dược phẩm Imexpharm",
+      vatInvoiceNumber: "HD-VAT-003891",
+      patientName: "NCC: Imexpharm",
+      totalAmount: 42300000,
+      createdAt: new Date(Date.now() - 3600000 * 28).toISOString(),
+      nationalSyncStatus: "SYNCED",
+      items: [
+        {
+          medicineId: "6a21a9a84f7acd1b57259799",
+          name: "Amoxicillin + Acid Clavulanic 625mg",
+          quantity: 500,
+          unit: "Hộp",
+          exchangeValue: 20,
+          baseQuantity: 10000,
+          baseUnit: "Viên",
+          price: 84600,
+          dosageInstructions: "Kiểm định đạt tiêu chuẩn GDP/GPP",
+          batches: [{ batchNo: "LOT-IMEX-882", quantity: 500 }]
+        }
+      ]
+    }
+  ];
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -38,13 +97,20 @@ export default function GPPView({ showToast }: GPPViewProps) {
     fetchOrders();
   }, []);
 
-  // Filtered orders
-  const filteredOrders = orders.filter((ord) => {
+  // Filtered transactions (Combined Sales Outward & Receipts Inward)
+  const allTransactions = [
+    ...orders.map(o => ({ ...o, direction: "OUTWARD" })),
+    ...inwardReceipts
+  ];
+
+  const filteredOrders = allTransactions.filter((ord) => {
     const q = searchQuery.toLowerCase();
     const matchQuery = 
       (ord._id || "").toLowerCase().includes(q) ||
       (ord.nationalSyncCode || "").toLowerCase().includes(q) ||
       (ord.patientName || "").toLowerCase().includes(q) ||
+      (ord.supplierName || "").toLowerCase().includes(q) ||
+      (ord.vatInvoiceNumber || "").toLowerCase().includes(q) ||
       (ord.prescriptionCode || "").toLowerCase().includes(q);
 
     const matchStatus = 
@@ -55,7 +121,10 @@ export default function GPPView({ showToast }: GPPViewProps) {
     const matchType = 
       typeFilter === "ALL" ? true : ord.type === typeFilter;
 
-    return matchQuery && matchStatus && matchType;
+    const matchDirection =
+      directionFilter === "ALL" ? true : ord.direction === directionFilter;
+
+    return matchQuery && matchStatus && matchType && matchDirection;
   });
 
   // Calculate statistics
@@ -168,6 +237,17 @@ export default function GPPView({ showToast }: GPPViewProps) {
               />
             </div>
 
+            {/* Direction Filter (Xuất bán / Nhập kho) */}
+            <select
+              value={directionFilter}
+              onChange={(e) => setDirectionFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+            >
+              <option value="ALL">Tất cả Luồng (Xuất & Nhập)</option>
+              <option value="OUTWARD">📤 Xuất Bán Hàng (DQG-...)</option>
+              <option value="INWARD">📥 Nhập Kho NCC (DQG-IN-...)</option>
+            </select>
+
             {/* Status Filter */}
             <select
               value={statusFilter}
@@ -269,14 +349,20 @@ export default function GPPView({ showToast }: GPPViewProps) {
 
                       {/* Kiểu bán & DS Thuốc */}
                       <td className="px-5 py-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                            ord.type === "PRESCRIPTION" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" :
-                            ord.type === "RETAIL" ? "bg-blue-50 text-blue-700 border border-blue-200" :
-                            "bg-slate-100 text-slate-700 border border-slate-200"
-                          }`}>
-                            {ord.type || "RETAIL"}
-                          </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {ord.direction === "INWARD" ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              📥 NHẬP KHO GDP
+                            </span>
+                          ) : (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                              ord.type === "PRESCRIPTION" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" :
+                              ord.type === "RETAIL" ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                              "bg-slate-100 text-slate-700 border border-slate-200"
+                            }`}>
+                              📤 {ord.type || "RETAIL"}
+                            </span>
+                          )}
                           <span className="text-slate-500 font-bold">({itemsCount} thuốc)</span>
                         </div>
                         <div className="text-[11px] text-slate-500 truncate max-w-xs mt-1">
