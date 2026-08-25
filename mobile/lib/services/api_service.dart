@@ -402,7 +402,7 @@ class ApiService {
     return null;
   }
 
-  // UC-19: Inspect Receipt Item using AI Count
+  // Inspect Receipt Item using AI Count
   static Future<Map<String, dynamic>> inspectReceiptItemAI({
     required String receiptId,
     required String receiptItemId,
@@ -509,7 +509,7 @@ class ApiService {
     }
   }
 
-  // UC-19: Verify Actual Count and override AI Count
+  // Verify Actual Count and override AI Count
   static Future<bool> verifyReceiptItemCount({
     required String inspectionRecordId,
     required int actualQty,
@@ -555,7 +555,7 @@ class ApiService {
     }
   }
 
-  // UC-19: Approve Goods Receipt
+  // Approve Goods Receipt
   static Future<bool> approveGoodsReceipt(String receiptId) async {
     try {
       final response = await http
@@ -600,7 +600,7 @@ class ApiService {
     },
   ];
 
-  // UC-19: Fetch all Goods Receipt Notes from database
+  // Fetch all Goods Receipt Notes from database
   static Future<List<dynamic>> getGoodsReceipts() async {
     try {
       final response = await http
@@ -615,7 +615,7 @@ class ApiService {
     return localMockGoodsReceipts;
   }
 
-  // UC-19: Fetch single medicine details by ID
+  // Fetch single medicine details by ID
   static Future<Map<String, dynamic>?> getMedicineById(String id) async {
     try {
       final response = await http
@@ -630,7 +630,7 @@ class ApiService {
     return null;
   }
 
-  // UC-19: Submit inspection report
+  // Submit inspection report
   static Future<bool> submitInspection(String receiptId) async {
     try {
       final response = await http
@@ -1324,7 +1324,7 @@ class ApiService {
     return services;
   }
 
-  // UC-34: Get voice-activated AI consultation recommendation (Web-safe: text-based)
+  // Get voice-activated AI consultation recommendation (Web-safe: text-based)
   static Future<Map<String, dynamic>?> getVoicePrescriptionBytes(
     Uint8List wavBytes,
   ) async {
@@ -1403,7 +1403,7 @@ class ApiService {
     return null;
   }
 
-  // UC-34: Text-based AI symptom consultation (works on Flutter Web)
+  // Text-based AI symptom consultation (works on Flutter Web)
   static Future<Map<String, dynamic>?> getTextPrescription(
     String symptoms,
   ) async {

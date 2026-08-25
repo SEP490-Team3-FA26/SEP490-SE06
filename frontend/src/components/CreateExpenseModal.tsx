@@ -84,7 +84,7 @@ export function CreateExpenseModal({ isOpen, branches, onClose, onSuccess }: Cre
               <DollarSign size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Ghi nhận Chi phí Vận hành (UC-59)</h2>
+              <h2 className="text-lg font-bold text-slate-900">Ghi nhận Chi phí Vận hành</h2>
               <p className="text-xs text-slate-500">Ghi nhận chi phí cố định (mặt bằng, lương, điện nước...)</p>
             </div>
           </div>

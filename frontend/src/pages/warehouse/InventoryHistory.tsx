@@ -48,7 +48,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
   const [selectedGrnDetails, setSelectedGrnDetails] = useState<any | null>(null);
   const [selectedPoDetails, setSelectedPoDetails] = useState<any | null>(null);
 
-  // UC-19 ERP states
+  // Goods Receipt Inspection & ERP states
   const [editGrnItems, setEditGrnItems] = useState<any[]>([]);
   const [editLoading, setEditLoading] = useState(false);
   const [discrepancyReason, setDiscrepancyReason] = useState("");

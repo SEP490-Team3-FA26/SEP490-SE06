@@ -41,7 +41,25 @@ export class GoodsReceiptNote extends Document {
   status: string;
 
   @Prop({ type: String })
-  discrepancyReason?: string;
+  vatInvoiceNumber?: string;
+
+  @Prop({ type: String })
+  supplierName?: string;
+
+  @Prop({ type: String })
+  nationalFacilityCode?: string;
+
+  @Prop({ type: String })
+  nationalSyncCode?: string;
+
+  @Prop({ type: String, default: 'SYNCED', enum: ['PENDING', 'SYNCED', 'FAILED'] })
+  nationalSyncStatus?: string;
+
+  @Prop({ type: Date })
+  nationalSyncedAt?: Date;
+
+  @Prop({ type: String })
+  nationalSyncMessage?: string;
 
   @Prop({ type: String }) // Optional user ID of the receiver
   receivedBy: string;

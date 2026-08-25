@@ -242,7 +242,7 @@ export class PricingService {
   }
 
   /**
-   * Lấy cấu hình tồn kho tối thiểu cho 1 thuốc tại 1 chi nhánh (UC-38)
+   * Lấy cấu hình tồn kho tối thiểu cho 1 thuốc tại 1 chi nhánh
    */
   async getMinStock(branchId: string | undefined, medicineId: string): Promise<number> {
     if (!branchId) return 0;

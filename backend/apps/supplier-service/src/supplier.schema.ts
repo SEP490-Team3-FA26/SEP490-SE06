@@ -22,13 +22,13 @@ export class Supplier extends Document {
   status: string;
 
   @Prop({ type: Number, default: 50000000, min: 0 })
-  creditLimit: number; // Hạn mức công nợ tối đa (VNĐ) — UC-07
+  creditLimit: number; // Hạn mức công nợ tối đa (VNĐ)
 
   @Prop({ type: Number, default: 0 })
-  currentDebt: number; // Dư nợ hiện tại phải trả NCC (VNĐ) — UC-07
+  currentDebt: number; // Dư nợ hiện tại phải trả NCC (VNĐ)
 
   @Prop({ type: Number, default: 30 })
-  paymentTermDays: number; // Kỳ hạn thanh toán (ngày) — UC-07
+  paymentTermDays: number; // Kỳ hạn thanh toán (ngày)
 }
 
 export const SupplierSchema = SchemaFactory.createForClass(Supplier);

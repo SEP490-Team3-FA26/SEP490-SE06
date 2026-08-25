@@ -410,8 +410,7 @@ export class MedicineService implements OnModuleInit {
 
       // Xoá logic filter cứng `stock > 0` theo branchId ở đây để
       // các thuốc hết hàng (stock = 0) vẫn được trả về trong kết quả tìm kiếm.
-      // Khi đó, UI sẽ hiển thị Tồn kho: 0 và cho phép user bấm "Gợi ý thay thế" (UC-36).
-      // Khi đó, UI sẽ hiển thị Tồn kho: 0 và cho phép user bấm "Gợi ý thay thế" (UC-36).
+      // Khi đó, UI sẽ hiển thị Tồn kho: 0 và cho phép user bấm "Gợi ý thay thế".
       if (search && !query.bypassAiSearch) {
         // AI SERVICE VECTOR SEARCH with Mongoose fallback
         let aiServiceUrl = `http://ai-service:8000/api/ai/medicines?search=${encodeURIComponent(search)}&page=${page}&limit=${limit}`;
@@ -527,6 +526,13 @@ export class MedicineService implements OnModuleInit {
                   drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
                   price: actualPrice,
                   stock: totalStock,
+                  unopenedBoxes: Math.max(0, Math.floor(totalStock / 100)),
+                  openedBoxUnits: med.openedBoxUnits !== undefined ? med.openedBoxUnits : (totalStock % 100),
+                  units: med.units && med.units.length > 0 ? med.units : [
+                    { unitName: med.unit || 'Hộp', exchangeValue: 100, price: actualPrice, isBaseUnit: true },
+                    { unitName: 'Vỉ', exchangeValue: 10, price: Math.round(actualPrice / 10 * 1.05) },
+                    { unitName: 'Viên', exchangeValue: 1, price: Math.round(actualPrice / 100 * 1.1) }
+                  ],
                   minStock: 50,
                   status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
                   expiry: earliestExpiryStr,
@@ -607,6 +613,13 @@ export class MedicineService implements OnModuleInit {
               drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
               price: med.price || 50000,
               stock: totalStock,
+              unopenedBoxes: Math.max(0, Math.floor(totalStock / 100)),
+              openedBoxUnits: med.openedBoxUnits !== undefined ? med.openedBoxUnits : (totalStock % 100),
+              units: med.units && med.units.length > 0 ? med.units : [
+                { unitName: med.unit || 'Hộp', exchangeValue: 100, price: med.price || 50000, isBaseUnit: true },
+                { unitName: 'Vỉ', exchangeValue: 10, price: Math.round((med.price || 50000) / 10 * 1.05) },
+                { unitName: 'Viên', exchangeValue: 1, price: Math.round((med.price || 50000) / 100 * 1.1) }
+              ],
               minStock: 50,
               status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
               expiry: earliestExpiryStr,
@@ -627,16 +640,30 @@ export class MedicineService implements OnModuleInit {
           return {
             data: mappedData,
             total,
+            totalPages: Math.ceil(total / Number(limit)),
             page: Number(page),
             limit: Number(limit),
+            pagination: {
+              total,
+              totalPages: Math.ceil(total / Number(limit)),
+              page: Number(page),
+              limit: Number(limit),
+            },
           };
         }
 
         return {
           data: mappedAiData,
           total: aiTotal,
+          totalPages: Math.ceil(aiTotal / Number(limit)),
           page: Number(page),
           limit: Number(limit),
+          pagination: {
+            total: aiTotal,
+            totalPages: Math.ceil(aiTotal / Number(limit)),
+            page: Number(page),
+            limit: Number(limit),
+          },
         };
       } else {
         // MONGOOSE SCROLL (Default View)
@@ -715,8 +742,15 @@ export class MedicineService implements OnModuleInit {
         return {
           data: mappedData,
           total,
+          totalPages: Math.ceil(total / Number(limit)),
           page: Number(page),
           limit: Number(limit),
+          pagination: {
+            total,
+            totalPages: Math.ceil(total / Number(limit)),
+            page: Number(page),
+            limit: Number(limit),
+          },
         };
       }
     } catch (error) {
