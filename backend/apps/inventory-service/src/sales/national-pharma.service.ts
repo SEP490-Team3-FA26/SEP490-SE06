@@ -52,10 +52,11 @@ export class NationalPharmaService {
       chi_tiet_thuoc: (saleOrder.items || []).map((it: any) => ({
         ma_thuoc: it.medicineId,
         ten_thuoc: it.name,
-        don_vi_tinh: it.unit || 'Hộp',
+        don_vi_xuat_ban: it.unit || 'Hộp',
         so_luong: it.quantity,
         he_so_quy_doi: it.exchangeValue || 1,
-        so_luong_quy_doi: it.baseQuantity || it.quantity,
+        so_luong_quy_doi_co_so: it.baseQuantity || it.quantity,
+        don_vi_co_so: it.baseUnit || it.unit || 'Đơn vị chuẩn',
         don_gia: it.price,
         thanh_tien: it.price * it.quantity,
         lieu_dung: it.dosageInstructions || (it.dailyDose ? `Dùng ${it.dailyDose} ${it.unit}/ngày trong ${it.durationDays || 1} ngày` : 'Theo chỉ định'),

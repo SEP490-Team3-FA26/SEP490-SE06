@@ -386,15 +386,16 @@ export default function GPPView({ showToast }: GPPViewProps) {
     ma_thuoc: it.medicineId,
     ten_thuoc: it.name,
     so_luong_xuat: it.quantity,
-    don_vi_tinh: it.unit,
+    don_vi_xuat_ban: it.unit || "Hộp",
     he_so_quy_doi: it.exchangeValue || 1,
-    so_luong_vien_co_so: it.baseQuantity || it.quantity,
+    so_luong_quy_doi_co_so: it.baseQuantity || it.quantity,
+    don_vi_co_so: it.baseUnit || it.unit || "Đơn vị chuẩn",
     don_gia: it.price,
     thanh_tien: (it.price || 0) * (it.quantity || 1),
-    lieu_dung_ngay: it.dosageInstructions || "Uống theo chỉ định",
+    lieu_dung_dieu_tri: it.dosageInstructions || "Dùng theo chỉ định y khoa",
     lo_xuat_fefo: it.batches?.map((b: any) => ({
-      so_lo: b.batchNo,
-      so_luong: b.quantity
+      so_lo_san_xuat: b.batchNo,
+      so_luong_xuat_lo: b.quantity
     })) || []
   }))
 }, null, 2)}
