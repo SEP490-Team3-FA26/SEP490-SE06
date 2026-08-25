@@ -4,6 +4,7 @@ import RetailView from "./components/RetailView";
 import PrescriptionView from "./components/PrescriptionView";
 import WholesaleView from "./components/WholesaleView";
 import ReturnsView from "./components/ReturnsView";
+import GPPView from "./components/GPPView";
 
 export function Sales() {
   const [activeTab, setActiveTab] = useState("KÊ ĐƠN / PRESCRIPTION");
@@ -20,6 +21,7 @@ export function Sales() {
   const tabs = [
     "BÁN LẺ / RETAIL",
     "KÊ ĐƠN / PRESCRIPTION",
+    "LIÊN THÔNG DƯỢC QG / GPP SYNC",
     "BÁN SỈ / WHOLESALE",
     "TRÀ HÀNG / RETURNS",
   ];
@@ -47,6 +49,7 @@ export function Sales() {
       <div className="flex-1 overflow-hidden p-6">
         {activeTab === "BÁN LẺ / RETAIL" && <RetailView showToast={showToast} />}
         {activeTab === "KÊ ĐƠN / PRESCRIPTION" && <PrescriptionView showToast={showToast} />}
+        {activeTab === "LIÊN THÔNG DƯỢC QG / GPP SYNC" && <GPPView showToast={showToast} />}
         {activeTab === "BÁN SỈ / WHOLESALE" && <WholesaleView />}
         {activeTab === "TRÀ HÀNG / RETURNS" && <ReturnsView showToast={showToast} />}
       </div>
