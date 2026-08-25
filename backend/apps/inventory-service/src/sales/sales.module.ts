@@ -3,6 +3,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
+import { NationalPharmaService } from './national-pharma.service';
 import { SalesOrder, SalesOrderSchema } from './schemas/sales-order.schema';
 import { Prescription, PrescriptionSchema } from './schemas/prescription.schema';
 import { MedicineModule } from '../medicine/medicine.module';
@@ -32,6 +33,7 @@ import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/sc
     ]),
   ],
   controllers: [SalesController],
-  providers: [SalesService],
+  providers: [SalesService, NationalPharmaService],
+  exports: [SalesService, NationalPharmaService],
 })
 export class SalesModule { }

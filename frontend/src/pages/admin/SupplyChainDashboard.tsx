@@ -869,13 +869,13 @@ export function SupplyChainDashboard() {
       });
       setMapBranches(dynamicBranches.length > 0 ? dynamicBranches : BRANCHES_GEOGRAPHY);
 
-      // UC-30 Real-time Safe Stock Chain (Lấy tối đa 1000 sản phẩm toàn hệ thống)
+      // Real-time Safe Stock Chain (Lấy tối đa 1000 sản phẩm toàn hệ thống)
       const stockRes = await getSafeStockChain({ serviceLevel, periodDays, page, limit: 1000 });
       setStockData(stockRes.data || []);
       setStockTotal(stockRes.total || 0);
       setStockPage(page);
 
-      // UC-37 Anomaly detection
+      // Anomaly detection
       const anomalyRes = await getAnomalyDetection({ periodDays, zScoreThreshold: zScore });
       setAnomalies(anomalyRes.data || []);
     } catch (e) {
@@ -1760,7 +1760,7 @@ export function SupplyChainDashboard() {
 
       {/* ─── DIALOGS & DRAWERS ─── */}
       
-      {/* Detail Drawer (UC-30) */}
+      {/* Detail Drawer */}
       {selectedItem && <DetailDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />}
       
       {/* Branch Detail Modal */}
@@ -1772,7 +1772,7 @@ export function SupplyChainDashboard() {
         />
       )}
 
-      {/* Anomaly Detail Modal (UC-37) */}
+      {/* Anomaly Detail Modal */}
       {selectedAnomaly && <AnomalyModal anomaly={selectedAnomaly} onClose={() => setSelectedAnomaly(null)} />}
 
       {/* Advanced Settings Modal */}

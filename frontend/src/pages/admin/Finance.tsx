@@ -324,7 +324,7 @@ export function Finance() {
          {/* Header - Hidden in Print */}
          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
             <div>
-               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Kế toán & Quản lý Dòng tiền (UC-59)</h1>
+               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Kế toán & Quản lý Dòng tiền</h1>
                <p className="text-slate-500 mt-1">Báo cáo dòng tiền, doanh thu, chi phí cố định (mặt bằng, lương, điện nước...) và lợi nhuận ròng.</p>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
@@ -408,7 +408,7 @@ export function Finance() {
 
          {/* Print Header */}
          <div className="hidden print:block mb-8 text-center">
-            <h1 className="text-3xl font-black text-black">SỔ QUỸ & BÁO CÁO DÒNG TIỀN (UC-59)</h1>
+            <h1 className="text-3xl font-black text-black">SỔ QUỸ & BÁO CÁO DÒNG TIỀN</h1>
             <h2 className="text-xl font-bold mt-2">
                {selectedBranch === 'all'
                   ? 'Tất cả chi nhánh (Tổng hợp toàn hệ thống)'

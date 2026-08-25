@@ -25,6 +25,7 @@ export function WarehouseLayout() {
     },
     { name: "Nhật ký hệ thống", href: "/warehouse/audit-logs", icon: <ShieldCheck size={20} /> },
     { name: "Chuỗi cung ứng (Real-time)", href: "/warehouse/supply-chain", icon: <Link2 size={20} /> },
+    { name: "Dự báo Nhu cầu (AI)", href: "/warehouse/ai-forecast", icon: <Sparkles size={20} /> },
     { name: "AI Insights", href: "/warehouse/ai-insights", icon: <Sparkles size={20} /> },
   ];
 
