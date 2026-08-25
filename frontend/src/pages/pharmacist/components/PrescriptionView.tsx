@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, useRef, ChangeEvent } from "react";
 
 import {
   XCircle, AlertTriangle, CheckCircle2, QrCode, FileText, Stethoscope,
@@ -8,6 +8,7 @@ import {
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { orderService } from "../../../services/sales/order.service";
+import { voucherService } from "../../../services/sales/voucher.service";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -112,6 +113,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceData, setInvoiceData] = useState<any>(null);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
+  const [voucherError, setVoucherError] = useState("");
+  const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
 
   // Scan simulation states
   const [isScanning, setIsScanning] = useState(false);
@@ -411,6 +416,19 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   const [payosOrderCode, setPayosOrderCode] = useState<number | null>(null);
   const [payosPolling, setPayosPolling] = useState(false);
   const [pendingSalePayload, setPendingSalePayload] = useState<any>(null);
+  const payosPaidHandledRef = useRef(false);
+
+  const normalizeInvoiceResult = (result: any) => {
+    const source = result?.saleResult || result;
+    if (source?.data) return source;
+    const order = source?.order || result?.order || source;
+    return {
+      success: source?.success ?? result?.success ?? true,
+      message: source?.message || result?.message || "Thanh toán thành công!",
+      warnings: source?.warnings || result?.warnings || [],
+      data: order || {},
+    };
+  };
 
   const finalizeSalesOrder = async (payload: any) => {
     setLoading(true);
@@ -418,7 +436,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     try {
       const result = await orderService.createSale(payload);
 
-      setInvoiceData(result);
+      setInvoiceData(normalizeInvoiceResult(result));
       setShowInvoiceModal(true);
 
       // Clear forms
@@ -431,6 +449,9 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       setHospitalName("");
       setHospitalCode("");
       setPrescriptionCode("");
+      setAppliedVoucher(null);
+      setVoucherCode("");
+      setVoucherError("");
       fetchDbPrescriptions();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || "Lỗi thanh toán");
@@ -445,13 +466,13 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       interval = setInterval(async () => {
         try {
           const data = await orderService.checkOrderStatus(payosOrderCode);
-          if (data.status === "PAID") {
+          if (data.status === "PAID" && !payosPaidHandledRef.current) {
+            payosPaidHandledRef.current = true;
             setPayosPolling(false);
             setShowPayOSModal(false);
-            showToast("Thanh toán PayOS thành công!", "success");
-            setInvoiceData(data.saleResult || data);
+            setInvoiceData(normalizeInvoiceResult(data));
             setShowInvoiceModal(true);
-            
+
             // Clear forms
             setPrescriptionItems([]);
             setPatientName("");
@@ -462,6 +483,9 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
             setHospitalName("");
             setHospitalCode("");
             setPrescriptionCode("");
+            setAppliedVoucher(null);
+            setVoucherCode("");
+            setVoucherError("");
             fetchDbPrescriptions();
           }
         } catch (err) {
@@ -476,13 +500,13 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     if (!payosOrderCode) return;
     try {
       const data = await orderService.checkOrderStatus(payosOrderCode);
-      if (data.status === "PAID") {
+      if (data.status === "PAID" && !payosPaidHandledRef.current) {
+        payosPaidHandledRef.current = true;
         setPayosPolling(false);
         setShowPayOSModal(false);
-        showToast("Thanh toán PayOS thành công!", "success");
-        setInvoiceData(data.saleResult || data);
+        setInvoiceData(normalizeInvoiceResult(data));
         setShowInvoiceModal(true);
-        
+
         // Clear forms
         setPrescriptionItems([]);
         setPatientName("");
@@ -493,6 +517,9 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         setHospitalName("");
         setHospitalCode("");
         setPrescriptionCode("");
+        setAppliedVoucher(null);
+        setVoucherCode("");
+        setVoucherError("");
         fetchDbPrescriptions();
       } else {
         showToast("Hệ thống chưa ghi nhận được thanh toán. Vui lòng chuyển khoản lại hoặc đợi vài giây.", "warning");
@@ -517,7 +544,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     try {
       const { branchId: currentBranchId, fullName: currentUserName } = getBranchInfoFromToken();
       const code = prescriptionMode === "QR" && prescriptionCode ? prescriptionCode : `PRX-HAND-${Math.floor(10000 + Math.random() * 90000)}`;
-      
+
       const generatedOrderCode = Math.floor(10000000 + Math.random() * 90000000);
       const payload = {
         prescriptionCode: code,
@@ -547,6 +574,8 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
           patientName,
           patientPhone: patientPhone || "0900000000",
           totalAmount: total,
+          paymentMethod: "QR_PAY",
+          voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
           items: prescriptionItems.map(it => ({
             medicineId: it.medicineId,
             name: it.name,
@@ -558,6 +587,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
 
         payload.orderCode = payosResult.orderCode;
 
+        payosPaidHandledRef.current = false;
         setPayosCheckoutUrl(payosResult.checkoutUrl);
         setPayosQrCode(payosResult.qrCode || "");
         setPayosOrderCode(payosResult.orderCode);
@@ -577,8 +607,49 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   // Tính toán tiền đơn thuốc
   const subtotal = prescriptionItems.reduce((sum: number, it: any) => sum + (it.price * it.quantity), 0);
   const vipDiscount = Math.round(subtotal * 0.05); // 5% discount
-  const vat = Math.round((subtotal - vipDiscount) * 0.08); // 8% VAT
-  const total = subtotal - vipDiscount + vat;
+  const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
+  const vat = Math.round(Math.max(0, subtotal - vipDiscount - voucherDiscount) * 0.08); // 8% VAT
+  const total = Math.max(0, subtotal - vipDiscount - voucherDiscount + vat);
+
+  const handleApplyVoucher = async () => {
+    const code = voucherCode.trim().toUpperCase();
+    setVoucherError("");
+
+    if (!code) {
+      setVoucherError("Vui lòng nhập mã giảm giá");
+      return;
+    }
+
+    if (prescriptionItems.length === 0 || subtotal <= 0) {
+      setVoucherError("Vui lòng thêm thuốc trước khi áp dụng mã");
+      return;
+    }
+
+    setIsValidatingVoucher(true);
+    try {
+      const result = await voucherService.validateVoucher(code, subtotal);
+      if (result?.error) {
+        setVoucherError(result.message || "Mã giảm giá không hợp lệ");
+        setAppliedVoucher(null);
+        return;
+      }
+
+      setAppliedVoucher(result);
+      setVoucherCode("");
+      showToast(`Đã áp dụng mã ${result.code}`, "success");
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Không thể áp dụng mã giảm giá";
+      setVoucherError(msg);
+      setAppliedVoucher(null);
+    } finally {
+      setIsValidatingVoucher(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherError("");
+  };
 
   // Kiểm tra tương tác thuốc nguy hiểm (Clopidogrel + Omeprazole)
   const hasClopidogrel = prescriptionItems.some((it: any) => it.active_ingredient.toLowerCase().includes("clopidogrel") || it.name.toLowerCase().includes("plavix") || it.name.toLowerCase().includes("platarex"));
@@ -1130,6 +1201,12 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               <span className="text-slate-600">Giảm giá VIP (5%)</span>
               <span className="font-bold text-[#ba1a1a]">-{vipDiscount.toLocaleString()}₫</span>
             </div>
+            {appliedVoucher && (
+              <div className="flex justify-between items-center font-medium">
+                <span className="text-slate-600">Mã giảm giá ({appliedVoucher.code})</span>
+                <span className="font-bold text-[#ba1a1a]">-{voucherDiscount.toLocaleString()}₫</span>
+              </div>
+            )}
             <div className="flex justify-between items-center text-slate-600 font-medium">
               <span>Thuế VAT (8%)</span>
               <span className="font-bold text-slate-900">{vat.toLocaleString()}₫</span>
@@ -1142,6 +1219,47 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               <div className="text-[28px] font-black text-[#0057cd] tracking-tighter">{total.toLocaleString()}₫</div>
             </div>
           </div>
+        </div>
+
+        {/* Voucher */}
+        <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm">
+          <h3 className="text-[12px] font-black text-slate-500 uppercase tracking-widest mb-4">Áp dụng mã giảm giá</h3>
+          {appliedVoucher ? (
+            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-xs font-semibold text-emerald-800">
+              <div>
+                Mã đã dùng: <span className="font-extrabold uppercase">{appliedVoucher.code}</span>
+                <span className="block text-[10px] text-emerald-600 mt-0.5">Giảm -{voucherDiscount.toLocaleString()}₫</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveVoucher}
+                className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 text-md"
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nhập mã voucher..."
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white transition-all uppercase"
+              />
+              <button
+                type="button"
+                onClick={handleApplyVoucher}
+                disabled={isValidatingVoucher}
+                className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+              >
+                {isValidatingVoucher ? "..." : "Áp dụng"}
+              </button>
+            </div>
+          )}
+          {voucherError && (
+            <span className="block text-[10px] font-bold text-rose-600 uppercase mt-2">{voucherError}</span>
+          )}
         </div>
 
         {/* Phương thức thanh toán */}
@@ -1460,7 +1578,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                           <span>{it.quantity} {it.unit}</span>
                         </div>
                         <div className="text-[11px] text-slate-500 italic mt-0.5 pl-2">
-                          Lô xuất: {it.batches.map((b: any) => `${b.batchNo} (${b.quantity} ${it.unit})`).join(", ")}
+                          Lô xuất: {it.batches?.map((b: any) => `${b.batchNo} (${b.quantity} ${it.unit})`).join(", ") || "Kho quầy"}
                         </div>
                       </div>
                     ))}
@@ -1470,20 +1588,20 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 <div className="border-t border-slate-200 pt-3 flex flex-col gap-1.5">
                   <div className="flex justify-between text-slate-600">
                     <span>Tổng tiền hàng:</span>
-                    <span>{invoiceData.data.totalAmount.toLocaleString()}₫</span>
+                    <span>{(invoiceData.data?.totalAmount || total).toLocaleString()}₫</span>
                   </div>
                   <div className="flex justify-between text-[#ba1a1a]">
                     <span>Ưu đãi thành viên (5%):</span>
-                    <span>-{Math.round(invoiceData.data.totalAmount * 0.05).toLocaleString()}₫</span>
+                    <span>-{Math.round((invoiceData.data?.totalAmount || total) * 0.05).toLocaleString()}₫</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Thuế VAT (8%):</span>
-                    <span>{Math.round(invoiceData.data.totalAmount * 0.95 * 0.08).toLocaleString()}₫</span>
+                    <span>{Math.round((invoiceData.data?.totalAmount || total) * 0.95 * 0.08).toLocaleString()}₫</span>
                   </div>
                   <div className="flex justify-between font-black text-slate-900 text-[16px] border-t border-slate-200 pt-2.5">
                     <span>TỔNG THÀNH TIỀN:</span>
                     <span className="text-[#0057cd]">
-                      {Math.round(invoiceData.data.totalAmount * 0.95 * 1.08).toLocaleString()}₫
+                      {Math.round((invoiceData.data?.totalAmount || total) * 0.95 * 1.08).toLocaleString()}₫
                     </span>
                   </div>
                 </div>
@@ -1512,45 +1630,98 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
        * 🤖 MODAL QUÉT ĐƠN THUỐC AI GEMINI FLASH (SIDE-BY-SIDE)
        * ======================================= */}
       {showAIScanModal && (
-        <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-full max-w-6xl h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
-                  <Sparkles size={22} className="animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-lg tracking-wide flex items-center gap-2">
-                    Quét Ảnh Đơn Thuốc Bằng AI Gemini 2.5 Flash
-                    <span className="text-[11px] font-bold bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-400/30">Vision & FEFO Match</span>
-                  </h3>
-                  <p className="text-xs text-slate-400">Tự động đọc hiểu layout, trích xuất hoạt chất, chuẩn hóa liều dùng & gán lô HSD gần nhất</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowAIScanModal(false);
-                  setAiScanResult(null);
-                  setAiFiles([]);
-                  setAiPreviewUrls([]);
-                }}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <XCircle size={24} />
-              </button>
+    <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-full max-w-6xl h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+              <Sparkles size={22} className="animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-lg tracking-wide flex items-center gap-2">
+                Quét Ảnh Đơn Thuốc Bằng AI Gemini 2.5 Flash
+                <span className="text-[11px] font-bold bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-400/30">Vision & FEFO Match</span>
+              </h3>
+              <p className="text-xs text-slate-400">Tự động đọc hiểu layout, trích xuất hoạt chất, chuẩn hóa liều dùng & gán lô HSD gần nhất</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setShowAIScanModal(false);
+              setAiScanResult(null);
+              setAiFiles([]);
+              setAiPreviewUrls([]);
+            }}
+            className="text-slate-400 hover:text-white transition-colors"
+          >
+            <XCircle size={24} />
+          </button>
+        </div>
+
+        {/* Body: Side-by-side Layout */}
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-100">
+          {/* Left Column: Multi-page Upload & Image Viewer */}
+          <div className="w-full md:w-5/12 p-4 border-r border-slate-200 flex flex-col gap-4 bg-white overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <FileText size={16} className="text-indigo-600" /> Tập tin đơn thuốc ({aiFiles.length} trang)
+              </h4>
+              <label className="cursor-pointer text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-all flex items-center gap-1">
+                + Thêm trang đơn
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleAISourceFileChange}
+                />
+              </label>
             </div>
 
-            {/* Body: Side-by-side Layout */}
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-100">
-              {/* Left Column: Multi-page Upload & Image Viewer */}
-              <div className="w-full md:w-5/12 p-4 border-r border-slate-200 flex flex-col gap-4 bg-white overflow-y-auto">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText size={16} className="text-indigo-600" /> Tập tin đơn thuốc ({aiFiles.length} trang)
-                  </h4>
-                  <label className="cursor-pointer text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-all flex items-center gap-1">
-                    + Thêm trang đơn
+            {/* Thumbnails list */}
+            {aiPreviewUrls.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                {aiPreviewUrls.map((url, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setActivePreviewIdx(idx)}
+                    className={`relative w-20 h-24 rounded-xl border-2 overflow-hidden shrink-0 cursor-pointer transition-all ${activePreviewIdx === idx ? 'border-indigo-600 shadow-md ring-2 ring-indigo-200' : 'border-slate-200 opacity-70 hover:opacity-100'}`}
+                  >
+                    <img src={url} alt={`Page ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRemoveAIFile(idx); }}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-700 shadow"
+                    >
+                      <XCircle size={12} />
+                    </button>
+                    <span className="absolute bottom-1 left-1 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                      Trang {idx + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Full Image Preview Container */}
+            <div className="flex-1 min-h-[300px] bg-slate-900 rounded-2xl border border-slate-200 overflow-hidden relative flex items-center justify-center">
+              {aiPreviewUrls.length > 0 ? (
+                <img
+                  src={aiPreviewUrls[activePreviewIdx] || aiPreviewUrls[0]}
+                  alt="Prescription preview"
+                  className="max-h-full max-w-full object-contain p-2"
+                />
+              ) : (
+                <div className="p-8 text-center flex flex-col items-center gap-3 text-slate-400">
+                  <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+                    <FileText size={32} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm text-slate-300">Chưa có ảnh đơn thuốc nào</p>
+                    <p className="text-xs text-slate-500 mt-1">Kéo thả hoặc tải lên tập tin ảnh đơn thuốc của khách hàng</p>
+                  </div>
+                  <label className="cursor-pointer mt-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">
+                    Tải ảnh lên ngay
                     <input
                       type="file"
                       accept="image/*"
@@ -1560,241 +1731,186 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                     />
                   </label>
                 </div>
+              )}
+            </div>
 
-                {/* Thumbnails list */}
-                {aiPreviewUrls.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                    {aiPreviewUrls.map((url, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => setActivePreviewIdx(idx)}
-                        className={`relative w-20 h-24 rounded-xl border-2 overflow-hidden shrink-0 cursor-pointer transition-all ${activePreviewIdx === idx ? 'border-indigo-600 shadow-md ring-2 ring-indigo-200' : 'border-slate-200 opacity-70 hover:opacity-100'}`}
-                      >
-                        <img src={url} alt={`Page ${idx + 1}`} className="w-full h-full object-cover" />
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleRemoveAIFile(idx); }}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-700 shadow"
-                        >
-                          <XCircle size={12} />
-                        </button>
-                        <span className="absolute bottom-1 left-1 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                          Trang {idx + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+            {/* Scan Action Button */}
+            {aiFiles.length > 0 && !aiScanResult && (
+              <button
+                onClick={handleExecuteAIScan}
+                disabled={aiLoading}
+                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
+              >
+                {aiLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Gemini Flash đang đọc & khớp DB...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} /> Phân Tích & Khớp Sản Phẩm (Gemini AI)
+                  </>
                 )}
+              </button>
+            )}
+          </div>
 
-                {/* Full Image Preview Container */}
-                <div className="flex-1 min-h-[300px] bg-slate-900 rounded-2xl border border-slate-200 overflow-hidden relative flex items-center justify-center">
-                  {aiPreviewUrls.length > 0 ? (
-                    <img
-                      src={aiPreviewUrls[activePreviewIdx] || aiPreviewUrls[0]}
-                      alt="Prescription preview"
-                      className="max-h-full max-w-full object-contain p-2"
-                    />
-                  ) : (
-                    <div className="p-8 text-center flex flex-col items-center gap-3 text-slate-400">
-                      <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
-                        <FileText size={32} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-slate-300">Chưa có ảnh đơn thuốc nào</p>
-                        <p className="text-xs text-slate-500 mt-1">Kéo thả hoặc tải lên tập tin ảnh đơn thuốc của khách hàng</p>
-                      </div>
-                      <label className="cursor-pointer mt-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">
-                        Tải ảnh lên ngay
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={handleAISourceFileChange}
-                        />
-                      </label>
+          {/* Right Column: AI Extraction & FEFO Matching Results */}
+          <div className="w-full md:w-7/12 p-5 flex flex-col gap-4 overflow-y-auto bg-slate-50">
+            {!aiScanResult ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                <div className="w-20 h-20 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4 shadow-sm">
+                  <Sparkles size={36} />
+                </div>
+                <h4 className="font-extrabold text-slate-800 text-base">Sẵn sàng bóc tách đơn thuốc bằng AI</h4>
+                <p className="text-xs text-slate-500 max-w-md mt-1">
+                  Sau khi phân tích, hệ thống Gemini 2.5 Flash sẽ tự động trích xuất thông tin bệnh nhân, chuẩn hóa tên biệt dược & hoạt chất, và tự chọn Lô HSD gần nhất (FEFO) trong CSDL chi nhánh.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {/* Header bar: Patient summary & Processing stats */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Thông tin đơn thuốc</div>
+                    <div className="font-black text-slate-900 text-base flex items-center gap-2 mt-0.5">
+                      {aiScanResult.patient?.name || "Khách lẻ"}
+                      {aiScanResult.patient?.age && <span className="text-xs font-bold text-slate-500">({aiScanResult.patient.age} tuổi, {aiScanResult.patient.gender || "Nam"})</span>}
                     </div>
-                  )}
+                    {aiScanResult.patient?.diagnosis && (
+                      <div className="text-xs text-indigo-700 font-semibold mt-0.5">Chẩn đoán: {aiScanResult.patient.diagnosis}</div>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end text-[11px] font-bold text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    <span className="text-indigo-600">Thời gian AI: {aiScanResult.processing_time_sec}s {aiScanResult.from_cache && '(Cache Hit⚡)'}</span>
+                    <span>Mã quét: {aiScanResult.scan_id}</span>
+                    <span className="text-slate-400">Prompt: {aiScanResult.prompt_version}</span>
+                  </div>
                 </div>
 
-                {/* Scan Action Button */}
-                {aiFiles.length > 0 && !aiScanResult && (
-                  <button
-                    onClick={handleExecuteAIScan}
-                    disabled={aiLoading}
-                    className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
-                  >
-                    {aiLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Gemini Flash đang đọc & khớp DB...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={18} /> Phân Tích & Khớp Sản Phẩm (Gemini AI)
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* Right Column: AI Extraction & FEFO Matching Results */}
-              <div className="w-full md:w-7/12 p-5 flex flex-col gap-4 overflow-y-auto bg-slate-50">
-                {!aiScanResult ? (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
-                    <div className="w-20 h-20 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4 shadow-sm">
-                      <Sparkles size={36} />
+                {/* Warnings list if any */}
+                {aiScanResult.validation_warnings && aiScanResult.validation_warnings.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-amber-900 text-xs">
+                    <div className="font-bold uppercase flex items-center gap-1.5 mb-1 text-amber-800">
+                      <AlertTriangle size={15} /> Cảnh báo kiểm soát nghiệp vụ:
                     </div>
-                    <h4 className="font-extrabold text-slate-800 text-base">Sẵn sàng bóc tách đơn thuốc bằng AI</h4>
-                    <p className="text-xs text-slate-500 max-w-md mt-1">
-                      Sau khi phân tích, hệ thống Gemini 2.5 Flash sẽ tự động trích xuất thông tin bệnh nhân, chuẩn hóa tên biệt dược & hoạt chất, và tự chọn Lô HSD gần nhất (FEFO) trong CSDL chi nhánh.
-                    </p>
+                    <ul className="list-disc pl-5 space-y-0.5 font-medium">
+                      {aiScanResult.validation_warnings.map((w: string, i: number) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
                   </div>
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    {/* Header bar: Patient summary & Processing stats */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                      <div>
-                        <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Thông tin đơn thuốc</div>
-                        <div className="font-black text-slate-900 text-base flex items-center gap-2 mt-0.5">
-                          {aiScanResult.patient?.name || "Khách lẻ"}
-                          {aiScanResult.patient?.age && <span className="text-xs font-bold text-slate-500">({aiScanResult.patient.age} tuổi, {aiScanResult.patient.gender || "Nam"})</span>}
-                        </div>
-                        {aiScanResult.patient?.diagnosis && (
-                          <div className="text-xs text-indigo-700 font-semibold mt-0.5">Chẩn đoán: {aiScanResult.patient.diagnosis}</div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end text-[11px] font-bold text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-indigo-600">Thời gian AI: {aiScanResult.processing_time_sec}s {aiScanResult.from_cache && '(Cache Hit⚡)'}</span>
-                        <span>Mã quét: {aiScanResult.scan_id}</span>
-                        <span className="text-slate-400">Prompt: {aiScanResult.prompt_version}</span>
-                      </div>
-                    </div>
+                )}
 
-                    {/* Warnings list if any */}
-                    {aiScanResult.validation_warnings && aiScanResult.validation_warnings.length > 0 && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-amber-900 text-xs">
-                        <div className="font-bold uppercase flex items-center gap-1.5 mb-1 text-amber-800">
-                          <AlertTriangle size={15} /> Cảnh báo kiểm soát nghiệp vụ:
-                        </div>
-                        <ul className="list-disc pl-5 space-y-0.5 font-medium">
-                          {aiScanResult.validation_warnings.map((w: string, i: number) => (
-                            <li key={i}>{w}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                {/* Extracted items table */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-900 text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center">
+                    <span>Danh mục thuốc bóc tách & Khớp CSDL chi nhánh</span>
+                    <span className="text-[11px] font-normal text-slate-300">Tổng: {aiScanResult.items?.length || 0} sản phẩm</span>
+                  </div>
 
-                    {/* Extracted items table */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className="px-4 py-3 bg-slate-900 text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center">
-                        <span>Danh mục thuốc bóc tách & Khớp CSDL chi nhánh</span>
-                        <span className="text-[11px] font-normal text-slate-300">Tổng: {aiScanResult.items?.length || 0} sản phẩm</span>
-                      </div>
+                  <div className="divide-y divide-slate-100">
+                    {aiScanResult.items?.map((item: any, idx: number) => {
+                      const ext = item.extracted;
+                      const sku = item.selected_sku;
+                      const fefo = item.fefo_batch;
+                      const status = item.match_status;
 
-                      <div className="divide-y divide-slate-100">
-                        {aiScanResult.items?.map((item: any, idx: number) => {
-                          const ext = item.extracted;
-                          const sku = item.selected_sku;
-                          const fefo = item.fefo_batch;
-                          const status = item.match_status;
+                      return (
+                        <div key={idx} className="p-4 flex flex-col gap-2.5 hover:bg-slate-50/80 transition-colors">
+                          {/* Top row: Match status pill & Raw text */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              {status === "EXACT_MATCH" && (
+                                <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-[10px] rounded-full border border-emerald-300 flex items-center gap-1">
+                                  🟢 Khớp SKU 100%
+                                </span>
+                              )}
+                              {status === "SUBSTITUTE_AVAILABLE" && (
+                                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[10px] rounded-full border border-amber-300 flex items-center gap-1">
+                                  🟡 Khớp Hoạt Chất (Thay thế)
+                                </span>
+                              )}
+                              {status === "NOT_FOUND" && (
+                                <span className="px-2.5 py-0.5 bg-red-100 text-red-800 font-extrabold text-[10px] rounded-full border border-red-300 flex items-center gap-1">
+                                  🔴 Chưa thấy trong CSDL
+                                </span>
+                              )}
+                              <span className="text-xs font-mono font-bold text-slate-500">#{ext.item_index || idx + 1}</span>
+                            </div>
+                            <div className="text-[11px] font-bold text-slate-400">
+                              Confidence: <span className={ext.confidence?.overall >= 0.85 ? "text-emerald-600" : "text-amber-600 font-black"}>{(ext.confidence?.overall * 100).toFixed(0)}%</span>
+                            </div>
+                          </div>
 
-                          return (
-                            <div key={idx} className="p-4 flex flex-col gap-2.5 hover:bg-slate-50/80 transition-colors">
-                              {/* Top row: Match status pill & Raw text */}
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  {status === "EXACT_MATCH" && (
-                                    <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-[10px] rounded-full border border-emerald-300 flex items-center gap-1">
-                                      🟢 Khớp SKU 100%
-                                    </span>
-                                  )}
-                                  {status === "SUBSTITUTE_AVAILABLE" && (
-                                    <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[10px] rounded-full border border-amber-300 flex items-center gap-1">
-                                      🟡 Khớp Hoạt Chất (Thay thế)
-                                    </span>
-                                  )}
-                                  {status === "NOT_FOUND" && (
-                                    <span className="px-2.5 py-0.5 bg-red-100 text-red-800 font-extrabold text-[10px] rounded-full border border-red-300 flex items-center gap-1">
-                                      🔴 Chưa thấy trong CSDL
-                                    </span>
-                                  )}
-                                  <span className="text-xs font-mono font-bold text-slate-500">#{ext.item_index || idx + 1}</span>
-                                </div>
-                                <div className="text-[11px] font-bold text-slate-400">
-                                  Confidence: <span className={ext.confidence?.overall >= 0.85 ? "text-emerald-600" : "text-amber-600 font-black"}>{(ext.confidence?.overall * 100).toFixed(0)}%</span>
-                                </div>
+                          {/* Details comparison */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">1. Đọc từ ảnh đơn:</span>
+                              <div className="font-extrabold text-slate-900 mt-0.5">{ext.raw_text}</div>
+                              <div className="text-slate-500 mt-0.5">
+                                Hoạt chất: <span className="font-semibold text-slate-700">{ext.generic_name || "N/A"}</span> | Hàm lượng: {ext.strength || "N/A"}
                               </div>
-
-                              {/* Details comparison */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase">1. Đọc từ ảnh đơn:</span>
-                                  <div className="font-extrabold text-slate-900 mt-0.5">{ext.raw_text}</div>
-                                  <div className="text-slate-500 mt-0.5">
-                                    Hoạt chất: <span className="font-semibold text-slate-700">{ext.generic_name || "N/A"}</span> | Hàm lượng: {ext.strength || "N/A"}
-                                  </div>
-                                  <div className="text-slate-500 mt-0.5">
-                                    Liều dùng: <span className="font-semibold text-indigo-700">{ext.usage_instruction || "Theo chỉ định bác sĩ"}</span>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase">2. Khớp SKU Bán hàng & FEFO:</span>
-                                  {sku ? (
-                                    <div>
-                                      <div className="font-extrabold text-indigo-900 mt-0.5">{sku.product_name}</div>
-                                      <div className="text-slate-600 font-bold mt-0.5">
-                                        Giá: {sku.retail_price?.toLocaleString()}₫/{sku.unit} | Tồn kho: <span className={sku.stock > 0 ? "text-emerald-700 font-black" : "text-red-600 font-black"}>{sku.stock} {sku.unit}</span>
-                                      </div>
-                                      {fefo ? (
-                                        <div className="text-[11px] font-bold text-emerald-700 mt-0.5 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
-                                          Lô FEFO: {fefo.batch_no} (HSD: {fefo.exp_date})
-                                        </div>
-                                      ) : (
-                                        <div className="text-[11px] text-amber-700 font-semibold mt-0.5">Lô mặc định</div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="text-red-600 font-bold mt-1">Không tìm thấy mã thuốc phù hợp trong CSDL chi nhánh</div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Quantity & Actions */}
-                              <div className="flex items-center justify-between text-xs pt-1">
-                                <div className="font-bold text-slate-700">
-                                  Số lượng mua đề xuất: <span className="text-indigo-600 font-black text-sm">{ext.quantity} {ext.unit}</span>
-                                </div>
+                              <div className="text-slate-500 mt-0.5">
+                                Liều dùng: <span className="font-semibold text-indigo-700">{ext.usage_instruction || "Theo chỉ định bác sĩ"}</span>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
 
-                    {/* Bottom Actions */}
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        onClick={handleApplyAIScanToCart}
-                        className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
-                      >
-                        <ShoppingCart size={18} /> Đưa toàn bộ vào Đơn hàng POS (1-Click)
-                      </button>
-                      <button
-                        onClick={() => { setAiScanResult(null); }}
-                        className="px-5 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
-                      >
-                        Quét đơn khác
-                      </button>
-                    </div>
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">2. Khớp SKU Bán hàng & FEFO:</span>
+                              {sku ? (
+                                <div>
+                                  <div className="font-extrabold text-indigo-900 mt-0.5">{sku.product_name}</div>
+                                  <div className="text-slate-600 font-bold mt-0.5">
+                                    Giá: {sku.retail_price?.toLocaleString()}₫/{sku.unit} | Tồn kho: <span className={sku.stock > 0 ? "text-emerald-700 font-black" : "text-red-600 font-black"}>{sku.stock} {sku.unit}</span>
+                                  </div>
+                                  {fefo ? (
+                                    <div className="text-[11px] font-bold text-emerald-700 mt-0.5 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                                      Lô FEFO: {fefo.batch_no} (HSD: {fefo.exp_date})
+                                    </div>
+                                  ) : (
+                                    <div className="text-[11px] text-amber-700 font-semibold mt-0.5">Lô mặc định</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-red-600 font-bold mt-1">Không tìm thấy mã thuốc phù hợp trong CSDL chi nhánh</div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quantity & Actions */}
+                          <div className="flex items-center justify-between text-xs pt-1">
+                            <div className="font-bold text-slate-700">
+                              Số lượng mua đề xuất: <span className="text-indigo-600 font-black text-sm">{ext.quantity} {ext.unit}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
+
+                {/* Bottom Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleApplyAIScanToCart}
+                    className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <ShoppingCart size={18} /> Đưa toàn bộ vào Đơn hàng POS (1-Click)
+                  </button>
+                  <button
+                    onClick={() => { setAiScanResult(null); }}
+                    className="px-5 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    Quét đơn khác
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
+    )}
     </div>
   );
 }
-

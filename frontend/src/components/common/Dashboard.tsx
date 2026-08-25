@@ -436,7 +436,7 @@ export function DashboardHome() {
       {/* ─── 1. TOP HERO HEADER & SYSTEM STATUS ─── */}
       <div className="bg-gradient-to-r from-white via-white to-blue-50/50 p-6 md:p-8 rounded-3xl border border-slate-200/80 shadow-sm relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-full bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
-        
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
