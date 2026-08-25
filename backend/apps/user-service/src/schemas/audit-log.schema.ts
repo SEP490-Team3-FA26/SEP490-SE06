@@ -92,6 +92,25 @@ export class AuditLog {
   @Prop({ type: String, default: null })
   error: string; // Error logs/stacktrace if failed
 
+  // --- Chuẩn Lưu Trữ Dữ Liệu Y Tế 50 Năm (50-Year Medical Audit Trail) ---
+  @Prop({ type: String, default: 'MEDICAL_AUDIT_50_YEARS' })
+  retentionPolicy?: string;
+
+  @Prop({ type: Number, default: 50 })
+  retentionYears?: number;
+
+  @Prop({ type: Date, default: () => new Date(Date.now() + 50 * 365.25 * 24 * 3600 * 1000) })
+  retentionExpiresAt?: Date;
+
+  @Prop({ type: String, default: 'HOT', enum: ['HOT', 'WARM', 'COLD_ARCHIVE'], index: true })
+  storageTier?: string;
+
+  @Prop({ type: String })
+  immutableHash?: string; // SHA-256 Checksum bảo chứng bất biến (WORM)
+
+  @Prop({ type: Boolean, default: false })
+  legalHold?: boolean;
+
   // Note: timestamps: true will automatically generate createdAt and updatedAt
   createdAt?: Date;
   updatedAt?: Date;
@@ -99,12 +118,14 @@ export class AuditLog {
 
 export const AuditLogSchema = SchemaFactory.createForClass(AuditLog);
 
-// 1. TTL Index: Automatically expire logs after 365 days (31536000 seconds)
-// Cleaned up asynchronously by MongoDB's TTL Monitor thread (usually runs every 60s)
-AuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 31536000 });
+// 1. TTL Index: Lưu trữ 50 năm theo Chuẩn Hồ sơ Y tế (50 * 365.25 * 86400 = 1,577,880,000 giây)
+AuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 1577880000 });
 
 // 2. High-performance Full-Text Index on search fields (replaces slow $regex searches)
 AuditLogSchema.index(
   { username: 'text', actionName: 'text', endpoint: 'text', entityId: 'text', summary: 'text' },
   { name: 'audit_logs_text_index' }
 );
+AuditLogSchema.index({ storageTier: 1, createdAt: -1 });
+AuditLogSchema.index({ retentionExpiresAt: 1 });
+

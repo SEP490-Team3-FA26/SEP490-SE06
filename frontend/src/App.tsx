@@ -59,6 +59,7 @@ import { SupplierCreditManagement } from "./pages/admin/SupplierCreditManagement
 import { AuditLogs } from "./pages/admin/AuditLogs";
 import { QuotaManagement } from "./pages/admin/QuotaManagement";
 import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
+import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
 
 // Branch Pages
 import { BranchRequisition } from "./pages/branch/BranchRequisition";
@@ -127,6 +128,7 @@ export default function App() {
             <Route path="supplier-credit" element={<SupplierCreditManagement />} />
             <Route path="reports" element={<Reports />} />
             <Route path="audit-logs" element={<AuditLogs />} />
+            <Route path="data-retention" element={<DataRetentionTraceability />} />
             <Route path="supply-chain" element={<SupplyChainDashboard />} />
             <Route path="ai-insights" element={<AIInsights />} />
             <Route path="ai-forecast" element={<AIForecast />} />

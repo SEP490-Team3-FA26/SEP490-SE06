@@ -118,6 +118,28 @@ export class SalesOrder extends Document {
   @Prop({ type: String, default: 'Đồng bộ thành công lên CSDL Dược Quốc gia (GPP)' })
   nationalSyncMessage?: string;
 
+  // --- Chuẩn Lưu Trữ Dữ Liệu Y Tế 50 Năm & Truy Xuất Nguồn Gốc (Data Retention & Traceability) ---
+  @Prop({ type: String, default: 'MEDICAL_50_YEARS_EMR' })
+  retentionPolicy?: string;
+
+  @Prop({ type: Number, default: 50 })
+  retentionYears?: number;
+
+  @Prop({ type: Date, default: () => new Date(Date.now() + 50 * 365.25 * 24 * 3600 * 1000) })
+  retentionExpiresAt?: Date;
+
+  @Prop({ type: String, default: 'HOT', enum: ['HOT', 'WARM', 'COLD_ARCHIVE'], index: true })
+  storageTier?: string;
+
+  @Prop({ type: String })
+  immutableHash?: string; // SHA-256 Checksum bảo chứng tính toàn vẹn bất biến
+
+  @Prop({ type: Boolean, default: false })
+  legalHold?: boolean; // Khóa phong tỏa pháp lý
+
+  @Prop({ type: String, index: true })
+  traceabilityId?: string; // Mã định danh phả hệ truy xuất nguồn gốc thuốc
+
   @Prop({ type: [Object], default: [] })
   returns: any[];
 
@@ -130,3 +152,5 @@ export const SalesOrderSchema = SchemaFactory.createForClass(SalesOrder);
 // Tối ưu hóa Index MongoDB cho SalesOrder
 SalesOrderSchema.index({ branchId: 1, createdAt: -1 });
 SalesOrderSchema.index({ nationalSyncStatus: 1, createdAt: -1 });
+SalesOrderSchema.index({ storageTier: 1, createdAt: -1 });
+SalesOrderSchema.index({ retentionExpiresAt: 1 });
