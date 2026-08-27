@@ -55,7 +55,7 @@ export class SalesController {
     }
   }
 
-  // UC-08	Xử lý đổi / trả hàng
+  // Xử lý đổi / trả hàng
 
   @MessagePattern('inventory.sale.get')
   async getSalesOrderById(@Payload() data: { id: string }) {

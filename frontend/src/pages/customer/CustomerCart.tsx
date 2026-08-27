@@ -9,7 +9,7 @@ export function CustomerCart() {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState<any[]>([]);
   const updateQuantityTimerRef = useRef<any>(null);
-  
+
   // AI Interaction check states
   const [checkingInteraction, setCheckingInteraction] = useState(false);
   const [interactionResult, setInteractionResult] = useState<any>(null);
@@ -40,7 +40,7 @@ export function CustomerCart() {
       }
       return;
     }
-    
+
     try {
       const data = await cartService.getCart();
       setCartItems(data.items || []);
@@ -193,7 +193,7 @@ export function CustomerCart() {
 
     try {
       const medicineNames = cartItems.map((it) => it.name);
-      
+
       const data = await medicineService.checkInteraction(medicineNames);
       setInteractionResult(data);
     } catch (err: any) {
@@ -234,7 +234,7 @@ export function CustomerCart() {
         <div className="flex flex-col xl:flex-row gap-8 items-start">
           {/* Left: Cart Items List */}
           <div className="flex-1 flex flex-col gap-6 w-full">
-            
+
             {/* Price change notification banner */}
             {hasPriceChangedItem && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm flex items-start gap-3.5">
@@ -306,13 +306,12 @@ export function CustomerCart() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-500">Mức độ cảnh báo:</span>
                       <span
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                          interactionResult.severity === "Cao"
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${interactionResult.severity === "Cao"
                             ? "bg-red-100 text-red-800 animate-bounce"
                             : interactionResult.severity === "Trung bình"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-emerald-100 text-emerald-800"
-                        }`}
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
                       >
                         {interactionResult.severity || "An toàn / Safe"}
                       </span>
@@ -437,7 +436,7 @@ export function CustomerCart() {
 
           {/* Right: Payment Sidebar */}
           <div className="w-full xl:w-[360px] flex flex-col gap-6 shrink-0 lg:sticky lg:top-24">
-            
+
             {/* Promos */}
             <div className="bg-white border border-slate-200 rounded-[20px] p-5 shadow-sm">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Ưu Đãi Thành Viên</span>
@@ -493,7 +492,7 @@ export function CustomerCart() {
             {/* Total breakdown */}
             <div className="bg-white border border-slate-200 rounded-[20px] p-6 shadow-sm flex flex-col gap-4">
               <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider border-b border-slate-100 pb-3">Tóm tắt giỏ hàng</h3>
-              
+
               <div className="flex flex-col gap-2.5 text-xs font-semibold text-slate-600">
                 <div className="flex justify-between items-center">
                   <span>Tạm tính / Subtotal</span>
@@ -557,14 +556,14 @@ export function CustomerCart() {
             <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#0d6efd] flex items-center justify-center mb-5 border border-blue-100 shadow-inner animate-pulse">
               <Info size={28} />
             </div>
-            
+
             <h3 className="text-md font-black text-slate-800 tracking-tight mb-2">
               {alertModal.title || "Thông báo"}
             </h3>
             <p className="text-slate-500 text-xs font-semibold leading-relaxed max-w-xs mb-6">
               {alertModal.message}
             </p>
-            
+
             <button
               onClick={() => {
                 if (alertModal.onConfirm) {

@@ -54,7 +54,7 @@ export class PurchaseOrder extends Document {
   expectedIncoming: number;
 
   @Prop({ type: String, default: 'PAID', enum: ['PAID', 'CREDIT'] })
-  paymentType: string; // Thanh toán ngay (PAID) vs Mua nợ (CREDIT) — UC-07
+  paymentType: string; // Thanh toán ngay (PAID) vs Mua nợ (CREDIT)
 
   createdAt: Date;
   updatedAt: Date;

@@ -79,11 +79,11 @@ export class MedicineController implements OnModuleInit {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.dropdown_list', {});
   }
 
-  // UC-30: Tồn kho thời gian thực toàn chuỗi + Thuật toán tồn kho an toàn
+  // Tồn kho thời gian thực toàn chuỗi + Thuật toán tồn kho an toàn
   @Get('safe-stock-chain')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '[UC-30] Xem tồn kho thời gian thực toàn chuỗi + phân tích an toàn' })
+  @ApiOperation({ summary: 'Xem tồn kho thời gian thực toàn chuỗi + phân tích an toàn' })
   @ApiQuery({ name: 'serviceLevel', required: false, type: Number, description: 'Mức phục vụ: 0.90/0.95/0.98/0.99', example: 0.95 })
   @ApiQuery({ name: 'periodDays', required: false, type: Number, description: 'Kỳ phân tích (ngày)', example: 30 })
   @ApiQuery({ name: 'branchId', required: false, type: String, description: 'Lọc theo chi nhánh' })
@@ -105,11 +105,11 @@ export class MedicineController implements OnModuleInit {
     });
   }
 
-  // UC-37: Phát hiện bất thường tồn kho (Z-Score / 3-Sigma Thống Kê Thuần Túy)
+  // Phát hiện bất thường tồn kho (Z-Score / 3-Sigma Thống Kê Thuần Túy)
   @Get('anomaly-detection')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '[UC-37] Phát hiện bất thường tồn kho bằng Z-Score / 3-Sigma' })
+  @ApiOperation({ summary: 'Phát hiện bất thường tồn kho bằng Z-Score / 3-Sigma' })
   @ApiQuery({ name: 'periodDays', required: false, type: Number, description: 'Kỳ phân tích (ngày)', example: 60 })
   @ApiQuery({ name: 'zScoreThreshold', required: false, type: Number, description: 'Ngưỡng Z-Score (mặc định: 3)', example: 3 })
   async getAnomalyDetection(
@@ -183,7 +183,7 @@ export class MedicineController implements OnModuleInit {
   }
 
   @Get(':id/alternatives')
-  @ApiOperation({ summary: 'Tìm các loại thuốc thay thế (UC-36)' })
+  @ApiOperation({ summary: 'Tìm các loại thuốc thay thế' })
   @ApiQuery({ name: 'branchId', required: true, type: String })
   async getAlternatives(@Param('id') id: string, @Query('branchId') branchId: string) {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_alternatives', { medicineId: id, branchId });

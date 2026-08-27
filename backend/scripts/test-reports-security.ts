@@ -74,7 +74,7 @@ function get(url: string, token?: string): Promise<{ statusCode: number; data: a
 }
 
 async function run() {
-  console.log('=== STARTING SECURITY & AUTHORIZATION TESTS FOR UC-25 ===\n');
+  console.log('=== STARTING SECURITY & AUTHORIZATION TESTS ===\n');
 
   let adminToken = '';
   let branchToken = '';

@@ -1091,10 +1091,29 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                   </div>
                 </div>
 
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5 mb-2">
+                  <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={16} />
+                  </div>
+                  <div className="flex-1 font-sans">
+                    <div className="font-black text-emerald-900 text-xs flex items-center gap-1.5">
+                      🟢 ĐÃ LIÊN THÔNG BIÊN BẢN TRẢ/ĐỔI HÀNG (GPP RETURN SYNC)
+                    </div>
+                    <div className="text-[11px] text-emerald-800 mt-0.5 flex flex-wrap gap-x-3">
+                      <span>Mã QG: <strong className="font-mono">{`DQG-RET-20260825-${Math.floor(100000 + Math.random() * 900000)}`}</strong></span>
+                      <span>Mã CS: <strong className="font-mono">79-001234</strong></span>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-col gap-1 border-b border-slate-200 pb-3">
                   <div className="flex justify-between">
                     <span>Mã hóa đơn:</span>
                     <span className="font-bold">#{invoiceData._id.toUpperCase()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Mã QG Trả Hàng:</span>
+                    <span className="font-bold text-emerald-700">{`DQG-RET-20260825-${Math.floor(100000 + Math.random() * 900000)}`}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Ngày thực hiện:</span>

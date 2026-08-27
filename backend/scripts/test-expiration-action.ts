@@ -76,7 +76,7 @@ function get(url: string, token?: string): Promise<{ statusCode: number; data: a
 }
 
 async function run() {
-  console.log('🧪 === BẮT ĐẦU CHẠY THỬ NGHIỆM ĐỀ XUẤT XỬ LÝ THUỐC HẾT HẠN (UC-33) ===\n');
+  console.log('🧪 === BẮT ĐẦU CHẠY THỬ NGHIỆM ĐỀ XUẤT XỬ LÝ THUỐC HẾT HẠN ===\n');
 
   let adminToken = '';
 
@@ -194,7 +194,7 @@ async function run() {
     console.error('❌ Lỗi khi test hành động RETURN_SUPPLIER:', err.message);
   }
 
-  console.log('\n🧪 === HOÀN TẤT KỊCH BẢN KIỂM THỬ UC-33 ===');
+  console.log('\n🧪 === HOÀN TẤT KỊCH BẢN KIỂM THỬ ===');
 }
 
 run();

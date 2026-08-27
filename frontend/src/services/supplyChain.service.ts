@@ -97,7 +97,7 @@ export interface AnomalyDetectionParams {
   zScoreThreshold?: number;
 }
 
-// UC-30: Tồn kho thời gian thực toàn chuỗi + Thuật toán tồn kho an toàn
+// Tồn kho thời gian thực toàn chuỗi + Thuật toán tồn kho an toàn
 export const getSafeStockChain = async (params: SafeStockChainParams = {}): Promise<SafeStockChainResponse> => {
   const queryParams = new URLSearchParams();
   if (params.serviceLevel !== undefined) queryParams.append('serviceLevel', String(params.serviceLevel));
@@ -110,7 +110,7 @@ export const getSafeStockChain = async (params: SafeStockChainParams = {}): Prom
   return data;
 };
 
-// UC-37: Phát hiện bất thường tồn kho (Z-Score / 3-Sigma Thống Kê Thuần Túy)
+// Phát hiện bất thường tồn kho (Z-Score / 3-Sigma Thống Kê Thuần Túy)
 export const getAnomalyDetection = async (params: AnomalyDetectionParams = {}): Promise<AnomalyDetectionResponse> => {
   const queryParams = new URLSearchParams();
   if (params.periodDays !== undefined) queryParams.append('periodDays', String(params.periodDays));

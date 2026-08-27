@@ -1,5 +1,5 @@
 import { BaseDashboardLayout } from "./BaseDashboardLayout";
-import { LayoutDashboard, Settings, Building2, Banknote, BarChart3, Sparkles, PackageSearch, ShieldCheck, Tag, CreditCard, Users, Wallet, Link2 } from "lucide-react";
+import { LayoutDashboard, Settings, Building2, Banknote, BarChart3, Sparkles, PackageSearch, ShieldCheck, Tag, CreditCard, Users, Wallet, Link2, Database } from "lucide-react";
 
 export function AdminLayout() {
   const adminNavItems = [
@@ -28,11 +28,14 @@ export function AdminLayout() {
       ]
     },
     { name: "Tài chính", href: "/admin/finance", icon: <Banknote size={20} /> },
+    { name: "Bảng giá chuỗi", href: "/admin/price-management", icon: <Tag size={20} /> },
     { name: "Hạn mức nhập hàng", href: "/admin/quotas", icon: <Wallet size={20} /> },
     { name: "Công nợ NCC", href: "/admin/supplier-credit", icon: <CreditCard size={20} /> },
     { name: "Báo cáo thống kê", href: "/admin/reports", icon: <BarChart3 size={20} /> },
     { name: "Nhật ký hệ thống", href: "/admin/audit-logs", icon: <ShieldCheck size={20} /> },
+    { name: "Lưu trữ Y tế 50 năm & Traceability", href: "/admin/data-retention", icon: <Database size={20} /> },
     { name: "Chuỗi cung ứng (Real-time)", href: "/admin/supply-chain", icon: <Link2 size={20} /> },
+    { name: "Dự báo Nhu cầu (AI)", href: "/admin/ai-forecast", icon: <Sparkles size={20} /> },
     { name: "AI Insights", href: "/admin/ai-insights", icon: <Sparkles size={20} /> },
   ];
 

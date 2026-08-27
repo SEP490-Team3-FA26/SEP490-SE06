@@ -7,6 +7,7 @@ import { Prescription } from './schemas/prescription.schema';
 import { Medicine } from '../medicine/schemas/medicine.schema';
 import { MedicineBatch } from '../medicine/schemas/medicine-batch.schema';
 import { PricingService } from '../pricing/pricing.service';
+import { NationalPharmaService } from './national-pharma.service';
 import { InventoryTransaction } from '../purchase/schemas/inventory-transaction.schema';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class SalesService implements OnModuleInit {
     @InjectModel(Medicine.name) private readonly medicineModel: Model<Medicine>,
     @InjectModel(MedicineBatch.name) private readonly batchModel: Model<MedicineBatch>,
     private readonly pricingService: PricingService,
+    private readonly nationalPharmaService: NationalPharmaService,
     @InjectModel(InventoryTransaction.name) private readonly txnModel: Model<InventoryTransaction>,
     @Inject('KAFKA_CLIENT') private readonly kafkaClient: ClientKafka,
   ) { }
@@ -274,13 +276,17 @@ export class SalesService implements OnModuleInit {
         totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
       }
 
-      if (totalAvailable < item.quantity) {
+      // Tính toán quy đổi đơn vị và số lượng trừ kho thực tế
+      const exchangeValue = Number(item.exchangeValue) || 1;
+      const baseDeductQty = Math.max(1, Math.round((Number(item.quantity) || 1) * exchangeValue));
+
+      if (totalAvailable < baseDeductQty) {
         throw new RpcException({
-          message: `Thuốc "${medicine.name}" không đủ tồn kho khả dụng (Yêu cầu: ${item.quantity}, Khả dụng: ${totalAvailable})`
+          message: `Thuốc "${medicine.name}" không đủ tồn kho khả dụng (Yêu cầu quy đổi: ${baseDeductQty} ${medicine.unit || 'đơn vị'}, Khả dụng: ${totalAvailable})`
         });
       }
 
-      let remainingQty = item.quantity;
+      let remainingQty = baseDeductQty;
       const allocatedBatches = [];
 
       for (const batch of batches) {
@@ -324,7 +330,7 @@ export class SalesService implements OnModuleInit {
           stockAfter: stockBefore - deductQty,
           referenceType: 'SALE',
           performedBy: data.soldBy || 'Dược sĩ',
-          notes: `Bán hàng ${data.type === 'WHOLESALE' ? 'sỉ' : 'lẻ'}`,
+          notes: `Bán hàng ${data.type === 'WHOLESALE' ? 'sỉ' : 'lẻ'} - Đơn vị: ${item.unit || 'Hộp'}`,
         });
       }
 
@@ -334,25 +340,43 @@ export class SalesService implements OnModuleInit {
         });
       }
 
-      // Cập nhật tồn kho tổng của thuốc để đồng bộ ngay lập tức
-      await this.medicineModel.updateOne({ _id: medicine._id }, { $inc: { stock: -item.quantity } }).exec();
+      // Cập nhật tồn kho tổng và hộp lẻ của thuốc
+      let currentOpened = Number(medicine.openedBoxUnits) || 0;
+      if (exchangeValue < 100) { // Bán đơn vị lẻ (Viên / Vỉ)
+        if (baseDeductQty <= currentOpened) {
+          currentOpened -= baseDeductQty;
+        } else {
+          const needed = baseDeductQty - currentOpened;
+          const boxSize = 100;
+          const boxesOpened = Math.ceil(needed / boxSize);
+          currentOpened = (boxesOpened * boxSize) - needed;
+        }
+      }
+      await this.medicineModel.updateOne(
+        { _id: medicine._id },
+        { 
+          $inc: { stock: -baseDeductQty },
+          $set: { openedBoxUnits: currentOpened }
+        }
+      ).exec();
 
-      // Resolve giá theo chi nhánh và loại bán hàng (UC-48)
-      const itemPrice = await this.pricingService.resolvePrice(
-        data.branchId,
-        item.medicineId,
-        data.type || 'RETAIL',
-        item.quantity,
-      );
-      const resolvedPrice = itemPrice || medicine.price || 50000;
-      totalAmount += resolvedPrice * item.quantity;
+      // Resolve giá theo chi nhánh và đơn vị đã chọn
+      const resolvedPrice = Number(item.price) || (medicine.price ? Math.round(medicine.price * exchangeValue / 100) : 50000);
+      totalAmount += resolvedPrice * (Number(item.quantity) || 1);
 
       orderItems.push({
         medicineId: item.medicineId,
         name: medicine.name,
-        quantity: item.quantity,
+        quantity: Number(item.quantity) || 1,
         price: resolvedPrice,
-        unit: medicine.unit || 'Hộp',
+        unit: item.unit || medicine.unit || 'Hộp',
+        exchangeValue: exchangeValue,
+        baseQuantity: baseDeductQty,
+        dosePerTime: item.dosePerTime || 1,
+        timesPerDay: item.timesPerDay || 2,
+        dailyDose: item.dailyDose || (item.dosePerTime ? item.dosePerTime * (item.timesPerDay || 2) : 2),
+        durationDays: item.durationDays || 1,
+        dosageInstructions: item.dosageInstructions || (item.dosage ? item.dosage : `Uống ${item.dailyDose || 2} ${item.unit || 'viên'}/ngày trong ${item.durationDays || 1} ngày`),
         batches: allocatedBatches
       });
     }
@@ -364,13 +388,29 @@ export class SalesService implements OnModuleInit {
       items: orderItems,
       totalAmount: totalAmount,
       paymentMethod: data.paymentMethod || 'CASH',
-      type: data.type,
+      type: data.type || 'RETAIL',
       patientName: data.patientName || (prescription ? prescription.patientName : undefined),
       patientPhone: data.patientPhone || (prescription ? prescription.patientPhone : undefined),
       soldBy: data.soldBy || 'Dược sĩ',
       orderCode: data.orderCode,
       branchId: data.branchId || null,
+      redeemedPoints: data.redeemedPoints || 0,
+      earnedPoints: data.earnedPoints || Math.round(totalAmount / 100),
     });
+
+    // Tự động liên thông CSDL Dược Quốc gia (GPP Sandbox)
+    try {
+      const gppSync = await this.nationalPharmaService.syncSaleOrder(salesOrder, data.branchId);
+      salesOrder.nationalFacilityCode = gppSync.facilityCode;
+      salesOrder.nationalSyncStatus = gppSync.syncStatus;
+      salesOrder.nationalSyncCode = gppSync.syncCode;
+      salesOrder.nationalSyncedAt = gppSync.syncedAt;
+      salesOrder.nationalSyncMessage = gppSync.message;
+    } catch (gppErr: any) {
+      this.logger.warn(`[GPP Sync Warning] ${gppErr.message}`);
+      salesOrder.nationalSyncStatus = 'PENDING';
+    }
+
     await salesOrder.save();
 
     // Lưu các transaction log liên kết với mã hóa đơn bán hàng vừa tạo
@@ -389,12 +429,13 @@ export class SalesService implements OnModuleInit {
     this.kafkaClient.emit('broadcast.inventory_updated', {
       event: 'SALE_COMPLETED',
       timestamp: new Date().toISOString(),
-      orderId: salesOrder._id.toString()
+      orderId: salesOrder._id.toString(),
+      nationalSyncCode: salesOrder.nationalSyncCode,
     });
 
     return {
       success: true,
-      message: 'Thanh toán & trừ kho thành công!',
+      message: 'Thanh toán & Liên thông Dược Quốc gia (GPP) thành công!',
       warnings: allWarnings,
       data: salesOrder
     };

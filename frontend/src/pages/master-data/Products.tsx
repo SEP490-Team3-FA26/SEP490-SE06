@@ -91,18 +91,16 @@ export function Products() {
       // Remove undefined keys
       Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-      const data = await medicineService.getMedicines(params);
-      
-      setProducts(data.data || []);
-      if (data.pagination) {
-        setTotalPages(data.pagination.totalPages || 1);
-        setTotalItems(data.pagination.total || 0);
-      } else {
-        // Fallback
-        setTotalPages(1);
-        setTotalItems(data.data?.length || 0);
-      }
-    } catch {
+      const res: any = await medicineService.getMedicines(params);
+      const items = res.data || [];
+      const total = res.pagination?.total ?? res.total ?? items.length;
+      const pages = res.pagination?.totalPages ?? res.totalPages ?? Math.max(1, Math.ceil(total / itemsPerPage));
+
+      setProducts(items);
+      setTotalPages(pages);
+      setTotalItems(total);
+    } catch (err) {
+      console.error("Lỗi tải danh mục sản phẩm:", err);
       setProducts([]);
       showToast("Không thể tải danh sách sản phẩm", "error");
     } finally {
@@ -326,7 +324,7 @@ export function Products() {
           </div>
           
           {/* Pagination */}
-          {!loading && totalPages > 1 && (
+          {!loading && totalItems > 0 && (
             <div className="p-4 border-t border-slate-200">
               <Pagination
                 currentPage={currentPage}

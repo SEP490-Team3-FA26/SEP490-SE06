@@ -677,7 +677,7 @@ async def check_interactions(req: InteractionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==========================================
-# UC-19: GOODS RECEIPT INSPECTION & VERIFICATION API
+# GOODS RECEIPT INSPECTION & VERIFICATION API
 # ==========================================
 
 import base64

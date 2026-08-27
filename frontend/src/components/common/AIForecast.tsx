@@ -163,7 +163,7 @@ export function AIForecast() {
     );
   };
 
-  // UC-35 Auto PO Modal State
+  // Auto PO Modal State
   const [isAutoPoModalOpen, setIsAutoPoModalOpen] = useState(false);
   const [isSubmittingPo, setIsSubmittingPo] = useState(false);
   const [autoPoSuccess, setAutoPoSuccess] = useState<any | null>(null);
@@ -586,7 +586,7 @@ export function AIForecast() {
         ) : null}
       </AnimatePresence>
       {/* ================================================================================= */}
-      {/* MODAL UC-35: TỰ ĐỘNG TẠO ĐƠN ĐẶT HÀNG TỪ KẾT QUẢ DỰ BÁO (AUTO-MAPPING & DRAFT PO) */}
+      {/* MODAL: TỰ ĐỘNG TẠO ĐƠN ĐẶT HÀNG TỪ KẾT QUẢ DỰ BÁO (AUTO-MAPPING & DRAFT PO) */}
       {/* ================================================================================= */}
       <AnimatePresence>
         {isAutoPoModalOpen && (
@@ -609,7 +609,7 @@ export function AIForecast() {
                     <Sparkles className="w-6 h-6 text-emerald-200" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold tracking-tight">UC-35: Sinh Đơn PO Nháp Tự Động</h3>
+                    <h3 className="text-xl font-bold tracking-tight">Sinh Đơn PO Nháp Tự Động</h3>
                     <p className="text-xs text-emerald-100/90 font-medium mt-0.5">
                       AI Forecast ➔ Auto-Mapping NCC ➔ Sinh Đơn PO Nháp ➔ Chuyển Phê Duyệt
                     </p>
