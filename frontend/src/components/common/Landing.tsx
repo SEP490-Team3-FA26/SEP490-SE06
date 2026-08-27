@@ -1028,7 +1028,7 @@ export function Landing() {
         <footer className="relative z-10 border-t border-slate-800/80 bg-[#080b12] pt-16 pb-8 px-6 text-xs text-slate-400">
           <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-10 mb-12">
             <div className="md:col-span-5">
-              <span className="font-black text-xl text-white tracking-tight mb-4 inline-block">SmartPharma <span className="text-[#0d6efd]">AI</span></span>
+              <span className="font-black text-xl text-white tracking-tight mb-4 inline-block">ABC Pharma <span className="text-[#0d6efd]">AI</span></span>
               <p className="leading-relaxed font-medium mb-6 max-w-sm">
                 Hệ sinh thái nền tảng Quản trị chuỗi cửa hàng bán lẻ Dược phẩm tại Việt Nam. Tối ưu tồn kho theo lô hạn dùng FIFO & Kê đơn giọng nói AI.
               </p>
