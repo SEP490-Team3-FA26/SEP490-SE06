@@ -13,30 +13,97 @@ def get_groq_client() -> AsyncGroq:
 def get_deepseek_api_key() -> str | None:
     return os.getenv("PHUC_DEEPSEEK_V4_FLASH") or os.getenv("DEEPSEEK_API_KEY")
 
-async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
-    key = get_deepseek_api_key()
-    if not key:
-        raise RuntimeError("PHUC_DEEPSEEK_V4_FLASH is not configured")
-    
-    url = "https://api.deepseek.com/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "deepseek-v4-flash",
-        "messages": messages,
-    }
-    if response_format:
-        payload["response_format"] = response_format
+async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
+    """
+    Gọi LLM với cơ chế Multi-Tier Fallback tự động:
+    1. Ưu tiên DeepSeek API (deepseek-chat / deepseek-v4-flash)
+    2. Fallback sang Groq API (qwen/qwen3.8-27b hoặc openai/gpt-oss-120b)
+    3. Fallback sang OpenRouter (nếu có OPEN_ROUTER_API)
+    """
+    errors = []
 
-    print("🤖 [AI Service] Đang gọi trực tiếp DeepSeek API (model: deepseek-v4-flash)...")
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        res = await client.post(url, headers=headers, json=payload)
-        res.raise_for_status()
-        data = res.json()
-        print("✅ [AI Service] DeepSeek API phản hồi thành công!")
-        return data["choices"][0]["message"]["content"]
+    # 1. Thử DeepSeek API
+    deepseek_key = get_deepseek_api_key()
+    if deepseek_key:
+        try:
+            print("🤖 [AI Service] Đang gọi DeepSeek API (model: deepseek-chat)...")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {deepseek_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": messages,
+                        "temperature": temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print("✅ [AI Service] DeepSeek API phản hồi thành công!")
+                    return content
+                else:
+                    errors.append(f"DeepSeek HTTP {res.status_code}: {res.text}")
+        except Exception as exc:
+            errors.append(f"DeepSeek exception: {exc}")
+
+    # 2. Thử Groq API (với model qwen/qwen3.8-27b hoặc openai/gpt-oss-120b)
+    groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
+    if groq_key:
+        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+            try:
+                print(f"🤖 [AI Service] Thử Groq API (model: {model})...")
+                groq_client = get_groq_client()
+                response = await groq_client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+                if content:
+                    print(f"✅ [AI Service] Groq ({model}) phản hồi thành công!")
+                    return content
+            except Exception as exc:
+                errors.append(f"Groq ({model}) exception: {exc}")
+
+    # 3. Thử OpenRouter API (nếu có)
+    openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        try:
+            print("🤖 [AI Service] Thử OpenRouter API...")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {openrouter_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "deepseek/deepseek-chat",
+                        "messages": messages,
+                        "temperature": temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print("✅ [AI Service] OpenRouter phản hồi thành công!")
+                    return content
+                else:
+                    errors.append(f"OpenRouter HTTP {res.status_code}: {res.text}")
+        except Exception as exc:
+            errors.append(f"OpenRouter exception: {exc}")
+
+    raise RuntimeError(f"Tất cả các dịch vụ LLM đều thất bại: {'; '.join(errors)}")
+
+async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
+    return await call_llm_json(messages, temperature=0.1)
 
 RETRIEVAL_NORMALIZATION_PROMPT = """Bạn làm nhiệm vụ làm sạch bản ghi âm tiếng Việt cho tìm kiếm y tế.
 Hãy sửa các lỗi nhận dạng giọng nói rõ ràng và rút gọn thành các triệu chứng/ngữ cảnh y tế có trong lời nói.
@@ -50,16 +117,12 @@ async def normalize_transcript_for_retrieval(transcript: str) -> str:
         return transcript
 
     try:
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": RETRIEVAL_NORMALIZATION_PROMPT},
-                {"role": "user", "content": transcript},
-            ],
-            temperature=0,
-            response_format={"type": "json_object"},
-        )
-        normalized = json.loads(response.choices[0].message.content or "{}")
+        messages = [
+            {"role": "system", "content": RETRIEVAL_NORMALIZATION_PROMPT},
+            {"role": "user", "content": transcript},
+        ]
+        content = await call_llm_json(messages, temperature=0.0)
+        normalized = json.loads(content or "{}")
         search_query = str(normalized.get("search_query") or "").strip()
         return search_query[:500] if search_query else transcript
     except Exception as exc:
@@ -103,18 +166,12 @@ async def generate_prescription(transcript: str, context: str) -> dict:
     Tạo đơn thuốc JSON dựa trên transcript và context từ RAG
     """
     system_prompt = MEDICAL_SYSTEM_PROMPT.replace("{rag_context}", context or "Không có dữ liệu ngữ cảnh.")
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Đoạn ghi âm cuộc hội thoại: \"{transcript}\""}
+    ]
     
-    response = await get_groq_client().chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Đoạn ghi âm cuộc hội thoại: \"{transcript}\""}
-        ],
-        temperature=0.1,
-        response_format={"type": "json_object"}
-    )
-    
-    content = response.choices[0].message.content
+    content = await call_llm_json(messages, temperature=0.1)
     try:
         prescription = json.loads(content)
 
@@ -282,17 +339,11 @@ async def generate_demand_forecast(dataset: list, period_days: int) -> dict:
         dataset_str = json.dumps(compact_samples, ensure_ascii=False)
         user_prompt = f"Số ngày dự báo: {period_days} ngày. Tổng danh mục trong kho: {len(dataset)}. Dưới đây là 350 sản phẩm dược phẩm ưu tiên hàng đầu:\n{dataset_str}"
         
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": FORECAST_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.2,
-            response_format={"type": "json_object"}
-        )
-        
-        content = response.choices[0].message.content
+        messages = [
+            {"role": "system", "content": FORECAST_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+        content = await call_llm_json(messages, temperature=0.2)
         result = json.loads(content)
 
         # Enforce mathematical accuracy & eliminate LLM hallucination on sufficient stock items
@@ -521,17 +572,11 @@ async def analyze_seasonal_trends(dataset: list, weather_region: str, current_se
     user_prompt = f"Dưới đây là tập dữ liệu thống kê doanh số bán hàng và dự báo:\n{json.dumps(dataset_to_llm, ensure_ascii=False)}"
     
     try:
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
-        
-        content = response.choices[0].message.content
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        content = await call_llm_json(messages, temperature=0.1)
         llm_json = json.loads(content)
     except Exception as e:
         print(f"Lỗi gọi LLM giải thích xu hướng: {e}")
@@ -545,7 +590,7 @@ async def analyze_seasonal_trends(dataset: list, weather_region: str, current_se
     # 3. Kết hợp kết quả phân tích thống kê và giải thích định tính
     return {
         "generated_at": datetime.utcnow().isoformat() + "Z",
-        "llm_model": "llama-3.3-70b-versatile",
+        "llm_model": "deepseek-chat / qwen-3.8-27b",
         "analysis_version": "v1.2.0",
         "summary": llm_json.get("summary", ""),
         "seasonal_trends": llm_json.get("seasonal_trends", []),
@@ -633,20 +678,14 @@ async def match_prescription_with_inventory(ocr_data: dict, rag_context: str) ->
     ).replace("{rag_context}", rag_context or "Không có dữ liệu kho thuốc.")
 
     try:
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": "Hãy đối chiếu đơn thuốc với kho và phân tích tương tác thuốc.",
-                },
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"},
-        )
-
-        content = response.choices[0].message.content
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": "Hãy đối chiếu đơn thuốc với kho và phân tích tương tác thuốc.",
+            },
+        ]
+        content = await call_llm_json(messages, temperature=0.1)
         result = json.loads(content)
 
         # Post-process: Validate matched names against RAG context
