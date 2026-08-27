@@ -3,3 +3,15 @@
 **/.next
 **/.git
 **/.env
+**/.env.*
+!**/.env.example
+**/build
+**/.dart_tool
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache
+**/coverage
+**/.DS_Store
+**/*.log
+**/.temp
+**/.cache
