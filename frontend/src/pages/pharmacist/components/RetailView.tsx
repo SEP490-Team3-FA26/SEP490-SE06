@@ -302,11 +302,24 @@ export default function RetailView({ showToast }: RetailViewProps) {
             count++;
           }
         } else {
+          const unitOptions = buildUnitOptions(match);
+          const defaultUnit = unitOptions[0] || { unitName: match.unit || "Hộp", exchangeValue: 1, price: match.price || 50000 };
           newCart.push({
             ...match,
             id: medId,
+            baseUnit: match.baseUnit || defaultUnit.unitName || 'Hộp',
+            unitOptions,
+            selectedUnit: defaultUnit.unitName,
+            unit: defaultUnit.unitName,
+            exchangeValue: defaultUnit.exchangeValue,
+            price: defaultUnit.price,
             quantity: 1,
-            active_ingredient: drug.active_ingredient
+            dosePerTime: 1,
+            timesPerDay: 2,
+            durationDays: 7,
+            dailyDose: 2,
+            dosageInstructions: drug.usage || `Uống 1 ${defaultUnit.unitName}/lần, ngày 2 lần`,
+            active_ingredient: drug.active_ingredient || match.active_ingredient
           });
           count++;
         }
@@ -394,8 +407,25 @@ export default function RetailView({ showToast }: RetailViewProps) {
     if (med.units && Array.isArray(med.units) && med.units.length > 0) {
       return med.units;
     }
+    if (med.unitOptions && Array.isArray(med.unitOptions) && med.unitOptions.length > 0) {
+      return med.unitOptions;
+    }
     const basePrice = med.price || 50000;
+    const nameLower = (med.name || '').toLowerCase();
     const mainUnit = med.unit || 'Hộp';
+
+    if (mainUnit === 'Hộp' && (nameLower.includes('gói') || nameLower.includes('ống') || nameLower.includes('chai') || nameLower.includes('lọ'))) {
+      const isGoi = nameLower.includes('gói');
+      const isOng = nameLower.includes('ống');
+      const subUnitName = isGoi ? 'Gói' : (isOng ? 'Ống' : 'Lọ/Chai');
+      const matchSubCount = nameLower.match(/(\d+)\s*(gói|ống|chai|lọ)/);
+      const subCount = matchSubCount ? parseInt(matchSubCount[1], 10) : 10;
+      return [
+        { unitName: 'Hộp', exchangeValue: subCount, price: basePrice, isBaseUnit: true },
+        { unitName: subUnitName, exchangeValue: 1, price: Math.round(basePrice / subCount * 1.05) },
+      ];
+    }
+
     if (mainUnit === 'Hộp') {
       return [
         { unitName: 'Hộp', exchangeValue: 100, price: basePrice, isBaseUnit: true },
@@ -407,13 +437,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
         { unitName: 'Vỉ', exchangeValue: 10, price: basePrice, isBaseUnit: true },
         { unitName: 'Viên', exchangeValue: 1, price: Math.round(basePrice / 10 * 1.1) },
       ];
-    } else if (mainUnit === 'Gói' || mainUnit === 'Chai' || mainUnit === 'Ống' || mainUnit === 'Tuýp') {
+    } else if (mainUnit === 'Gói' || mainUnit === 'Chai' || mainUnit === 'Ống' || mainUnit === 'Tuýp' || mainUnit === 'Lọ') {
       return [
         { unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }
       ];
     }
     return [
-      { unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }
+      { unitName: mainUnit || 'Hộp', exchangeValue: 1, price: basePrice, isBaseUnit: true }
     ];
   };
 
@@ -1111,11 +1141,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
                         <select
                           value={it.selectedUnit || it.unit || "Hộp"}
                           onChange={(e) => handleUnitChange(it.id, e.target.value)}
-                          className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-[#0057cd] cursor-pointer shadow-sm"
+                          className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-[#0057cd] cursor-pointer shadow-sm min-w-[85px]"
                         >
-                          {it.unitOptions?.map((u: any) => (
+                          {(it.unitOptions && it.unitOptions.length > 0 ? it.unitOptions : buildUnitOptions(it)).map((u: any) => (
                             <option key={u.unitName} value={u.unitName}>
-                              {u.unitName} ({u.price.toLocaleString()}₫)
+                              {u.unitName} ({(u.price || it.price || 0).toLocaleString()}₫)
                             </option>
                           ))}
                         </select>
