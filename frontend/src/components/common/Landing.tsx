@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { 
-  ArrowRight, ShieldCheck, Activity, PackageSearch, 
-  Workflow, CheckCircle2, ChevronDown, Fingerprint, 
+import {
+  ArrowRight, ShieldCheck, Activity, PackageSearch,
+  Workflow, CheckCircle2, ChevronDown, Fingerprint,
   Box, Search, History, BrainCircuit, ScanBarcode, ArrowRightLeft,
-  ShoppingCart, Heart, Sparkles, HeartPulse, Award, Shield, 
+  ShoppingCart, Heart, Sparkles, HeartPulse, Award, Shield,
   Check, Info, Sparkle, Stethoscope, Star, SparklesIcon,
   ShieldAlert, XCircle, User, LogOut
 } from "lucide-react";
@@ -31,7 +31,7 @@ export function Landing() {
   const cartIconRef = useRef<HTMLAnchorElement>(null);
   const isFirstRender = useRef(true);
   const [openFAQ, setOpenFAQ] = useState<number | null>(null);
-  
+
   const hasToken = !!localStorage.getItem("token");
 
   const handleLogout = () => {
@@ -40,7 +40,7 @@ export function Landing() {
     notifyAuthTokenChanged();
     navigate("/login");
   };
-  
+
   // E-commerce states
   const [medicines, setMedicines] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -125,10 +125,10 @@ export function Landing() {
     for (let i = 0; i < 14; i++) {
       const particle = document.createElement("div");
       particle.className = "fixed pointer-events-none rounded-full z-50";
-      
+
       const size = Math.random() * 8 + 4;
       const color = colors[Math.floor(Math.random() * colors.length)];
-      
+
       Object.assign(particle.style, {
         width: `${size}px`,
         height: `${size}px`,
@@ -351,7 +351,7 @@ export function Landing() {
       const rect = heroSection.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
-      
+
       const relX = e.clientX - (rect.left + rect.width / 2);
       const relY = e.clientY - (rect.top + rect.height / 2);
 
@@ -413,7 +413,7 @@ export function Landing() {
         const guestCartStr = localStorage.getItem("guest_cart");
         const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
         const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
-        
+
         if (existingItem) {
           if (existingItem.quantity + customQty > med.stock) {
             alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
@@ -440,7 +440,7 @@ export function Landing() {
         }
         localStorage.setItem("guest_cart", JSON.stringify(cart));
         window.dispatchEvent(new Event("cartUpdated"));
-        
+
         setAddedItems((prev) => ({ ...prev, [medId]: true }));
         setTimeout(() => {
           setAddedItems((prev) => ({ ...prev, [medId]: false }));
@@ -452,7 +452,7 @@ export function Landing() {
     }
 
     try {
-      const response = await api.post("/api/users/cart", 
+      const response = await api.post("/api/users/cart",
         { medicineId: medId, quantity: customQty },
         { headers: { "Authorization": `Bearer ${token}` } }
       );
@@ -477,7 +477,7 @@ export function Landing() {
 
   return (
     <div className="bg-slate-50 text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-hidden min-h-screen flex flex-col" ref={containerRef}>
-      
+
       {/* 1. STICKY PREMIUM GLASSMORPHISM NAV */}
       <nav className="fixed w-full z-50 top-0 transition-all duration-300 py-5 px-6 border-b border-transparent sticky-nav">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -487,12 +487,12 @@ export function Landing() {
                 <HeartPulse size={22} className="animate-pulse" />
               </div>
               <div className="flex flex-col">
-                <span className="font-black text-[18px] text-slate-900 tracking-tight leading-none">SmartPharma <span className="text-[#0d6efd]">AI</span></span>
+                <span className="font-black text-[18px] text-slate-900 tracking-tight leading-none">ABC Pharmacy</span>
                 <span className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mt-1">Hệ Thống Nhà Thuốc Số 3.0</span>
               </div>
             </Link>
           </div>
-          
+
           <div className="flex items-center gap-4.5">
             <Link to="/customer/shop" className="font-bold text-xs uppercase tracking-wider text-slate-600 hover:text-[#0d6efd] transition-colors">
               Cửa Hàng
@@ -534,7 +534,7 @@ export function Landing() {
                 </button>
               </div>
             ) : (
-              <Link 
+              <Link
                 to="/login"
                 className="bg-gradient-to-r from-[#0d6efd] to-[#0b5ed7] hover:from-[#0b5ed7] hover:to-[#0d6efd] text-white px-5.5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-blue-700/15 hover:-translate-y-0.5 active:scale-95"
               >
@@ -563,7 +563,7 @@ export function Landing() {
         </div>
 
         <div className="max-w-6xl mx-auto w-full relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
+
           {/* Left Hero Column */}
           <div className="lg:col-span-7 flex flex-col items-start text-left">
             <div className="mb-5 overflow-hidden inline-block hero-fade">
@@ -586,7 +586,7 @@ export function Landing() {
             </h1>
 
             <p className="hero-fade text-md md:text-lg text-slate-500 max-w-2xl mb-8 leading-relaxed font-medium">
-              SmartPharma AI đồng hành cùng sức khỏe gia đình bạn. Tra cứu thông tin thuốc nhanh, phân tích tương tác tự động theo chuẩn Bộ Y Tế, và mua sắm dễ dàng từ hệ thống cửa hàng đa cơ sở.
+              ABC Pharmarcy đồng hành cùng sức khỏe gia đình bạn. Tra cứu thông tin thuốc nhanh, phân tích tương tác tự động theo chuẩn Bộ Y Tế, và mua sắm dễ dàng từ hệ thống cửa hàng đa cơ sở.
             </p>
 
             {/* Premium Integrated Search Bar */}
@@ -629,7 +629,7 @@ export function Landing() {
             <div className="bg-white border border-slate-200 rounded-[32px] p-8 shadow-2xl shadow-blue-900/5 max-w-sm w-full relative overflow-hidden group">
               {/* Decorative design details */}
               <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-xl group-hover:bg-blue-500/10 transition-colors"></div>
-              
+
               <div className="flex items-center gap-3.5 mb-8">
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-[#0d6efd] border border-blue-100">
                   <Award size={22} className="animate-bounce" />
@@ -669,24 +669,23 @@ export function Landing() {
       {/* 3. DYNAMIC FEATURED PRODUCTS SECTION (REAL PRODUCTS GRID) */}
       <section className="py-24 px-6 bg-white border-y border-slate-200/60 relative">
         <div className="max-w-7xl mx-auto">
-          
+
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
             <div>
               <span className="text-[10px] font-black text-[#0d6efd] uppercase tracking-widest mb-1.5 block">Sản phẩm nổi bật</span>
               <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Danh mục dược phẩm bán chạy</h2>
             </div>
-            
+
             {/* Smooth Tab Filters */}
             <div className="flex gap-1.5 overflow-x-auto bg-slate-50 border border-slate-100 p-1 rounded-2xl shrink-0 self-start">
               {categories.map((cat) => (
                 <button
                   key={cat.value}
                   onClick={() => setActiveCategory(cat.value)}
-                  className={`px-4.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap uppercase tracking-wider ${
-                    activeCategory === cat.value
-                      ? "bg-white text-[#0d6efd] shadow-sm font-black"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
+                  className={`px-4.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap uppercase tracking-wider ${activeCategory === cat.value
+                    ? "bg-white text-[#0d6efd] shadow-sm font-black"
+                    : "text-slate-500 hover:text-slate-900"
+                    }`}
                 >
                   {cat.label}
                 </button>
@@ -726,11 +725,10 @@ export function Landing() {
                       />
                       {/* Classification Badge */}
                       <span
-                        className={`absolute top-3.5 left-3.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border ${
-                          isRx
-                            ? "bg-rose-50 text-rose-700 border-rose-100"
-                            : "bg-blue-50 text-blue-700 border-blue-100"
-                        }`}
+                        className={`absolute top-3.5 left-3.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border ${isRx
+                          ? "bg-rose-50 text-rose-700 border-rose-100"
+                          : "bg-blue-50 text-blue-700 border-blue-100"
+                          }`}
                       >
                         {isRx ? "Kê đơn (Rx)" : "Không kê đơn"}
                       </span>
@@ -767,13 +765,12 @@ export function Landing() {
                             handleAddToCart(med, e);
                           }}
                           disabled={isOutOfStock}
-                          className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm ${
-                            isOutOfStock
-                              ? "bg-slate-100 text-slate-400 border border-slate-100 cursor-not-allowed"
-                              : addedItems[medId]
+                          className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm ${isOutOfStock
+                            ? "bg-slate-100 text-slate-400 border border-slate-100 cursor-not-allowed"
+                            : addedItems[medId]
                               ? "bg-emerald-500 text-white"
                               : "bg-[#0d6efd] hover:bg-[#0b5ed7] text-white active:scale-95"
-                          }`}
+                            }`}
                         >
                           {isOutOfStock ? (
                             "Hết hàng"
@@ -826,105 +823,105 @@ export function Landing() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[minmax(300px,_auto)]">
-            
+
             {/* Bento Card 1: Unit Conversion */}
             <div className="bento-card glow-on-hover md:col-span-7 bg-white rounded-3xl p-8 border border-slate-200 relative overflow-hidden group hover:border-blue-200 hover:shadow-lg transition-all duration-300">
-               <div className="relative z-10">
-                  <div className="w-12 h-12 bg-blue-50 text-[#0d6efd] rounded-2xl flex items-center justify-center mb-6 border border-blue-100 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                     <Workflow size={24} />
+              <div className="relative z-10">
+                <div className="w-12 h-12 bg-blue-50 text-[#0d6efd] rounded-2xl flex items-center justify-center mb-6 border border-blue-100 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+                  <Workflow size={24} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">Đồng bộ Quy đổi Đơn vị Triệt để</h3>
+                <p className="text-slate-500 font-medium mb-8 text-xs">Unit Conversion Chaos Resolved. Phá bỏ rào cản tính toán đơn vị và tồn kho từ Thùng → Hộp → Vỉ → Viên.</p>
+
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col gap-3 font-mono text-xs shadow-inner group-hover:bg-[#0d6efd]/5 transition-colors">
+                  <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                    <span className="font-bold text-slate-700 flex items-center gap-2"><Box size={14} /> 1 Thùng (Bulk)</span>
+                    <ArrowRightLeft size={12} className="text-slate-400 transition-transform duration-500 group-hover:rotate-180" />
+                    <span className="font-black text-[#0d6efd]">100 Hộp</span>
                   </div>
-                  <h3 className="text-2xl font-black text-slate-900 mb-2">Đồng bộ Quy đổi Đơn vị Triệt để</h3>
-                  <p className="text-slate-500 font-medium mb-8 text-xs">Unit Conversion Chaos Resolved. Phá bỏ rào cản tính toán đơn vị và tồn kho từ Thùng → Hộp → Vỉ → Viên.</p>
-                  
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col gap-3 font-mono text-xs shadow-inner group-hover:bg-[#0d6efd]/5 transition-colors">
-                     <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-slate-100">
-                       <span className="font-bold text-slate-700 flex items-center gap-2"><Box size={14}/> 1 Thùng (Bulk)</span>
-                       <ArrowRightLeft size={12} className="text-slate-400 transition-transform duration-500 group-hover:rotate-180" />
-                       <span className="font-black text-[#0d6efd]">100 Hộp</span>
-                     </div>
-                     <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-slate-100">
-                       <span className="font-bold text-slate-700 flex items-center gap-2"><PackageSearch size={14}/> 1 Hộp (Box)</span>
-                       <ArrowRightLeft size={12} className="text-slate-400 transition-transform duration-500 group-hover:rotate-180" />
-                       <span className="font-black text-[#0d6efd]">5 Vỉ</span>
-                     </div>
-                     <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-slate-100">
-                       <span className="font-bold text-slate-700 flex items-center gap-2"><Activity size={14}/> 1 Vỉ (Blister)</span>
-                       <ArrowRightLeft size={12} className="text-slate-400 transition-transform duration-500 group-hover:rotate-180" />
-                       <span className="font-black text-[#0d6efd]">10 Viên</span>
-                     </div>
+                  <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                    <span className="font-bold text-slate-700 flex items-center gap-2"><PackageSearch size={14} /> 1 Hộp (Box)</span>
+                    <ArrowRightLeft size={12} className="text-slate-400 transition-transform duration-500 group-hover:rotate-180" />
+                    <span className="font-black text-[#0d6efd]">5 Vỉ</span>
                   </div>
-               </div>
+                  <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                    <span className="font-bold text-slate-700 flex items-center gap-2"><Activity size={14} /> 1 Vỉ (Blister)</span>
+                    <ArrowRightLeft size={12} className="text-slate-400 transition-transform duration-500 group-hover:rotate-180" />
+                    <span className="font-black text-[#0d6efd]">10 Viên</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Bento Card 2: AI Near-Expiry Alerts */}
             <div className="bento-card md:col-span-5 bg-slate-900 text-white rounded-3xl p-8 border border-slate-800 relative overflow-hidden group hover:shadow-2xl transition-all">
-               {/* Scanning Laser Line */}
-               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent h-1/2 w-full scanner-line pointer-events-none"></div>
-               <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-blue-500/20 transition-colors"></div>
-               
-               <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-12 h-12 bg-white/10 text-blue-400 rounded-2xl flex items-center justify-center mb-6 border border-white/5 backdrop-blur-md group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                     <ShieldCheck size={24} />
+              {/* Scanning Laser Line */}
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent h-1/2 w-full scanner-line pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-blue-500/20 transition-colors"></div>
+
+              <div className="relative z-10 h-full flex flex-col">
+                <div className="w-12 h-12 bg-white/10 text-blue-400 rounded-2xl flex items-center justify-center mb-6 border border-white/5 backdrop-blur-md group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
+                  <ShieldCheck size={24} />
+                </div>
+                <h3 className="text-2xl font-black mb-2">Cảnh báo Cận Hạn AI</h3>
+                <p className="text-slate-400 font-medium mb-auto text-xs">AI Near-Expiry Realtime Alerts. Tự động kiểm soát lô thuốc chuẩn hạn dùng và cách ly thuốc cận date.</p>
+
+                <div className="mt-8 space-y-4">
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                      </span>
+                      <div>
+                        <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-0.5">Cảnh báo đỏ (Hủy)</p>
+                        <p className="font-bold text-sm text-slate-100">Panadol Extra (Lô X902)</p>
+                      </div>
+                    </div>
+                    <div className="bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded animate-pulse">
+                      {'< 30 Ngày'}
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-black mb-2">Cảnh báo Cận Hạn AI</h3>
-                  <p className="text-slate-400 font-medium mb-auto text-xs">AI Near-Expiry Realtime Alerts. Tự động kiểm soát lô thuốc chuẩn hạn dùng và cách ly thuốc cận date.</p>
-                  
-                  <div className="mt-8 space-y-4">
-                     <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                           <span className="relative flex h-2.5 w-2.5">
-                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                           </span>
-                           <div>
-                             <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-0.5">Cảnh báo đỏ (Hủy)</p>
-                             <p className="font-bold text-sm text-slate-100">Panadol Extra (Lô X902)</p>
-                           </div>
-                        </div>
-                        <div className="bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded animate-pulse">
-                           {'< 30 Ngày'}
-                        </div>
-                     </div>
-                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                           <span className="relative flex h-2.5 w-2.5">
-                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-                           </span>
-                           <div>
-                             <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-0.5">Cảnh báo vàng (Giảm giá)</p>
-                             <p className="font-bold text-sm text-slate-100">Augmentin (Lô B110)</p>
-                           </div>
-                        </div>
-                        <div className="bg-amber-500 text-white text-[10px] font-black px-2.5 py-1 rounded">
-                           {'30 - 60 Ngày'}
-                        </div>
-                     </div>
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                      </span>
+                      <div>
+                        <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-0.5">Cảnh báo vàng (Giảm giá)</p>
+                        <p className="font-bold text-sm text-slate-100">Augmentin (Lô B110)</p>
+                      </div>
+                    </div>
+                    <div className="bg-amber-500 text-white text-[10px] font-black px-2.5 py-1 rounded">
+                      {'30 - 60 Ngày'}
+                    </div>
                   </div>
-               </div>
+                </div>
+              </div>
             </div>
 
             {/* Bento Card 3: Lot Traceability & Audit Logs */}
             <div className="bento-card glow-on-hover md:col-span-12 bg-white rounded-3xl p-8 border border-slate-200 flex flex-col md:flex-row gap-8 items-center group hover:border-blue-200 hover:shadow-lg transition-all duration-300">
-               <div className="flex-1">
-                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 border border-emerald-100 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">
-                     <History size={24} />
-                  </div>
-                  <h3 className="text-2xl font-black text-slate-900 mb-2">Truy xuất Lô & Audit Log liên tục</h3>
-                  <p className="text-slate-500 font-medium text-xs">Lot Traceability & Strict Data Integrity Logs. Chống thất thoát hàng hóa qua lịch sử chuyển kho liên tuyến chéo rõ ràng tới từng giây.</p>
-               </div>
-               <div className="flex-1 w-full bg-slate-900 rounded-2xl p-5 border border-slate-800 font-mono text-xs overflow-hidden shadow-inner group-hover:shadow-[0_0_30px_rgba(15,118,110,0.15)] transition-all">
-                  <div className="space-y-3 flex flex-col">
-                     {logs.map((log, i) => (
-                       <div key={i} className={`flex gap-4 items-start border-b border-slate-800/60 pb-2.5 last:border-0 last:pb-0 ${i === 0 ? 'log-line-0' : ''}`}>
-                         <span className="text-slate-500">[{log.time}]</span>
-                         <span className="text-blue-400 font-bold">{log.user}</span>
-                         <span className="text-slate-300 flex-1 truncate">{log.action}</span>
-                         <span className="text-[#0d6efd] font-bold hidden sm:block">{log.status}</span>
-                       </div>
-                     ))}
-                  </div>
-               </div>
+              <div className="flex-1">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 border border-emerald-100 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">
+                  <History size={24} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">Truy xuất Lô & Audit Log liên tục</h3>
+                <p className="text-slate-500 font-medium text-xs">Lot Traceability & Strict Data Integrity Logs. Chống thất thoát hàng hóa qua lịch sử chuyển kho liên tuyến chéo rõ ràng tới từng giây.</p>
+              </div>
+              <div className="flex-1 w-full bg-slate-900 rounded-2xl p-5 border border-slate-800 font-mono text-xs overflow-hidden shadow-inner group-hover:shadow-[0_0_30px_rgba(15,118,110,0.15)] transition-all">
+                <div className="space-y-3 flex flex-col">
+                  {logs.map((log, i) => (
+                    <div key={i} className={`flex gap-4 items-start border-b border-slate-800/60 pb-2.5 last:border-0 last:pb-0 ${i === 0 ? 'log-line-0' : ''}`}>
+                      <span className="text-slate-500">[{log.time}]</span>
+                      <span className="text-blue-400 font-bold">{log.user}</span>
+                      <span className="text-slate-300 flex-1 truncate">{log.action}</span>
+                      <span className="text-[#0d6efd] font-bold hidden sm:block">{log.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
           </div>
@@ -940,20 +937,20 @@ export function Landing() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            
+
             {[
-              { id: "M01", title: "POS App Bán Hàng", icon: <CheckCircle2 size={32}/>, desc: "Giao diện thanh toán tại quầy đa dụng OTC & Rx, tích hợp kiểm tra tương tác thuốc và xuất hóa đơn VietQR PayOS tự động." },
-              { id: "M02", title: "Kho Vận Chuẩn FIFO", icon: <ScanBarcode size={32}/>, desc: "Nhập xuất hàng siêu tốc bằng mã QR định danh lô. Tự động khấu trừ tồn kho theo lô hạn dùng xa nhất." },
-              { id: "M03", title: "Luân Chuyển Liên Tục", icon: <ArrowRightLeft size={32}/>, desc: "Điều phối và tái phân bổ hàng cận date chéo giữa các chi nhánh dựa trên dữ liệu kinh doanh." },
-              { id: "M04", title: "Dự Báo AI", icon: <BrainCircuit size={32}/>, desc: "AI phân tích tần suất đơn thuốc theo khu vực và dự phòng nguồn cung trước các chu kỳ dịch bệnh." },
+              { id: "M01", title: "POS App Bán Hàng", icon: <CheckCircle2 size={32} />, desc: "Giao diện thanh toán tại quầy đa dụng OTC & Rx, tích hợp kiểm tra tương tác thuốc và xuất hóa đơn VietQR PayOS tự động." },
+              { id: "M02", title: "Kho Vận Chuẩn FIFO", icon: <ScanBarcode size={32} />, desc: "Nhập xuất hàng siêu tốc bằng mã QR định danh lô. Tự động khấu trừ tồn kho theo lô hạn dùng xa nhất." },
+              { id: "M03", title: "Luân Chuyển Liên Tục", icon: <ArrowRightLeft size={32} />, desc: "Điều phối và tái phân bổ hàng cận date chéo giữa các chi nhánh dựa trên dữ liệu kinh doanh." },
+              { id: "M04", title: "Dự Báo AI", icon: <BrainCircuit size={32} />, desc: "AI phân tích tần suất đơn thuốc theo khu vực và dự phòng nguồn cung trước các chu kỳ dịch bệnh." },
             ].map((mod, i) => (
               <div key={i} className="module-card group bg-slate-50 hover:bg-white p-8 rounded-3xl border border-slate-100 hover:border-blue-200 hover:shadow-xl transition-all duration-300 cursor-default hover:-translate-y-2">
-                 <div className="text-[#0d6efd] mb-8 opacity-75 group-hover:opacity-100 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 origin-left">
-                   {mod.icon}
-                 </div>
-                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">{mod.id} CORE MODULE</div>
-                 <h3 className="text-lg font-bold text-slate-900 mb-3">{mod.title}</h3>
-                 <p className="text-xs text-slate-500 font-medium leading-relaxed">{mod.desc}</p>
+                <div className="text-[#0d6efd] mb-8 opacity-75 group-hover:opacity-100 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 origin-left">
+                  {mod.icon}
+                </div>
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">{mod.id} CORE MODULE</div>
+                <h3 className="text-lg font-bold text-slate-900 mb-3">{mod.title}</h3>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">{mod.desc}</p>
               </div>
             ))}
 
@@ -965,7 +962,7 @@ export function Landing() {
       <section className="py-24 px-6 bg-[#f8fafc] border-t border-slate-200/60">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl font-black text-slate-900 mb-12 text-center">Câu hỏi thường gặp</h2>
-          
+
           <div className="space-y-4">
             {[
               {
@@ -984,11 +981,11 @@ export function Landing() {
                 a: "Mỗi hộp thuốc nhập kho đều được quản lý kèm HSD và số lô. Khi tạo hóa đơn bán thuốc (POS hoặc online), hệ thống tự động lọc tìm và trừ hàng của lô thuốc có HSD gần nhất trước, giúp hạn chế rủi ro thuốc hết hạn tồn đọng trong kho."
               }
             ].map((faq, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className={`border border-slate-200 bg-white rounded-2xl overflow-hidden transition-all duration-300 ${openFAQ === i ? 'shadow-md border-blue-200' : 'hover:border-slate-300'}`}
               >
-                <button 
+                <button
                   onClick={() => toggleFAQ(i)}
                   className="w-full text-left px-6 py-5 flex items-start justify-between bg-white text-slate-800 focus:outline-none"
                 >
@@ -998,7 +995,7 @@ export function Landing() {
                   </div>
                   <ChevronDown size={18} className={`text-slate-400 shrink-0 mt-1 transition-transform duration-300 ${openFAQ === i ? 'rotate-180' : ''}`} />
                 </button>
-                <div 
+                <div
                   className={`px-6 overflow-hidden transition-all duration-300 ease-in-out ${openFAQ === i ? 'max-h-96 pb-6 opacity-100' : 'max-h-0 opacity-0'}`}
                 >
                   <p className="text-xs text-slate-500 font-medium leading-relaxed pt-2.5 border-t border-slate-100">{faq.a}</p>
@@ -1019,7 +1016,7 @@ export function Landing() {
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center mb-32">
           <h2 className="text-3xl md:text-5xl font-black mb-5 tracking-tight">Số Hóa Nhà Thuốc Của Bạn Ngay Hôm Nay.</h2>
           <p className="text-md text-slate-400 font-medium mb-10">Bắt đầu quản lý chuỗi hiệu thuốc đa điểm thông minh với công nghệ QR & AI.</p>
-          <Link 
+          <Link
             to="/login"
             className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 px-8 py-4 rounded-full font-black text-sm uppercase tracking-wider hover:bg-slate-100 transition-transform hover:scale-105 active:scale-95 shadow-2xl shadow-white/5"
           >
@@ -1029,49 +1026,49 @@ export function Landing() {
 
         {/* Multi-column Footer */}
         <footer className="relative z-10 border-t border-slate-800/80 bg-[#080b12] pt-16 pb-8 px-6 text-xs text-slate-400">
-           <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-10 mb-12">
-              <div className="md:col-span-5">
-                 <span className="font-black text-xl text-white tracking-tight mb-4 inline-block">SmartPharma <span className="text-[#0d6efd]">AI</span></span>
-                 <p className="leading-relaxed font-medium mb-6 max-w-sm">
-                   Hệ sinh thái nền tảng Quản trị chuỗi cửa hàng bán lẻ Dược phẩm tại Việt Nam. Tối ưu tồn kho theo lô hạn dùng FIFO & Kê đơn giọng nói AI.
-                 </p>
-                 <div className="inline-block border border-slate-800/80 bg-slate-900/50 px-3 py-2 rounded-lg font-mono text-[10px]">
-                    Tech-stack: NestJS / React Router / TailwindCSS / MongoDB / GSAP
-                 </div>
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-10 mb-12">
+            <div className="md:col-span-5">
+              <span className="font-black text-xl text-white tracking-tight mb-4 inline-block">SmartPharma <span className="text-[#0d6efd]">AI</span></span>
+              <p className="leading-relaxed font-medium mb-6 max-w-sm">
+                Hệ sinh thái nền tảng Quản trị chuỗi cửa hàng bán lẻ Dược phẩm tại Việt Nam. Tối ưu tồn kho theo lô hạn dùng FIFO & Kê đơn giọng nói AI.
+              </p>
+              <div className="inline-block border border-slate-800/80 bg-slate-900/50 px-3 py-2 rounded-lg font-mono text-[10px]">
+                Tech-stack: NestJS / React Router / TailwindCSS / MongoDB / GSAP
               </div>
-              
-              <div className="md:col-span-3 md:col-start-7">
-                 <h4 className="font-bold text-white mb-4 uppercase tracking-wider text-[10px]">Về Dự Án</h4>
-                 <ul className="space-y-2.5 font-semibold text-slate-400 text-xs">
-                    <li>Đồ Án Tốt Nghiệp 2026</li>
-                    <li>Trường Đại học FPT Đà Nẵng</li>
-                    <li>Kỹ thuật phần mềm (SE)</li>
-                    <li>Nhóm thực hiện: Nhóm 7</li>
-                 </ul>
-              </div>
+            </div>
 
-              <div className="md:col-span-3">
-                 <h4 className="font-bold text-white mb-4 uppercase tracking-wider text-[10px]">Tuân Thủ Pháp Lý</h4>
-                 <ul className="space-y-3 text-slate-400 text-xs font-medium leading-relaxed">
-                    <li className="flex items-start gap-2">
-                       <ShieldCheck size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                       <span>Tuân thủ thông tư Bộ Y Tế Việt Nam về quản lý và kê đơn thuốc điện tử quốc gia.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                       <ShieldCheck size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                       <span>Đạt tiêu chuẩn bảo mật dữ liệu GPP trong lưu trữ và xuất kho dược phẩm.</span>
-                    </li>
-                 </ul>
-              </div>
-           </div>
-           
-           <div className="max-w-7xl mx-auto border-t border-slate-800/50 pt-8 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[10px] font-bold">
-              <p>© 2026 SmartPharma AI by Group 7. All rights reserved.</p>
-              <div className="flex gap-4 mt-4 md:mt-0">
-                 <a href="#" className="hover:text-white transition-colors">Chính sách bảo mật</a>
-                 <a href="#" className="hover:text-white transition-colors">Điều khoản dịch vụ</a>
-              </div>
-           </div>
+            <div className="md:col-span-3 md:col-start-7">
+              <h4 className="font-bold text-white mb-4 uppercase tracking-wider text-[10px]">Về Dự Án</h4>
+              <ul className="space-y-2.5 font-semibold text-slate-400 text-xs">
+                <li>Đồ Án Tốt Nghiệp 2026</li>
+                <li>Trường Đại học FPT Đà Nẵng</li>
+                <li>Kỹ thuật phần mềm (SE)</li>
+                <li>Nhóm thực hiện: Nhóm 7</li>
+              </ul>
+            </div>
+
+            <div className="md:col-span-3">
+              <h4 className="font-bold text-white mb-4 uppercase tracking-wider text-[10px]">Tuân Thủ Pháp Lý</h4>
+              <ul className="space-y-3 text-slate-400 text-xs font-medium leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <ShieldCheck size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                  <span>Tuân thủ thông tư Bộ Y Tế Việt Nam về quản lý và kê đơn thuốc điện tử quốc gia.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ShieldCheck size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                  <span>Đạt tiêu chuẩn bảo mật dữ liệu GPP trong lưu trữ và xuất kho dược phẩm.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="max-w-7xl mx-auto border-t border-slate-800/50 pt-8 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[10px] font-bold">
+            <p>© 2026 ABC Pharmarcy AI by Group 7. All rights reserved.</p>
+            <div className="flex gap-4 mt-4 md:mt-0">
+              <a href="#" className="hover:text-white transition-colors">Chính sách bảo mật</a>
+              <a href="#" className="hover:text-white transition-colors">Điều khoản dịch vụ</a>
+            </div>
+          </div>
         </footer>
       </section>
 
@@ -1081,9 +1078,9 @@ export function Landing() {
         const medId = med.id || med._id;
         const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
         const isOutOfStock = med.stock <= 0;
-        
+
         return (
-          <div 
+          <div
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300 cursor-pointer"
             onClick={() => {
               setSelectedMedicineForModal(null);
@@ -1091,7 +1088,7 @@ export function Landing() {
             }}
           >
             {/* Modal Box */}
-            <div 
+            <div
               className="bg-white rounded-[32px] border border-slate-100 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col relative animate-in fade-in zoom-in-95 duration-300 cursor-default"
               onClick={(e) => e.stopPropagation()}
             >
@@ -1099,9 +1096,8 @@ export function Landing() {
               <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2.5">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                      isRx ? "bg-rose-50 text-rose-700 border-rose-100" : "bg-blue-50 text-blue-700 border-blue-100"
-                    }`}>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${isRx ? "bg-rose-50 text-rose-700 border-rose-100" : "bg-blue-50 text-blue-700 border-blue-100"
+                      }`}>
                       {isRx ? "Thuốc kê đơn (Rx)" : "Không kê đơn"}
                     </span>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -1112,7 +1108,7 @@ export function Landing() {
                     {med.name}
                   </h3>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setSelectedMedicineForModal(null);
                     setModalQuantity(1);
@@ -1128,7 +1124,7 @@ export function Landing() {
                 {/* Left Column: Image & Add-to-cart */}
                 <div className="md:col-span-5 flex flex-col gap-6">
                   <div className="w-full aspect-square bg-slate-50 rounded-2xl flex items-center justify-center p-6 border border-slate-100 shadow-inner relative group overflow-hidden">
-                    <img 
+                    <img
                       src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
                       alt={med.name}
                       className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
@@ -1146,7 +1142,7 @@ export function Landing() {
                     <div className="flex items-center justify-between border-t border-slate-200/60 pt-4">
                       <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Số lượng mua</span>
                       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-                        <button 
+                        <button
                           onClick={() => setModalQuantity(q => Math.max(1, q - 1))}
                           className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-slate-500 hover:bg-slate-100 active:scale-95 transition-all"
                           disabled={isOutOfStock}
@@ -1156,7 +1152,7 @@ export function Landing() {
                         <span className="w-10 text-center font-black text-slate-800 text-sm">
                           {modalQuantity}
                         </span>
-                        <button 
+                        <button
                           onClick={() => setModalQuantity(q => Math.min(med.stock, q + 1))}
                           className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-slate-500 hover:bg-slate-100 active:scale-95 transition-all"
                           disabled={isOutOfStock || modalQuantity >= med.stock}
@@ -1179,18 +1175,17 @@ export function Landing() {
                       </div>
                     </div>
 
-                    <button 
+                    <button
                       onClick={(e) => {
                         handleAddToCart(med, e, modalQuantity);
                       }}
                       disabled={isOutOfStock}
-                      className={`w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md ${
-                        isOutOfStock
-                          ? "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed"
-                          : addedItems[medId]
+                      className={`w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md ${isOutOfStock
+                        ? "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed"
+                        : addedItems[medId]
                           ? "bg-emerald-500 text-white"
                           : "bg-[#0d6efd] hover:bg-[#0b5ed7] text-white active:scale-95"
-                      }`}
+                        }`}
                     >
                       {isOutOfStock ? (
                         "Hết hàng trong kho"
