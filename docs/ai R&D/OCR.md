@@ -330,3 +330,73 @@ python scripts/train_stage_a.py --config configs/stage_a_ocr.yaml --line-crops-d
 python scripts/eval_stage_a.py --checkpoint ../checkpoints/<run_id> --line-crops-dir ../data/synthetic/line_crops
 python scripts/eval_end_to_end.py --checkpoint ../checkpoints/<run_id> --manifest ../data/splits/synthetic_v1.jsonl --limit 50
 ```
+
+
+## 11. Luồng thực thi Logic toàn hệ thống (End-to-End Architecture & Runtime Flow)
+
+Phần này mô tả chi tiết cách React Frontend giao tiếp với Backend FastAPI (`ai-service`), sử dụng model VietOCR (`weights.pth`) đã huấn luyện kết hợp với tầng bóc tách cấu trúc (Structuring) và tra cứu kho thuốc (Inventory Matching).
+
+### 11.1. Sơ đồ luồng dữ liệu (Dataflow Architecture)
+
+```mermaid
+flowchart TD
+    subgraph Client["📱 Frontend (React / Mobile App)"]
+        A["Người dùng chọn/chụp ảnh đơn thuốc"] --> B["Gửi POST FormData (/api/ai/scan-prescription)"]
+        G["Hiển thị Form Đơn Thuốc + Giỏ Hàng Khớp Sẵn"]
+    end
+
+    subgraph Backend["⚡ AI Microservice (FastAPI on VPS/Server)"]
+        B --> C["1. Preprocessing & Line Segmentation<br/>(Cắt các dòng văn bản từ ảnh)"]
+        
+        subgraph StageA["🧠 Stage A: OCR Inference (Local Model)"]
+            C --> D["VietOCR Transformer (weights.pth)<br/>Nhận diện ký tự tiếng Việt"]
+            D --> E["Raw Vietnamese Text (Các dòng chữ OCR)"]
+        end
+
+        subgraph StageB["⚙️ Stage B: Structuring & Matching"]
+            E --> F1["Rule-based Structuring (Regex Parser)<br/>Tách Tên BN, Chẩn đoán, Danh sách thuốc, Liều dùng"]
+            F1 --> F2["MongoDB & Qdrant Lookup<br/>Đối chiếu tên thuốc với kho thực tế (FEFO, Tồn kho)"]
+            F2 --> F3["Đóng gói JSON chuẩn"]
+        end
+
+        F3 -->|"Trả response JSON"| G
+    end
+
+    style Client fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    style Backend fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style StageA fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style StageB fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+```
+
+### 11.2. Sơ đồ tuần tự xử lý Request (Sequence Diagram)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Dược sĩ / Bệnh nhân
+    participant UI as React Frontend
+    participant API as FastAPI Backend (ai-service)
+    participant OCR as Model VietOCR (weights.pth)
+    participant Parser as Structuring Engine (Stage B)
+    participant DB as MongoDB / Qdrant (Kho Thuốc)
+
+    User->>UI: Tải ảnh đơn thuốc (.png / .jpg)
+    UI->>API: POST /api/ai/scan-prescription (Image Binary)
+    Note over API: Tiền xử lý ảnh & cắt dòng (Line BBoxes)
+    API->>OCR: Truyền từng dòng ảnh vào VietOCR
+    OCR-->>API: Trả về chuỗi Text tiếng Việt chuẩn
+    API->>Parser: Phân tích cú pháp văn bản thô
+    Parser-->>API: Trả về cấu trúc JSON (Bệnh nhân, Chẩn đoán, Mảng thuốc)
+    API->>DB: Tra cứu tên thuốc, hoạt chất & số lượng tồn kho
+    DB-->>API: Trả về trạng thái kho (Còn hàng/Hết hàng, Batch FEFO, Giá)
+    API-->>UI: Response JSON đơn thuốc hoàn chỉnh
+    UI->>User: Hiển thị giao diện đơn thuốc tự động điền (Auto-filled Form)
+```
+
+### 11.3. Các bước tích hợp Model đã train vào Backend
+
+1. **Copy Trọng số:** Copy file `weights.pth` từ `training/checkpoints/run_.../` vào thư mục `services/weights/ocr_prescription.pth`.
+2. **Cấu hình Service (`services/ocr_service.py`):** Khởi tạo `Predictor` của VietOCR trỏ đến file trọng số `ocr_prescription.pth`.
+3. **Khởi động API:** Chạy `python main.py` (FastAPI).
+4. **Kiểm thử trên React:** Truy cập màn hình "Quét đơn thuốc" trên giao diện React (`http://localhost:3000`), upload ảnh và xem kết quả trích xuất tự động.
+

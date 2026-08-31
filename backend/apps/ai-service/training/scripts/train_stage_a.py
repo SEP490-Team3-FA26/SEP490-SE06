@@ -36,8 +36,9 @@ def split_annotation(annotation_path: Path, val_split: float, seed: int) -> tupl
     reproducible for a given seed.
     """
     import random
+    import unicodedata
 
-    lines = [l for l in annotation_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = [unicodedata.normalize("NFC", l) for l in annotation_path.read_text(encoding="utf-8").splitlines() if l.strip()]
     rng = random.Random(seed)
     rng.shuffle(lines)
 
@@ -87,6 +88,11 @@ def build_vietocr_config(stage_a_cfg: dict, line_crops_dir: Path, run_dir: Path)
 
     config["device"] = _detect_device()
     config["predictor"]["beamsearch"] = False  # greedy decode is faster for frequent validation
+
+    # Windows PyTorch multi-worker processes spawn separate CUDA contexts which exhaust pagefile
+    if "dataloader" not in config:
+        config["dataloader"] = {}
+    config["dataloader"]["num_workers"] = 0
 
     return config
 

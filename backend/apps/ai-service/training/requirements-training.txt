@@ -1,15 +1,13 @@
 # Training-only dependencies. NEVER referenced by ../Dockerfile or ../requirements.txt.
 # Install into a dedicated venv: training/.venv-train (see README.md).
 
-torch>=2.2,<2.5
-torchvision>=0.17,<0.20
+# torch and torchvision installed separately via CUDA index
 vietocr>=0.3.13
 lmdb>=1.4              # vietocr's internal training-data cache format
-einops>=0.7             # vietocr dependency
-opencv-python-headless>=4.9
+opencv-python-headless>=4.9,<4.11
 Pillow>=10.2
 ImageHash>=4.3          # perceptual-hash dedup for ingest_raw_images.py
-numpy>=1.26
+numpy>=1.26,<2.0
 pyyaml>=6.0
 jiwer>=3.0            # WER/CER metrics
 rapidfuzz>=3.6         # fuzzy drug-name matching (Stage B)

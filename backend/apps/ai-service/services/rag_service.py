@@ -110,7 +110,7 @@ async def retrieve_medical_context(query: str, top_k: int = 4) -> str:
                         f"- Tương tác thuốc: {drug.get('drug_interactions', 'N/A')}"
                     )
         except Exception as exc:
-            print(f"⚠️ [RAG] Qdrant search note: {exc}")
+            print(f"[RAG] Qdrant search note: {exc}")
 
     # 2. Fallback sang MongoDB keyword / regex search nếu Qdrant không trả về kết quả
     if not context_parts:

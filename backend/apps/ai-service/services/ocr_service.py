@@ -205,20 +205,93 @@ BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU (KHÔNG GIẢI THÍCH TH
 }"""
 
 
+_local_ocr_predictor = None
+
+def _get_local_predictor():
+    global _local_ocr_predictor
+    if _local_ocr_predictor is None:
+        model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth")
+        if os.path.exists(model_path):
+            from vietocr.tool.config import Cfg
+            from vietocr.tool.predictor import Predictor
+            import torch
+
+            config = Cfg.load_config_from_name("vgg_transformer")
+            config["weights"] = str(model_path)
+            config["device"] = "cuda:0" if torch.cuda.is_available() else "cpu"
+            config["predictor"]["beamsearch"] = False
+            _local_ocr_predictor = Predictor(config)
+    return _local_ocr_predictor
+
+
+def _extract_with_local_vietocr(image_bytes: bytes) -> dict:
+    import io
+    import sys
+    from pathlib import Path
+    from PIL import Image
+    import cv2
+    import numpy as np
+
+    predictor = _get_local_predictor()
+    if predictor is None:
+        raise RuntimeError("Local OCR model weights not found in models/ocr_prescription.pth")
+
+    training_dir = Path(__file__).resolve().parents[1] / "training" / "scripts"
+    if str(training_dir) not in sys.path:
+        sys.path.insert(0, str(training_dir))
+    from structuring import raw_text_to_prescription_schema
+
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+    recognized_lines = []
+    if img_cv is not None:
+        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 3))
+        dilated = cv2.dilate(thresh, kernel, iterations=2)
+        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        boxes = []
+        h_img, w_img = gray.shape
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            if w > 30 and h > 8 and h < h_img * 0.5:
+                boxes.append((max(0, x - 5), max(0, y - 2), min(w_img, x + w + 5), min(h_img, y + h + 2)))
+
+        boxes.sort(key=lambda b: (b[1], b[0]))
+        for box in boxes:
+            crop = pil_img.crop(box)
+            text = predictor.predict(crop)
+            if text and text.strip():
+                recognized_lines.append(text.strip())
+
+    if not recognized_lines:
+        text = predictor.predict(pil_img)
+        if text and text.strip():
+            recognized_lines.append(text.strip())
+
+    raw_text = "\n".join(recognized_lines)
+    return raw_text_to_prescription_schema(raw_text)
+
+
 async def extract_prescription_from_image(
     image_bytes: bytes,
     filename: str = "prescription.jpg",
 ) -> dict:
     """
     Gửi ảnh đơn thuốc tới provider Vision OCR để trích xuất nội dung.
-
-    Args:
-        image_bytes: Binary content của ảnh (JPEG/PNG)
-        filename: Tên file gốc (dùng để xác định MIME type)
-
-    Returns:
-        dict chứa thông tin đơn thuốc đã trích xuất theo schema chuẩn
+    Ưu tiên sử dụng Model VietOCR nội bộ tự train nếu có.
     """
+    # 1. Ưu tiên chạy bằng Model VietOCR nội bộ đã train (0 chi phí API, chạy offline cực nhanh)
+    model_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth")
+    if os.path.exists(model_file):
+        try:
+            return _extract_with_local_vietocr(image_bytes)
+        except Exception as exc:
+            print(f"Local VietOCR inference error, fallback to cloud vision: {exc}")
+
     # Xác định MIME type từ filename
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else "jpg"
     mime_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}
