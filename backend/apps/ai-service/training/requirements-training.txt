@@ -1,0 +1,22 @@
+# Training-only dependencies. NEVER referenced by ../Dockerfile or ../requirements.txt.
+# Install into a dedicated venv: training/.venv-train (see README.md).
+
+torch>=2.2,<2.5
+torchvision>=0.17,<0.20
+vietocr>=0.3.13
+lmdb>=1.4              # vietocr's internal training-data cache format
+einops>=0.7             # vietocr dependency
+opencv-python-headless>=4.9
+Pillow>=10.2
+ImageHash>=4.3          # perceptual-hash dedup for ingest_raw_images.py
+numpy>=1.26
+pyyaml>=6.0
+jiwer>=3.0            # WER/CER metrics
+rapidfuzz>=3.6         # fuzzy drug-name matching (Stage B)
+httpx>=0.27            # needed to import services/ocr_service.py for auto_label.py distillation
+pymongo[srv]>=4.6      # read medicines collection for synthetic vocab
+python-dotenv>=1.0
+tensorboard>=2.16
+onnx>=1.16
+onnxruntime>=1.17
+tqdm>=4.66
