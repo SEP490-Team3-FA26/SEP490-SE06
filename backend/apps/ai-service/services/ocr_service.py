@@ -9,6 +9,9 @@ import os
 import base64
 import json
 import re
+import asyncio
+import threading
+from services.prescription_structuring import raw_text_to_prescription_schema
 
 
 def _parse_json_content(content: str) -> dict:
@@ -206,12 +209,63 @@ BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU (KHÔNG GIẢI THÍCH TH
 
 
 _local_ocr_predictor = None
+_predictor_lock = threading.Lock()
+_local_ocr_checked = False
+_local_ocr_available = False
+
+
+def _is_local_ocr_available() -> bool:
+    """
+    Kiểm tra nhanh xem file trọng số model và các thư viện cần thiết (torch, vietocr, cv2, PIL)
+    có sẵn sàng hoạt động hay không. Cache kết quả để tránh I/O lặp lại.
+    """
+    global _local_ocr_checked, _local_ocr_available
+    if _local_ocr_checked:
+        return _local_ocr_available
+
+    with _predictor_lock:
+        if _local_ocr_checked:
+            return _local_ocr_available
+
+        model_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth"
+        )
+        if not os.path.exists(model_path):
+            _local_ocr_available = False
+            _local_ocr_checked = True
+            return False
+
+        try:
+            import torch  # noqa: F401
+            from vietocr.tool.config import Cfg  # noqa: F401
+            from vietocr.tool.predictor import Predictor  # noqa: F401
+            import cv2  # noqa: F401
+            from PIL import Image  # noqa: F401
+            _local_ocr_available = True
+        except ImportError as e:
+            print(f"Local VietOCR model file exists but dependencies are missing: {e}. Skipping local OCR.")
+            _local_ocr_available = False
+
+        _local_ocr_checked = True
+        return _local_ocr_available
+
 
 def _get_local_predictor():
+    """
+    Khởi tạo Singleton Predictor an toàn đa luồng (Double-Checked Locking).
+    """
     global _local_ocr_predictor
-    if _local_ocr_predictor is None:
-        model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth")
-        if os.path.exists(model_path):
+    if _local_ocr_predictor is not None:
+        return _local_ocr_predictor
+
+    if not _is_local_ocr_available():
+        return None
+
+    with _predictor_lock:
+        if _local_ocr_predictor is None:
+            model_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth"
+            )
             from vietocr.tool.config import Cfg
             from vietocr.tool.predictor import Predictor
             import torch
@@ -225,21 +279,18 @@ def _get_local_predictor():
 
 
 def _extract_with_local_vietocr(image_bytes: bytes) -> dict:
+    """
+    Xử lý OCR cục bộ đồng bộ (CPU/GPU-bound).
+    Được gọi qua asyncio.to_thread để không làm nghẽn Event Loop của FastAPI/Uvicorn.
+    """
     import io
-    import sys
-    from pathlib import Path
     from PIL import Image
     import cv2
     import numpy as np
 
     predictor = _get_local_predictor()
     if predictor is None:
-        raise RuntimeError("Local OCR model weights not found in models/ocr_prescription.pth")
-
-    training_dir = Path(__file__).resolve().parents[1] / "training" / "scripts"
-    if str(training_dir) not in sys.path:
-        sys.path.insert(0, str(training_dir))
-    from structuring import raw_text_to_prescription_schema
+        raise RuntimeError("Local OCR predictor is not initialized or model file is missing")
 
     nparr = np.frombuffer(image_bytes, np.uint8)
     img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -282,13 +333,12 @@ async def extract_prescription_from_image(
 ) -> dict:
     """
     Gửi ảnh đơn thuốc tới provider Vision OCR để trích xuất nội dung.
-    Ưu tiên sử dụng Model VietOCR nội bộ tự train nếu có.
+    Ưu tiên sử dụng Model VietOCR nội bộ tự train nếu có (chạy non-blocking trên worker thread).
     """
-    # 1. Ưu tiên chạy bằng Model VietOCR nội bộ đã train (0 chi phí API, chạy offline cực nhanh)
-    model_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth")
-    if os.path.exists(model_file):
+    # 1. Ưu tiên chạy bằng Model VietOCR nội bộ đã train (chạy non-blocking qua asyncio.to_thread)
+    if _is_local_ocr_available():
         try:
-            return _extract_with_local_vietocr(image_bytes)
+            return await asyncio.to_thread(_extract_with_local_vietocr, image_bytes)
         except Exception as exc:
             print(f"Local VietOCR inference error, fallback to cloud vision: {exc}")
 

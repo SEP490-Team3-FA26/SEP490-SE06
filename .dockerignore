@@ -15,3 +15,6 @@
 **/*.log
 **/.temp
 **/.cache
+backend/apps/ai-service/training/checkpoints
+backend/apps/ai-service/data
+backend/apps/ai-service/models/*.pth
