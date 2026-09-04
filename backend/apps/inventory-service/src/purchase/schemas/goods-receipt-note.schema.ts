@@ -64,6 +64,9 @@ export class GoodsReceiptNote extends Document {
   @Prop({ type: String }) // Optional user ID of the receiver
   receivedBy: string;
 
+  @Prop({ type: String })
+  discrepancyReason?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }

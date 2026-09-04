@@ -41,6 +41,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditLogInterceptor } from './interceptors/audit-log.interceptor';
 import { RedactionService } from './services/redaction.service';
 import { AuditFallbackProcessor } from './processors/audit-fallback.processor';
+import { RedisModule } from './redis/redis.module';
 
 import { randomUUID } from 'crypto';
 
@@ -165,6 +166,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     ]),
     WebsocketModule,
     NotificationModule,
+    RedisModule,
   ],
   controllers: [
     SupplierController,
@@ -196,6 +198,12 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     GoogleStrategy,
     S3StorageService,
     ReportService,
+    RedactionService,
+    AuditFallbackProcessor,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditLogInterceptor,
+    },
   ],
 })
 export class AppGatewayModule implements OnModuleInit {

@@ -726,7 +726,32 @@ export class PurchaseService {
       throw new RpcException({ message: 'Đơn hàng này đã bị hủy, không thể nhập kho' });
     }
 
-    if (po.status !== 'SHIPPING' && po.status !== 'PARTIAL_RECEIVED') {
+    // Kiểm tra xem đã có phiên GRN đang xử lý cho PO này chưa (tránh duplicate giữa Web và Mobile)
+    const existingActiveGrn = await this.grnModel.findOne({
+      poId: data.poId,
+      status: { $in: ['DRAFT', 'INSPECTING', 'PENDING_APPROVAL'] },
+    }).exec();
+
+    if (existingActiveGrn) {
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        for (const item of data.items) {
+          const grnItem = existingActiveGrn.items.find(i => i.medicineId === item.medicineId);
+          if (grnItem) {
+            if (item.batchNo) grnItem.batchNo = String(item.batchNo).trim();
+            if (item.expDate) grnItem.expDate = new Date(item.expDate);
+            if (item.quantity !== undefined) grnItem.quantity = Number(item.quantity);
+          }
+        }
+        await existingActiveGrn.save();
+      }
+      return {
+        success: true,
+        message: `Tiếp tục phiên tiếp nhận hàng hiện có (${existingActiveGrn.status})`,
+        data: existingActiveGrn,
+      };
+    }
+
+    if (po.status !== 'SHIPPING' && po.status !== 'PARTIAL_RECEIVED' && po.status !== 'RECEIVING') {
       throw new RpcException({ message: `Đơn hàng đang ở trạng thái "${po.status}", chưa được phép tiếp nhận (yêu cầu SHIPPING hoặc PARTIAL_RECEIVED)` });
     }
 

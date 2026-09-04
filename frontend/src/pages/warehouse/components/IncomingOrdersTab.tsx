@@ -38,7 +38,7 @@ export function IncomingOrdersTab({
   const getSupplierName = (id: string) => suppliers.find(s => (s._id || s.id) === id)?.name || id?.slice(-6) || "N/A";
   const getLinkedPo = (grn: any) => poList.find(po => po._id === grn.poId);
   const getActiveGrnForPo = (poId: string) => grnList.find(
-    (grn: any) => grn.poId === poId && ["INSPECTING", "PENDING_APPROVAL", "COMPLETED"].includes(grn.status)
+    (grn: any) => grn.poId === poId && ["DRAFT", "INSPECTING", "PENDING_APPROVAL", "COMPLETED"].includes(grn.status)
   );
   const hasGrnDiscrepancy = (grn: any) => (grn?.items || []).some(
     (item: any) => Number(item.actualQty) !== Number(item.quantity)
@@ -153,7 +153,7 @@ export function IncomingOrdersTab({
       // 1. Reuse an unfinished GRN when a previous attempt stopped after GRN creation.
       const latestGrns = await goodsReceiptService.getGoodsReceipts();
       const existingGrn = (Array.isArray(latestGrns) ? latestGrns : []).find(
-        (grn: any) => grn.poId === poId && ["INSPECTING", "PENDING_APPROVAL", "COMPLETED"].includes(grn.status)
+        (grn: any) => grn.poId === poId && ["DRAFT", "INSPECTING", "PENDING_APPROVAL", "COMPLETED"].includes(grn.status)
       );
 
       let grnId = existingGrn?._id;
@@ -185,13 +185,13 @@ export function IncomingOrdersTab({
           receivedBy: "Thủ Kho",
           items
         });
-        grnId = grnRes.data._id;
+        grnId = grnRes.data?._id || grnRes._id;
       }
 
       // 2. Create Inspection Record
       const recordRes = await goodsReceiptService.createInspectionRecord(grnId, "Thủ Kho");
-      const recordId = recordRes.data._id;
-      const inspectionItems = recordRes.data.items || [];
+      const recordId = recordRes.data?._id || recordRes._id;
+      const inspectionItems = recordRes.data?.items || recordRes.items || [];
 
       // 3. Verify items
       for (const it of items) {
@@ -201,7 +201,13 @@ export function IncomingOrdersTab({
         if (!inspectionItem?._id) {
           throw new Error(`Không tìm thấy sản phẩm ${it.medicineId} trong biên bản kiểm đếm.`);
         }
-        await goodsReceiptService.verifyInspectionItem(recordId, inspectionItem._id, it.actualQty);
+        await goodsReceiptService.verifyInspectionItem(
+          recordId,
+          inspectionItem._id,
+          it.actualQty,
+          it.batchNo,
+          it.expDate
+        );
       }
 
       // 4. Submit

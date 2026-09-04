@@ -9,6 +9,12 @@ export interface SupplierData {
   status?: string;
 }
 
+export interface Supplier extends Partial<SupplierData> {
+  _id?: string;
+  id?: string;
+  name: string;
+}
+
 export const supplierService = {
   async getSuppliers() {
     const response = await api.get('/api/suppliers');

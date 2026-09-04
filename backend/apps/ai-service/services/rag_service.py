@@ -64,47 +64,92 @@ async def get_embedding(text: str) -> list[float]:
     return vector
 
 
-async def retrieve_medical_context(query: str, top_k: int = 3) -> str:
-    """Retrieve medical context exclusively from the vectorized Qdrant DB."""
-    if qdrant is None:
-        raise RAGServiceUnavailable("Qdrant client could not be initialized")
+import re
+import pymongo
 
+def _get_mongo_medicines_collection():
+    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
+    if not uri:
+        return None
     try:
-        if not qdrant.collection_exists(QDRANT_COLLECTION):
-            raise RAGServiceUnavailable(
-                f'Qdrant collection "{QDRANT_COLLECTION}" does not exist; index medicines first'
-            )
+        client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=3000)
+        db_name = "WDP201"
+        if "net/" in uri:
+            parts = uri.split("net/")
+            if len(parts) > 1:
+                db_name = parts[1].split("?")[0]
+        return client[db_name]["medicines"]
+    except Exception:
+        return None
 
-        point_count = qdrant.count(QDRANT_COLLECTION, exact=True).count
-        if point_count == 0:
-            raise RAGServiceUnavailable(
-                f'Qdrant collection "{QDRANT_COLLECTION}" is empty; index medicines first'
-            )
-
-        query_vector = await get_embedding(query)
-        results = qdrant.search(
-            collection_name=QDRANT_COLLECTION,
-            query_vector=query_vector,
-            limit=top_k,
-            score_threshold=0.35,
-            with_payload=True,
-        )
-    except RAGServiceUnavailable:
-        raise
-    except Exception as exc:
-        raise RAGServiceUnavailable(f"Qdrant vector search failed: {exc}") from exc
-
+async def retrieve_medical_context(query: str, top_k: int = 4) -> str:
+    """Retrieve medical context from Qdrant Vector DB with fallback to MongoDB search."""
     context_parts = []
-    for hit in results:
-        drug = hit.payload or {}
-        context_parts.append(
-            f"**{drug.get('name', 'N/A')}** ({drug.get('active_ingredient', 'N/A')})\n"
-            f"- Độ tương đồng: {hit.score:.4f}\n"
-            f"- Tồn kho: {drug.get('stock_quantity', 'N/A')}\n"
-            f"- Chỉ định: {drug.get('indications', 'N/A')}\n"
-            f"- Liều dùng: {drug.get('default_dosage', 'N/A')}\n"
-            f"- Chống chỉ định: {drug.get('contraindications', 'N/A')}\n"
-            f"- Tương tác thuốc: {drug.get('drug_interactions', 'N/A')}"
-        )
+    
+    # 1. Thử tìm kiếm Vector qua Qdrant
+    if qdrant is not None:
+        try:
+            if qdrant.collection_exists(QDRANT_COLLECTION):
+                query_vector = await get_embedding(query)
+                results = qdrant.search(
+                    collection_name=QDRANT_COLLECTION,
+                    query_vector=query_vector,
+                    limit=top_k,
+                    score_threshold=0.20,
+                    with_payload=True,
+                )
+                for hit in results:
+                    drug = hit.payload or {}
+                    context_parts.append(
+                        f"**{drug.get('name', 'N/A')}** ({drug.get('active_ingredient', 'N/A')})\n"
+                        f"- Độ tương đồng: {hit.score:.4f}\n"
+                        f"- Tồn kho: {drug.get('stock_quantity', 'N/A')}\n"
+                        f"- Chỉ định: {drug.get('indications', 'N/A')}\n"
+                        f"- Liều dùng: {drug.get('default_dosage', 'N/A')}\n"
+                        f"- Chống chỉ định: {drug.get('contraindications', 'N/A')}\n"
+                        f"- Tương tác thuốc: {drug.get('drug_interactions', 'N/A')}"
+                    )
+        except Exception as exc:
+            print(f"[RAG] Qdrant search note: {exc}")
+
+    # 2. Fallback sang MongoDB keyword / regex search nếu Qdrant không trả về kết quả
+    if not context_parts:
+        try:
+            col = _get_mongo_medicines_collection()
+            if col is not None:
+                # Tách từ khóa quan trọng
+                clean_query = re.sub(r"[^a-zA-Z0-9\s\u00C0-\u1EF9]", " ", query).strip()
+                tokens = [t for t in clean_query.split() if len(t) >= 2 and t.lower() not in ["thuốc", "cho", "tôi", "uống", "để", "đỡ", "bị", "xin", "tư", "vấn"]]
+                search_terms = tokens if tokens else [clean_query]
+                
+                regex_pattern = "|".join(re.escape(t) for t in search_terms)
+                cursor = col.find({
+                    "$or": [
+                        {"name": {"$regex": regex_pattern, "$options": "i"}},
+                        {"active_ingredient": {"$regex": regex_pattern, "$options": "i"}},
+                        {"thong_tin_chi_tiet.Thành phần": {"$regex": regex_pattern, "$options": "i"}},
+                        {"thong_tin_chi_tiet.Chỉ định": {"$regex": regex_pattern, "$options": "i"}},
+                    ]
+                }).limit(top_k)
+
+                for drug in cursor:
+                    details = drug.get("thong_tin_chi_tiet") or {}
+                    name = drug.get("name", "N/A")
+                    active = drug.get("active_ingredient") or details.get("Thành phần", "N/A")
+                    indications = details.get("Chỉ định") or drug.get("indications", "N/A")
+                    dosage = details.get("Liều dùng") or drug.get("default_dosage", "Theo hướng dẫn bao bì")
+                    contra = details.get("Chống chỉ định") or drug.get("contraindications", "Không rõ")
+                    inter = details.get("Tương tác thuốc") or drug.get("drug_interactions", "Không rõ")
+                    stock = drug.get("stock") or drug.get("stock_quantity") or 10
+                    context_parts.append(
+                        f"**{name}** ({active})\n"
+                        f"- Tồn kho: {stock}\n"
+                        f"- Chỉ định: {indications}\n"
+                        f"- Liều dùng: {dosage}\n"
+                        f"- Chống chỉ định: {contra}\n"
+                        f"- Tương tác thuốc: {inter}"
+                    )
+        except Exception as exc:
+            print(f"⚠️ [RAG] Mongo fallback note: {exc}")
 
     return "\n\n".join(context_parts)

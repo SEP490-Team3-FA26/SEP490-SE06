@@ -86,7 +86,7 @@ export function CustomerLayout() {
               <HeartPulse size={22} className="animate-pulse" />
             </div>
             <div className="flex flex-col">
-              <span className="font-black text-[18px] text-slate-800 tracking-tight leading-none">SmartPharma</span>
+              <span className="font-black text-[18px] text-slate-800 tracking-tight leading-none"> ABC Pharma</span>
               <span className="text-[10px] font-bold text-[#0d6efd] uppercase tracking-wider mt-1">Cổng Khách Hàng / Customer</span>
             </div>
           </Link>
