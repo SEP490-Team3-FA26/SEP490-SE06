@@ -258,30 +258,86 @@ BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU:
 
 async def generate_demand_forecast(dataset: list, period_days: int) -> dict:
     """
-    Tạo dự báo nhu cầu nhập hàng JSON dựa trên dataset lịch sử bán hàng và tồn kho
+    Tạo dự báo nhu cầu nhập hàng JSON toàn diện cho 100% danh mục thuốc trong kho (Full Catalog)
+    kết hợp phân tích cấp cao từ LLM.
     """
-    try:
-        # Lọc ưu tiên 350 sản phẩm quan trọng nhất (tồn kho thấp / nhu cầu cao) gửi cho LLM
-        sorted_dataset = sorted(dataset, key=lambda x: (x.get('currentStock', 9999) - x.get('reorderPoint', 30)))
-        sample_dataset = sorted_dataset[:350]
-        
-        # Rút gọn siêu tiết kiệm Token (chỉ ~10-12 tokens/sản phẩm)
-        compact_samples = [
-            {
-                "id": m.get("medicineId") or m.get("_id"),
-                "name": m.get("name"),
-                "cat": m.get("category", ""),
-                "stock": m.get("currentStock", 0),
-                "sales_daily": m.get("averageDailySales", 0),
-                "incoming": m.get("expectedIncoming", 0),
-                "unit": m.get("unit", "Hộp")
-            }
-            for m in sample_dataset
-        ]
+    import math
 
-        dataset_str = json.dumps(compact_samples, ensure_ascii=False)
-        user_prompt = f"Số ngày dự báo: {period_days} ngày. Tổng danh mục trong kho: {len(dataset)}. Dưới đây là 350 sản phẩm dược phẩm ưu tiên hàng đầu:\n{dataset_str}"
-        
+    # 1. Tính toán định lượng toàn diện cho 100% thuốc trong dataset
+    full_recommendations = []
+    urgent_count = 0
+    total_shortage_items = 0
+
+    for m in dataset:
+        med_id = str(m.get("medicineId") or m.get("_id") or "")
+        name = m.get("name") or "Dược phẩm"
+        category = m.get("category") or "Dược phẩm"
+        unit = m.get("unit") or "Hộp"
+        stock = float(m.get("currentStock", 0))
+        sales = float(m.get("averageDailySales", 0))
+        total_sold = float(m.get("totalSold", 0))
+        incoming = float(m.get("expectedIncoming", 0))
+        price = float(m.get("price", 0))
+        reorder_point = float(m.get("minStock") or m.get("reorderPoint") or 30)
+
+        needed = int(math.ceil(sales * period_days + reorder_point))
+        available = stock + incoming
+        suggested_raw = max(0, needed - available)
+
+        days_remaining = round(stock / sales, 1) if sales > 0 else (999 if stock > 0 else 0)
+
+        if suggested_raw <= 0:
+            suggested_qty = 0
+            urgency = "LOW"
+            if stock > reorder_point * 3 and total_sold == 0:
+                reason = f"Tồn kho cao ({int(stock)} {unit}) nhưng không có phát sinh bán trong {period_days} ngày. Cảnh báo tồn đọng vốn, không nhập thêm."
+            else:
+                reason = f"Tồn kho hiện tại ({int(stock)} {unit}) và hàng đang về (+{int(incoming)}) đủ đáp ứng {period_days} ngày. Không cần nhập thêm."
+        else:
+            suggested_qty = max(10, int(math.ceil(suggested_raw / 10.0) * 10))
+            total_shortage_items += 1
+            if stock <= 10 or days_remaining <= 7:
+                urgency = "HIGH"
+                urgent_count += 1
+                reason = f"Cảnh báo đứt hàng: Tồn kho chỉ còn {int(stock)} {unit} (đủ bán ~{days_remaining} ngày). Đề xuất nhập khẩn cấp {suggested_qty} {unit}."
+            else:
+                urgency = "MEDIUM"
+                reason = f"Tồn kho ({int(stock)} {unit}) sắp chạm ngưỡng an toàn ({int(reorder_point)} {unit}). Đề xuất nhập thêm {suggested_qty} {unit}."
+
+        full_recommendations.append({
+            "medicineId": med_id,
+            "name": name,
+            "category": category,
+            "unit": unit,
+            "price": price,
+            "currentStock": int(stock),
+            "totalSold": int(total_sold),
+            "averageDailySales": round(sales, 2),
+            "expectedIncoming": int(incoming),
+            "suggestedOrderQty": suggested_qty,
+            "daysRemaining": days_remaining,
+            "reorderPoint": int(reorder_point),
+            "urgency": urgency,
+            "reason": reason
+        })
+
+    # Sắp xếp theo thứ tự ưu tiên: Khẩn cấp (HIGH) -> Cần nhập (MEDIUM) -> Đủ hàng (LOW) -> Bán chạy
+    full_recommendations.sort(key=lambda x: (
+        2 if x["urgency"] == "HIGH" else (1 if x["urgency"] == "MEDIUM" else 0),
+        x["suggestedOrderQty"],
+        x["totalSold"]
+    ), reverse=True)
+
+    # 2. Gửi tóm tắt Top các mặt hàng quan trọng nhất cho LLM để tạo Executive Summary
+    top_urgent_samples = [
+        {"name": r["name"], "cat": r["category"], "stock": r["currentStock"], "sales_daily": r["averageDailySales"], "needed": r["suggestedOrderQty"]}
+        for r in full_recommendations[:40]
+    ]
+
+    summary_text = f"Hệ thống đã phân tích toàn bộ {len(full_recommendations)} danh mục dược phẩm: phát hiện {urgent_count} thuốc nguy cơ đứt hàng khẩn cấp và {total_shortage_items} thuốc cần bổ sung cho kỳ {period_days} ngày tới."
+
+    try:
+        user_prompt = f"Phân tích nhanh chuỗi cung ứng cho {len(full_recommendations)} mã thuốc trong {period_days} ngày. Dưới đây là các mặt hàng trọng điểm:\n{json.dumps(top_urgent_samples, ensure_ascii=False)}"
         response = await get_groq_client().chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
@@ -291,92 +347,20 @@ async def generate_demand_forecast(dataset: list, period_days: int) -> dict:
             temperature=0.2,
             response_format={"type": "json_object"}
         )
-        
         content = response.choices[0].message.content
-        result = json.loads(content)
-
-        # Enforce mathematical accuracy & eliminate LLM hallucination on sufficient stock items
-        import math
-        processed_recs = []
-        rec_list = result.get("recommendations", [])
-        med_map = {str(m.get("medicineId") or m.get("_id")): m for m in dataset}
-
-        for rec in rec_list:
-            med_id = str(rec.get("medicineId", ""))
-            med = med_map.get(med_id, {})
-            stock = med.get("currentStock", rec.get("currentStock", 0))
-            sales = med.get("averageDailySales", rec.get("averageDailySales", 0))
-            incoming = med.get("expectedIncoming", rec.get("expectedIncoming", 0))
-            unit = med.get("unit") or rec.get("unit") or "Hộp"
-            reorder_point = med.get("minStock") or med.get("reorderPoint") or 30
-
-            needed = int(math.ceil(sales * period_days + reorder_point))
-            available = stock + incoming
-            suggested_raw = max(0, needed - available)
-
-            if suggested_raw <= 0:
-                rec["suggestedOrderQty"] = 0
-                rec["urgency"] = "LOW"
-                rec["reason"] = f"Tồn kho hiện tại ({stock} {unit}) và hàng đang về (+{incoming}) đáp ứng đủ nhu cầu tiêu thụ trong {period_days} ngày tới. Không cần nhập thêm."
-            else:
-                suggested_qty = max(10, int(math.ceil(suggested_raw / 10.0) * 10))
-                rec["suggestedOrderQty"] = suggested_qty
-                if stock <= 10:
-                    rec["urgency"] = "HIGH"
-                else:
-                    rec["urgency"] = "MEDIUM"
-                if not rec.get("reason") or "bổ sung dự báo" in rec.get("reason", ""):
-                    rec["reason"] = f"Tồn kho hiện tại ({stock} {unit}) sắp chạm ngưỡng an toàn. Đề xuất nhập thêm {suggested_qty} {unit}."
-
-            rec["unit"] = unit
-            rec["currentStock"] = stock
-            rec["averageDailySales"] = sales
-            rec["expectedIncoming"] = incoming
-            processed_recs.append(rec)
-
-        result["recommendations"] = processed_recs
-        return result
+        llm_json = json.loads(content)
+        if llm_json.get("summary"):
+            summary_text = llm_json["summary"]
     except Exception as e:
-        print(f"⚠️ Warning: LLM Forecast failed ({e}), falling back to deterministic recommendations...")
-        # Fallback local calculation
-        import math
-        recommendations = []
-        for m in dataset[:50]:
-            stock = m.get("currentStock", 0)
-            sales = m.get("averageDailySales", 0)
-            incoming = m.get("expectedIncoming", 0)
-            unit = m.get("unit") or "Hộp"
-            reorder_point = m.get("minStock") or m.get("reorderPoint") or 30
+        print(f"ℹ️ LLM Summary fallback: {e}")
 
-            total_needed = int(math.ceil(sales * period_days + reorder_point))
-            available = stock + incoming
-            suggested_raw = max(0, total_needed - available)
-
-            if suggested_raw > 0:
-                suggested_qty = max(10, int(math.ceil(suggested_raw / 10.0) * 10))
-                urgency = "HIGH" if stock <= 10 else "MEDIUM"
-                reason = f"Tồn kho ({stock} {unit}) và hàng đang về (+{incoming}) sắp chạm ngưỡng an toàn. Đề xuất nhập thêm {suggested_qty} {unit}."
-            else:
-                suggested_qty = 0
-                urgency = "LOW"
-                reason = f"Tồn kho ({stock} {unit}) và hàng đang về (+{incoming}) đáp ứng đủ nhu cầu {period_days} ngày tới. Không cần nhập thêm."
-
-            recommendations.append({
-                "medicineId": str(m.get("medicineId") or m.get("_id") or "med-1"),
-                "name": m.get("name") or "Dược phẩm",
-                "category": m.get("category") or m.get("cat") or "Dược phẩm",
-                "unit": unit,
-                "currentStock": stock,
-                "averageDailySales": sales,
-                "expectedIncoming": incoming,
-                "suggestedOrderQty": suggested_qty,
-                "urgency": urgency,
-                "reason": reason
-            })
-        return {
-            "summary": f"Dự báo nhu cầu cho {len(dataset)} dược phẩm trong {period_days} ngày tới từ dữ liệu bán hàng thực tế MongoDB.",
-            "recommendations": recommendations
-        }
+    return {
+        "summary": summary_text,
+        "totalMedicines": len(full_recommendations),
+        "urgentCount": urgent_count,
+        "shortageCount": total_shortage_items,
+        "recommendations": full_recommendations
+    }
 
 SEASONAL_SYSTEM_PROMPT = """Bạn là Chuyên gia Phân tích Dược phẩm & AI Y tế tại Việt Nam.
 Nhiệm vụ của bạn là nhận xét, giải thích và đưa ra khuyến nghị tồn kho dựa trên lịch sử bán hàng 12 tháng qua, thời tiết vùng miền và kết quả dự báo thống kê đã tính sẵn.
@@ -431,13 +415,12 @@ async def analyze_seasonal_trends(dataset: list, weather_region: str, current_se
     """
     Phân tích xu hướng bán hàng theo mùa / dịch bệnh tích hợp dự báo thống kê (Hybrid AI)
     """
-    from services.forecaster import LinearRegressionForecaster, MovingAverageForecaster
+    from services.forecaster import TorchGPUForecaster, get_default_forecaster
     from datetime import datetime
     
-    lr_forecaster = LinearRegressionForecaster()
-    ma_forecaster = MovingAverageForecaster()
+    forecaster = get_default_forecaster()
     
-    # 1. Chạy dự báo thống kê trước cho từng thuốc trong dataset
+    # 1. Chạy dự báo Deep Learning trên GPU cho từng thuốc trong dataset
     enriched_dataset = []
     for item in dataset:
         sales_history = item.get("salesHistory", {})
@@ -450,13 +433,6 @@ async def analyze_seasonal_trends(dataset: list, weather_region: str, current_se
             else:
                 qty_history[k] = float(v or 0)
         
-        # Chọn chiến lược dự báo (Linear Regression nếu đủ >= 4 điểm dữ liệu bán, ngược lại dùng Moving Average)
-        history_points = len([v for v in qty_history.values() if v > 0])
-        if history_points >= 4:
-            forecaster = lr_forecaster
-        else:
-            forecaster = ma_forecaster
-            
         result = forecaster.forecast(qty_history)
         
         item_copy = dict(item)

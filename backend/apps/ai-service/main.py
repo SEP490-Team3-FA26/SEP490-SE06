@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import prescription
+from routers import prescription, forecast
 from scripts.index_from_mongo import main as index_db
 from qdrant_client import QdrantClient
 import os
@@ -14,8 +14,8 @@ else:
     load_dotenv()
 
 app = FastAPI(
-    title="AI Prescription Service",
-    description="Microservice for handling symptom checking and AI prescription via LLMs",
+    title="AI Prescription & Demand Forecast Service",
+    description="Microservice for handling symptom checking, AI prescription, and GPU-accelerated Demand Forecasting",
     version="1.0.0"
 )
 
@@ -46,6 +46,31 @@ def init_qdrant_async():
     thread.daemon = True
     thread.start()
 
+# Tự động kiểm tra và huấn luyện mô hình AI Forecast trên GPU nếu chưa có model
+@app.on_event("startup")
+def init_forecast_model_async():
+    def forecast_thread():
+        try:
+            import time
+            time.sleep(3)
+            models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "models"))
+            pt_file = os.path.join(models_dir, "pharma_forecast_model.pt")
+            pth_file = os.path.join(models_dir, "pharma_forecast_model.pth")
+            
+            if not os.path.exists(pt_file) and not os.path.exists(pth_file):
+                print("[Auto-Train] Chưa tìm thấy checkpoint mô hình AI Forecast. Đang tự động huấn luyện ngầm trên GPU...", flush=True)
+                from scripts.train_forecast_gpu import train_pharma_forecast_model
+                train_pharma_forecast_model(epochs=60, batch_size=64)
+                print("[Auto-Train] Đã hoàn tất huấn luyện mô hình AI Forecast khi khởi động!", flush=True)
+            else:
+                print("[Auto-Train] Mô hình AI Forecast đã sẵn sàng (pharma_forecast_model.pt/pth tồn tại).", flush=True)
+        except Exception as e:
+            print(f"[Auto-Train] Cảnh báo lỗi khởi động train mô hình: {e}", flush=True)
+
+    thread = threading.Thread(target=forecast_thread)
+    thread.daemon = True
+    thread.start()
+
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +85,7 @@ app.add_middleware(
 from fastapi.staticfiles import StaticFiles
 
 app.include_router(prescription.router)
+app.include_router(forecast.router)
 
 # Mount static directories for sample prescriptions and uploads
 static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "static"))

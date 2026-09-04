@@ -114,3 +114,121 @@ class LinearRegressionForecaster(IForecaster):
             ci_upper=round(ci_upper, 2),
             confidence=confidence
         )
+
+class TorchGPUForecaster(IForecaster):
+    """
+    Forecaster sử dụng mạng nơ-ron Deep Learning PyTorch LSTM
+    Chạy trực tiếp trên GPU NVIDIA RTX 3050 (CUDA) với cơ chế tự động fallback CPU
+    """
+    _model_instance = None
+    _device = None
+    _model_loaded = False
+
+    def __init__(self, model_path: str = None):
+        import os
+        if model_path is None:
+            models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
+            pth_path = os.path.join(models_dir, "pharma_forecast_model.pth")
+            pt_path = os.path.join(models_dir, "pharma_forecast_model.pt")
+            self.model_path = pth_path if os.path.exists(pth_path) else pt_path
+        else:
+            self.model_path = model_path
+            
+        self.fallback_forecaster = LinearRegressionForecaster()
+        self._lazy_init_model()
+
+    def _lazy_init_model(self):
+        if TorchGPUForecaster._model_loaded:
+            return
+            
+        try:
+            import os
+            import torch
+            from services.pharma_forecaster_nn import PharmaForecastLSTM, get_device
+            
+            TorchGPUForecaster._device = get_device()
+            # Kiểm tra cả 2 định dạng file .pth hoặc .pt
+            target_file = self.model_path
+            if not os.path.exists(target_file):
+                alt_file = target_file.replace(".pt", ".pth") if target_file.endswith(".pt") else target_file.replace(".pth", ".pt")
+                if os.path.exists(alt_file):
+                    target_file = alt_file
+                    
+            if os.path.exists(target_file):
+                checkpoint = torch.load(target_file, map_location=TorchGPUForecaster._device)
+                hidden_size = checkpoint.get("hidden_size", 64)
+                num_layers = checkpoint.get("num_layers", 2)
+                
+                model = PharmaForecastLSTM(
+                    input_size=1,
+                    hidden_size=hidden_size,
+                    num_layers=num_layers,
+                    output_steps=3
+                )
+                model.load_state_dict(checkpoint["model_state_dict"])
+                model.to(TorchGPUForecaster._device)
+                model.eval()
+                
+                TorchGPUForecaster._model_instance = model
+                TorchGPUForecaster._model_loaded = True
+                print(f"[OK] TorchGPUForecaster: Loaded model successfully on device {TorchGPUForecaster._device}")
+            else:
+                print(f"[INFO] TorchGPUForecaster: Checkpoint not found at {self.model_path}. Using fallback forecaster.")
+        except Exception as e:
+            print(f"[WARN] TorchGPUForecaster init warning: {e}. Using fallback forecaster.")
+
+    def forecast(self, sales_history: dict[str, float]) -> ForecastResult:
+        sorted_keys = sorted(sales_history.keys())
+        sales = [sales_history[k] for k in sorted_keys]
+        
+        if not sales or len(sales) < 3 or not TorchGPUForecaster._model_loaded or TorchGPUForecaster._model_instance is None:
+            return self.fallback_forecaster.forecast(sales_history)
+            
+        try:
+            import torch
+            
+            # Chuẩn bị chuỗi dữ liệu đầu vào (cắt hoặc đệm về độ dài 12 tháng)
+            seq_len = 12
+            if len(sales) < seq_len:
+                # Đệm giá trị trung bình ở đầu chuỗi
+                avg_val = sum(sales) / len(sales)
+                padded_sales = [avg_val] * (seq_len - len(sales)) + sales
+            else:
+                padded_sales = sales[-seq_len:]
+                
+            x_tensor = torch.tensor([[padded_sales]], dtype=torch.float32).permute(0, 2, 1) # (1, 12, 1)
+            x_tensor = x_tensor.to(TorchGPUForecaster._device)
+            
+            with torch.no_grad():
+                mean_pred, std_pred = TorchGPUForecaster._model_instance(x_tensor)
+                
+            m1 = float(mean_pred[0, 0].item())
+            m2 = float(mean_pred[0, 1].item())
+            m3 = float(mean_pred[0, 2].item())
+            
+            std_err = float(std_pred[0, 0].item())
+            ci_margin = 1.96 * max(0.1, std_err)
+            ci_lower = max(0.0, m1 - ci_margin)
+            ci_upper = m1 + ci_margin
+            
+            # Confidence score tính theo tỷ lệ sai số trên dự báo
+            mean_val = max(1.0, m1)
+            cv = std_err / mean_val
+            confidence = max(55, min(99, int(98 - (cv * 30))))
+            
+            return ForecastResult(
+                forecast_m1=round(m1, 2),
+                forecast_m2=round(m2, 2),
+                forecast_m3=round(m3, 2),
+                ci_lower=round(ci_lower, 2),
+                ci_upper=round(ci_upper, 2),
+                confidence=confidence
+            )
+        except Exception as e:
+            # Fallback nếu có lỗi tính toán tensor
+            return self.fallback_forecaster.forecast(sales_history)
+
+def get_default_forecaster() -> IForecaster:
+    """Trả về GPU Forecaster nếu có model, ngược lại fallback Linear Regression"""
+    return TorchGPUForecaster()
+

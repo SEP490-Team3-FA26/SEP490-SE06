@@ -64,7 +64,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isSocketConnected) {
       setConnectionMode('realtime');
-      console.log('📡 Notification mode: REALTIME (WebSocket)');
+      console.log('📡 Notification mode: REALTIME (SSE)');
     } else if (connectionError) {
       setConnectionMode('polling');
       console.log('📡 Notification mode: POLLING (Fallback)');
