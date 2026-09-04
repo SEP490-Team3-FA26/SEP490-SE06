@@ -149,7 +149,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-      - backend/apps/ai-service/.env
+      - path: backend/apps/ai-service/.env
+        required: false
     environment:
       QDRANT_HOST: qdrant
       NODE_OPTIONS: "--max-old-space-size=512"

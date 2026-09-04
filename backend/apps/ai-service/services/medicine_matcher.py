@@ -85,9 +85,10 @@ def match_medicines_with_db(items: List[Dict[str, Any]], branch_id: str = "CENTR
     results = []
 
     for item in items:
-        brand = item.get("brand_name", "")
-        generic = item.get("generic_name", "")
-        raw_text = item.get("raw_text", "")
+        strength = (item.get("strength") or "").strip()
+        brand = (item.get("brand_name") or "").strip()
+        generic = (item.get("generic_name") or "").strip()
+        raw_text = (item.get("raw_text") or "").strip()
         
         target_search = brand or generic or raw_text
         if not target_search:
@@ -103,20 +104,42 @@ def match_medicines_with_db(items: List[Dict[str, Any]], branch_id: str = "CENTR
         matched_med = None
         match_status = "NOT_FOUND"
 
-        # Level 1: Exact / Regex Name Match
-        regex_exact = re.compile(rf"^{re.escape(target_search)}$", re.IGNORECASE)
-        matched_med = med_col.find_one({"name": regex_exact})
-        if matched_med:
-            match_status = "EXACT_MATCH"
+        # Level 1: Khớp kết hợp cả Tên thương hiệu + Hàm lượng (Đảm bảo độ chính xác tuyệt đối về liều lượng)
+        if brand and strength and strength.lower() not in ("không rõ", "n/a", "none"):
+            regex_brand = re.compile(re.escape(brand), re.IGNORECASE)
+            num_match = re.findall(r"\d+(?:[.,]\d+)?", strength)
+            unit_match = re.findall(r"[a-zA-Z%]+", strength)
+            if num_match:
+                unit_str = unit_match[0] if unit_match else "mg"
+                strength_pattern = rf"{re.escape(num_match[0])}\s*{re.escape(unit_str)}"
+                regex_strength = re.compile(strength_pattern, re.IGNORECASE)
+            else:
+                regex_strength = re.compile(re.escape(strength), re.IGNORECASE)
 
-        # Level 2: Substring Name / Active Ingredient Match
+            matched_med = med_col.find_one({
+                "$and": [
+                    {"name": regex_brand},
+                    {"$or": [{"name": regex_strength}, {"active_ingredient": regex_strength}]}
+                ]
+            })
+            if matched_med:
+                match_status = "EXACT_MATCH"
+
+        # Level 2: Khớp tên chính xác (Exact / Regex Name Match)
+        if not matched_med:
+            regex_exact = re.compile(rf"^{re.escape(target_search)}$", re.IGNORECASE)
+            matched_med = med_col.find_one({"name": regex_exact})
+            if matched_med:
+                match_status = "EXACT_MATCH"
+
+        # Level 3: Khớp chuỗi con theo Tên thuốc hoặc Hoạt chất (Substring Name / Active Ingredient Match)
         if not matched_med:
             regex_sub = re.compile(re.escape(target_search), re.IGNORECASE)
             matched_med = med_col.find_one({"$or": [{"name": regex_sub}, {"active_ingredient": regex_sub}]})
             if matched_med:
                 match_status = "EXACT_MATCH"
 
-        # Level 3: Active Ingredient Match if generic name exists
+        # Level 4: Khớp theo Hoạt chất chính nếu có (Active Ingredient Match)
         if not matched_med and generic:
             regex_gen = re.compile(re.escape(generic), re.IGNORECASE)
             matched_med = med_col.find_one({"active_ingredient": regex_gen})

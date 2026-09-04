@@ -395,8 +395,120 @@ sequenceDiagram
 
 ### 11.3. Các bước tích hợp Model đã train vào Backend
 
-1. **Copy Trọng số:** Copy file `weights.pth` từ `training/checkpoints/run_.../` vào thư mục `services/weights/ocr_prescription.pth`.
-2. **Cấu hình Service (`services/ocr_service.py`):** Khởi tạo `Predictor` của VietOCR trỏ đến file trọng số `ocr_prescription.pth`.
-3. **Khởi động API:** Chạy `python main.py` (FastAPI).
-4. **Kiểm thử trên React:** Truy cập màn hình "Quét đơn thuốc" trên giao diện React (`http://localhost:3000`), upload ảnh và xem kết quả trích xuất tự động.
+1. **Copy Trọng số:** Copy file `weights.pth` từ `training/checkpoints/run_.../` vào thư mục `backend/apps/ai-service/models/ocr_prescription.pth`.
+2. **Cấu hình Service (`services/ocr_service.py`):** Service tự động nhận diện file `models/ocr_prescription.pth` qua cơ chế Singleton Predictor và chạy hoàn toàn nội bộ (Local Inference).
+3. **Khởi động API:** Chạy `docker compose up -d` hoặc `uvicorn main:app --reload`.
+4. **Kiểm thử trên React:** Truy cập màn hình "Quét đơn thuốc" trên giao diện React (`http://localhost:3000/pharmacist/sales`), dán ảnh (`Ctrl + V`) hoặc tải ảnh lên và xem kết quả trích xuất tự động.
+
+---
+
+## 12. Chi tiết Kiến trúc AI Pipeline toàn diện (End-to-End AI Pipeline)
+
+Pipeline AI của hệ thống được chia thành 2 nhánh hoàn chỉnh: **Offline Training Pipeline** (quy trình huấn luyện & cải tiến liên tục) và **Online Inference Pipeline** (quy trình suy luận phục vụ thực tế).
+
+```mermaid
+flowchart TB
+    subgraph Offline["🔄 1. OFFLINE TRAINING & DATA PIPELINE"]
+        direction TB
+        D1["MongoDB Medicines<br/>(Dược thư & Tên thuốc)"] --> D2["generate_synthetic_prescriptions.py<br/>(Sinh 500+ đơn synthetic)"]
+        D3["Ảnh đơn thuốc thật<br/>(Phòng khám/Nhà thuốc)"] --> D4["auto_label.py<br/>(Distillation từ Teacher LLM)"]
+        D4 --> D5["build_review_html.py<br/>(Human-in-the-loop review)"]
+        
+        D2 & D5 --> P1["build_line_crops.py<br/>(Otsu segmentation & Bounding Box)"]
+        P1 --> P2["train_stage_a.py<br/>(Fine-tuning VietOCR CNN-Transformer)"]
+        P2 --> P3["eval_stage_a.py & eval_end_to_end.py<br/>(Đo CER, WER, Field Accuracy)"]
+        P3 --> P4["export_model.py<br/>(Xuất weights.pth sang CPU / INT8 ONNX)"]
+    end
+
+    subgraph Online["⚡ 2. ONLINE INFERENCE PIPELINE (PRODUCTION RUNTIME)"]
+        direction TB
+        IN["Ảnh đơn thuốc đầu vào<br/>(Upload / Drag & Drop / Ctrl + V)"] --> S1
+        
+        subgraph Stage0["Tầng 1: Computer Vision Preprocessing"]
+            S1["Grayscale & Noise Reduction"] --> S2["Otsu Adaptive Thresholding"]
+            S2 --> S3["Morphological Dilation (Kernel 25x3)<br/>Liên kết nét chữ tiếng Việt"]
+            S3 --> S4["Contour Detection<br/>Tách Bounding Boxes từng dòng"]
+        end
+        
+        subgraph Stage1["Tầng 2: Stage A - Local Deep Learning OCR"]
+            S4 --> A1["VietOCR Transformer Engine<br/>(Singleton Double-Checked Locking)"]
+            A1 --> A2["Non-blocking Worker Thread<br/>(asyncio.to_thread)"]
+            A2 --> A3["Raw Vietnamese Text Stream"]
+        end
+        
+        subgraph Stage2["Tầng 3: Stage B - Entity Structuring (NLP)"]
+            A3 --> B1["Patient Info Extractor<br/>(Họ tên, tuổi, giới tính)"]
+            A3 --> B2["Clinical Extractor<br/>(Bác sĩ, phòng khám, chẩn đoán)"]
+            A3 --> B3["Medication Line Parser (Regex)<br/>(Tên biệt dược, hàm lượng, số lượng)"]
+            B1 & B2 & B3 --> B4["Drug Normalizer<br/>(Chuẩn hóa đơn vị: viên, hộp, vỉ, lọ)"]
+        end
+        
+        subgraph Stage3["Tầng 4: Stage C - Smart Matching & Inventory Linking"]
+            B4 --> M1["Level 1: Brand + Exact Strength Match<br/>(VD: Verospiron + 50mg)"]
+            M1 -->|Miss| M2["Level 2: Exact SKU Name Match"]
+            M2 -->|Miss| M3["Level 3: Substring & Active Ingredient Match"]
+            M3 -->|Miss| M4["Level 4: Generic Substitute Finder"]
+            M1 & M2 & M3 & M4 --> FEFO["FEFO Batch Allocator<br/>(Gán lô HSD gần nhất từ MongoDB)"]
+        end
+        
+        FEFO --> OUT["JSON Payload chuẩn hóa<br/>(Tự động điền đơn POS & Bán hàng)"]
+    end
+
+    P4 -.->|"Deploy weights.pth vào models/"| A1
+
+    style Offline fill:#f8f9fa,stroke:#6c757d,stroke-width:2px
+    style Online fill:#f0f7ff,stroke:#0066cc,stroke-width:2px
+    style Stage0 fill:#fff9db,stroke:#f59f00,stroke-width:1.5px
+    style Stage1 fill:#ebfbee,stroke:#2b8a3e,stroke-width:1.5px
+    style Stage2 fill:#f3f0ff,stroke:#7950f2,stroke-width:1.5px
+    style Stage3 fill:#e7f5ff,stroke:#1971c2,stroke-width:1.5px
+```
+
+---
+
+### 12.1. Chi tiết 4 tầng xử lý của Online Inference Pipeline
+
+#### 🔹 Tầng 1: Tiền xử lý thị giác máy tính (CV Preprocessing)
+- **Đa dạng nguồn nhập:** Hỗ trợ kéo thả tập tin, duyệt file hoặc **dán trực tiếp từ Clipboard (`Ctrl + V`)**.
+- **Chuyển đổi ảnh:** Đổi sang thang xám (Grayscale), áp dụng bộ lọc giảm nhiễu để loại bỏ vân giấy và bóng mờ của camera điện thoại.
+- **Phân đoạn dòng chữ (Line Segmentation):** 
+  - Áp dụng thuật toán nhị phân hóa Otsu (`cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU`).
+  - Dùng phép giãn nở hình thái học (`cv2.dilate`) với phần tử cấu trúc ngang `(25, 3)` để gắn kết các ký tự và dấu thanh tiếng Việt thành các khối dòng chữ hoàn chỉnh.
+  - Tìm đường bao (`cv2.findContours`) và trích xuất Bounding Boxes từng dòng theo thứ tự từ trên xuống dưới, từ trái sang phải.
+
+#### 🔹 Tầng 2: Nhận diện ký tự OCR nội bộ (Stage A - Local VietOCR)
+- **Kiến trúc mô hình:** Sử dụng mạng nơ-ron kết hợp **VGG Backbone** (trích xuất đặc trưng hình ảnh dạng lưới) và **Transformer Decoder** (sinh chuỗi ký tự theo cơ chế Attention).
+- **Cơ chế tải mô hình (Thread-Safe Singleton):** 
+  - Áp dụng mẫu thiết kế **Double-Checked Locking** (`_predictor_lock`) đảm bảo mô hình chỉ được nạp vào VRAM/RAM đúng một lần duy nhất lúc khởi động, không gây rò rỉ bộ nhớ qua các lượt request đồng thời.
+- **Tối ưu bất đồng bộ:** Tác vụ suy luận OCR là tác vụ nặng tính toán (CPU/GPU-bound), được chuyển sang luồng riêng qua `asyncio.to_thread` giúp Event Loop của FastAPI luôn phản hồi mượt mà (< 5ms cho các request khác).
+
+#### 🔹 Tầng 3: Bóc tách thực thể y tế & Chuẩn hóa (Stage B - Structuring & Normalization)
+- **Trích xuất thông tin hành chính:** Tách họ tên bệnh nhân, tuổi, giới tính, chẩn đoán bệnh, tên bác sĩ kê toa thông qua các mẫu biểu thức chính quy (Regex NLP).
+- **Tách dữ liệu dòng thuốc:**
+  - `brand_name`: Tên biệt dược hoặc tên thương mại của thuốc.
+  - `strength`: Hàm lượng hoạt chất (tự động phân tích các định dạng: `50mg`, `0.5mg/ml`, `250mg`, `1g`,...).
+  - `quantity`: Số lượng mua (tự động lọc các tiền tố `SL:`, `Số lượng:`, `S L:`).
+  - `unit`: Tự động chuẩn hóa về danh mục chuẩn (`viên`, `hộp`, `vỉ`, `chai`, `lọ`, `ống`, `gói`, `tuýp`).
+  - `dosage`: Cách dùng, tần suất trong ngày (`2 lần/ngày`), thời điểm uống (`trước ăn`, `sau ăn`).
+
+#### 🔹 Tầng 4: Khớp kho thuốc thông minh & Gán lô FEFO (Stage C - Matching Engine)
+- **Cấp 1 - Khớp kết hợp Tên + Hàm lượng (Level 1 - Cao nhất):** 
+  Bắt buộc tìm kiếm kết hợp cả Tên thương mại (`regex_brand`) VÀ Hàm lượng chính xác (`regex_strength`) trong CSDL MongoDB. Ngăn chặn triệt để tình trạng nhầm lẫn nồng độ/hàm lượng (ví dụ: đơn kê `Verospiron 50mg` không bao giờ bị lấy nhầm sang `Verospiron 25mg`).
+- **Cấp 2 - Khớp tên chính xác (Level 2):** Khớp toàn bộ chuỗi ký tự tên thuốc trong CSDL.
+- **Cấp 3 - Khớp hoạt chất & chuỗi con (Level 3):** Tìm kiếm theo hoạt chất tương đương khi tên biệt dược không có sẵn trong kho.
+- **Cấp 4 - Thuốc thay thế (Level 4):** Đưa ra danh sách 3 thuốc gợi ý thay thế có cùng hoạt chất chính.
+- **Tự động gán lô FEFO (First Expired, First Out):** Truy vấn bảng `medicinebatches` tại chi nhánh hiện tại, tự động chọn Lô thuốc còn tồn kho (`stock > 0`) và có hạn sử dụng gần nhất (`expDate ASC`).
+
+---
+
+### 12.2. So sánh Chế độ Offline Local vs Cloud Fallback
+
+| Tiêu chí | 🏠 Chế độ Local (Model tự train) | ☁️ Chế độ Cloud Fallback (Vision LLM) |
+|---|---|---|
+| **File trọng số** | Yêu cầu `models/ocr_prescription.pth` | Không cần file trọng số nội bộ |
+| **Gọi bên thứ 3** | **Hoàn toàn KHÔNG (0% 3rd party)** | Gọi OpenRouter / Google Gemini API |
+| **Chi phí API** | **0 VNĐ (Miễn phí vĩnh viễn)** | Tính phí theo số lượng Token hình ảnh |
+| **Bảo mật dữ liệu** | 100% On-Premise, đạt chuẩn y tế | Gửi ảnh ra máy chủ bên thứ 3 qua Internet |
+| **Độ trễ (Latency)** | Cực nhanh trên GPU nội bộ (~0.5s - 1.2s) | Phụ thuộc tốc độ đường truyền quốc tế (3s - 8s) |
+| **Mục đích** | Môi trường Production vận hành chính | Cơ chế dự phòng khi chưa tải model cục bộ |
 
