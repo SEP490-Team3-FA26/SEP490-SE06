@@ -15,6 +15,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+from dotenv import load_dotenv, find_dotenv
+
+# Tìm và nạp .env
+env_path = find_dotenv()
+if env_path:
+    load_dotenv(env_path)
+else:
+    load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.env")))
+    load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../.env")))
 
 # Thêm thư mục gốc của ai-service vào path để import service
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -100,10 +109,15 @@ def fetch_database_sales_history(sequence_len: int = 12) -> tuple[list, list]:
         from datetime import datetime, timedelta
         from collections import defaultdict
         
-        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-        db = client.get_default_database() or client["WDP201"]
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=10000)
+        try:
+            db = client.get_default_database()
+        except Exception:
+            db = None
+        if db is None:
+            db = client["WDP201"]
         
-        # 1. Lấy danh mục thuốc
+        # 1. Lấy danh mục thuốc từ medicines
         medicines = list(db["medicines"].find(
             {"status": {"$ne": "INACTIVE"}},
             {"_id": 1, "name": 1, "category": 1, "stock": 1, "safetyStock": 1, "reorderPoint": 1, "price": 1}
@@ -112,68 +126,84 @@ def fetch_database_sales_history(sequence_len: int = 12) -> tuple[list, list]:
         med_ids = {str(m["_id"]): m for m in medicines}
         print(f"📊 [MongoDB] Đã nạp {len(medicines)} thuốc từ collection `medicines`.")
         
+        # 1.1 Lấy tồn kho thực tế từ medicinebatches
+        batch_col = "medicinebatches" if "medicinebatches" in db.list_collection_names() else "batches"
+        if batch_col in db.list_collection_names():
+            batches = list(db[batch_col].find({"status": {"$in": ["ACTIVE", "active", "IN_STOCK"]}}, {"medicineId": 1, "stock": 1}))
+            stock_map = defaultdict(float)
+            for b in batches:
+                b_mid = str(b.get("medicineId", ""))
+                stock_map[b_mid] += float(b.get("stock", 0))
+            for b_mid, actual_stock in stock_map.items():
+                if b_mid in med_ids:
+                    med_ids[b_mid]["stock"] = actual_stock
+            print(f"📦 [MongoDB] Đã cập nhật tồn kho thực tế từ collection `{batch_col}` cho {len(stock_map)} thuốc.")
+
         # 2. Tổng hợp lịch sử bán hàng theo từng tháng (hoặc khoảng 30 ngày)
         # Sales bucket: { medicine_id: { month_key: total_quantity } }
         sales_timeline = defaultdict(lambda: defaultdict(float))
         
         # A. Lấy từ salesorders
-        sales_orders = list(db["salesorders"].find({}, {"items": 1, "createdAt": 1}))
-        for so in sales_orders:
-            dt = so.get("createdAt")
-            if isinstance(dt, str):
-                try:
-                    dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
-                except Exception:
+        if "salesorders" in db.list_collection_names():
+            sales_orders = list(db["salesorders"].find({}, {"items": 1, "createdAt": 1}))
+            for so in sales_orders:
+                dt = so.get("createdAt")
+                if isinstance(dt, str):
+                    try:
+                        dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+                    except Exception:
+                        dt = datetime.now()
+                elif not isinstance(dt, datetime):
                     dt = datetime.now()
-            elif not isinstance(dt, datetime):
-                dt = datetime.now()
-                
-            m_key = dt.strftime("%Y-%m")
-            for it in so.get("items", []):
-                mid = str(it.get("medicineId", ""))
-                qty = float(it.get("quantity", 0))
-                if mid and qty > 0:
-                    sales_timeline[mid][m_key] += qty
+                    
+                m_key = dt.strftime("%Y-%m")
+                for it in so.get("items", []):
+                    mid = str(it.get("medicineId", "") or it.get("drugId", "") or it.get("id", ""))
+                    qty = float(it.get("quantity", 0) or it.get("qty", 0) or 0)
+                    if mid and qty > 0:
+                        sales_timeline[mid][m_key] += qty
                     
         # B. Lấy từ orders
-        orders = list(db["orders"].find({}, {"items": 1, "createdAt": 1}))
-        for od in orders:
-            dt = od.get("createdAt")
-            if isinstance(dt, str):
-                try:
-                    dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
-                except Exception:
+        if "orders" in db.list_collection_names():
+            orders = list(db["orders"].find({}, {"items": 1, "createdAt": 1}))
+            for od in orders:
+                dt = od.get("createdAt")
+                if isinstance(dt, str):
+                    try:
+                        dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+                    except Exception:
+                        dt = datetime.now()
+                elif not isinstance(dt, datetime):
                     dt = datetime.now()
-            elif not isinstance(dt, datetime):
-                dt = datetime.now()
-                
-            m_key = dt.strftime("%Y-%m")
-            for it in od.get("items", []):
-                mid = str(it.get("medicineId", ""))
-                qty = float(it.get("quantity", 0))
+                    
+                m_key = dt.strftime("%Y-%m")
+                for it in od.get("items", []):
+                    mid = str(it.get("medicineId", "") or it.get("drugId", "") or it.get("id", ""))
+                    qty = float(it.get("quantity", 0) or it.get("qty", 0) or 0)
+                    if mid and qty > 0:
+                        sales_timeline[mid][m_key] += qty
+
+        # C. Lấy từ inventorytransactions (loại SALE / EXPORT / OUT)
+        if "inventorytransactions" in db.list_collection_names():
+            txs = list(db["inventorytransactions"].find(
+                {"type": {"$in": ["SALE", "EXPORT", "DISPENSE", "TRANSFER_OUT", "OUT", "INTERNAL_EXPORT"]}},
+                {"medicineId": 1, "quantity": 1, "quantityChange": 1, "qty": 1, "createdAt": 1}
+            ))
+            for tx in txs:
+                dt = tx.get("createdAt")
+                if isinstance(dt, str):
+                    try:
+                        dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+                    except Exception:
+                        dt = datetime.now()
+                elif not isinstance(dt, datetime):
+                    dt = datetime.now()
+                    
+                m_key = dt.strftime("%Y-%m")
+                mid = str(tx.get("medicineId", ""))
+                qty = abs(float(tx.get("quantityChange") or tx.get("quantity") or tx.get("qty") or 0))
                 if mid and qty > 0:
                     sales_timeline[mid][m_key] += qty
-
-        # C. Lấy từ inventorytransactions (loại SALE / EXPORT)
-        txs = list(db["inventorytransactions"].find(
-            {"type": {"$in": ["SALE", "EXPORT", "DISPENSE", "TRANSFER_OUT"]}},
-            {"medicineId": 1, "quantity": 1, "createdAt": 1}
-        ))
-        for tx in txs:
-            dt = tx.get("createdAt")
-            if isinstance(dt, str):
-                try:
-                    dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
-                except Exception:
-                    dt = datetime.now()
-            elif not isinstance(dt, datetime):
-                dt = datetime.now()
-                
-            m_key = dt.strftime("%Y-%m")
-            mid = str(tx.get("medicineId", ""))
-            qty = abs(float(tx.get("quantity", 0)))
-            if mid and qty > 0:
-                sales_timeline[mid][m_key] += qty
                 
         print(f"📈 [MongoDB] Đã trích xuất lịch sử bán của {len(sales_timeline)} thuốc có phát sinh giao dịch.")
         

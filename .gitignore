@@ -48,8 +48,19 @@ docker-compose.infra.yml
 .last_phone_ip
 connect_mobile.ps1
 .playwright-mcp/
+
+# AI-service custom OCR training pipeline (see training/README.md)
+backend/apps/ai-service/training/.venv-train/
+backend/apps/ai-service/training/checkpoints/
+backend/apps/ai-service/training/*_prescription_stage_a/
+backend/apps/ai-service/models/*.pth
+backend/apps/ai-service/data/raw/
+backend/apps/ai-service/data/labels/
+backend/apps/ai-service/data/synthetic/
+!backend/apps/ai-service/data/splits/*.jsonl
 *.lnk
 *.apk
+railway.exe
 frontend/public/download/
 
 # Local Quick-Start Scripts

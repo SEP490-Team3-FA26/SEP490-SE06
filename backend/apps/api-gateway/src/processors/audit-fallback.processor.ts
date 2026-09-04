@@ -1,30 +1,17 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
-import Redis from 'ioredis';
 import * as fs from 'fs';
 import * as path from 'path';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class AuditFallbackProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AuditFallbackProcessor.name);
-  private redis: Redis;
   private retryInterval: NodeJS.Timeout;
   private isProcessing = false;
   private kafkaClient: ClientKafka;
 
-  constructor() {
-    const redisHost = process.env.REDIS_HOST || 'localhost';
-    const redisPort = Number(process.env.REDIS_PORT) || 6379;
-    this.redis = new Redis({
-      host: redisHost,
-      port: redisPort,
-      maxRetriesPerRequest: 3,
-    });
-    
-    this.redis.on('error', (err) => {
-      this.logger.error(`Redis client error: ${err.message}`);
-    });
-  }
+  constructor(private readonly redisService: RedisService) {}
 
   setKafkaClient(client: ClientKafka) {
     this.kafkaClient = client;
@@ -43,12 +30,11 @@ export class AuditFallbackProcessor implements OnModuleInit, OnModuleDestroy {
     if (this.retryInterval) {
       clearInterval(this.retryInterval);
     }
-    this.redis.disconnect();
   }
 
   async getQueueSize(): Promise<number> {
     try {
-      return await this.redis.llen('audit_fallback_queue');
+      return await this.redisService.llen('audit_fallback_queue');
     } catch (e) {
       return 0;
     }
@@ -56,7 +42,7 @@ export class AuditFallbackProcessor implements OnModuleInit, OnModuleDestroy {
 
   async getDlqSize(): Promise<number> {
     try {
-      return await this.redis.llen('audit_log_dlq');
+      return await this.redisService.llen('audit_log_dlq');
     } catch (e) {
       return 0;
     }
@@ -69,7 +55,7 @@ export class AuditFallbackProcessor implements OnModuleInit, OnModuleDestroy {
         retries: 0,
         lastAttempt: new Date().toISOString(),
       };
-      await this.redis.rpush('audit_fallback_queue', JSON.stringify(fallbackPayload));
+      await this.redisService.rpush('audit_fallback_queue', fallbackPayload);
       this.logger.warn(`Kafka emit failed. Buffered log to Redis Fallback Queue (auditEventId: ${log.auditEventId})`);
     } catch (redisError: any) {
       this.logger.error(`Redis is also unavailable! Falling back to local file. Error: ${redisError.message}`);
@@ -118,12 +104,10 @@ export class AuditFallbackProcessor implements OnModuleInit, OnModuleDestroy {
     this.isProcessing = true;
 
     try {
-      let queueLen = await this.redis.llen('audit_fallback_queue');
+      let queueLen = await this.redisService.llen('audit_fallback_queue');
       while (queueLen > 0) {
-        const itemStr = await this.redis.lindex('audit_fallback_queue', 0);
-        if (!itemStr) break;
-
-        const payload = JSON.parse(itemStr);
+        const payload = await this.redisService.lindex<any>('audit_fallback_queue', 0);
+        if (!payload) break;
         const { log, retries } = payload;
 
         try {
@@ -131,7 +115,7 @@ export class AuditFallbackProcessor implements OnModuleInit, OnModuleDestroy {
           await this.kafkaClient.emit('audit.created', log).toPromise();
           
           // If successful, remove from queue
-          await this.redis.lpop('audit_fallback_queue');
+          await this.redisService.lpop('audit_fallback_queue');
           this.logger.log(`Resent fallback log to Kafka successfully (auditEventId: ${log.auditEventId})`);
           queueLen--;
         } catch (kafkaErr: any) {
@@ -139,17 +123,17 @@ export class AuditFallbackProcessor implements OnModuleInit, OnModuleDestroy {
           
           if (retries >= 4) {
             // Max retries (5 attempts) reached -> Move to DLQ
-            await this.redis.lpop('audit_fallback_queue');
+            await this.redisService.lpop('audit_fallback_queue');
             payload.dlqError = kafkaErr.message;
             payload.failedAt = new Date().toISOString();
-            await this.redis.rpush('audit_log_dlq', JSON.stringify(payload));
+            await this.redisService.rpush('audit_log_dlq', payload);
             this.logger.error(`CRITICAL: Audit log reached max retries. Moved to DLQ 'audit_log_dlq' (auditEventId: ${log.auditEventId})`);
           } else {
             // Update retry count and shift element to the back of the queue
             payload.retries = retries + 1;
             payload.lastAttempt = new Date().toISOString();
-            await this.redis.lpop('audit_fallback_queue');
-            await this.redis.rpush('audit_fallback_queue', JSON.stringify(payload));
+            await this.redisService.lpop('audit_fallback_queue');
+            await this.redisService.rpush('audit_fallback_queue', payload);
           }
           break; // Exit this processing cycle to wait for the next backoff interval
         }

@@ -2,12 +2,12 @@
   "model_type": "PharmaForecastLSTM",
   "device": "cpu",
   "device_name": "CPU",
-  "training_duration_seconds": 48.24,
-  "total_samples": 3500,
+  "training_duration_seconds": 78.07,
+  "total_samples": 5106,
   "epochs": 60,
-  "final_train_loss": 80.4015,
-  "final_val_loss": 55.5149,
-  "final_val_mae": 56.0116,
-  "final_val_rmse": 92.8277,
-  "saved_at": "2026-09-04 20:25:32"
+  "final_train_loss": 100.113,
+  "final_val_loss": 121.1817,
+  "final_val_mae": 121.6623,
+  "final_val_rmse": 200.541,
+  "saved_at": "2026-09-04 22:11:12"
 }

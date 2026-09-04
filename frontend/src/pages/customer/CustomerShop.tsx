@@ -225,7 +225,7 @@ export function CustomerShop() {
     }
 
     try {
-      const response = await api.post("/api/users/cart", 
+      const response = await api.post("/api/users/cart",
         { medicineId: medId, quantity: customQty },
         { headers: { "Authorization": `Bearer ${token}` } }
       );
@@ -260,7 +260,7 @@ export function CustomerShop() {
   );
 
   const renderFilterSidebar = () => (
-    <ShopFilterSidebar 
+    <ShopFilterSidebar
       selectedTargetGroup={selectedTargetGroup}
       setSelectedTargetGroup={setSelectedTargetGroup}
       selectedPriceRange={selectedPriceRange}
@@ -290,13 +290,13 @@ export function CustomerShop() {
 
   return (
     <div className="flex flex-col gap-6 flex-1">
-      
+
       {/* Premium Hero Banner */}
       <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-12 shadow-xl border border-white/5">
         <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-550 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
         <div className="relative z-10 max-w-2xl flex flex-col gap-4">
           <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400">
-            🏥 SmartPharma AI Shop
+            🏥 ABC Pharmarcy AI Shop
           </span>
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1]">
             Dược Phẩm Chính Hãng <br className="hidden sm:block" />
@@ -410,7 +410,7 @@ export function CustomerShop() {
                 <X size={12} className="cursor-pointer text-indigo-400 hover:text-indigo-700" onClick={() => setSelectedBrand("")} />
               </span>
             )}
-            <button 
+            <button
               onClick={() => {
                 handleResetFilters();
                 setSearchQuery("");
@@ -427,7 +427,7 @@ export function CustomerShop() {
 
       {/* Main Layout Body */}
       <div className="flex flex-col lg:flex-row gap-8 flex-1 items-start w-full">
-        
+
         {/* Sticky Desktop Filter Sidebar */}
         <aside className="hidden lg:block w-72 flex-shrink-0 bg-white border border-slate-150 rounded-[28px] p-6 shadow-sm sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto no-scrollbar">
           {renderFilterSidebar()}
@@ -474,7 +474,7 @@ export function CustomerShop() {
               </div>
 
               {/* Styled Pagination Controls */}
-              <Pagination 
+              <Pagination
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}
                 totalPages={totalPages}
@@ -494,7 +494,7 @@ export function CustomerShop() {
       </div>
 
       {/* Styled Product Details Preview Modal */}
-      <MedicineDetailModal 
+      <MedicineDetailModal
         medicine={selectedMedicineForModal}
         isOpen={!!selectedMedicineForModal}
         onClose={() => setSelectedMedicineForModal(null)}

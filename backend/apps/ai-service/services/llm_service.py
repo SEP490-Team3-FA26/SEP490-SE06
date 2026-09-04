@@ -13,30 +13,97 @@ def get_groq_client() -> AsyncGroq:
 def get_deepseek_api_key() -> str | None:
     return os.getenv("PHUC_DEEPSEEK_V4_FLASH") or os.getenv("DEEPSEEK_API_KEY")
 
-async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
-    key = get_deepseek_api_key()
-    if not key:
-        raise RuntimeError("PHUC_DEEPSEEK_V4_FLASH is not configured")
-    
-    url = "https://api.deepseek.com/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "deepseek-v4-flash",
-        "messages": messages,
-    }
-    if response_format:
-        payload["response_format"] = response_format
+async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
+    """
+    Gọi LLM với cơ chế Multi-Tier Fallback tự động:
+    1. Ưu tiên DeepSeek API (deepseek-chat / deepseek-v4-flash)
+    2. Fallback sang Groq API (qwen/qwen3.8-27b hoặc openai/gpt-oss-120b)
+    3. Fallback sang OpenRouter (nếu có OPEN_ROUTER_API)
+    """
+    errors = []
 
-    print("🤖 [AI Service] Đang gọi trực tiếp DeepSeek API (model: deepseek-v4-flash)...")
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        res = await client.post(url, headers=headers, json=payload)
-        res.raise_for_status()
-        data = res.json()
-        print("✅ [AI Service] DeepSeek API phản hồi thành công!")
-        return data["choices"][0]["message"]["content"]
+    # 1. Thử DeepSeek API
+    deepseek_key = get_deepseek_api_key()
+    if deepseek_key:
+        try:
+            print("🤖 [AI Service] Đang gọi DeepSeek API (model: deepseek-chat)...")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {deepseek_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": messages,
+                        "temperature": temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print("✅ [AI Service] DeepSeek API phản hồi thành công!")
+                    return content
+                else:
+                    errors.append(f"DeepSeek HTTP {res.status_code}: {res.text}")
+        except Exception as exc:
+            errors.append(f"DeepSeek exception: {exc}")
+
+    # 2. Thử Groq API (với model qwen/qwen3.8-27b hoặc openai/gpt-oss-120b)
+    groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
+    if groq_key:
+        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+            try:
+                print(f"🤖 [AI Service] Thử Groq API (model: {model})...")
+                groq_client = get_groq_client()
+                response = await groq_client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+                if content:
+                    print(f"✅ [AI Service] Groq ({model}) phản hồi thành công!")
+                    return content
+            except Exception as exc:
+                errors.append(f"Groq ({model}) exception: {exc}")
+
+    # 3. Thử OpenRouter API (nếu có)
+    openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        try:
+            print("🤖 [AI Service] Thử OpenRouter API...")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {openrouter_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "deepseek/deepseek-chat",
+                        "messages": messages,
+                        "temperature": temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print("✅ [AI Service] OpenRouter phản hồi thành công!")
+                    return content
+                else:
+                    errors.append(f"OpenRouter HTTP {res.status_code}: {res.text}")
+        except Exception as exc:
+            errors.append(f"OpenRouter exception: {exc}")
+
+    raise RuntimeError(f"Tất cả các dịch vụ LLM đều thất bại: {'; '.join(errors)}")
+
+async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
+    return await call_llm_json(messages, temperature=0.1)
 
 RETRIEVAL_NORMALIZATION_PROMPT = """Bạn làm nhiệm vụ làm sạch bản ghi âm tiếng Việt cho tìm kiếm y tế.
 Hãy sửa các lỗi nhận dạng giọng nói rõ ràng và rút gọn thành các triệu chứng/ngữ cảnh y tế có trong lời nói.
@@ -50,16 +117,12 @@ async def normalize_transcript_for_retrieval(transcript: str) -> str:
         return transcript
 
     try:
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": RETRIEVAL_NORMALIZATION_PROMPT},
-                {"role": "user", "content": transcript},
-            ],
-            temperature=0,
-            response_format={"type": "json_object"},
-        )
-        normalized = json.loads(response.choices[0].message.content or "{}")
+        messages = [
+            {"role": "system", "content": RETRIEVAL_NORMALIZATION_PROMPT},
+            {"role": "user", "content": transcript},
+        ]
+        content = await call_llm_json(messages, temperature=0.0)
+        normalized = json.loads(content or "{}")
         search_query = str(normalized.get("search_query") or "").strip()
         return search_query[:500] if search_query else transcript
     except Exception as exc:
@@ -70,20 +133,20 @@ MEDICAL_SYSTEM_PROMPT = """Bạn là Dược sĩ AI chuyên nghiệp tại Việ
 Bạn có kiến thức sâu về dược lý, tương tác thuốc, và phác đồ điều trị.
 
 NGUYÊN TẮC BẮT BUỘC:
-1. TUYỆT ĐỐI CHỈ KÊ THUỐC CÓ TRONG CƠ SỞ DỮ LIỆU (Context) được cung cấp bên dưới. Nếu CƠ SỞ DỮ LIỆU trống hoặc chứa "Không có dữ liệu ngữ cảnh", KHÔNG ĐƯỢC kê bất kỳ loại thuốc nào (để mảng recommended_drugs rỗng) và ghi vào warnings: "Không tìm thấy thuốc phù hợp trong kho, vui lòng đi khám bác sĩ".
-2. Luôn cảnh báo tương tác thuốc nguy hiểm dựa trên Context.
-3. Ưu tiên các loại thuốc an toàn và phù hợp triệu chứng nhất từ Context.
-4. KHÔNG TỰ BỊA RA THÔNG TIN THUỐC. Mọi loại thuốc được kê phải khớp chính xác 100% với tên trong CƠ SỞ DỮ LIỆU.
+1. CHỈ KÊ THUỐC CÓ TRONG CƠ SỞ DỮ LIỆU (Context) được cung cấp bên dưới.
+2. Nếu Khách hàng hỏi hoặc mô tả triệu chứng (ví dụ: đau bụng, đau dạ dày, sốt, đau đầu, ho, sổ mũi, tiêu hóa...): Hãy tự động chọn 1 đến 3 loại thuốc phù hợp, an toàn nhất từ CƠ SỞ DỮ LIỆU để kê đơn hỗ trợ khách hàng.
+3. Luôn cảnh báo tương tác thuốc hoặc lưu ý quan trọng (nếu có).
+4. Mọi loại thuốc được kê phải khớp tên với CƠ SỞ DỮ LIỆU.
+5. Nếu CƠ SỞ DỮ LIỆU trống hoặc không có thuốc nào liên quan, để recommended_drugs rỗng và ghi vào warnings: "Không tìm thấy thuốc phù hợp trong kho, vui lòng đi khám bác sĩ".
 
 --- CƠ SỞ DỮ LIỆU THUỐC ---
 {rag_context}
 --------------------------
 Nhiệm vụ của bạn:
-1. Đọc kỹ ĐOẠN HỘI THOẠI (Transcript) giữa Khách hàng và Dược sĩ.
+1. Đọc kỹ ĐOẠN HỘI THOẠI (Transcript) (lời của Khách hàng hoặc hội thoại giữa Khách hàng và Dược sĩ).
 2. Trích xuất thông tin cá nhân của bệnh nhân (Tên, Số điện thoại) nếu có nhắc đến.
-3. Phân tích lời khai của Khách hàng: Họ đang có triệu chứng gì? Bệnh gì? Tiền sử dị ứng gì?
-4. Phân tích lời khuyên của Dược sĩ: Dược sĩ đã chốt bán thuốc gì? Liều dùng dặn dò ra sao?
-5. Từ các thông tin trên, đối chiếu với RAG Context (Dữ liệu tiếng Anh) để dịch và xuất ra Toa Thuốc chuẩn bằng Tiếng Việt.
+3. Phân tích triệu chứng bệnh mà Khách hàng đang gặp phải.
+4. Đề xuất thuốc: Chọn 1-3 loại thuốc tối ưu nhất từ CƠ SỞ DỮ LIỆU khớp với triệu chứng. Ghi rõ liều dùng (dosage) và cách dùng (usage) chi tiết bằng Tiếng Việt.
 
 BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU (KHÔNG GIẢI THÍCH THÊM):
 {
@@ -95,7 +158,7 @@ BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU (KHÔNG GIẢI THÍCH TH
   "recommended_drugs": [
     { "name": "Tên thuốc", "active_ingredient": "Hoạt chất", "dosage": "Liều dùng", "usage": "Cách dùng" }
   ],
-  "warnings": "Cảnh báo chống chỉ định nếu có"
+  "warnings": "Cảnh báo chống chỉ định hoặc lưu ý dùng thuốc nếu có"
 }"""
 
 async def generate_prescription(transcript: str, context: str) -> dict:
@@ -103,18 +166,12 @@ async def generate_prescription(transcript: str, context: str) -> dict:
     Tạo đơn thuốc JSON dựa trên transcript và context từ RAG
     """
     system_prompt = MEDICAL_SYSTEM_PROMPT.replace("{rag_context}", context or "Không có dữ liệu ngữ cảnh.")
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Đoạn ghi âm cuộc hội thoại: \"{transcript}\""}
+    ]
     
-    response = await get_groq_client().chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Đoạn ghi âm cuộc hội thoại: \"{transcript}\""}
-        ],
-        temperature=0.1,
-        response_format={"type": "json_object"}
-    )
-    
-    content = response.choices[0].message.content
+    content = await call_llm_json(messages, temperature=0.1)
     try:
         prescription = json.loads(content)
 
@@ -497,17 +554,11 @@ async def analyze_seasonal_trends(dataset: list, weather_region: str, current_se
     user_prompt = f"Dưới đây là tập dữ liệu thống kê doanh số bán hàng và dự báo:\n{json.dumps(dataset_to_llm, ensure_ascii=False)}"
     
     try:
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
-        
-        content = response.choices[0].message.content
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        content = await call_llm_json(messages, temperature=0.1)
         llm_json = json.loads(content)
     except Exception as e:
         print(f"Lỗi gọi LLM giải thích xu hướng: {e}")
@@ -521,7 +572,7 @@ async def analyze_seasonal_trends(dataset: list, weather_region: str, current_se
     # 3. Kết hợp kết quả phân tích thống kê và giải thích định tính
     return {
         "generated_at": datetime.utcnow().isoformat() + "Z",
-        "llm_model": "llama-3.3-70b-versatile",
+        "llm_model": "deepseek-chat / qwen-3.8-27b",
         "analysis_version": "v1.2.0",
         "summary": llm_json.get("summary", ""),
         "seasonal_trends": llm_json.get("seasonal_trends", []),
@@ -609,20 +660,14 @@ async def match_prescription_with_inventory(ocr_data: dict, rag_context: str) ->
     ).replace("{rag_context}", rag_context or "Không có dữ liệu kho thuốc.")
 
     try:
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": "Hãy đối chiếu đơn thuốc với kho và phân tích tương tác thuốc.",
-                },
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"},
-        )
-
-        content = response.choices[0].message.content
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": "Hãy đối chiếu đơn thuốc với kho và phân tích tương tác thuốc.",
+            },
+        ]
+        content = await call_llm_json(messages, temperature=0.1)
         result = json.loads(content)
 
         # Post-process: Validate matched names against RAG context
