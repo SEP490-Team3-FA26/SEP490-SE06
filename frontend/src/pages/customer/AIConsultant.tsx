@@ -10,11 +10,11 @@ export function AIConsultant() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  
+
   // Text Input
   const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
   const [symptomsText, setSymptomsText] = useState("");
-  
+
   // Results
   const [result, setResult] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState("");
@@ -86,7 +86,7 @@ export function AIConsultant() {
       const mediaRecorder = supportedMimeType
         ? new MediaRecorder(stream, { mimeType: supportedMimeType })
         : new MediaRecorder(stream);
-      
+
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
@@ -104,7 +104,7 @@ export function AIConsultant() {
         } else {
           setAudioBlob(recordedBlob);
         }
-        
+
         stream.getTracks().forEach((track) => track.stop());
         mediaStreamRef.current = null;
       };
@@ -143,7 +143,7 @@ export function AIConsultant() {
   const sendToAI = async () => {
     if (inputMode === "voice" && !audioBlob) return;
     if (inputMode === "text" && !symptomsText.trim()) return;
-    
+
     setLoading(true);
     setError("");
     setResult(null);
@@ -283,16 +283,16 @@ export function AIConsultant() {
         {/* Left: Recording Widget (Premium Dark Theme Card) */}
         <div className="lg:col-span-5 bg-gradient-to-b from-slate-900 to-slate-950 text-white border border-slate-800 rounded-[28px] p-8 shadow-xl flex flex-col items-center justify-center text-center gap-6 relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full filter blur-3xl pointer-events-none"></div>
-          
+
           {/* Tabs */}
           <div className="flex w-full max-w-xs bg-slate-800/80 rounded-xl p-1 border border-slate-700/50 z-10">
-            <button 
+            <button
               onClick={() => { setInputMode("voice"); setError(""); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${inputMode === "voice" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"}`}
             >
               🎙️ Ghi Âm
             </button>
-            <button 
+            <button
               onClick={() => { setInputMode("text"); setError(""); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${inputMode === "text" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"}`}
             >
@@ -306,110 +306,108 @@ export function AIConsultant() {
                 <Volume2 size={22} />
               </div>
 
-          <div className="flex flex-col gap-2">
-            <h4 className="font-black text-white text-md tracking-tight">Ghi Âm Triệu Chứng Của Bạn</h4>
-            <p className="text-xs text-slate-400 max-w-xs leading-relaxed font-semibold">
-              Nhấn nút mic bên dưới và kể lại triệu chứng của bạn (Ví dụ: "Tôi bị sốt cao, đau đầu và sổ mũi 2 ngày qua").
-            </p>
-          </div>
-
-          {/* Micro Animation / Waveform Wrapper */}
-          <div className="relative flex items-center justify-center w-40 h-40">
-            {recording && (
-              <>
-                <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping opacity-45"></div>
-                <div className="absolute inset-4 bg-indigo-500/30 rounded-full animate-pulse opacity-75"></div>
-                <div className="absolute inset-8 bg-blue-500/30 rounded-full animate-pulse duration-1000 opacity-60"></div>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={recording ? stopRecording : startRecording}
-              disabled={requestingMicrophone || loading}
-              aria-label={recording ? "Dừng ghi âm" : "Bắt đầu ghi âm"}
-              className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 active:scale-95 border focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/50 disabled:cursor-wait disabled:opacity-70 ${
-                recording 
-                  ? "bg-rose-500 border-rose-400 text-white shadow-rose-900/50 hover:bg-rose-600 cursor-pointer"
-                  : "bg-gradient-to-tr from-blue-600 to-indigo-600 border-blue-500 text-white hover:shadow-blue-500/30 hover:scale-105 shadow-lg cursor-pointer"
-              }`}
-            >
-              {requestingMicrophone ? (
-                <LoaderCircle size={30} className="animate-spin" />
-              ) : recording ? (
-                <Square size={28} className="fill-white" />
-              ) : (
-                <Mic size={32} />
-              )}
-            </button>
-          </div>
-
-          {recording && (
-            <div className="flex h-7 items-center justify-center gap-1" aria-hidden="true">
-              {[12, 20, 28, 18, 24, 14, 22].map((height, index) => (
-                <span
-                  key={index}
-                  className="w-1 rounded-full bg-rose-400 animate-pulse"
-                  style={{ height, animationDelay: `${index * 90}ms` }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Status and timer */}
-          <div className="flex flex-col items-center gap-2">
-            <span className={`text-2xl font-black font-mono tracking-wider ${recording ? "text-rose-400 animate-pulse" : "text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"}`}>
-              {formatTime(timer)}
-            </span>
-            <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
-              recording
-                ? "bg-rose-500/15 text-rose-300 border border-rose-500/20"
-                : audioBlob
-                  ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20"
-                  : "bg-slate-800 text-slate-400 border border-slate-700"
-            }`}>
-              {requestingMicrophone
-                ? "Đang mở microphone..."
-                : recording
-                  ? "Đang ghi • Nhấn nút đỏ để dừng"
-                  : audioBlob
-                    ? "Đã ghi âm • Sẵn sàng phân tích"
-                    : "Nhấn nút để bắt đầu nói"}
-            </span>
-          </div>
-
-          {error && (
-            <div className="bg-rose-950/50 text-rose-300 border border-rose-900/50 rounded-2xl p-4 text-[11px] font-bold leading-normal w-full shadow-inner">
-              <div className="flex items-center gap-2 justify-center mb-1">
-                <AlertTriangle size={14} className="text-rose-400" />
-                <span>PHÁT HIỆN LỖI:</span>
+              <div className="flex flex-col gap-2">
+                <h4 className="font-black text-white text-md tracking-tight">Ghi Âm Triệu Chứng Của Bạn</h4>
+                <p className="text-xs text-slate-400 max-w-xs leading-relaxed font-semibold">
+                  Nhấn nút mic bên dưới và kể lại triệu chứng của bạn (Ví dụ: "Tôi bị sốt cao, đau đầu và sổ mũi 2 ngày qua").
+                </p>
               </div>
-              {error}
-            </div>
-          )}
 
-          {/* Submit action button */}
-          {audioBlob && !recording && (
-            <div className="grid w-full grid-cols-[auto_1fr] gap-2">
-              <button
-                type="button"
-                onClick={startRecording}
-                disabled={loading || requestingMicrophone}
-                className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-3.5 text-slate-200 transition hover:border-slate-600 hover:bg-slate-700 disabled:opacity-50 cursor-pointer"
-                aria-label="Ghi âm lại"
-              >
-                <RotateCcw size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={sendToAI}
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
-              >
-                <Sparkles size={14} className={loading ? "animate-spin" : "animate-pulse"} />
-                {loading ? "Đang phân tích..." : "Phân tích và gợi ý thuốc"}
-              </button>
-            </div>
-          )}
+              {/* Micro Animation / Waveform Wrapper */}
+              <div className="relative flex items-center justify-center w-40 h-40">
+                {recording && (
+                  <>
+                    <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping opacity-45"></div>
+                    <div className="absolute inset-4 bg-indigo-500/30 rounded-full animate-pulse opacity-75"></div>
+                    <div className="absolute inset-8 bg-blue-500/30 rounded-full animate-pulse duration-1000 opacity-60"></div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={recording ? stopRecording : startRecording}
+                  disabled={requestingMicrophone || loading}
+                  aria-label={recording ? "Dừng ghi âm" : "Bắt đầu ghi âm"}
+                  className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 active:scale-95 border focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/50 disabled:cursor-wait disabled:opacity-70 ${recording
+                    ? "bg-rose-500 border-rose-400 text-white shadow-rose-900/50 hover:bg-rose-600 cursor-pointer"
+                    : "bg-gradient-to-tr from-blue-600 to-indigo-600 border-blue-500 text-white hover:shadow-blue-500/30 hover:scale-105 shadow-lg cursor-pointer"
+                    }`}
+                >
+                  {requestingMicrophone ? (
+                    <LoaderCircle size={30} className="animate-spin" />
+                  ) : recording ? (
+                    <Square size={28} className="fill-white" />
+                  ) : (
+                    <Mic size={32} />
+                  )}
+                </button>
+              </div>
+
+              {recording && (
+                <div className="flex h-7 items-center justify-center gap-1" aria-hidden="true">
+                  {[12, 20, 28, 18, 24, 14, 22].map((height, index) => (
+                    <span
+                      key={index}
+                      className="w-1 rounded-full bg-rose-400 animate-pulse"
+                      style={{ height, animationDelay: `${index * 90}ms` }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Status and timer */}
+              <div className="flex flex-col items-center gap-2">
+                <span className={`text-2xl font-black font-mono tracking-wider ${recording ? "text-rose-400 animate-pulse" : "text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"}`}>
+                  {formatTime(timer)}
+                </span>
+                <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${recording
+                  ? "bg-rose-500/15 text-rose-300 border border-rose-500/20"
+                  : audioBlob
+                    ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20"
+                    : "bg-slate-800 text-slate-400 border border-slate-700"
+                  }`}>
+                  {requestingMicrophone
+                    ? "Đang mở microphone..."
+                    : recording
+                      ? "Đang ghi • Nhấn nút đỏ để dừng"
+                      : audioBlob
+                        ? "Đã ghi âm • Sẵn sàng phân tích"
+                        : "Nhấn nút để bắt đầu nói"}
+                </span>
+              </div>
+
+              {error && (
+                <div className="bg-rose-950/50 text-rose-300 border border-rose-900/50 rounded-2xl p-4 text-[11px] font-bold leading-normal w-full shadow-inner">
+                  <div className="flex items-center gap-2 justify-center mb-1">
+                    <AlertTriangle size={14} className="text-rose-400" />
+                    <span>PHÁT HIỆN LỖI:</span>
+                  </div>
+                  {error}
+                </div>
+              )}
+
+              {/* Submit action button */}
+              {audioBlob && !recording && (
+                <div className="grid w-full grid-cols-[auto_1fr] gap-2">
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={loading || requestingMicrophone}
+                    className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-3.5 text-slate-200 transition hover:border-slate-600 hover:bg-slate-700 disabled:opacity-50 cursor-pointer"
+                    aria-label="Ghi âm lại"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={sendToAI}
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <Sparkles size={14} className={loading ? "animate-spin" : "animate-pulse"} />
+                    {loading ? "Đang phân tích..." : "Phân tích và gợi ý thuốc"}
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <div className="w-full flex flex-col items-center gap-4 z-10 animate-fade-in">
@@ -441,7 +439,7 @@ export function AIConsultant() {
 
         {/* Right: AI suggestion display */}
         <div className="lg:col-span-7 flex flex-col gap-6 w-full">
-          
+
           {/* Instructions when empty */}
           {!loading && !result && !error && (
             <div className="bg-gradient-to-b from-blue-50/20 to-indigo-50/10 border-2 border-dashed border-slate-200 rounded-[28px] p-12 text-center flex flex-col items-center justify-center min-h-[380px] shadow-sm">
@@ -462,7 +460,7 @@ export function AIConsultant() {
                 <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
                 <div className="absolute inset-0 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               </div>
-              
+
               <div className="flex flex-col gap-4 w-full max-w-xs font-semibold">
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider text-center">AI Đang Xử Lý Dữ Liệu</h3>
                 <div className="flex flex-col gap-2.5 text-xs text-slate-500">
@@ -494,7 +492,7 @@ export function AIConsultant() {
           {/* Results display */}
           {result && (
             <div className="flex flex-col gap-6 animate-fade-in">
-              
+
               {/* Box A: Transcript */}
               <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm hover:shadow-md transition-shadow">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">
@@ -508,14 +506,14 @@ export function AIConsultant() {
 
               {/* Box B: Diagnosed symptoms & Recommended drugs */}
               <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm flex flex-col gap-6">
-                
+
                 {/* Header of Prescription */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div>
                     <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-0.5">Kết Quả Phân Tích</span>
                     <h3 className="font-black text-slate-900 text-md tracking-tight">Đơn Thuốc Đề Xuất Bằng Trí Tuệ Nhân Tạo</h3>
                   </div>
-                  
+
                   {result.prescription?.recommended_drugs?.length > 0 && (
                     <button
                       onClick={handleAddAllToCart}
@@ -550,30 +548,28 @@ export function AIConsultant() {
                 {/* Suggested Drugs List */}
                 <div className="flex flex-col gap-4">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Danh mục thuốc kê đơn</span>
-                  
+
                   {result.prescription?.recommended_drugs && result.prescription.recommended_drugs.length > 0 ? (
                     <div className="flex flex-col gap-4">
                       {result.prescription.recommended_drugs.map((drug: any, idx: number) => {
                         const stockInfo = getDrugStockInfo(drug.name);
                         const isAvailable = !!stockInfo;
                         const hasStock = stockInfo && stockInfo.stock > 0;
-                        
+
                         return (
                           <div
                             key={idx}
-                            className={`border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 transform hover:scale-[1.01] ${
-                              isAvailable && hasStock
-                                ? "bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200"
-                                : "bg-slate-50 border-slate-200/85 opacity-70"
-                            }`}
+                            className={`border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 transform hover:scale-[1.01] ${isAvailable && hasStock
+                              ? "bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200"
+                              : "bg-slate-50 border-slate-200/85 opacity-70"
+                              }`}
                           >
                             <div className="flex items-start gap-4 max-w-[75%]">
                               {/* Pill Icon / Place Holder */}
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${
-                                isAvailable && hasStock
-                                  ? "bg-blue-50 text-blue-600 border-blue-100"
-                                  : "bg-slate-100 text-slate-400 border-slate-200"
-                              }`}>
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${isAvailable && hasStock
+                                ? "bg-blue-50 text-blue-600 border-blue-100"
+                                : "bg-slate-100 text-slate-400 border-slate-200"
+                                }`}>
                                 <HeartPulse size={22} className={isAvailable && hasStock ? "animate-pulse" : ""} />
                               </div>
 
@@ -606,7 +602,7 @@ export function AIConsultant() {
                                   <span className="font-black text-sm text-slate-400">---</span>
                                 </div>
                               )}
-                              
+
                               {isAvailable && hasStock && (
                                 <button
                                   onClick={async () => {
@@ -625,7 +621,7 @@ export function AIConsultant() {
                                       const guestCartStr = localStorage.getItem("guest_cart");
                                       let cart = guestCartStr ? JSON.parse(guestCartStr) : [];
                                       const existing = cart.find((c: any) => c.id === medId || c._id === medId);
-                                      
+
                                       if (existing) {
                                         if (existing.quantity < stockInfo.stock) {
                                           existing.quantity += 1;
@@ -711,14 +707,14 @@ export function AIConsultant() {
             <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#0d6efd] flex items-center justify-center mb-5 border border-blue-100 shadow-inner animate-pulse">
               <Info size={28} />
             </div>
-            
+
             <h3 id="ai-alert-title" className="text-md font-black text-slate-800 tracking-tight mb-2">
               {alertModal.title || "Thông báo"}
             </h3>
             <p className="text-slate-500 text-xs font-semibold leading-relaxed max-w-xs mb-6">
               {alertModal.message}
             </p>
-            
+
             <button
               onClick={() => {
                 if (alertModal.onConfirm) {

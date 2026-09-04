@@ -96,7 +96,7 @@ export class AuditRealtimeService {
       }
 
       // 2. Open standard HTTP Stream using native fetch
-      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const baseUrl = (import.meta as any).env?.VITE_API_URL || '';
       const url = `${baseUrl}/api/users/audit-logs/stream`;
 
       const response = await fetch(url, {

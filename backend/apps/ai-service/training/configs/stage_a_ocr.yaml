@@ -1,0 +1,24 @@
+# Stage A: VietOCR fine-tuning config.
+# Base checkpoint/backbone chosen for 4-6GB consumer GPU feasibility
+# (vgg_transformer is VietOCR's standard lightweight config — see plan doc
+# section "Kiến trúc model được đề xuất" for why this over a large VLM).
+
+model:
+  base_checkpoint: vgg_transformer   # vietocr built-in pretrained config name
+  image_height: 32                    # VietOCR resizes line-crops to fixed height
+
+data:
+  train_manifest: ../data/splits/synthetic_v1.jsonl   # swap/extend once real_v1.jsonl exists
+  val_split: 0.1
+  seed: 42
+
+train:
+  batch_size: 8            # fits comfortably in 4GB VRAM for vgg_transformer
+  num_iters: 20000
+  learning_rate: 0.00003
+  checkpoint_every: 1000
+  print_every: 200
+  export_every: 2000
+
+output:
+  checkpoint_dir: ../checkpoints

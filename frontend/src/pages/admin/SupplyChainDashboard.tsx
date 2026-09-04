@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Download, 
-  Sparkles, 
-  Clock, 
-  ChevronRight, 
-  X, 
-  Settings, 
-  AlertCircle, 
-  MapPin, 
-  Activity, 
-  Building2, 
-  Package, 
+import {
+  Search,
+  Filter,
+  Download,
+  Sparkles,
+  Clock,
+  ChevronRight,
+  X,
+  Settings,
+  AlertCircle,
+  MapPin,
+  Activity,
+  Building2,
+  Package,
   DollarSign,
   AlertTriangle,
   ArrowLeftRight,
@@ -223,7 +223,7 @@ const MOCK_ANOMALIES: AnomalyItem[] = [
 function StockBar({ current, safety, rop, eoq }: { current: number; safety: number; rop: number; eoq: number }) {
   const max = Math.max(current, eoq * 1.5, rop * 1.5, 10);
   const pct = (v: number) => Math.min(100, Math.round((v / max) * 100));
-  
+
   let fillColor = '#22c55e'; // Green stable
   if (current <= 0) fillColor = '#ef4444'; // Red out of stock
   else if (current < safety) fillColor = '#f97316'; // Orange critical
@@ -232,9 +232,9 @@ function StockBar({ current, safety, rop, eoq }: { current: number; safety: numb
   return (
     <div className="scd-stock-bar-wrap">
       <div className="scd-stock-bar-track">
-        <div 
-          className="scd-stock-bar-fill" 
-          style={{ width: `${pct(current)}%`, background: fillColor }} 
+        <div
+          className="scd-stock-bar-fill"
+          style={{ width: `${pct(current)}%`, background: fillColor }}
         />
         <div className="scd-stock-bar-marker" style={{ left: `${pct(safety)}%` }} title={`Tồn an toàn: ${safety}`} />
         <div className="scd-stock-bar-marker scd-rop" style={{ left: `${pct(rop)}%` }} title={`Điểm đặt hàng lại: ${rop}`} />
@@ -252,7 +252,7 @@ function StockBar({ current, safety, rop, eoq }: { current: number; safety: numb
 // ── COMPONENT FOR DETAIL DRAWER ──
 function DetailDrawer({ item, onClose }: { item: SafeStockItem; onClose: () => void }) {
   const cfg = STATUS_CONFIG[item.stockStatus] || STATUS_CONFIG.SAFE;
-  
+
   return (
     <div className="scd-drawer-overlay" onClick={onClose}>
       <div className="scd-drawer" onClick={e => e.stopPropagation()}>
@@ -286,7 +286,7 @@ function DetailDrawer({ item, onClose }: { item: SafeStockItem; onClose: () => v
               </div>
             </div>
           </div>
-          
+
           <div className="scd-drawer-section">
             <h3>📈 Phân tích nhu cầu sử dụng</h3>
             <div className="scd-grid-3">
@@ -392,7 +392,7 @@ function DetailDrawer({ item, onClose }: { item: SafeStockItem; onClose: () => v
 // ── COMPONENT FOR ANOMALY DETAIL MODAL ──
 function AnomalyModal({ anomaly, onClose }: { anomaly: AnomalyItem; onClose: () => void }) {
   const isNegative = anomaly.quantityChange < 0;
-  
+
   return (
     <div className="scd-modal-overlay" onClick={onClose}>
       <div className="scd-modal" onClick={e => e.stopPropagation()} style={{ width: 520 }}>
@@ -403,7 +403,7 @@ function AnomalyModal({ anomaly, onClose }: { anomaly: AnomalyItem; onClose: () 
           </div>
           <button className="scd-drawer-close" onClick={onClose} style={{ top: 12, right: 12 }}>✕</button>
         </div>
-        
+
         <div style={{ marginTop: 12 }}>
           <div style={{ padding: 14, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
             <h4 style={{ margin: '0 0 6px', fontWeight: 800, fontSize: 14.5 }}>{anomaly.medicineName}</h4>
@@ -462,21 +462,21 @@ function AnomalyModal({ anomaly, onClose }: { anomaly: AnomalyItem; onClose: () 
 }
 
 // ── COMPONENT FOR BRANCH DETAIL MODAL ──
-function BranchDetailModal({ 
-  branch, 
-  stockData, 
-  onClose 
-}: { 
-  branch: MapBranch; 
-  stockData: SafeStockItem[]; 
-  onClose: () => void; 
+function BranchDetailModal({
+  branch,
+  stockData,
+  onClose
+}: {
+  branch: MapBranch;
+  stockData: SafeStockItem[];
+  onClose: () => void;
 }) {
   // Find all medicines that have stock/batches in this branch
-  const items = stockData.filter(med => 
+  const items = stockData.filter(med =>
     med.branchBreakdown.some(b => b.branchId === branch.id)
   ).map(med => {
     const batchInfo = med.branchBreakdown.find(b => b.branchId === branch.id)!;
-    
+
     // Determine status at this branch specifically:
     let status: 'CRITICAL' | 'LOW' | 'SAFE' = 'SAFE';
     if (batchInfo.stock <= 0) {
@@ -484,7 +484,7 @@ function BranchDetailModal({
     } else if (batchInfo.stock < med.thresholds.safetyStock) {
       status = 'LOW';
     }
-    
+
     return {
       ...med,
       branchStock: batchInfo.stock,
@@ -496,7 +496,7 @@ function BranchDetailModal({
 
   const criticalItems = items.filter(i => i.branchStatus === 'CRITICAL');
   const lowItems = items.filter(i => i.branchStatus === 'LOW');
-  
+
   const ninetyDays = 90 * 24 * 60 * 60 * 1000;
   const expiringItems = items.filter(i => {
     const remainingTime = new Date(i.expDate).getTime() - Date.now();
@@ -636,24 +636,24 @@ function BranchDetailModal({
 // ── ADVANCED SETTINGS MODAL ──
 // serviceLevel parameters, periodDays, zScore
 // serviceLevel parameters, periodDays, zScore
-function SettingsModal({ 
-  isOpen, 
-  onClose, 
-  serviceLevel, 
-  setServiceLevel, 
-  periodDays, 
-  setPeriodDays, 
-  zScore, 
-  setZScore, 
-  onSave 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  serviceLevel: number; 
-  setServiceLevel: (v: number) => void; 
-  periodDays: number; 
-  setPeriodDays: (v: number) => void; 
-  zScore: number; 
+function SettingsModal({
+  isOpen,
+  onClose,
+  serviceLevel,
+  setServiceLevel,
+  periodDays,
+  setPeriodDays,
+  zScore,
+  setZScore,
+  onSave
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  serviceLevel: number;
+  setServiceLevel: (v: number) => void;
+  periodDays: number;
+  setPeriodDays: (v: number) => void;
+  zScore: number;
   setZScore: (v: number) => void;
   onSave: () => void;
 }) {
@@ -924,7 +924,7 @@ export function SupplyChainDashboard() {
   // Branch Health Calculator
   const branchHealthMetrics = useMemo(() => {
     const metrics: Record<string, { totalItems: number; criticalCount: number; warningCount: number }> = {};
-    
+
     // Initialize geography
     mapBranches.forEach(bg => {
       metrics[bg.id] = { totalItems: 0, criticalCount: 0, warningCount: 0 };
@@ -1005,7 +1005,7 @@ export function SupplyChainDashboard() {
   const handleExportCSV = () => {
     let csvContent = 'data:text/csv;charset=utf-8,';
     csvContent += 'Mã Thuốc,Tên Thuốc,Danh Mục,Tồn Toàn Chuỗi,Trạng Thái,Safety Stock,Reorder Point,EOQ,TB Ngày\n';
-    
+
     finalStockData.forEach(item => {
       const row = [
         item.medicineId,
@@ -1043,17 +1043,17 @@ export function SupplyChainDashboard() {
 
   return (
     <div className="scd-root">
-      
+
       {/* ─── VIEW SELECTOR TABS ─── */}
       <div className="scd-view-selector">
-        <button 
+        <button
           className={`scd-view-tab ${currentView === 'monitor' ? 'active' : ''}`}
           onClick={() => setCurrentView('monitor')}
         >
           <Layers size={16} />
           Giám sát chuỗi cung ứng thời gian thực
         </button>
-        <button 
+        <button
           className={`scd-view-tab ${currentView === 'anomalies' ? 'active' : ''}`}
           onClick={() => setCurrentView('anomalies')}
         >
@@ -1142,8 +1142,8 @@ export function SupplyChainDashboard() {
                   <MapPin size={18} className="text-[#0057cd]" />
                   <span>Bản đồ phân phối & Sức khỏe chi nhánh</span>
                   {selectedBranchId !== 'ALL' && (
-                    <span 
-                      className="scd-badge blue" 
+                    <span
+                      className="scd-badge blue"
                       style={{ cursor: 'pointer', display: 'inline-flex', gap: 3, padding: '2px 8px' }}
                       onClick={() => setSelectedBranchId('ALL')}
                     >
@@ -1159,9 +1159,9 @@ export function SupplyChainDashboard() {
               </div>
 
               <div className="scd-map-container" style={{ padding: 0, height: '420px', overflow: 'hidden', borderRadius: '16px' }}>
-                <LeafletBranchMap 
-                  branches={mapBranches} 
-                  branchHealthMetrics={branchHealthMetrics} 
+                <LeafletBranchMap
+                  branches={mapBranches}
+                  branchHealthMetrics={branchHealthMetrics}
                   onSelectBranch={(bg) => {
                     setSelectedBranchId(bg.id);
                     setSelectedBranchDetails(bg);
@@ -1169,7 +1169,7 @@ export function SupplyChainDashboard() {
                 />
               </div>
             </div>
- 
+
             {/* Right Side: Branch statuses & timeline */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div className="scd-panel" style={{ flex: 1 }}>
@@ -1192,8 +1192,8 @@ export function SupplyChainDashboard() {
                       statusClass = 'warning';
                     }
                     return (
-                      <div 
-                        key={bg.id} 
+                      <div
+                        key={bg.id}
                         className={`scd-branch-item ${selectedBranchId === bg.id ? 'active' : ''}`}
                         onClick={() => {
                           setSelectedBranchId(selectedBranchId === bg.id ? 'ALL' : bg.id);
@@ -1204,9 +1204,9 @@ export function SupplyChainDashboard() {
                           <div className="scd-branch-name">{bg.name}</div>
                           <div className="scd-branch-sku">Phân bổ: {metric.totalItems} SKUs</div>
                         </div>
-                        <span 
+                        <span
                           className={`scd-branch-status-lbl ${statusClass}`}
-                          style={{ 
+                          style={{
                             cursor: 'pointer',
                             padding: '2px 8px',
                             borderRadius: '6px',
@@ -1252,8 +1252,8 @@ export function SupplyChainDashboard() {
                     const relativeTime = diffMins < 60 ? `${diffMins} phút trước` : `${Math.round(diffMins / 60)} giờ trước`;
 
                     return (
-                      <div 
-                        key={a.id} 
+                      <div
+                        key={a.id}
                         className={`scd-timeline-item ${typeClass}`}
                         onClick={() => setSelectedAnomaly(a)}
                       >
@@ -1276,37 +1276,17 @@ export function SupplyChainDashboard() {
             </div>
           </div>
 
-          {/* AI Banner */}
-          <div className="scd-ai-banner">
-            <div className="scd-ai-banner-left">
-              <div className="scd-ai-banner-icon">
-                <Sparkles size={22} />
-              </div>
-              <div>
-                <div className="scd-ai-banner-title">Hệ thống dự báo AI</div>
-                <div className="scd-ai-banner-text">
-                  Dựa vào các dữ liệu bán hàng và biến động lịch sử, nhóm dược phẩm <strong>Kháng sinh</strong> có khả năng thiếu hụt đột ngột trong 10 ngày tới tại các chi nhánh trung tâm. Đề xuất chuẩn bị kế hoạch bổ sung hàng để bảo đảm mức an toàn tối ưu.
-                </div>
-              </div>
-            </div>
-            <div className="scd-ai-banner-actions">
-              <button className="scd-btn scd-btn-primary" onClick={() => setActiveTab('critical')}>
-                Xem đề xuất đặt hàng
-              </button>
-            </div>
-          </div>
-
           {/* Bottom Table */}
           <div className="scd-bottom-container">
             <div className="scd-bottom-header">
               <div className="scd-bottom-tabs">
-                <button 
+                <button
                   className={`scd-bottom-tab ${activeTab === 'critical' ? 'active' : ''}`}
                   onClick={() => setActiveTab('critical')}
                 >
                   Cảnh báo tồn kho & Hạn dùng
                 </button>
-                <button 
+                <button
                   className={`scd-bottom-tab ${activeTab === 'all' ? 'active' : ''}`}
                   onClick={() => setActiveTab('all')}
                 >
@@ -1317,18 +1297,18 @@ export function SupplyChainDashboard() {
               <div className="scd-bottom-filters">
                 <div className="scd-search-bar">
                   <Search className="scd-search-icon" size={15} />
-                  <input 
-                    type="text" 
-                    className="scd-search-input" 
-                    placeholder="Tìm kiếm dược phẩm..." 
+                  <input
+                    type="text"
+                    className="scd-search-input"
+                    placeholder="Tìm kiếm dược phẩm..."
                     value={searchText}
                     onChange={e => setSearchText(e.target.value)}
                   />
                 </div>
                 <div className="scd-checkbox-group">
                   <label className="scd-checkbox-label">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="scd-checkbox-input"
                       checked={showOnlyOutOfStock}
                       onChange={e => setShowOnlyOutOfStock(e.target.checked)}
@@ -1336,8 +1316,8 @@ export function SupplyChainDashboard() {
                     Chỉ hiện hết hàng
                   </label>
                   <label className="scd-checkbox-label">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="scd-checkbox-input"
                       checked={showOnlyExpiry}
                       onChange={e => setShowOnlyExpiry(e.target.checked)}
@@ -1472,7 +1452,7 @@ export function SupplyChainDashboard() {
               </div>
               <h1 className="scd-title-main" style={{ marginTop: 4 }}>Bất thường tồn kho & Phân tích AI</h1>
             </div>
-            
+
             <div className="scd-header-actions">
               <div className="scd-sync-block">
                 <div className="scd-sync-indicator">
@@ -1484,9 +1464,9 @@ export function SupplyChainDashboard() {
                   <span>Đồng bộ Kho: Trực tiếp</span>
                 </div>
               </div>
-              
-              <button 
-                className="scd-btn scd-btn-primary" 
+
+              <button
+                className="scd-btn scd-btn-primary"
                 onClick={handleRefreshAIModel}
                 disabled={isRefreshingModel}
               >
@@ -1498,7 +1478,7 @@ export function SupplyChainDashboard() {
 
           {/* Grid: Left - Detected anomalies, Right - Stockout forecast & active investigations */}
           <div className="scd-main-grid" style={{ gridTemplateColumns: '1.1fr 1.3fr' }}>
-            
+
             {/* Left: Detected Anomalies Feed */}
             <div className="scd-panel">
               <div className="scd-panel-header" style={{ borderBottom: '1px solid #f1f5f9', pb: 12, marginBottom: 16 }}>
@@ -1510,7 +1490,7 @@ export function SupplyChainDashboard() {
                   {finalAnomalies.length} KHẨN CẤP
                 </span>
               </div>
-              
+
               <div style={{ maxHeight: '660px', overflowY: 'auto', paddingRight: 4 }}>
                 {finalAnomalies.map(a => {
                   let cardType = 'stock-leakage';
@@ -1535,15 +1515,15 @@ export function SupplyChainDashboard() {
                         </span>
                         <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>{hourStr}</span>
                       </div>
-                      
+
                       <h4 style={{ margin: '14px 0 6px', fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
                         {a.anomalyType === 'SPIKE_EXPORT' ? `Phát hiện nhu cầu tăng đột biến tại ${branchName}` : a.anomalyType === 'LARGE_ADJUSTMENT' ? `Sai lệch ngày hết hạn dược phẩm` : `Nghi vấn thất thoát tồn kho tại ${branchName}`}
                       </h4>
-                      
+
                       <p style={{ margin: '0 0 16px', fontSize: '12.5px', color: '#64748b', lineHeight: 1.5 }}>
                         {a.description}
                       </p>
-                      
+
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button className="scd-btn scd-btn-primary" style={{ padding: '6px 14px', fontSize: '12.5px', flex: 1 }} onClick={() => setSelectedAnomaly(a)}>
                           Điều tra
@@ -1560,7 +1540,7 @@ export function SupplyChainDashboard() {
 
             {/* Right Side: Predictive Stockout Forecast & Investigations */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              
+
               {/* Predictive Stockout Forecast SVG Chart */}
               <div className="scd-panel">
                 <div className="scd-panel-header">
@@ -1579,7 +1559,7 @@ export function SupplyChainDashboard() {
                     <line x1="50" y1="60" x2="480" y2="60" stroke="#f1f5f9" strokeWidth="1" />
                     <line x1="50" y1="100" x2="480" y2="100" stroke="#f1f5f9" strokeWidth="1" />
                     <line x1="50" y1="140" x2="480" y2="140" stroke="#f1f5f9" strokeWidth="1" />
-                    
+
                     <line x1="50" y1="140" x2="50" y2="20" stroke="#f1f5f9" strokeWidth="1" />
                     <line x1="120" y1="140" x2="120" y2="20" stroke="#f1f5f9" strokeWidth="1" />
                     <line x1="190" y1="140" x2="190" y2="20" stroke="#f1f5f9" strokeWidth="1" />
@@ -1588,18 +1568,18 @@ export function SupplyChainDashboard() {
                     <line x1="400" y1="140" x2="400" y2="20" stroke="#f1f5f9" strokeWidth="1" />
                     <line x1="470" y1="140" x2="470" y2="20" stroke="#f1f5f9" strokeWidth="1" />
 
-                    <path 
-                      d="M 50 120 L 120 80 L 190 70 L 260 50 L 330 90 L 400 110 L 470 60 L 470 140 L 50 140 Z" 
-                      fill="rgba(59, 130, 246, 0.15)" 
-                      stroke="#3b82f6" 
-                      strokeWidth="2" 
+                    <path
+                      d="M 50 120 L 120 80 L 190 70 L 260 50 L 330 90 L 400 110 L 470 60 L 470 140 L 50 140 Z"
+                      fill="rgba(59, 130, 246, 0.15)"
+                      stroke="#3b82f6"
+                      strokeWidth="2"
                     />
 
-                    <path 
-                      d="M 50 130 L 120 110 L 190 60 L 260 90 L 330 110 L 400 70 L 470 50 L 470 140 L 50 140 Z" 
-                      fill="rgba(239, 68, 68, 0.25)" 
-                      stroke="#ef4444" 
-                      strokeWidth="2" 
+                    <path
+                      d="M 50 130 L 120 110 L 190 60 L 260 90 L 330 110 L 400 70 L 470 50 L 470 140 L 50 140 Z"
+                      fill="rgba(239, 68, 68, 0.25)"
+                      stroke="#ef4444"
+                      strokeWidth="2"
                     />
 
                     <line x1="330" y1="140" x2="330" y2="20" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="3 3" />
@@ -1759,13 +1739,12 @@ export function SupplyChainDashboard() {
       )}
 
       {/* ─── DIALOGS & DRAWERS ─── */}
-      
-      {/* Detail Drawer */}
+      {/* Detail Drawer (UC-30) */}
       {selectedItem && <DetailDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />}
-      
+
       {/* Branch Detail Modal */}
       {selectedBranchDetails && (
-        <BranchDetailModal 
+        <BranchDetailModal
           branch={selectedBranchDetails}
           stockData={finalStockData}
           onClose={() => setSelectedBranchDetails(null)}
@@ -1776,8 +1755,8 @@ export function SupplyChainDashboard() {
       {selectedAnomaly && <AnomalyModal anomaly={selectedAnomaly} onClose={() => setSelectedAnomaly(null)} />}
 
       {/* Advanced Settings Modal */}
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
+      <SettingsModal
+        isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         serviceLevel={serviceLevel}
         setServiceLevel={setServiceLevel}
@@ -1787,7 +1766,7 @@ export function SupplyChainDashboard() {
         setZScore={setZScore}
         onSave={handleApplySettings}
       />
-      
+
     </div>
   );
 }
