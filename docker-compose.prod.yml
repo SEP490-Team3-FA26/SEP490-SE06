@@ -1,23 +1,39 @@
 # ============================================================
-# Production stack — runs on the EC2 instance.
-# Images are PULLED from ECR (built & pushed by GitHub Actions).
+# Production stack — 10 bounded contexts as separate services
+# Optimized for VPS with 6GB RAM
 #
-# Required env (provided via the .env file next to this file on EC2):
-#   ECR_REGISTRY   e.g. 264144511221.dkr.ecr.ap-southeast-1.amazonaws.com
-#   IMAGE_TAG      e.g. git short SHA, or "latest"
-#   + all backend runtime vars (Mongo, JWT, AWS, SQS, S3, SES ...)
-#
-# Usage on EC2:
-#   ecr-login                                  # docker login to ECR (helper from user-data)
+# Usage:
 #   docker compose -f docker-compose.prod.yml pull
 #   docker compose -f docker-compose.prod.yml up -d
 # ============================================================
+
+x-backend-common: &backend-common
+  image: ${ECR_REGISTRY}/wdp301-backend:${IMAGE_TAG:-latest}
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment: &backend-env
+    NODE_ENV: production
+    REDIS_HOST: redis
+    REDIS_PORT: 6379
+    KAFKA_BROKERS: kafka:29092
+    NODE_OPTIONS: "--max-old-space-size=256"
+  depends_on:
+    kafka:
+      condition: service_healthy
+    redis:
+      condition: service_started
+  networks: [wdp301-network]
+
 services:
+  # ──────────────────────────────────────────────────────────
+  # Infrastructure
+  # ──────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: wdp301-redis
     restart: unless-stopped
-    command: redis-server --save 60 1 --loglevel warning
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 64mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks: [wdp301-network]
@@ -41,38 +57,123 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_LOG4J_ROOT_LOGLEVEL: 'ERROR'
+      KAFKA_HEAP_OPTS: '-Xmx256m -Xms128m'
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 15
       start_period: 45s
-    # Không mount named volume: KRaft log dir /tmp/kraft-combined-logs do
-    # appuser (uid 1000) ghi — named volume thuộc root sẽ gây Permission denied.
     networks: [wdp301-network]
 
-  backend:
-    image: ${ECR_REGISTRY}/wdp301-backend:${IMAGE_TAG:-latest}
-    container_name: wdp301-backend
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: wdp301-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__CLUSTER__ENABLED: "false"
+    networks: [wdp301-network]
+
+  # ──────────────────────────────────────────────────────────
+  # Bounded Context Services (10 services)
+  # ──────────────────────────────────────────────────────────
+
+  # 1. API Gateway — entry point
+  api-gateway:
+    <<: *backend-common
+    container_name: wdp301-gateway
+    command: node dist/apps/api-gateway/main.js
+    ports:
+      - "4000:4000"
+    environment:
+      <<: *backend-env
+      PORT: 4000
+
+  # 2. Auth Service — identity & access
+  auth-service:
+    <<: *backend-common
+    container_name: wdp301-auth
+    command: node dist/apps/auth-service/main.js
+
+  # 3. User Service — customer profiles
+  user-service:
+    <<: *backend-common
+    container_name: wdp301-user
+    command: node dist/apps/user-service/main.js
+
+  # 4. Inventory Service — warehouse & stock
+  inventory-service:
+    <<: *backend-common
+    container_name: wdp301-inventory
+    command: node dist/apps/inventory-service/main.js
+
+  # 5. Supplier Service — procurement & NCC
+  supplier-service:
+    <<: *backend-common
+    container_name: wdp301-supplier
+    command: node dist/apps/supplier-service/main.js
+
+  # 6. Orders Service — sales & POS
+  orders-service:
+    <<: *backend-common
+    container_name: wdp301-orders
+    command: node dist/apps/orders-service/main.js
+
+  # 7. Finance Service — accounting & cash flow
+  finance-service:
+    <<: *backend-common
+    container_name: wdp301-finance
+    command: node dist/apps/finance-service/main.js
+
+  # 8. Marketing Service — promotions & loyalty
+  marketing-service:
+    <<: *backend-common
+    container_name: wdp301-marketing
+    command: node dist/apps/marketing-service/main.js
+
+  # 9. Customer Service — CRM & care
+  customer-service:
+    <<: *backend-common
+    container_name: wdp301-customer
+    command: node dist/apps/customer-service/main.js
+
+  # 10. AI Service — self-hosted, no third-party API
+  ai-service:
+    build:
+      context: .
+      dockerfile: backend/apps/ai-service/Dockerfile
+    container_name: wdp301-ai
     restart: unless-stopped
     env_file:
       - .env
+      - backend/apps/ai-service/.env
     environment:
-      - NODE_ENV=production
-      - PORT=4000
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - KAFKA_BROKERS=kafka:29092
+      QDRANT_HOST: qdrant
+      NODE_OPTIONS: "--max-old-space-size=512"
     ports:
-      - "4000:4000"
+      - "8000:8000"
     depends_on:
-      kafka:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - qdrant
+      - kafka
     networks: [wdp301-network]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
 
-  # Frontend chạy trên Vercel (không deploy trên EC2 nữa).
+  # ──────────────────────────────────────────────────────────
+  # Reporting Service (read-model, lightweight)
+  # ──────────────────────────────────────────────────────────
+  reporting-service:
+    <<: *backend-common
+    container_name: wdp301-reporting
+    command: node dist/apps/reporting-service/main.js
+    environment:
+      <<: *backend-env
+      NODE_OPTIONS: "--max-old-space-size=128"
 
 networks:
   wdp301-network:
@@ -80,3 +181,4 @@ networks:
 
 volumes:
   redis_data:
+  qdrant_data:
