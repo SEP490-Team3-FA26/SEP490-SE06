@@ -242,39 +242,14 @@ export class SalesService implements OnModuleInit {
       }
       let batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
 
-      // Fallback 1: Nếu tìm theo chi nhánh mà không có lô nào, thử tìm trên toàn bộ kho
+      // Nếu không có lô hàng nào hợp lệ tại chi nhánh
       if (batches.length === 0 && data.branchId) {
-        delete batchQuery.branchId;
-        batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
+        throw new RpcException({
+          message: `Chi nhánh không có tồn kho cho thuốc "${medicine.name}". Vui lòng liên hệ kho tổng để chuyển hàng.`
+        });
       }
 
-      // Fallback 2: Nếu số lượng lô < số lượng cần trừ nhưng tồn kho tổng medicine.stock >= quantity,
-      // tự động tạo/cập nhật INIT-BATCH để trừ tồn kho FIFO bình thường!
       let totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
-      if (totalAvailable < item.quantity && (medicine.stock || 0) >= item.quantity) {
-        let initBatch = await this.batchModel.findOne({ medicineId: medIdStr, batchNo: 'INIT-BATCH' }).exec();
-        if (!initBatch) {
-          initBatch = new this.batchModel({
-            medicineId: medIdStr,
-            batchNo: 'INIT-BATCH',
-            expDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            stock: Math.max(medicine.stock || 0, item.quantity),
-            status: 'ACTIVE',
-            importPrice: medicine.importPrice || 0,
-            branchId: data.branchId || null,
-          });
-        } else {
-          initBatch.stock = Math.max(initBatch.stock, medicine.stock || 0, item.quantity);
-          initBatch.status = 'ACTIVE';
-        }
-        await initBatch.save();
-        batches = await this.batchModel.find({
-          $or: [{ medicineId: medIdStr }, { medicineId: medicine._id }],
-          status: 'ACTIVE',
-          stock: { $gt: 0 }
-        }).sort({ expDate: 1 }).exec();
-        totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
-      }
 
       // Tính toán quy đổi đơn vị và số lượng trừ kho thực tế
       const exchangeValue = Number(item.exchangeValue) || 1;
@@ -355,7 +330,6 @@ export class SalesService implements OnModuleInit {
       await this.medicineModel.updateOne(
         { _id: medicine._id },
         { 
-          $inc: { stock: -baseDeductQty },
           $set: { openedBoxUnits: currentOpened }
         }
       ).exec();
