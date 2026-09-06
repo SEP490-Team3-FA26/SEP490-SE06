@@ -63,8 +63,24 @@ export function IncomingOrdersTab({
       .toLowerCase().includes(search.toLowerCase())
   );
 
-  const [inspectionData, setInspectionData] = useState<Record<string, { batchNo: string, expDate: string, actualQty: number | string }>>({});
-  const [inspectionErrors, setInspectionErrors] = useState<Record<string, { batchNo?: string; expDate?: string; actualQty?: string }>>({});
+  // Zone/Rack/Shelf constants
+  const ZONE_OPTIONS = [
+    { value: 'A', label: 'Khu A - Kháng sinh' },
+    { value: 'B', label: 'Khu B - Hạ sốt & Giảm đau' },
+    { value: 'C', label: 'Khu C - Tim mạch' },
+    { value: 'D', label: 'Khu D - Tiêu hóa' },
+    { value: 'E', label: 'Khu E - TPCN' },
+    { value: 'F', label: 'Khu F - Vật tư y tế' },
+  ];
+  const SHELF_OPTIONS = [1, 2, 3, 4];
+  const getRackOptions = (zone: string) => {
+    const counts: Record<string, number> = { A: 4, B: 4, C: 3, D: 4, E: 4, F: 4 };
+    const n = counts[zone] || 4;
+    return Array.from({ length: n }, (_, i) => `${zone}${i + 1}`);
+  };
+
+  const [inspectionData, setInspectionData] = useState<Record<string, { batchNo: string, expDate: string, actualQty: number | string, location: { zone: string, rack: string, shelf: number } }>>({});
+  const [inspectionErrors, setInspectionErrors] = useState<Record<string, { batchNo?: string; expDate?: string; actualQty?: string; location?: string }>>({});
   const [modalError, setModalError] = useState("");
   const [aiScanning, setAiScanning] = useState<string | null>(null);
 
@@ -75,7 +91,8 @@ export function IncomingOrdersTab({
         initData[it.medicineId || it.id] = {
           batchNo: "",
           expDate: "",
-          actualQty: "" // Empty so they have to input
+          actualQty: "", // Empty so they have to input
+          location: { zone: 'A', rack: 'A1', shelf: 1 } // Default
         };
       });
       setInspectionData(initData);
@@ -87,14 +104,14 @@ export function IncomingOrdersTab({
   const handleReceiveAndInspect = async (poId: string) => {
     if (!selectedPo) return;
 
-    const fieldErrors: Record<string, { batchNo?: string; expDate?: string; actualQty?: string }> = {};
+    const fieldErrors: Record<string, { batchNo?: string; expDate?: string; actualQty?: string; location?: string }> = {};
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     selectedPo.items.forEach((it: any) => {
       const mId = it.medicineId || it.id;
       const data = inspectionData[mId];
-      const errors: { batchNo?: string; expDate?: string; actualQty?: string } = {};
+      const errors: { batchNo?: string; expDate?: string; actualQty?: string; location?: string } = {};
 
       if (!data?.batchNo?.trim()) errors.batchNo = "Vui lòng nhập số lô.";
 
@@ -113,6 +130,10 @@ export function IncomingOrdersTab({
         if (!Number.isFinite(actualQty) || !Number.isInteger(actualQty) || actualQty < 0) {
           errors.actualQty = "Số lượng phải là số nguyên không âm.";
         }
+      }
+
+      if (!data?.location?.zone || !data?.location?.rack || !data?.location?.shelf) {
+        errors.location = "Vui lòng chọn vị trí xếp hàng (Khu, Kệ, Tầng).";
       }
 
       if (Object.keys(errors).length > 0) fieldErrors[mId] = errors;
@@ -147,6 +168,7 @@ export function IncomingOrdersTab({
           batchNo: data.batchNo.trim(),
           expDate: new Date(data.expDate).toISOString(),
           actualQty,
+          location: data.location || null,
         };
       });
 
@@ -206,7 +228,8 @@ export function IncomingOrdersTab({
           inspectionItem._id,
           it.actualQty,
           it.batchNo,
-          it.expDate
+          it.expDate,
+          it.location
         );
       }
 
@@ -481,6 +504,70 @@ export function IncomingOrdersTab({
                             {inspectionErrors[mId]?.actualQty && <p className="mt-1 text-[10px] font-semibold text-rose-600">{inspectionErrors[mId].actualQty}</p>}
                           </div>
                         </div>
+                        {/* Location Picker */}
+                        {!isLockedGrn && (
+                          <div className="mt-2 pt-2 border-t border-slate-200">
+                            <label className="text-[10px] font-bold text-emerald-700 mb-2 flex items-center gap-1 uppercase tracking-wide">
+                              <span>📍</span> Vị trí xếp hàng trong kho
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-bold mb-1 block">KHU</label>
+                                <select
+                                  value={inspectionData[mId]?.location?.zone || 'A'}
+                                  onChange={e => {
+                                    const newZone = e.target.value;
+                                    const firstRack = `${newZone}1`;
+                                    setInspectionData(prev => ({ ...prev, [mId]: { ...prev[mId], location: { zone: newZone, rack: firstRack, shelf: 1 } } }));
+                                    setInspectionErrors(prev => ({ ...prev, [mId]: { ...prev[mId], location: undefined } }));
+                                  }}
+                                  className={`w-full px-2 py-1.5 bg-white border rounded text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${inspectionErrors[mId]?.location ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"}`}
+                                >
+                                  {ZONE_OPTIONS.map(z => (
+                                    <option key={z.value} value={z.value}>{z.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-bold mb-1 block">KỆ</label>
+                                <select
+                                  value={inspectionData[mId]?.location?.rack || 'A1'}
+                                  onChange={e => {
+                                    setInspectionData(prev => ({ ...prev, [mId]: { ...prev[mId], location: { ...prev[mId].location, rack: e.target.value } } }));
+                                    setInspectionErrors(prev => ({ ...prev, [mId]: { ...prev[mId], location: undefined } }));
+                                  }}
+                                  className={`w-full px-2 py-1.5 bg-white border rounded text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${inspectionErrors[mId]?.location ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"}`}
+                                >
+                                  {getRackOptions(inspectionData[mId]?.location?.zone || 'A').map(r => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-bold mb-1 block">TẦNG</label>
+                                <select
+                                  value={inspectionData[mId]?.location?.shelf || 1}
+                                  onChange={e => {
+                                    setInspectionData(prev => ({ ...prev, [mId]: { ...prev[mId], location: { ...prev[mId].location, shelf: Number(e.target.value) } } }));
+                                    setInspectionErrors(prev => ({ ...prev, [mId]: { ...prev[mId], location: undefined } }));
+                                  }}
+                                  className={`w-full px-2 py-1.5 bg-white border rounded text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${inspectionErrors[mId]?.location ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"}`}
+                                >
+                                  {SHELF_OPTIONS.map(s => (
+                                    <option key={s} value={s}>Tầng {s}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            {inspectionErrors[mId]?.location && <p className="mt-1 text-[10px] font-semibold text-rose-600">{inspectionErrors[mId].location}</p>}
+                          </div>
+                        )}
+                        {isLockedGrn && (it as any).location && (
+                          <div className="mt-2 pt-2 border-t border-slate-200 flex items-center gap-2 text-xs text-slate-500">
+                            <span>📍</span>
+                            <span className="font-semibold text-emerald-700">Khu {(it as any).location.zone} — Kệ {(it as any).location.rack} — Tầng {(it as any).location.shelf}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
