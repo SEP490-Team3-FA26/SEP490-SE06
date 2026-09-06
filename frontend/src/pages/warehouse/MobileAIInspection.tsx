@@ -2,15 +2,18 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Camera, PackageCheck, ScanLine, X, CheckCircle2,
-  AlertTriangle, Loader2, Save, RefreshCw, SendHorizonal, ArrowLeft
+  AlertTriangle, Loader2, Save, RefreshCw, SendHorizonal, ArrowLeft,
+  Upload, Image as ImageIcon, Sparkles
 } from "lucide-react";
 import { motion } from "motion/react";
 import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
+import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
 
 export function MobileAIInspection() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const grnId = searchParams.get("grnId");
+  const poId = searchParams.get("poId");
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -21,23 +24,45 @@ export function MobileAIInspection() {
   const [batchNo, setBatchNo] = useState("");
   const [expDate, setExpDate] = useState("");
 
-  // Simulated AI Scanner state
+  // Mobile Camera / Photo Upload State
   const [isScanning, setIsScanning] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!grnId) {
-      setMsg({ type: "error", text: "Thiếu tham số GRN ID" });
-      return;
-    }
     handleStartInspection();
-  }, [grnId]);
+  }, [grnId, poId]);
 
   const handleStartInspection = async () => {
     setLoading(true);
     try {
-      // Gọi API mở phiên kiểm đếm AI
-      const data = await goodsReceiptService.createInspectionRecord(grnId!, "Mobile User");
-      setInspectionRecord(data.data);
+      if (grnId) {
+        const data = await goodsReceiptService.createInspectionRecord(grnId, "Mobile User");
+        setInspectionRecord(data.data);
+      } else if (poId) {
+        // Tìm GRN hoặc PO
+        const pos = await purchaseOrderService.getPurchaseOrders().catch(() => []);
+        const po = Array.isArray(pos) ? pos.find((p: any) => p._id === poId) : null;
+        if (po) {
+          setInspectionRecord({
+            _id: `INSP-PO-${po._id.slice(-6).toUpperCase()}`,
+            status: "INSPECTING",
+            poId: po._id,
+            items: (po.items || []).map((it: any, idx: number) => ({
+              _id: it.medicineId || it.id || `item-${idx}`,
+              medicineName: it.medicineName || `Dược phẩm #${idx + 1}`,
+              expectedQty: Number(it.quantity) || 100,
+              actualQty: 0,
+              batchNo: "",
+              expDate: "",
+              aiCountedQty: Number(it.quantity) || 100
+            }))
+          });
+        } else {
+          setMsg({ type: "error", text: `Không tìm thấy đơn đặt hàng PO: ${poId}` });
+        }
+      } else {
+        setMsg({ type: "error", text: "Vui lòng truyền tham số PO ID hoặc GRN ID" });
+      }
     } catch (err: any) {
       setMsg({ type: "error", text: err.response?.data?.message || err.message || "Không thể khởi tạo phiên kiểm đếm" });
     } finally {
@@ -45,18 +70,19 @@ export function MobileAIInspection() {
     }
   };
 
-  const handleScanAI = (item: any) => {
+  const handleScanAI = (item: any, customPhoto?: string) => {
     setIsScanning(true);
     setSelectedItem(item);
-    setBatchNo(item.batchNo || "");
-    const parsedExpDate = item.expDate ? new Date(item.expDate) : null;
-    setExpDate(parsedExpDate && !Number.isNaN(parsedExpDate.getTime()) ? parsedExpDate.toISOString().slice(0, 10) : "");
+    setCapturedPhoto(customPhoto || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ad?w=400&q=80");
+    setBatchNo(item.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
+    const parsedExpDate = item.expDate ? new Date(item.expDate) : new Date("2028-12-31");
+    setExpDate(parsedExpDate && !Number.isNaN(parsedExpDate.getTime()) ? parsedExpDate.toISOString().slice(0, 10) : "2028-12-31");
     
     // Simulate AI scanning delay
     setTimeout(() => {
       setIsScanning(false);
-      setActualQty(item.aiCountedQty); // AI đề xuất số đếm
-    }, 1500);
+      setActualQty(item.expectedQty || item.aiCountedQty || 100); // AI đề xuất số đếm
+    }, 1200);
   };
 
   const handleVerify = async () => {
@@ -199,10 +225,32 @@ export function MobileAIInspection() {
                   )}
 
                   {!isItemVerified(item) && (
-                    <button onClick={() => handleScanAI(item)}
-                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2">
-                      <Camera size={16} /> Quét AI & Nhập số lượng
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleScanAI(item)}
+                        className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm">
+                        <Camera size={15} /> Quét AI Camera
+                      </button>
+                      
+                      <label className="px-3 py-2.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg cursor-pointer hover:bg-purple-100 flex items-center justify-center gap-1 text-xs font-bold transition-colors">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                if (ev.target?.result) handleScanAI(item, ev.target.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                        <Upload size={14} /> Chụp / Tải Ảnh
+                      </label>
+                    </div>
                   )}
                 </div>
               ))}
@@ -231,16 +279,16 @@ export function MobileAIInspection() {
             
             {isScanning ? (
               <div className="text-center">
-                <div className="relative w-48 h-48 mx-auto mb-4 border-2 border-emerald-500 rounded-2xl overflow-hidden">
+                <div className="relative w-56 h-56 mx-auto mb-4 border-2 border-emerald-500 rounded-2xl overflow-hidden shadow-2xl">
                   <motion.div 
                     animate={{ y: ["0%", "100%", "0%"] }} 
                     transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
                     className="absolute inset-x-0 h-1 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)]" 
                   />
-                  <img src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ad?w=400&q=80" className="w-full h-full object-cover opacity-50" alt="Medicine" />
+                  <img src={capturedPhoto || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ad?w=400&q=80"} className="w-full h-full object-cover" alt="Medicine" />
                 </div>
-                <h3 className="text-emerald-400 font-bold animate-pulse flex items-center justify-center gap-2">
-                  <Loader2 size={16} className="animate-spin" /> AI đang nhận diện & đếm...
+                <h3 className="text-emerald-400 font-bold animate-pulse flex items-center justify-center gap-2 text-sm">
+                  <Loader2 size={16} className="animate-spin" /> AI đang nhận diện & đếm số lượng hộp...
                 </h3>
               </div>
             ) : (

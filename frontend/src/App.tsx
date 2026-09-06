@@ -46,6 +46,7 @@ import { InventoryHistory } from "./pages/warehouse/InventoryHistory";
 import { PurchaseRequisition } from "./pages/warehouse/PurchaseRequisition";
 import { InventoryCheck } from "./pages/warehouse/InventoryCheck";
 import { WarehouseInventoryHub } from "./pages/warehouse/WarehouseInventoryHub";
+import { MobileAIInspection } from "./pages/warehouse/MobileAIInspection";
 
 // Admin / HQ Pages
 import { Finance } from "./pages/admin/Finance";
@@ -159,6 +160,8 @@ export default function App() {
             <Route path="inventory/export" element={<InventoryHistory type="export" />} />
             <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
             <Route path="inventory/lot-tracking" element={<LotTracking />} />
+            <Route path="goods-receipt/mobile-inspection" element={<MobileAIInspection />} />
+            <Route path="mobile-ai-inspection" element={<MobileAIInspection />} />
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="ai-insights" element={<AIInsights />} />
             <Route path="ai-forecast" element={<AIForecast />} />
