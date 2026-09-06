@@ -331,6 +331,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         search: query,
         category: catParam || undefined,
         classification: clsParam || undefined,
+        branchStockOnly: true,
         _t: Date.now()
       });
       let res = data.data || [];

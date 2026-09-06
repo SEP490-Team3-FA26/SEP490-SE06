@@ -41,3 +41,13 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Flutter & ephemeral build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+linux/
+macos/
+windows/
+**/ephemeral/
+
