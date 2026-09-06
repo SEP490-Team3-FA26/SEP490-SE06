@@ -8,6 +8,7 @@ export function WarehouseLayout() {
       name: "Kho thông minh", 
       icon: <PackageSearch size={20} />,
       subItems: [
+        { name: "Sơ đồ kho", href: "/warehouse/inventory/map" },
         { name: "Tổng quan kho", href: "/warehouse/inventory" },
         { name: "Quản trị Nhập / Xuất", href: "/warehouse/inventory/import" },
         { name: "Biên bản kiểm kê", href: "/warehouse/inventory/checks" },
