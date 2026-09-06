@@ -122,23 +122,94 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scannedCode, setScannedCode] = useState("");
 
-  // AI Gemini Flash Vision Scan States
+  // AI Vision Scan States
   const [showAIScanModal, setShowAIScanModal] = useState(false);
   const [aiFiles, setAiFiles] = useState<File[]>([]);
   const [aiPreviewUrls, setAiPreviewUrls] = useState<string[]>([]);
   const [activePreviewIdx, setActivePreviewIdx] = useState(0);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiScanResult, setAiScanResult] = useState<any>(null);
+  const [isAiDragging, setIsAiDragging] = useState(false);
+
+  // Lắng nghe sự kiện Paste (Ctrl + V) khi mở modal quét đơn thuốc AI
+  useEffect(() => {
+    if (!showAIScanModal) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items || items.length === 0) return;
+
+      const pastedFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const ext = file.type.split("/")[1] || "png";
+            const namedFile = new File(
+              [file],
+              `don_thuoc_paste_${Date.now()}_${i + 1}.${ext}`,
+              { type: file.type }
+            );
+            pastedFiles.push(namedFile);
+          }
+        }
+      }
+
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        setAiFiles(prev => {
+          const updated = [...prev, ...pastedFiles];
+          setActivePreviewIdx(updated.length - 1);
+          return updated;
+        });
+        const newUrls = pastedFiles.map(f => URL.createObjectURL(f));
+        setAiPreviewUrls(prev => [...prev, ...newUrls]);
+        showToast(`Đã dán ${pastedFiles.length} ảnh đơn thuốc từ Clipboard (Ctrl + V)!`, "info");
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [showAIScanModal]);
 
   const handleAISourceFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      setAiFiles(prev => [...prev, ...newFiles]);
+      setAiFiles(prev => {
+        const updated = [...prev, ...newFiles];
+        setActivePreviewIdx(updated.length - 1);
+        return updated;
+      });
       const newUrls = newFiles.map((f: File) => URL.createObjectURL(f));
       setAiPreviewUrls(prev => [...prev, ...newUrls]);
     }
   };
 
+  const handleAiDropFiles = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsAiDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFiles = Array.from(e.dataTransfer.files).filter((f: File) => f.type.startsWith("image/"));
+      if (droppedFiles.length > 0) {
+        setAiFiles(prev => {
+          const updated = [...prev, ...droppedFiles];
+          setActivePreviewIdx(updated.length - 1);
+          return updated;
+        });
+        const newUrls = droppedFiles.map(f => URL.createObjectURL(f));
+        setAiPreviewUrls(prev => [...prev, ...newUrls]);
+        showToast(`Đã thêm ${droppedFiles.length} ảnh từ thao tác kéo thả!`, "info");
+      } else {
+        showToast("Vui lòng chỉ kéo thả tập tin hình ảnh!", "warning");
+      }
+    }
+  };
 
   const handleRemoveAIFile = (index: number) => {
     setAiFiles(prev => prev.filter((_, i) => i !== index));
@@ -155,14 +226,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     }
     setAiLoading(true);
     try {
-      const formData = new FormData();
-      aiFiles.forEach(f => formData.append("images", f));
       const { branchId } = getBranchInfoFromToken();
-      formData.append("branch_id", branchId || "CENTRAL_WH");
-
-      const result = await prescriptionService.scanPrescriptionAI(formData);
+      const result = await prescriptionService.scanPrescriptionFiles(aiFiles, branchId || "CENTRAL_WH");
       setAiScanResult(result);
-      showToast("AI Gemini Flash đã bóc tách & khớp thuốc thành công!", "success");
+      showToast("Hệ thống AI đã bóc tách & khớp thuốc thành công!", "success");
     } catch (err: any) {
       showToast(err.response?.data?.message || err.message || "Lỗi quét ảnh đơn thuốc AI", "error");
     } finally {
@@ -171,57 +238,21 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   };
 
   const handleApplyAIScanToCart = () => {
-    if (!aiScanResult || !aiScanResult.items) return;
-
-    if (aiScanResult.patient?.name) setPatientName(aiScanResult.patient.name);
-    if (aiScanResult.patient?.age) setPatientAge(String(aiScanResult.patient.age));
-    if (aiScanResult.patient?.gender) setPatientGender(aiScanResult.patient.gender);
-    if (aiScanResult.doctor?.name) setDoctorName(aiScanResult.doctor.name);
-    if (aiScanResult.doctor?.hospital) setHospitalName(aiScanResult.doctor.hospital);
-
-    const newCartItems: any[] = [];
-    aiScanResult.items.forEach((item: any) => {
-      const sku = item.selected_sku;
-      const fefo = item.fefo_batch;
-      const ext = item.extracted;
-
-      if (sku) {
-        newCartItems.push({
-          medicineId: sku.product_id,
-          name: sku.product_name,
-          active_ingredient: sku.active_ingredient || ext.generic_name || "",
-          price: sku.retail_price || 0,
-          quantity: ext.quantity || 1,
-          dosage: ext.usage_instruction || "Ngày uống 2 lần, mỗi lần 1 viên sau ăn.",
-          unit: sku.unit || ext.unit || "Viên",
-          stock: sku.stock || 0,
-          batchNo: fefo ? fefo.batch_no : "DEFAULT",
-          expiry: fefo ? fefo.exp_date : null,
-          status: sku.stock > 0 ? "In Stock" : "Out of Stock"
-        });
-      }
-    });
-
-    if (newCartItems.length === 0) {
-      showToast("Không có sản phẩm nào khớp để thêm vào giỏ hàng POS!", "warning");
+    const result = prescriptionService.processAIScanResult(aiScanResult, prescriptionItems);
+    if (!result.success) {
+      if (result.message) showToast(result.message, "warning");
       return;
     }
 
-    setPrescriptionItems(prev => {
-      const merged = [...prev];
-      newCartItems.forEach(newItem => {
-        const idx = merged.findIndex(it => it.medicineId === newItem.medicineId);
-        if (idx >= 0) {
-          merged[idx].quantity += newItem.quantity;
-        } else {
-          merged.push(newItem);
-        }
-      });
-      return merged;
-    });
+    if (result.patient.name) setPatientName(result.patient.name);
+    if (result.patient.age) setPatientAge(result.patient.age);
+    if (result.patient.gender) setPatientGender(result.patient.gender);
+    if (result.doctor.name) setDoctorName(result.doctor.name);
+    if (result.doctor.hospital) setHospitalName(result.doctor.hospital);
 
+    setPrescriptionItems(result.updatedCartItems);
     setShowAIScanModal(false);
-    showToast(`Đã thêm thành công ${newCartItems.length} thuốc vào đơn hàng POS!`, "success");
+    showToast(`Đã thêm thành công ${result.count} thuốc vào đơn hàng POS!`, "success");
   };
 
 
@@ -300,6 +331,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         search: query,
         category: catParam || undefined,
         classification: clsParam || undefined,
+        branchStockOnly: true,
         _t: Date.now()
       });
       let res = data.data || [];
@@ -702,7 +734,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               onClick={() => setShowAIScanModal(true)}
               className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-[12px] shadow-sm transition-all flex items-center justify-center gap-2"
             >
-              <Sparkles size={18} /> Quét Đơn AI Gemini
+              <Sparkles size={18} /> Quét Đơn Bằng AI
             </button>
           </div>
 
@@ -1627,7 +1659,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       )}
 
       {/* =======================================
-       * 🤖 MODAL QUÉT ĐƠN THUỐC AI GEMINI FLASH (SIDE-BY-SIDE)
+       * 🤖 MODAL QUÉT ĐƠN THUỐC AI (SIDE-BY-SIDE)
        * ======================================= */}
       {showAIScanModal && (
     <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -1640,7 +1672,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
             </div>
             <div>
               <h3 className="font-extrabold text-lg tracking-wide flex items-center gap-2">
-                Quét Ảnh Đơn Thuốc Bằng AI Gemini 2.5 Flash
+                Quét Ảnh Đơn Thuốc Bằng AI
                 <span className="text-[11px] font-bold bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-400/30">Vision & FEFO Match</span>
               </h3>
               <p className="text-xs text-slate-400">Tự động đọc hiểu layout, trích xuất hoạt chất, chuẩn hóa liều dùng & gán lô HSD gần nhất</p>
@@ -1703,14 +1735,27 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               </div>
             )}
 
-            {/* Full Image Preview Container */}
-            <div className="flex-1 min-h-[300px] bg-slate-900 rounded-2xl border border-slate-200 overflow-hidden relative flex items-center justify-center">
+            {/* Full Image Preview Container (Dropzone & Preview) */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(true); }}
+              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(false); }}
+              onDrop={handleAiDropFiles}
+              className={`flex-1 min-h-[300px] bg-slate-900 rounded-2xl border-2 transition-all overflow-hidden relative flex items-center justify-center ${isAiDragging ? 'border-indigo-400 bg-slate-800 ring-4 ring-indigo-500/20' : 'border-slate-800'}`}
+            >
               {aiPreviewUrls.length > 0 ? (
-                <img
-                  src={aiPreviewUrls[activePreviewIdx] || aiPreviewUrls[0]}
-                  alt="Prescription preview"
-                  className="max-h-full max-w-full object-contain p-2"
-                />
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <img
+                    src={aiPreviewUrls[activePreviewIdx] || aiPreviewUrls[0]}
+                    alt="Prescription preview"
+                    className="max-h-full max-w-full object-contain p-2"
+                  />
+                  {isAiDragging && (
+                    <div className="absolute inset-0 bg-indigo-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white font-bold gap-2">
+                      <Sparkles size={32} className="animate-bounce text-indigo-300" />
+                      <span>Thả ảnh vào đây để thêm trang đơn</span>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="p-8 text-center flex flex-col items-center gap-3 text-slate-400">
                   <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
@@ -1718,18 +1763,23 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   </div>
                   <div>
                     <p className="font-bold text-sm text-slate-300">Chưa có ảnh đơn thuốc nào</p>
-                    <p className="text-xs text-slate-500 mt-1">Kéo thả hoặc tải lên tập tin ảnh đơn thuốc của khách hàng</p>
+                    <p className="text-xs text-slate-500 mt-1">Kéo thả, dán ảnh (Ctrl + V) hoặc tải lên tập tin ảnh đơn thuốc của khách hàng</p>
                   </div>
-                  <label className="cursor-pointer mt-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">
-                    Tải ảnh lên ngay
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleAISourceFileChange}
-                    />
-                  </label>
+                  <div className="flex flex-col sm:flex-row items-center gap-2 mt-2">
+                    <label className="cursor-pointer px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">
+                      Tải ảnh lên ngay
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleAISourceFileChange}
+                      />
+                    </label>
+                    <span className="text-[11px] font-semibold text-slate-400 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 flex items-center gap-1.5">
+                      Hoặc nhấn <kbd className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px] border border-slate-600">Ctrl + V</kbd> để dán ảnh
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1744,11 +1794,11 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 {aiLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Gemini Flash đang đọc & khớp DB...
+                    AI đang đọc & khớp dữ liệu kho...
                   </>
                 ) : (
                   <>
-                    <Sparkles size={18} /> Phân Tích & Khớp Sản Phẩm (Gemini AI)
+                    <Sparkles size={18} /> Phân Tích & Khớp Sản Phẩm (AI)
                   </>
                 )}
               </button>
@@ -1764,7 +1814,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 </div>
                 <h4 className="font-extrabold text-slate-800 text-base">Sẵn sàng bóc tách đơn thuốc bằng AI</h4>
                 <p className="text-xs text-slate-500 max-w-md mt-1">
-                  Sau khi phân tích, hệ thống Gemini 2.5 Flash sẽ tự động trích xuất thông tin bệnh nhân, chuẩn hóa tên biệt dược & hoạt chất, và tự chọn Lô HSD gần nhất (FEFO) trong CSDL chi nhánh.
+                  Sau khi phân tích, hệ thống AI sẽ tự động trích xuất thông tin bệnh nhân, chuẩn hóa tên biệt dược & hoạt chất, và tự chọn Lô HSD gần nhất (FEFO) trong CSDL chi nhánh.
                 </p>
               </div>
             ) : (

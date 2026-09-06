@@ -386,6 +386,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
         search: query,
         category: catParam || undefined,
         classification: clsParam || undefined,
+        branchStockOnly: true
       });
       let res = data.data || [];
       const currentStockF = stockF !== undefined ? stockF : stockFilter;
