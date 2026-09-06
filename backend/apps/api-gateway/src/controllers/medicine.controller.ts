@@ -79,6 +79,41 @@ export class MedicineController implements OnModuleInit {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.dropdown_list', {});
   }
 
+  @Get('warehouse-map')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(60000) // Cache 60s
+  @ApiOperation({ summary: 'Lấy sơ đồ kho tổng quan 2D/3D' })
+  async getWarehouseMap() {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.warehouse_map', {});
+  }
+
+  @Get('shelf-detail')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lấy chi tiết danh sách thuốc trong một tầng kệ' })
+  @ApiQuery({ name: 'zone', required: true, type: String })
+  @ApiQuery({ name: 'rack', required: true, type: String })
+  @ApiQuery({ name: 'shelf', required: true, type: Number })
+  async getShelfDetail(
+    @Query('zone') zone: string,
+    @Query('rack') rack: string,
+    @Query('shelf') shelf: number,
+  ) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.shelf_detail', { zone, rack, shelf: Number(shelf) });
+  }
+
+  @Post('sync-locations')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'PHARMACIST')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Đồng bộ vị trí cho các lô thuốc cũ chưa có vị trí' })
+  async syncLocations() {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.sync_locations', {});
+  }
+
+
   // Tồn kho thời gian thực toàn chuỗi + Thuật toán tồn kho an toàn
   @Get('safe-stock-chain')
   @UseGuards(JwtAuthGuard)
