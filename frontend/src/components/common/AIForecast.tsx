@@ -55,6 +55,24 @@ interface ForecastResult {
 export function AIForecast() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<number>(30);
+
+  const getPeriodLabel = (p: number) => {
+    if (p === 30) return "1 Tháng (30 ngày)";
+    if (p === 60) return "2 Tháng (60 ngày)";
+    if (p === 90) return "1 Quý (90 ngày)";
+    if (p === 180) return "2 Quý / Nửa năm (180 ngày)";
+    if (p === 365) return "1 Năm (365 ngày)";
+    return `${p} ngày`;
+  };
+
+  const getPeriodShortTag = (p: number) => {
+    if (p === 30) return "Tháng";
+    if (p === 90) return "Quý";
+    if (p === 180) return "2 Quý";
+    if (p === 365) return "Năm";
+    return `${p}N`;
+  };
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
@@ -209,25 +227,33 @@ export function AIForecast() {
   const handleExportCSV = () => {
     if (!filteredRecommendations || filteredRecommendations.length === 0) return;
     const headers = ["Mã thuốc", "Tên thuốc", "Danh mục", "Đơn vị", "Tồn kho", "Bán kỳ trước", "Bán/ngày", "Hàng đang về", "Số ngày tồn", "Đề xuất nhập", "Mức độ", "Lý do AI"];
-    const rows = filteredRecommendations.map(it => [
-      `"${it.medicineId}"`,
-      `"${it.name.replace(/"/g, '""')}"`,
-      `"${it.category}"`,
-      `"${it.unit}"`,
-      it.currentStock,
-      it.totalSold || 0,
-      it.averageDailySales,
-      it.expectedIncoming,
-      it.daysRemaining === 999 ? "Dồi dào" : (it.daysRemaining || "N/A"),
-      it.suggestedOrderQty,
-      it.urgency,
-      `"${(it.reason || '').replace(/"/g, '""')}"`
-    ]);
+    const rows = filteredRecommendations.map(it => {
+      const calcDays = typeof it.daysRemaining === "number"
+        ? it.daysRemaining
+        : (it.averageDailySales > 0 ? Number((it.currentStock / it.averageDailySales).toFixed(1)) : (it.currentStock > 0 ? 999 : 0));
+      const daysRemainingText = calcDays === 999 ? "Dồi dào (>90 ngày)" : (calcDays === 0 ? "0 ngày (Hết hàng)" : `${calcDays} ngày`);
+
+      return [
+        `"${it.medicineId}"`,
+        `"${it.name.replace(/"/g, '""')}"`,
+        `"${it.category}"`,
+        `"${it.unit}"`,
+        it.currentStock,
+        it.totalSold || 0,
+        it.averageDailySales,
+        it.expectedIncoming,
+        daysRemainingText,
+        it.suggestedOrderQty,
+        it.urgency,
+        `"${(it.reason || '').replace(/"/g, '""')}"`
+      ];
+    });
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `AI_Forecast_${period}ngay_${new Date().toISOString().slice(0,10)}.csv`);
+    const safeTag = period === 30 ? "1Thang_30N" : period === 90 ? "1Quy_90N" : period === 180 ? "2Quy_180N" : period === 365 ? "1Nam_365N" : `${period}N`;
+    link.setAttribute("download", `AI_Forecast_${safeTag}_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -412,19 +438,26 @@ export function AIForecast() {
             <ArrowDownToLine size={14} /> Xuất CSV
           </button>
 
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-            {[7, 30, 90].map((days) => (
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1">
+            {[
+              { days: 30, label: "Tháng (30N)", title: "Dự báo nhu cầu theo 1 Tháng (30 ngày)" },
+              { days: 90, label: "Quý (90N)", title: "Dự báo nhu cầu theo 1 Quý (90 ngày)" },
+              { days: 180, label: "2 Quý (180N)", title: "Dự báo nhu cầu theo 2 Quý / Nửa năm (180 ngày)" },
+              { days: 365, label: "Năm (365N)", title: "Dự báo nhu cầu chiến lược theo 1 Năm (365 ngày)" }
+            ].map(({ days, label, title }) => (
               <button
                 key={days}
                 onClick={() => setPeriod(days)}
                 disabled={loading}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                title={title}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
                   period === days
-                    ? "bg-white text-purple-700 shadow-sm"
+                    ? "bg-white text-purple-700 shadow-sm ring-1 ring-purple-200"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                {days} ngày
+                <Calendar size={12} className={period === days ? "text-purple-600" : "text-slate-400"} />
+                {label}
               </button>
             ))}
           </div>
@@ -730,10 +763,12 @@ export function AIForecast() {
                       </th>
                       <th className="px-5 py-4">Tên dược phẩm</th>
                       <th className="px-5 py-4 text-center">Tồn kho hiện tại</th>
-                      <th className="px-5 py-4 text-center">Bán kỳ trước ({period} ngày)</th>
+                      <th className="px-5 py-4 text-center">Bán kỳ trước ({getPeriodLabel(period)})</th>
                       <th className="px-5 py-4 text-center">Tốc độ/ngày</th>
                       <th className="px-5 py-4 text-center">Hàng đang về</th>
-                      <th className="px-5 py-4 text-center text-purple-700 bg-purple-50/50 border-x border-purple-100">AI Đề Xuất</th>
+                      <th className="px-5 py-4 text-center text-purple-700 bg-purple-50/50 border-x border-purple-100">
+                        AI Đề Xuất ({getPeriodShortTag(period)})
+                      </th>
                       <th className="px-5 py-4 text-center">Mức khẩn cấp</th>
                       <th className="px-5 py-4 max-w-[200px]">Phân tích lý do</th>
                     </tr>

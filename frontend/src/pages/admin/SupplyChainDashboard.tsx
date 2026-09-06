@@ -676,12 +676,13 @@ function SettingsModal({
             </select>
           </div>
           <div className="scd-form-group">
-            <label>Kỳ phân tích tồn kho (ngày)</label>
+            <label>Kỳ phân tích chuỗi cung ứng</label>
             <select className="scd-form-input" value={periodDays} onChange={e => setPeriodDays(Number(e.target.value))}>
-              <option value={7}>7 ngày gần nhất</option>
-              <option value={30}>30 ngày gần nhất (Khuyên dùng)</option>
-              <option value={60}>60 ngày gần nhất</option>
-              <option value={90}>90 ngày gần nhất</option>
+              <option value={30}>Theo Tháng - 30 ngày (Vận hành kho thường kỳ)</option>
+              <option value={60}>2 Tháng - 60 ngày</option>
+              <option value={90}>Theo Quý - 90 ngày (Kế hoạch ngân sách & Nhà cung cấp)</option>
+              <option value={180}>2 Quý / Nửa năm - 180 ngày</option>
+              <option value={365}>Theo Năm - 365 ngày (Chiến lược tổng thể dài hạn)</option>
             </select>
           </div>
           <div className="scd-form-group">
