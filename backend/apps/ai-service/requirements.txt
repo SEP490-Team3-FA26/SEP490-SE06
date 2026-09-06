@@ -13,3 +13,5 @@ supabase==2.4.5
 psycopg2-binary
 pymongo[srv]
 dnspython
+numpy>=1.26.0
+torch

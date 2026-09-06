@@ -7,8 +7,8 @@ import {
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { EventPattern, Payload } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
+import { SseService } from './sse.service';
 
 @WebSocketGateway({
   cors: {
@@ -19,10 +19,42 @@ export class AppWebsocketGateway implements OnGatewayInit, OnGatewayConnection, 
   @WebSocketServer() server: Server;
   private logger: Logger = new Logger('AppWebsocketGateway');
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly sseService: SseService,
+  ) {}
 
   afterInit(server: Server) {
-    this.logger.log('🚀 WebSocket Gateway Initialized');
+    this.logger.log('🚀 WebSocket Gateway & SSE Bridge Initialized');
+
+    // Tạo Proxy bao bọc server để tự động phát sang SSE mỗi khi có event
+    if (server) {
+      const originalEmit = server.emit.bind(server);
+      const originalTo = server.to.bind(server);
+      const originalIn = server.in.bind(server);
+
+      // Broadcast toàn cục
+      server.emit = (event: string, ...args: any[]) => {
+        this.sseService.emit(event, args[0]);
+        return originalEmit(event, ...args);
+      };
+
+      // Phát theo Room (admin, warehouse, branch-xxx, user-xxx)
+      const wrapTarget = (room: string | string[], originalFn: any) => {
+        const target = originalFn(room);
+        const originalTargetEmit = target.emit.bind(target);
+
+        target.emit = (event: string, ...args: any[]) => {
+          const roomName = Array.isArray(room) ? room[0] : room;
+          this.sseService.emitTo(roomName, event, args[0]);
+          return originalTargetEmit(event, ...args);
+        };
+        return target;
+      };
+
+      server.to = (room: string | string[]) => wrapTarget(room, originalTo);
+      server.in = (room: string | string[]) => wrapTarget(room, originalIn);
+    }
   }
 
   handleConnection(client: Socket, ...args: any[]) {

@@ -1,0 +1,13 @@
+{
+  "model_type": "PharmaForecastLSTM",
+  "device": "cpu",
+  "device_name": "CPU",
+  "training_duration_seconds": 78.07,
+  "total_samples": 5106,
+  "epochs": 60,
+  "final_train_loss": 100.113,
+  "final_val_loss": 121.1817,
+  "final_val_mae": 121.6623,
+  "final_val_rmse": 200.541,
+  "saved_at": "2026-09-04 22:11:12"
+}

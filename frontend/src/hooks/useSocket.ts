@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { AUTH_TOKEN_CHANGED_EVENT } from '../utils/authEvents';
 
 const getApiGatewayUrl = () => {
@@ -18,15 +17,148 @@ const getApiGatewayUrl = () => {
 
 const API_GATEWAY_URL = getApiGatewayUrl();
 
-// Global cache để dùng chung kết nối Socket, tránh mỗi component tạo 1 connection mới gây spam log backend
-const globalSockets: Record<string, Socket> = {};
-const globalSocketTokens: Record<string, string> = {};
+// Global SSE Connection Singleton & Event Emitter
+class SSEManager {
+  private eventSource: EventSource | null = null;
+  private token: string = '';
+  private listeners: Map<string, Set<(data: any) => void>> = new Map();
+  private statusListeners: Set<(connected: boolean, error: any) => void> = new Set();
+  private isConnected = false;
+  private reconnectTimer: any = null;
+
+  connect(token: string) {
+    if (this.token === token && this.eventSource && this.eventSource.readyState !== EventSource.CLOSED) {
+      return;
+    }
+
+    this.disconnect();
+    this.token = token;
+
+    if (!token) {
+      this.updateStatus(false, null);
+      return;
+    }
+
+    try {
+      const url = `${API_GATEWAY_URL}/api/events/sse?token=${encodeURIComponent(token)}`;
+      this.eventSource = new EventSource(url);
+
+      this.eventSource.onopen = () => {
+        this.isConnected = true;
+        this.updateStatus(true, null);
+      };
+
+      this.eventSource.onerror = (err) => {
+        this.isConnected = false;
+        this.updateStatus(false, err);
+      };
+
+      // Lắng nghe tất cả các sự kiện custom từ Server
+      const standardEvents = [
+        'inventory_updated',
+        'dashboard_updated',
+        'new_pr_notification',
+        'pr_approved_notification',
+        'pr_rejected_notification',
+        'new_po_notification',
+        'grn_completed_notification',
+        'pr_updated',
+        'ping',
+      ];
+
+      standardEvents.forEach((eventName) => {
+        this.eventSource?.addEventListener(eventName, (event: MessageEvent) => {
+          try {
+            const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+            this.dispatchEvent(eventName, data);
+          } catch (e) {
+            this.dispatchEvent(eventName, event.data);
+          }
+        });
+      });
+
+      // Bắt thêm generic onmessage
+      this.eventSource.onmessage = (event: MessageEvent) => {
+        try {
+          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          const type = data.type || 'message';
+          this.dispatchEvent(type, data);
+        } catch (e) {
+          // ignore parsing error for raw strings
+        }
+      };
+    } catch (error) {
+      this.updateStatus(false, error);
+    }
+  }
+
+  disconnect() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    this.token = '';
+    this.isConnected = false;
+    this.updateStatus(false, null);
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+  }
+
+  subscribeStatus(listener: (connected: boolean, error: any) => void) {
+    this.statusListeners.add(listener);
+    listener(this.isConnected, null);
+    return () => this.statusListeners.delete(listener);
+  }
+
+  private updateStatus(connected: boolean, error: any) {
+    this.statusListeners.forEach((l) => l(connected, error));
+  }
+
+  addEventListener(event: string, callback: (data: any) => void) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+      // Nếu là event mới chưa đăng ký với EventSource
+      if (this.eventSource) {
+        this.eventSource.addEventListener(event, (e: MessageEvent) => {
+          try {
+            const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+            this.dispatchEvent(event, data);
+          } catch {
+            this.dispatchEvent(event, e.data);
+          }
+        });
+      }
+    }
+    this.listeners.get(event)?.add(callback);
+  }
+
+  removeEventListener(event: string, callback?: (data: any) => void) {
+    if (!callback) {
+      this.listeners.delete(event);
+    } else {
+      this.listeners.get(event)?.delete(callback);
+    }
+  }
+
+  private dispatchEvent(event: string, data: any) {
+    const handlers = this.listeners.get(event);
+    if (handlers) {
+      handlers.forEach((cb) => {
+        try {
+          cb(data);
+        } catch (e) {
+          console.error(`Error in SSE event handler for ${event}:`, e);
+        }
+      });
+    }
+  }
+}
+
+const sseManager = new SSEManager();
 
 export function useSocket(namespace: string = '') {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<any>(null);
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('token') || '');
-  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     const syncToken = () => setAuthToken(localStorage.getItem('token') || '');
@@ -46,82 +178,39 @@ export function useSocket(namespace: string = '') {
   }, []);
 
   useEffect(() => {
-    const token = authToken;
+    const unsubscribe = sseManager.subscribeStatus((connected, error) => {
+      setIsConnected(connected);
+      setConnectionError(error);
+    });
 
-    if (!token) {
-      if (globalSockets[namespace]) {
-        globalSockets[namespace].disconnect();
-        delete globalSockets[namespace];
-        delete globalSocketTokens[namespace];
-      }
-      socketRef.current = null;
-      setIsConnected(false);
-      setConnectionError(null);
-      return;
-    }
+    sseManager.connect(authToken);
 
-    if (globalSockets[namespace] && globalSocketTokens[namespace] !== token) {
-      globalSockets[namespace].disconnect();
-      delete globalSockets[namespace];
-      delete globalSocketTokens[namespace];
-    }
-
-    // Nếu chưa có kết nối cho namespace này thì mới tạo
-    if (!globalSockets[namespace]) {
-      globalSockets[namespace] = io(`${API_GATEWAY_URL}${namespace}`, {
-        transports: ['websocket'],
-        autoConnect: true,
-        reconnection: true,
-        auth: {
-          token,
-        },
-      });
-      globalSocketTokens[namespace] = token;
-      // Tắt bớt log frontend để đỡ rác console
-      // globalSockets[namespace].on('connect', () => console.log(`✅ Socket connected to ${namespace || 'root'}`));
-      // globalSockets[namespace].on('disconnect', () => console.log(`❌ Socket disconnected from ${namespace || 'root'}`));
-      globalSockets[namespace].on('connect_error', (error) => {
-        // console.error('Socket connection error:', error.message);
-      });
-    }
-
-
-    const socket = globalSockets[namespace];
-    socketRef.current = socket;
-    setIsConnected(socket.connected);
-
-    const onConnect = () => {
-      setIsConnected(true);
-      setConnectionError(null);
-    };
-    const onDisconnect = () => setIsConnected(false);
-    const onConnectError = (err: any) => {
-      setConnectionError(err);
-    };
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect_error', onConnectError);
-
-    // Không gọi socket.disconnect() ở đây vì các component khác có thể đang dùng chung socket này
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect_error', onConnectError);
+      unsubscribe();
     };
-  }, [namespace, authToken]);
+  }, [authToken]);
 
-  const onEvent = (event: string, callback: (data: any) => void) => {
-    if (socketRef.current) {
-      socketRef.current.on(event, callback);
-    }
+  const onEvent = useCallback((event: string, callback: (data: any) => void) => {
+    sseManager.addEventListener(event, callback);
+  }, []);
+
+  const offEvent = useCallback((event: string, callback?: (data: any) => void) => {
+    sseManager.removeEventListener(event, callback);
+  }, []);
+
+  // Mock socket object để tương thích 100% với NotificationContext & các components
+  const mockSocket = {
+    connected: isConnected,
+    on: onEvent,
+    off: offEvent,
   };
 
-  const offEvent = (event: string, callback?: (data: any) => void) => {
-    if (socketRef.current) {
-      socketRef.current.off(event, callback);
-    }
+  return {
+    isConnected,
+    socket: mockSocket,
+    onEvent,
+    offEvent,
+    connectionError,
   };
-
-  return { isConnected, socket: socketRef.current, onEvent, offEvent, connectionError };
 }
+

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="System Administration &amp; Security" id="system_admin">
+    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="3200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="&lt;b style=&quot;font-size: 20px; color: #1e3a8a;&quot;&gt;UML USE CASE DIAGRAM - MODULE: SYSTEM ADMINISTRATION &amp; SECURITY&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 13px; color: #475569;&quot;&gt;PharmaChain System | Total Use Cases: &lt;b&gt;4&lt;/b&gt; | Actors: &lt;b&gt;System Admin&lt;/b&gt;&lt;/span&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="20" width="900" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="&lt;b style=&quot;font-size: 14px; color: #0f172a;&quot;&gt;System Admin&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #475569;&quot;&gt;(Quản trị hệ thống)&lt;/span&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2.5;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="720" y="140" width="55" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;SYSTEM ADMINISTRATION &amp; SECURITY SUBSYSTEM&lt;/b&gt;" style="swimlane;startSize=40;fillColor=#e6f2f2;strokeColor=#4d908e;strokeWidth=2;fontColor=#134e4a;rounded=1;arcSize=4;dashed=0;collapsible=0;pointerEvents=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="500" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="&lt;b&gt;[UC-58]&lt;/b&gt; User accounts &amp; RBAC role-based permission control" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4d908e;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="4">
+          <mxGeometry x="30" y="55" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="&lt;b&gt;[UC-59]&lt;/b&gt; System Audit Log - User actions, timestamp &amp; IP" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4d908e;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="4">
+          <mxGeometry x="30" y="125" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="&lt;b&gt;[UC-60]&lt;/b&gt; System Configuration: AI keys, SMS/Email &amp; backup" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4d908e;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="4">
+          <mxGeometry x="30" y="195" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="&lt;b&gt;[UC-149]&lt;/b&gt; Database backup history &amp; manual data restore" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4d908e;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="4">
+          <mxGeometry x="30" y="265" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="3" target="5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="185" />
+              <mxPoint x="640" y="182" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="3" target="6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="185" />
+              <mxPoint x="640" y="252" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="3" target="7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="185" />
+              <mxPoint x="640" y="322" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="3" target="8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="185" />
+              <mxPoint x="640" y="392" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
