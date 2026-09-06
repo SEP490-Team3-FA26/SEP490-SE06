@@ -1760,4 +1760,230 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi phát hiện bất thường tồn kho');
     }
   }
+
+  async getWarehouseMap() {
+    try {
+      this.logger.log('Fetching warehouse map aggregation...');
+      
+      const pipeline = [
+        {
+          $match: {
+            branchId: 'CENTRAL_WH',
+            status: 'ACTIVE'
+          }
+        },
+        {
+          $group: {
+            _id: {
+              zone: { $ifNull: ['$location.zone', 'A'] },
+              rack: { $ifNull: ['$location.rack', 'A1'] },
+              shelf: { $ifNull: ['$location.shelf', 1] }
+            },
+            totalStock: { $sum: '$stock' },
+            batchCount: { $sum: 1 },
+            minExpDate: { $min: '$expDate' }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              zone: '$_id.zone',
+              rack: '$_id.rack'
+            },
+            shelves: {
+              $push: {
+                shelf: '$_id.shelf',
+                totalStock: '$totalStock',
+                batchCount: '$batchCount',
+                minExpDate: '$minExpDate'
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: '$_id.zone',
+            racks: {
+              $push: {
+                rack: '$_id.rack',
+                shelves: '$shelves'
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            zone: '$_id',
+            racks: 1
+          }
+        },
+        { $sort: { zone: 1 } }
+      ];
+
+      const rawZones = await this.batchModel.aggregate(pipeline).exec();
+      const today = new Date();
+      const ninetyDaysFromNow = new Date();
+      ninetyDaysFromNow.setDate(today.getDate() + 90);
+
+      // Định nghĩa tên khu theo category
+      const zoneLabels: Record<string, string> = {
+        'A': 'Khu A - Kháng sinh',
+        'B': 'Khu B - Hạ sốt & Giảm đau',
+        'C': 'Khu C - Tim mạch',
+        'D': 'Khu D - Tiêu hóa',
+        'E': 'Khu E - TPCN',
+        'F': 'Khu F - Vật tư y tế'
+      };
+
+      // Xử lý status cho từng shelf và sắp xếp
+      const zones = rawZones.map((z: any) => {
+        // Sort racks
+        z.racks.sort((a: any, b: any) => String(a.rack).localeCompare(String(b.rack)));
+        z.racks.forEach((r: any) => {
+          // Sort shelves
+          r.shelves.sort((a: any, b: any) => a.shelf - b.shelf);
+          r.shelves.forEach((s: any) => {
+            if (s.totalStock === 0) {
+              s.status = 'EMPTY';
+            } else if (new Date(s.minExpDate) < today) {
+              s.status = 'EXPIRED';
+            } else if (new Date(s.minExpDate) <= ninetyDaysFromNow) {
+              s.status = 'NEAR_EXPIRY';
+            } else if (s.totalStock < 50) { // Giả sử 50 là ngưỡng an toàn chung cho 1 shelf
+              s.status = 'LOW_STOCK';
+            } else {
+              s.status = 'NORMAL';
+            }
+          });
+        });
+
+        return {
+          zone: z.zone,
+          label: zoneLabels[z.zone] || `Khu ${z.zone}`,
+          racks: z.racks
+        };
+      });
+
+      return { zones };
+    } catch (error) {
+      this.logger.error('Failed to get warehouse map:', error);
+      throw new RpcException(error.message || 'Lỗi lấy sơ đồ kho');
+    }
+  }
+
+  async getShelfDetail(zone: string, rack: string, shelf: number) {
+    try {
+      this.logger.log(`Fetching shelf detail: Zone=${zone}, Rack=${rack}, Shelf=${shelf}`);
+      
+      const batches = await this.batchModel.find({
+        branchId: 'CENTRAL_WH',
+        'location.zone': zone,
+        'location.rack': rack,
+        'location.shelf': Number(shelf),
+        status: 'ACTIVE'
+      }).lean().exec();
+
+      if (batches.length === 0) return [];
+
+      const medicineIds = [...new Set(batches.map(b => b.medicineId))];
+      const medicines = await this.medicineModel.find({ _id: { $in: medicineIds } })
+        .select('name category unit price')
+        .lean().exec();
+      
+      const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
+      const today = new Date();
+      const ninetyDaysFromNow = new Date();
+      ninetyDaysFromNow.setDate(today.getDate() + 90);
+
+      return batches.map(b => {
+        const med = medMap.get(b.medicineId);
+        const expDate = new Date(b.expDate);
+        let status = 'ACTIVE';
+        if (b.stock === 0) {
+          status = 'OUT_OF_STOCK';
+        } else if (expDate < today) {
+          status = 'EXPIRED';
+        } else if (expDate <= ninetyDaysFromNow) {
+          status = 'NEAR_EXPIRY';
+        } else if (b.stock < 20) { // Ngưỡng an toàn cho 1 lô
+          status = 'LOW_STOCK';
+        }
+
+        const timeDiff = expDate.getTime() - today.getTime();
+        const daysUntilExpiry = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+        return {
+          id: b._id.toString(),
+          batchId: b._id.toString(),
+          batchNo: b.batchNo,
+          medicineId: b.medicineId,
+          medicineName: med ? med.name : 'Unknown',
+          category: med ? med.category : '',
+          stock: b.stock,
+          unit: med ? med.unit : 'Hộp',
+          expDate: expDate.toISOString().split('T')[0],
+          daysUntilExpiry,
+          status,
+          price: med ? med.price : 0
+        };
+      }).sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
+
+    } catch (error) {
+      this.logger.error('Failed to get shelf detail:', error);
+      throw new RpcException(error.message || 'Lỗi lấy chi tiết kệ hàng');
+    }
+  }
+
+  async syncLocations() {
+    try {
+      this.logger.log('Starting location synchronization for all batches...');
+      const batches = await this.batchModel.find({ location: { $exists: false } }).exec();
+      if (batches.length === 0) return { success: true, message: 'Tất cả lô hàng đã có vị trí.' };
+
+      const categoryZoneMap: Record<string, string> = {
+        'Kháng sinh': 'A',
+        'Hạ sốt & Giảm đau': 'B',
+        'Tim mạch': 'C',
+        'Tiêu hóa': 'D',
+        'Thực phẩm chức năng': 'E',
+        'Vật tư y tế': 'F'
+      };
+
+      const medicineIds = [...new Set(batches.map(b => b.medicineId))];
+      const medicines = await this.medicineModel.find({ _id: { $in: medicineIds } }).select('category').lean().exec();
+      const medMap = new Map(medicines.map(m => [m._id.toString(), m.category || '']));
+
+      // Dùng rack & shelf counter để rải đều
+      const counters: Record<string, { rack: number, shelf: number }> = {};
+      
+      let updatedCount = 0;
+      for (const batch of batches) {
+        const category = medMap.get(batch.medicineId) || 'Kháng sinh';
+        const zone = categoryZoneMap[category] || 'A';
+        
+        if (!counters[zone]) counters[zone] = { rack: 1, shelf: 1 };
+        
+        const rackStr = `${zone}${counters[zone].rack}`;
+        const shelfNum = counters[zone].shelf;
+
+        batch.location = { zone, rack: rackStr, shelf: shelfNum };
+        await batch.save();
+        updatedCount++;
+
+        counters[zone].shelf++;
+        if (counters[zone].shelf > 4) {
+          counters[zone].shelf = 1;
+          counters[zone].rack++;
+          if (counters[zone].rack > 4) counters[zone].rack = 1; // Wrap around if more than 4 racks
+        }
+      }
+
+      return { success: true, message: `Đã đồng bộ vị trí cho ${updatedCount} lô hàng.` };
+    } catch (error) {
+      this.logger.error('Failed to sync locations:', error);
+      throw new RpcException(error.message || 'Lỗi đồng bộ vị trí kệ hàng');
+    }
+  }
 }
+

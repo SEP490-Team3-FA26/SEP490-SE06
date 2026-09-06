@@ -228,5 +228,35 @@ export class MedicineController {
       throw new RpcException(error.message || 'Lỗi hệ thống khi phát hiện bất thường tồn kho');
     }
   }
+
+  @MessagePattern('inventory.medicine.warehouse_map')
+  async getWarehouseMap() {
+    try {
+      return await this.medicineService.getWarehouseMap();
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi lấy sơ đồ kho');
+    }
+  }
+
+  @MessagePattern('inventory.medicine.shelf_detail')
+  async getShelfDetail(@Payload() data: { zone: string; rack: string; shelf: number }) {
+    try {
+      return await this.medicineService.getShelfDetail(data.zone, data.rack, data.shelf);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi lấy chi tiết kệ hàng');
+    }
+  }
+
+  @MessagePattern('inventory.medicine.sync_locations')
+  async syncLocations() {
+    try {
+      return await this.medicineService.syncLocations();
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi đồng bộ vị trí kệ hàng');
+    }
+  }
 }
 
