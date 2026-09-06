@@ -102,6 +102,7 @@ export default function WholesaleView() {
         search: query,
         category: catParam || undefined,
         classification: clsParam || undefined,
+        branchStockOnly: true,
         _t: Date.now()
       });
       let res = data.data || [];
