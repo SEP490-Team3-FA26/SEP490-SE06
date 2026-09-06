@@ -11,19 +11,22 @@ export function WarehouseMap2D({ zones, onShelfSelect }: WarehouseMap2DProps) {
   const statusColorMap: Record<string, string> = {
     NORMAL: "bg-green-100 text-green-700 border-green-300",
     LOW_STOCK: "bg-yellow-100 text-yellow-700 border-yellow-300",
-    NEAR_EXPIRY: "bg-red-100 text-red-700 border-red-300",
+    NEAR_EXPIRY: "bg-orange-100 text-orange-700 border-orange-300",
+    EXPIRED: "bg-red-100 text-red-700 border-red-300",
     EMPTY: "bg-slate-100 text-slate-500 border-slate-300",
   };
 
   const statusDotMap: Record<string, string> = {
     NORMAL: "bg-green-500",
     LOW_STOCK: "bg-yellow-500",
-    NEAR_EXPIRY: "bg-red-500",
+    NEAR_EXPIRY: "bg-orange-500",
+    EXPIRED: "bg-red-500",
     EMPTY: "bg-slate-300",
   };
 
   // Xác định trạng thái xấu nhất của một rack để hiện màu tổng quan
   const getRackStatus = (shelves: any[]) => {
+    if (shelves.some((s) => s.status === "EXPIRED")) return "EXPIRED";
     if (shelves.some((s) => s.status === "NEAR_EXPIRY")) return "NEAR_EXPIRY";
     if (shelves.some((s) => s.status === "LOW_STOCK")) return "LOW_STOCK";
     if (shelves.every((s) => s.status === "EMPTY")) return "EMPTY";
@@ -89,8 +92,9 @@ export function WarehouseMap2D({ zones, onShelfSelect }: WarehouseMap2DProps) {
       {/* Legend */}
       <div className="mt-auto pt-6 border-t border-slate-200 flex flex-wrap items-center justify-center gap-6 text-sm font-medium text-slate-600 bg-[#f8f9fc]">
         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500"></div> Bình thường</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500"></div> Sắp hết hàng (Dưới định mức)</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cận date (Dưới 90 ngày)</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500"></div> Sắp hết hàng (Dưới 50)</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Cận date (Dưới 90 ngày)</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> Hết hạn</div>
         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-slate-300"></div> Trống</div>
       </div>
     </div>

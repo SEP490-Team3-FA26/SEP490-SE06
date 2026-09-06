@@ -56,7 +56,8 @@ function WarehouseLayout({ zones, onShelfSelect }: any) {
   const statusColorMap: Record<string, string> = {
     NORMAL: "#22c55e", // green-500
     LOW_STOCK: "#eab308", // yellow-500
-    NEAR_EXPIRY: "#ef4444", // red-500
+    NEAR_EXPIRY: "#f97316", // orange-500
+    EXPIRED: "#ef4444", // red-500
     EMPTY: "#64748b", // slate-500
   };
 

@@ -83,13 +83,21 @@ export function ShelfDetailModal({ zone, rack, shelf, onClose }: ShelfDetailModa
                         </div>
                       </td>
                       <td className="p-4">
-                        {item.status === 'EXPIRED' ? (
+                        {item.status === 'OUT_OF_STOCK' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">
+                            Hết hàng
+                          </span>
+                        ) : item.status === 'EXPIRED' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
                             <AlertTriangle size={12} /> Hết hạn
                           </span>
                         ) : item.status === 'NEAR_EXPIRY' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
                             <AlertTriangle size={12} /> Cận date ({item.daysUntilExpiry} ngày)
+                          </span>
+                        ) : item.status === 'LOW_STOCK' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
+                            Sắp hết hàng
                           </span>
                         ) : (
                           <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">

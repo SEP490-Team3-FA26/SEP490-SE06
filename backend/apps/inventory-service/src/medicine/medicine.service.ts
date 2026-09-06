@@ -1769,8 +1769,7 @@ export class MedicineService implements OnModuleInit {
         {
           $match: {
             branchId: 'CENTRAL_WH',
-            status: 'ACTIVE',
-            stock: { $gt: 0 }
+            status: 'ACTIVE'
           }
         },
         {
@@ -1847,6 +1846,8 @@ export class MedicineService implements OnModuleInit {
           r.shelves.forEach((s: any) => {
             if (s.totalStock === 0) {
               s.status = 'EMPTY';
+            } else if (new Date(s.minExpDate) < today) {
+              s.status = 'EXPIRED';
             } else if (new Date(s.minExpDate) <= ninetyDaysFromNow) {
               s.status = 'NEAR_EXPIRY';
             } else if (s.totalStock < 50) { // Giả sử 50 là ngưỡng an toàn chung cho 1 shelf
@@ -1880,8 +1881,7 @@ export class MedicineService implements OnModuleInit {
         'location.zone': zone,
         'location.rack': rack,
         'location.shelf': Number(shelf),
-        status: 'ACTIVE',
-        stock: { $gt: 0 }
+        status: 'ACTIVE'
       }).lean().exec();
 
       if (batches.length === 0) return [];
@@ -1900,10 +1900,14 @@ export class MedicineService implements OnModuleInit {
         const med = medMap.get(b.medicineId);
         const expDate = new Date(b.expDate);
         let status = 'ACTIVE';
-        if (expDate < today) {
+        if (b.stock === 0) {
+          status = 'OUT_OF_STOCK';
+        } else if (expDate < today) {
           status = 'EXPIRED';
         } else if (expDate <= ninetyDaysFromNow) {
           status = 'NEAR_EXPIRY';
+        } else if (b.stock < 20) { // Ngưỡng an toàn cho 1 lô
+          status = 'LOW_STOCK';
         }
 
         const timeDiff = expDate.getTime() - today.getTime();
