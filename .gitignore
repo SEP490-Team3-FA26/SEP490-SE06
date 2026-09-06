@@ -69,4 +69,10 @@ start-dev.ps1
 stop-dev.bat
 stop-dev.ps1
 
-mobile/.dart_tool/
+# Flutter ephemeral & build artifacts
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/flutter/ephemeral/
+**/ephemeral/
+
