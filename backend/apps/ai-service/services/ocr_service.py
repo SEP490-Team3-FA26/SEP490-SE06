@@ -25,72 +25,6 @@ def _parse_json_content(content: str) -> dict:
         raise ValueError(f"Vision provider did not return JSON: {content[:500]}")
 
 
-def _raw_ocr_text_to_prescription_schema(content: str) -> dict:
-    cleaned = content.strip()
-    meds = []
-    med_matches = list(
-        re.finditer(
-            r"(?:\*\*(\d+)\.\s*([^*\n]+?)\*\*|(\d+)\.\s*\*\*([^*\n]+?)\*\*)\s*\n([^*#]+?)(?=\n\s*(?:\*\*\d+\.|\d+\.\s*\*\*|\*\*Loi dan|\*\*Lời dặn)|$)",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-    )
-    for match in med_matches:
-        index = int(match.group(1) or match.group(3))
-        med_line = (match.group(2) or match.group(4)).strip()
-        dosage = " ".join(match.group(5).strip().split())
-        strength_match = re.search(r"(\d+(?:[.,]\d+)?\s*(?:mg|g|ml|mcg|%))", med_line, re.I)
-        strength = strength_match.group(1).replace(" ", "") if strength_match else "Không rõ"
-        name = med_line[: strength_match.start()].strip() if strength_match else med_line
-        meds.append(
-            {
-                "index": index,
-                "name": name or med_line,
-                "active_ingredient": "Không rõ",
-                "strength": strength,
-                "quantity": 1,
-                "unit": "Hộp",
-                "dosage": dosage,
-                "frequency": "Không rõ",
-                "duration": "Không rõ",
-                "notes": "",
-            }
-        )
-
-    def field(label: str) -> str:
-        found = re.search(rf"\*\*(?:{label}):\*\*\s*([^\n]+)", cleaned, re.I)
-        return found.group(1).strip() if found else "Không rõ"
-
-    clinic_match = re.search(r"\*\*([^*\n]+(?:CLINIC|PHARMACY|PHONG KHAM|NHÀ THUỐC)[^*\n]*)\*\*", cleaned, re.I)
-    doctor_match = re.search(r"(Dr\.\s*[^\n]+)", cleaned, re.I)
-
-    return {
-        "patient_info": {
-            "name": field("Ho ten|Họ tên"),
-            "age": field("Tuoi|Tuổi"),
-            "gender": field("Gioi tinh|Giới tính"),
-            "phone": "Không rõ",
-            "address": field("Dia chi|Địa chỉ"),
-            "weight": "Không rõ",
-            "insurance_id": "Không rõ",
-        },
-        "clinic_info": {
-            "name": clinic_match.group(1).strip() if clinic_match else "Không rõ",
-            "department": "Không rõ",
-            "doctor": doctor_match.group(1).strip() if doctor_match else "Không rõ",
-            "phone": "Không rõ",
-            "address": "Không rõ",
-            "date": field("Ngay|Ngày"),
-        },
-        "diagnosis": field("Chan doan|Chẩn đoán"),
-        "medications": meds,
-        "follow_up_date": "Không rõ",
-        "doctor_notes": cleaned or "Không đọc được nội dung đơn thuốc.",
-        "confidence_score": 0.75 if meds else 0.35,
-        "raw_ocr_text": cleaned,
-    }
-
-
 async def _extract_with_huggingface(image_url: str) -> dict:
     hf_token = os.getenv("HF_TOKEN")
     if not hf_token:
@@ -214,6 +148,30 @@ _local_ocr_checked = False
 _local_ocr_available = False
 
 
+def _find_model_path() -> str | None:
+    """
+    Tìm đường dẫn file checkpoint VietOCR theo thứ tự ưu tiên:
+    1. Biến môi trường LOCAL_OCR_MODEL_PATH
+    2. services/weights/ocr_prescription.pth (chuẩn theo tài liệu OCR.md)
+    3. models/ocr_prescription.pth (đường dẫn ban đầu để tương thích ngược)
+    4. training/checkpoints/ocr_prescription.pth
+    """
+    custom_path = os.getenv("LOCAL_OCR_MODEL_PATH")
+    if custom_path and os.path.exists(custom_path):
+        return custom_path
+
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    candidates = [
+        os.path.join(base_dir, "services", "weights", "ocr_prescription.pth"),
+        os.path.join(base_dir, "models", "ocr_prescription.pth"),
+        os.path.join(base_dir, "training", "checkpoints", "ocr_prescription.pth"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
+
 def _is_local_ocr_available() -> bool:
     """
     Kiểm tra nhanh xem file trọng số model và các thư viện cần thiết (torch, vietocr, cv2, PIL)
@@ -227,10 +185,8 @@ def _is_local_ocr_available() -> bool:
         if _local_ocr_checked:
             return _local_ocr_available
 
-        model_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth"
-        )
-        if not os.path.exists(model_path):
+        model_path = _find_model_path()
+        if not model_path:
             _local_ocr_available = False
             _local_ocr_checked = True
             return False
@@ -263,9 +219,9 @@ def _get_local_predictor():
 
     with _predictor_lock:
         if _local_ocr_predictor is None:
-            model_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "models", "ocr_prescription.pth"
-            )
+            model_path = _find_model_path()
+            if not model_path:
+                return None
             from vietocr.tool.config import Cfg
             from vietocr.tool.predictor import Predictor
             import torch
@@ -276,6 +232,48 @@ def _get_local_predictor():
             config["predictor"]["beamsearch"] = False
             _local_ocr_predictor = Predictor(config)
     return _local_ocr_predictor
+
+
+def _cluster_and_sort_boxes(boxes: list[tuple[int, int, int, int]]) -> list[tuple[int, int, int, int]]:
+    """
+    Gom cụm và sắp xếp các bounding box theo thứ tự đọc tự nhiên từ trên xuống dưới, trái sang phải.
+    Gom các box nằm trên cùng một dòng (dựa vào độ cao tương đối) trước khi sort theo trục hoành x.
+    """
+    if not boxes:
+        return []
+
+    # Sắp xếp sơ bộ theo đỉnh y1
+    sorted_by_y = sorted(boxes, key=lambda b: b[1])
+
+    lines: list[list[tuple[int, int, int, int]]] = []
+    for box in sorted_by_y:
+        x1, y1, x2, y2 = box
+        box_mid_y = (y1 + y2) / 2
+
+        matched_line = None
+        for line in lines:
+            line_mid_y = sum((b[1] + b[3]) / 2 for b in line) / len(line)
+            line_avg_h = sum(b[3] - b[1] for b in line) / len(line)
+            tolerance = max(8.0, line_avg_h * 0.5)
+            if abs(box_mid_y - line_mid_y) <= tolerance:
+                matched_line = line
+                break
+
+        if matched_line is not None:
+            matched_line.append(box)
+        else:
+            lines.append([box])
+
+    # Sắp xếp các dòng từ trên xuống dưới theo mid_y trung bình
+    lines.sort(key=lambda l: sum((b[1] + b[3]) / 2 for b in l) / len(l))
+
+    # Trong từng dòng, sắp xếp từ trái qua phải theo x1
+    sorted_boxes: list[tuple[int, int, int, int]] = []
+    for line in lines:
+        line.sort(key=lambda b: b[0])
+        sorted_boxes.extend(line)
+
+    return sorted_boxes
 
 
 def _extract_with_local_vietocr(image_bytes: bytes) -> dict:
@@ -311,7 +309,7 @@ def _extract_with_local_vietocr(image_bytes: bytes) -> dict:
             if w > 30 and h > 8 and h < h_img * 0.5:
                 boxes.append((max(0, x - 5), max(0, y - 2), min(w_img, x + w + 5), min(h_img, y + h + 2)))
 
-        boxes.sort(key=lambda b: (b[1], b[0]))
+        boxes = _cluster_and_sort_boxes(boxes)
         for box in boxes:
             crop = pil_img.crop(box)
             text = predictor.predict(crop)
@@ -333,14 +331,23 @@ async def extract_prescription_from_image(
 ) -> dict:
     """
     Gửi ảnh đơn thuốc tới provider Vision OCR để trích xuất nội dung.
-    Ưu tiên sử dụng Model VietOCR nội bộ tự train nếu có (chạy non-blocking trên worker thread).
+    Điều phối thông qua biến môi trường OCR_PROVIDER (mặc định hf_or_openrouter).
+    Khi đặt OCR_PROVIDER=local, ưu tiên sử dụng VietOCR nội bộ, tự động fallback nếu lỗi.
     """
-    # 1. Ưu tiên chạy bằng Model VietOCR nội bộ đã train (chạy non-blocking qua asyncio.to_thread)
-    if _is_local_ocr_available():
-        try:
-            return await asyncio.to_thread(_extract_with_local_vietocr, image_bytes)
-        except Exception as exc:
-            print(f"Local VietOCR inference error, fallback to cloud vision: {exc}")
+    provider = os.getenv("OCR_PROVIDER", "hf_or_openrouter").lower().strip()
+    provider_errors = []
+
+    # 1. Nếu cấu hình OCR_PROVIDER="local", ưu tiên chạy bằng Model VietOCR nội bộ tự train
+    if provider == "local":
+        if _is_local_ocr_available():
+            try:
+                return await asyncio.to_thread(_extract_with_local_vietocr, image_bytes)
+            except Exception as exc:
+                provider_errors.append(f"Local VietOCR inference error: {exc}")
+                print(f"Local VietOCR error, fallback to cloud vision: {exc}")
+        else:
+            provider_errors.append("OCR_PROVIDER='local' requested but model checkpoint or deps unavailable")
+            print("OCR_PROVIDER='local' configured but model not available; falling back to cloud vision.")
 
     # Xác định MIME type từ filename
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else "jpg"
@@ -352,7 +359,6 @@ async def extract_prescription_from_image(
     image_url = f"data:{mime_type};base64,{base64_image}"
 
     hf_token = os.getenv("HF_TOKEN")
-    provider_errors = []
     if hf_token:
         try:
             return await _extract_with_huggingface(image_url)
