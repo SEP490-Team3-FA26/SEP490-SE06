@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Search, Filter, ArrowDownToLine, ArrowUpFromLine, Trash2,
@@ -12,6 +12,7 @@ import { medicineService } from "../../services/inventory/medicine.service";
 import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
 import api from "../../services/core/api";
+import { CreateDisposalModal } from "../../components/CreateDisposalModal";
 
 interface InventoryHistoryProps {
   type: "import" | "export" | "dispose";
@@ -64,6 +65,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
   // Disposal & Waste Management States (type === "dispose")
   const [disposalTransactions, setDisposalTransactions] = useState<any[]>([]);
   const [isCreateDisposalOpen, setIsCreateDisposalOpen] = useState(false);
+  const [disposalSearchMedQuery, setDisposalSearchMedQuery] = useState("");
   const [selectedDisposalMedId, setSelectedDisposalMedId] = useState("");
   const [selectedDisposalBatchNo, setSelectedDisposalBatchNo] = useState("");
   const [disposalQty, setDisposalQty] = useState<number>(1);
@@ -73,6 +75,19 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
   const [disposalMethod, setDisposalMethod] = useState("Nghiền nhỏ và bàn giao công ty xử lý chất thải y tế nguy hại");
   const [disposalLoading, setDisposalLoading] = useState(false);
   const [selectedDisposalCert, setSelectedDisposalCert] = useState<any | null>(null);
+
+  // Filtered medicines for Disposal Picker
+  const disposalFilteredMedicines = useMemo(() => {
+    if (!disposalSearchMedQuery.trim()) return medicines;
+    const q = disposalSearchMedQuery.toLowerCase();
+    return medicines.filter((m: any) => {
+      const name = (m.name || "").toLowerCase();
+      const regNo = (m.registrationNumber || "").toLowerCase();
+      const active = (m.active_ingredient || m.activeIngredient || "").toLowerCase();
+      const id = (m.id || m._id || "").toLowerCase();
+      return name.includes(q) || regNo.includes(q) || active.includes(q) || id.includes(q);
+    });
+  }, [medicines, disposalSearchMedQuery]);
 
   const handleViewInspectionRecord = async (grnId: string, itemId: string, medName: string) => {
     setRecordLoading(true);
@@ -215,6 +230,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
     } else if (type === "dispose") {
       setSelectedDisposalMedId("");
       setSelectedDisposalBatchNo("");
+      setDisposalSearchMedQuery("");
       setDisposalQty(1);
       setDisposalReason("Thuốc quá hạn sử dụng theo quy định Dược");
       setDisposalNotes("");
@@ -1400,217 +1416,20 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
           </div>
         )}
 
-        {/* CREATE DISPOSAL MODAL */}
+        {/* CREATE DISPOSAL MODAL - 3-COLUMN RICH SELECTOR MATCHING CREATE PO */}
         {isCreateDisposalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !disposalLoading && setIsCreateDisposalOpen(false)} />
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden"
-            >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-black">
-                    <Trash2 size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900">Lập Phiếu Xuất Hủy Thuốc (GSP / GPP)</h3>
-                    <p className="text-xs text-rose-700 font-bold mt-0.5">Thực hiện trừ tồn kho & lưu biên bản theo Thông tư 02/2018/TT-BYT</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => !disposalLoading && setIsCreateDisposalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmitDisposal} className="p-6 overflow-y-auto space-y-4 text-xs font-semibold">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                    1. Chọn Thuốc Cần Xuất Hủy <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={selectedDisposalMedId}
-                    onChange={(e) => {
-                      setSelectedDisposalMedId(e.target.value);
-                      setSelectedDisposalBatchNo("");
-                    }}
-                    required
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-sm"
-                  >
-                    <option value="">-- Chọn thuốc trong danh mục kho --</option>
-                    {medicines.map((m: any) => (
-                      <option key={m.id || m._id} value={m.id || m._id}>
-                        {m.name} {m.registrationNumber ? `(SĐK: ${m.registrationNumber})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {selectedDisposalMedId && (
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                      2. Chọn Lô Thuốc & Kiểm Tra Tồn Kho <span className="text-rose-500">*</span>
-                    </label>
-                    {(() => {
-                      const selMed = medicines.find(m => m.id === selectedDisposalMedId || m._id === selectedDisposalMedId);
-                      const batches = selMed?.batches || [];
-                      if (batches.length === 0) {
-                        return (
-                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-bold">
-                            Thuốc này hiện không có lô khả dụng trong kho hoặc đã hết tồn kho.
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="space-y-3">
-                          <select
-                            value={selectedDisposalBatchNo}
-                            onChange={(e) => {
-                              setSelectedDisposalBatchNo(e.target.value);
-                              const b = batches.find((it: any) => it.batchNo === e.target.value);
-                              if (b) setDisposalQty(Math.min(1, b.stock || 1));
-                            }}
-                            required
-                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-sm"
-                          >
-                            <option value="">-- Chọn số lô cần hủy --</option>
-                            {batches.map((b: any, idx: number) => (
-                              <option key={idx} value={b.batchNo}>
-                                Lô: {b.batchNo} | Tồn: {b.stock} đv | HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString("vi-VN") : "N/A"} {b.status === "EXPIRED" ? "(ĐÃ HẾT HẠN)" : ""}
-                              </option>
-                            ))}
-                          </select>
-
-                          {selectedDisposalBatchNo && (() => {
-                            const b = batches.find((it: any) => it.batchNo === selectedDisposalBatchNo);
-                            if (!b) return null;
-                            const isExp = b.expDate && new Date(b.expDate) <= new Date();
-                            return (
-                              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-3 gap-2">
-                                <div>
-                                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Tồn kho lô:</span>
-                                  <span className="font-black text-slate-800 text-sm">{b.stock} đơn vị</span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Hạn sử dụng:</span>
-                                  <span className={`font-black text-sm ${isExp ? "text-rose-600" : "text-slate-800"}`}>
-                                    {b.expDate ? new Date(b.expDate).toLocaleDateString("vi-VN") : "N/A"}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Tình trạng date:</span>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-black ${isExp ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                    {isExp ? "Quá hạn (Expired)" : "Còn hạn sử dụng"}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                      3. Số Lượng Xuất Hủy <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={disposalQty}
-                      onChange={(e) => setDisposalQty(Number(e.target.value))}
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                      4. Dược Sĩ / Người Phụ Trách Hủy
-                    </label>
-                    <input
-                      type="text"
-                      value={disposalPerformedBy}
-                      onChange={(e) => setDisposalPerformedBy(e.target.value)}
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                    5. Lý Do Xuất Hủy <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={disposalReason}
-                    onChange={(e) => setDisposalReason(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-xs"
-                  >
-                    <option value="Thuốc quá hạn sử dụng theo quy định Dược (Hết date)">Thuốc quá hạn sử dụng theo quy định Dược (Hết date)</option>
-                    <option value="Thuốc bị biến chất, ẩm mốc, vỡ hỏng bao bì trong quá trình bảo quản">Thuốc bị biến chất, ẩm mốc, vỡ hỏng bao bì trong quá trình bảo quản</option>
-                    <option value="Thuốc thuộc diện thu hồi khẩn cấp theo quyết định của Cục Quản Lý Dược">Thuốc thuộc diện thu hồi khẩn cấp theo quyết định của Cục Quản Lý Dược</option>
-                    <option value="Thuốc không đạt tiêu chuẩn kiểm nghiệm chất lượng định kỳ">Thuốc không đạt tiêu chuẩn kiểm nghiệm chất lượng định kỳ</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                    6. Phương Pháp Tiêu Hủy
-                  </label>
-                  <select
-                    value={disposalMethod}
-                    onChange={(e) => setDisposalMethod(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-xs"
-                  >
-                    <option value="Nghiền nhỏ và bàn giao công ty xử lý chất thải y tế nguy hại có hợp đồng">Nghiền nhỏ và bàn giao công ty xử lý chất thải y tế nguy hại có hợp đồng</option>
-                    <option value="Đốt lò chuyên dụng nhiệt độ cao theo quy chuẩn chất thải nguy hại">Đốt lò chuyên dụng nhiệt độ cao theo quy chuẩn chất thải nguy hại</option>
-                    <option value="Hòa tan, trung hòa hóa học và chuyển sang hệ thống xử lý nước thải y tế">Hòa tan, trung hòa hóa học và chuyển sang hệ thống xử lý nước thải y tế</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                    7. Ghi Chú & Thành Phần Hội Đồng Kiểm Kê
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={disposalNotes}
-                    onChange={(e) => setDisposalNotes(e.target.value)}
-                    placeholder="VD: Hội đồng gồm DS. CKI Nguyễn Văn An (Chủ tịch), DS. Lê Hoàng Nam (Thư ký)..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white resize-none"
-                  />
-                </div>
-
-                <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateDisposalOpen(false)}
-                    disabled={disposalLoading}
-                    className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={disposalLoading || !selectedDisposalMedId || !selectedDisposalBatchNo || disposalQty <= 0}
-                    className="px-5 py-2.5 font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 rounded-xl transition-all shadow-sm flex items-center gap-2"
-                  >
-                    {disposalLoading && <Loader2 size={16} className="animate-spin" />}
-                    <Trash2 size={16} />
-                    Xác Nhận Xuất Hủy Thuốc
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
+          <CreateDisposalModal
+            onClose={() => setIsCreateDisposalOpen(false)}
+            onSuccess={(msg) => {
+              setIsCreateDisposalOpen(false);
+              setApprovalNotice({
+                type: "success",
+                title: "Xuất Hủy Thành Công",
+                message: msg || "Đã xuất hủy thuốc và cập nhật tồn kho thành công!",
+              });
+              fetchData();
+            }}
+          />
         )}
 
         {/* OFFICIAL GSP / GPP DESTRUCTION CERTIFICATE MODAL */}
