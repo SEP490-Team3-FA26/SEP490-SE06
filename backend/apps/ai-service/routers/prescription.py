@@ -1,5 +1,5 @@
 from typing import List, Tuple, Dict, Any
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, Header, Depends, status
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, Header, Depends, status, BackgroundTasks
 
 from services.stt_service import transcribe_audio
 from services.llm_service import (
@@ -310,6 +310,26 @@ async def symptom_consult(req: SymptomRequest):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/ai/sync-database")
+async def sync_database_to_ai(background_tasks: BackgroundTasks):
+    """
+    Kích hoạt đồng bộ hóa dữ liệu mới từ MongoDB sang Vector Database Qdrant (RAG Knowledge)
+    """
+    def run_sync():
+        try:
+            print("🔄 [AI Service] Đang đồng bộ hóa dữ liệu thuốc mới từ MongoDB sang Qdrant...", flush=True)
+            from scripts.index_from_mongo import main as index_db
+            index_db()
+            print("✅ [AI Service] Đã hoàn tất đồng bộ hóa dữ liệu vào AI Knowledge Base!", flush=True)
+        except Exception as e:
+            print(f"❌ [AI Service] Lỗi đồng bộ dữ liệu: {e}", flush=True)
+
+    background_tasks.add_task(run_sync)
+    return {
+        "status": "triggered",
+        "message": "Đã kích hoạt tiến trình đồng bộ dữ liệu mới từ MongoDB vào kho tri thức AI ngầm."
+    }
 
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 

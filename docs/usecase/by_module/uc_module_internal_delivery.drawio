@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="Internal Delivery &amp; Dispatch" id="internal_delivery">
+    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="3200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="&lt;b style=&quot;font-size: 20px; color: #1e3a8a;&quot;&gt;UML USE CASE DIAGRAM - MODULE: INTERNAL DELIVERY &amp; DISPATCH&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 13px; color: #475569;&quot;&gt;PharmaChain System | Total Use Cases: &lt;b&gt;5&lt;/b&gt; | Actors: &lt;b&gt;Pharmacist, Customer, Branch Manager, Head Manager, System Admin&lt;/b&gt;&lt;/span&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="20" width="900" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="&lt;b style=&quot;font-size: 14px; color: #0f172a;&quot;&gt;Pharmacist&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #475569;&quot;&gt;(Dược sĩ)&lt;/span&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2.5;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="60" y="140" width="55" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="&lt;b style=&quot;font-size: 14px; color: #0f172a;&quot;&gt;Customer&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #475569;&quot;&gt;(Khách hàng)&lt;/span&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2.5;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="60" y="355" width="55" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="&lt;b style=&quot;font-size: 14px; color: #0f172a;&quot;&gt;Branch Manager&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #475569;&quot;&gt;(Quản lý Chi nhánh)&lt;/span&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2.5;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="910" y="140" width="55" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="&lt;b style=&quot;font-size: 14px; color: #0f172a;&quot;&gt;Head Manager&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #475569;&quot;&gt;(Quản lý Chuỗi/Tổng)&lt;/span&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2.5;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="910" y="300" width="55" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="&lt;b style=&quot;font-size: 14px; color: #0f172a;&quot;&gt;System Admin&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #475569;&quot;&gt;(Quản trị hệ thống)&lt;/span&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2.5;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="910" y="460" width="55" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;INTERNAL DELIVERY &amp; DISPATCH SUBSYSTEM&lt;/b&gt;" style="swimlane;startSize=40;fillColor=#edf2f4;strokeColor=#8d99ae;strokeWidth=2;fontColor=#2b2d42;rounded=1;arcSize=4;dashed=0;collapsible=0;pointerEvents=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="270" y="100" width="500" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="&lt;b&gt;[UC-85]&lt;/b&gt; Assign internal pharmacy delivery driver (Shipper)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8d99ae;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="8">
+          <mxGeometry x="30" y="55" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="&lt;b&gt;[UC-87]&lt;/b&gt; Scan delivery QR code to confirm handover to customer" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8d99ae;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="8">
+          <mxGeometry x="30" y="125" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="&lt;b&gt;[UC-88]&lt;/b&gt; On-time delivery performance &amp; customer feedback report" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8d99ae;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="8">
+          <mxGeometry x="30" y="195" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="&lt;b&gt;[UC-139]&lt;/b&gt; Real-time delivery driver GPS location tracking" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8d99ae;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="8">
+          <mxGeometry x="30" y="265" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="&lt;b&gt;[UC-140]&lt;/b&gt; Auto-calculate shipping fee based on GPS distance" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8d99ae;strokeWidth=1.5;fontColor=#1e293b;fontSize=11;align=center;verticalAlign=middle;shadow=0;" vertex="1" parent="8">
+          <mxGeometry x="30" y="335" width="440" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#475569;strokeWidth=1.3;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="3" target="9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="185" />
+              <mxPoint x="210" y="182" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#475569;strokeWidth=1.3;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="4" target="10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="400" />
+              <mxPoint x="210" y="252" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#475569;strokeWidth=1.3;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="4" target="12">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="400" />
+              <mxPoint x="210" y="392" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="17" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#475569;strokeWidth=1.3;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="4" target="13">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="400" />
+              <mxPoint x="210" y="462" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="5" target="9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="185" />
+              <mxPoint x="830" y="182" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="5" target="11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="185" />
+              <mxPoint x="830" y="322" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="20" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="6" target="11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="345" />
+              <mxPoint x="830" y="322" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="6" target="12">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="345" />
+              <mxPoint x="830" y="392" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="6" target="13">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="345" />
+              <mxPoint x="830" y="462" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="7" target="9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="505" />
+              <mxPoint x="830" y="182" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="24" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;strokeColor=#64748b;strokeWidth=1.3;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="7" target="11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="505" />
+              <mxPoint x="830" y="322" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

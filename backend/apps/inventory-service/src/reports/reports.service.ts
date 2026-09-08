@@ -111,8 +111,8 @@ export class ReportsService {
         return priorityB - priorityA;
       });
 
-      // Lấy top 300 sản phẩm quan trọng nhất để truyền tải siêu nhanh qua Kafka (~50KB)
-      return dataset.slice(0, 300);
+      // Trả về toàn bộ danh mục thuốc đã tính toán để AI dự báo toàn diện
+      return dataset;
     } catch (error: any) {
       this.logger.error('Failed to compile forecast dataset:', error);
       return [];

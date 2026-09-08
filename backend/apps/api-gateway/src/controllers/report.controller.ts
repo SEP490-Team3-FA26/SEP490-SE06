@@ -444,6 +444,11 @@ export class ReportController implements OnModuleInit {
             const unitStr = item.unit || 'Hộp';
             const reorderPoint = item.minStock || item.reorderPoint || 30;
             
+            // Tính số ngày tồn kho còn lại (daysRemaining)
+            const daysRemaining = typeof item.daysRemaining === 'number'
+              ? item.daysRemaining
+              : (sales > 0 ? Number((stock / sales).toFixed(1)) : (stock > 0 ? 999 : 0));
+
             // Ưu tiên lấy forecast từ AI nếu có, nếu không lấy trung bình tiêu thụ
             const aiForecast = item.forecast_m1 || 0;
             const expectedDemand = aiForecast > 0 ? aiForecast : sales * days;
@@ -455,6 +460,7 @@ export class ReportController implements OnModuleInit {
             if (suggestedRaw <= 0) {
               return {
                 ...item,
+                daysRemaining,
                 suggestedOrderQty: 0,
                 urgency: 'LOW',
                 reason: `Tồn kho hiện tại (${stock} ${unitStr}) và hàng đang về (+${incoming}) đáp ứng đủ nhu cầu tiêu thụ trong ${days} ngày tới. Không cần nhập thêm.`,
@@ -463,6 +469,7 @@ export class ReportController implements OnModuleInit {
               const suggestedOrderQty = Math.max(10, Math.ceil(suggestedRaw / 10) * 10);
               return {
                 ...item,
+                daysRemaining,
                 suggestedOrderQty,
                 urgency: stock <= 10 ? 'HIGH' : 'MEDIUM',
                 reason: `Tồn kho hiện tại (${stock} ${unitStr}) sắp chạm ngưỡng an toàn ROP (${reorderPoint}). Khuyên dùng nhập bổ sung ${suggestedOrderQty} ${unitStr}.`,
@@ -528,6 +535,8 @@ export class ReportController implements OnModuleInit {
           reason = `Tồn kho hiện tại (${currentStock} ${unitStr}) sắp chạm ngưỡng an toàn ROP (${reorderPoint}). Khuyên dùng nhập bổ sung ${suggestedOrderQty > 0 ? suggestedOrderQty : 50} ${unitStr}.`;
         }
 
+        const daysRemaining = avgDailySales > 0 ? Number((currentStock / avgDailySales).toFixed(1)) : (currentStock > 0 ? 999 : 0);
+
         return {
           medicineId: String(med.medicineId || med._id || 'med-001'),
           name: med.name || 'Dược phẩm',
@@ -537,6 +546,7 @@ export class ReportController implements OnModuleInit {
           totalSold: totalSold > 0 ? totalSold : Math.round(avgDailySales * days),
           averageDailySales: avgDailySales,
           expectedIncoming,
+          daysRemaining,
           suggestedOrderQty,
           urgency,
           reason

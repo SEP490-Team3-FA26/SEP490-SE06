@@ -32,28 +32,59 @@ interface ForecastItem {
   name: string;
   category: string;
   unit: string;
+  price?: number;
   currentStock: number;
   totalSold?: number;
   averageDailySales: number;
   expectedIncoming: number;
   suggestedOrderQty: number;
+  daysRemaining?: number;
+  reorderPoint?: number;
   urgency: "HIGH" | "MEDIUM" | "LOW";
   reason: string;
 }
 
 interface ForecastResult {
   summary: string;
+  totalMedicines?: number;
+  urgentCount?: number;
+  shortageCount?: number;
   recommendations: ForecastItem[];
 }
 
 export function AIForecast() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<number>(30);
+
+  const getPeriodLabel = (p: number) => {
+    if (p === 30) return "1 Tháng (30 ngày)";
+    if (p === 60) return "2 Tháng (60 ngày)";
+    if (p === 90) return "1 Quý (90 ngày)";
+    if (p === 180) return "2 Quý / Nửa năm (180 ngày)";
+    if (p === 365) return "1 Năm (365 ngày)";
+    return `${p} ngày`;
+  };
+
+  const getPeriodShortTag = (p: number) => {
+    if (p === 30) return "Tháng";
+    if (p === 90) return "Quý";
+    if (p === 180) return "2 Quý";
+    if (p === 365) return "Năm";
+    return `${p}N`;
+  };
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
+  // 4-Tab Smart Tiering State
+  const [activeTab, setActiveTab] = useState<"URGENT" | "FAST_MOVING" | "ALL" | "OVERSTOCK">("URGENT");
+
+  // GPU Training Status State
+  const [isRetraining, setIsRetraining] = useState(false);
+  const [retrainMsg, setRetrainMsg] = useState<string | null>(null);
+
   // Filtering & Search states
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUrgency, setSelectedUrgency] = useState<string>("ALL");
@@ -89,6 +120,26 @@ export function AIForecast() {
     fetchForecast(period);
   }, [period]);
 
+  // Handle GPU Retrain Trigger
+  const handleTriggerGpuRetrain = async () => {
+    setIsRetraining(true);
+    setRetrainMsg(null);
+    try {
+      // Gọi endpoint GPU train
+      await api.post('/api/ai/forecast/train', { epochs: 60, batch_size: 64 });
+      setRetrainMsg("⚡ Đã kích hoạt tiến trình huấn luyện AI trên GPU RTX 3050 CUDA! Đang làm mới dữ liệu...");
+      setTimeout(() => {
+        fetchForecast(period);
+        setRetrainMsg(null);
+        setIsRetraining(false);
+      }, 4000);
+    } catch (err: any) {
+      // Fallback
+      fetchForecast(period);
+      setIsRetraining(false);
+    }
+  };
+
   // Extract unique categories dynamically for filter dropdown
   const availableCategories = useMemo(() => {
     if (!forecast?.recommendations) return [];
@@ -99,35 +150,60 @@ export function AIForecast() {
     return Array.from(set).sort();
   }, [forecast]);
 
-  // Filter recommendations based on Search + Urgency + Category
+  // Tab Item Counts Calculation
+  const tabCounts = useMemo(() => {
+    if (!forecast?.recommendations) return { urgent: 0, fast: 0, all: 0, overstock: 0 };
+    const recs = forecast.recommendations;
+    return {
+      urgent: recs.filter(it => it.urgency === "HIGH" || it.suggestedOrderQty > 0 || (it.daysRemaining !== undefined && it.daysRemaining <= 7)).length,
+      fast: recs.filter(it => (it.totalSold || 0) > 0 || it.averageDailySales > 0.5).length,
+      all: recs.length,
+      overstock: recs.filter(it => it.currentStock > (it.reorderPoint || 30) * 2 && (it.totalSold || 0) === 0).length,
+    };
+  }, [forecast]);
+
+  // Filter recommendations based on Active Tab + Search + Urgency + Category
   const filteredRecommendations = useMemo(() => {
     if (!forecast?.recommendations) return [];
+    
     return forecast.recommendations.filter(item => {
+      // 1. Tab condition
+      if (activeTab === "URGENT") {
+        const isUrgent = item.urgency === "HIGH" || item.suggestedOrderQty > 0 || (item.daysRemaining !== undefined && item.daysRemaining <= 7);
+        if (!isUrgent) return false;
+      } else if (activeTab === "FAST_MOVING") {
+        const isFast = (item.totalSold || 0) > 0 || item.averageDailySales > 0.5;
+        if (!isFast) return false;
+      } else if (activeTab === "OVERSTOCK") {
+        const isOverstock = item.currentStock > (item.reorderPoint || 30) * 2 && (item.totalSold || 0) === 0;
+        if (!isOverstock) return false;
+      }
+
+      // 2. Search text match
       const nameStr = (item.name || "").toLowerCase();
       const catStr = (item.category || "").toLowerCase();
       const medIdStr = (item.medicineId || "").toLowerCase();
       const q = searchQuery.toLowerCase();
 
-      // Search text match
       const matchesSearch = 
         nameStr.includes(q) ||
         catStr.includes(q) ||
         medIdStr.includes(q);
 
-      // Urgency match
+      // 3. Urgency match
       const matchesUrgency = selectedUrgency === "ALL" || item.urgency === selectedUrgency;
 
-      // Category match
+      // 4. Category match
       const matchesCategory = selectedCategory === "ALL" || (item.category || "").trim() === selectedCategory.trim();
 
       return matchesSearch && matchesUrgency && matchesCategory;
     });
-  }, [forecast, searchQuery, selectedUrgency, selectedCategory]);
+  }, [forecast, activeTab, searchQuery, selectedUrgency, selectedCategory]);
 
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedUrgency, selectedCategory, itemsPerPage]);
+  }, [activeTab, searchQuery, selectedUrgency, selectedCategory, itemsPerPage]);
 
   // Calculate paginated items
   const totalItems = filteredRecommendations.length;
@@ -145,6 +221,42 @@ export function AIForecast() {
     setSelectedUrgency("ALL");
     setSelectedCategory("ALL");
     setCurrentPage(1);
+  };
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    if (!filteredRecommendations || filteredRecommendations.length === 0) return;
+    const headers = ["Mã thuốc", "Tên thuốc", "Danh mục", "Đơn vị", "Tồn kho", "Bán kỳ trước", "Bán/ngày", "Hàng đang về", "Số ngày tồn", "Đề xuất nhập", "Mức độ", "Lý do AI"];
+    const rows = filteredRecommendations.map(it => {
+      const calcDays = typeof it.daysRemaining === "number"
+        ? it.daysRemaining
+        : (it.averageDailySales > 0 ? Number((it.currentStock / it.averageDailySales).toFixed(1)) : (it.currentStock > 0 ? 999 : 0));
+      const daysRemainingText = calcDays === 999 ? "Dồi dào (>90 ngày)" : (calcDays === 0 ? "0 ngày (Hết hàng)" : `${calcDays} ngày`);
+
+      return [
+        `"${it.medicineId}"`,
+        `"${it.name.replace(/"/g, '""')}"`,
+        `"${it.category}"`,
+        `"${it.unit}"`,
+        it.currentStock,
+        it.totalSold || 0,
+        it.averageDailySales,
+        it.expectedIncoming,
+        daysRemainingText,
+        it.suggestedOrderQty,
+        it.urgency,
+        `"${(it.reason || '').replace(/"/g, '""')}"`
+      ];
+    });
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const safeTag = period === 30 ? "1Thang_30N" : period === 90 ? "1Quy_90N" : period === 180 ? "2Quy_180N" : period === 365 ? "1Nam_365N" : `${period}N`;
+    link.setAttribute("download", `AI_Forecast_${safeTag}_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleSelectAll = (itemsToSelect: ForecastItem[]) => {
@@ -188,13 +300,17 @@ export function AIForecast() {
     }
 
     if (selectedItems.length === 0) {
-      alert("Vui lòng chọn ít nhất một loại thuốc để sinh đơn nhập.");
+      // Auto select top 10 urgent items if none selected
+      selectedItems = forecast.recommendations.filter(it => it.suggestedOrderQty > 0).slice(0, 10);
+    }
+
+    if (selectedItems.length === 0) {
+      alert("Tất cả mặt hàng trong kho hiện đã đủ số lượng, không có sản phẩm nào cần nhập.");
       return;
     }
 
     setModalSelectedItems(selectedItems);
 
-    // Initialize quantities
     const initialQtys: Record<string, number> = {};
     selectedItems.forEach(item => {
       const id = getMedId(item);
@@ -202,7 +318,6 @@ export function AIForecast() {
     });
     setPoQuantities(initialQtys);
 
-    // Fetch suppliers list for auto-mapping display
     try {
       const res = await api.get('/api/suppliers');
       const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
@@ -234,7 +349,7 @@ export function AIForecast() {
           medicineId: id,
           medicineName: item.name,
           quantity: Number(poQuantities[id] || item.suggestedOrderQty || 50),
-          unitPrice: 50000 // Fallback price
+          unitPrice: item.price || 50000
         };
       });
 
@@ -278,10 +393,16 @@ export function AIForecast() {
     switch (urgency) {
       case 'HIGH': return 'Khẩn cấp';
       case 'MEDIUM': return 'Cần nhập';
-      case 'LOW': return 'Bình thường';
+      case 'LOW': return 'Đủ hàng';
       default: return urgency;
     }
   };
+
+  // KPI Calculations
+  const estimatedBudget = useMemo(() => {
+    if (!forecast?.recommendations) return 0;
+    return forecast.recommendations.reduce((acc, it) => acc + (it.suggestedOrderQty * (it.price || 50000)), 0);
+  }, [forecast]);
 
   return (
     <div className="flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
@@ -293,28 +414,107 @@ export function AIForecast() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dự Báo Nhu Cầu Nhập Hàng Theo Kỳ (AI Forecast)</h1>
-            <p className="text-slate-500 mt-1 text-sm">AI tự động phân tích doanh số kỳ trước và mức độ cạn kho để đề xuất kế hoạch mua sắm tối ưu.</p>
+            <p className="text-slate-500 mt-1 text-sm">Hệ thống AI Deep Learning (PyTorch GPU) tự động phân tích doanh số và dự báo nhu cầu toàn kho.</p>
           </div>
         </div>
         
-        {/* Period tabs */}
-        <div className="flex items-center bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-fit shrink-0">
-          {[7, 30, 90].map((days) => (
-            <button
-              key={days}
-              onClick={() => setPeriod(days)}
-              disabled={loading}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-                period === days
-                  ? "bg-white text-purple-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Dự báo {days} ngày tới
-            </button>
-          ))}
+        {/* Actions & Period tabs */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            onClick={handleTriggerGpuRetrain}
+            disabled={isRetraining || loading}
+            className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+            title="Kích hoạt mô hình PyTorch huấn luyện lại trên GPU RTX 3050 CUDA"
+          >
+            <Zap size={14} className={isRetraining ? "animate-spin" : ""} />
+            {isRetraining ? "Đang Train GPU..." : "Huấn Luyện Lại (GPU)"}
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            disabled={loading || !forecast}
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <ArrowDownToLine size={14} /> Xuất CSV
+          </button>
+
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1">
+            {[
+              { days: 30, label: "Tháng (30N)", title: "Dự báo nhu cầu theo 1 Tháng (30 ngày)" },
+              { days: 90, label: "Quý (90N)", title: "Dự báo nhu cầu theo 1 Quý (90 ngày)" },
+              { days: 180, label: "2 Quý (180N)", title: "Dự báo nhu cầu theo 2 Quý / Nửa năm (180 ngày)" },
+              { days: 365, label: "Năm (365N)", title: "Dự báo nhu cầu chiến lược theo 1 Năm (365 ngày)" }
+            ].map(({ days, label, title }) => (
+              <button
+                key={days}
+                onClick={() => setPeriod(days)}
+                disabled={loading}
+                title={title}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+                  period === days
+                    ? "bg-white text-purple-700 shadow-sm ring-1 ring-purple-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Calendar size={12} className={period === days ? "text-purple-600" : "text-slate-400"} />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {retrainMsg && (
+        <div className="mb-4 p-3 bg-purple-50 border border-purple-200 text-purple-800 rounded-xl text-xs font-bold flex items-center gap-2">
+          <Sparkles size={16} className="animate-spin text-purple-600 shrink-0" />
+          {retrainMsg}
+        </div>
+      )}
+
+      {/* KPI Overview Cards */}
+      {forecast && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 shrink-0">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cần nhập khẩn</p>
+              <p className="text-xl font-black text-rose-600 tracking-tight">{tabCounts.urgent} <span className="text-xs font-medium text-slate-500">mã</span></p>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+              <TrendingUp size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mặt hàng bán chạy</p>
+              <p className="text-xl font-black text-amber-600 tracking-tight">{tabCounts.fast} <span className="text-xs font-medium text-slate-500">mã</span></p>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+              <Package size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng danh mục kho</p>
+              <p className="text-xl font-black text-purple-700 tracking-tight">{tabCounts.all.toLocaleString('vi-VN')} <span className="text-xs font-medium text-slate-500">mã</span></p>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+              <ShoppingCart size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dự toán ngân sách</p>
+              <p className="text-lg font-black text-emerald-700 tracking-tight">{estimatedBudget.toLocaleString('vi-VN')} <span className="text-xs font-medium text-slate-500">đ</span></p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {loading ? (
@@ -325,8 +525,8 @@ export function AIForecast() {
             className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200 shadow-sm"
           >
             <div className="w-12 h-12 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin mb-4" />
-            <p className="text-slate-600 font-bold text-sm">AI đang tổng hợp và tính toán nhu cầu tồn kho...</p>
-            <p className="text-xs text-slate-400 mt-1">Quá trình phân tích dữ liệu bán hàng có thể mất vài giây.</p>
+            <p className="text-slate-600 font-bold text-sm">AI Engine đang phân tích 100% kho dữ liệu Dược phẩm...</p>
+            <p className="text-xs text-slate-400 mt-1">Tính toán dự báo số lượng tiêu thụ và cân đối điểm đặt hàng lại.</p>
           </motion.div>
         ) : error ? (
           <motion.div 
@@ -372,6 +572,77 @@ export function AIForecast() {
               </div>
             </div>
 
+            {/* Smart 4-Tab Navigation */}
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+              <button
+                onClick={() => setActiveTab("URGENT")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                  activeTab === "URGENT"
+                    ? "bg-rose-600 text-white shadow-md shadow-rose-200"
+                    : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                }`}
+              >
+                <AlertTriangle size={14} />
+                🚨 Cần xử lý ngay / Nguy cơ đứt hàng
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  activeTab === "URGENT" ? "bg-white text-rose-700" : "bg-rose-100 text-rose-700"
+                }`}>
+                  {tabCounts.urgent}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("FAST_MOVING")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                  activeTab === "FAST_MOVING"
+                    ? "bg-amber-600 text-white shadow-md shadow-amber-200"
+                    : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                }`}
+              >
+                <TrendingUp size={14} />
+                ⭐ Bán chạy & Doanh thu lớn
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  activeTab === "FAST_MOVING" ? "bg-white text-amber-700" : "bg-amber-100 text-amber-700"
+                }`}>
+                  {tabCounts.fast}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("ALL")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                  activeTab === "ALL"
+                    ? "bg-purple-700 text-white shadow-md shadow-purple-200"
+                    : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                }`}
+              >
+                <Package size={14} />
+                📦 Toàn bộ danh mục kho
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  activeTab === "ALL" ? "bg-white text-purple-700" : "bg-purple-100 text-purple-700"
+                }`}>
+                  {tabCounts.all}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("OVERSTOCK")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                  activeTab === "OVERSTOCK"
+                    ? "bg-slate-700 text-white shadow-md shadow-slate-300"
+                    : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                }`}
+              >
+                <Layers size={14} />
+                ⚠️ Cảnh báo tồn đọng
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  activeTab === "OVERSTOCK" ? "bg-white text-slate-700" : "bg-slate-100 text-slate-700"
+                }`}>
+                  {tabCounts.overstock}
+                </span>
+              </button>
+            </div>
+
             {/* Table Panel */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
               {/* Filter Toolbar */}
@@ -404,7 +675,7 @@ export function AIForecast() {
                         <option value="ALL">Tất cả mức độ</option>
                         <option value="HIGH">🔴 Khẩn cấp</option>
                         <option value="MEDIUM">🟡 Cần nhập</option>
-                        <option value="LOW">🔵 Bình thường</option>
+                        <option value="LOW">🔵 Đủ hàng</option>
                       </select>
                     </div>
 
@@ -440,10 +711,11 @@ export function AIForecast() {
                       </select>
                     </div>
 
+                    {/* Reset button */}
                     {(searchQuery || selectedUrgency !== "ALL" || selectedCategory !== "ALL") && (
                       <button
                         onClick={handleResetFilters}
-                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors border border-slate-200"
+                        className="p-2 text-slate-500 hover:text-slate-800 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
                         title="Xóa bộ lọc"
                       >
                         <RotateCcw size={14} />
@@ -491,10 +763,12 @@ export function AIForecast() {
                       </th>
                       <th className="px-5 py-4">Tên dược phẩm</th>
                       <th className="px-5 py-4 text-center">Tồn kho hiện tại</th>
-                      <th className="px-5 py-4 text-center">Bán kỳ trước ({period} ngày)</th>
+                      <th className="px-5 py-4 text-center">Bán kỳ trước ({getPeriodLabel(period)})</th>
                       <th className="px-5 py-4 text-center">Tốc độ/ngày</th>
                       <th className="px-5 py-4 text-center">Hàng đang về</th>
-                      <th className="px-5 py-4 text-center text-purple-700 bg-purple-50/50 border-x border-purple-100">AI Đề Xuất</th>
+                      <th className="px-5 py-4 text-center text-purple-700 bg-purple-50/50 border-x border-purple-100">
+                        AI Đề Xuất ({getPeriodShortTag(period)})
+                      </th>
                       <th className="px-5 py-4 text-center">Mức khẩn cấp</th>
                       <th className="px-5 py-4 max-w-[200px]">Phân tích lý do</th>
                     </tr>
