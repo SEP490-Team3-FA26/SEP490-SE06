@@ -11,6 +11,11 @@ export const inventoryMapService = {
     return response.data;
   },
 
+  warehouseSearch: async (q: string) => {
+    const response = await api.get(`/api/medicines/warehouse-search?q=${encodeURIComponent(q)}`);
+    return response.data;
+  },
+
   syncLocations: async () => {
     const response = await api.post('/api/medicines/sync-locations');
     return response.data;
