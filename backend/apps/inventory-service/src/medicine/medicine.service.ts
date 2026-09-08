@@ -1985,5 +1985,58 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi đồng bộ vị trí kệ hàng');
     }
   }
+  async warehouseSearch(q: string) {
+    try {
+      if (!q || q.trim() === '') return [];
+      
+      this.logger.log(`[WarehouseSearch] Searching for: "${q}"`);
+      const regex = new RegExp(q, 'i');
+      const medicines = await this.medicineModel.find(
+        { $or: [{ name: regex }, { sku: regex }] },
+        { name: 1, sku: 1, category: 1 }
+      ).limit(20).lean().exec();
+
+      if (medicines.length === 0) return [];
+
+      const medIds = medicines.map(m => m._id.toString());
+
+      const batches = await this.batchModel.find({
+        medicineId: { $in: medIds },
+        status: 'ACTIVE',
+        stock: { $gt: 0 }
+      }, { medicineId: 1, location: 1, batchNo: 1, stock: 1 }).lean().exec();
+
+      const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
+      const results = [];
+      const seen = new Set<string>();
+
+      for (const batch of batches) {
+        if (!batch.location || !batch.location.zone) continue;
+        
+        const med = medMap.get(batch.medicineId);
+        if (!med) continue;
+
+        const targetId = `${batch.location.zone}-${batch.location.rack}-${batch.location.shelf}`;
+        const locKey = `${batch.medicineId}-${targetId}`;
+        
+        if (!seen.has(locKey)) {
+          seen.add(locKey);
+          results.push({
+            medicineId: med._id,
+            name: med.name,
+            sku: med.sku,
+            category: med.category,
+            location: batch.location,
+            targetId
+          });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      this.logger.error('[WarehouseSearch] Error:', error);
+      throw new RpcException(error.message || 'Lỗi tìm kiếm thuốc trong kho');
+    }
+  }
 }
 
