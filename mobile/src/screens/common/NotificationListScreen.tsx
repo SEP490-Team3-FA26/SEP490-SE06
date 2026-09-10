@@ -5,14 +5,16 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotification } from '../../context/NotificationContext';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { AppNotification } from '../../types/pharmacy.types';
+
+import { FlatBadge, FlatEmptyState } from '../../components/flat';
 
 export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const {
@@ -27,16 +29,16 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
     switch (type) {
       case 'NEW_PR':
       case 'NEW_PO':
-        return { icon: 'document-text', color: '#3B82F6', bg: '#EFF6FF' };
+        return { icon: 'document-text', color: '#3B82F6', bg: '#EFF6FF', badgeStatus: 'info' as const, badgeLabel: 'Hồ sơ' };
       case 'PR_APPROVED':
       case 'GRN_COMPLETED':
-        return { icon: 'checkmark-circle', color: '#10B981', bg: '#ECFDF5' };
+        return { icon: 'checkmark-circle', color: '#10B981', bg: '#ECFDF5', badgeStatus: 'success' as const, badgeLabel: 'Thành công' };
       case 'PR_REJECTED':
-        return { icon: 'close-circle', color: '#EF4444', bg: '#FEF2F2' };
+        return { icon: 'close-circle', color: '#EF4444', bg: '#FEF2F2', badgeStatus: 'danger' as const, badgeLabel: 'Từ chối' };
       case 'LOW_STOCK':
-        return { icon: 'warning', color: '#F59E0B', bg: '#FFFBEB' };
+        return { icon: 'warning', color: '#F59E0B', bg: '#FFFBEB', badgeStatus: 'warning' as const, badgeLabel: 'Cảnh báo' };
       default:
-        return { icon: 'notifications', color: '#6366F1', bg: '#EEF2FF' };
+        return { icon: 'notifications', color: '#6366F1', bg: '#EEF2FF', badgeStatus: 'neutral' as const, badgeLabel: 'Hệ thống' };
     }
   };
 
@@ -61,7 +63,12 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             <Text style={[styles.title, !item.isRead && styles.unreadTitle]} numberOfLines={1}>
               {item.title}
             </Text>
-            {!item.isRead ? <View style={styles.unreadDot} /> : null}
+            <FlatBadge
+              label={!item.isRead ? 'Mới' : iconConfig.badgeLabel}
+              status={!item.isRead ? 'danger' : iconConfig.badgeStatus}
+              variant="glass"
+              size="sm"
+            />
           </View>
 
           <Text style={styles.message} numberOfLines={3}>
@@ -100,11 +107,14 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="notifications-off-outline" size={64} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>Chưa có thông báo nào</Text>
-            <Text style={styles.emptySubtitle}>Các thông báo hệ thống mới sẽ xuất hiện tại đây.</Text>
-          </View>
+          <FlatEmptyState
+            title="Chưa có thông báo nào"
+            description="Các thông báo đơn hàng, duyệt kho và cảnh báo thuốc mới sẽ xuất hiện tại đây."
+            icon="notifications-off-outline"
+            actionTitle="Làm mới dữ liệu"
+            onAction={refreshNotifications}
+            style={{ marginTop: 40 }}
+          />
         }
       />
     </SafeAreaView>

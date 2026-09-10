@@ -21,7 +21,7 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <Stack.Navigator id="root-stack">
         {role === 'guest' && (
           <Stack.Screen
             name="Login"
@@ -38,7 +38,7 @@ export const RootNavigator: React.FC = () => {
           />
         )}
 
-        {role === 'staff' && (
+        {(role as string) === 'staff' && (
           <Stack.Screen
             name="StaffHome"
             component={StaffHomeScreen}

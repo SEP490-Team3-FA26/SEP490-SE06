@@ -6,15 +6,17 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { HeaderBar } from '../../components/ui/HeaderBar';
+
+import { FlatCard, FlatInput, FlatButton, FlatBadge } from '../../components/flat';
 
 export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { forgotPassword, resetPassword } = useAuth();
@@ -25,6 +27,7 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
   const [newPassword, setNewPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const handleSendOtp = async () => {
     if (!email.trim()) {
@@ -87,97 +90,101 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.card}>
+          <FlatCard
+            glassIntensity="medium"
+            title={step === 'REQUEST' ? 'Quên Mật Khẩu?' : 'Đặt Lại Mật Khẩu'}
+            subtitle={
+              step === 'REQUEST'
+                ? 'Nhập địa chỉ email đăng ký tài khoản của bạn để nhận mã OTP xác thực khôi phục mật khẩu.'
+                : `Nhập mã OTP gửi tới ${email} và thiết lập mật khẩu mới.`
+            }
+            headerIcon={step === 'REQUEST' ? 'key-outline' : 'lock-open-outline'}
+          >
             {step === 'REQUEST' ? (
-              <>
-                <View style={styles.iconContainer}>
-                  <Ionicons name="key" size={40} color="#4F46E5" />
-                </View>
-                <Text style={styles.title}>Quên Mật Khẩu?</Text>
-                <Text style={styles.subtitle}>
-                  Nhập địa chỉ email đăng ký tài khoản của bạn để nhận mã OTP xác thực khôi phục mật khẩu.
-                </Text>
-
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="mail-outline" size={20} color="#4F46E5" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email của bạn"
-                    placeholderTextColor="#94A3B8"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
+              <View style={{ marginTop: 8 }}>
+                <View style={{ alignItems: 'center', marginVertical: 14 }}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="key" size={38} color="#4F46E5" />
+                  </View>
+                  <FlatBadge label="Bước 1: Xác thực Email" status="info" variant="glass" size="md" icon="mail-outline" style={{ marginTop: 8 }} />
                 </View>
 
-                <GradientButton
+                <FlatInput
+                  label="Email của bạn"
+                  placeholder="example@gmail.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  leftIcon="mail-outline"
+                />
+
+                <FlatButton
                   title="GỬI MÃ XÁC THỰC"
                   onPress={handleSendOtp}
                   loading={loading}
-                  gradientVariant="indigo"
+                  variant="primary"
                   size="lg"
-                  style={styles.actionBtn}
+                  fullWidth
+                  icon="paper-plane-outline"
+                  iconPosition="right"
+                  style={{ marginTop: 8 }}
                 />
-              </>
+              </View>
             ) : (
-              <>
-                <View style={styles.iconContainer}>
-                  <Ionicons name="lock-open" size={40} color="#4F46E5" />
-                </View>
-                <Text style={styles.title}>Đặt Lại Mật Khẩu</Text>
-                <Text style={styles.subtitle}>
-                  Nhập mã OTP gửi tới <Text style={{ fontWeight: '700' }}>{email}</Text> và mật khẩu mới.
-                </Text>
-
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="key-outline" size={20} color="#4F46E5" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { letterSpacing: 4, fontWeight: '700', fontSize: 18 }]}
-                    placeholder="OTP 6 số"
-                    placeholderTextColor="#94A3B8"
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
+              <View style={{ marginTop: 8 }}>
+                <View style={{ alignItems: 'center', marginVertical: 14 }}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="lock-open" size={38} color="#4F46E5" />
+                  </View>
+                  <FlatBadge label="Bước 2: Mật khẩu mới" status="success" variant="glass" size="md" icon="shield-checkmark-outline" style={{ marginTop: 8 }} />
                 </View>
 
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#4F46E5" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Mật khẩu mới"
-                    placeholderTextColor="#94A3B8"
-                    secureTextEntry
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                  />
-                </View>
+                <FlatInput
+                  label="Mã OTP 6 số"
+                  placeholder="123456"
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  leftIcon="key-outline"
+                  style={{ letterSpacing: 4 }}
+                />
 
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color="#4F46E5" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Xác nhận mật khẩu mới"
-                    placeholderTextColor="#94A3B8"
-                    secureTextEntry
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                  />
-                </View>
+                <FlatInput
+                  label="Mật khẩu mới"
+                  placeholder="Tối thiểu 6 ký tự"
+                  secureTextEntry={!showPassword}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  leftIcon="lock-closed-outline"
+                  rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  onRightIconPress={() => setShowPassword(!showPassword)}
+                />
 
-                <GradientButton
+                <FlatInput
+                  label="Xác nhận mật khẩu mới"
+                  placeholder="Nhập lại mật khẩu mới"
+                  secureTextEntry={!showPassword}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  leftIcon="shield-checkmark-outline"
+                />
+
+                <FlatButton
                   title="ĐẶT LẠI MẬT KHẨU"
                   onPress={handleResetPassword}
                   loading={loading}
-                  gradientVariant="indigo"
+                  variant="success"
                   size="lg"
-                  style={styles.actionBtn}
+                  fullWidth
+                  icon="checkmark-done-outline"
+                  iconPosition="right"
+                  style={{ marginTop: 8 }}
                 />
-              </>
+              </View>
             )}
-          </View>
+          </FlatCard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

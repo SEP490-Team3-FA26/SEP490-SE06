@@ -6,16 +6,17 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
-import { GradientButton } from '../../components/ui/GradientButton';
 import { HeaderBar } from '../../components/ui/HeaderBar';
+
+import { FlatCard, FlatInput, FlatButton, FlatBadge } from '../../components/flat';
 
 export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { register, verifyEmail, resendVerification } = useAuth();
@@ -27,44 +28,43 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [otp, setOtp] = useState<string>('');
+
   const [loading, setLoading] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || !phone.trim() || !password.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ các trường thông tin bắt buộc.');
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập đầy đủ họ tên, email và mật khẩu.');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp.');
+      Alert.alert('Mật khẩu không khớp', 'Mật khẩu xác nhận không trùng khớp.');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 6 ký tự.');
+      Alert.alert('Mật khẩu quá ngắn', 'Mật khẩu phải có ít nhất 6 ký tự.');
       return;
     }
 
     setLoading(true);
-    const res = await register({
+    const success = await register({
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      email: email.trim(),
       phone: phone.trim(),
       password,
     });
     setLoading(false);
 
-    if (res.success) {
-      if (res.requiresEmailVerification) {
-        Alert.alert('Đăng ký thành công', 'Mã OTP xác thực đã được gửi tới email của bạn.');
-        setStep('OTP');
-      } else {
-        Alert.alert('Đăng ký thành công', 'Tài khoản của bạn đã được khởi tạo thành công!', [
-          { text: 'Đăng nhập ngay', onPress: () => navigation.goBack() },
-        ]);
-      }
+    if (success) {
+      setStep('OTP');
+      Alert.alert(
+        'Đăng ký thành công',
+        'Một mã xác thực OTP 6 số đã được gửi tới email của bạn. Hãy nhập mã để kích hoạt tài khoản!'
+      );
     } else {
-      Alert.alert('Đăng ký thất bại', res.message || 'Email hoặc số điện thoại đã tồn tại.');
+      Alert.alert('Đăng ký thất bại', 'Email hoặc số điện thoại có thể đã được đăng ký.');
     }
   };
 
@@ -101,113 +101,120 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.card}>
+          <FlatCard
+            glassIntensity="medium"
+            title={step === 'REGISTER' ? 'Thông Tin Cá Nhân' : 'Xác Thực OTP'}
+            subtitle={
+              step === 'REGISTER'
+                ? 'Đăng ký tài khoản để tích điểm, nhận voucher ưu đãi và mua thuốc trực tuyến.'
+                : `Mã OTP đã gửi tới ${email}`
+            }
+            headerIcon={step === 'REGISTER' ? 'person-add-outline' : 'shield-checkmark-outline'}
+            footer={
+              <View style={styles.footerRow}>
+                <Text style={styles.footerText}>Đã có tài khoản? </Text>
+                <AnimatedTouchable onPress={() => navigation.goBack()}>
+                  <Text style={styles.footerLink}>Đăng nhập</Text>
+                </AnimatedTouchable>
+              </View>
+            }
+          >
             {step === 'REGISTER' ? (
-              <>
-                <Text style={styles.cardTitle}>Thông Tin Cá Nhân</Text>
-                <Text style={styles.cardSubtitle}>
-                  Đăng ký tài khoản để tích điểm, nhận voucher ưu đãi và mua thuốc trực tuyến.
-                </Text>
-
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="person-outline" size={20} color="#059669" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Họ và tên"
-                    placeholderTextColor="#94A3B8"
-                    value={name}
-                    onChangeText={setName}
-                  />
+              <View style={{ marginTop: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '600' }}>Bước 1: Điền biểu mẫu</Text>
+                  <FlatBadge label="Bước 1/2" status="info" variant="glass" size="sm" icon="create-outline" />
                 </View>
 
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="mail-outline" size={20} color="#059669" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#94A3B8"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
+                <FlatInput
+                  label="Họ và tên"
+                  placeholder="Nguyễn Văn A"
+                  value={name}
+                  onChangeText={setName}
+                  leftIcon="person-outline"
+                />
 
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="call-outline" size={20} color="#059669" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Số điện thoại"
-                    placeholderTextColor="#94A3B8"
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                  />
-                </View>
+                <FlatInput
+                  label="Email"
+                  placeholder="example@gmail.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  leftIcon="mail-outline"
+                />
 
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#059669" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Mật khẩu"
-                    placeholderTextColor="#94A3B8"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                  />
-                </View>
+                <FlatInput
+                  label="Số điện thoại"
+                  placeholder="0901234567"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  leftIcon="call-outline"
+                />
 
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color="#059669" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Xác nhận mật khẩu"
-                    placeholderTextColor="#94A3B8"
-                    secureTextEntry
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                  />
-                </View>
+                <FlatInput
+                  label="Mật khẩu"
+                  placeholder="Tối thiểu 6 ký tự"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                  leftIcon="lock-closed-outline"
+                  rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  onRightIconPress={() => setShowPassword(!showPassword)}
+                />
 
-                <GradientButton
-                  title="ĐĂNG KÝ"
+                <FlatInput
+                  label="Xác nhận mật khẩu"
+                  placeholder="Nhập lại mật khẩu"
+                  secureTextEntry={!showPassword}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  leftIcon="shield-checkmark-outline"
+                />
+
+                <FlatButton
+                  title="ĐĂNG KÝ TÀI KHOẢN"
                   onPress={handleRegister}
                   loading={loading}
-                  gradientVariant="primary"
+                  variant="primary"
                   size="lg"
-                  style={styles.actionBtn}
+                  fullWidth
+                  icon="arrow-forward-outline"
+                  iconPosition="right"
+                  style={{ marginTop: 8 }}
                 />
-              </>
+              </View>
             ) : (
-              <>
-                <View style={styles.otpIconContainer}>
-                  <Ionicons name="mail-unread" size={48} color="#059669" />
-                </View>
-                <Text style={styles.cardTitle}>Nhập Mã Xác Thực</Text>
-                <Text style={styles.cardSubtitle}>
-                  Chúng tôi đã gửi mã xác nhận 6 số tới: <Text style={{ fontWeight: '700' }}>{email}</Text>
-                </Text>
-
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="key-outline" size={20} color="#059669" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { letterSpacing: 4, fontWeight: '700', fontSize: 18 }]}
-                    placeholder="123456"
-                    placeholderTextColor="#94A3B8"
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
+              <View style={{ marginTop: 8 }}>
+                <View style={{ alignItems: 'center', marginVertical: 16 }}>
+                  <View style={styles.otpIconContainer}>
+                    <Ionicons name="mail-unread" size={42} color="#059669" />
+                  </View>
+                  <FlatBadge label="Mã OTP 6 số" status="success" variant="glass" size="md" icon="key-outline" style={{ marginTop: 10 }} />
                 </View>
 
-                <GradientButton
-                  title="XÁC THỰC"
+                <FlatInput
+                  label="Mã xác thực Email"
+                  placeholder="123456"
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  leftIcon="key-outline"
+                  style={{ letterSpacing: 4 }}
+                />
+
+                <FlatButton
+                  title="XÁC THỰC KÍCH HOẠT"
                   onPress={handleVerifyOtp}
                   loading={loading}
-                  gradientVariant="success"
+                  variant="success"
                   size="lg"
-                  style={styles.actionBtn}
+                  fullWidth
+                  icon="checkmark-circle-outline"
+                  iconPosition="right"
+                  style={{ marginTop: 8 }}
                 />
 
                 <AnimatedTouchable
@@ -216,16 +223,9 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 >
                   <Text style={styles.resendText}>Không nhận được mã? Gửi lại</Text>
                 </AnimatedTouchable>
-              </>
+              </View>
             )}
-
-            <View style={styles.footerRow}>
-              <Text style={styles.footerText}>Đã có tài khoản? </Text>
-              <AnimatedTouchable onPress={() => navigation.goBack()}>
-                <Text style={styles.footerLink}>Đăng nhập</Text>
-              </AnimatedTouchable>
-            </View>
-          </View>
+          </FlatCard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -12,6 +12,7 @@ import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
 import { ProfileScreen } from '../screens/common/ProfileScreen';
 import { NotificationListScreen } from '../screens/common/NotificationListScreen';
 import { WebViewScreen } from '../screens/common/WebViewScreen';
+import { FlatComponentsShowcase } from '../screens/common/FlatComponentsShowcase';
 
 // Actor Screens
 import { AdminScreen } from '../screens/admin/AdminScreen';
@@ -50,6 +51,7 @@ export default function AppNavigator() {
 
   return (
     <Stack.Navigator
+      id="app-stack"
       initialRouteName={auth.isAuthenticated ? getInitialActorScreen() : 'LoginScreen'}
       screenOptions={{
         headerShown: false,
@@ -65,6 +67,7 @@ export default function AppNavigator() {
           <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
           <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
+          <Stack.Screen name="FlatComponentsShowcase" component={FlatComponentsShowcase} />
         </Stack.Group>
       ) : (
         // Authenticated App Flow
@@ -82,6 +85,7 @@ export default function AppNavigator() {
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
           <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
+          <Stack.Screen name="FlatComponentsShowcase" component={FlatComponentsShowcase} />
         </Stack.Group>
       )}
     </Stack.Navigator>

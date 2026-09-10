@@ -6,11 +6,11 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
   Modal,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiService } from '../../services/api.service';
 import { HeaderBar } from '../../components/ui/HeaderBar';
@@ -68,12 +68,16 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [meds, lowStock] = await Promise.all([
+      const [meds, lowStock, grnList, expReport] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getLowStockReport(),
+        ApiService.getGoodsReceipts(),
+        ApiService.getExpirationReport(),
       ]);
 
       if (meds && meds.length > 0) setMedicines(meds);
+      if (grnList && grnList.length > 0) setReceipts(grnList);
+      if (expReport && expReport.length > 0) setExpiredList(expReport);
     } catch (e) {
       console.warn('Error loading warehouse data:', e);
     } finally {
@@ -116,7 +120,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     }
   };
 
-  const handleApproveReceipt = (grnId: string) => {
+  const handleApproveReceipt = async (grnId: string) => {
+    await ApiService.approveGoodsReceipt(grnId);
     setReceipts((prev) =>
       prev.map((r) => (r.id === grnId ? { ...r, status: 'COMPLETED' } : r))
     );

@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiService } from '../services/api.service';
+import { authApiService } from '../services/authApiService';
 import { SocketService } from '../services/socket.service';
 import { UserRole, UserProfile } from '../types/pharmacy.types';
 
@@ -52,6 +53,7 @@ type AuthContextValue = {
   verifyEmail: (email: string, code: string) => Promise<boolean>;
   resendVerification: (email: string) => Promise<boolean>;
   forgotPassword: (email: string) => Promise<boolean>;
+  verifyResetCode: (email: string, code: string) => Promise<boolean>;
   resetPassword: (email: string, otp: string, newPass: string) => Promise<boolean>;
   updateProfile: (data: Partial<UserProfile>) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -215,6 +217,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const verifyResetCode = useCallback(async (email: string, code: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await authApiService.verifyResetCode({ email, code });
+      return !!res;
+    } catch (err: any) {
+      setError(err.message || 'Mã xác thực không hợp lệ');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const resetPassword = useCallback(async (email: string, otp: string, newPass: string) => {
     try {
       setIsLoading(true);
@@ -290,6 +306,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       verifyEmail,
       resendVerification,
       forgotPassword,
+      verifyResetCode,
       resetPassword,
       updateProfile,
       logout,
@@ -306,6 +323,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       verifyEmail,
       resendVerification,
       forgotPassword,
+      verifyResetCode,
       resetPassword,
       updateProfile,
       logout,

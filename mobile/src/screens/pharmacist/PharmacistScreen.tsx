@@ -6,11 +6,11 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
   Modal,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiService } from '../../services/api.service';
 import { HeaderBar } from '../../components/ui/HeaderBar';

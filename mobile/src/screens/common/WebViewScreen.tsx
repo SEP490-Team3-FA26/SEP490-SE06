@@ -1,6 +1,7 @@
 // WebViewScreen.tsx - In-app WebView browser for PayOS checkout and OAuth
 import React from 'react';
-import { View, StyleSheet, SafeAreaView, Text } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 
 export const WebViewScreen: React.FC<{ route: any; navigation: any }> = ({
