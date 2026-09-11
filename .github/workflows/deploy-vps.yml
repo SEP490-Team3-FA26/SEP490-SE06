@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
       - feat/mobile-authen
   workflow_dispatch:
 
@@ -86,20 +87,21 @@ jobs:
 
             # 4. Quản lý source code qua Git
             APP_DIR="/var/www/wdp301"
+            TARGET_BRANCH="${{ github.ref_name }}"
             if [ ! -d "$APP_DIR/.git" ]; then
               echo "📂 Thư mục dự án chưa tồn tại, đang clone từ GitHub..."
               mkdir -p /var/www
-              git clone https://github.com/SEP490-Team3-FA26/SEP490-SE06.git "$APP_DIR"
+              git clone -b "$TARGET_BRANCH" https://github.com/SEP490-Team3-FA26/SEP490-SE06.git "$APP_DIR" || git clone https://github.com/SEP490-Team3-FA26/SEP490-SE06.git "$APP_DIR"
               cd "$APP_DIR"
+              git checkout "$TARGET_BRANCH" || true
             else
               echo "📂 Thư mục dự án đã có, đang kéo mã nguồn mới nhất..."
               cd "$APP_DIR"
               git reset --hard
               git fetch --all
-              TARGET_BRANCH="${{ github.ref_name }}"
               echo "🌿 Đang checkout nhánh: $TARGET_BRANCH"
-              git checkout $TARGET_BRANCH || git checkout main
-              git pull origin $TARGET_BRANCH || git pull origin main
+              git checkout "$TARGET_BRANCH" || git checkout dev || git checkout main
+              git pull origin "$TARGET_BRANCH" || git pull origin dev || git pull origin main
             fi
 
             # 5. Khởi tạo file .env từ mẫu nếu chưa tồn tại
