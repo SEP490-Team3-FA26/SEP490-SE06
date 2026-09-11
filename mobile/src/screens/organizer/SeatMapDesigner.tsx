@@ -146,7 +146,7 @@ export default function SeatMapDesigner({ navigation, route }: any) {
         { translateX: translateX.value },
         { translateY: translateY.value },
         { scale: scale.value },
-      ],
+      ] as any,
     };
   });
 

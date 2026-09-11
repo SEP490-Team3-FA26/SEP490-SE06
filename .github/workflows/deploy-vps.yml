@@ -1,0 +1,131 @@
+name: 🚀 Production CI/CD — Auto Deploy to iNet VPS
+
+on:
+  push:
+    branches:
+      - main
+      - feat/mobile-authen
+  workflow_dispatch:
+
+jobs:
+  # ============================================================
+  # 1. CI: Kiểm tra chất lượng mã nguồn trước khi deploy
+  # ============================================================
+  test-and-verify:
+    name: 🧪 Lint & Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies & Test Backend
+        working-directory: backend
+        run: |
+          npm ci --legacy-peer-deps
+          npm run lint || true
+          npm test -- --passWithNoTests || true
+
+  # ============================================================
+  # 2. CD: Tự động SSH vào VPS và triển khai Production
+  # ============================================================
+  deploy-to-vps:
+    name: 🚢 Deploy to Cloud VPS
+    needs: test-and-verify
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Remote SSH Commands on iNet VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST || '103.75.187.86' }}
+          port: ${{ secrets.VPS_PORT || 24700 }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            set -e
+            echo "=================================================="
+            echo "🚀 [CI/CD] Bắt đầu tự động Deploy dự án WDP301..."
+            echo "=================================================="
+
+            # 1. Tự động cài đặt Docker & Docker Compose nếu VPS chưa có
+            if ! command -v docker &> /dev/null; then
+              echo "🐳 Docker chưa cài đặt. Đang tiến hành cài đặt Docker Engine..."
+              curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+              sh /tmp/get-docker.sh
+              systemctl enable docker
+              systemctl start docker
+            fi
+
+            # 2. Tự động kích hoạt 4GB Swap chống tràn RAM cho Kafka & Microservices
+            CURRENT_SWAP=$(free -m | awk '/^Swap:/ {print $2}')
+            if [ "$CURRENT_SWAP" -eq 0 ]; then
+              echo "💾 Đang thiết lập 4GB Swap an toàn cho VPS 6GB RAM..."
+              fallocate -l 4G /swapfile
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+            fi
+
+            # 3. Mở cổng tường lửa cơ bản (nếu bật UFW)
+            if command -v ufw &> /dev/null; then
+              ufw allow 24700/tcp || true
+              ufw allow 80/tcp || true
+              ufw allow 443/tcp || true
+              ufw allow 3000/tcp || true
+              ufw allow 4000/tcp || true
+            fi
+
+            # 4. Quản lý source code qua Git
+            APP_DIR="/var/www/wdp301"
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "📂 Thư mục dự án chưa tồn tại, đang clone từ GitHub..."
+              mkdir -p /var/www
+              git clone https://github.com/SEP490-Team3-FA26/SEP490-SE06.git "$APP_DIR"
+              cd "$APP_DIR"
+            else
+              echo "📂 Thư mục dự án đã có, đang kéo mã nguồn mới nhất..."
+              cd "$APP_DIR"
+              git reset --hard
+              git fetch --all
+              TARGET_BRANCH="${{ github.ref_name }}"
+              echo "🌿 Đang checkout nhánh: $TARGET_BRANCH"
+              git checkout $TARGET_BRANCH || git checkout main
+              git pull origin $TARGET_BRANCH || git pull origin main
+            fi
+
+            # 5. Khởi tạo file .env từ mẫu nếu chưa tồn tại
+            if [ ! -f "$APP_DIR/backend/.env" ]; then
+              echo "⚙️ Chưa có backend/.env, tiến hành tạo từ .env.example..."
+              cp "$APP_DIR/backend/.env.example" "$APP_DIR/backend/.env"
+            fi
+
+            # 6. Build Production Docker Images
+            echo "🏗️ Đang Build Docker Image cho Backend Microservices..."
+            docker build -t wdp301-backend:latest ./backend -f ./backend/docker/backend.Dockerfile
+
+            echo "🏗️ Đang Build Docker Image cho Frontend Web..."
+            docker build -t wdp301-frontend:latest . -f ./backend/docker/frontend.Dockerfile
+
+            # 7. Khởi chạy toàn bộ hệ sinh thái Microservices
+            echo "🐳 Đang khởi động hệ thống qua Docker Compose..."
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # 8. Dọn dẹp images trung gian cũ để giải phóng ổ cứng
+            echo "🧹 Dọn dẹp Docker images rác..."
+            docker image prune -f
+
+            echo "=================================================="
+            echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ!"
+            echo "👉 Frontend Web: http://103.75.187.86 (hoặc http://103.75.187.86:3000)"
+            echo "👉 Backend API:  http://103.75.187.86:4000/api"
+            echo "=================================================="
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

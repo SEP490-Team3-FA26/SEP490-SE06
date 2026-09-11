@@ -143,7 +143,12 @@ export default function CreateAccount({ navigation }: any) {
                 return;
               }
 
-              const result = await register(firstName, lastName, email.trim(), password);
+              const result = await register({
+                name: fullName.trim() || `${firstName} ${lastName}`.trim(),
+                email: email.trim(),
+                phone: '',
+                password: password,
+              });
               if (result.success) {
                 Alert.alert('Thành công', 'Đăng ký thành công. Hãy đăng nhập để tiếp tục.');
                 navigation.navigate('Login');

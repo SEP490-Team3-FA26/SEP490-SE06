@@ -8,10 +8,13 @@
 # ============================================================
 
 x-backend-common: &backend-common
-  image: ${ECR_REGISTRY}/wdp301-backend:${IMAGE_TAG:-latest}
+  image: ${BACKEND_IMAGE:-wdp301-backend:latest}
   restart: unless-stopped
   env_file:
-    - .env
+    - path: .env
+      required: false
+    - path: backend/.env
+      required: false
   environment: &backend-env
     NODE_ENV: production
     REDIS_HOST: redis
@@ -23,7 +26,8 @@ x-backend-common: &backend-common
       condition: service_healthy
     redis:
       condition: service_started
-  networks: [wdp301-network]
+  networks:
+    wdp301-network:
 
 services:
   # ──────────────────────────────────────────────────────────
@@ -78,7 +82,7 @@ services:
     networks: [wdp301-network]
 
   # ──────────────────────────────────────────────────────────
-  # Bounded Context Services (10 services)
+  # Bounded Context Services (NestJS Microservices)
   # ──────────────────────────────────────────────────────────
 
   # 1. API Gateway — entry point
@@ -91,6 +95,10 @@ services:
     environment:
       <<: *backend-env
       PORT: 4000
+    networks:
+      wdp301-network:
+        aliases:
+          - backend-svc
 
   # 2. Auth Service — identity & access
   auth-service:
@@ -122,33 +130,19 @@ services:
     container_name: wdp301-orders
     command: node dist/apps/orders-service/main.js
 
-  # 7. Finance Service — accounting & cash flow
-  finance-service:
-    <<: *backend-common
-    container_name: wdp301-finance
-    command: node dist/apps/finance-service/main.js
-
-  # 8. Marketing Service — promotions & loyalty
-  marketing-service:
-    <<: *backend-common
-    container_name: wdp301-marketing
-    command: node dist/apps/marketing-service/main.js
-
-  # 9. Customer Service — CRM & care
-  customer-service:
-    <<: *backend-common
-    container_name: wdp301-customer
-    command: node dist/apps/customer-service/main.js
-
-  # 10. AI Service — self-hosted, no third-party API
+  # 7. AI Service — self-hosted, no third-party API
   ai-service:
     build:
       context: .
       dockerfile: backend/apps/ai-service/Dockerfile
+    image: ${AI_IMAGE:-wdp301-ai:latest}
     container_name: wdp301-ai
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
+      - path: backend/.env
+        required: false
       - path: backend/apps/ai-service/.env
         required: false
     environment:
@@ -166,15 +160,18 @@ services:
           memory: 1g
 
   # ──────────────────────────────────────────────────────────
-  # Reporting Service (read-model, lightweight)
+  # Frontend Web (React / Vite + Nginx Reverse Proxy)
   # ──────────────────────────────────────────────────────────
-  reporting-service:
-    <<: *backend-common
-    container_name: wdp301-reporting
-    command: node dist/apps/reporting-service/main.js
-    environment:
-      <<: *backend-env
-      NODE_OPTIONS: "--max-old-space-size=128"
+  frontend:
+    image: ${FRONTEND_IMAGE:-wdp301-frontend:latest}
+    container_name: wdp301-frontend
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks: [wdp301-network]
 
 networks:
   wdp301-network:
