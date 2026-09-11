@@ -136,7 +136,7 @@ export default function AIAssistant({ navigation }: any) {
       botResponse.event = event;
     } else {
       const aiAnswer = await askAIAssistant({
-        role: user?.role,
+        role: (user?.role as any),
         firstName: user?.firstName,
         message: text,
         events: allEvents,

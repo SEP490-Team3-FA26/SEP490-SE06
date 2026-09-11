@@ -23,6 +23,7 @@ export default function TabNavigator() {
 
   return (
     <Tab.Navigator
+      id="main-tab"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ color, size }) => {
@@ -45,16 +46,18 @@ export default function TabNavigator() {
           fontWeight: '700',
         },
         tabBarStyle: {
-          backgroundColor: colors.background, // Thanh TabBar màu dự án (#0a0014)
+          backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: colors.border,
-          // Trên iOS cần insets.bottom để né vạch Home, 
-          // nhưng trên Android ta đã để NavigationBar.relative (màu trắng) bên dưới,
-          // nên TabBar này chỉ cần height fix cứng để nó nằm "tách rời" bên trên.
-          height: Platform.OS === 'ios' ? 65 + insets.bottom : 65, 
-          paddingBottom: Platform.OS === 'ios' ? insets.bottom : 8,
+          borderTopColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+          // Tự động thích ứng an toàn cả iOS (Home Indicator) và Android (Gesture Navigation / 3-button)
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
           paddingTop: 8,
-          elevation: 0,
+          elevation: 8,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
         },
       })}
     >

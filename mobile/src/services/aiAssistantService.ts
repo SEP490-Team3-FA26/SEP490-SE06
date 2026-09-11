@@ -28,7 +28,7 @@ function buildSystemPrompt(role?: UserRoleMobile, firstName?: string): string {
   const userPrompt =
     `Nếu là user/customer, ưu tiên gợi ý tìm sự kiện, xem chi tiết và đặt vé.`;
 
-  const rolePrompt = role === 'organizer' ? organizerPrompt : userPrompt;
+  const rolePrompt = (role as string) === 'organizer' ? organizerPrompt : userPrompt;
   const namePrompt = firstName ? `Tên người dùng: ${firstName}.` : '';
 
   return `${basePrompt} ${rolePrompt} ${namePrompt} Nếu không chắc chắn, hãy nói rõ giả định của bạn.`;

@@ -1,43 +1,61 @@
-import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from 'react';
+// AuthContext.tsx - Complete Authentication State Management for Pharma ERP Mobile
+import React, {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthAPI } from '../services/authApiService';
+import { ApiService } from '../services/api.service';
+import { authApiService } from '../services/authApiService';
+import { SocketService } from '../services/socket.service';
+import { UserRole, UserProfile } from '../types/pharmacy.types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
 
-export type UserRoleMobile = 'guest' | 'user' | 'customer' | 'organizer' | 'staff' | 'admin';
-
-export interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: UserRoleMobile;
-  avatar?: string | null;
-}
+export type UserRoleMobile =
+  | 'admin'
+  | 'headBranch'
+  | 'director'
+  | 'warehouse'
+  | 'branch'
+  | 'pharmacist'
+  | 'customer'
+  | 'user'
+  | 'guest';
 
 type AuthState = {
   role: UserRoleMobile;
-  user: User | null;
+  user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 };
 
 type AuthContextValue = {
   auth: AuthState;
-  user: User | null;
+  user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  
-  // Auth actions
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (firstName: string, lastName: string, email: string, password: string) => Promise<{ success: boolean; requiresVerification?: boolean; email?: string }>;
+
+  // Actions
+  login: (emailOrPhone: string, password: string) => Promise<{ success: boolean; user?: UserProfile; role?: string; message?: string }>;
+  register: (data: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+    gender?: string;
+  }) => Promise<{ success: boolean; requiresEmailVerification?: boolean; message?: string }>;
   verifyEmail: (email: string, code: string) => Promise<boolean>;
   resendVerification: (email: string) => Promise<boolean>;
   forgotPassword: (email: string) => Promise<boolean>;
   verifyResetCode: (email: string, code: string) => Promise<boolean>;
-  resetPassword: (email: string, code: string, newPassword: string) => Promise<boolean>;
+  resetPassword: (email: string, otp: string, newPass: string) => Promise<boolean>;
+  updateProfile: (data: Partial<UserProfile>) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
@@ -46,46 +64,38 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load token + user từ AsyncStorage, validate với backend
   const initializeAuth = useCallback(async () => {
     try {
       setIsLoading(true);
-      const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-      const userDataStr = await AsyncStorage.getItem(USER_DATA_KEY);
+      await ApiService.initToken();
+      const token = ApiService.getToken();
+      const cachedUserStr = await AsyncStorage.getItem(USER_DATA_KEY);
 
       if (token) {
+        SocketService.initSocket(token);
         try {
-          // Luôn fetch profile mới nhất từ server khi khởi tạo
-          const userResponse = await AuthAPI.getMe(token);
-          
-          const backendRole = (userResponse.role as UserRoleMobile) || 'customer';
-          const mappedRole: UserRoleMobile = backendRole === 'customer' ? 'user' : backendRole;
-
-          const updatedUserData: User = {
-            id: userResponse._id || userResponse.id,
-            email: userResponse.email,
-            firstName: userResponse.firstName,
-            lastName: userResponse.lastName,
-            role: mappedRole,
-            avatar: userResponse.avatar,
-          };
-
-          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(updatedUserData));
-          setUser(updatedUserData);
+          const profile = await ApiService.getProfile(token);
+          if (profile) {
+            setUser(profile);
+            await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(profile));
+          } else if (cachedUserStr) {
+            setUser(JSON.parse(cachedUserStr));
+          }
         } catch {
-          // Nếu token hết hạn hoặc lỗi, fall back về data local nếu có, hoặc logout
-          if (userDataStr) {
-            const userData = JSON.parse(userDataStr);
-            setUser(userData);
+          if (cachedUserStr) {
+            setUser(JSON.parse(cachedUserStr));
           } else {
             await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, USER_DATA_KEY]);
+            ApiService.setToken('');
             setUser(null);
           }
         }
+      } else if (cachedUserStr) {
+        setUser(JSON.parse(cachedUserStr));
       }
     } catch (err) {
       console.error('Error initializing auth:', err);
@@ -103,123 +113,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
   }, []);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (emailOrPhone: string, password: string) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log('[AuthContext] login() called with email:', email);
+      const res = await ApiService.login(emailOrPhone, password);
 
-      const response = await AuthAPI.login({ email, password });
+      const token = res.accessToken || res.token;
+      if (!token) {
+        throw new Error(res.message || 'Đăng nhập không thành công');
+      }
 
-      console.log('[AuthContext] login() success, response:', response);
+      ApiService.setToken(token);
+      SocketService.initSocket(token);
 
-      // Map backend role -> mobile role used for navigation
-      const backendRole = response.user.role as UserRoleMobile;
-      const mappedRole: UserRoleMobile =
-        backendRole === 'customer' ? 'user' : backendRole;
-
-      // Save token and user data
-      await AsyncStorage.setItem(AUTH_TOKEN_KEY, response.token);
-      
-      const userData: User = {
-        id: response.user.id,
-        email: response.user.email,
-        firstName: response.user.firstName,
-        lastName: response.user.lastName,
-        role: mappedRole,
+      const userProfile: UserProfile = res.user || {
+        id: res.id || res._id || 'user_1',
+        name: res.name || emailOrPhone.split('@')[0],
+        email: emailOrPhone.includes('@') ? emailOrPhone : (res.email || ''),
+        phone: !emailOrPhone.includes('@') ? emailOrPhone : (res.phone || ''),
+        role: res.role || UserRole.CUSTOMER,
+        branchId: res.branchId,
+        branchName: res.branchName,
       };
 
-      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
-      setUser(userData);
-
-      return true;
-    } catch (err: any) {
-      console.error('[AuthContext] login() failed:', err);
-      setError(err.message || 'Đăng nhập thất bại');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const register = useCallback(async (
-    firstName: string,
-    lastName: string,
-    email: string,
-    password: string
-  ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string }> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await AuthAPI.register({ firstName, lastName, email, password });
+      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userProfile));
+      setUser(userProfile);
 
       return {
         success: true,
-        requiresVerification: response.requiresEmailVerification,
-        email: response.email,
+        user: userProfile,
+        role: userProfile.role,
       };
     } catch (err: any) {
-      setError(err.message || 'Đăng ký thất bại');
-      return { success: false };
+      const msg = err.message || 'Đăng nhập thất bại';
+      setError(msg);
+      return { success: false, message: msg };
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const verifyEmail = useCallback(async (email: string, code: string): Promise<boolean> => {
+  const register = useCallback(async (data: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+    gender?: string;
+  }) => {
     try {
       setIsLoading(true);
       setError(null);
-
-      await AuthAPI.verifyEmail({ email, code });
-      return true;
+      const res = await ApiService.register(data);
+      return {
+        success: res.success !== false,
+        requiresEmailVerification: res.requiresEmailVerification ?? true,
+        message: res.message,
+      };
     } catch (err: any) {
-      setError(err.message || 'Xác thực email thất bại');
+      const msg = err.message || 'Đăng ký thất bại';
+      setError(msg);
+      return { success: false, message: msg };
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const verifyEmail = useCallback(async (email: string, code: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await ApiService.verifyEmail(email, code);
+      return res.success !== false;
+    } catch (err: any) {
+      setError(err.message || 'Xác thực thất bại');
       return false;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const resendVerification = useCallback(async (email: string): Promise<boolean> => {
+  const resendVerification = useCallback(async (email: string) => {
+    try {
+      const res = await ApiService.resendVerification(email);
+      return res.success !== false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const forgotPassword = useCallback(async (email: string) => {
     try {
       setIsLoading(true);
       setError(null);
-
-      await AuthAPI.resendVerification(email);
-      return true;
+      const res = await ApiService.forgotPassword(email);
+      return res.success !== false;
     } catch (err: any) {
-      setError(err.message || 'Gửi lại mã thất bại');
+      setError(err.message || 'Gửi mã xác nhận thất bại');
       return false;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const forgotPassword = useCallback(async (email: string): Promise<boolean> => {
+  const verifyResetCode = useCallback(async (email: string, code: string) => {
     try {
       setIsLoading(true);
       setError(null);
-
-      await AuthAPI.forgotPassword({ email });
-      return true;
-    } catch (err: any) {
-      setError(err.message || 'Yêu cầu đặt lại mật khẩu thất bại');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const verifyResetCode = useCallback(async (email: string, code: string): Promise<boolean> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      await AuthAPI.verifyResetCode({ email, code });
-      return true;
+      const res = await authApiService.verifyResetCode({ email, code });
+      return !!res;
     } catch (err: any) {
       setError(err.message || 'Mã xác thực không hợp lệ');
       return false;
@@ -228,17 +231,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const resetPassword = useCallback(async (
-    email: string,
-    code: string,
-    newPassword: string
-  ): Promise<boolean> => {
+  const resetPassword = useCallback(async (email: string, otp: string, newPass: string) => {
     try {
       setIsLoading(true);
       setError(null);
-
-      await AuthAPI.resetPassword({ email, code, newPassword });
-      return true;
+      const res = await ApiService.resetPassword({ email, otp, newPassword: newPass });
+      return res.success !== false;
     } catch (err: any) {
       setError(err.message || 'Đặt lại mật khẩu thất bại');
       return false;
@@ -247,18 +245,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const logout = useCallback(async (): Promise<void> => {
+  const updateProfile = useCallback(async (data: Partial<UserProfile>) => {
+    try {
+      const res = await ApiService.updateProfile(data);
+      if (res) {
+        setUser((prev) => (prev ? { ...prev, ...data } : null));
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
     try {
       setIsLoading(true);
-
+      SocketService.disconnect();
+      ApiService.setToken('');
       await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, USER_DATA_KEY]);
       setUser(null);
-
-      try {
-        await AuthAPI.logout();
-      } catch (err) {
-        // bỏ qua lỗi logout API, vì token đã xoá local
-      }
     } catch (err) {
       console.error('Error during logout:', err);
     } finally {
@@ -266,38 +272,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const refreshUser = useCallback(async (): Promise<void> => {
+  const refreshUser = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-      if (!token) return;
-
-      const userResponse = await AuthAPI.getMe(token);
-      
-      const backendRole = (userResponse.role as UserRoleMobile) || 'customer';
-      const mappedRole: UserRoleMobile = backendRole === 'customer' ? 'user' : backendRole;
-
-      const updatedUserData: User = {
-        id: userResponse._id || userResponse.id,
-        email: userResponse.email,
-        firstName: userResponse.firstName,
-        lastName: userResponse.lastName,
-        role: mappedRole,
-        avatar: userResponse.avatar,
-      };
-
-      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(updatedUserData));
-      setUser(updatedUserData);
+      const profile = await ApiService.getProfile();
+      if (profile) {
+        setUser(profile);
+        await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(profile));
+      }
     } catch (err) {
-      console.error('Error refreshing user:', err);
+      console.error('Error refreshing user profile:', err);
     }
   }, []);
 
-  const authState: AuthState = useMemo(() => ({
-    role: user?.role || 'guest',
-    user,
-    isAuthenticated: user !== null,
-    isLoading,
-  }), [user, isLoading]);
+  const authState: AuthState = useMemo(() => {
+    const role = (user?.role as UserRoleMobile) || 'guest';
+    return {
+      role,
+      user,
+      isAuthenticated: user !== null,
+      isLoading,
+    };
+  }, [user, isLoading]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -313,11 +308,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       forgotPassword,
       verifyResetCode,
       resetPassword,
+      updateProfile,
       logout,
       refreshUser,
       clearError,
     }),
-    [authState, user, isLoading, error, login, register, verifyEmail, resendVerification, forgotPassword, verifyResetCode, resetPassword, logout, refreshUser, clearError]
+    [
+      authState,
+      user,
+      isLoading,
+      error,
+      login,
+      register,
+      verifyEmail,
+      resendVerification,
+      forgotPassword,
+      verifyResetCode,
+      resetPassword,
+      updateProfile,
+      logout,
+      refreshUser,
+      clearError,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
