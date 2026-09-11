@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { X, AlertTriangle, CheckCircle2, Trash2, Loader2, Search, Package, AlertCircle } from "lucide-react";
+import { X, AlertTriangle, CheckCircle2, Trash2, Loader2, Search, Package, AlertCircle, CheckSquare, Square, Zap, Clock, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
@@ -15,6 +15,9 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
   const [disposalCart, setDisposalCart] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Expiry filter mode: default to 'EXPIRED_ONLY' per user requirement
+  const [expiryFilterMode, setExpiryFilterMode] = useState<'EXPIRED_ONLY' | 'NEAR_EXPIRY' | 'ALL'>('EXPIRED_ONLY');
 
   // Form fields
   const [disposalReason, setDisposalReason] = useState("Thuốc quá hạn sử dụng theo quy định Dược (Hết date)");
@@ -36,8 +39,8 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
   const [selectedClassification, setSelectedClassification] = useState("");
 
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
-    targetGroup: true,
-    country: true,
+    targetGroup: false,
+    country: false,
   });
 
   const toggleSection = (section: string) => {
@@ -61,6 +64,20 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
     selectedBrand || selectedIndication || selectedBrandOrigin || selectedIngredient || selectedClassification
   );
 
+  // Helper check batch status
+  const isBatchExpired = (b: any) => {
+    if (!b || !b.expDate) return false;
+    return new Date(b.expDate).getTime() <= Date.now() && (b.stock > 0 || b.quantity > 0);
+  };
+
+  const isBatchNearExpiry = (b: any) => {
+    if (!b || !b.expDate) return false;
+    const expTime = new Date(b.expDate).getTime();
+    const now = Date.now();
+    const diffDays = (expTime - now) / (1000 * 60 * 60 * 24);
+    return diffDays > 0 && diffDays <= 60 && (b.stock > 0 || b.quantity > 0);
+  };
+
   // Fetch full medicines for filtering
   useEffect(() => {
     api.get('/api/medicines?limit=500')
@@ -74,9 +91,32 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
       });
   }, []);
 
+  // Expiry Statistics
+  const stats = useMemo(() => {
+    let expiredCount = 0;
+    let nearExpiryCount = 0;
+    medicines.forEach(m => {
+      const batches = m.batches || [];
+      if (batches.some(isBatchExpired)) expiredCount++;
+      else if (batches.some(isBatchNearExpiry)) nearExpiryCount++;
+    });
+    return { expiredCount, nearExpiryCount, totalCount: medicines.length };
+  }, [medicines]);
+
   // Filter medicines
   const filteredMedicines = useMemo(() => {
     return medicines.filter(m => {
+      const batches = m.batches || [];
+
+      // Expiry filter logic
+      if (expiryFilterMode === 'EXPIRED_ONLY') {
+        const hasExpired = batches.some(isBatchExpired);
+        if (!hasExpired) return false;
+      } else if (expiryFilterMode === 'NEAR_EXPIRY') {
+        const hasNearExpiry = batches.some(isBatchNearExpiry);
+        if (!hasNearExpiry) return false;
+      }
+
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const matchName = m.name?.toLowerCase().includes(q);
@@ -97,9 +137,15 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
 
       return true;
     });
-  }, [medicines, searchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+  }, [medicines, expiryFilterMode, searchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
 
-  // Add medicine to disposal cart
+  // Check if all currently displayed medicines are added
+  const allDisplayedSelected = useMemo(() => {
+    if (filteredMedicines.length === 0) return false;
+    return filteredMedicines.every(m => disposalCart.some(i => i.id === (m.id || m._id)));
+  }, [filteredMedicines, disposalCart]);
+
+  // Add single medicine to disposal cart
   const handleAddMedicine = (med: any) => {
     const medId = med.id || med._id;
     const exists = disposalCart.find(i => i.id === medId);
@@ -108,9 +154,10 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
     }
 
     const batches = med.batches || [];
-    // Prioritize expired batches first
-    const expiredBatch = batches.find((b: any) => b.expDate && new Date(b.expDate) <= new Date() && b.stock > 0);
-    const defaultBatch = expiredBatch || batches.find((b: any) => b.stock > 0) || batches[0] || null;
+    // Prioritize expired batches first, then near-expiry, then with stock
+    const expiredBatch = batches.find(isBatchExpired);
+    const nearExpiryBatch = batches.find(isBatchNearExpiry);
+    const defaultBatch = expiredBatch || nearExpiryBatch || batches.find((b: any) => b.stock > 0) || batches[0] || null;
 
     setDisposalCart(prev => [
       ...prev,
@@ -119,10 +166,47 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
         id: medId,
         selectedBatchNo: defaultBatch?.batchNo || "",
         selectedBatch: defaultBatch,
-        quantity: defaultBatch ? Math.min(1, defaultBatch.stock || 1) : 1,
+        quantity: defaultBatch ? (defaultBatch.stock || 1) : 1, // Default full stock for disposal
         maxStock: defaultBatch?.stock || 0
       }
     ]);
+  };
+
+  // Toggle "Select All" / "Deselect All" for current filtered view
+  const handleToggleSelectAll = () => {
+    if (allDisplayedSelected) {
+      // Unselect all displayed
+      const displayedIds = new Set(filteredMedicines.map(m => m.id || m._id));
+      setDisposalCart(prev => prev.filter(item => !displayedIds.has(item.id)));
+    } else {
+      // Select all displayed
+      setDisposalCart(prev => {
+        const currentIds = new Set(prev.map(i => i.id));
+        const newItems: any[] = [];
+
+        for (const med of filteredMedicines) {
+          const medId = med.id || med._id;
+          if (!currentIds.has(medId)) {
+            const batches = med.batches || [];
+            const expiredBatch = batches.find(isBatchExpired);
+            const nearExpiryBatch = batches.find(isBatchNearExpiry);
+            const defaultBatch = expiredBatch || nearExpiryBatch || batches.find((b: any) => b.stock > 0) || batches[0] || null;
+
+            if (defaultBatch) {
+              newItems.push({
+                ...med,
+                id: medId,
+                selectedBatchNo: defaultBatch.batchNo || "",
+                selectedBatch: defaultBatch,
+                quantity: defaultBatch.stock || 1,
+                maxStock: defaultBatch.stock || 0
+              });
+            }
+          }
+        }
+        return [...prev, ...newItems];
+      });
+    }
   };
 
   const handleBatchChange = (medId: string, batchNo: string) => {
@@ -136,7 +220,7 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
           selectedBatchNo: batchNo,
           selectedBatch: foundBatch,
           maxStock,
-          quantity: Math.min(item.quantity, maxStock || 1)
+          quantity: maxStock > 0 ? maxStock : 1 // Auto fill max stock of newly selected batch
         };
       }
       return item;
@@ -155,6 +239,10 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
 
   const handleRemoveItem = (medId: string) => {
     setDisposalCart(prev => prev.filter(item => item.id !== medId));
+  };
+
+  const handleClearCart = () => {
+    setDisposalCart([]);
   };
 
   const totalQuantity = useMemo(() => {
@@ -215,18 +303,23 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="relative bg-[#f8fafc] rounded-2xl shadow-2xl w-full max-w-[1500px] h-[90vh] flex flex-col overflow-hidden border border-slate-200"
+        className="relative bg-[#f8fafc] rounded-2xl shadow-2xl w-full max-w-[1520px] h-[92vh] flex flex-col overflow-hidden border border-slate-200"
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
+        <div className="px-6 py-3.5 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-sm font-black">
               <Trash2 size={20} />
             </div>
             <div>
-              <h2 className="font-extrabold text-slate-900 text-lg">Lập Phiếu Xuất Hủy Thuốc (GSP / GPP)</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-extrabold text-slate-900 text-lg">Lập Phiếu Xuất Hủy Thuốc (GSP / GPP)</h2>
+                <span className="px-2 py-0.5 bg-rose-50 text-rose-700 text-[11px] font-black rounded-md border border-rose-200">
+                  Rà Soát Hết Hạn Tự Động
+                </span>
+              </div>
               <p className="text-xs font-semibold text-slate-500">
-                Thực hiện rà soát lô thuốc, trừ tồn kho và lưu biên bản theo Thông tư 02/2018/TT-BYT & 36/2018/TT-BYT
+                Lọc nhanh thuốc quá hạn/hết date, chọn tất cả tự động điền toàn bộ tồn kho và xuất biên bản tiêu hủy
               </p>
             </div>
           </div>
@@ -255,46 +348,171 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
             />
           </div>
 
-          {/* Middle Column: Medicine Grid */}
+          {/* Middle Column: Medicine Grid with Expiry Tabs and Select All Button */}
           <div className="flex-1 bg-slate-50 overflow-y-auto p-5 flex flex-col min-h-0">
-            <div className="mb-4 relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm thuốc theo tên, hoạt chất, số đăng ký, mã vạch..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-sm"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
-                >
-                  <X size={14} />
-                </button>
-              )}
+
+            {/* Expiry Status Tabs & Action Toolbar */}
+            <div className="mb-4 space-y-3 shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm">
+                
+                {/* Expiry Filter Tabs */}
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    onClick={() => setExpiryFilterMode('EXPIRED_ONLY')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                      expiryFilterMode === 'EXPIRED_ONLY'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50'
+                    }`}
+                  >
+                    <ShieldAlert size={14} />
+                    Chỉ Thuốc Hết Hạn
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      expiryFilterMode === 'EXPIRED_ONLY' ? 'bg-rose-700 text-white' : 'bg-rose-100 text-rose-700'
+                    }`}>
+                      {stats.expiredCount}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setExpiryFilterMode('NEAR_EXPIRY')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                      expiryFilterMode === 'NEAR_EXPIRY'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-amber-600 hover:bg-amber-50'
+                    }`}
+                  >
+                    <Clock size={14} />
+                    Cận Hạn (≤60 ngày)
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      expiryFilterMode === 'NEAR_EXPIRY' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {stats.nearExpiryCount}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setExpiryFilterMode('ALL')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                      expiryFilterMode === 'ALL'
+                        ? 'bg-[#0057cd] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    Tất Cả Danh Mục
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      expiryFilterMode === 'ALL' ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {stats.totalCount}
+                    </span>
+                  </button>
+                </div>
+
+                {/* SELECT ALL BUTTON */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleToggleSelectAll}
+                    disabled={filteredMedicines.length === 0}
+                    className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-sm ${
+                      allDisplayedSelected
+                        ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300'
+                        : 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-200'
+                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  >
+                    {allDisplayedSelected ? (
+                      <>
+                        <CheckSquare size={16} />
+                        Bỏ Chọn Tất Cả ({filteredMedicines.length})
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={16} className="text-amber-300 fill-amber-300" />
+                        Chọn Tất Cả ({filteredMedicines.length} thuốc)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm nhanh theo tên thuốc, số đăng ký, hoạt chất, số lô..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-sm"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
 
+            {/* Medicine Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
               {filteredMedicines.length === 0 ? (
-                <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
-                  <Search size={40} className="mb-4 opacity-50" />
-                  <p className="text-sm font-bold">Không tìm thấy thuốc phù hợp</p>
+                <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-8">
+                  <Package size={48} className="mb-4 opacity-40 text-slate-300" />
+                  <p className="text-base font-black text-slate-700">
+                    {expiryFilterMode === 'EXPIRED_ONLY' 
+                      ? 'Kho hiện tại không có thuốc nào bị quá hạn!'
+                      : 'Không tìm thấy thuốc phù hợp bộ lọc'}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-400 mt-1 text-center max-w-sm">
+                    {expiryFilterMode === 'EXPIRED_ONLY'
+                      ? 'Tất cả các lô thuốc đang trong hạn sử dụng an toàn. Bạn có thể chuyển tab sang "Cận Hạn" hoặc "Tất Cả Danh Mục" để kiểm tra.'
+                      : 'Vui lòng thử tìm kiếm với từ khóa khác hoặc xóa bớt tiêu chí lọc.'}
+                  </p>
+                  {expiryFilterMode === 'EXPIRED_ONLY' && (
+                    <button
+                      onClick={() => setExpiryFilterMode('ALL')}
+                      className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Xem tất cả danh mục thuốc
+                    </button>
+                  )}
                 </div>
               ) : (
                 filteredMedicines.map(med => {
                   const medId = med.id || med._id;
                   const isAdded = disposalCart.some(i => i.id === medId);
+                  const batches = med.batches || [];
+                  const expiredBatches = batches.filter(isBatchExpired);
+                  const nearExpBatches = batches.filter(isBatchNearExpiry);
+
                   return (
-                    <MedicineCard
-                      key={medId}
-                      med={med}
-                      added={isAdded}
-                      onAddToCart={(m) => { handleAddMedicine(m); }}
-                      onClick={() => { handleAddMedicine(med); }}
-                      allowOutOfStock={true}
-                    />
+                    <div key={medId} className="relative group">
+                      <MedicineCard
+                        med={med}
+                        added={isAdded}
+                        onAddToCart={(m) => { handleAddMedicine(m); }}
+                        onClick={() => { handleAddMedicine(med); }}
+                        allowOutOfStock={true}
+                      />
+                      
+                      {/* Top Overlay Badge for Expiry indicator */}
+                      {expiredBatches.length > 0 && (
+                        <div className="absolute top-2 right-2 pointer-events-none z-10">
+                          <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider animate-pulse">
+                            <ShieldAlert size={10} /> Hết hạn ({expiredBatches.length} lô)
+                          </span>
+                        </div>
+                      )}
+                      {expiredBatches.length === 0 && nearExpBatches.length > 0 && (
+                        <div className="absolute top-2 right-2 pointer-events-none z-10">
+                          <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider">
+                            <Clock size={10} /> Cận date ({nearExpBatches.length} lô)
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   );
                 })
               )}
@@ -305,13 +523,24 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
           <div className="w-full md:w-[450px] lg:w-[500px] xl:w-[560px] border-l border-slate-200 bg-white flex flex-col shrink-0">
             <div className="p-5 flex-1 flex flex-col overflow-hidden space-y-4">
               <div className="flex justify-between items-center shrink-0">
-                <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <Trash2 size={16} className="text-rose-600" />
-                  Danh Sách Thuốc Xuất Hủy
-                </h3>
-                <span className="px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-lg border border-rose-100">
-                  {disposalCart.length} loại thuốc ({totalQuantity} đv)
-                </span>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <Trash2 size={16} className="text-rose-600" />
+                    Danh Sách Thuốc Xuất Hủy
+                  </h3>
+                  <span className="px-2.5 py-0.5 bg-rose-50 text-rose-700 text-xs font-black rounded-lg border border-rose-200">
+                    {disposalCart.length} thuốc ({totalQuantity} đv)
+                  </span>
+                </div>
+
+                {disposalCart.length > 0 && (
+                  <button
+                    onClick={handleClearCart}
+                    className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors"
+                  >
+                    Xóa tất cả
+                  </button>
+                )}
               </div>
 
               {/* Items List */}
@@ -321,14 +550,15 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
                     <Package size={36} className="opacity-50" />
                     <p className="text-sm font-bold">Chưa chọn thuốc nào để xuất hủy.</p>
                     <p className="text-xs text-slate-400 text-center max-w-xs">
-                      Hãy tìm kiếm và bấm nút (+) trên thẻ thuốc ở giữa để thêm vào danh sách tiêu hủy.
+                      Hãy bấm nút <strong>"⚡ Chọn Tất Cả"</strong> ở trên hoặc nhấn (+) trên từng thẻ thuốc để đưa vào biên bản.
                     </p>
                   </div>
                 ) : (
                   disposalCart.map((item) => {
                     const batches = item.batches || [];
                     const selectedBatch = item.selectedBatch;
-                    const isExp = selectedBatch?.expDate && new Date(selectedBatch.expDate) <= new Date();
+                    const isExp = isBatchExpired(selectedBatch);
+                    const isNearExp = isBatchNearExpiry(selectedBatch);
 
                     return (
                       <div key={item.id} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
@@ -353,8 +583,13 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
                             <div className="flex justify-between items-center mb-1">
                               <label className="text-[10px] font-black uppercase text-slate-500">LÔ THUỐC (BATCH NO) *</label>
                               {isExp && (
-                                <span className="text-[9px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded">
-                                  HẾT HẠN
+                                <span className="text-[9px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200">
+                                  ĐÃ HẾT HẠN
+                                </span>
+                              )}
+                              {!isExp && isNearExp && (
+                                <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">
+                                  CẬN HẠN
                                 </span>
                               )}
                             </div>
@@ -371,7 +606,7 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
                                 <option value="" disabled>-- Chọn số lô --</option>
                                 {batches.map((b: any, bIdx: number) => (
                                   <option key={bIdx} value={b.batchNo}>
-                                    Lô: {b.batchNo} | Tồn: {b.stock} | HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString("vi-VN") : "N/A"}
+                                    Lô: {b.batchNo} | Tồn: {b.stock} | HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString("vi-VN") : "N/A"} {isBatchExpired(b) ? '🔴 [HẾT HẠN]' : ''}
                                   </option>
                                 ))}
                               </select>
@@ -409,7 +644,13 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
                                     +
                                   </button>
                                 </div>
-                                <span className="text-[10px] text-slate-400 font-bold">/ {item.maxStock}</span>
+                                <button
+                                  onClick={() => updateQuantity(item.id, item.maxStock)}
+                                  className="text-[10px] text-rose-600 hover:underline font-bold"
+                                  title="Hủy toàn bộ số tồn của lô này"
+                                >
+                                  (Hết: {item.maxStock})
+                                </button>
                               </div>
                             </div>
                           )}
