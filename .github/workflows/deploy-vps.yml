@@ -3,9 +3,9 @@ name: 🚀 Production CI/CD — Auto Deploy to iNet VPS
 on:
   push:
     branches:
-      - main
+      - demo
       - dev
-      - feat/mobile-authen
+      - main
   workflow_dispatch:
 
 jobs:
@@ -100,8 +100,8 @@ jobs:
               git reset --hard
               git fetch --all
               echo "🌿 Đang checkout nhánh: $TARGET_BRANCH"
-              git checkout "$TARGET_BRANCH" || git checkout dev || git checkout main
-              git pull origin "$TARGET_BRANCH" || git pull origin dev || git pull origin main
+              git checkout "$TARGET_BRANCH" || git checkout demo || git checkout dev || git checkout main
+              git pull origin "$TARGET_BRANCH" || git pull origin demo || git pull origin dev || git pull origin main
             fi
 
             # 5. Khởi tạo file .env từ mẫu nếu chưa tồn tại
@@ -126,8 +126,8 @@ jobs:
             docker image prune -f
 
             echo "=================================================="
-            echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ!"
-            echo "👉 Frontend Web: http://103.75.187.86 (hoặc http://103.75.187.86:3000)"
-            echo "👉 Backend API:  http://103.75.187.86:4000/api"
+            echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ TRÊN PRODUCTION!"
+            echo "👉 Website:      http://abcpharmacy.store (hoặc http://103.75.187.86)"
+            echo "👉 Backend API:  http://abcpharmacy.store/api (hoặc http://103.75.187.86:4000/api)"
             echo "=================================================="
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
