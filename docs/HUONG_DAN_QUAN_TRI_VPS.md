@@ -227,3 +227,38 @@ docker system prune -a --volumes -f
 | **Khi một Server Production bị chậm đột ngột, quy trình chẩn đoán (Triage) của bạn gồm những bước nào?** | Áp dụng nguyên tắc **USE Method (Utilization, Saturation, Errors)**:<br>1. **CPU:** Gõ `uptime` kiểm tra Load Average (nếu lớn hơn số core CPU là quá tải). Dùng `htop` xem tiến trình nào ngốn CPU.<br>2. **Memory:** Gõ `free -h` xem có đang cạn RAM và bị swap thrashing không.<br>3. **Disk I/O:** Gõ `iostat -xz 1` hoặc `iotop` xem ổ cứng có bị nghẽn thắt cổ chai không.<br>4. **Network:** Gõ `netstat -tulpn` hoặc `ss -s` xem số lượng kết nối TCP đang mở.<br>5. **Logs:** Kiểm tra `journalctl -xe` hoặc `docker logs` để tìm mã lỗi 500. |
 | **Tại sao cần giới hạn kích thước log của Docker Container?** | Mặc định Docker ghi log dạng JSON không giới hạn dung lượng. Với các ứng dụng có nhiều log (Kafka, Gateway nhận hàng ngàn request/s), file log có thể ngốn sạch 80GB ổ cứng sau vài tuần, gây sập server. Cần cấu hình `max-size: "50m"` và `max-file: "3"` trong `daemon.json` hoặc compose file. |
 | **Khác biệt giữa `SIGTERM` và `SIGKILL` khi tắt container là gì?** | `docker stop` gửi tín hiệu `SIGTERM` (Signal 15), cho phép ứng dụng có 10 giây để **Graceful Shutdown**: đóng kết nối DB, hoàn thành nốt các job Kafka đang dở dang, hủy đăng ký service. Nếu sau 10 giây tiến trình chưa dừng, Docker mới gửi `SIGKILL` (Signal 9) ép buộc ngắt ngay lập tức. |
+
+---
+
+## 8. Bảng Tra Cứu Nhanh Các Lệnh Hay Gặp Nhất Trên VPS (Daily CheatSheet)
+
+Dưới đây là các câu lệnh "bỏ túi" mà kỹ sư vận hành Linux và DevOps sử dụng hàng ngày:
+
+### 8.1 Nhóm Quản Trị Mạng & Tường Lửa (Firewall & Network)
+* `ufw allow 80/tcp && ufw reload`:
+  * `ufw allow 80/tcp`: Mở cổng số 80 (cổng tiêu chuẩn của Web HTTP) với giao thức TCP để cho phép người dùng/Cloudflare kết nối vào web.
+  * `&&`: Toán tử logic "VÀ" — chỉ thực hiện lệnh tiếp theo nếu lệnh đầu tiên chạy thành công không có lỗi.
+  * `ufw reload`: Nạp lại toàn bộ cấu hình tường lửa ngay lập tức để rule mới có hiệu lực mà không làm gián đoạn các kết nối hiện tại.
+* `ufw status numbered`: Xem danh sách tất cả các cổng đang mở kèm số thứ tự (dễ xóa bằng lệnh `ufw delete <số>`).
+* `ss -tulpn` (hoặc `netstat -tulpn`): Xem tất cả các cổng mạng đang mở trên VPS và tiến trình nào đang lắng nghe cổng đó.
+* `curl -I http://localhost:80`: Kiểm tra nhanh xem Web Server cục bộ có phản hồi mã HTTP (200, 301, 404) không.
+
+### 8.2 Nhóm Quản Trị Docker & Dự Án WDP301
+* `docker compose -f docker-compose.prod.yml ps`: Xem trạng thái các container (Up, Healthy hay Exited).
+* `docker compose -f docker-compose.prod.yml logs -f --tail 50 <tên-service>`: Xem 50 dòng log gần nhất và theo dõi log mới theo thời gian thực (ví dụ service: `api-gateway`, `kafka`).
+* `docker compose -f docker-compose.prod.yml restart <tên-service>`: Khởi động lại riêng 1 container khi sửa file cấu hình mà không làm sập các service khác.
+* `docker stats`: Bảng điều khiển trực quan hiển thị CPU%, RAM tiêu thụ thực tế của từng container.
+* `docker image prune -f`: Dọn sạch các image rác/trung gian để giải phóng ổ cứng sau mỗi lần build.
+
+### 8.3 Nhóm Kiểm Tra Phần Cứng & Bộ Nhớ (Resource Health)
+* `free -h`: Kiểm tra dung lượng RAM thật và Swap đang dùng/trống bao nhiêu GB.
+* `df -h /`: Kiểm tra ổ cứng phân vùng gốc `/` còn trống bao nhiêu phần trăm (cảnh báo nếu > 85%).
+* `htop`: Mở bảng điều khiển CPU/RAM trực quan (bấm phím `F10` hoặc `q` để thoát).
+* `uptime`: Xem thời gian server đã chạy liên tục và chỉ số **Load Average** trong 1, 5, 15 phút.
+
+### 8.4 Nhóm Thao Tác File & Tiến Trình Hệ Thống
+* `nano <đường-dẫn-file>`: Mở trình soạn thảo file nhanh (Lưu: `Ctrl + O` -> `Enter`, Thoát: `Ctrl + X`).
+* `tail -f /var/log/syslog`: Xem log của toàn bộ hệ điều hành Ubuntu theo thời gian thực.
+* `systemctl restart docker`: Khởi động lại dịch vụ Docker khi Docker daemon bị đơ.
+* `history | tail -n 20`: Xem lại 20 câu lệnh gần nhất bạn vừa gõ trên terminal.
+
