@@ -9,6 +9,7 @@
 
 x-backend-common: &backend-common
   image: ${BACKEND_IMAGE:-wdp301-backend:latest}
+  pull_policy: never
   restart: unless-stopped
   env_file:
     - path: .env
@@ -177,6 +178,7 @@ services:
   # 7. AI Service — self-hosted, no third-party API (Pre-built image)
   ai-service:
     image: ${AI_IMAGE:-wdp301-ai:latest}
+    pull_policy: never
     container_name: wdp301-ai
     restart: unless-stopped
     env_file:
@@ -210,6 +212,7 @@ services:
   # ──────────────────────────────────────────────────────────
   frontend:
     image: ${FRONTEND_IMAGE:-wdp301-frontend:latest}
+    pull_policy: never
     container_name: wdp301-frontend
     restart: unless-stopped
     ports:
