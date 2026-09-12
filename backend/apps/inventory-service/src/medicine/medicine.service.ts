@@ -1818,10 +1818,10 @@ export class MedicineService implements OnModuleInit {
             racks: 1
           }
         },
-        { $sort: { zone: 1 } }
+        { $sort: { zone: 1 as const } }
       ];
 
-      const rawZones = await this.batchModel.aggregate(pipeline).exec();
+      const rawZones = await this.batchModel.aggregate(pipeline as any).exec();
       const today = new Date();
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
