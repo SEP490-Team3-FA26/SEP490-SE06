@@ -25,7 +25,17 @@ x-backend-common: &backend-common
     kafka:
       condition: service_healthy
     redis:
-      condition: service_started
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD-SHELL", "pidof node > /dev/null || exit 1"]
+    interval: 20s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+  deploy:
+    resources:
+      limits:
+        memory: 384m
   networks:
     wdp301-network:
 
@@ -40,6 +50,16 @@ services:
     command: redis-server --save 60 1 --loglevel warning --maxmemory 64mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     networks: [wdp301-network]
 
   kafka:
@@ -68,6 +88,10 @@ services:
       timeout: 10s
       retries: 15
       start_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: 768m
     networks: [wdp301-network]
 
   qdrant:
@@ -79,6 +103,16 @@ services:
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
       QDRANT__CLUSTER__ENABLED: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 384m
     networks: [wdp301-network]
 
   # ──────────────────────────────────────────────────────────
@@ -95,6 +129,16 @@ services:
     environment:
       <<: *backend-env
       PORT: 4000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     networks:
       wdp301-network:
         aliases:
@@ -130,11 +174,8 @@ services:
     container_name: wdp301-orders
     command: node dist/apps/orders-service/main.js
 
-  # 7. AI Service — self-hosted, no third-party API
+  # 7. AI Service — self-hosted, no third-party API (Pre-built image)
   ai-service:
-    build:
-      context: .
-      dockerfile: backend/apps/ai-service/Dockerfile
     image: ${AI_IMAGE:-wdp301-ai:latest}
     container_name: wdp301-ai
     restart: unless-stopped
@@ -147,17 +188,22 @@ services:
         required: false
     environment:
       QDRANT_HOST: qdrant
-      NODE_OPTIONS: "--max-old-space-size=512"
     ports:
       - "8000:8000"
     depends_on:
       - qdrant
       - kafka
-    networks: [wdp301-network]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     deploy:
       resources:
         limits:
           memory: 1g
+    networks: [wdp301-network]
 
   # ──────────────────────────────────────────────────────────
   # Frontend Web (React / Vite + Nginx Reverse Proxy)
@@ -171,6 +217,16 @@ services:
       - "3000:3000"
     depends_on:
       - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     networks: [wdp301-network]
 
 networks:
