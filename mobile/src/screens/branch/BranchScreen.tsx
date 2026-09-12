@@ -117,9 +117,10 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   };
 
   const filteredAlerts = lowStockItems.filter((item) => {
+    const sq = (searchQuery || '').toLowerCase();
     const matchesSearch =
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.supplier && item.supplier.toLowerCase().includes(searchQuery.toLowerCase()));
+      (item.name || '').toLowerCase().includes(sq) ||
+      (item.supplier && (item.supplier || '').toLowerCase().includes(sq));
     if (!matchesSearch) return false;
     if (lowStockFilter === 'OUT') return item.stock === 0;
     if (lowStockFilter === 'LOW') return item.stock > 0 && item.stock <= 10;

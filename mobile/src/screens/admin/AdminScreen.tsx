@@ -138,10 +138,12 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   };
 
   const filteredEmployees = employees.filter(
-    (e) =>
-      e.name.toLowerCase().includes(searchEmployee.toLowerCase()) ||
-      e.email.toLowerCase().includes(searchEmployee.toLowerCase()) ||
-      e.role.toLowerCase().includes(searchEmployee.toLowerCase())
+    (e) => {
+      const q = (searchEmployee || '').toLowerCase();
+      return (e.name || '').toLowerCase().includes(q) ||
+        (e.email || '').toLowerCase().includes(q) ||
+        (e.role || '').toLowerCase().includes(q);
+    }
   );
 
   return (
