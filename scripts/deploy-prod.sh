@@ -58,7 +58,7 @@ docker build -t wdp301-ai:latest ./backend/apps/ai-service -f ./backend/apps/ai-
 
 # 6. Khởi chạy toàn bộ hệ sinh thái Microservices
 echo "🐳 Đang khởi động hệ thống qua Docker Compose..."
-docker compose -f docker-compose.prod.yml up -d --remove-orphans
+docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
 
 # 7. Dọn dẹp Docker images rác
 echo "🧹 Dọn dẹp Docker images trung gian..."
