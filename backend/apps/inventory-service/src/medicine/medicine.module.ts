@@ -4,6 +4,8 @@ import { MedicineController } from './medicine.controller';
 import { MedicineService } from './medicine.service';
 import { Medicine, MedicineSchema } from './schemas/medicine.schema';
 import { MedicineBatch, MedicineBatchSchema } from './schemas/medicine-batch.schema';
+import { BranchInventory, BranchInventorySchema } from './schemas/branch-inventory.schema';
+import { BranchStockBalance, BranchStockBalanceSchema } from './schemas/branch-stock-balance.schema';
 import { InventoryCheck, InventoryCheckSchema } from './schemas/inventory-check.schema';
 import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/schemas/inventory-transaction.schema';
 
@@ -12,12 +14,14 @@ import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/sc
     MongooseModule.forFeature([
       { name: Medicine.name, schema: MedicineSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
+      { name: BranchInventory.name, schema: BranchInventorySchema },
+      { name: BranchStockBalance.name, schema: BranchStockBalanceSchema },
       { name: InventoryCheck.name, schema: InventoryCheckSchema },
       { name: InventoryTransaction.name, schema: InventoryTransactionSchema },
     ]),
   ],
   controllers: [MedicineController],
   providers: [MedicineService],
-  exports: [MongooseModule], // Export MongooseModule so other modules can use Medicine/MedicineBatch models
+  exports: [MongooseModule], // Export MongooseModule so other modules can use Medicine/BranchInventory models
 })
 export class MedicineModule {}
