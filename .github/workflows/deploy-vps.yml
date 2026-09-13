@@ -98,10 +98,12 @@ jobs:
               echo "📂 Thư mục dự án đã có, đang kéo mã nguồn mới nhất..."
               cd "$APP_DIR"
               git reset --hard
-              git fetch --all
-              echo "🌿 Đang checkout nhánh: $TARGET_BRANCH"
-              git checkout "$TARGET_BRANCH" || git checkout demo || git checkout dev || git checkout main
-              git pull origin "$TARGET_BRANCH" || git pull origin demo || git pull origin dev || git pull origin main
+              git clean -fd
+              git fetch --all --prune
+              echo "🌿 Đang checkout và đồng bộ tuyệt đối nhánh: $TARGET_BRANCH"
+              git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH" || git checkout "$TARGET_BRANCH" || git checkout demo
+              git reset --hard "origin/$TARGET_BRANCH" || git reset --hard origin/demo || git reset --hard HEAD
+              git clean -fd
             fi
 
             # 5. Khởi tạo file .env từ mẫu nếu chưa tồn tại
