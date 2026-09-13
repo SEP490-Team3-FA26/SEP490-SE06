@@ -119,7 +119,7 @@ jobs:
 
             # 7. Khởi chạy toàn bộ hệ sinh thái Microservices
             echo "🐳 Đang khởi động hệ thống qua Docker Compose..."
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
 
             # 8. Dọn dẹp images trung gian cũ để giải phóng ổ cứng
             echo "🧹 Dọn dẹp Docker images rác..."
