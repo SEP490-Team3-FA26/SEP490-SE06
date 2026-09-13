@@ -16,10 +16,10 @@ export class BranchService {
     private readonly userModel: Model<UserDocument>,
     @InjectModel(MedicineBatch.name)
     private readonly batchModel: Model<MedicineBatch>,
-  ) {}
+  ) { }
 
   async findAll(): Promise<any[]> {
-    const branches = await this.branchModel.find().sort({ branchCode: 1 }).lean().exec();
+    let branches = await this.branchModel.find().sort({ branchCode: 1 }).lean().exec();
 
     // Tính toán dữ liệu nhân sự & tồn kho thực tế từ DB cho từng chi nhánh
     const enrichedBranches = await Promise.all(
@@ -90,7 +90,7 @@ export class BranchService {
 
   async handleLowStockAlert(data: { branchId: string; medicineId: string; medicineName: string; currentStock: number; minStock: number; timestamp: string }) {
     this.logger.warn(`Received low stock alert for branch ${data.branchId}: ${data.medicineName} (${data.currentStock} < ${data.minStock})`);
-    
+
     const branch = await this.branchModel.findById(data.branchId).exec();
     if (!branch) return;
 
@@ -106,7 +106,7 @@ export class BranchService {
     branch.alerts = branch.alerts || [];
     // Thêm alert mới vào đầu danh sách
     branch.alerts.unshift(newAlert as any);
-    
+
     // Cập nhật stats.lowStock
     branch.stats = branch.stats || { employees: 0, totalStock: 0, lowStock: 0, expiring: 0 };
     branch.stats.lowStock += 1;
