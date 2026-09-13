@@ -249,6 +249,16 @@ export class MedicineController {
     }
   }
 
+  @MessagePattern('inventory.medicine.warehouse_search')
+  async warehouseSearch(@Payload() data: { q: string }) {
+    try {
+      return await this.medicineService.warehouseSearch(data.q);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi tìm kiếm thuốc trong kho');
+    }
+  }
+
   @MessagePattern('inventory.medicine.sync_locations')
   async syncLocations() {
     try {

@@ -236,6 +236,7 @@ export class AppGatewayModule implements OnModuleInit {
       'inventory.medicine.create',
       'inventory.medicine.update',
       'inventory.medicine.warehouse_map',
+      'inventory.medicine.warehouse_search',
       'inventory.medicine.shelf_detail',
       'inventory.medicine.sync_locations',
       'inventory.reports.forecast_dataset',

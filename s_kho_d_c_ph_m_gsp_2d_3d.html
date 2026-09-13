@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ Đồ Kho Thuốc Tây Chuẩn GSP (2D & 3D)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            medblue: '#0284c7',
+            gspgreen: '#10b981',
+            alertamber: '#f59e0b',
+            coldblue: '#38bdf8',
+            securepurple: '#8b5cf6'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar and animations */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    .blueprint-grid {
+      background-size: 24px 24px;
+      background-image: 
+        linear-gradient(to right, rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(56, 189, 248, 0.08) 1px, transparent 1px);
+    }
+    .flow-arrow {
+      stroke-dasharray: 8;
+      animation: dashMove 1.5s linear infinite;
+    }
+    @keyframes dashMove {
+      to { stroke-dashoffset: -16; }
+    }
+    .pulse-sensor {
+      animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.15); }
+    }
+    #three-canvas-container canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      outline: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden select-none">
+
+  <header class="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 flex items-center justify-between px-4 z-20 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="p-2 bg-gradient-to-tr from-sky-600 to-teal-500 rounded-xl shadow-lg shadow-sky-500/20 text-white flex items-center justify-center">
+        <i data-lucide="boxes" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+          Kho Dược Phẩm GSP - Trung Tâm Phân Phối (DC)
+          <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">Quy mô 1.600+ SKUs</span>
+        </h1>
+        <p class="text-xs text-slate-400 hidden sm:block">Diện tích 2.500m² • Cụm kho lạnh đa dải nhiệt (2-8°C & -20°C) • Kệ High-Bay Selective</p>
+      </div>
+    </div>
+
+    <!-- Quick Stats Bar -->
+    <div class="hidden xl:flex items-center gap-3 text-xs bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700/60 text-slate-300">
+      <span class="flex items-center gap-1"><i data-lucide="database" class="w-3.5 h-3.5 text-sky-400"></i><b>1.620</b> Thuốc hoạt chất</span>
+      <span class="text-slate-600">|</span>
+      <span class="flex items-center gap-1"><i data-lucide="layers" class="w-3.5 h-3.5 text-teal-400"></i><b>3.400</b> Vị trí Pallet</span>
+      <span class="text-slate-600">|</span>
+      <span class="flex items-center gap-1"><i data-lucide="snowflake" class="w-3.5 h-3.5 text-cyan-400"></i><b>Cold-Chain</b> Kép 2-8°C &amp; -20°C</span>
+    </div>
+
+    <!-- Mode Switcher & Tools -->
+    <div class="flex items-center gap-2">
+      <!-- 2D / 3D Tabs -->
+      <div class="bg-slate-800/90 p-1 rounded-xl flex items-center border border-slate-700">
+        <button id="btn-view-3d" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all bg-sky-600 text-white shadow-md">
+          <i data-lucide="box" class="w-4 h-4"></i>
+          <span>Mô hình 3D</span>
+        </button>
+        <button id="btn-view-2d" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all text-slate-300 hover:text-white">
+          <i data-lucide="map" class="w-4 h-4"></i>
+          <span>Mặt bằng 2D</span>
+        </button>
+      </div>
+
+      <!-- Quick Preset Dropdown for 3D -->
+      <div id="camera-presets-wrapper" class="hidden md:flex items-center bg-slate-800/90 border border-slate-700 rounded-xl px-2 py-1 text-xs">
+        <span class="text-slate-400 mr-2 flex items-center gap-1"><i data-lucide="video" class="w-3.5 h-3.5"></i> Góc nhìn:</span>
+        <select id="camera-preset-select" class="bg-transparent text-slate-200 outline-none cursor-pointer py-0.5">
+          <option value="iso" class="bg-slate-900 text-white">Toàn cảnh Isometric</option>
+          <option value="top" class="bg-slate-900 text-white">Từ trên cao (Top-down)</option>
+          <option value="cold" class="bg-slate-900 text-white">Cụm Kho Lạnh &amp; Đông Sâu</option>
+          <option value="secure" class="bg-slate-900 text-white">Kho Thuốc Gây Nghiện &amp; Độc</option>
+          <option value="picking" class="bg-slate-900 text-white">Khu Soạn Lẻ Pick-to-Light</option>
+          <option value="receiving" class="bg-slate-900 text-white">Cửa Nhập Hàng Đa Cửa</option>
+        </select>
+      </div>
+
+      <!-- Information & Help Modal Button -->
+      <button id="btn-info-modal" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Quy chuẩn kho thuốc">
+        <i data-lucide="info" class="w-5 h-5"></i>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 relative flex overflow-hidden">
+
+    <!-- 3D Canvas Viewport -->
+    <div id="three-canvas-container" class="absolute inset-0 z-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <!-- 3D floating guidance overlay -->
+      <div class="absolute bottom-4 left-4 z-10 pointer-events-none flex flex-col gap-1.5">
+        <div class="bg-slate-900/80 backdrop-blur border border-slate-800/80 px-3 py-2 rounded-lg text-xs text-slate-300 flex items-center gap-2 shadow-lg">
+          <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-sky-400"></i>
+          <span><b>Chuột trái:</b> Xoay | <b>Chuột phải:</b> Trượt | <b>Cuộn:</b> Phóng to/nhỏ | <b>Click khu vực:</b> Xem chi tiết</span>
+        </div>
+        <div class="flex items-center gap-2 text-[11px] text-slate-400 px-1">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-400"></span> Có thể nhấp trực tiếp vào kho để mở thông số kỹ thuật.
+        </div>
+      </div>
+    </div>
+
+    <!-- 2D Blueprint Floor Plan Viewport (Hidden initially) -->
+    <div id="view-2d-container" class="absolute inset-0 z-0 hidden blueprint-grid bg-slate-950 p-4 sm:p-8 overflow-auto flex items-center justify-center">
+      <div class="relative w-[1280px] h-[780px] bg-slate-900/90 border-2 border-sky-500/40 rounded-2xl shadow-2xl shadow-sky-950/50 p-6 flex flex-col justify-between select-none">
+        
+        <!-- Blueprint Title & Legend Bar -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-sky-400 animate-ping"></span>
+            <h2 class="text-sm font-semibold tracking-wider uppercase text-sky-300">Tổng Mặt Bằng Trung Tâm Phân Phối Dược Phẩm (1.600+ SKUs - Chuẩn GSP/GDP)</h2>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-slate-400">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500/30 border border-emerald-400"></span> Inbound / Outbound</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-cyan-500/30 border border-cyan-400"></span> Cụm Kho Lạnh 2-8°C &amp; -20°C</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-purple-500/30 border border-purple-400"></span> Thuốc KSĐB &amp; Độc</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-teal-500/30 border border-teal-400"></span> Picking 450 SKUs</span>
+          </div>
+        </div>
+
+        <!-- 2D Floor Interactive Grid Map -->
+        <div class="relative w-full h-[660px] mt-3 grid grid-cols-12 grid-rows-6 gap-2.5 text-xs">
+
+          <!-- Khu Nhập hàng (Receiving) - 2 Cửa bốc dỡ -->
+          <div data-zone="receiving" class="zone-2d col-span-3 row-span-2 border-2 border-dashed border-emerald-500/50 bg-emerald-950/20 hover:bg-emerald-900/30 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-emerald-400 flex items-center gap-1.5"><i data-lucide="truck" class="w-4 h-4"></i> 1. Cụm Tiếp Nhận (Inbound 3 Docks)</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Tiếp nhận xe tải lạnh</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">3 Dock Leveler thủy lực tự động, sàn khử trùng bánh xe, máy soi mã lô, kiểm nhiệt độ xe lạnh tức thì.</p>
+            </div>
+            <div class="text-[10px] text-emerald-500 flex justify-between items-center">
+              <span>Đệm túi khí Air-Shelter chống thất thoát nhiệt</span>
+              <span class="px-1.5 py-0.5 bg-emerald-500/10 rounded font-mono">Dock 1-3</span>
+            </div>
+          </div>
+
+          <!-- Khu Biệt Trữ / Chờ Kiểm Nghiệm (Quarantine) -->
+          <div data-zone="quarantine" class="zone-2d col-span-3 row-span-2 border border-amber-500/50 bg-amber-950/20 hover:bg-amber-900/30 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 flex items-center gap-1.5"><i data-lucide="shield-alert" class="w-4 h-4"></i> 2. Biệt Trữ &amp; Phòng Lấy Mẫu LAF</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">~60 SKUs đang kiểm</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Buồng lấy mẫu khí sạch vô trùng ISO Class 5 (Laminar Airflow), cách ly lô thuốc chờ chứng nhận COA/Phiếu kiểm nghiệm.</p>
+            </div>
+            <div class="text-[10px] text-amber-400 flex justify-between items-center">
+              <span>Hàng rào khóa điện tử cách ly</span>
+              <span class="font-mono text-amber-300">Biển Cấm Xuất Kho</span>
+            </div>
+          </div>
+
+          <!-- Cụm Kho Lạnh Mở Rộng: Kho Lạnh (2-8°C) + Đông Sâu (-20°C) + Phòng Đệm -->
+          <div data-zone="cold" class="zone-2d col-span-3 row-span-2 border-2 border-cyan-400/80 bg-gradient-to-br from-cyan-950/40 via-blue-950/40 to-slate-900/60 hover:from-cyan-900/50 hover:to-blue-900/50 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between shadow-lg shadow-cyan-950/40">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-cyan-300 flex items-center gap-1.5"><i data-lucide="snowflake" class="w-4 h-4 text-cyan-400"></i> Cụm Kho Lạnh Chuẩn WHO</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/40">180+ SKUs Lạnh</span>
+              </div>
+              <p class="text-slate-300 text-[11px] mt-1">Gồm 2 buồng: Kho mát sinh phẩm <b>2°C - 8°C</b> &amp; Buồng đông sâu <b>-20°C</b> cho huyết thanh, vaccine mRNA, Insulin &amp; Kháng thể đơn dòng.</p>
+            </div>
+            <div class="bg-cyan-950/60 border border-cyan-500/40 rounded p-1.5 text-[10px] text-cyan-200 flex items-center justify-between">
+              <span>Cửa Airlock 2 cửa trượt cách nhiệt</span>
+              <span class="font-bold text-emerald-400">Chiller dự phòng N+1</span>
+            </div>
+          </div>
+
+          <!-- Phòng Thuốc Độc & Kiểm Soát Đặc Biệt (Gây Nghiện / Hướng Thần) -->
+          <div data-zone="secure" class="zone-2d col-span-3 row-span-2 border-2 border-purple-500/60 bg-purple-950/30 hover:bg-purple-900/40 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-purple-300 flex items-center gap-1.5"><i data-lucide="lock" class="w-4 h-4 text-purple-400"></i> Kho Thuốc KSĐB &amp; Độc</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">~75 SKUs Bảng A-B</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Lưu trữ Fentanyl, Morphine, Diazepam, Codein. Khung vách thép hộp kiên cố chống đột nhập, 2 chìa khóa vật lý + xác thực vân tay 2 cấp.</p>
+            </div>
+            <div class="text-[10px] text-purple-400 flex items-center justify-between">
+              <span>Camera nhận diện AI 360°</span>
+              <span class="font-mono text-purple-300">2 Dược sĩ đồng kiểm</span>
+            </div>
+          </div>
+
+          <!-- Kho Chẵn Lớn: Pallet Racks High-Bay 4 Tầng (Phục vụ 850 SKUs hàng chính) -->
+          <div data-zone="bulk" class="zone-2d col-span-7 row-span-2 border border-sky-500/40 bg-sky-950/20 hover:bg-sky-900/30 transition rounded-xl p-3.5 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sky-400 flex items-center gap-2"><i data-lucide="layers" class="w-4 h-4"></i> 3. Kho Lưu Trữ Thuốc Thường (Kho Chẵn - High-Bay 850+ SKUs)</span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300">15°C - 25°C | RH &le; 70% | 2.800 Pallet</span>
+              </div>
+              <p class="text-slate-400 text-xs mt-1">Dãy kệ Selective 4 tầng cao 8.5m. Kháng sinh, Dịch truyền, Giảm đau, Tim mạch, Dạ dày. Quản lý theo chuẩn FEFO/FIFO mã QR định vị WMS tọa độ X-Y-Z.</p>
+              
+              <!-- Multi-Aisle Grid Map Indicator -->
+              <div class="grid grid-cols-8 gap-1 mt-2.5">
+                <div class="h-6 rounded bg-sky-800/40 border border-sky-700/60 flex items-center justify-center text-[10px] text-sky-300 font-mono">Dãy A (120)</div>
+                <div class="h-6 rounded bg-sky-800/40 border border-sky-700/60 flex items-center justify-center text-[10px] text-sky-300 font-mono">Dãy B (140)</div>
+                <div class="h-6 rounded bg-sky-800/40 border border-sky-700/60 flex items-center justify-center text-[10px] text-sky-300 font-mono">Dãy C (150)</div>
+                <div class="h-6 rounded bg-sky-800/40 border border-sky-700/60 flex items-center justify-center text-[10px] text-sky-300 font-mono">Dãy D (150)</div>
+                <div class="h-6 rounded bg-sky-800/40 border border-sky-700/60 flex items-center justify-center text-[10px] text-sky-300 font-mono">Dãy E (140)</div>
+                <div class="h-6 rounded bg-sky-800/40 border border-sky-700/60 flex items-center justify-center text-[10px] text-sky-300 font-mono">Dãy F (150)</div>
+                <div class="h-6 rounded bg-sky-900/60 border border-sky-600/70 flex items-center justify-center text-[10px] text-sky-200 font-mono">Dịch truyền</div>
+                <div class="h-6 rounded bg-sky-900/60 border border-sky-600/70 flex items-center justify-center text-[10px] text-sky-200 font-mono">Vật tư YT</div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-sky-400 pt-2 border-t border-sky-900/40">
+              <span class="flex items-center gap-1"><i data-lucide="radio" class="w-3 h-3 text-amber-400"></i> Mạng 12 cảm biến IoT: 22.1°C | 57% RH</span>
+              <span class="text-xs font-semibold">Lối đi xe nâng Reach Truck 3.2m</span>
+            </div>
+          </div>
+
+          <!-- Kho Soạn Hàng Lẻ Pick-to-Light (450 SKUs Luân Chuyển Nhanh) -->
+          <div data-zone="picking" class="zone-2d col-span-5 row-span-2 border border-teal-500/50 bg-teal-950/20 hover:bg-teal-900/30 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-teal-300 flex items-center gap-1.5"><i data-lucide="package-search" class="w-4 h-4"></i> 4. Khu Soạn Lẻ (Fast Picking - 450+ SKUs)</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 font-mono">Pick-to-Light System</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Kệ trọng lực dốc carton flow racks chia ô theo mã hoạt chất. Soạn hàng theo toa bệnh viện &amp; toa sỉ nhà thuốc tốc độ cao không nhầm lẫn.</p>
+            </div>
+            <div class="text-[10px] text-teal-400 flex items-center justify-between">
+              <span>Băng tải con lăn liên động bàn đóng gói</span>
+              <span class="font-semibold text-emerald-400">Độ chính xác 99.98%</span>
+            </div>
+          </div>
+
+          <!-- Khu Đóng Gói & Niêm Phong Chuẩn GDP (Packing Lines) -->
+          <div data-zone="packing" class="zone-2d col-span-4 row-span-2 border border-slate-700 bg-slate-800/30 hover:bg-slate-800/60 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="box" class="w-4 h-4 text-emerald-400"></i> 5. Dây Chuyền Đóng Gói GDP</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">6 Bàn thao tác Inox</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Đóng thùng thuốc lẻ, đóng thùng xốp chèn đá gel công nghệ PCM cho hàng lạnh, in dán tem niêm phong chống bóc tách.</p>
+            </div>
+            <div class="text-[10px] text-slate-400 flex justify-between">
+              <span>Cân đối chiếu trọng lượng tự động</span>
+              <span class="text-sky-400">Barcode Scanning 100%</span>
+            </div>
+          </div>
+
+          <!-- Cụm Cửa Xuất Hàng (Shipping Docks - 3 Cửa Xe Chuyên Dụng) -->
+          <div data-zone="shipping" class="zone-2d col-span-5 row-span-2 border-2 border-dashed border-sky-500/60 bg-sky-950/30 hover:bg-sky-900/40 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sky-400 flex items-center gap-1.5"><i data-lucide="truck" class="w-4 h-4"></i> 6. Cửa Xuất Hàng (Outbound Staging 3 Docks)</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">Xe chuyên dụng lạnh</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Tập kết theo tuyến giao hàng bệnh viện/tỉnh xa. Xe tải có thiết bị định vị GPS &amp; Data Logger nhiệt độ trực tiếp theo thời gian thực.</p>
+            </div>
+            <div class="text-[10px] text-sky-400 flex justify-between items-center">
+              <span>Kiểm tra nhiệt độ thùng lạnh trước khi lăn bánh</span>
+              <span class="px-1.5 py-0.5 bg-sky-500/20 rounded font-mono">Docks 4-6</span>
+            </div>
+          </div>
+
+          <!-- Khu Văn Phòng Điều Hành WMS & Lưu Trữ Mẫu Lưu (QC/Retention) -->
+          <div data-zone="office" class="zone-2d col-span-3 row-span-2 border border-slate-700 bg-slate-800/40 hover:bg-slate-800/70 transition rounded-xl p-3 cursor-pointer relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="laptop" class="w-4 h-4 text-sky-400"></i> Điều Hành &amp; Kho Mẫu Lưu</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">Server &amp; QA/QC</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1">Lưu trữ hồ sơ lô thuốc 5 năm, phòng lưu mẫu đối chứng từng lô sản xuất theo quy định Dược Điển.</p>
+            </div>
+            <div class="text-[10px] text-slate-400 flex justify-between">
+              <span>Hệ thống WMS Cloud</span>
+              <span class="text-emerald-400">Sao lưu 24/7</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footnote: Nguyên tắc luồng 1 chiều -->
+        <div class="border-t border-slate-800 pt-2.5 flex flex-wrap items-center justify-between text-xs text-slate-400">
+          <div class="flex items-center gap-3">
+            <span class="text-sky-400 font-semibold flex items-center gap-1"><i data-lucide="repeat-1" class="w-3.5 h-3.5"></i> Luồng Một Chiều Khép Kín (GSP-GDP):</span>
+            <span>(1) Cửa Nhập Inbound ➜ (2) Biệt Trữ / QC Sampling ➜ (3) Kệ High-Bay ➜ (4) Soạn Lẻ Pick-to-Light ➜ (5) Đóng Gói Niêm Phong ➜ (6) Cửa Xuất Outbound</span>
+          </div>
+          <div class="text-slate-500 italic">Tổng quy mô thiết kế đáp ứng trên 1.600 SKUs dược phẩm và sinh phẩm y tế</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Aside Drawer with SKU Browser and Zone Details -->
+    <aside id="info-drawer" class="absolute top-4 right-4 w-[420px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] overflow-y-auto bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-5 z-20 transition-all duration-300 transform translate-x-0">
+      <div class="flex items-start justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div id="drawer-icon-box" class="p-2 rounded-lg bg-sky-500/20 text-sky-400">
+            <i data-lucide="info" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="drawer-title" class="font-bold text-base text-white">Kho Lưu Trữ Chính (Pallet)</h3>
+            <p id="drawer-subtitle" class="text-xs text-sky-400">Khu vực bảo quản thuốc chuẩn GSP</p>
+          </div>
+        </div>
+        <button id="btn-close-drawer" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Real-time Metrics Card -->
+      <div class="grid grid-cols-2 gap-2.5 my-3.5">
+        <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex items-center gap-2.5">
+          <div class="p-2 rounded-lg bg-rose-500/10 text-rose-400"><i data-lucide="thermometer" class="w-4 h-4"></i></div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase">Nhiệt độ kiểm soát</div>
+            <div id="drawer-temp" class="text-sm font-bold text-slate-100">15°C - 25°C</div>
+          </div>
+        </div>
+        <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex items-center gap-2.5">
+          <div class="p-2 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="droplets" class="w-4 h-4"></i></div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase">Độ ẩm tối đa</div>
+            <div id="drawer-humidity" class="text-sm font-bold text-slate-100">&le; 70% RH</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Capacity & SKU Count Badge -->
+      <div class="bg-sky-950/40 border border-sky-500/30 rounded-xl p-2.5 flex items-center justify-between text-xs mb-3">
+        <div class="flex items-center gap-2 text-sky-300">
+          <i data-lucide="layers" class="w-4 h-4 text-sky-400"></i>
+          <span>Số lượng SKUs quản lý:</span>
+        </div>
+        <span id="drawer-sku-count" class="font-bold font-mono text-sky-200 bg-sky-800/50 px-2 py-0.5 rounded border border-sky-600/50">850 SKUs</span>
+      </div>
+
+      <!-- Detail description text -->
+      <div class="text-xs text-slate-300 space-y-3 leading-relaxed">
+        <p id="drawer-desc">
+          Khu vực rộng lớn nhất kho với kệ cao 4-5 tầng...
+        </p>
+
+        <!-- Sample SKU List in this zone -->
+        <div class="bg-slate-950/70 rounded-xl p-3 border border-slate-800">
+          <div class="font-semibold text-slate-200 text-xs mb-2 flex items-center justify-between">
+            <span class="flex items-center gap-1.5"><i data-lucide="pill" class="w-3.5 h-3.5 text-teal-400"></i> Nhóm thuốc tiêu biểu khu vực:</span>
+            <span class="text-[10px] text-slate-400 font-mono">1.600+ tổng kho</span>
+          </div>
+          <div id="drawer-sample-skus" class="flex flex-wrap gap-1.5">
+            <!-- Dynamically populated tags -->
+          </div>
+        </div>
+        
+        <div class="bg-slate-950/60 rounded-xl p-3 border border-slate-800">
+          <div class="font-semibold text-slate-200 text-xs mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400"></i> Tiêu chuẩn kỹ thuật GSP &amp; Vận hành:
+          </div>
+          <ul id="drawer-specs" class="list-disc list-inside text-[11px] text-slate-400 space-y-1">
+            <li>Sàn phẳng phủ sơn Epoxy kháng khuẩn, chống bám bụi.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Interaction buttons -->
+      <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+        <span class="text-slate-400 flex items-center gap-1 text-[11px]">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i> Đạt chuẩn WHO-GSP/GDP
+        </span>
+        <button id="btn-focus-zone-3d" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-medium transition flex items-center gap-1 shadow-lg shadow-sky-600/30">
+          <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+          <span>Zoom Vào Khu 3D</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Modal for GSP Rules & Guidelines -->
+    <div id="info-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 max-w-xl w-full rounded-2xl p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="book-open" class="w-5 h-5 text-sky-400"></i>
+            Nguyên Tắc Thiết Kế Kho Thuốc Tây Đạt Chuẩn GSP
+          </h3>
+          <button id="btn-close-modal" class="text-slate-400 hover:text-white p-1 rounded-lg">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+        <div class="text-xs text-slate-300 space-y-3 max-h-[60vh] overflow-y-auto pr-2 leading-relaxed">
+          <div class="p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+            <h4 class="font-bold text-sky-300 text-xs mb-1">1. Nguyên tắc luồng 1 chiều (Unidirectional Flow)</h4>
+            <p class="text-slate-400">Khu vực Tiếp nhận hàng &rarr; Biệt trữ/Chờ kết quả nghiệm thu &rarr; Nhập kho chính thức &rarr; Soạn đơn nhặt thuốc &rarr; Đóng gói niêm phong &rarr; Xuất giao. Quy trình này chống nhầm lẫn lô và tránh tuyệt đối nhiễm chéo.</p>
+          </div>
+          <div class="p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+            <h4 class="font-bold text-cyan-300 text-xs mb-1">2. Phân loại điều kiện bảo quản nhiệt ẩm</h4>
+            <p class="text-slate-400"><b class="text-white">Kho thường:</b> Nhiệt độ từ 15°C đến 25°C, độ ẩm không quá 70%.<br><b class="text-white">Kho lạnh:</b> 2°C đến 8°C (cho vắc-xin, insulin, sinh phẩm y tế).<br><b class="text-white">Kho đông:</b> Dưới -10°C (nếu có chế phẩm đặc thù).</p>
+          </div>
+          <div class="p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+            <h4 class="font-bold text-purple-300 text-xs mb-1">3. Khu bảo quản thuốc kiểm soát đặc biệt</h4>
+            <p class="text-slate-400">Thuốc gây nghiện, hướng thần, tiền chất phải được lưu trữ trong phòng kiên cố có khóa chắc chắn. Phải có 2 chìa khóa do 2 người phụ trách giữ độc lập hoặc hệ thống xác thực sinh trắc học.</p>
+          </div>
+          <div class="p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+            <h4 class="font-bold text-emerald-300 text-xs mb-1">4. Cơ sở vật chất & PCCC</h4>
+            <p class="text-slate-400">Sàn bê tông đánh bóng sơn Epoxy kháng khuẩn, chống tĩnh điện, bo góc chân tường tròn để dễ lau chùi. Trang bị đầu báo khói laser, bình chữa cháy khí sạch không làm hư hỏng bao bì thuốc khi sự cố xảy ra.</p>
+          </div>
+        </div>
+        <div class="pt-2 text-right">
+          <button id="btn-modal-understood" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl transition">
+            Đã hiểu & Tiếp tục
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // Comprehensive Data dictionary for GSP Pharmaceutical Warehouse Zones (1600+ SKUs Scale)
+    const ZONES_DATA = {
+      bulk: {
+        title: "Kho Lưu Trữ Hàng Chẵn (High-Bay Pallet)",
+        subtitle: "Lưu trữ sỉ khối lượng lớn cho 850+ mặt hàng thuốc",
+        skuCount: "850 SKUs",
+        temp: "15°C - 25°C",
+        humidity: "≤ 70% RH",
+        icon: "layers",
+        color: "#0284c7",
+        desc: "Khu vực trung tâm với 6 dãy kệ Selective Racking cao 4 tầng (8.5m), chứa hơn 2.800 vị trí pallet. Đáp ứng lưu trữ hàng trăm ngàn hộp thuốc kháng sinh, giảm đau hạ sốt, tim mạch, dịch truyền, dạ dày... Quản lý định vị vị trí bằng mã QR 3 chiều (Kệ - Tầng - Ngăn) liên kết hệ thống WMS.",
+        sampleSkus: ["Amoxicillin/Clavulanate 1g", "Paracetamol Truyền 10mg/ml", "Ceftriaxone 1g tiêm", "Omeprazole 40mg", "Metformin 850mg", "Amlodipine 5mg", "NaCl 0.9% 500ml", "Ciprofloxacin 500mg"],
+        specs: [
+          "Áp dụng triệt để nguyên tắc FEFO (Hạn dùng ngắn xuất trước) qua quét mã QR WMS.",
+          "Khoảng cách pallet cách tường tối thiểu 50cm, cách sàn 15cm; lối đi 3.2m cho xe nâng Reach Truck.",
+          "Mạng lưới 12 cảm biến IoT đo nhiệt ẩm không dây phủ kín các tầng kệ cao và thấp.",
+          "Hệ thống chữa cháy vách tường kết hợp Spinkler tự động kích hoạt khi có khói/nhiệt."
+        ],
+        camPos: { x: 0, y: 22, z: 28 },
+        targetPos: { x: 0, y: 3, z: 0 }
+      },
+      cold: {
+        title: "Cụm Kho Lạnh Đa Nhiệt (Cold Chain Hub)",
+        subtitle: "Bảo quản Vắc-xin & Sinh phẩm y tế (180+ SKUs)",
+        skuCount: "180+ SKUs",
+        temp: "2.0°C - 8.0°C & -20.0°C",
+        humidity: "35% - 65% RH",
+        icon: "snowflake",
+        color: "#38bdf8",
+        desc: "Cụm kho lạnh y tế hiện đại gồm 3 phân khu: (1) Phòng đệm Airlock 10-15°C hạn chế mất nhiệt; (2) Kho lạnh 2°C - 8°C cho vaccine thông thường, Insulin, huyết thanh, kháng thể đơn dòng (150 SKUs); (3) Buồng cấp đông -20°C cho sinh phẩm nhạy cảm đặc biệt và vaccine mRNA đông lạnh (30 SKUs).",
+        sampleSkus: ["Vaccine Cúm Tứ giá", "Insulin Glargine 100IU/ml", "Vaccine Dại Rabies", "Pembrolizumab (Keytruda)", "Kháng Huyết Thanh Uốn Ván (SAT)", "Enoxaparin Sodium tiêm", "Erythropoietin (EPO)"],
+        specs: [
+          "Hệ thống làm lạnh kép Dual-Chiller luân phiên 50/50, tự động chuyển đổi khi sự cố.",
+          "Máy phát điện công nghiệp chuyển mạch tự động ATS sẵn sàng trong 10 giây.",
+          "Continuous Data Logger nhiệt độ độc lập, còi hú và SMS gọi tự động khi lệch dải 2.0°C - 8.0°C.",
+          "Đóng hàng lạnh ra xe bằng thùng xốp chuyên dụng chèn túi đá gel biến tính PCM duy trì 48h."
+        ],
+        camPos: { x: 22, y: 14, z: 12 },
+        targetPos: { x: 16, y: 3, z: 6 }
+      },
+      secure: {
+        title: "Kho Thuốc Kiểm Soát Đặc Biệt & Thuốc Độc",
+        subtitle: "Gây nghiện, hướng thần, tiền chất, thuốc phóng xạ (75 SKUs)",
+        skuCount: "75 SKUs",
+        temp: "15°C - 25°C",
+        humidity: "≤ 70% RH",
+        icon: "lock",
+        color: "#8b5cf6",
+        desc: "Khu vực an ninh cấp độ cao nhất trong kho dược. Khung thép chịu lực bao bọc toàn bộ, cửa thép dày chống cắt trang bị khóa vân tay sinh trắc học và khóa số cơ học. Chuyên bảo quản thuốc giảm đau gây nghiện, an thần, tiền chất dùng trong phẫu thuật và cấp cứu.",
+        sampleSkus: ["Morphine Sulfate 10mg/ml", "Fentanyl 0.1mg tiêm", "Midazolam 5mg/ml", "Diazepam 10mg", "Codein Phosphate 30mg", "Ketamine HCl 50mg/ml", "Ephedrine 30mg/ml"],
+        specs: [
+          "Quy tắc mở cửa 2 người độc lập (Dual-Control): Dược sĩ phụ trách chuyên môn & Thủ kho.",
+          "Camera AI giám sát 24/7 ghi hình 30 khung hình/giây lưu trữ tối thiểu 12 tháng không xóa.",
+          "Sổ sách và phần mềm báo cáo số liệu xuất-nhập-tồn trực tiếp định kỳ lên Cục Quản Lý Dược.",
+          "Tủ thép đúc kiên cố bắt bulong ngầm xuống sàn bê tông cho thuốc bảng A."
+        ],
+        camPos: { x: 22, y: 13, z: -12 },
+        targetPos: { x: 16, y: 3, z: -6 }
+      },
+      receiving: {
+        title: "Cụm Cửa Nhập Hàng Inbound (3 Docks)",
+        subtitle: "Tiếp nhận container & xe tải lạnh (Tiếp nhận ~1.600 mặt hàng)",
+        skuCount: "Tất cả 1.600 SKUs",
+        temp: "Vùng đệm mát 20-24°C",
+        humidity: "Thông gió kiểm soát",
+        icon: "truck",
+        color: "#10b981",
+        desc: "Cụm tiếp nhận gồm 3 cửa cuốn nâng hạ tự động trang bị đệm khí túi chùm (Inflatable Dock Seal). Giúp kết nối kín khít tuyệt đối đuôi xe tải lạnh vào kho, ngăn hoàn toàn bụi bẩn, côn trùng và thoát nhiệt độ ra môi trường.",
+        sampleSkus: ["Lô hàng kháng sinh nhập khẩu", "Kiện vaccine vận chuyển đường hàng không", "Nguyên liệu bao bì dược"],
+        specs: [
+          "Sàn nâng hạ thủy lực Dock Leveler tải trọng 6 tấn cho xe nâng chui sâu vào thùng xe.",
+          "Đèn diệt côn trùng tia UV và quạt cắt gió công nghiệp (Air Curtain) tốc độ gió 25m/s.",
+          "Kiểm tra nhiệt độ xe lạnh và đối chiếu biên bản nhiệt độ Data Logger của đơn vị vận chuyển."
+        ],
+        camPos: { x: -22, y: 13, z: -14 },
+        targetPos: { x: -16, y: 2.5, z: -8 }
+      },
+      quarantine: {
+        title: "Khu Biệt Trữ & Phòng Lấy Mẫu LAF",
+        subtitle: "Cách ly lô chờ kiểm nghiệm COA (Lưu lượng ~60 SKUs)",
+        skuCount: "60 SKUs đang duyệt",
+        temp: "15°C - 25°C",
+        humidity: "≤ 70% RH",
+        icon: "shield-alert",
+        color: "#f59e0b",
+        desc: "Nơi biệt trữ nghiêm ngặt tất cả các lô thuốc mới nhập trước khi có phiếu kiểm nghiệm đạt tiêu chuẩn (COA release). Tích hợp phòng lấy mẫu sạch với tủ thổi khí vô trùng Laminar Airflow (LAF) Class A/ISO 5 để dược sĩ QC lấy mẫu kiểm tra cảm quan và vi sinh.",
+        sampleSkus: ["Lô Ceftriaxone vừa nhập cảng", "Lô dịch truyền chờ kết quả độ vô khuẩn", "Hàng lưu nghi ngờ thu hồi"],
+        specs: [
+          "Hàng rào ngăn cách vật lý có cảnh báo màu vàng chữ đen 'HÀNG ĐANG CHỜ KIỂM NGHIỆM - CẤM XUẤT'.",
+          "Phòng lấy mẫu áp suất dương, màng lọc HEPA H14 ngăn ngừa nhiễm chéo chéo hạt bụi.",
+          "Khóa tự động trên phần mềm WMS: Nhân viên không thể tạo lệnh nhặt đơn nếu lô chưa Release."
+        ],
+        camPos: { x: -8, y: 11, z: -14 },
+        targetPos: { x: -6, y: 2, z: -8 }
+      },
+      picking: {
+        title: "Khu Soạn Lẻ Nhanh Pick-to-Light",
+        subtitle: "Chia chọn đơn lẻ nhà thuốc & bệnh viện (450+ SKUs Fast Moving)",
+        skuCount: "450+ SKUs",
+        temp: "15°C - 25°C",
+        humidity: "≤ 70% RH",
+        icon: "package-search",
+        color: "#14b8a6",
+        desc: "Khu vực nhặt hàng cho các đơn sỉ nhà thuốc và toa bệnh viện với tốc độ luân chuyển cao nhất (Fast Moving). Sử dụng hệ thống giá kệ dốc Carton Flow Racks kết hợp màn hình đèn LED Pick-to-light chỉ thị chính xác số lượng cần lấy theo từng đơn hàng.",
+        sampleSkus: ["Panadol Extra vỉ", "Klamentin 500mg hộp", "Berberin lọ 100 viên", "Becozyme vỉ", "Efferalgan 500mg sủi", "Salonpas miếng dán", "Vitamin C 500mg", "Gaviscon gói"],
+        specs: [
+          "Màn hình hiển thị số lượng đèn LED gắn ngay trước mỗi khay thuốc hướng dẫn nhân viên.",
+          "Hệ thống con lăn trọng lực tự đẩy hộp thuốc phía sau ra phía trước mặt nhặt.",
+          "Tích hợp máy quét mã vạch không dây kiểm tra mã GTIN/Datamatrix tránh nhầm nồng độ."
+        ],
+        camPos: { x: -8, y: 12, z: 12 },
+        targetPos: { x: -5, y: 2, z: 7 }
+      },
+      packing: {
+        title: "Dây Chuyền Đóng Gói GDP",
+        subtitle: "Đóng kiện, dán nhãn niêm phong, kiểm soát lạnh (Toàn bộ đơn hàng)",
+        skuCount: "Xử lý 1.600 SKUs",
+        temp: "15°C - 25°C",
+        humidity: "≤ 70% RH",
+        icon: "box",
+        color: "#64748b",
+        desc: "Trang bị 6 bàn đóng gói mặt bàn Inox 304 tiêu chuẩn y tế, kết nối trực tiếp với cân điện tử chính xác 1g. Có khu vực đóng gói dây chuyền lạnh chuyên dụng với tủ trữ gel đá lạnh (-20°C) và vật liệu chèn cách nhiệt chống sốc.",
+        sampleSkus: ["Thùng hàng sỉ bệnh viện", "Kiện thuốc lạnh kèm Data Logger USB", "Hộp thuốc bảo mật chống giả"],
+        specs: [
+          "Cân kiểm tra đối chiếu trọng lượng thực tế với trọng lượng lý thuyết phần mềm để phát hiện thiếu vỉ.",
+          "Băng keo an ninh in logo chống giả (Security Tamper Evident Tape).",
+          "Thẻ chỉ thị nhiệt độ đông đá hoặc nhiệt kế mini Data Logger cho hàng gửi xa > 24 giờ."
+        ],
+        camPos: { x: 6, y: 11, z: 14 },
+        targetPos: { x: 4, y: 2, z: 7 }
+      },
+      shipping: {
+        title: "Cụm Cửa Xuất Hàng Outbound (3 Docks)",
+        subtitle: "Phân tuyến giao hàng xe tải chuyên dụng liên tỉnh",
+        skuCount: "Xuất giao 1.600 SKUs",
+        temp: "Đệm mát có mái che",
+        humidity: "Tiêu chuẩn GDP",
+        icon: "truck",
+        color: "#0284c7",
+        desc: "Khu vực tập kết hàng xuất giao gồm 3 cửa xuất hàng chuyên biệt. Kiện hàng được chia theo tuyến đường Bắc - Trung - Nam và nội thành. Đội xe tải thùng bảo ôn có gắn hệ thống lạnh Thermo King và định vị GPS giám sát nhiệt độ trực tuyến suốt hành trình.",
+        sampleSkus: ["Chuyến xe giao chuỗi nhà thuốc", "Chuyến xe viện Trung Ương", "Chuyến xe chuyên chở Vaccine"],
+        specs: [
+          "Khu vực sân chờ xuất có vạch phân làn riêng biệt chống va chạm xe nâng.",
+          "In hóa đơn điện tử, phiếu xuất kho điện tử tích hợp chữ ký số hợp quy.",
+          "Biên bản bàn giao đính kèm biểu đồ nhiệt độ ghi nhận từ thùng xe lúc khởi hành."
+        ],
+        camPos: { x: 22, y: 13, z: 16 },
+        targetPos: { x: 16, y: 2.5, z: 10 }
+      },
+      office: {
+        title: "Trung Tâm Điều Hành WMS & Kho Mẫu Lưu",
+        subtitle: "Hệ thống máy chủ kiểm soát nhiệt ẩm & QA Dược (Quản lý 1.600 SKUs)",
+        skuCount: "Lưu mẫu 1.600 SKUs",
+        temp: "20°C - 24°C",
+        humidity: "Điều hòa trung tâm",
+        icon: "laptop",
+        color: "#475569",
+        desc: "Trung tâm chỉ huy giám sát toàn bộ hoạt động kho vận. Tích hợp phòng QA/QC lưu trữ mẫu đối chứng của tất cả các lô thuốc xuất nhập trong thời gian hạn dùng + 1 năm theo quy định Dược Điển.",
+        sampleSkus: ["Mẫu lưu đối chứng lô thuốc", "Hồ sơ công bố sản phẩm", "Chứng chỉ COA gốc"],
+        specs: [
+          "Màn hình SCADA hiển thị bản đồ nhiệt độ - độ ẩm thời gian thực của 28 điểm đo trong kho.",
+          "Hệ thống báo động tin nhắn SMS đa tầng gửi thẳng về điện thoại Thủ kho và Dược sĩ trưởng.",
+          "Tủ lưu hồ sơ chống cháy 4 giờ bảo vệ giấy tờ đăng ký lưu hành thuốc."
+        ],
+        camPos: { x: 5, y: 12, z: -16 },
+        targetPos: { x: 4, y: 2.5, z: -9 }
+      }
+    };
+
+    let activeZoneKey = 'bulk';
+  </script>
+
+  <script>
+    let scene, camera, renderer, controls;
+    let interactiveMeshes = [];
+    let raycaster, mouse;
+    let container = document.getElementById('three-canvas-container');
+
+    function init3D() {
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x070b14);
+      scene.fog = new THREE.FogExp2(0x070b14, 0.012);
+
+      // Camera
+      const width = container.clientWidth || window.innerWidth;
+      const height = container.clientHeight || window.innerHeight;
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 600);
+      camera.position.set(36, 32, 38);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      // Orbit Controls
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2 - 0.04;
+      controls.minDistance = 6;
+      controls.maxDistance = 120;
+      controls.target.set(0, 2.5, 0);
+
+      // Lighting
+      setupLights();
+
+      // Large Scale 1600-SKU Architecture
+      buildWarehouse();
+
+      // Raycaster for click selection
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      // Event Listeners
+      window.addEventListener('resize', onWindowResize);
+      renderer.domElement.addEventListener('pointerdown', onPointerDown);
+
+      animate();
+    }
+
+    function setupLights() {
+      const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.75);
+      scene.add(ambientLight);
+
+      const mainLight = new THREE.DirectionalLight(0xffffff, 0.95);
+      mainLight.position.set(30, 45, 25);
+      mainLight.castShadow = true;
+      mainLight.shadow.mapSize.width = 2048;
+      mainLight.shadow.mapSize.height = 2048;
+      mainLight.shadow.camera.near = 0.5;
+      mainLight.shadow.camera.far = 150;
+      const d = 35;
+      mainLight.shadow.camera.left = -d;
+      mainLight.shadow.camera.right = d;
+      mainLight.shadow.camera.top = d;
+      mainLight.shadow.camera.bottom = -d;
+      scene.add(mainLight);
+
+      // Medical Blue point light at Cold Chain complex
+      const coldLight = new THREE.PointLight(0x38bdf8, 1.8, 35);
+      coldLight.position.set(16, 6, 6);
+      scene.add(coldLight);
+
+      // Deep freezer sub-glow light (icy white blue)
+      const deepFreezerLight = new THREE.PointLight(0x93c5fd, 1.2, 20);
+      deepFreezerLight.position.set(16, 5, 10);
+      scene.add(deepFreezerLight);
+
+      // Controlled Drug Vault purple light
+      const purpleLight = new THREE.PointLight(0xa855f7, 1.4, 25);
+      purpleLight.position.set(16, 6, -8);
+      scene.add(purpleLight);
+
+      // Inbound Dock green tint
+      const inboundLight = new THREE.PointLight(0x10b981, 1.0, 25);
+      inboundLight.position.set(-16, 5, -10);
+      scene.add(inboundLight);
+    }
+
+    function buildWarehouse() {
+      // Large Scale Floor Plane (52m x 36m)
+      const floorGeo = new THREE.PlaneGeometry(52, 36);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x172033,
+        roughness: 0.28,
+        metalness: 0.12
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // Epoxy Floor Grid Lines (1m grid)
+      const gridHelper = new THREE.GridHelper(52, 52, 0x0284c7, 0x1e3a5f);
+      gridHelper.position.y = 0.02;
+      scene.add(gridHelper);
+
+      // Outer Structural Walls (Cutaway architectural presentation)
+      createWarehousePerimeter();
+
+      // 1. Central Bulk Pallet Storage (6 Long Aisles A-F, High-Bay 4 tiers for 850 SKUs)
+      createBulkStorageArea();
+
+      // 2. Expanded Multi-Zone Cold Chain Room (2-8°C + -20°C Deep Freeze + Airlock)
+      createExpandedColdChain();
+
+      // 3. High-Security Controlled Drug Vault (Khung thép, tủ chống cháy, 75 SKUs)
+      createControlledVault();
+
+      // 4. Inbound Dock with 3 Bays & Dock Levelers (Nhập hàng đa cửa)
+      createReceivingDock();
+
+      // 5. Quarantine & Sampling Area (Buồng lấy mẫu khí sạch LAF)
+      createQuarantineArea();
+
+      // 6. Fast Picking Area (Pick-to-Light 450 SKUs)
+      createPickingArea();
+
+      // 7. Packing Dây chuyền & Băng tải
+      createPackingArea();
+
+      // 8. Shipping Outbound 3 Docks
+      createShippingDock();
+
+      // 9. Admin & Retention Sample Office (Kho mẫu lưu)
+      createAdminOffice();
+
+      // 10. Fleet of Electric Forklifts & Reach Trucks in action
+      createForklift(-3, 0, -4, 0.4);
+      createForklift(4, 0, 3, -1.2);
+      createForklift(-12, 0, 7, 1.57);
+    }
+
+    function createWarehousePerimeter() {
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x273549, roughness: 0.8 });
+
+      // Back Wall (52m long, 6m tall)
+      const backWallGeo = new THREE.BoxGeometry(52, 6, 0.4);
+      const backWall = new THREE.Mesh(backWallGeo, wallMat);
+      backWall.position.set(0, 3, -18);
+      backWall.receiveShadow = true;
+      scene.add(backWall);
+
+      // Left Side Wall (36m long)
+      const leftWallGeo = new THREE.BoxGeometry(0.4, 6, 36);
+      const leftWall = new THREE.Mesh(leftWallGeo, wallMat);
+      leftWall.position.set(-26, 3, 0);
+      leftWall.receiveShadow = true;
+      scene.add(leftWall);
+
+      // Right Side Wall
+      const rightWall = new THREE.Mesh(leftWallGeo, wallMat);
+      rightWall.position.set(26, 3, 0);
+      rightWall.receiveShadow = true;
+      scene.add(rightWall);
+
+      // Safety yellow outer perimeter line
+      createStripeBorder(-25.5, 0.03, -17.5, 51, 35);
+    }
+
+    function createStripeBorder(x, y, z, w, d) {
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xfacc15 });
+      const pts = [
+        new THREE.Vector3(x, y, z),
+        new THREE.Vector3(x + w, y, z),
+        new THREE.Vector3(x + w, y, z + d),
+        new THREE.Vector3(x, y, z + d),
+        new THREE.Vector3(x, y, z)
+      ];
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      scene.add(new THREE.Line(geo, lineMat));
+    }
+
+    function createBulkStorageArea() {
+      const rackGroup = new THREE.Group();
+
+      // 6 Extended Aisle Rows (A, B, C, D, E, F)
+      const rackRowsZ = [-4.5, -1.5, 1.5, 4.5];
+      const rackSectionsX = [-9, -5, -1, 3, 7];
+
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.7, roughness: 0.3 });
+      const beamMat = new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.5, roughness: 0.4 });
+      const palletMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.6 });
+      const boxColors = [0xe2e8f0, 0xf8fafc, 0xdbeafe, 0xbae6fd, 0xfef08a, 0xa7f3d0];
+
+      rackRowsZ.forEach(zPos => {
+        rackSectionsX.forEach(xPos => {
+          // 4 Vertical Steel Columns (8m tall High-Bay)
+          const postGeo = new THREE.BoxGeometry(0.12, 7.5, 0.12);
+          const p1 = new THREE.Mesh(postGeo, frameMat); p1.position.set(xPos - 1.4, 3.75, zPos - 0.75);
+          const p2 = new THREE.Mesh(postGeo, frameMat); p2.position.set(xPos + 1.4, 3.75, zPos - 0.75);
+          const p3 = new THREE.Mesh(postGeo, frameMat); p3.position.set(xPos - 1.4, 3.75, zPos + 0.75);
+          const p4 = new THREE.Mesh(postGeo, frameMat); p4.position.set(xPos + 1.4, 3.75, zPos + 0.75);
+          rackGroup.add(p1, p2, p3, p4);
+
+          // 4 Shelf Levels (Tier 1: 1.6m, Tier 2: 3.4m, Tier 3: 5.2m, Tier 4: 7.0m)
+          [1.6, 3.4, 5.2, 7.0].forEach(levelY => {
+            const beamGeo = new THREE.BoxGeometry(2.9, 0.1, 1.5);
+            const beam = new THREE.Mesh(beamGeo, beamMat);
+            beam.position.set(xPos, levelY, zPos);
+            rackGroup.add(beam);
+
+            // Pallets with pharmaceutical boxes
+            const palletGeo = new THREE.BoxGeometry(2.6, 0.15, 1.3);
+            const pallet = new THREE.Mesh(palletGeo, palletMat);
+            pallet.position.set(xPos, levelY + 0.12, zPos);
+            pallet.castShadow = true;
+            rackGroup.add(pallet);
+
+            // Drug Carton packages
+            for (let bx = -0.8; bx <= 0.8; bx += 0.8) {
+              for (let bz = -0.35; bz <= 0.35; bz += 0.7) {
+                const boxH = 0.6 + Math.random() * 0.4;
+                const boxGeo = new THREE.BoxGeometry(0.65, boxH, 0.55);
+                const boxColor = boxColors[Math.floor(Math.random() * boxColors.length)];
+                const boxMat = new THREE.MeshStandardMaterial({ color: boxColor, roughness: 0.6 });
+                const box = new THREE.Mesh(boxGeo, boxMat);
+                box.position.set(xPos + bx, levelY + 0.2 + boxH / 2, zPos + bz);
+                box.castShadow = true;
+                rackGroup.add(box);
+              }
+            }
+          });
+        });
+      });
+
+      // Hitbox for Bulk Zone
+      const hitBoxGeo = new THREE.BoxGeometry(22, 8, 12);
+      const hitBoxMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+      const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
+      hitBox.position.set(-1, 4, 0);
+      hitBox.userData = { zoneKey: 'bulk' };
+      interactiveMeshes.push(hitBox);
+      rackGroup.add(hitBox);
+
+      // Floor Zone Marking
+      const zoneFloorGeo = new THREE.PlaneGeometry(22, 12);
+      const zoneFloorMat = new THREE.MeshBasicMaterial({ color: 0x0284c7, transparent: true, opacity: 0.12 });
+      const zoneFloor = new THREE.Mesh(zoneFloorGeo, zoneFloorMat);
+      zoneFloor.rotation.x = -Math.PI / 2;
+      zoneFloor.position.set(-1, 0.03, 0);
+      rackGroup.add(zoneFloor);
+
+      scene.add(rackGroup);
+    }
+
+    function createExpandedColdChain() {
+      const coldGroup = new THREE.Group();
+
+      // Insulated Sandwich Panels (Cyan / White)
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0xe0f2fe, roughness: 0.3 });
+      const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.35,
+        transmission: 0.85,
+        roughness: 0.1,
+        metalness: 0.1
+      });
+      const deepFreezeGlass = new THREE.MeshPhysicalMaterial({
+        color: 0x60a5fa,
+        transparent: true,
+        opacity: 0.45,
+        transmission: 0.75,
+        roughness: 0.2
+      });
+
+      // Main Cold Room (2°C - 8°C, size 11m x 8m)
+      const backW = new THREE.Mesh(new THREE.BoxGeometry(10.8, 5.2, 0.25), wallMat);
+      backW.position.set(17.5, 2.6, 2.0);
+
+      const rightW = new THREE.Mesh(new THREE.BoxGeometry(0.25, 5.2, 9.8), wallMat);
+      rightW.position.set(23.0, 2.6, 7.0);
+
+      const leftW = new THREE.Mesh(new THREE.BoxGeometry(0.25, 5.2, 9.8), wallMat);
+      leftW.position.set(12.0, 2.6, 7.0);
+      
+      // Transparent front observation glass
+      const glassFront = new THREE.Mesh(new THREE.BoxGeometry(6.0, 5.2, 0.15), glassMat);
+      glassFront.position.set(15.0, 2.6, 12.0);
+
+      // Deep Freezer Sub-chamber (-20°C Vault, 4.5m x 4.5m) inside
+      const freezerPartition = new THREE.Mesh(new THREE.BoxGeometry(4.8, 5.2, 0.2), wallMat);
+      freezerPartition.position.set(20.5, 2.6, 7.0);
+
+      const freezerFront = new THREE.Mesh(new THREE.BoxGeometry(4.8, 5.2, 0.15), deepFreezeGlass);
+      freezerFront.position.set(20.5, 2.6, 12.0);
+
+      // Ceiling Twin Evaporators (Chiller units)
+      const chillerGeo = new THREE.BoxGeometry(3.0, 0.7, 1.4);
+      const chillerMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6 });
+      const chiller1 = new THREE.Mesh(chillerGeo, chillerMat);
+      chiller1.position.set(16, 4.8, 5.5);
+      const chiller2 = new THREE.Mesh(chillerGeo, chillerMat);
+      chiller2.position.set(20.5, 4.8, 9.5);
+
+      // Vaccine & Insulin Shelving racks
+      const shelfMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.5 });
+      for (let s = 4.0; s <= 9.0; s += 2.5) {
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.5, 0.7), shelfMat);
+        shelf.position.set(15.5, 1.75, s);
+        coldGroup.add(shelf);
+
+        // Vaccine boxes
+        for (let bx = -1.8; bx <= 1.8; bx += 0.6) {
+          const vBox = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.3, 0.5), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
+          vBox.position.set(15.5 + bx, 3.6, s);
+          coldGroup.add(vBox);
+        }
+      }
+
+      coldGroup.add(backW, rightW, leftW, glassFront, freezerPartition, freezerFront, chiller1, chiller2);
+
+      // Zone Hitbox
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(12, 5.5, 11), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(17.5, 2.75, 7.0);
+      hitBox.userData = { zoneKey: 'cold' };
+      interactiveMeshes.push(hitBox);
+      coldGroup.add(hitBox);
+
+      // Floor tint
+      const floorMarker = new THREE.Mesh(new THREE.PlaneGeometry(11.5, 10.5), new THREE.MeshBasicMaterial({ color: 0x0284c7, transparent: true, opacity: 0.25 }));
+      floorMarker.rotation.x = -Math.PI / 2;
+      floorMarker.position.set(17.5, 0.04, 7.0);
+      coldGroup.add(floorMarker);
+
+      scene.add(coldGroup);
+    }
+
+    function createControlledVault() {
+      const vaultGroup = new THREE.Group();
+
+      const meshMat = new THREE.MeshStandardMaterial({ color: 0x64748b, wireframe: true });
+      const postMat = new THREE.MeshStandardMaterial({ color: 0x8b5cf6, metalness: 0.8, roughness: 0.3 });
+
+      // Steel Security Cage (9m x 7m)
+      const cageFront = new THREE.Mesh(new THREE.BoxGeometry(9.5, 4.5, 0.1), meshMat);
+      cageFront.position.set(17.5, 2.25, -4.5);
+
+      const cageLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4.5, 7.5), meshMat);
+      cageLeft.position.set(12.5, 2.25, -8.5);
+
+      // Safe Vaults (3 heavy safes)
+      const safeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.2 });
+      [-2.5, 0, 2.5].forEach(offset => {
+        const safe = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.8, 1.4), safeMat);
+        safe.position.set(17.5 + offset, 1.4, -9.5);
+        vaultGroup.add(safe);
+      });
+
+      // Biometric keypad terminal
+      const keypad = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.4, 0.1), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+      keypad.position.set(16.5, 2.2, -4.4);
+
+      vaultGroup.add(cageFront, cageLeft, keypad);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(10, 4.8, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(17.5, 2.4, -8.5);
+      hitBox.userData = { zoneKey: 'secure' };
+      interactiveMeshes.push(hitBox);
+      vaultGroup.add(hitBox);
+
+      // Floor tint
+      const floorMarker = new THREE.Mesh(new THREE.PlaneGeometry(9.8, 7.8), new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.2 }));
+      floorMarker.rotation.x = -Math.PI / 2;
+      floorMarker.position.set(17.5, 0.04, -8.5);
+      vaultGroup.add(floorMarker);
+
+      scene.add(vaultGroup);
+    }
+
+    function createReceivingDock() {
+      const grp = new THREE.Group();
+
+      // 3 Inbound Truck Docks on Left Wall
+      [-13, -8.5, -4].forEach(zPos => {
+        const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4.2, 3.6), new THREE.MeshStandardMaterial({ color: 0x10b981 }));
+        doorFrame.position.set(-25.8, 2.1, zPos);
+
+        const shutter = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4.0, 3.4), new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 }));
+        shutter.position.set(-25.75, 2.2, zPos);
+
+        const dockLeveler = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.06, 2.6), new THREE.MeshStandardMaterial({ color: 0x059669 }));
+        dockLeveler.position.set(-24.2, 0.04, zPos);
+
+        grp.add(doorFrame, shutter, dockLeveler);
+      });
+
+      // Inspection staging pallets
+      const stagingPallet = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.15, 2.5), new THREE.MeshStandardMaterial({ color: 0x047857 }));
+      stagingPallet.position.set(-20.5, 0.08, -8.5);
+      grp.add(stagingPallet);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(9, 4.5, 14), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(-21, 2.25, -8.5);
+      hitBox.userData = { zoneKey: 'receiving' };
+      interactiveMeshes.push(hitBox);
+      grp.add(hitBox);
+
+      scene.add(grp);
+    }
+
+    function createQuarantineArea() {
+      const grp = new THREE.Group();
+
+      // Amber demarcation posts
+      [-13, -7].forEach(x => {
+        [-15, -9].forEach(z => {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4), new THREE.MeshStandardMaterial({ color: 0xf59e0b }));
+          post.position.set(x, 0.7, z);
+          grp.add(post);
+        });
+      });
+
+      // Laminar Airflow Sampling Booth (Buồng lấy mẫu LAF vô trùng)
+      const lafBooth = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.8, 1.8), new THREE.MeshStandardMaterial({ color: 0xdbeafe, roughness: 0.2 }));
+      lafBooth.position.set(-10, 1.4, -13.5);
+
+      const lafGlass = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 0.1), new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.4 }));
+      lafGlass.position.set(-10, 1.6, -12.5);
+
+      // Quarantine Pallets
+      const qPallet = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.2, 1.8), new THREE.MeshStandardMaterial({ color: 0x78350f }));
+      qPallet.position.set(-10, 0.1, -10.5);
+
+      const qBox = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 1.5), new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 }));
+      qBox.position.set(-10, 0.9, -10.5);
+
+      grp.add(lafBooth, lafGlass, qPallet, qBox);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(-10, 2, -12);
+      hitBox.userData = { zoneKey: 'quarantine' };
+      interactiveMeshes.push(hitBox);
+      grp.add(hitBox);
+
+      const floorMarker = new THREE.Mesh(new THREE.PlaneGeometry(7.5, 7.5), new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.2 }));
+      floorMarker.rotation.x = -Math.PI / 2;
+      floorMarker.position.set(-10, 0.04, -12);
+      grp.add(floorMarker);
+
+      scene.add(grp);
+    }
+
+    function createPickingArea() {
+      const grp = new THREE.Group();
+
+      // Multi-tier picking flow racks (Carton Flow)
+      const shelfMat = new THREE.MeshStandardMaterial({ color: 0x0f766e, metalness: 0.5 });
+      for (let r = -12; r <= -4; r += 2.8) {
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.0, 1.0), shelfMat);
+        shelf.position.set(r, 1.5, 9.0);
+        grp.add(shelf);
+
+        // Pick-to-Light LED strip and bins
+        for (let b = -0.7; b <= 0.7; b += 0.7) {
+          const bin = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.25, 0.8), new THREE.MeshStandardMaterial({ color: 0x14b8a6 }));
+          bin.position.set(r + b, 1.8, 9.0);
+          const led = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.05), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+          led.position.set(r + b, 1.95, 9.45);
+          grp.add(bin, led);
+        }
+      }
+
+      // Roller conveyor line transporting totes to packing
+      const conveyor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.6, 0.8), new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7 }));
+      conveyor.position.set(-8, 0.6, 12.5);
+      grp.add(conveyor);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(11, 4.0, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(-8, 2.0, 10.0);
+      hitBox.userData = { zoneKey: 'picking' };
+      interactiveMeshes.push(hitBox);
+      grp.add(hitBox);
+
+      scene.add(grp);
+    }
+
+    function createPackingArea() {
+      const grp = new THREE.Group();
+
+      // 4 Inox packing stations
+      const tableMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
+      [-1, 3, 7].forEach(x => {
+        const table = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.9, 1.6), tableMat);
+        table.position.set(x, 0.45, 9.5);
+
+        const screen = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.45, 0.1), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
+        screen.position.set(x - 0.5, 1.2, 9.5);
+
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.6), new THREE.MeshStandardMaterial({ color: 0xd97706 }));
+        box.position.set(x + 0.5, 1.2, 9.5);
+
+        grp.add(table, screen, box);
+      });
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(11, 3.8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(3, 1.9, 9.5);
+      hitBox.userData = { zoneKey: 'packing' };
+      interactiveMeshes.push(hitBox);
+      grp.add(hitBox);
+
+      scene.add(grp);
+    }
+
+    function createShippingDock() {
+      const grp = new THREE.Group();
+
+      // 3 Outbound Roll-up Doors on Right/Front
+      [14, 18, 22].forEach(x => {
+        const door = new THREE.Mesh(new THREE.BoxGeometry(3.2, 4.2, 0.3), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
+        door.position.set(x, 2.1, 17.8);
+        grp.add(door);
+      });
+
+      const stagingPallets = new THREE.Mesh(new THREE.BoxGeometry(10.0, 0.2, 3.0), new THREE.MeshStandardMaterial({ color: 0x0369a1 }));
+      stagingPallets.position.set(18, 0.1, 15.0);
+      grp.add(stagingPallets);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(12, 4, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(18, 2.0, 15.5);
+      hitBox.userData = { zoneKey: 'shipping' };
+      interactiveMeshes.push(hitBox);
+      grp.add(hitBox);
+
+      scene.add(grp);
+    }
+
+    function createAdminOffice() {
+      const grp = new THREE.Group();
+
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.3, roughness: 0.1 });
+      const partition = new THREE.Mesh(new THREE.BoxGeometry(8.5, 3.5, 0.1), glassMat);
+      partition.position.set(2, 1.75, -8.0);
+
+      // Desks and retention sample archive cabinets
+      const desk = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.8, 1.4), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+      desk.position.set(2, 0.4, -11.0);
+
+      const cabinet = new THREE.Mesh(new THREE.BoxGeometry(6.0, 2.8, 0.8), new THREE.MeshStandardMaterial({ color: 0x475569 }));
+      cabinet.position.set(2, 1.4, -14.0);
+
+      grp.add(partition, desk, cabinet);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(9, 3.8, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+      hitBox.position.set(2, 1.9, -11.0);
+      hitBox.userData = { zoneKey: 'office' };
+      interactiveMeshes.push(hitBox);
+      grp.add(hitBox);
+
+      scene.add(grp);
+    }
+
+    function createForklift(x, y, z, rotY = 0) {
+      const forklift = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+      const blackMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 1.8), bodyMat);
+      body.position.set(0, 0.65, 0);
+
+      const mast = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.5, 0.9), blackMat);
+      mast.position.set(0.8, 1.75, 0);
+
+      const forks = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.7), blackMat);
+      forks.position.set(1.4, 0.3, 0);
+
+      forklift.add(body, mast, forks);
+      forklift.position.set(x, y, z);
+      forklift.rotation.y = rotY;
+      scene.add(forklift);
+    }
+
+    function onPointerDown(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(interactiveMeshes);
+
+      if (intersects.length > 0) {
+        const zoneKey = intersects[0].object.userData.zoneKey;
+        if (zoneKey && ZONES_DATA[zoneKey]) {
+          selectZone(zoneKey);
+        }
+      }
+    }
+
+    function onWindowResize() {
+      if (!container) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    let targetCameraPos = null;
+    let targetLookAt = null;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Smooth camera interpolation
+      if (targetCameraPos && targetLookAt) {
+        camera.position.lerp(targetCameraPos, 0.06);
+        controls.target.lerp(targetLookAt, 0.06);
+
+        if (camera.position.distanceTo(targetCameraPos) < 0.1) {
+          targetCameraPos = null;
+          targetLookAt = null;
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function flyCameraTo(pos, lookAt) {
+      targetCameraPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+      targetLookAt = new THREE.Vector3(lookAt.x, lookAt.y, lookAt.z);
+    }
+  </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize Lucide icons
+      lucide.createIcons();
+
+      // Initialize Three.js viewport
+      init3D();
+
+      // DOM Elements
+      const btn3D = document.getElementById('btn-view-3d');
+      const btn2D = document.getElementById('btn-view-2d');
+      const container3D = document.getElementById('three-canvas-container');
+      const container2D = document.getElementById('view-2d-container');
+      const cameraPresetSelect = document.getElementById('camera-preset-select');
+      const cameraPresetsWrapper = document.getElementById('camera-presets-wrapper');
+
+      const infoDrawer = document.getElementById('info-drawer');
+      const btnCloseDrawer = document.getElementById('btn-close-drawer');
+      const btnFocusZone3D = document.getElementById('btn-focus-zone-3d');
+
+      const infoModal = document.getElementById('info-modal');
+      const btnInfoModal = document.getElementById('btn-info-modal');
+      const btnCloseModal = document.getElementById('btn-close-modal');
+      const btnModalUnderstood = document.getElementById('btn-modal-understood');
+
+      // Toggle View Modes
+      btn3D.addEventListener('click', () => {
+        btn3D.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all bg-sky-600 text-white shadow-md';
+        btn2D.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all text-slate-300 hover:text-white';
+        container3D.classList.remove('hidden');
+        container2D.classList.add('hidden');
+        cameraPresetsWrapper.classList.remove('hidden');
+        onWindowResize();
+      });
+
+      btn2D.addEventListener('click', () => {
+        btn2D.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all bg-sky-600 text-white shadow-md';
+        btn3D.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all text-slate-300 hover:text-white';
+        container2D.classList.remove('hidden');
+        container3D.classList.add('hidden');
+        cameraPresetsWrapper.classList.add('hidden');
+      });
+
+      // 3D Camera Presets
+      cameraPresetSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'iso') {
+          flyCameraTo({ x: 36, y: 32, z: 38 }, { x: 0, y: 2.5, z: 0 });
+        } else if (val === 'top') {
+          flyCameraTo({ x: 0, y: 55, z: 1 }, { x: 0, y: 0, z: 0 });
+        } else if (val === 'cold') {
+          selectZone('cold');
+        } else if (val === 'secure') {
+          selectZone('secure');
+        } else if (val === 'picking') {
+          selectZone('picking');
+        } else if (val === 'receiving') {
+          selectZone('receiving');
+        }
+      });
+
+      // 2D Zone Click Handling
+      document.querySelectorAll('.zone-2d').forEach(el => {
+        el.addEventListener('click', () => {
+          const zone = el.getAttribute('data-zone');
+          if (zone) selectZone(zone);
+        });
+      });
+
+      // Focus Zone from Drawer
+      btnFocusZone3D.addEventListener('click', () => {
+        // Switch to 3D if in 2D
+        btn3D.click();
+        const data = ZONES_DATA[activeZoneKey];
+        if (data && data.camPos) {
+          flyCameraTo(data.camPos, data.targetPos);
+        }
+      });
+
+      // Drawer Close & Open
+      btnCloseDrawer.addEventListener('click', () => {
+        infoDrawer.classList.add('translate-x-[110%]');
+      });
+
+      // Modal Dialog Handling
+      btnInfoModal.addEventListener('click', () => {
+        infoModal.classList.remove('hidden');
+        infoModal.classList.add('flex');
+      });
+
+      const closeModalFunc = () => {
+        infoModal.classList.add('hidden');
+        infoModal.classList.remove('flex');
+      };
+      btnCloseModal.addEventListener('click', closeModalFunc);
+      btnModalUnderstood.addEventListener('click', closeModalFunc);
+
+      // Initialize with Bulk Zone data
+      updateDrawerContent('bulk');
+    });
+
+    function selectZone(zoneKey) {
+      if (!ZONES_DATA[zoneKey]) return;
+      activeZoneKey = zoneKey;
+      updateDrawerContent(zoneKey);
+
+      // Open drawer if closed
+      const drawer = document.getElementById('info-drawer');
+      drawer.classList.remove('translate-x-[110%]');
+
+      // If in 3D mode, smoothly fly camera to target
+      const data = ZONES_DATA[zoneKey];
+      if (data.camPos && data.targetPos) {
+        flyCameraTo(data.camPos, data.targetPos);
+      }
+
+      // Highlight active 2D cards
+      document.querySelectorAll('.zone-2d').forEach(card => {
+        if (card.getAttribute('data-zone') === zoneKey) {
+          card.classList.add('ring-2', 'ring-sky-400');
+        } else {
+          card.classList.remove('ring-2', 'ring-sky-400');
+        }
+      });
+    }
+
+    function updateDrawerContent(zoneKey) {
+      const data = ZONES_DATA[zoneKey];
+      if (!data) return;
+
+      document.getElementById('drawer-title').innerText = data.title;
+      document.getElementById('drawer-subtitle').innerText = data.subtitle;
+      document.getElementById('drawer-temp').innerText = data.temp;
+      document.getElementById('drawer-humidity').innerText = data.humidity;
+      document.getElementById('drawer-sku-count').innerText = data.skuCount || 'Quản lý SKUs';
+      document.getElementById('drawer-desc').innerText = data.desc;
+
+      // Render sample SKU pills
+      const skuContainer = document.getElementById('drawer-sample-skus');
+      skuContainer.innerHTML = '';
+      if (data.sampleSkus && data.sampleSkus.length > 0) {
+        data.sampleSkus.forEach(sku => {
+          const pill = document.createElement('span');
+          pill.className = 'px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-medium';
+          pill.innerText = sku;
+          skuContainer.appendChild(pill);
+        });
+      } else {
+        skuContainer.innerHTML = '<span class="text-slate-500 text-[11px] italic">Quản lý toàn bộ danh mục kho vận</span>';
+      }
+
+      const specsList = document.getElementById('drawer-specs');
+      specsList.innerHTML = '';
+      data.specs.forEach(spec => {
+        const li = document.createElement('li');
+        li.innerText = spec;
+        specsList.appendChild(li);
+      });
+
+      const iconBox = document.getElementById('drawer-icon-box');
+      iconBox.innerHTML = `<i data-lucide="${data.icon}" class="w-5 h-5"></i>`;
+      lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

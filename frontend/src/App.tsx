@@ -46,6 +46,7 @@ import { InventoryHistory } from "./pages/warehouse/InventoryHistory";
 import { PurchaseRequisition } from "./pages/warehouse/PurchaseRequisition";
 import { InventoryCheck } from "./pages/warehouse/InventoryCheck";
 import { WarehouseInventoryHub } from "./pages/warehouse/WarehouseInventoryHub";
+import { MobileAIInspection } from "./pages/warehouse/MobileAIInspection";
 import { WarehouseMapPage } from "./pages/warehouse/WarehouseMapPage";
 
 // Admin / HQ Pages
@@ -84,134 +85,136 @@ export default function App() {
     <BrowserRouter>
       <NotificationProvider>
         <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<Landing />} />
-        <Route path="/interactions" element={<DrugInteractions />} />
+          {/* Public Routes */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/interactions" element={<DrugInteractions />} />
 
-        {/* Auth Routes */}
-        <Route path="/auth" element={<AuthLayout />}>
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="reset-password" element={<ResetPassword />} />
-          <Route path="verify-email" element={<VerifyEmail />} />
-        </Route>
-
-        {/* Cũ (Redirect để tương thích trong trường hợp back lại) */}
-        <Route path="/login" element={<RedirectWithSearch to="/auth/login" />} />
-        <Route path="/register" element={<RedirectWithSearch to="/auth/register" />} />
-        <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
-        <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
-        <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
-
-        {/* --- Customer Routes --- */}
-        <Route path="/customer" element={<CustomerLayout />}>
-          <Route index element={<Navigate to="shop" replace />} />
-          <Route path="shop" element={<CustomerShop />} />
-          <Route path="cart" element={<CustomerCart />} />
-          <Route path="checkout" element={<CustomerCheckout />} />
-          <Route path="interactions" element={<DrugInteractions />} />
-          <Route path="ai-consult" element={<AIConsultant />} />
-          <Route path="profile" element={<CustomerProfile />} />
-          <Route path="orders" element={<CustomerOrders />} />
-        </Route>
-
-        {/* --- Admin / HQ Routes --- */}
-        <Route element={<ProtectedRoute allowedRoles={["admin", "head_branch"]} />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<DashboardHome />} />
-            <Route path="branches" element={<Branches />} />
-            <Route path="employees" element={<Employees />} />
-            <Route path="vouchers" element={<VoucherManagement />} />
-            <Route path="approvals" element={<HQApproval />} />
-            <Route path="finance" element={<Finance />} />
-            <Route path="quotas" element={<QuotaManagement />} />
-            <Route path="supplier-credit" element={<SupplierCreditManagement />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="audit-logs" element={<AuditLogs />} />
-            <Route path="data-retention" element={<DataRetentionTraceability />} />
-            <Route path="supply-chain" element={<SupplyChainDashboard />} />
-            <Route path="ai-insights" element={<AIInsights />} />
-            <Route path="ai-forecast" element={<AIForecast />} />
-            <Route path="lot-tracking" element={<LotTracking />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="settings" element={<Settings />} />
-
-            <Route path="inventory" element={<Inventory />} />
-            <Route path="inventory/checks" element={<InventoryCheck />} />
-            <Route path="inventory/import" element={<InventoryHistory type="import" />} />
-            <Route path="inventory/export" element={<InventoryHistory type="export" />} />
-            <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
-            <Route path="inventory/lot-tracking" element={<LotTracking />} />
-
-            <Route path="master-data/products" element={<Products />} />
-            <Route path="master-data/suppliers" element={<Suppliers />} />
+          {/* Auth Routes */}
+          <Route path="/auth" element={<AuthLayout />}>
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="reset-password" element={<ResetPassword />} />
+            <Route path="verify-email" element={<VerifyEmail />} />
           </Route>
-        </Route>
 
-        {/* --- Warehouse / Quản lý Kho Routes --- */}
-        <Route element={<ProtectedRoute allowedRoles={["warehouse"]} />}>
-          <Route path="/warehouse" element={<WarehouseLayout />}>
-            <Route index element={<DashboardHome />} />
-            <Route path="inventory" element={<Inventory />} />
-            <Route path="inventory/map" element={<WarehouseMapPage />} />
-            <Route path="inventory/checks" element={<InventoryCheck />} />
-            <Route path="inventory/requisitions" element={<WarehouseInventoryHub />} />
-            <Route path="inventory/import" element={<WarehouseInventoryHub />} />
-            <Route path="inventory/export" element={<InventoryHistory type="export" />} />
-            <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
-            <Route path="inventory/lot-tracking" element={<LotTracking />} />
-            <Route path="audit-logs" element={<AuditLogs />} />
-            <Route path="ai-insights" element={<AIInsights />} />
-            <Route path="ai-forecast" element={<AIForecast />} />
-            <Route path="supply-chain" element={<SupplyChainDashboard />} />
-            <Route path="lot-tracking" element={<LotTracking />} />
-            <Route path="profile" element={<Profile />} />
+          {/* Cũ (Redirect để tương thích trong trường hợp back lại) */}
+          <Route path="/login" element={<RedirectWithSearch to="/auth/login" />} />
+          <Route path="/register" element={<RedirectWithSearch to="/auth/register" />} />
+          <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
+          <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
+          <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
 
-            <Route path="master-data/products" element={<Products />} />
-            <Route path="master-data/suppliers" element={<Suppliers />} />
+          {/* --- Customer Routes --- */}
+          <Route path="/customer" element={<CustomerLayout />}>
+            <Route index element={<Navigate to="shop" replace />} />
+            <Route path="shop" element={<CustomerShop />} />
+            <Route path="cart" element={<CustomerCart />} />
+            <Route path="checkout" element={<CustomerCheckout />} />
+            <Route path="interactions" element={<DrugInteractions />} />
+            <Route path="ai-consult" element={<AIConsultant />} />
+            <Route path="profile" element={<CustomerProfile />} />
+            <Route path="orders" element={<CustomerOrders />} />
           </Route>
-        </Route>
 
-        {/* --- Branch / Quản lý Chi nhánh Routes --- */}
-        <Route element={<ProtectedRoute allowedRoles={["branch"]} />}>
-          <Route path="/branch" element={<BranchLayout />}>
-            <Route index element={<DashboardHome />} />
-            <Route path="sales" element={<Sales />} />
-            <Route path="employees" element={<BranchEmployees />} />
-            <Route path="pricing" element={<PriceManagement />} />
-            <Route path="requisitions" element={<BranchRequisition />} />
-            <Route path="receive-transfers" element={<BranchStockReceive />} />
-            <Route path="inventory" element={<BranchInventory />} />
-            <Route path="transfers" element={<BranchTransfer />} />
-            <Route path="finance" element={<Finance />} />
-            <Route path="supplier-credit" element={<SupplierCreditManagement />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="lot-tracking" element={<LotTracking />} />
-            <Route path="inventory/lot-tracking" element={<LotTracking />} />
-            <Route path="profile" element={<Profile />} />
+          {/* --- Admin / HQ Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["admin", "head_branch"]} />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="branches" element={<Branches />} />
+              <Route path="employees" element={<Employees />} />
+              <Route path="vouchers" element={<VoucherManagement />} />
+              <Route path="approvals" element={<HQApproval />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="quotas" element={<QuotaManagement />} />
+              <Route path="supplier-credit" element={<SupplierCreditManagement />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="data-retention" element={<DataRetentionTraceability />} />
+              <Route path="supply-chain" element={<SupplyChainDashboard />} />
+              <Route path="ai-insights" element={<AIInsights />} />
+              <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
+
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="inventory/checks" element={<InventoryCheck />} />
+              <Route path="inventory/import" element={<InventoryHistory type="import" />} />
+              <Route path="inventory/export" element={<InventoryHistory type="export" />} />
+              <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
+              <Route path="inventory/lot-tracking" element={<LotTracking />} />
+
+              <Route path="master-data/products" element={<Products />} />
+              <Route path="master-data/suppliers" element={<Suppliers />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* --- Pharmacist Routes --- */}
-        <Route element={<ProtectedRoute allowedRoles={["pharmacist"]} />}>
-          <Route path="/pharmacist" element={<PharmacistLayout />}>
-            <Route index element={<DashboardHome />} />
-            <Route path="sales" element={<Sales />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="lot-tracking" element={<LotTracking />} />
-            <Route path="profile" element={<Profile />} />
+          {/* --- Warehouse / Quản lý Kho Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["warehouse"]} />}>
+            <Route path="/warehouse" element={<WarehouseLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="inventory/map" element={<WarehouseMapPage />} />
+              <Route path="inventory/checks" element={<InventoryCheck />} />
+              <Route path="inventory/requisitions" element={<WarehouseInventoryHub />} />
+              <Route path="inventory/import" element={<WarehouseInventoryHub />} />
+              <Route path="inventory/export" element={<InventoryHistory type="export" />} />
+              <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
+              <Route path="inventory/lot-tracking" element={<LotTracking />} />
+              <Route path="goods-receipt/mobile-inspection" element={<MobileAIInspection />} />
+              <Route path="mobile-ai-inspection" element={<MobileAIInspection />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="ai-insights" element={<AIInsights />} />
+              <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="supply-chain" element={<SupplyChainDashboard />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+
+              <Route path="master-data/products" element={<Products />} />
+              <Route path="master-data/suppliers" element={<Suppliers />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* Profile riêng lẻ cho user thường */}
-        <Route element={<ProtectedRoute allowedRoles={["admin", "head_branch", "warehouse", "branch", "pharmacist", "user"]} />}>
-          <Route path="/profile" element={<Profile />} />
-        </Route>
+          {/* --- Branch / Quản lý Chi nhánh Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["branch"]} />}>
+            <Route path="/branch" element={<BranchLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="sales" element={<Sales />} />
+              <Route path="employees" element={<BranchEmployees />} />
+              <Route path="pricing" element={<PriceManagement />} />
+              <Route path="requisitions" element={<BranchRequisition />} />
+              <Route path="receive-transfers" element={<BranchStockReceive />} />
+              <Route path="inventory" element={<BranchInventory />} />
+              <Route path="transfers" element={<BranchTransfer />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="supplier-credit" element={<SupplierCreditManagement />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="inventory/lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+          </Route>
 
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* --- Pharmacist Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["pharmacist"]} />}>
+            <Route path="/pharmacist" element={<PharmacistLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="sales" element={<Sales />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+          </Route>
+
+          {/* Profile riêng lẻ cho user thường */}
+          <Route element={<ProtectedRoute allowedRoles={["admin", "head_branch", "warehouse", "branch", "pharmacist", "user"]} />}>
+            <Route path="/profile" element={<Profile />} />
+          </Route>
+
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </NotificationProvider>
     </BrowserRouter>
   );

@@ -104,6 +104,15 @@ export class MedicineController implements OnModuleInit {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.shelf_detail', { zone, rack, shelf: Number(shelf) });
   }
 
+  @Get('warehouse-search')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tìm kiếm nhanh thuốc và lấy vị trí trong kho tổng' })
+  @ApiQuery({ name: 'q', required: true, type: String })
+  async warehouseSearch(@Query('q') q: string) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.warehouse_search', { q });
+  }
+
   @Post('sync-locations')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'PHARMACIST')

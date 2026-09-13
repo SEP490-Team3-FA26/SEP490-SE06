@@ -1,5 +1,11 @@
 import api from '../core/api';
 
+export interface MedicineLocation {
+  zone: string;
+  rack: string;
+  shelf: number;
+}
+
 export interface GoodsReceiptItem {
   medicineId: string;
   batchNo: string;
@@ -7,6 +13,7 @@ export interface GoodsReceiptItem {
   quantity: number;
   unitPrice: number;
   actualQty?: number;
+  location?: MedicineLocation;
 }
 
 export interface GoodsReceiptPayload {
@@ -51,8 +58,8 @@ export const goodsReceiptService = {
     return response.data;
   },
 
-  async verifyInspectionItem(recordId: string, itemId: string, actualQty: number, batchNo?: string, expDate?: string) {
-    const response = await api.post('/api/goods-receipts/inspections/verify', { recordId, itemId, actualQty, batchNo, expDate });
+  async verifyInspectionItem(recordId: string, itemId: string, actualQty: number, batchNo?: string, expDate?: string, location?: { zone: string; rack: string; shelf: number }) {
+    const response = await api.post('/api/goods-receipts/inspections/verify', { recordId, itemId, actualQty, batchNo, expDate, location });
     return response.data;
   },
 

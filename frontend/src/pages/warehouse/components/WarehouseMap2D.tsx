@@ -1,127 +1,245 @@
-import React from "react";
-import { DoorOpen, Layers, Search } from "lucide-react";
+import React, { useState } from "react";
+import { Layers, AlertTriangle, CheckCircle, Clock, Package } from "lucide-react";
 
 interface WarehouseMap2DProps {
   zones: any[];
   onShelfSelect: (zone: string, rack: string, shelf: number) => void;
+  onZoneClick?: (zoneData: any) => void;
+  highlightTarget?: string;
 }
 
-export function WarehouseMap2D({ zones, onShelfSelect }: WarehouseMap2DProps) {
-  // Map màu theo trạng thái
-  const statusColorMap: Record<string, string> = {
-    NORMAL: "bg-green-100 text-green-700 border-green-300",
-    LOW_STOCK: "bg-yellow-100 text-yellow-700 border-yellow-300",
-    NEAR_EXPIRY: "bg-orange-100 text-orange-700 border-orange-300",
-    EXPIRED: "bg-red-100 text-red-700 border-red-300",
-    EMPTY: "bg-slate-100 text-slate-500 border-slate-300",
-  };
+const ZONE_CONFIG: Record<string, {
+  label: string;
+  borderColor: string;
+  bgColor: string;
+  headerBg: string;
+  textColor: string;
+  accentColor: string;
+  icon: string;
+  description: string;
+}> = {
+  A: {
+    label: "Khu A — Kháng Sinh",
+    borderColor: "border-sky-500/50",
+    bgColor: "bg-sky-950/25",
+    headerBg: "bg-sky-900/40",
+    textColor: "text-sky-300",
+    accentColor: "#0284c7",
+    icon: "💊",
+    description: "Penicillin, Cephalosporin, Macrolide, Quinolone",
+  },
+  B: {
+    label: "Khu B — Hạ Sốt & Giảm Đau",
+    borderColor: "border-amber-500/50",
+    bgColor: "bg-amber-950/20",
+    headerBg: "bg-amber-900/30",
+    textColor: "text-amber-300",
+    accentColor: "#f59e0b",
+    icon: "🌡️",
+    description: "Paracetamol, Ibuprofen, Diclofenac, Aspirin",
+  },
+  C: {
+    label: "Khu C — Tim Mạch",
+    borderColor: "border-red-500/50",
+    bgColor: "bg-red-950/20",
+    headerBg: "bg-red-900/30",
+    textColor: "text-red-300",
+    accentColor: "#ef4444",
+    icon: "❤️",
+    description: "Amlodipine, Metoprolol, Atorvastatin, Warfarin",
+  },
+  D: {
+    label: "Khu D — Tiêu Hóa",
+    borderColor: "border-emerald-500/50",
+    bgColor: "bg-emerald-950/20",
+    headerBg: "bg-emerald-900/30",
+    textColor: "text-emerald-300",
+    accentColor: "#10b981",
+    icon: "🫁",
+    description: "Omeprazole, Metoclopramide, Smecta, Loperamide",
+  },
+  E: {
+    label: "Khu E — TPCN",
+    borderColor: "border-purple-500/50",
+    bgColor: "bg-purple-950/20",
+    headerBg: "bg-purple-900/30",
+    textColor: "text-purple-300",
+    accentColor: "#8b5cf6",
+    icon: "🌿",
+    description: "Vitamin, Khoáng chất, Omega-3, Collagen",
+  },
+  F: {
+    label: "Khu F — Vật Tư Y Tế",
+    borderColor: "border-slate-500/50",
+    bgColor: "bg-slate-800/30",
+    headerBg: "bg-slate-700/40",
+    textColor: "text-slate-300",
+    accentColor: "#64748b",
+    icon: "🩺",
+    description: "Băng, Gạc, Kim tiêm, Bơm tiêm, Dụng cụ y tế",
+  },
+};
 
-  const statusDotMap: Record<string, string> = {
-    NORMAL: "bg-green-500",
-    LOW_STOCK: "bg-yellow-500",
-    NEAR_EXPIRY: "bg-orange-500",
-    EXPIRED: "bg-red-500",
-    EMPTY: "bg-slate-300",
-  };
+const STATUS_SHELF: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  NORMAL: { bg: "bg-emerald-900/40", text: "text-emerald-300", border: "border-emerald-500/30", dot: "#22c55e" },
+  LOW_STOCK: { bg: "bg-yellow-900/40", text: "text-yellow-300", border: "border-yellow-500/30", dot: "#eab308" },
+  NEAR_EXPIRY: { bg: "bg-orange-900/40", text: "text-orange-300", border: "border-orange-500/30", dot: "#f97316" },
+  EXPIRED: { bg: "bg-red-900/40", text: "text-red-300", border: "border-red-500/30", dot: "#ef4444" },
+  EMPTY: { bg: "bg-slate-800/40", text: "text-slate-500", border: "border-slate-600/30", dot: "#475569" },
+  OUT_OF_STOCK: { bg: "bg-slate-800/30", text: "text-slate-600", border: "border-slate-700/30", dot: "#334155" },
+};
 
-  // Xác định trạng thái xấu nhất của một rack để hiện màu tổng quan
-  const getRackStatus = (shelves: any[]) => {
-    if (shelves.some((s) => s.status === "EXPIRED")) return "EXPIRED";
-    if (shelves.some((s) => s.status === "NEAR_EXPIRY")) return "NEAR_EXPIRY";
-    if (shelves.some((s) => s.status === "LOW_STOCK")) return "LOW_STOCK";
-    if (shelves.every((s) => s.status === "EMPTY")) return "EMPTY";
-    return "NORMAL";
-  };
+function getRackWorstStatus(shelves: any[]) {
+  if (shelves.some((s) => s.status === "EXPIRED")) return "EXPIRED";
+  if (shelves.some((s) => s.status === "NEAR_EXPIRY")) return "NEAR_EXPIRY";
+  if (shelves.some((s) => s.status === "LOW_STOCK")) return "LOW_STOCK";
+  if (shelves.every((s) => s.status === "EMPTY" || s.status === "OUT_OF_STOCK")) return "EMPTY";
+  return "NORMAL";
+}
+
+export function WarehouseMap2D({ zones, onShelfSelect, onZoneClick, highlightTarget }: WarehouseMap2DProps) {
+  const [hoveredZone, setHoveredZone] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (highlightTarget) {
+      const element = document.getElementById(highlightTarget);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [highlightTarget]);
 
   return (
-    <div className="flex flex-col h-full bg-[#f8f9fc] rounded-2xl p-6 shadow-inner overflow-auto">
-      {/* Entrance / Exit area */}
-      <div className="w-full h-16 border-2 border-dashed border-slate-300 rounded-xl mb-8 flex items-center justify-center text-slate-400 font-bold tracking-widest gap-2 bg-white/50">
-        <DoorOpen size={24} />
-        LỐI VÀO / RA KHU VỰC KHO
+    <div className="flex-1 h-full overflow-auto p-5 flex flex-col">
+      {/* Zone label: Receiving entrance */}
+      <div className="w-full mb-4 border border-dashed border-emerald-500/40 bg-emerald-950/10 rounded-xl px-4 py-2 flex items-center justify-between text-xs shrink-0">
+        <span className="flex items-center gap-2 text-emerald-400 font-semibold">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+          🚚 CỬA NHẬP HÀNG (Inbound Docks) — Khu Tiếp Nhận & Kiểm Đếm
+        </span>
+        <span className="text-emerald-600 font-mono text-[10px]">Luồng một chiều → GSP</span>
       </div>
 
-      {/* Map Grid */}
-      <div className="flex-1 overflow-auto pb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {zones.map((zoneData, zIndex) => (
-            <div key={zIndex} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-              {/* Zone Header */}
-              <div className={`p-4 border-b border-slate-100 bg-gradient-to-r ${getZoneBg(zoneData.zone)}`}>
-                <h3 className={`font-black text-lg ${getZoneTextColor(zoneData.zone)}`}>Khu {zoneData.zone}</h3>
-                <p className={`text-xs font-medium opacity-80 ${getZoneTextColor(zoneData.zone)}`}>{zoneData.label.split('-')[1]?.trim()}</p>
+      {/* Zone grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 flex-1">
+        {zones.map((zoneData) => {
+          const cfg = ZONE_CONFIG[zoneData.zone] || {
+            label: `Khu ${zoneData.zone}`,
+            borderColor: "border-slate-500/50",
+            bgColor: "bg-slate-800/20",
+            headerBg: "bg-slate-700/30",
+            textColor: "text-slate-300",
+            accentColor: "#64748b",
+            icon: "📦",
+            description: "",
+          };
+
+          const totalStock = zoneData.racks.reduce((a: number, r: any) =>
+            a + r.shelves.reduce((s: number, sh: any) => s + sh.totalStock, 0), 0);
+          const alertShelves = zoneData.racks.reduce((a: number, r: any) =>
+            a + r.shelves.filter((sh: any) => ["NEAR_EXPIRY", "EXPIRED", "LOW_STOCK"].includes(sh.status)).length, 0);
+          const isHovered = hoveredZone === zoneData.zone;
+
+          return (
+            <div
+              key={zoneData.zone}
+              onMouseEnter={() => setHoveredZone(zoneData.zone)}
+              onMouseLeave={() => setHoveredZone(null)}
+              className={`border-2 ${cfg.borderColor} ${cfg.bgColor} rounded-2xl overflow-hidden flex flex-col transition-all duration-200 cursor-pointer ${isHovered ? "shadow-xl" : "shadow-lg"}`}
+              style={{ boxShadow: isHovered ? `0 0 24px ${cfg.accentColor}22` : undefined }}
+              onClick={() => onZoneClick && onZoneClick(zoneData)}
+            >
+              {/* Zone header */}
+              <div className={`${cfg.headerBg} px-4 py-3 border-b border-white/5 flex items-center justify-between`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{cfg.icon}</span>
+                  <div>
+                    <div className={`text-xs font-bold ${cfg.textColor} tracking-wide`}>{cfg.label}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{cfg.description}</div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`text-xs font-bold font-mono ${cfg.textColor}`}>{totalStock.toLocaleString("vi-VN")}</span>
+                  {alertShelves > 0 && (
+                    <span className="text-[10px] flex items-center gap-1 text-amber-400">
+                      <AlertTriangle size={10} /> {alertShelves} cảnh báo
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Racks & Shelves */}
-              <div className="p-4 grid gap-4 bg-slate-50/50 flex-1">
-                {zoneData.racks.map((rackData: any, rIndex: number) => {
-                  const rackStatus = getRackStatus(rackData.shelves);
+              {/* Racks */}
+              <div className="p-3 grid gap-3 flex-1" onClick={(e) => e.stopPropagation()}>
+                {zoneData.racks.map((rackData: any) => {
+                  const rackStatus = getRackWorstStatus(rackData.shelves);
+                  const rackStyle = STATUS_SHELF[rackStatus] || STATUS_SHELF.EMPTY;
                   return (
-                    <div key={rIndex} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2 font-bold text-slate-700">
-                          <Layers size={16} className="text-slate-400" />
+                    <div key={rackData.rack} className="bg-slate-900/50 border border-slate-700/40 rounded-xl p-2.5">
+                      {/* Rack header */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
+                          <Layers size={11} className="opacity-60" />
                           Kệ {rackData.rack}
+                          <span className="text-slate-600 font-mono text-[10px]">
+                            · {rackData.shelves.reduce((a: number, s: any) => a + s.batchCount, 0)} lô
+                          </span>
                         </div>
-                        <div className={`w-2.5 h-2.5 rounded-full ${statusDotMap[rackStatus]} shadow-sm`} title={`Trạng thái: ${rackStatus}`}></div>
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: rackStyle.dot }}
+                          title={`Trạng thái kệ: ${rackStatus}`}
+                        />
                       </div>
 
-                      {/* Tầng (Shelves) - hiển thị dạng khối ngang */}
-                      <div className="flex flex-col-reverse gap-1.5">
-                        {rackData.shelves.map((shelfData: any, sIndex: number) => (
-                          <button
-                            key={sIndex}
-                            onClick={() => onShelfSelect(zoneData.zone, rackData.rack, shelfData.shelf)}
-                            className={`flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs font-semibold hover:brightness-95 transition-all ${statusColorMap[shelfData.status]}`}
-                            title={`Tầng ${shelfData.shelf} - Tồn kho: ${shelfData.totalStock} - Click để xem chi tiết`}
-                          >
-                            <span>Tầng {shelfData.shelf}</span>
-                            <span className="opacity-80 tabular-nums">{shelfData.totalStock}</span>
-                          </button>
-                        ))}
+                      {/* Shelves - bottom to top (ground = shelf 1 at bottom) */}
+                      <div className="flex flex-col-reverse gap-1">
+                        {rackData.shelves.map((shelfData: any) => {
+                          const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
+                          const targetId = `${zoneData.zone}-${rackData.rack}-${shelfData.shelf}`;
+                          const isHighlighted = highlightTarget === targetId;
+
+                          return (
+                            <button
+                              key={shelfData.shelf}
+                              id={targetId}
+                              onClick={() => onShelfSelect(zoneData.zone, rackData.rack, shelfData.shelf)}
+                              className={`shelf-btn w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all ${ss.bg} ${ss.text} hover:brightness-125 ${isHighlighted ? "border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.6)] pulse-dot" : ss.border}`}
+                              title={`Tầng ${shelfData.shelf} · Tồn: ${shelfData.totalStock} · Trạng thái: ${shelfData.status}`}
+                            >
+                              <span className="opacity-80">T{shelfData.shelf}</span>
+                              <span className="flex items-center gap-1.5 tabular-nums">
+                                {shelfData.totalStock.toLocaleString("vi-VN")}
+                                {shelfData.status === "EXPIRED" && <AlertTriangle size={9} />}
+                                {shelfData.status === "NEAR_EXPIRY" && <Clock size={9} />}
+                                {shelfData.status === "NORMAL" && <CheckCircle size={9} />}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              {/* Zone footer */}
+              <div className="px-4 py-1.5 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-500">
+                <span>{zoneData.racks.length} kệ · {zoneData.racks.reduce((a: number, r: any) => a + r.shelves.length, 0)} tầng</span>
+                <span className={isHovered ? cfg.textColor : ""}>Click để xem chi tiết →</span>
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      {/* Legend */}
-      <div className="mt-auto pt-6 border-t border-slate-200 flex flex-wrap items-center justify-center gap-6 text-sm font-medium text-slate-600 bg-[#f8f9fc]">
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500"></div> Bình thường</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500"></div> Sắp hết hàng (Dưới 50)</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Cận date (Dưới 90 ngày)</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> Hết hạn</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-slate-300"></div> Trống</div>
+      {/* Receiving exit */}
+      <div className="w-full mt-4 border border-dashed border-sky-500/40 bg-sky-950/10 rounded-xl px-4 py-2 flex items-center justify-between text-xs shrink-0">
+        <span className="flex items-center gap-2 text-sky-400 font-semibold">
+          <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse inline-block" />
+          🚛 CỬA XUẤT HÀNG (Outbound Docks) — Khu Soạn Đơn & Đóng Gói
+        </span>
+        <span className="text-sky-600 font-mono text-[10px]">FEFO / FIFO — WMS</span>
       </div>
     </div>
   );
-}
-
-// Helpers for zone colors
-function getZoneBg(zone: string) {
-  const map: any = {
-    'A': 'from-blue-50 to-white',
-    'B': 'from-orange-50 to-white',
-    'C': 'from-red-50 to-white',
-    'D': 'from-green-50 to-white',
-    'E': 'from-yellow-50 to-white',
-    'F': 'from-slate-100 to-white'
-  };
-  return map[zone] || 'from-slate-50 to-white';
-}
-
-function getZoneTextColor(zone: string) {
-  const map: any = {
-    'A': 'text-blue-700',
-    'B': 'text-orange-700',
-    'C': 'text-red-700',
-    'D': 'text-green-700',
-    'E': 'text-yellow-700',
-    'F': 'text-slate-600'
-  };
-  return map[zone] || 'text-slate-700';
 }

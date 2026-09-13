@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, Phone, Mail, Edit2, Lock, X, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, MapPin, Phone, Mail, Edit2, Lock, X, Eye, EyeOff, CheckCircle2, AlertCircle, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/core/api';
 import { notifyAuthTokenChanged } from '../../utils/authEvents';
@@ -15,6 +15,15 @@ export function CustomerProfile() {
   });
   const [loading, setLoading] = useState(true);
 
+  // Edit Profile States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFullName, setEditFullName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Change Password States
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -26,28 +35,72 @@ export function CustomerProfile() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  useEffect(() => {
-    const fetchProfileData = async () => {
-      setLoading(true);
-      try {
-        const userRes = await api.get('/api/auth/profile');
-        if (userRes && userRes.data) {
-          setUser({
-            fullName: userRes.data.fullName || userRes.data.name || 'Người dùng',
-            phone: userRes.data.phone || 'Chưa cập nhật',
-            email: userRes.data.email,
-            address: userRes.data.address || 'Chưa cập nhật',
-            loyaltyPoints: userRes.data.loyaltyPoints || 0
-          });
-        }
-      } catch (error) {
-        console.error("Failed to load profile data:", error);
-      } finally {
-        setLoading(false);
+  const fetchProfileData = async () => {
+    setLoading(true);
+    try {
+      const userRes = await api.get('/api/auth/profile');
+      if (userRes && userRes.data) {
+        setUser({
+          fullName: userRes.data.fullName || userRes.data.name || 'Người dùng',
+          phone: userRes.data.phone || 'Chưa cập nhật',
+          email: userRes.data.email,
+          address: userRes.data.address || 'Chưa cập nhật',
+          loyaltyPoints: userRes.data.points || userRes.data.loyaltyPoints || 0
+        });
       }
-    };
+    } catch (error) {
+      console.error("Failed to load profile data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchProfileData();
   }, []);
+
+  const handleOpenEditModal = () => {
+    setEditFullName(user.fullName === 'Người dùng' ? '' : user.fullName);
+    setEditPhone(user.phone === 'Chưa cập nhật' ? '' : user.phone);
+    setEditAddress(user.address === 'Chưa cập nhật' ? '' : user.address);
+    setEditError('');
+    setEditSuccess('');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditError('');
+    setEditSuccess('');
+
+    if (!editFullName.trim()) {
+      setEditError('Họ và tên không được để trống.');
+      return;
+    }
+    if (!editAddress.trim()) {
+      setEditError('Vui lòng nhập địa chỉ nhận hàng cụ thể để giao thuốc chính xác.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      await api.put('/api/users/profile', {
+        fullName: editFullName.trim(),
+        phone: editPhone.trim(),
+        address: editAddress.trim(),
+      });
+
+      setEditSuccess('Cập nhật thông tin và địa chỉ vào cơ sở dữ liệu thành công!');
+      await fetchProfileData();
+      setTimeout(() => {
+        setIsEditModalOpen(false);
+      }, 1500);
+    } catch (error: any) {
+      setEditError(error.response?.data?.message || error.message || 'Không thể lưu thông tin hồ sơ.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handleOpenPasswordModal = () => {
     setOldPassword('');
@@ -111,7 +164,7 @@ export function CustomerProfile() {
               </div>
               <div>
                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">Thông tin tài khoản</h2>
-                <p className="text-slate-500 text-sm mt-1 font-medium">Quản lý thông tin cá nhân và bảo mật.</p>
+                <p className="text-slate-500 text-sm mt-1 font-medium">Quản lý thông tin cá nhân và địa chỉ giao nhận thuốc.</p>
               </div>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -122,9 +175,12 @@ export function CustomerProfile() {
                 <Lock className="w-4 h-4 text-slate-500" />
                 Đổi mật khẩu
               </button>
-              <button className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-[#0d6efd] hover:bg-[#0b5ed7] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-500/20 active:scale-[0.98]">
+              <button 
+                onClick={handleOpenEditModal}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-[#0d6efd] hover:bg-[#0b5ed7] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-500/20 active:scale-[0.98]"
+              >
                 <Edit2 className="w-4 h-4" />
-                Chỉnh sửa
+                Chỉnh sửa thông tin
               </button>
             </div>
           </div>
@@ -161,12 +217,29 @@ export function CustomerProfile() {
                 </div>
               </div>
               <div className="group">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Địa chỉ nhận hàng mặc định</label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Địa chỉ nhận hàng thực tế</label>
+                  {user.address === 'Chưa cập nhật' && (
+                    <span className="text-[11px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Chưa có địa chỉ trong DB
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-start gap-3 text-slate-800 font-bold bg-slate-50/50 p-3.5 rounded-xl border border-slate-100 transition-colors group-hover:bg-slate-50 group-hover:border-slate-200">
                   <div className="bg-white p-2 rounded-lg shadow-sm text-slate-400 shrink-0 mt-0.5 group-hover:text-blue-500 transition-colors">
                     <MapPin className="w-5 h-5" />
                   </div>
-                  <span className="leading-snug text-[15px] mt-1.5">{user.address}</span>
+                  <div className="flex-1">
+                    <span className="leading-snug text-[15px] block">{user.address}</span>
+                    {user.address === 'Chưa cập nhật' && (
+                      <button 
+                        onClick={handleOpenEditModal}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-bold mt-1 inline-flex items-center gap-1"
+                      >
+                        + Bấm vào đây để thêm địa chỉ giao hàng ngay
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -184,6 +257,120 @@ export function CustomerProfile() {
             <div className="flex items-baseline gap-1.5 relative z-10 bg-white px-6 py-4 rounded-2xl shadow-sm border border-blue-100 group-hover:shadow-md transition-shadow">
               <span className="text-4xl font-black text-[#0d6efd] tracking-tighter">{user.loyaltyPoints}</span>
               <span className="text-sm font-bold uppercase tracking-wider text-slate-400">pts</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => !isSavingProfile && setIsEditModalOpen(false)}
+          ></div>
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-up border border-slate-100">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                Cập nhật thông tin & Địa chỉ giao hàng
+              </h3>
+              <button 
+                onClick={() => !isSavingProfile && setIsEditModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors focus:outline-none"
+                disabled={isSavingProfile}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {editSuccess ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center animate-fade-in">
+                  <div className="w-16 h-16 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm shadow-emerald-500/20">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <h4 className="text-lg font-bold text-emerald-800 mb-2">Đã lưu thành công!</h4>
+                  <p className="text-sm text-emerald-600 font-medium leading-relaxed">{editSuccess}</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveProfile} className="space-y-4">
+                  {editError && (
+                    <div className="bg-rose-50 border border-rose-200 text-rose-600 text-sm font-medium px-4 py-3 rounded-xl flex items-start gap-3 animate-fade-in">
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <p>{editError}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Họ và tên người nhận</label>
+                    <input 
+                      type="text"
+                      value={editFullName}
+                      onChange={(e) => setEditFullName(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400"
+                      placeholder="Ví dụ: Nguyễn Văn An"
+                      required
+                      disabled={isSavingProfile}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Số điện thoại liên hệ</label>
+                    <input 
+                      type="tel"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400"
+                      placeholder="Ví dụ: 0987654321"
+                      required
+                      disabled={isSavingProfile}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                      Địa chỉ nhận hàng chi tiết (Lưu vào Database)
+                    </label>
+                    <textarea 
+                      rows={3}
+                      value={editAddress}
+                      onChange={(e) => setEditAddress(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400"
+                      placeholder="Số nhà, tên đường, Phường/Xã, Quận/Huyện, Tỉnh/TP (VD: Số 45 Tràng Tiền, Hoàn Kiếm, Hà Nội)"
+                      required
+                      disabled={isSavingProfile}
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      📍 Địa chỉ này sẽ được hệ thống dùng để hiển thị trên bản đồ giao hàng thời gian thực.
+                    </p>
+                  </div>
+
+                  <div className="pt-3">
+                    <button 
+                      type="submit"
+                      disabled={isSavingProfile}
+                      className="w-full flex justify-center items-center gap-2 bg-[#0d6efd] hover:bg-[#0b5ed7] text-white py-3.5 rounded-xl font-bold transition-all shadow-md shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    >
+                      {isSavingProfile ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          Đang lưu vào Database...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          Lưu thông tin & Địa chỉ
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>
@@ -248,9 +435,9 @@ export function CustomerProfile() {
                       <button 
                         type="button"
                         onClick={() => setShowOldPassword(!showOldPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                       >
-                        {showOldPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
@@ -271,9 +458,9 @@ export function CustomerProfile() {
                       <button 
                         type="button"
                         onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                       >
-                        {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>

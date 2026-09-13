@@ -2196,7 +2196,7 @@ export class PurchaseService {
     };
   }
 
-  async verifyInspectionItem(recordId: string, itemId: string, actualQty: number, batchNo?: string, expDate?: string) {
+  async verifyInspectionItem(recordId: string, itemId: string, actualQty: number, batchNo?: string, expDate?: string, location?: { zone: string; rack: string; shelf: number }) {
     const record = await this.inspectionModel.findById(recordId).exec();
     if (!record) throw new RpcException({ message: 'Không tìm thấy phiên kiểm đếm' });
 
@@ -2230,6 +2230,7 @@ export class PurchaseService {
         grnItem.actualQty = actualQty;
         if (normalizedBatchNo) grnItem.batchNo = normalizedBatchNo;
         if (normalizedExpDate && !Number.isNaN(normalizedExpDate.getTime())) grnItem.expDate = normalizedExpDate;
+        if (location) (grnItem as any).location = location; // Lưu vị trí xếp hàng
         grnItem.status = 'VERIFIED';
       }
       await grn.save();
@@ -2264,14 +2265,31 @@ export class PurchaseService {
       // Nhập kho cho từng item với actualQty
       for (const item of grn.items) {
         if (item.actualQty > 0) {
-          // Lưu vào MedicineBatch
-          let batch = await this.batchModel.findOne({ medicineId: item.medicineId, batchNo: item.batchNo }).session(session).exec();
+          // Lưu vào MedicineBatch - tìm theo batchNo + location để tránh gộp nhầm lô khác vị trí
+          const newLocation = (item as any).location || null;
+          let batch = null;
+
+          if (newLocation) {
+            // Tìm batch trùng cả batchNo lẫn location
+            batch = await this.batchModel.findOne({
+              medicineId: item.medicineId,
+              batchNo: item.batchNo,
+              'location.zone': newLocation.zone,
+              'location.rack': newLocation.rack,
+              'location.shelf': newLocation.shelf,
+            }).session(session).exec();
+          } else {
+            // Fallback: tìm theo batchNo như cũ (khi không có location)
+            batch = await this.batchModel.findOne({ medicineId: item.medicineId, batchNo: item.batchNo }).session(session).exec();
+          }
+
           let stockBefore = 0;
           if (batch) {
             stockBefore = batch.stock;
             batch.stock += item.actualQty;
             batch.importPrice = item.unitPrice; // Cập nhật giá nhập
             batch.expDate = item.expDate;
+            if (newLocation) (batch as any).location = newLocation;
             await batch.save({ session });
           } else {
             batch = new this.batchModel({
@@ -2281,7 +2299,8 @@ export class PurchaseService {
               expDate: item.expDate,
               stock: item.actualQty,
               importPrice: item.unitPrice, // Lưu giá nhập
-              status: 'ACTIVE'
+              status: 'ACTIVE',
+              location: newLocation, // Lưu vị trí xếp hàng
             });
             await batch.save({ session });
           }
