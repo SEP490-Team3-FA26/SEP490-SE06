@@ -9,6 +9,8 @@ import { InventoryTransaction } from './schemas/inventory-transaction.schema';
 import { StockTransfer } from './schemas/stock-transfer.schema';
 import { Medicine } from '../medicine/schemas/medicine.schema';
 import { MedicineBatch } from '../medicine/schemas/medicine-batch.schema';
+import { BranchInventory } from '../medicine/schemas/branch-inventory.schema';
+import { BranchStockBalance } from '../medicine/schemas/branch-stock-balance.schema';
 import { firstValueFrom } from 'rxjs';
 import { subscribeToKafkaTopics, sendKafkaMessage } from '../../../api-gateway/src/common/kafka.helper';
 import { QuotaService } from '../quota/quota.service';
@@ -49,6 +51,8 @@ export class PurchaseService {
     @InjectModel(StockTransfer.name) private readonly transferModel: Model<StockTransfer>,
     @InjectModel(Medicine.name) private readonly medicineModel: Model<Medicine>,
     @InjectModel(MedicineBatch.name) private readonly batchModel: Model<MedicineBatch>,
+    @InjectModel(BranchInventory.name) private readonly branchInvModel: Model<BranchInventory>,
+    @InjectModel(BranchStockBalance.name) private readonly balanceModel: Model<BranchStockBalance>,
     @InjectModel(InspectionRecord.name) private readonly inspectionModel: Model<InspectionRecord>,
     private readonly quotaService: QuotaService,
   ) { }
@@ -1606,6 +1610,51 @@ export class PurchaseService {
             receivedQuantity,
             batchCreated: true,
           });
+        }
+
+        // =========================================================================
+        // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ (Physical Warehouse Separation - Phương án 2)
+        // Lưu trữ độc lập vào collection branch_inventories & branch_stock_balances
+        // =========================================================================
+        if (transfer.toBranchId !== 'CENTRAL_WH') {
+          const branchInvItem = await this.branchInvModel.findOne({
+            branchId: transfer.toBranchId,
+            medicineId: item.medicineId,
+            batchNo: item.batchNo,
+          }).session(session).exec();
+
+          if (branchInvItem) {
+            await this.branchInvModel.findOneAndUpdate(
+              { _id: branchInvItem._id },
+              { $inc: { stock: receivedQuantity }, $set: { status: 'ACTIVE' } },
+              { new: true, session }
+            ).exec();
+          } else {
+            const origBatch = await this.batchModel.findOne({
+              medicineId: item.medicineId,
+              batchNo: item.batchNo,
+            }).session(session).exec();
+
+            await new this.branchInvModel({
+              branchId: transfer.toBranchId,
+              medicineId: item.medicineId,
+              batchNo: item.batchNo,
+              expDate: origBatch ? origBatch.expDate : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+              stock: receivedQuantity,
+              importPrice: origBatch ? origBatch.importPrice : 0,
+              status: 'ACTIVE',
+            }).save({ session });
+          }
+
+          // Cập nhật bảng số dư Single Source of Truth của chi nhánh
+          await this.balanceModel.findOneAndUpdate(
+            { branchId: transfer.toBranchId, medicineId: item.medicineId },
+            {
+              $inc: { totalStock: receivedQuantity },
+              $set: { status: 'IN_STOCK', lastSyncedAt: new Date() },
+            },
+            { upsert: true, new: true, session }
+          ).exec();
         }
 
         // Log transaction (Nhập chuyển kho: dương)

@@ -6,6 +6,8 @@ import { SalesOrder } from './schemas/sales-order.schema';
 import { Prescription } from './schemas/prescription.schema';
 import { Medicine } from '../medicine/schemas/medicine.schema';
 import { MedicineBatch } from '../medicine/schemas/medicine-batch.schema';
+import { BranchInventory } from '../medicine/schemas/branch-inventory.schema';
+import { BranchStockBalance } from '../medicine/schemas/branch-stock-balance.schema';
 import { PricingService } from '../pricing/pricing.service';
 import { NationalPharmaService } from './national-pharma.service';
 import { InventoryTransaction } from '../purchase/schemas/inventory-transaction.schema';
@@ -19,6 +21,8 @@ export class SalesService implements OnModuleInit {
     @InjectModel(Prescription.name) private readonly prescriptionModel: Model<Prescription>,
     @InjectModel(Medicine.name) private readonly medicineModel: Model<Medicine>,
     @InjectModel(MedicineBatch.name) private readonly batchModel: Model<MedicineBatch>,
+    @InjectModel(BranchInventory.name) private readonly branchInvModel: Model<BranchInventory>,
+    @InjectModel(BranchStockBalance.name) private readonly balanceModel: Model<BranchStockBalance>,
     private readonly pricingService: PricingService,
     private readonly nationalPharmaService: NationalPharmaService,
     @InjectModel(InventoryTransaction.name) private readonly txnModel: Model<InventoryTransaction>,
@@ -237,15 +241,43 @@ export class SalesService implements OnModuleInit {
         status: 'ACTIVE',
         stock: { $gt: 0 }
       };
-      if (data.branchId) {
-        batchQuery.branchId = data.branchId;
-      }
-      let batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
+      let batches: any[] = [];
+      let isBranchInventoryUsed = false;
 
-      // Nếu không có lô hàng nào hợp lệ tại chi nhánh
+      // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ (Phương án 2):
+      // Nếu bán tại chi nhánh cụ thể, truy vấn trực tiếp vào collection vật lý riêng `branch_inventories`
+      if (data.branchId && data.branchId !== 'CENTRAL_WH') {
+        batches = await this.branchInvModel.find({
+          branchId: data.branchId,
+          $or: [
+            { medicineId: medIdStr },
+            { medicineId: medicine._id },
+            { medicineId: item.medicineId }
+          ],
+          status: 'ACTIVE',
+          stock: { $gt: 0 }
+        }).sort({ expDate: 1 }).exec();
+
+        if (batches.length > 0) {
+          isBranchInventoryUsed = true;
+        }
+      }
+
+      // Fallback: Nếu không tìm thấy trong branch_inventories hoặc là Kho Tổng, tra cứu medicinebatches
+      if (batches.length === 0) {
+        if (data.branchId) {
+          batchQuery.branchId = data.branchId;
+        } else {
+          // Nếu đơn hàng online không gán chi nhánh, ưu tiên trừ kho tổng CENTRAL_WH
+          batchQuery.branchId = 'CENTRAL_WH';
+        }
+        batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
+      }
+
+      // Nếu vẫn không có lô hàng nào hợp lệ tại chi nhánh
       if (batches.length === 0 && data.branchId) {
         throw new RpcException({
-          message: `Chi nhánh không có tồn kho cho thuốc "${medicine.name}". Vui lòng liên hệ kho tổng để chuyển hàng.`
+          message: `Chi nhánh ${data.branchId} không có tồn kho khả dụng cho thuốc "${medicine.name}". Vui lòng liên hệ kho tổng để chuyển hàng.`
         });
       }
 
@@ -305,7 +337,7 @@ export class SalesService implements OnModuleInit {
           stockAfter: stockBefore - deductQty,
           referenceType: 'SALE',
           performedBy: data.soldBy || 'Dược sĩ',
-          notes: `Bán hàng ${data.type === 'WHOLESALE' ? 'sỉ' : 'lẻ'} - Đơn vị: ${item.unit || 'Hộp'}`,
+          notes: `Bán hàng ${data.type === 'WHOLESALE' ? 'sỉ' : 'lẻ'} - Đơn vị: ${item.unit || 'Hộp'} (${isBranchInventoryUsed ? 'Kho Chi Nhánh' : 'Kho Tổng'})`,
         });
       }
 
@@ -313,6 +345,18 @@ export class SalesService implements OnModuleInit {
         throw new RpcException({
           message: `Không đủ lô hàng khả dụng còn hạn cho thuốc "${medicine.name}"`
         });
+      }
+
+      // Đồng bộ ngay bảng số dư tồn kho chi nhánh (BranchStockBalance) để bảo đảm tính toàn vẹn tuyệt đối
+      if (data.branchId && data.branchId !== 'CENTRAL_WH') {
+        await this.balanceModel.findOneAndUpdate(
+          { branchId: data.branchId, medicineId: medIdStr },
+          {
+            $inc: { totalStock: -baseDeductQty },
+            $set: { lastSyncedAt: new Date() }
+          },
+          { upsert: true }
+        ).exec();
       }
 
       // Cập nhật tồn kho tổng và hộp lẻ của thuốc

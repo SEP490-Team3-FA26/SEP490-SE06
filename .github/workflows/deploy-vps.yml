@@ -51,10 +51,10 @@ jobs:
           script_stop: true
           command_timeout: 30m
           script: |
-            set -e
-            echo "=================================================="
-            echo "🚀 [CI/CD] Bắt đầu tự động Deploy dự án WDP301..."
-            echo "=================================================="
+            git config --global --add safe.directory /var/www/wdp301 || true
+            cd /var/www/wdp301 && git reset --hard && git fetch origin ${{ github.ref_name }} && git checkout ${{ github.ref_name }} && git pull origin ${{ github.ref_name }}
+            chmod +x /var/www/wdp301/scripts/deploy-prod.sh
+            bash /var/www/wdp301/scripts/deploy-prod.sh
 
             # 1. Tự động cài đặt Docker & Docker Compose nếu VPS chưa có
             if ! command -v docker &> /dev/null; then
