@@ -202,7 +202,7 @@ export default function TicketSelection({ navigation, route }: any) {
         { translateX: translateX.value },
         { translateY: translateY.value },
         { scale: scale.value },
-      ],
+      ] as any,
     };
   });
 

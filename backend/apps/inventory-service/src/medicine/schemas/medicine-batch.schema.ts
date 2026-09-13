@@ -26,10 +26,20 @@ export class MedicineBatch extends Document {
 
   @Prop({ type: String, default: 'ACTIVE', enum: ['ACTIVE', 'EXPIRED'], index: true })
   status: string;
-}
 
+  @Prop({
+    type: {
+      zone: { type: String, default: 'A' },
+      rack: { type: String, default: 'A1' },
+      shelf: { type: Number, default: 1 },
+    },
+    default: () => ({ zone: 'A', rack: 'A1', shelf: 1 }),
+  })
+  location: { zone: string; rack: string; shelf: number };
+}
 export const MedicineBatchSchema = SchemaFactory.createForClass(MedicineBatch);
 
 // Tối ưu hóa Index MongoDB cho truy vấn FIFO và kiểm kê lô hàng nhanh
 MedicineBatchSchema.index({ branchId: 1, medicineId: 1, status: 1, expDate: 1 });
 MedicineBatchSchema.index({ expDate: 1, status: 1 });
+MedicineBatchSchema.index({ 'location.zone': 1, 'location.rack': 1, 'location.shelf': 1 });

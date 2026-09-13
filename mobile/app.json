@@ -6,15 +6,17 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+    "androidNavigationBar": {
+      "visible": "always",
+      "barStyle": "dark-content",
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.vinapharmacy.mobile",
       "infoPlist": {
-        "NSCalendarsUsageDescription": "Cho phép ứng dụng thêm sự kiện vào lịch của bạn."
+        "NSCalendarsUsageDescription": "Cho phép ứng dụng thêm sự kiện vào lịch của bạn.",
+        "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc."
       }
     },
     "android": {
@@ -31,11 +33,15 @@
       ]
     },
     "web": {
+      "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-web-browser",
-      "expo-calendar"
+      "expo-calendar",
+      "expo-status-bar",
+      "expo-font",
+      "expo-splash-screen"
     ]
   }
 }

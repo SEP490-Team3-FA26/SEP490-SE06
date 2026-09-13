@@ -46,7 +46,7 @@ export const FloatingPaymentTimer = () => {
       transform: [
         { translateX: translateX.value },
         { translateY: translateY.value },
-      ],
+      ] as any,
     };
   });
 

@@ -273,3 +273,6 @@ export const AuthAPI = {
     });
   },
 };
+
+export const authApiService = AuthAPI;
+export default AuthAPI;
