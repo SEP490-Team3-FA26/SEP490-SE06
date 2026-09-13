@@ -16,53 +16,10 @@ export class BranchService {
     private readonly userModel: Model<UserDocument>,
     @InjectModel(MedicineBatch.name)
     private readonly batchModel: Model<MedicineBatch>,
-  ) {}
+  ) { }
 
   async findAll(): Promise<any[]> {
     let branches = await this.branchModel.find().sort({ branchCode: 1 }).lean().exec();
-
-    if (branches.length === 0) {
-      const defaultBranches = [
-        {
-          branchCode: 'BR-001',
-          name: 'Nhà Thuốc VinaPharmacy - Chi Nhánh 01 Hoàn Kiếm',
-          address: 'Số 182 Lê Duẩn, Phường Nguyễn Du, Quận Hai Bà Trưng, TP. Hà Nội',
-          image: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=500&auto=format&fit=crop&q=60',
-          status: 'active',
-          manager: 'Nguyễn Thu Trang',
-          contact: '(024) 3822.9988',
-        },
-        {
-          branchCode: 'BR-002',
-          name: 'Nhà Thuốc VinaPharmacy - Chi Nhánh 02 Cầu Giấy',
-          address: 'Số 234 Đường Cầu Giấy, Phường Dịch Vọng, Quận Cầu Giấy, TP. Hà Nội',
-          image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=60',
-          status: 'active',
-          manager: 'Trần Minh Đức',
-          contact: '(024) 3793.1122',
-        },
-        {
-          branchCode: 'BR-003',
-          name: 'Nhà Thuốc VinaPharmacy - Chi Nhánh 03 Đống Đa',
-          address: 'Số 98 Thái Hà, Phường Trung Liệt, Quận Đống Đa, TP. Hà Nội',
-          image: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=60',
-          status: 'active',
-          manager: 'Phạm Thị Lan',
-          contact: '(024) 3514.8866',
-        },
-        {
-          branchCode: 'BR-004',
-          name: 'Nhà Thuốc VinaPharmacy - Chi Nhánh 04 Ba Đình',
-          address: 'Số 56 Kim Mã, Phường Kim Mã, Quận Ba Đình, TP. Hà Nội',
-          image: 'https://images.unsplash.com/photo-1563213126-a4273aed2016?w=500&auto=format&fit=crop&q=60',
-          status: 'active',
-          manager: 'Lê Hoàng Nam',
-          contact: '(024) 3846.5599',
-        },
-      ];
-      await this.branchModel.insertMany(defaultBranches);
-      branches = await this.branchModel.find().sort({ branchCode: 1 }).lean().exec();
-    }
 
     // Tính toán dữ liệu nhân sự & tồn kho thực tế từ DB cho từng chi nhánh
     const enrichedBranches = await Promise.all(
@@ -133,7 +90,7 @@ export class BranchService {
 
   async handleLowStockAlert(data: { branchId: string; medicineId: string; medicineName: string; currentStock: number; minStock: number; timestamp: string }) {
     this.logger.warn(`Received low stock alert for branch ${data.branchId}: ${data.medicineName} (${data.currentStock} < ${data.minStock})`);
-    
+
     const branch = await this.branchModel.findById(data.branchId).exec();
     if (!branch) return;
 
@@ -149,7 +106,7 @@ export class BranchService {
     branch.alerts = branch.alerts || [];
     // Thêm alert mới vào đầu danh sách
     branch.alerts.unshift(newAlert as any);
-    
+
     // Cập nhật stats.lowStock
     branch.stats = branch.stats || { employees: 0, totalStock: 0, lowStock: 0, expiring: 0 };
     branch.stats.lowStock += 1;
