@@ -572,6 +572,16 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       setError("Vui lòng điền tên bệnh nhân và tên bác sĩ kê đơn.");
       return;
     }
+
+    // 🛡️ CHECKOUT GUARD: Kiểm tra tồn kho trước khi thanh toán
+    const overStockItem = prescriptionItems.find((it: any) => it.quantity > (it.stock || 0));
+    if (overStockItem) {
+      const msg = `Không thể thanh toán: Thuốc "${overStockItem.name}" vượt quá tồn kho (Yêu cầu ${overStockItem.quantity} ${overStockItem.unit}, chỉ còn ${overStockItem.stock} ${overStockItem.unit})!`;
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -1348,10 +1358,17 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
 
         {/* Nút hành động */}
         <div className="flex flex-col gap-3 mt-auto">
+          {prescriptionItems.some((it: any) => it.quantity > (it.stock || 0)) && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs font-bold flex items-center gap-2">
+              <AlertTriangle size={18} className="shrink-0 text-rose-600" />
+              <span>Có thuốc kê đơn vượt quá tồn kho khả dụng! Vui lòng điều chỉnh trước khi in đơn.</span>
+            </div>
+          )}
+
           <button
             onClick={handleCheckout}
-            disabled={prescriptionItems.length === 0 || loading}
-            className="w-full bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-[16px] py-4.5 shadow-sm transition-all flex flex-col items-center justify-center gap-1 group relative overflow-hidden"
+            disabled={prescriptionItems.length === 0 || loading || prescriptionItems.some((it: any) => it.quantity > (it.stock || 0))}
+            className="w-full bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-[16px] py-4.5 shadow-sm transition-all flex flex-col items-center justify-center gap-1 group relative overflow-hidden cursor-pointer disabled:cursor-not-allowed"
           >
             <div className="flex items-center gap-2.5 font-black text-[16px] uppercase tracking-wide">
               <Printer size={20} />
