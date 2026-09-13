@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
+import { VietQRCode } from "../../../components/common/VietQRCode";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -695,15 +696,13 @@ export default function WholesaleView() {
               <p className="text-xs text-[#0057cd] font-bold mt-1">Đơn hàng sỉ: {total.toLocaleString()}₫</p>
             </div>
 
-            {payosQrCode ? (
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-                <img src={payosQrCode} alt="PayOS VietQR Code" className="w-56 h-56 object-contain" />
-              </div>
-            ) : (
-              <div className="w-56 h-56 bg-slate-100 flex items-center justify-center text-slate-400 font-semibold animate-pulse rounded-2xl">
-                Đang tạo mã QR...
-              </div>
-            )}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+              <VietQRCode
+                value={payosQrCode || payosCheckoutUrl}
+                size={224}
+                alt="PayOS VietQR Code"
+              />
+            </div>
 
             <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
               Vui lòng quét QR bằng ứng dụng ngân hàng của bạn. Hệ thống tự động xác nhận sau khi nhận được tiền.

@@ -9,6 +9,7 @@ import { medicineService } from "../../../services/inventory/medicine.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { orderService } from "../../../services/sales/order.service";
 import { voucherService } from "../../../services/sales/voucher.service";
+import { VietQRCode } from "../../../components/common/VietQRCode";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -1388,10 +1389,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               </div>
 
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner flex items-center justify-center">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(payosQrCode || payosCheckoutUrl)}`}
+                <VietQRCode
+                  value={payosQrCode || payosCheckoutUrl}
+                  size={224}
                   alt="VietQR PayOS"
-                  className="w-56 h-56 rounded-lg object-contain"
                 />
               </div>
 
