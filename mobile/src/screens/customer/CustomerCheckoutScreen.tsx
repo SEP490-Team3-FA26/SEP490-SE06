@@ -75,6 +75,8 @@ export const CustomerCheckoutScreen: React.FC<{
           navigation.navigate('WebViewScreen', {
             title: 'Thanh Toán PayOS',
             url: payLinkRes.checkoutUrl,
+            orderId,
+            amount: finalTotal,
           });
         } else {
           Alert.alert(
