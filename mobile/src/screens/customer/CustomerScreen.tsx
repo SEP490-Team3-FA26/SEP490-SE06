@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, Order, Voucher } from '../../types/pharmacy.types';
 
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -79,43 +80,8 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       ]);
 
       if (medList) setMedicines(medList);
-      if (voucherList && voucherList.length > 0) {
-        setVouchers(voucherList);
-      } else {
-        setVouchers([
-          { id: 'v1', code: 'PHARMA10', discountType: 'PERCENT', discountValue: 10, description: 'Giảm 10% cho mọi đơn thuốc', minOrderValue: 150000 },
-          { id: 'v2', code: 'FREESHIP', discountType: 'FIXED', discountValue: 25000, description: 'Miễn phí vận chuyển tận nhà', minOrderValue: 200000 },
-          { id: 'v3', code: 'HEALTHCARE50K', discountType: 'FIXED', discountValue: 50000, description: 'Giảm 50.000₫ cho đơn trên 500k', minOrderValue: 500000 },
-        ]);
-      }
-      if (orderList && orderList.length > 0) {
-        setOrders(orderList);
-      } else {
-        setOrders([
-          {
-            id: 'ord_1',
-            orderCode: 'ORD-2026-901',
-            items: [{ medicineId: 'm1', name: 'Panadol Extra', quantity: 2, price: 45000, unit: 'Hộp' }],
-            totalAmount: 90000,
-            finalAmount: 90000,
-            paymentMethod: 'PAYOS',
-            paymentStatus: 'PAID',
-            status: 'COMPLETED',
-            createdAt: '2026-08-30T10:00:00Z',
-          },
-          {
-            id: 'ord_2',
-            orderCode: 'ORD-2026-902',
-            items: [{ medicineId: 'm3', name: 'Strepsils Cool', quantity: 3, price: 32000, unit: 'Hộp' }],
-            totalAmount: 96000,
-            finalAmount: 96000,
-            paymentMethod: 'COD',
-            paymentStatus: 'PENDING',
-            status: 'PROCESSING',
-            createdAt: '2026-09-02T14:30:00Z',
-          },
-        ]);
-      }
+      setVouchers(voucherList || []);
+      setOrders(orderList || []);
     } catch (e) {
       console.warn('Error loading customer data:', e);
     } finally {
@@ -180,7 +146,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const found = vouchers.find((v) => v.code.toUpperCase() === code);
     if (found) {
       if (found.minOrderValue && subtotal < found.minOrderValue) {
-        Alert.alert(
+        showToast.info(
           'Chưa đủ điều kiện',
           `Voucher ${code} chỉ áp dụng cho đơn từ ${found.minOrderValue.toLocaleString('vi-VN')} ₫. Giỏ hàng hiện tại: ${subtotal.toLocaleString('vi-VN')} ₫.`
         );
@@ -188,9 +154,9 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       }
       setAppliedVoucher(found);
       setVoucherCodeInput(code);
-      Alert.alert('Thành công', `Đã áp dụng mã giảm giá ${code}!`);
+      showToast.success('Thành công', `Đã áp dụng mã giảm giá ${code}!`);
     } else {
-      Alert.alert('Lỗi', 'Mã voucher không hợp lệ.');
+      showToast.error('Lỗi', 'Mã voucher không hợp lệ.');
     }
   };
 
@@ -396,7 +362,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <AnimatedTouchable
                   onPress={() => {
                     addToCart(med);
-                    Alert.alert('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                    showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
                   }}
                   style={styles.buyBtn}
                 >
@@ -573,7 +539,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           <AnimatedTouchable
                             onPress={() => {
                               addToCart(med);
-                              Alert.alert('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                              showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
                             }}
                             style={styles.addSuggestBtn}
                           >
@@ -799,7 +765,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 onPress={() => {
                   if (selectedMedDetail) {
                     addToCart(selectedMedDetail);
-                    Alert.alert('Thành công', `Đã thêm ${selectedMedDetail.name} vào giỏ hàng!`);
+                    showToast.success('Thành công', `Đã thêm ${selectedMedDetail.name} vào giỏ hàng!`);
                   }
                   setSelectedMedDetail(null);
                 }}

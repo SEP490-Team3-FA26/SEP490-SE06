@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ImageBackground, KeyboardAvoidingView, Platform, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ImageBackground, KeyboardAvoidingView, Platform, StyleSheet, ScrollView } from 'react-native';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { showToast } from '../../components/ui/toastHelper';
 import { useAuth } from '../../context/AuthContext';
 import Animated, { 
   useSharedValue, 
@@ -139,7 +140,7 @@ export default function CreateAccount({ navigation }: any) {
               const lastName = parts.slice(1).join(' ') || 'Mobile';
 
               if (!email.trim() || !password) {
-                Alert.alert('Thiếu thông tin', 'Vui lòng nhập email và mật khẩu.');
+                showToast.error('Thiếu thông tin', 'Vui lòng nhập email và mật khẩu.');
                 return;
               }
 
@@ -150,7 +151,7 @@ export default function CreateAccount({ navigation }: any) {
                 password: password,
               });
               if (result.success) {
-                Alert.alert('Thành công', 'Đăng ký thành công. Hãy đăng nhập để tiếp tục.');
+                showToast.success('Thành công', 'Đăng ký thành công. Hãy đăng nhập để tiếp tục.');
                 navigation.navigate('Login');
               }
             }}

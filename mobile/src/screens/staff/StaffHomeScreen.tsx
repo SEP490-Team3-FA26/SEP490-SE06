@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useStaffHome } from './useStaffHome';
@@ -138,7 +138,6 @@ export default function StaffHomeScreen({ navigation, route }: StaffHomeProps) {
                   try {
                     if (!eventId) return;
                     const res = await CheckinAPI.requestAssignment(eventId);
-                    Alert.alert('Thành công', res.message || 'Vui lòng chờ Organizer phê duyệt cho bạn phụ trách sự kiện này.');
                     Toast.show({
                       type: 'success',
                       text1: 'Đã gửi yêu cầu',
@@ -146,7 +145,6 @@ export default function StaffHomeScreen({ navigation, route }: StaffHomeProps) {
                     });
                     void loadStaffStatus(); // Cập nhật lại trạng thái ngay lập tức
                   } catch (err: any) {
-                    Alert.alert('Thất bại', err.message || 'Vui lòng thử lại sau');
                     Toast.show({
                       type: 'error',
                       text1: 'Gửi yêu cầu thất bại',

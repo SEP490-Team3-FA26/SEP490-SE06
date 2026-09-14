@@ -15,6 +15,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { ApiService } from '../../services/api.service';
 
 const { width } = Dimensions.get('window');
@@ -55,7 +56,7 @@ export const WebViewScreen: React.FC<{ route: any; navigation: any }> = ({
         await WebBrowser.openBrowserAsync(url);
       }
     } catch {
-      Alert.alert('Thông báo', 'Không thể mở trình duyệt ngoài.');
+      showToast.info('Thông báo', 'Không thể mở trình duyệt ngoài.');
     }
   };
 
@@ -71,20 +72,15 @@ export const WebViewScreen: React.FC<{ route: any; navigation: any }> = ({
         onSuccessToken('mock_google_oauth_access_token_jwt_2026');
       }
 
-      Alert.alert(
+      showToast.success(
         'Giao Dịch Thành Công! 🎉',
-        `Mã đơn: ${orderId}\nSố tiền: ${amount.toLocaleString('vi-VN')} ₫\nThanh toán qua cổng PayOS đã được ghi nhận hoàn tất.`,
-        [
-          {
-            text: 'Xem Đơn Hàng',
-            onPress: () => navigation.popToTop(),
-          },
-        ]
+        `Mã đơn: ${orderId} - Thanh toán PayOS hoàn tất.`
       );
+      navigation.popToTop();
     } catch {
       setChecking(false);
       setIsSuccess(true);
-      Alert.alert('Thành công', 'Đã ghi nhận thanh toán thành công!');
+      showToast.success('Thành công', 'Đã ghi nhận thanh toán thành công!');
       navigation.popToTop();
     }
   };

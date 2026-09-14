@@ -22,6 +22,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { Medicine } from '../../types/pharmacy.types';
 
 export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -276,7 +277,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   const handleTraceLot = async () => {
     if (!batchNoQuery.trim()) {
-      Alert.alert('Thông báo', 'Vui lòng nhập số Lô thuốc cần tra cứu (ví dụ: Lô A1, Lô B1).');
+      showToast.info('Thông báo', 'Vui lòng nhập số Lô thuốc cần tra cứu (ví dụ: Lô A1, Lô B1).');
       return;
     }
 
@@ -318,7 +319,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Cần quyền camera', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp ảnh kiện hàng.');
+        showToast.error('Cần quyền camera', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp ảnh kiện hàng.');
         return;
       }
       const res = await ImagePicker.launchCameraAsync({
@@ -339,7 +340,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Cần quyền thư viện', 'Vui lòng cấp quyền thư viện để chọn ảnh kiện hàng.');
+        showToast.error('Cần quyền thư viện', 'Vui lòng cấp quyền thư viện để chọn ảnh kiện hàng.');
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
@@ -413,7 +414,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       }
     } catch (e) {
       console.warn('AI Inspection error:', e);
-      Alert.alert('Thông báo AI', 'Không thể kết nối dịch vụ AI. Vui lòng kiểm tra lại ảnh hoặc nhập số lượng thủ công.');
+      showToast.error('Thông báo AI', 'Không thể kết nối dịch vụ AI. Vui lòng kiểm tra lại ảnh hoặc nhập số lượng thủ công.');
     } finally {
       setIsAiScanning(false);
     }
@@ -462,12 +463,12 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       setActualCountInput('');
       const nextItem = updatedItems[nextIdx];
       setSelectedInspectionImage(getItemImage(nextItem));
-      Alert.alert(
+      showToast.info(
         'Đã kiểm định xong',
         'Mặt hàng hiện tại đã được xác nhận. Đang chuyển sang mặt hàng tiếp theo...'
       );
     } else {
-      Alert.alert(
+      showToast.success(
         'Hoàn thành kiểm định',
         'Tất cả mặt hàng trong phiếu đã được AI kiểm đếm và đối chiếu đạt chuẩn! Bạn có thể nhấn "Hoàn tất & Nhập kho".'
       );
@@ -482,7 +483,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       prev.map((r) => (r.id === grnId ? { ...r, status: 'COMPLETED' } : r))
     );
     setInspectModalVisible(false);
-    Alert.alert(
+    showToast.success(
       'Nhập kho thành công',
       `Đã hoàn tất kiểm nhận AI và cập nhật tồn kho trung tâm cho phiếu ${grnId}!`
     );
@@ -493,7 +494,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     setReceipts((prev) =>
       prev.map((r) => (r.id === grnId ? { ...r, status: 'COMPLETED' } : r))
     );
-    Alert.alert('Thành công', `Đã hoàn tất kiểm kê và nhập kho cho phiếu ${grnId}!`);
+    showToast.success('Thành công', `Đã hoàn tất kiểm kê và nhập kho cho phiếu ${grnId}!`);
   };
 
   return (
@@ -973,10 +974,9 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <GradientButton
                   title="TẠO PHIẾU YÊU CẦU MUA HÀNG (PR) THEO AI"
                   onPress={() =>
-                    Alert.alert(
+                    showToast.success(
                       'Tạo Phiếu PR Tự Động',
-                      `Đã gửi phiếu yêu cầu mua sắm ${forecastData.items?.length || 0} mặt hàng thuốc theo đề xuất AI tới Giám Đốc Chi Nhánh phê duyệt!`,
-                      [{ text: 'Xác Nhận' }]
+                      `Đã gửi phiếu yêu cầu mua sắm ${forecastData.items?.length || 0} mặt hàng thuốc theo đề xuất AI tới Giám Đốc Chi Nhánh phê duyệt!`
                     )
                   }
                   gradientVariant="primary"
