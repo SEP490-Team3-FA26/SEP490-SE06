@@ -60,6 +60,7 @@ export interface Medicine {
   isRx: boolean;
   batches: MedicineBatch[];
   image?: string;
+  image_url?: string;
   images?: string[];
   cong_dung?: string;
   indications?: string;
