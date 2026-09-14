@@ -61,7 +61,7 @@ export function Login() {
         console.error("Lỗi parse Google token:", err);
         localStorage.setItem("token", googleToken);
         localStorage.setItem("userRole", "user");
-        navigate('/customer');
+        navigate('/');
       }
     }
 
@@ -97,9 +97,8 @@ export function Login() {
       case "pharmacist":
         return "/pharmacist";
       case "user":
-        return "/customer/shop";
       default:
-        return "/admin";
+        return "/";
     }
   };
 
