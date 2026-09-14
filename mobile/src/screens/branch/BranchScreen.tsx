@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -199,8 +200,8 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </GradientCard>
 
             <Text style={styles.sectionTitle}>Nhân Sự Trong Ca Trực Hôm Nay</Text>
-            {staffs.map((st) => (
-              <View key={st.id} style={styles.staffCard}>
+            {staffs.map((st, idx) => (
+              <View key={st.id || (st as any)._id || `staff-${idx}`} style={styles.staffCard}>
                 <View style={styles.staffAvatar}>
                   <Ionicons name="person" size={22} color="#059669" />
                 </View>
@@ -256,11 +257,21 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>Mặt Hàng Cần Bổ Sung Gấp</Text>
+            <Text style={styles.sectionTitle}>Mặt Hàng Cần Bổ Sung Gấp (Có Ảnh Nhận Diện)</Text>
             {filteredAlerts.map((item, idx) => (
               <View key={idx} style={styles.alertCard}>
                 <View style={styles.alertHeader}>
-                  <View style={{ flex: 1 }}>
+                  <Image
+                    source={{
+                      uri:
+                        item.image ||
+                        item.image_url ||
+                        'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                    }}
+                    style={styles.alertThumb}
+                    resizeMode="cover"
+                  />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.alertMedName}>{item.name}</Text>
                     <Text style={styles.alertSupplier}>Nhà cung cấp: {item.supplier || 'Dược phẩm'}</Text>
                   </View>
@@ -294,6 +305,16 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <Modal visible={requestModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
+            <Image
+              source={{
+                uri:
+                  selectedMedForRequest?.image ||
+                  selectedMedForRequest?.image_url ||
+                  'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+              }}
+              style={styles.modalMedThumb}
+              resizeMode="cover"
+            />
             <Text style={styles.modalTitle}>Tạo Phiếu Đề Xuất Nhập Hàng</Text>
             <Text style={styles.modalMedName}>{selectedMedForRequest?.name}</Text>
 
@@ -616,5 +637,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#64748B',
+  },
+  alertThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  modalMedThumb: {
+    width: '100%',
+    height: 120,
+    borderRadius: 14,
+    marginBottom: 12,
+    backgroundColor: '#F1F5F9',
   },
 });
