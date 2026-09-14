@@ -9,6 +9,7 @@ import { prescriptionService } from "../../../services/sales/prescription.servic
 import { voucherService } from "../../../services/sales/voucher.service";
 import api from "../../../services/core/api";
 import { useSocket } from "../../../hooks/useSocket";
+import { VietQRCode } from "../../../components/common/VietQRCode";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -626,23 +627,67 @@ export default function RetailView({ showToast }: RetailViewProps) {
     setVoucherError("");
   };
 
-  const updateQty = (id: string, change: number, maxStock: number) => {
-    const item = cart.find(it => it.id === id);
+  const handleAdjustToMaxStock = (medId: string) => {
+    setCart(cart.map(it => {
+      if ((it.id || it._id) !== medId) return it;
+      const factor = it.exchangeValue || 1;
+      const availableStock = it.stock || 0;
+      if (availableStock <= 0) return it;
+
+      const maxUnits = Math.max(1, Math.floor(availableStock / factor));
+      const dailyDose = it.dailyDose || ((it.dosePerTime || 1) * (it.timesPerDay || 2));
+      const newDays = Math.max(1, Math.floor((maxUnits * factor) / dailyDose));
+      const bUnit = it.baseUnit || it.selectedUnit || 'viên';
+
+      return {
+        ...it,
+        quantity: maxUnits,
+        durationDays: newDays,
+        dosageInstructions: `Uống ${it.dosePerTime || 1} ${bUnit}/lần, ${it.timesPerDay || 2} lần/ngày sau ăn - Dùng trong ${newDays} ngày`
+      };
+    }));
+    showToast("Đã tự động điều chỉnh số lượng theo tồn kho thực tế!", "info");
+  };
+
+  const updateQty = (id: string, change: number, maxStock?: number) => {
+    const item = cart.find(it => (it.id || it._id) === id);
     if (!item) return;
     const newQty = item.quantity + change;
     if (newQty <= 0) {
-      setCart(cart.filter(it => it.id !== id));
+      setCart(cart.filter(it => (it.id || it._id) !== id));
     } else {
-      if (newQty > maxStock) {
-        showToast("Đã vượt quá tồn kho khả dụng!", "warning");
-        return;
+      const factor = item.exchangeValue || 1;
+      const requiredBase = newQty * factor;
+      const availableStock = item.stock || 0;
+      if (requiredBase > availableStock) {
+        showToast(`Đã vượt quá tồn kho khả dụng (${availableStock} ${item.baseUnit || 'đơn vị'})!`, "warning");
       }
-      setCart(cart.map(it => it.id === id ? { ...it, quantity: newQty } : it));
+      setCart(cart.map(it => (it.id || it._id) === id ? { ...it, quantity: newQty } : it));
     }
   };
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+
+    // 🛡️ CHECKOUT GUARD: Kiểm tra tồn kho trước khi thanh toán
+    const overStockItem = cart.find(it => {
+      const factor = it.exchangeValue || 1;
+      const req = it.quantity * factor;
+      const avail = it.stock || 0;
+      return req > avail;
+    });
+
+    if (overStockItem) {
+      const factor = overStockItem.exchangeValue || 1;
+      const req = overStockItem.quantity * factor;
+      const avail = overStockItem.stock || 0;
+      const bUnit = overStockItem.baseUnit || overStockItem.unit || 'đơn vị';
+      const msg = `Không thể thanh toán: Thuốc "${overStockItem.name}" vượt quá tồn kho (Cần ${req} ${bUnit}, kho chỉ còn ${avail} ${bUnit})!`;
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
+
     setError("");
     try {
       const { branchId: currentBranchId, fullName: currentUserName } = getBranchInfoFromToken();
@@ -1115,8 +1160,49 @@ export default function RetailView({ showToast }: RetailViewProps) {
                 const openedUnits = it.openedBoxUnits !== undefined ? it.openedBoxUnits : (boxCap > 1 ? (totalStock % boxCap) : 0);
                 const baseUnitName = it.baseUnit || (it.unitOptions && it.unitOptions.length > 1 ? it.unitOptions[it.unitOptions.length - 1].unitName : it.unit) || 'viên';
 
+                const factor = it.exchangeValue || 1;
+                const requiredBaseQty = it.quantity * factor;
+                const isOverStock = requiredBaseQty > totalStock;
+
                 return (
-                  <div key={it.id} className="bg-slate-50/60 border border-slate-200/80 rounded-2xl p-4 flex flex-col gap-3 transition-all hover:border-[#0057cd]/50 hover:shadow-sm">
+                  <div
+                    key={it.id}
+                    className={`rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-sm ${
+                      isOverStock
+                        ? "bg-rose-50/40 border-2 border-rose-300"
+                        : "bg-slate-50/60 border border-slate-200/80 hover:border-[#0057cd]/50"
+                    }`}
+                  >
+                    {/* Cảnh báo vượt tồn kho */}
+                    {isOverStock && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-800 text-xs">
+                        <div className="flex items-center gap-2 font-bold">
+                          <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+                          <span>
+                            Vượt quá tồn kho khả dụng! Cần <span className="text-rose-700 underline font-black">{requiredBaseQty} {baseUnitName}</span> ({it.quantity} {it.selectedUnit || it.unit}), nhưng kho chỉ còn <span className="text-rose-700 font-black">{totalStock} {baseUnitName}</span>.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {totalStock > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustToMaxStock(it.id)}
+                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-black transition-all shadow-xs cursor-pointer"
+                            >
+                              Lấy tối đa ({Math.max(1, Math.floor(totalStock / factor))} {it.selectedUnit || it.unit})
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleFetchAlternatives(it)}
+                            className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+                          >
+                            Tìm thuốc thay thế
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Dòng 1: Thông tin cơ bản, Quy đổi đơn vị & Số lượng */}
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                       <div className="flex-1">
@@ -1515,10 +1601,17 @@ export default function RetailView({ showToast }: RetailViewProps) {
           </div>
         </div>
 
+        {cart.some(it => ((it.quantity || 1) * (it.exchangeValue || 1)) > (it.stock || 0)) && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs font-bold flex items-center gap-2">
+            <AlertTriangle size={18} className="shrink-0 text-rose-600" />
+            <span>Có sản phẩm vượt quá tồn kho khả dụng! Vui lòng điều chỉnh trước khi thanh toán.</span>
+          </div>
+        )}
+
         <button
           onClick={handleCheckout}
-          disabled={cart.length === 0 || loading}
-          className="w-full bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl py-5 shadow-sm transition-all flex items-center justify-center gap-2 font-black text-[16px] uppercase tracking-wide mt-auto"
+          disabled={cart.length === 0 || loading || cart.some(it => ((it.quantity || 1) * (it.exchangeValue || 1)) > (it.stock || 0))}
+          className="w-full bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl py-5 shadow-sm transition-all flex items-center justify-center gap-2 font-black text-[16px] uppercase tracking-wide mt-auto cursor-pointer disabled:cursor-not-allowed"
         >
           <Printer size={20} />
           XÁC NHẬN & IN HÓA ĐƠN
@@ -1660,14 +1753,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
               </div>
 
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner flex items-center justify-center">
-                <img
-                  src={
-                    payosQrCode.startsWith("http")
-                      ? payosQrCode
-                      : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(payosQrCode || payosCheckoutUrl)}`
-                  }
+                <VietQRCode
+                  value={payosQrCode || payosCheckoutUrl}
+                  size={224}
                   alt="VietQR PayOS"
-                  className="w-56 h-56 rounded-lg object-contain"
                 />
               </div>
 

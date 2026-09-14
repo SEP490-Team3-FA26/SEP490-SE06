@@ -4,6 +4,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Medicine } from './schemas/medicine.schema';
 import { MedicineBatch } from './schemas/medicine-batch.schema';
+import { BranchInventory } from './schemas/branch-inventory.schema';
+import { BranchStockBalance } from './schemas/branch-stock-balance.schema';
 import { InventoryCheck } from './schemas/inventory-check.schema';
 import { InventoryTransaction } from '../purchase/schemas/inventory-transaction.schema';
 
@@ -14,6 +16,8 @@ export class MedicineService implements OnModuleInit {
   constructor(
     @InjectModel(Medicine.name) private readonly medicineModel: Model<Medicine>,
     @InjectModel(MedicineBatch.name) private readonly batchModel: Model<MedicineBatch>,
+    @InjectModel(BranchInventory.name) private readonly branchInvModel: Model<BranchInventory>,
+    @InjectModel(BranchStockBalance.name) private readonly balanceModel: Model<BranchStockBalance>,
     @InjectModel(InventoryCheck.name) private readonly checkModel: Model<InventoryCheck>,
     @InjectModel(InventoryTransaction.name) private readonly txnModel: Model<InventoryTransaction>,
   ) { }
@@ -316,9 +320,17 @@ export class MedicineService implements OnModuleInit {
     }
 
     if (query.branchStockOnly === 'true' || query.branchStockOnly === true) {
-      // Lấy danh sách medicineIds có lô hàng ở chi nhánh này
-      const branchBatches = await this.batchModel.find({ branchId: query.branchId }).select('medicineId').lean().exec();
-      const medicineIds = [...new Set(branchBatches.map(b => b.medicineId))];
+      // Lấy danh sách medicineIds có tồn kho ở chi nhánh từ branch_inventories, branch_stock_balances hoặc legacy batches
+      const [branchInvs, balances, branchBatches] = await Promise.all([
+        this.branchInvModel.find({ branchId: query.branchId, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.balanceModel.find({ branchId: query.branchId, totalStock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.batchModel.find({ branchId: query.branchId, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
+      ]);
+      const medicineIds = [...new Set([
+        ...branchInvs.map(b => b.medicineId),
+        ...balances.map(b => b.medicineId),
+        ...branchBatches.map(b => b.medicineId),
+      ])];
       
       if (medicineIds.length === 0) {
         return { data: [], total: 0, page: query.page || 1, limit: query.limit || 10, totalPages: 0 };
@@ -692,6 +704,37 @@ export class MedicineService implements OnModuleInit {
         }
         const allBatches = await this.batchModel.find(batchFilter).lean().exec();
 
+        // =========================================================================
+        // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ (Phương án 2):
+        // Nếu có branchId, ưu tiên truy vấn collection vật lý riêng branch_inventories & bảng số dư branch_stock_balances
+        // =========================================================================
+        const branchBalancesMap = new Map<string, number>();
+        const branchInvMap = new Map<string, any[]>();
+
+        if (query.branchId && query.branchId !== 'CENTRAL_WH') {
+          const [balances, branchInvs] = await Promise.all([
+            this.balanceModel.find({
+              branchId: query.branchId,
+              medicineId: { $in: medIds }
+            }).lean().exec(),
+            this.branchInvModel.find({
+              branchId: query.branchId,
+              medicineId: { $in: medIds },
+              status: 'ACTIVE',
+              stock: { $gt: 0 }
+            }).lean().exec()
+          ]);
+
+          for (const bal of balances) {
+            branchBalancesMap.set(bal.medicineId, bal.totalStock);
+          }
+          for (const binv of branchInvs) {
+            const list = branchInvMap.get(binv.medicineId) || [];
+            list.push(binv);
+            branchInvMap.set(binv.medicineId, list);
+          }
+        }
+
         const batchesByMedId = new Map<string, any[]>();
         for (const batch of allBatches) {
           const medIdStr = batch.medicineId ? String(batch.medicineId) : '';
@@ -707,12 +750,33 @@ export class MedicineService implements OnModuleInit {
           const activeBatches = medBatches.filter(b => 
             (!b.status || String(b.status).toUpperCase() === 'ACTIVE') && Number(b.stock) > 0
           );
-          const totalStock = query.branchId ? activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0) : (med.stock || 0);
 
+          let totalStock = 0;
           let earliestExpiryStr = '2026-12-31';
-          if (activeBatches.length > 0) {
-            const earliestBatch = activeBatches.reduce((min, b) => new Date(b.expDate) < new Date(min.expDate) ? b : min, activeBatches[0]);
-            earliestExpiryStr = new Date(earliestBatch.expDate).toISOString().split('T')[0];
+
+          if (query.branchId && query.branchId !== 'CENTRAL_WH') {
+            const specificBranchInvs = branchInvMap.get(medId) || [];
+            if (branchBalancesMap.has(medId)) {
+              totalStock = branchBalancesMap.get(medId) || 0;
+            } else if (specificBranchInvs.length > 0) {
+              totalStock = specificBranchInvs.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+            } else {
+              totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+            }
+
+            if (specificBranchInvs.length > 0) {
+              const earliest = specificBranchInvs.reduce((min, b) => new Date(b.expDate) < new Date(min.expDate) ? b : min, specificBranchInvs[0]);
+              earliestExpiryStr = new Date(earliest.expDate).toISOString().split('T')[0];
+            } else if (activeBatches.length > 0) {
+              const earliestBatch = activeBatches.reduce((min, b) => new Date(b.expDate) < new Date(min.expDate) ? b : min, activeBatches[0]);
+              earliestExpiryStr = new Date(earliestBatch.expDate).toISOString().split('T')[0];
+            }
+          } else {
+            totalStock = med.stock || 0;
+            if (activeBatches.length > 0) {
+              const earliestBatch = activeBatches.reduce((min, b) => new Date(b.expDate) < new Date(min.expDate) ? b : min, activeBatches[0]);
+              earliestExpiryStr = new Date(earliestBatch.expDate).toISOString().split('T')[0];
+            }
           }
 
           return {
@@ -1818,7 +1882,7 @@ export class MedicineService implements OnModuleInit {
             racks: 1
           }
         },
-        { $sort: { zone: 1 } }
+        { $sort: { zone: 1 as const } }
       ];
 
       const rawZones = await this.batchModel.aggregate(pipeline as any).exec();
