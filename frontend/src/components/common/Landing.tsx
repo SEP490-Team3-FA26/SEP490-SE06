@@ -70,9 +70,7 @@ export function Landing() {
         setCartCount(count);
         return;
       }
-      const res = await api.get("/api/users/cart", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const res = await api.get("/api/users/cart");
       if (res.status === 200) {
         const data = res.data;
         if (data && data.items) {
@@ -81,18 +79,11 @@ export function Landing() {
         }
       }
     } catch (err: any) {
-      if (err.response && err.response.status === 401) {
-        localStorage.removeItem("token");
-        notifyAuthTokenChanged();
-        // Fallback to guest cart immediately
-        const guestCartStr = localStorage.getItem("guest_cart");
-        const items = guestCartStr ? JSON.parse(guestCartStr) : [];
-        const count = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-        setCartCount(count);
-        return;
-      }
-      console.error(err);
-      console.error(err);
+      // Graceful fallback to guest cart for badge display without clearing user auth session
+      const guestCartStr = localStorage.getItem("guest_cart");
+      const items = guestCartStr ? JSON.parse(guestCartStr) : [];
+      const count = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+      setCartCount(count);
     }
   };
 
