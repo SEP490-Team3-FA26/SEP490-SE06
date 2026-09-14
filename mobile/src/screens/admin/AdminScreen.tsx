@@ -17,6 +17,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { Employee, AuditLog } from '../../types/pharmacy.types';
 
 export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -96,7 +97,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       setEmployees((prev) =>
         prev.map((e) => (e.id === emp.id ? { ...e, isActive: nextStatus } : e))
       );
-      Alert.alert('Thành công', `Đã ${nextStatus ? 'mở khóa' : 'khóa'} tài khoản ${emp.name}.`);
+      showToast.success('Thành công', `Đã ${nextStatus ? 'mở khóa' : 'khóa'} tài khoản ${emp.name}.`);
     } else {
       // Local optimistic update
       setEmployees((prev) =>
@@ -107,7 +108,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const handleCreateEmployee = async () => {
     if (!newEmpName.trim() || !newEmpEmail.trim()) {
-      Alert.alert('Lỗi', 'Họ tên và Email là bắt buộc.');
+      showToast.error('Lỗi', 'Họ tên và Email là bắt buộc.');
       return;
     }
 
@@ -134,7 +135,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setNewEmpName('');
     setNewEmpEmail('');
     setNewEmpPhone('');
-    Alert.alert('Thành công', `Đã tạo tài khoản cho nhân viên ${created.name}!`);
+    showToast.success('Thành công', `Đã tạo tài khoản cho nhân viên ${created.name}!`);
   };
 
   const filteredEmployees = employees.filter(

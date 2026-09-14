@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { FlatButton, FlatBadge } from '../../components/flat';
+import { showToast } from '../../components/ui/toastHelper';
 import { UserRole } from '../../types/pharmacy.types';
 
 const { width } = Dimensions.get('window');
@@ -41,7 +42,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!emailOrPhone.trim() || !password.trim()) {
-      Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ Email / Số điện thoại và Mật khẩu.');
+      showToast.info('Thông báo', 'Vui lòng nhập đầy đủ Email / Số điện thoại và Mật khẩu.');
       return;
     }
 
@@ -50,7 +51,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setLoading(false);
 
     if (!res.success) {
-      Alert.alert('Đăng nhập thất bại', res.message || 'Sai thông tin tài khoản hoặc mật khẩu.');
+      showToast.error('Đăng nhập thất bại', res.message || 'Sai thông tin tài khoản hoặc mật khẩu.');
     }
   };
 
@@ -62,7 +63,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const res = await login(item.email, '123456');
     setLoading(false);
     if (!res.success) {
-      Alert.alert('Thông báo', res.message || 'Không thể đăng nhập tài khoản demo.');
+      showToast.error('Thông báo', res.message || 'Không thể đăng nhập tài khoản demo.');
     }
   };
 

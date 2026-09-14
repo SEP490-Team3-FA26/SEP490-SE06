@@ -18,6 +18,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { Employee, Medicine } from '../../types/pharmacy.types';
 
 export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -90,7 +91,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (!selectedMedForRequest) return;
     const qty = parseInt(requestQty, 10);
     if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Lỗi', 'Số lượng yêu cầu không hợp lệ.');
+      showToast.error('Lỗi', 'Số lượng yêu cầu không hợp lệ.');
       return;
     }
 
@@ -111,7 +112,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setSubmittingReq(false);
 
     setRequestModalVisible(false);
-    Alert.alert(
+    showToast.success(
       'Thành công',
       `Đã tạo phiếu yêu cầu cấp bổ sung ${qty} ${selectedMedForRequest.unit} ${selectedMedForRequest.name} từ Kho Tổng!`
     );

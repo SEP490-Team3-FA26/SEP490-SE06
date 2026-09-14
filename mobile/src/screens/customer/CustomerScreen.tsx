@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, Order, Voucher } from '../../types/pharmacy.types';
 
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -145,7 +146,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const found = vouchers.find((v) => v.code.toUpperCase() === code);
     if (found) {
       if (found.minOrderValue && subtotal < found.minOrderValue) {
-        Alert.alert(
+        showToast.info(
           'Chưa đủ điều kiện',
           `Voucher ${code} chỉ áp dụng cho đơn từ ${found.minOrderValue.toLocaleString('vi-VN')} ₫. Giỏ hàng hiện tại: ${subtotal.toLocaleString('vi-VN')} ₫.`
         );
@@ -153,9 +154,9 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       }
       setAppliedVoucher(found);
       setVoucherCodeInput(code);
-      Alert.alert('Thành công', `Đã áp dụng mã giảm giá ${code}!`);
+      showToast.success('Thành công', `Đã áp dụng mã giảm giá ${code}!`);
     } else {
-      Alert.alert('Lỗi', 'Mã voucher không hợp lệ.');
+      showToast.error('Lỗi', 'Mã voucher không hợp lệ.');
     }
   };
 
@@ -361,7 +362,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <AnimatedTouchable
                   onPress={() => {
                     addToCart(med);
-                    Alert.alert('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                    showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
                   }}
                   style={styles.buyBtn}
                 >
@@ -538,7 +539,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           <AnimatedTouchable
                             onPress={() => {
                               addToCart(med);
-                              Alert.alert('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                              showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
                             }}
                             style={styles.addSuggestBtn}
                           >
@@ -764,7 +765,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 onPress={() => {
                   if (selectedMedDetail) {
                     addToCart(selectedMedDetail);
-                    Alert.alert('Thành công', `Đã thêm ${selectedMedDetail.name} vào giỏ hàng!`);
+                    showToast.success('Thành công', `Đã thêm ${selectedMedDetail.name} vào giỏ hàng!`);
                   }
                   setSelectedMedDetail(null);
                 }}

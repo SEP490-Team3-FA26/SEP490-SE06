@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContextType';
 import { useAuth } from '../../context/AuthContext';
 import { NewsLocalService, NewsPost } from '../../services/newsLocalService';
+import { showToast } from '../../components/ui/toastHelper';
 
 export default function NewsManager({ navigation }: any) {
   const { colors } = useTheme();
@@ -53,6 +54,7 @@ export default function NewsManager({ navigation }: any) {
       setContent('');
       setImageUrl('');
       await load();
+      showToast.success('Thành công', 'Đã đăng bản tin mới');
     } finally {
       setSaving(false);
     }
@@ -75,6 +77,7 @@ export default function NewsManager({ navigation }: any) {
           onPress: async () => {
             await NewsLocalService.remove(id);
             await load();
+            showToast.success('Thành công', 'Đã gỡ bài viết thành công');
           },
         },
       ]

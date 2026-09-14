@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { HeaderBar } from '../../components/ui/HeaderBar';
+import { showToast } from '../../components/ui/toastHelper';
 import { USER_ROLE_LABELS } from '../../types/pharmacy.types';
 import { ApiService } from '../../services/api.service';
 
@@ -38,7 +39,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   const handleSaveProfile = async () => {
     if (!name.trim()) {
-      Alert.alert('Lỗi', 'Họ tên không được để trống.');
+      showToast.error('Lỗi', 'Họ tên không được để trống.');
       return;
     }
 
@@ -48,25 +49,25 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     if (ok) {
       setEditModalVisible(false);
-      Alert.alert('Thành công', 'Thông tin cá nhân đã được cập nhật.');
+      showToast.success('Thành công', 'Thông tin cá nhân đã được cập nhật.');
     } else {
-      Alert.alert('Lỗi', 'Không thể cập nhật thông tin lúc này.');
+      showToast.error('Lỗi', 'Không thể cập nhật thông tin lúc này.');
     }
   };
 
   const handleChangePassword = async () => {
     if (!currentPw || !newPw) {
-      Alert.alert('Lỗi', 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.');
+      showToast.error('Lỗi', 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.');
       return;
     }
 
     if (newPw !== confirmPw) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không trùng khớp.');
+      showToast.error('Lỗi', 'Mật khẩu xác nhận không trùng khớp.');
       return;
     }
 
     if (newPw.length < 6) {
-      Alert.alert('Lỗi', 'Mật khẩu mới phải từ 6 ký tự trở lên.');
+      showToast.error('Lỗi', 'Mật khẩu mới phải từ 6 ký tự trở lên.');
       return;
     }
 
@@ -79,13 +80,13 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         setCurrentPw('');
         setNewPw('');
         setConfirmPw('');
-        Alert.alert('Thành công', 'Đổi mật khẩu thành công!');
+        showToast.success('Thành công', 'Đổi mật khẩu thành công!');
       } else {
-        Alert.alert('Lỗi', res.message || 'Mật khẩu hiện tại không đúng.');
+        showToast.error('Lỗi', res.message || 'Mật khẩu hiện tại không đúng.');
       }
     } catch {
       setLoadingPw(false);
-      Alert.alert('Lỗi', 'Không thể kết nối máy chủ.');
+      showToast.error('Lỗi', 'Không thể kết nối máy chủ.');
     }
   };
 
@@ -98,11 +99,11 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   const handleRoleSwitch = async (roleKey: any, screenName: string) => {
     await switchRole(roleKey);
-    Alert.alert(
+    showToast.success(
       'Chuyển vai trò thành công',
-      `Đã chuyển sang vai trò: ${USER_ROLE_LABELS[roleKey] || roleKey}. Đang mở màn hình tương ứng...`,
-      [{ text: 'OK', onPress: () => navigation.navigate(screenName) }]
+      `Đã chuyển sang vai trò: ${USER_ROLE_LABELS[roleKey] || roleKey}.`
     );
+    navigation.navigate(screenName);
   };
 
   return (

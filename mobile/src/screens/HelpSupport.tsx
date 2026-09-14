@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { showToast } from '../components/ui/toastHelper';
 
 const FAQ_DATA = [
   {
@@ -70,7 +71,7 @@ export default function HelpSupport({ navigation }: any) {
             />
           </View>
           <TouchableOpacity 
-            onPress={() => Alert.alert('Gửi thành công', 'Cảm ơn phản hồi của bạn, chúng tôi sẽ sớm liên hệ lại.')}
+            onPress={() => showToast.success('Gửi thành công', 'Cảm ơn phản hồi của bạn, chúng tôi sẽ sớm liên hệ lại.')}
             style={{ backgroundColor: colors.accent, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }}
           >
             <Text style={{ color: '#fff', fontWeight: 'bold' }}>Gửi yêu cầu hỗ trợ</Text>

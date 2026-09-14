@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ImageBackground, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ImageBackground, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Calendar from 'expo-calendar';
+import { showToast } from '../components/ui/toastHelper';
 import { EventLayout, LayoutAPI } from '../services/layoutApiService';
 
 function pickSellableMinPrice(layout: EventLayout | null): number | null {
@@ -80,7 +81,7 @@ export default function EventDetail({ navigation, route }: any) {
 
       const perm = await Calendar.requestCalendarPermissionsAsync();
       if (perm.status !== 'granted') {
-        Alert.alert('Permission', 'Bạn cần cấp quyền Calendar để thêm lịch.');
+        showToast.info('Permission', 'Bạn cần cấp quyền Calendar để thêm lịch.');
         return;
       }
 
@@ -94,9 +95,9 @@ export default function EventDetail({ navigation, route }: any) {
         timeZone: undefined,
       });
 
-      Alert.alert('Thành công', 'Đã thêm sự kiện vào lịch của bạn.');
+      showToast.success('Thành công', 'Đã thêm sự kiện vào lịch của bạn.');
     } catch (e: any) {
-      Alert.alert('Lỗi', e?.message || 'Không thể thêm vào lịch');
+      showToast.error('Lỗi', e?.message || 'Không thể thêm vào lịch');
     }
   }, [layout, startDate]);
 

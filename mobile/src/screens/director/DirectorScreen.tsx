@@ -16,6 +16,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import {
   Branch,
   DashboardSummary,
@@ -104,13 +105,13 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const handleApprovePO = (po: any) => {
     setPurchaseOrders((prev) => prev.filter((p) => p.id !== po.id));
     setPoDetailModal(false);
-    Alert.alert('Thành công', `Đã phê duyệt đơn mua hàng ${po.id}!`);
+    showToast.success('Thành công', `Đã phê duyệt đơn mua hàng ${po.id}!`);
   };
 
   const handleRejectPO = (po: any) => {
     setPurchaseOrders((prev) => prev.filter((p) => p.id !== po.id));
     setPoDetailModal(false);
-    Alert.alert('Thông báo', `Đã từ chối đơn hàng ${po.id}.`);
+    showToast.info('Thông báo', `Đã từ chối đơn hàng ${po.id}.`);
   };
 
   return (
