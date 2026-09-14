@@ -12,7 +12,7 @@ import {
   MapPin, Gift, Clock, Flame, Pill, HelpCircle, FileText,
   UploadCloud, ChevronRight, LayoutDashboard, Settings,
   ShoppingBag, Eye, Zap, MessageSquareQuote, CheckCircle,
-  Tag, AlertCircle, RefreshCw
+  Tag, AlertCircle, RefreshCw, Filter, RotateCcw, X, Loader2
 } from "lucide-react";
 import { notifyAuthTokenChanged } from "../../utils/authEvents";
 import api from "../../services/core/api";
@@ -26,6 +26,7 @@ const categories = [
   { value: "Thuốc giảm đau hạ sốt", label: "Giảm đau - Hạ sốt", icon: "🌡️" },
   { value: "Thuốc trị ho cảm", label: "Đường hô hấp", icon: "🫁" },
   { value: "Thuốc dạ dày", label: "Hỗ trợ tiêu hóa", icon: "🧪" },
+  { value: "Thuốc tim mạch huyết áp", label: "Tim mạch - Huyết áp", icon: "❤️" },
   { value: "Thuốc bổ", label: "Vitamin & TPCN", icon: "🌿" },
   { value: "Thiết bị y tế", label: "Thiết bị y tế", icon: "🩺" }
 ];
@@ -33,6 +34,36 @@ const categories = [
 const trendingTags = [
   "Panadol Extra", "Kháng sinh Augmentin", "Men vi sinh Enterogermina",
   "Vitamin C 1000mg", "Berberin", "Máy đo huyết áp Omron", "Que thử đường huyết", "Dung dịch nhỏ mắt"
+];
+
+const priceFilterOptions = [
+  { value: "", label: "Tất cả mức giá" },
+  { value: "under-50", label: "Dưới 50.000₫" },
+  { value: "50-100", label: "50.000₫ - 100.000₫" },
+  { value: "100-200", label: "100.000₫ - 200.000₫" },
+  { value: "over-200", label: "Trên 200.000₫" }
+];
+
+const targetGroupOptions = [
+  { value: "", label: "Tất cả đối tượng" },
+  { value: "Người lớn", label: "Người lớn" },
+  { value: "Trẻ em", label: "Trẻ em" },
+  { value: "Người cao tuổi", label: "Người cao tuổi" },
+  { value: "Phụ nữ có thai", label: "Phụ nữ mang thai" }
+];
+
+const classificationOptions = [
+  { value: "", label: "Tất cả loại thuốc" },
+  { value: "PRESCRIPTION_ANTIBIOTIC", label: "Thuốc kê đơn (Rx)" },
+  { value: "COMMON_SUPPLEMENT", label: "Thực phẩm bổ sung" }
+];
+
+const dosageFormOptions = [
+  { value: "", label: "Tất cả dạng bào chế" },
+  { value: "Viên nén", label: "Viên nén" },
+  { value: "Viên nang", label: "Viên nang" },
+  { value: "Siro", label: "Siro / Hỗn dịch" },
+  { value: "Dung dịch", label: "Dung dịch / Chai" }
 ];
 
 const heroSlides = [
@@ -79,6 +110,7 @@ export function Landing() {
   const containerRef = useRef<HTMLDivElement>(null);
   const counterRef = useRef<HTMLSpanElement>(null);
   const cartIconRef = useRef<HTMLAnchorElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [openFAQ, setOpenFAQ] = useState<number | null>(null);
 
   // Authentication & Role Detection
@@ -87,15 +119,26 @@ export function Landing() {
   const [token, setToken] = useState<string>("");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  // E-commerce states
+  // E-commerce products states
   const [medicines, setMedicines] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
   const [cartCount, setCartCount] = useState(0);
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
   const [selectedMedicineForModal, setSelectedMedicineForModal] = useState<any | null>(null);
   const [modalQuantity, setModalQuantity] = useState<number>(1);
+
+  // Multi-dimensional Search & Filter states (Long Chau & Pharmacity style)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("");
+  const [selectedPrice, setSelectedPrice] = useState("");
+  const [selectedTargetGroup, setSelectedTargetGroup] = useState("");
+  const [selectedClassification, setSelectedClassification] = useState("");
+  const [selectedDosageForm, setSelectedDosageForm] = useState("");
+
+  // Live Search Auto-complete state
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingLive, setIsSearchingLive] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
   // Prescription Quick Upload Modal State
   const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
@@ -127,6 +170,7 @@ export function Landing() {
   ]);
 
   // Load User Auth on Mount & storage changes
+  // IMPORTANT: If user is a staff role (admin, pharmacist, warehouse, branch), auto-redirect directly to their backoffice!
   const loadAuthState = () => {
     const t = localStorage.getItem("token") || "";
     setToken(t);
@@ -150,10 +194,32 @@ export function Landing() {
           }
         }
       } catch {
-        // Ignore jwt parse error
+        // Ignore parse errors
       }
     }
+
     setUserRole(role || (t ? "user" : ""));
+
+    // Staff Auto-redirect: If a staff member visits '/', route them directly to their work dashboard
+    if (role && ["admin", "head_branch", "warehouse", "branch", "pharmacist"].includes(role)) {
+      switch (role) {
+        case "admin":
+        case "head_branch":
+          navigate("/admin", { replace: true });
+          break;
+        case "warehouse":
+          navigate("/warehouse", { replace: true });
+          break;
+        case "branch":
+          navigate("/branch", { replace: true });
+          break;
+        case "pharmacist":
+          navigate("/pharmacist", { replace: true });
+          break;
+        default:
+          break;
+      }
+    }
   };
 
   useEffect(() => {
@@ -169,6 +235,44 @@ export function Landing() {
       window.removeEventListener("storage", handleAuthChange);
     };
   }, []);
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Live Auto-complete Search with Debounce
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearchingLive(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingLive(true);
+      try {
+        const res = await api.get(`/api/medicines?limit=6&search=${encodeURIComponent(searchQuery.trim())}`);
+        if (res.data?.data) {
+          setSearchResults(res.data.data);
+        } else if (Array.isArray(res.data)) {
+          setSearchResults(res.data.slice(0, 6));
+        }
+      } catch (err) {
+        console.error("Live search error:", err);
+      } finally {
+        setIsSearchingLive(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Slide Auto-play Timer
   useEffect(() => {
@@ -204,68 +308,10 @@ export function Landing() {
     navigate("/auth/login");
   };
 
-  // Get user display info based on role
-  const getRoleBadgeInfo = (role: string) => {
-    switch (role) {
-      case "admin":
-        return {
-          label: "Quản trị viên Hệ thống",
-          dashboardUrl: "/admin",
-          badgeBg: "bg-purple-100 text-purple-800 border-purple-200",
-          tag: "ADMIN",
-          avatarColor: "bg-purple-600 text-white"
-        };
-      case "head_branch":
-        return {
-          label: "Trưởng chi nhánh / Giám đốc",
-          dashboardUrl: "/admin",
-          badgeBg: "bg-indigo-100 text-indigo-800 border-indigo-200",
-          tag: "GIÁM ĐỐC",
-          avatarColor: "bg-indigo-600 text-white"
-        };
-      case "warehouse":
-        return {
-          label: "Quản lý kho tổng",
-          dashboardUrl: "/warehouse",
-          badgeBg: "bg-amber-100 text-amber-800 border-amber-200",
-          tag: "THỦ KHO",
-          avatarColor: "bg-amber-600 text-white"
-        };
-      case "branch":
-        return {
-          label: "Quản lý cơ sở",
-          dashboardUrl: "/branch",
-          badgeBg: "bg-blue-100 text-blue-800 border-blue-200",
-          tag: "QL CƠ SỞ",
-          avatarColor: "bg-blue-600 text-white"
-        };
-      case "pharmacist":
-        return {
-          label: "Dược sĩ bán hàng",
-          dashboardUrl: "/pharmacist",
-          badgeBg: "bg-emerald-100 text-emerald-800 border-emerald-200",
-          tag: "DƯỢC SĨ",
-          avatarColor: "bg-emerald-600 text-white"
-        };
-      case "user":
-      default:
-        return {
-          label: "Khách Hàng thân thiết",
-          dashboardUrl: "/customer/profile",
-          badgeBg: "bg-sky-100 text-sky-800 border-sky-200",
-          tag: "KHÁCH HÀNG",
-          avatarColor: "bg-[#0d6efd] text-white"
-        };
-    }
-  };
-
-  const isStaff = ["admin", "head_branch", "warehouse", "branch", "pharmacist"].includes(userRole);
-  const currentRoleInfo = getRoleBadgeInfo(userRole);
-
   const getUserInitials = () => {
-    if (!user) return isStaff ? "AD" : "KH";
+    if (!user) return "KH";
     const name = user.fullName || user.name || "";
-    if (!name) return userRole ? userRole.substring(0, 2).toUpperCase() : "KH";
+    if (!name) return "KH";
     const parts = name.trim().split(" ");
     if (parts.length >= 2) {
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -277,7 +323,6 @@ export function Landing() {
     if (user?.fullName) return user.fullName;
     if (user?.name) return user.name;
     if (user?.email) return user.email.split("@")[0];
-    if (isStaff) return currentRoleInfo.label;
     return "Khách Hàng";
   };
 
@@ -308,18 +353,27 @@ export function Landing() {
     }
   };
 
-  // Fetch featured products
+  // Fetch featured / filtered products
   const fetchProducts = async () => {
     setLoadingProducts(true);
     try {
-      const catParam = activeCategory ? `&category=${encodeURIComponent(activeCategory)}` : "";
-      const res = await api.get(`/api/medicines?page=1&limit=8${catParam}`);
+      let url = `/api/medicines?page=1&limit=8`;
+      if (activeCategory) url += `&category=${encodeURIComponent(activeCategory)}`;
+      if (selectedClassification) url += `&classification=${encodeURIComponent(selectedClassification)}`;
+      if (selectedTargetGroup) url += `&targetGroup=${encodeURIComponent(selectedTargetGroup)}`;
+      if (selectedDosageForm) url += `&dosageForm=${encodeURIComponent(selectedDosageForm)}`;
+      if (selectedPrice === "under-50") url += `&maxPrice=50000`;
+      else if (selectedPrice === "50-100") url += `&minPrice=50000&maxPrice=100000`;
+      else if (selectedPrice === "100-200") url += `&minPrice=100000&maxPrice=200000`;
+      else if (selectedPrice === "over-200") url += `&minPrice=200000`;
+
+      const res = await api.get(url);
       if (res.status === 200) {
         const result = res.data;
         setMedicines(result.data || []);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Fetch products error:", err);
     } finally {
       setLoadingProducts(false);
     }
@@ -374,7 +428,7 @@ export function Landing() {
 
   useEffect(() => {
     fetchProducts();
-  }, [activeCategory]);
+  }, [activeCategory, selectedPrice, selectedTargetGroup, selectedClassification, selectedDosageForm]);
 
   useEffect(() => {
     updateCartCount();
@@ -383,55 +437,9 @@ export function Landing() {
     return () => window.removeEventListener("cartUpdated", handleCartUpdate);
   }, []);
 
-  // GSAP Animations
-  useEffect(() => {
-    const ctx = gsap.context(() => {
-      // Counter animation
-      const obj = { val: 0 };
-      if (counterRef.current) {
-        gsap.to(obj, {
-          val: 1245889,
-          duration: 2.5,
-          ease: "power2.out",
-          onUpdate: () => {
-            if (counterRef.current) {
-              counterRef.current.innerText = Math.floor(obj.val).toLocaleString();
-            }
-          }
-        });
-      }
-
-      // 5. Bento cards reveal on scroll
-      gsap.fromTo(".bento-card",
-        { y: 60, opacity: 0 },
-        {
-          y: 0, opacity: 1, duration: 0.8, stagger: 0.15, ease: "power3.out",
-          scrollTrigger: {
-            trigger: "#pain-points",
-            start: "top 82%",
-          }
-        }
-      );
-
-      // 6. Ecosystem layer reveal
-      gsap.fromTo(".module-card",
-        { y: 50, opacity: 0, scale: 0.95 },
-        {
-          y: 0, opacity: 1, scale: 1, duration: 0.75, stagger: 0.12, ease: "back.out(1.3)",
-          scrollTrigger: {
-            trigger: "#modules",
-            start: "top 78%",
-          }
-        }
-      );
-
-    }, containerRef);
-
-    return () => ctx.revert();
-  }, []);
-
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowSearchDropdown(false);
     if (searchQuery.trim()) {
       navigate(`/customer/shop?search=${encodeURIComponent(searchQuery.trim())}`);
     } else {
@@ -524,6 +532,16 @@ export function Landing() {
     }, 1500);
   };
 
+  const hasActiveFilters = !!(activeCategory || selectedPrice || selectedTargetGroup || selectedClassification || selectedDosageForm);
+
+  const resetAllFilters = () => {
+    setActiveCategory("");
+    setSelectedPrice("");
+    setSelectedTargetGroup("");
+    setSelectedClassification("");
+    setSelectedDosageForm("");
+  };
+
   return (
     <div className="bg-[#f4f7fb] text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-x-hidden min-h-screen flex flex-col" ref={containerRef}>
 
@@ -567,41 +585,7 @@ export function Landing() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. STAFF ACTIVE SESSION RIBBON (KHI ADMIN / DƯỢC SĨ / THỦ KHO ĐĂNG NHẬP) */}
-      {/* ========================================================================= */}
-      {token && isStaff && (
-        <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-blue-700 text-white px-4 py-2 text-xs shadow-inner">
-          <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <span className="font-medium">
-                👋 Xin chào <strong>{getUserDisplayName()}</strong> — Bạn đang đăng nhập với tư cách: <strong className="underline decoration-amber-400 font-extrabold uppercase">{currentRoleInfo.label}</strong>
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link
-                to={currentRoleInfo.dashboardUrl}
-                className="bg-white text-indigo-900 hover:bg-amber-300 hover:text-indigo-950 px-4 py-1.5 rounded-lg font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow transition-all hover:scale-105 active:scale-95"
-              >
-                <LayoutDashboard size={14} />
-                <span>Vào Bảng Điều Khiển Quản Trị →</span>
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="text-white/80 hover:text-red-200 text-[11px] underline flex items-center gap-1 cursor-pointer"
-              >
-                <LogOut size={12} /> Đăng xuất
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 3. MAIN HEADER: LOGO, SMART SEARCH, PRESCRIPTION CTA, AI TOOL, CART, PROFILE */}
+      {/* 2. MAIN HEADER: LOGO, LIVE SEARCH AUTO-COMPLETE, PRESCRIPTION, CART, PROFILE */}
       {/* ========================================================================= */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-sm transition-all">
         <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between gap-4">
@@ -620,8 +604,8 @@ export function Landing() {
             </div>
           </Link>
 
-          {/* Center Smart Search Bar */}
-          <div className="flex-1 max-w-2xl hidden md:block">
+          {/* Center Smart Live Search Bar with Auto-Complete Dropdown */}
+          <div className="flex-1 max-w-2xl hidden md:block relative" ref={searchContainerRef}>
             <form onSubmit={handleSearchSubmit} className="relative flex items-center">
               <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                 <Search size={18} />
@@ -630,16 +614,123 @@ export function Landing() {
                 type="text"
                 placeholder="Tìm tên thuốc, hoạt chất, triệu chứng (Ví dụ: Panadol, Amoxicillin, Men tiêu hóa)..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-24 py-2.5 bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-[#0d6efd] focus:ring-4 focus:ring-blue-100 rounded-full text-sm font-medium text-slate-800 placeholder:text-slate-400 placeholder:font-normal outline-none transition-all shadow-inner"
+                onFocus={() => setShowSearchDropdown(true)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSearchDropdown(true);
+                }}
+                className="w-full pl-10 pr-28 py-2.5 bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-[#0d6efd] focus:ring-4 focus:ring-blue-100 rounded-full text-sm font-medium text-slate-800 placeholder:text-slate-400 outline-none transition-all shadow-inner"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSearchResults([]);
+                  }}
+                  className="absolute right-20 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              )}
               <button
                 type="submit"
-                className="absolute right-1.5 bg-[#0057cd] hover:bg-[#0b5ed7] text-white px-5 py-1.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="absolute right-1.5 bg-[#0057cd] hover:bg-[#0b5ed7] text-white px-5 py-1.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1"
               >
-                Tìm kiếm
+                {isSearchingLive ? <Loader2 size={12} className="animate-spin" /> : "Tìm"}
               </button>
             </form>
+
+            {/* Live Search Auto-Complete Dropdown */}
+            {showSearchDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                {/* Trending Tags */}
+                <div className="px-4 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-1.5 text-[11px] font-black text-[#0057cd] uppercase tracking-wider mb-2">
+                    <Flame size={14} className="text-rose-500" />
+                    <span>Tìm kiếm phổ biến / Xu hướng</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {trendingTags.map((tag, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery(tag);
+                          setShowSearchDropdown(false);
+                          navigate(`/customer/shop?search=${encodeURIComponent(tag)}`);
+                        }}
+                        className="px-2.5 py-1 bg-slate-50 hover:bg-blue-50 hover:text-[#0057cd] border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-600 transition-colors cursor-pointer"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Instant Search Results */}
+                {isSearchingLive ? (
+                  <div className="py-6 text-center text-xs text-slate-400 font-bold flex items-center justify-center gap-2">
+                    <Loader2 size={16} className="animate-spin text-[#0057cd]" />
+                    <span>Đang tìm kiếm thuốc trong kho...</span>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="py-2">
+                    <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sản phẩm gợi ý</p>
+                    <div className="divide-y divide-slate-100">
+                      {searchResults.map((med) => {
+                        const medId = med.id || med._id;
+                        const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
+                        return (
+                          <div
+                            key={medId}
+                            onClick={() => {
+                              setSelectedMedicineForModal(med);
+                              setShowSearchDropdown(false);
+                            }}
+                            className="px-4 py-2.5 hover:bg-blue-50/70 flex items-center gap-3 cursor-pointer transition-colors"
+                          >
+                            <img
+                              src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
+                              alt={med.name}
+                              className="w-10 h-10 object-contain bg-slate-50 rounded-lg p-1 border border-slate-100 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-xs text-slate-900 truncate">{med.name}</span>
+                                <span className={`text-[8px] font-black px-1.5 py-0.2 rounded uppercase border shrink-0 ${isRx ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-blue-50 text-[#0057cd] border-blue-200"}`}>
+                                  {isRx ? "Rx" : "OTC"}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-medium truncate">
+                                Hoạt chất: <span className="text-slate-600 font-bold">{med.active_ingredient || "N/A"}</span> • {med.unit || "Viên"}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-black text-[#0057cd]">
+                                {med.price ? med.price.toLocaleString() + "₫" : "Liên hệ"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="px-4 pt-2 border-t border-slate-100 mt-1">
+                      <button
+                        onClick={handleSearchSubmit}
+                        className="w-full py-2 bg-slate-50 hover:bg-[#0057cd] hover:text-white text-[#0057cd] rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer text-center"
+                      >
+                        Xem tất cả kết quả cho "{searchQuery}" →
+                      </button>
+                    </div>
+                  </div>
+                ) : searchQuery.trim() ? (
+                  <div className="py-4 text-center text-xs text-slate-500 font-medium">
+                    Không tìm thấy thuốc nào khớp với "<span className="font-bold text-slate-700">{searchQuery}</span>"
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {/* Right Action Icons & Profile */}
@@ -687,15 +778,15 @@ export function Landing() {
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center gap-2.5 p-1.5 pr-3 rounded-2xl hover:bg-slate-100 border border-slate-200/60 transition-all cursor-pointer"
                 >
-                  <div className={`w-8 h-8 rounded-xl ${currentRoleInfo.avatarColor} flex items-center justify-center font-black text-xs shadow-sm`}>
+                  <div className="w-8 h-8 rounded-xl bg-[#0057cd] text-white flex items-center justify-center font-black text-xs shadow-sm">
                     {getUserInitials()}
                   </div>
                   <div className="flex flex-col text-left hidden sm:flex">
                     <span className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[130px]">
                       {getUserDisplayName()}
                     </span>
-                    <span className={`text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded mt-0.5 inline-block w-fit border ${currentRoleInfo.badgeBg}`}>
-                      {currentRoleInfo.tag}
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-emerald-600">
+                      Khách Hàng Thân Thiết
                     </span>
                   </div>
                   <ChevronDown size={14} className="text-slate-400" />
@@ -710,59 +801,28 @@ export function Landing() {
                     <div className="px-4 py-3 border-b border-slate-100">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tài khoản</p>
                       <p className="text-sm font-black text-slate-900 truncate">{getUserDisplayName()}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 border ${currentRoleInfo.badgeBg}`}>
-                        {currentRoleInfo.label}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 bg-sky-50 text-[#0057cd] border border-sky-200">
+                        Khách hàng thân thiết
                       </span>
                     </div>
 
                     <div className="py-1">
-                      {isStaff ? (
-                        <>
-                          <Link
-                            to={currentRoleInfo.dashboardUrl}
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 transition-colors"
-                          >
-                            <LayoutDashboard size={16} className="text-indigo-600" />
-                            <span>Vào Bảng Quản Trị ({currentRoleInfo.tag})</span>
-                          </Link>
-                          <Link
-                            to="/profile"
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                          >
-                            <User size={15} className="text-slate-400" />
-                            <span>Hồ sơ cá nhân</span>
-                          </Link>
-                          <Link
-                            to="/settings"
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                          >
-                            <Settings size={15} className="text-slate-400" />
-                            <span>Cài đặt hệ thống</span>
-                          </Link>
-                        </>
-                      ) : (
-                        <>
-                          <Link
-                            to="/customer/profile"
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-[#0057cd] hover:bg-blue-50 transition-colors"
-                          >
-                            <User size={16} className="text-[#0057cd]" />
-                            <span>Hồ sơ & Điểm tích lũy</span>
-                          </Link>
-                          <Link
-                            to="/customer/orders"
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                          >
-                            <ShoppingBag size={15} className="text-slate-400" />
-                            <span>Lịch sử đơn thuốc & Mua sắm</span>
-                          </Link>
-                        </>
-                      )}
+                      <Link
+                        to="/customer/profile"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-[#0057cd] hover:bg-blue-50 transition-colors"
+                      >
+                        <User size={16} className="text-[#0057cd]" />
+                        <span>Hồ sơ & Điểm tích lũy</span>
+                      </Link>
+                      <Link
+                        to="/customer/orders"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <ShoppingBag size={15} className="text-slate-400" />
+                        <span>Lịch sử đơn thuốc & Mua sắm</span>
+                      </Link>
                     </div>
 
                     <div className="border-t border-slate-100 pt-1">
@@ -788,26 +848,6 @@ export function Landing() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Mobile Search Bar */}
-        <div className="p-3 md:hidden border-t border-slate-100">
-          <form onSubmit={handleSearchSubmit} className="relative flex items-center">
-            <Search size={16} className="absolute left-3 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm thuốc, hoạt chất, triệu chứng..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-20 py-2 bg-slate-100 rounded-full text-xs font-medium outline-none focus:ring-2 focus:ring-blue-200"
-            />
-            <button
-              type="submit"
-              className="absolute right-1 bg-[#0057cd] text-white px-4 py-1 rounded-full text-[11px] font-bold"
-            >
-              Tìm
-            </button>
-          </form>
         </div>
 
         {/* Mega Category Navigation Bar */}
@@ -846,14 +886,13 @@ export function Landing() {
       </header>
 
       {/* ========================================================================= */}
-      {/* 4. HERO SECTION: PROMOTIONAL CAROUSEL & KEY HEALTH SERVICE HIGHLIGHTS */}
+      {/* 3. HERO PROMOTIONS CAROUSEL */}
       {/* ========================================================================= */}
       <section className="relative py-6 px-4 max-w-7xl mx-auto w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
 
           {/* Left Main Hero Carousel Banner */}
           <div className="lg:col-span-8 rounded-[28px] overflow-hidden relative shadow-xl min-h-[360px] flex flex-col justify-between text-white p-8 md:p-12 transition-all duration-700 bg-gradient-to-tr from-[#003c96] via-[#0057cd] to-[#0284c7]">
-            {/* Background Medical Abstract Visuals */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-25">
               <div className="absolute -top-20 -right-20 w-96 h-96 bg-white/20 rounded-full blur-3xl"></div>
               <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-teal-300/20 rounded-full blur-3xl"></div>
@@ -921,7 +960,7 @@ export function Landing() {
             </div>
           </div>
 
-          {/* Right Column: 2 Quick Action Feature Promo Cards */}
+          {/* Right Column: 2 Quick Action Promo Cards */}
           <div className="lg:col-span-4 flex flex-col gap-4">
 
             {/* Sub-card 1: Prescription fast processing */}
@@ -986,7 +1025,7 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. 6 QUICK ACTION SERVICE TILES (CHUẨN LONG CHÂU / PHARMACITY) */}
+      {/* 4. 6 QUICK ACTION SERVICE TILES (CHUẨN LONG CHÂU / PHARMACITY) */}
       {/* ========================================================================= */}
       <section className="py-4 px-4 max-w-7xl mx-auto w-full">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
@@ -1057,12 +1096,10 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 6. FLASH SALE COUNTDOWN SECTION (DEALS SỐC MỖI NGÀY) */}
+      {/* 5. FLASH SALE COUNTDOWN SECTION */}
       {/* ========================================================================= */}
       <section id="flash-sale-section" className="py-8 px-4 max-w-7xl mx-auto w-full">
         <div className="bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 rounded-[28px] p-6 md:p-8 text-white shadow-xl">
-
-          {/* Flash Sale Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-white/20">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white text-rose-600 flex items-center justify-center font-black shadow-md">
@@ -1097,7 +1134,6 @@ export function Landing() {
             </div>
           </div>
 
-          {/* Flash Sale Deals Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {[
               {
@@ -1146,7 +1182,6 @@ export function Landing() {
                 onClick={() => navigate("/customer/shop")}
                 className="bg-white rounded-2xl p-4 text-slate-800 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 relative"
               >
-                {/* Discount Badge */}
                 <div className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">
                   -{deal.discount}%
                 </div>
@@ -1174,7 +1209,6 @@ export function Landing() {
                     </span>
                   </div>
 
-                  {/* Progress Bar */}
                   <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative">
                     <div
                       className="bg-gradient-to-r from-rose-500 to-amber-500 h-full rounded-full"
@@ -1192,39 +1226,116 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. DYNAMIC MEDICINE SHOWCASE BY CATEGORY TABS (API CONNECTED) */}
+      {/* 6. ADVANCED PHARMACY SEARCH & FILTER SECTION (LONG CHÂU & PHARMACITY STYLE) */}
       {/* ========================================================================= */}
       <section className="py-10 px-4 max-w-7xl mx-auto w-full">
         <div className="bg-white rounded-[32px] p-6 md:p-10 border border-slate-200/80 shadow-sm">
 
-          {/* Section Header & Tab Filters */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-6 border-b border-slate-100">
+          {/* Section Title & Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
             <div>
-              <div className="flex items-center gap-2 text-[#0057cd] font-black text-xs uppercase tracking-widest mb-1.5">
+              <div className="flex items-center gap-2 text-[#0057cd] font-black text-xs uppercase tracking-widest mb-1">
                 <Pill size={15} />
                 <span>DANH MỤC DƯỢC PHẨM CHÍNH HÃNG</span>
               </div>
               <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                Thuốc & Sản Phẩm Y Tế Nổi Bật
+                Tìm Kiếm & Khám Phá Thuốc Theo Nhu Cầu
               </h2>
             </div>
 
-            {/* Category Filter Chips */}
-            <div className="flex gap-1.5 overflow-x-auto p-1 bg-slate-100 rounded-2xl">
-              {categories.map((cat) => (
-                <button
-                  key={cat.value}
-                  onClick={() => setActiveCategory(cat.value)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap uppercase tracking-wider cursor-pointer ${activeCategory === cat.value
-                    ? "bg-[#0057cd] text-white shadow-md font-black"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
-                    }`}
-                >
-                  <span className="mr-1.5">{cat.icon}</span>
-                  {cat.label}
-                </button>
-              ))}
+            {hasActiveFilters && (
+              <button
+                onClick={resetAllFilters}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer self-start md:self-auto"
+              >
+                <RotateCcw size={13} />
+                <span>Xóa tất cả bộ lọc</span>
+              </button>
+            )}
+          </div>
+
+          {/* Multi-Dimensional Filter Selectors (Long Chau & Pharmacity style) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6 p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
+            {/* Filter 1: Mức giá */}
+            <div>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                🏷️ Mức giá
+              </label>
+              <select
+                value={selectedPrice}
+                onChange={(e) => setSelectedPrice(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+              >
+                {priceFilterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
+
+            {/* Filter 2: Đối tượng sử dụng */}
+            <div>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                👥 Đối tượng sử dụng
+              </label>
+              <select
+                value={selectedTargetGroup}
+                onChange={(e) => setSelectedTargetGroup(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+              >
+                {targetGroupOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter 3: Phân loại Rx / OTC */}
+            <div>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                🧬 Phân loại thuốc
+              </label>
+              <select
+                value={selectedClassification}
+                onChange={(e) => setSelectedClassification(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+              >
+                {classificationOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter 4: Dạng bào chế */}
+            <div>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                🧪 Dạng bào chế
+              </label>
+              <select
+                value={selectedDosageForm}
+                onChange={(e) => setSelectedDosageForm(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+              >
+                {dosageFormOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Quick Category Chips */}
+          <div className="flex gap-1.5 overflow-x-auto pb-4 mb-6 border-b border-slate-100 scrollbar-thin">
+            {categories.map((cat) => (
+              <button
+                key={cat.value}
+                onClick={() => setActiveCategory(cat.value)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap uppercase tracking-wider cursor-pointer ${activeCategory === cat.value
+                  ? "bg-[#0057cd] text-white shadow-md font-black"
+                  : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                  }`}
+              >
+                <span className="mr-1.5">{cat.icon}</span>
+                {cat.label}
+              </button>
+            ))}
           </div>
 
           {/* Live Medicines Grid */}
@@ -1286,7 +1397,7 @@ export function Landing() {
                         <div className="flex items-baseline justify-between mb-3">
                           <span className="text-[11px] text-slate-400 font-medium">Kho: {med.stock} {med.unit || "Hộp"}</span>
                           <span className="text-base font-black text-[#0057cd]">
-                            {med.price.toLocaleString()}₫ <span className="text-[10px] font-normal text-slate-400">/ {med.unit || "Hộp"}</span>
+                            {med.price ? med.price.toLocaleString() + "₫" : "Liên hệ"} <span className="text-[10px] font-normal text-slate-400">/ {med.unit || "Hộp"}</span>
                           </span>
                         </div>
 
@@ -1324,10 +1435,16 @@ export function Landing() {
           ) : (
             <div className="bg-slate-50 rounded-2xl border border-slate-200 p-12 text-center flex flex-col items-center justify-center">
               <Info size={36} className="text-slate-400 mb-2" />
-              <h3 className="font-bold text-slate-800 text-sm">Chưa có thuốc trong danh mục này</h3>
-              <p className="text-slate-500 text-xs mt-1">
-                Vui lòng chọn danh mục khác hoặc liên hệ Dược sĩ để được hỗ trợ.
+              <h3 className="font-bold text-slate-800 text-sm">Chưa có thuốc phù hợp với bộ lọc hiện tại</h3>
+              <p className="text-slate-500 text-xs mt-1 max-w-sm">
+                Vui lòng thử điều chỉnh hoặc xóa bớt tiêu chí lọc để xem thêm các loại dược phẩm khác.
               </p>
+              <button
+                onClick={resetAllFilters}
+                className="mt-4 px-4 py-2 bg-[#0057cd] text-white text-xs font-bold rounded-xl shadow cursor-pointer"
+              >
+                Xóa tất cả bộ lọc
+              </button>
             </div>
           )}
 
@@ -1346,104 +1463,7 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 8. CORE PAIN POINTS & SMART TECH BENTO GRID */}
-      {/* ========================================================================= */}
-      <section id="pain-points" className="py-16 px-4 max-w-7xl mx-auto w-full">
-        <div className="text-center max-w-3xl mx-auto mb-12 bento-card">
-          <span className="text-xs font-black text-[#0057cd] uppercase tracking-widest mb-1 block">NỀN TẢNG CÔNG NGHỆ DƯỢC PHẨM 3.0</span>
-          <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-2">Vận hành chuỗi nhà thuốc chuẩn GPP</h2>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Hệ thống đồng bộ dữ liệu theo thời gian thực</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-
-          {/* Bento Card 1: Unit Conversion */}
-          <div className="bento-card md:col-span-7 bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-lg transition-all">
-            <div className="w-12 h-12 bg-blue-50 text-[#0057cd] rounded-2xl flex items-center justify-center mb-5 border border-blue-100">
-              <Workflow size={24} />
-            </div>
-            <h3 className="text-2xl font-black text-slate-900 mb-2">Đồng bộ Quy đổi Đơn vị Triệt để</h3>
-            <p className="text-slate-500 font-medium mb-6 text-xs">Giải quyết bài toán quy đổi phức tạp và tồn kho đa cấp từ Thùng → Hộp → Vỉ → Viên.</p>
-
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col gap-2.5 font-mono text-xs">
-              <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100">
-                <span className="font-bold text-slate-700 flex items-center gap-2"><Box size={14} /> 1 Thùng (Bulk)</span>
-                <ArrowRightLeft size={12} className="text-slate-400" />
-                <span className="font-black text-[#0057cd]">100 Hộp</span>
-              </div>
-              <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100">
-                <span className="font-bold text-slate-700 flex items-center gap-2"><PackageSearch size={14} /> 1 Hộp (Box)</span>
-                <ArrowRightLeft size={12} className="text-slate-400" />
-                <span className="font-black text-[#0057cd]">5 Vỉ</span>
-              </div>
-              <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100">
-                <span className="font-bold text-slate-700 flex items-center gap-2"><Activity size={14} /> 1 Vỉ (Blister)</span>
-                <ArrowRightLeft size={12} className="text-slate-400" />
-                <span className="font-black text-[#0057cd]">10 Viên</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bento Card 2: AI Near-Expiry Alerts */}
-          <div className="bento-card md:col-span-5 bg-slate-900 text-white rounded-3xl p-8 border border-slate-800 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="w-12 h-12 bg-white/10 text-sky-400 rounded-2xl flex items-center justify-center mb-5 border border-white/10">
-                <ShieldCheck size={24} />
-              </div>
-              <h3 className="text-2xl font-black mb-2">Cảnh báo Cận Hạn AI</h3>
-              <p className="text-slate-400 font-medium text-xs">Kiểm soát chặt chẽ từng lô thuốc, tự động cách ly thuốc cận date theo chuẩn FIFO Bộ Y Tế.</p>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              <div className="bg-red-500/15 border border-red-500/30 rounded-xl p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black text-red-400 uppercase tracking-wider mb-0.5">Cảnh báo đỏ (Hủy)</p>
-                  <p className="font-bold text-xs text-slate-100">Panadol Extra (Lô X902)</p>
-                </div>
-                <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded">
-                  {'< 30 Ngày'}
-                </span>
-              </div>
-              <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider mb-0.5">Cảnh báo vàng (Ưu tiên bán)</p>
-                  <p className="font-bold text-xs text-slate-100">Augmentin 1g (Lô B110)</p>
-                </div>
-                <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded">
-                  {'30 - 60 Ngày'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bento Card 3: Lot Traceability & Audit Logs */}
-          <div className="bento-card md:col-span-12 bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-8 items-center">
-            <div className="flex-1">
-              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-5 border border-emerald-100">
-                <History size={24} />
-              </div>
-              <h3 className="text-2xl font-black text-slate-900 mb-2">Truy xuất Lô & Audit Log Liên Tục</h3>
-              <p className="text-slate-500 font-medium text-xs">Mọi chuyển động nhập xuất, điều chuyển kho liên chi nhánh đều được ghi vết minh bạch tới từng giây.</p>
-            </div>
-            <div className="flex-1 w-full bg-slate-900 rounded-2xl p-5 border border-slate-800 font-mono text-xs overflow-hidden shadow-inner">
-              <div className="space-y-2.5 flex flex-col">
-                {logs.map((log, i) => (
-                  <div key={i} className="flex gap-3 items-start border-b border-slate-800/60 pb-2 last:border-0 last:pb-0 text-[11px]">
-                    <span className="text-slate-500">[{log.time}]</span>
-                    <span className="text-sky-400 font-bold">{log.user}</span>
-                    <span className="text-slate-300 flex-1 truncate">{log.action}</span>
-                    <span className="text-emerald-400 font-bold hidden sm:block">{log.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 9. 4 GOLDEN COMMITMENTS (4 CAM KẾT VÀNG TÍN NHIỆM) */}
+      {/* 7. 4 GOLDEN COMMITMENTS */}
       {/* ========================================================================= */}
       <section className="py-12 px-4 bg-white border-y border-slate-200/80">
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1483,7 +1503,7 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 10. HEALTH HANDBOOK & MEDICAL ARTICLES (GÓC SỨC KHỎE) */}
+      {/* 8. HEALTH ARTICLES */}
       {/* ========================================================================= */}
       <section className="py-16 px-4 max-w-7xl mx-auto w-full">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -1549,7 +1569,7 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 11. FAQ ACCORDION */}
+      {/* 9. FAQ ACCORDION */}
       {/* ========================================================================= */}
       <section className="py-16 px-4 bg-slate-100/70 border-t border-slate-200/80">
         <div className="max-w-3xl mx-auto">
@@ -1596,12 +1616,10 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 12. PHARMACEUTICAL CORPORATE COMPLIANT FOOTER */}
+      {/* 10. PHARMACEUTICAL CORPORATE COMPLIANT FOOTER */}
       {/* ========================================================================= */}
       <footer className="bg-[#0b1329] text-white pt-16 pb-8 px-4 text-xs border-t border-slate-800 mt-auto">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
-
-          {/* Col 1: Brand & Licensing */}
           <div className="md:col-span-4">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-[#0057cd] flex items-center justify-center text-white">
@@ -1619,7 +1637,6 @@ export function Landing() {
             </div>
           </div>
 
-          {/* Col 2: Support Hotlines */}
           <div className="md:col-span-3">
             <h4 className="font-bold text-white text-xs uppercase tracking-wider mb-4">Tổng Đài Hỗ Trợ (Miễn Phí)</h4>
             <div className="space-y-3 text-slate-300">
@@ -1638,7 +1655,6 @@ export function Landing() {
             </div>
           </div>
 
-          {/* Col 3: Categories & Quick Links */}
           <div className="md:col-span-2">
             <h4 className="font-bold text-white text-xs uppercase tracking-wider mb-4">Danh Mục Dược Phẩm</h4>
             <ul className="space-y-2 text-slate-400">
@@ -1651,7 +1667,6 @@ export function Landing() {
             </ul>
           </div>
 
-          {/* Col 4: Payment Methods & Certifications */}
           <div className="md:col-span-3">
             <h4 className="font-bold text-white text-xs uppercase tracking-wider mb-4">Cổng Thanh Toán Hỗ Trợ</h4>
             <div className="grid grid-cols-3 gap-2 mb-6">
@@ -1668,7 +1683,6 @@ export function Landing() {
               <span>Đạt Chuẩn GPP - GDP - GSP</span>
             </div>
           </div>
-
         </div>
 
         <div className="max-w-7xl mx-auto border-t border-slate-800 pt-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[11px] gap-2">
@@ -1682,7 +1696,7 @@ export function Landing() {
       </footer>
 
       {/* ========================================================================= */}
-      {/* 13. QUICK PRESCRIPTION UPLOAD MODAL */}
+      {/* 11. QUICK PRESCRIPTION UPLOAD MODAL */}
       {/* ========================================================================= */}
       {isPrescriptionModalOpen && (
         <div
@@ -1792,7 +1806,7 @@ export function Landing() {
       )}
 
       {/* ========================================================================= */}
-      {/* 14. MEDICINE QUICK VIEW DETAIL MODAL */}
+      {/* 12. MEDICINE QUICK VIEW DETAIL MODAL */}
       {/* ========================================================================= */}
       {selectedMedicineForModal && (() => {
         const med = selectedMedicineForModal;
@@ -1812,7 +1826,6 @@ export function Landing() {
               className="bg-white rounded-[32px] border border-slate-100 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col relative cursor-default"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
@@ -1839,9 +1852,7 @@ export function Landing() {
                 </button>
               </div>
 
-              {/* Modal Body */}
               <div className="p-6 md:p-8 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-12 gap-8">
-                {/* Left: Image & Cart button */}
                 <div className="md:col-span-5 flex flex-col gap-5">
                   <div className="w-full aspect-square bg-slate-50 rounded-2xl flex items-center justify-center p-6 border border-slate-100 relative">
                     <img
@@ -1855,7 +1866,7 @@ export function Landing() {
                     <div className="flex items-baseline justify-between">
                       <span className="text-xs font-bold text-slate-400 uppercase">Giá niêm yết</span>
                       <span className="text-2xl font-black text-[#0057cd]">
-                        {med.price.toLocaleString()}₫
+                        {med.price ? med.price.toLocaleString() + "₫" : "Liên hệ"}
                       </span>
                     </div>
 
@@ -1895,7 +1906,6 @@ export function Landing() {
                   </div>
                 </div>
 
-                {/* Right: Detailed Medical Specs */}
                 <div className="md:col-span-7 flex flex-col gap-4 text-left">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
