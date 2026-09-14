@@ -1765,7 +1765,7 @@ export class MedicineService implements OnModuleInit {
     try {
       this.logger.log('Fetching warehouse map aggregation...');
       
-      const pipeline = [
+      const pipeline: any[] = [
         {
           $match: {
             branchId: 'CENTRAL_WH',
@@ -1821,7 +1821,7 @@ export class MedicineService implements OnModuleInit {
         { $sort: { zone: 1 } }
       ];
 
-      const rawZones = await this.batchModel.aggregate(pipeline).exec();
+      const rawZones = await this.batchModel.aggregate(pipeline as any).exec();
       const today = new Date();
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
