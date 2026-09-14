@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
-  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter
+  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
@@ -47,6 +47,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [remarks, setRemarks] = useState("");
+
+  // Barcode Scanning States (POS Fast Scan)
+  const [isBarcodeLoading, setIsBarcodeLoading] = useState(false);
+  const [lastScannedCode, setLastScannedCode] = useState("");
+  const [isScanActive, setIsScanActive] = useState(true);
+  const scanBufferRef = useRef<string>("");
+  const lastKeyTimeRef = useRef<number>(0);
 
   // Pharmacist Filter States
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -349,15 +356,133 @@ export default function RetailView({ showToast }: RetailViewProps) {
     return () => clearTimeout(delay);
   }, [searchQuery, selectedCategory, selectedClassification, stockFilter]);
 
+  // ==========================================
+  // FAST SCAN & GLOBAL USB SCANNER LISTENER
+  // ==========================================
+  const handleBarcodeScanned = async (barcode: string) => {
+    if (!barcode || barcode.trim().length < 3) return;
+    const cleanBarcode = barcode.trim();
+    setLastScannedCode(cleanBarcode);
+    setIsBarcodeLoading(true);
+
+    try {
+      const { branchId } = getBranchInfoFromToken();
+      const res = await medicineService.getByBarcode(cleanBarcode, branchId || '');
+
+      if (!res || !res.found || !res.medicine) {
+        showToast(`❌ Không tìm thấy thuốc khớp mã: ${cleanBarcode}`, "error");
+        return;
+      }
+
+      const med = res.medicine;
+      const fefoBatch = res.fefoBatch;
+      const totalStock = res.totalBranchStock ?? med.stock ?? 0;
+
+      if (totalStock <= 0) {
+        showToast(`⚠️ Thuốc "${med.name}" tạm hết hàng tại chi nhánh!`, "warning");
+        handleFetchAlternatives(med);
+        return;
+      }
+
+      // Âm thanh Beep xác nhận quét thành công
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = 980;
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+      } catch (e) {}
+
+      const medId = med.id || med._id;
+      const existing = cart.find(it => (it.id || it._id) === medId);
+
+      if (existing) {
+        if (existing.quantity >= totalStock) {
+          showToast(`⚠️ Đã đạt số lượng tồn khả dụng tối đa (${totalStock}) của chi nhánh!`, "warning");
+          return;
+        }
+        setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
+        showToast(`⚡ Quét mã: Đã tăng số lượng "${med.name}" (+1)!`, "success");
+      } else {
+        const unitOptions = buildUnitOptions(med);
+        const selectedUnitObj = res.matchedUnit || unitOptions[0] || { unitName: med.unit || 'Hộp', exchangeValue: 1, price: med.price || 0 };
+        const baseUnit = med.baseUnit || selectedUnitObj.unitName || 'viên';
+
+        setCart(prev => [
+          ...prev,
+          {
+            ...med,
+            id: medId,
+            baseUnit,
+            unitOptions,
+            selectedUnit: selectedUnitObj.unitName,
+            unit: selectedUnitObj.unitName,
+            exchangeValue: selectedUnitObj.exchangeValue || 1,
+            price: selectedUnitObj.price || med.price || 0,
+            quantity: 1,
+            fefoBatchNo: fefoBatch ? fefoBatch.batchNo : undefined,
+            fefoExpDate: fefoBatch ? fefoBatch.expDate : undefined,
+            dosePerTime: 1,
+            timesPerDay: 2,
+            durationDays: 7,
+            dailyDose: 2,
+            dosageInstructions: `Uống 1 ${selectedUnitObj.unitName}/lần, 2 lần/ngày sau ăn - Dùng 7 ngày`
+          }
+        ]);
+
+        const fefoTag = fefoBatch ? ` [Lô FEFO: ${fefoBatch.batchNo}]` : '';
+        showToast(`⚡ Quét thành công: Đã thêm "${med.name}"${fefoTag}!`, "success");
+      }
+    } catch (err: any) {
+      console.error("Lỗi tra cứu Barcode:", err);
+      showToast(err.response?.data?.message || err.message || "Lỗi tra cứu mã vạch", "error");
+    } finally {
+      setIsBarcodeLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!isScanActive) return;
+
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+
+      const now = Date.now();
+      const diff = now - lastKeyTimeRef.current;
+      lastKeyTimeRef.current = now;
+
+      // Máy quét USB gõ chuỗi rất nhanh (khoảng cách < 45ms giữa các ký tự)
+      if (e.key === 'Enter') {
+        if (scanBufferRef.current.length >= 4 && (diff < 60 || !isInput)) {
+          e.preventDefault();
+          const code = scanBufferRef.current;
+          scanBufferRef.current = "";
+          handleBarcodeScanned(code);
+        } else {
+          scanBufferRef.current = "";
+        }
+      } else if (e.key.length === 1) {
+        if (diff > 80 && !isInput) {
+          scanBufferRef.current = e.key;
+        } else {
+          scanBufferRef.current += e.key;
+        }
+      }
+
       if (e.key === "Escape") {
         setIsDropdownOpen(false);
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [cart, isScanActive]);
 
   const { onEvent, offEvent } = useSocket();
 
@@ -453,16 +578,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
     const medId = med.id || med._id;
     const existing = cart.find(it => (it.id || it._id) === medId);
     if (existing) {
-      if (existing.quantity >= med.stock) {
-        showToast("Đã vượt quá số lượng tồn kho khả dụng!", "warning");
-        return;
-      }
       setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
-    } else {
-      if (med.stock <= 0) {
-        handleFetchAlternatives(med);
-        return;
+      if (existing.quantity + 1 > (med.stock || 0)) {
+        showToast(`Cảnh báo: Số lượng thuốc "${med.name}" vượt quá tồn kho (${med.stock || 0} ${med.unit || 'viên'})!`, "warning");
       }
+    } else {
       const unitOptions = buildUnitOptions(med);
       const isViProduct = (med.name || '').toLowerCase().includes('ngậm') || (med.name || '').toLowerCase().includes('sủi');
       // Ưu tiên Vỉ cho viên ngậm/sủi, hoặc đơn vị lẻ cho thuốc kê đơn theo ngày
@@ -496,6 +616,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
           dosageInstructions,
         }
       ]);
+
+      if ((med.stock || 0) <= 0) {
+        showToast(`Thuốc "${med.name}" hiện đang hết hàng ở chi nhánh (Tồn: 0). Vui lòng tìm thuốc thay thế hoặc điều chuyển kho!`, "warning");
+      }
     }
     setSearchQuery("");
     setSearchResults([]);
@@ -887,24 +1011,50 @@ export default function RetailView({ showToast }: RetailViewProps) {
           <div className="flex gap-3 items-center">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-4.5 flex items-center pointer-events-none text-slate-400">
-                {loading ? <Loader2 size={18} className="animate-spin text-[#0057cd]" /> : <SearchIcon size={18} />}
+                {isBarcodeLoading ? (
+                  <Loader2 size={18} className="animate-spin text-emerald-600" />
+                ) : loading ? (
+                  <Loader2 size={18} className="animate-spin text-[#0057cd]" />
+                ) : (
+                  <SearchIcon size={18} />
+                )}
               </div>
               <input
                 type="text"
-                placeholder="Tìm kiếm nhanh theo tên thuốc, hoạt chất, số đăng ký, mã vạch..."
+                placeholder="Nhập tên thuốc, hoạt chất hoặc quét mã vạch Barcode (USB Scanner)..."
                 value={searchQuery}
                 onFocus={() => { if (searchResults.length > 0) setIsDropdownOpen(true); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery && /^\d{6,}$/.test(searchQuery.trim())) {
+                    e.preventDefault();
+                    handleBarcodeScanned(searchQuery.trim());
+                    setSearchQuery('');
+                  }
+                }}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-11 pr-10 py-3.5 bg-white border border-slate-200 rounded-[12px] text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all shadow-sm text-sm"
+                className="w-full pl-11 pr-24 py-3.5 bg-white border border-slate-200 rounded-[12px] text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all shadow-sm text-sm"
               />
-              {searchQuery && (
-                <button
-                  onClick={() => { setSearchQuery(""); }}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700"
+              <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1.5">
+                {searchQuery && (
+                  <button
+                    onClick={() => { setSearchQuery(""); }}
+                    className="p-1 text-slate-400 hover:text-slate-700"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <div 
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider select-none transition-all ${
+                    isBarcodeLoading 
+                      ? 'bg-emerald-500 text-white animate-pulse shadow-sm shadow-emerald-500/50' 
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                  }`}
+                  title="Máy quét Barcode USB / Camera sẵn sàng"
                 >
-                  <X size={16} />
-                </button>
-              )}
+                  <ScanBarcode size={13} className={isBarcodeLoading ? 'text-white' : 'text-emerald-600'} />
+                  <span>Scanner ON</span>
+                </div>
+              </div>
             </div>
             <button
               onClick={() => setVoiceModalOpen(true)}
@@ -1217,6 +1367,12 @@ export default function RetailView({ showToast }: RetailViewProps) {
                           {boxCap > 1 && (
                             <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                               💊 Hộp lẻ dở: {openedUnits} {baseUnitName}
+                            </span>
+                          )}
+                          {it.fefoBatchNo && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                              <Zap size={11} className="text-emerald-600" />
+                              Lô FEFO: {it.fefoBatchNo} {it.fefoExpDate ? `(HSD: ${new Date(it.fefoExpDate).toLocaleDateString('vi-VN')})` : ''}
                             </span>
                           )}
                         </div>
