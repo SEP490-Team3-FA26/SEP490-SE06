@@ -54,7 +54,7 @@ jobs:
         if: github.ref != 'refs/heads/main'
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: backend
           file: backend/docker/backend.Dockerfile
           push: false
           cache-from: type=gha

@@ -31,6 +31,9 @@ export class InventoryCheck extends Document {
   @Prop({ type: String, required: true, unique: true })
   checkCode: string; // Ví dụ: IC-20260621-001
 
+  @Prop({ type: String, required: true, default: 'CENTRAL_WH', index: true })
+  branchId: string; // ID chi nhánh kiểm kê (CENTRAL_WH hoặc BR-xxx)
+
   @Prop({ type: String, required: true, default: 'DRAFT', enum: ['DRAFT', 'COMPLETED'] })
   status: string;
 

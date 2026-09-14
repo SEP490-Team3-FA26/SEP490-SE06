@@ -16,7 +16,7 @@ export function AdminLayout() {
         { name: "Nhập / Xuất kho", href: "/admin/inventory/import" },
         { name: "Biên bản kiểm kê", href: "/admin/inventory/checks" },
         { name: "Lịch sử hủy thuốc", href: "/admin/inventory/dispose" },
-        { name: "Truy xuất Lô & IoT Tracking", href: "/admin/inventory/lot-tracking" },
+        { name: "Truy xuất Lô & Lưu trữ Y tế 50 năm", href: "/admin/inventory/lot-tracking" },
       ]
     },
     {
@@ -33,7 +33,6 @@ export function AdminLayout() {
     { name: "Công nợ NCC", href: "/admin/supplier-credit", icon: <CreditCard size={20} /> },
     { name: "Báo cáo thống kê", href: "/admin/reports", icon: <BarChart3 size={20} /> },
     { name: "Nhật ký hệ thống", href: "/admin/audit-logs", icon: <ShieldCheck size={20} /> },
-    { name: "Lưu trữ Y tế 50 năm & Traceability", href: "/admin/data-retention", icon: <Database size={20} /> },
     { name: "Chuỗi cung ứng (Real-time)", href: "/admin/supply-chain", icon: <Link2 size={20} /> },
     { name: "Dự báo Nhu cầu (AI)", href: "/admin/ai-forecast", icon: <Sparkles size={20} /> },
     { name: "AI Insights", href: "/admin/ai-insights", icon: <Sparkles size={20} /> },
