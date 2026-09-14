@@ -20,6 +20,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, SamplePrescription } from '../../types/pharmacy.types';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -107,7 +108,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      Alert.alert('Thông báo', 'Giỏ hàng đang trống.');
+      showToast.info('Thông báo', 'Giỏ hàng đang trống.');
       return;
     }
 
@@ -120,7 +121,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           text: 'Thu Tiền Mặt / Hoàn Tất',
           onPress: () => {
             setCart([]);
-            Alert.alert('Thành công', 'Đã in hóa đơn và hoàn tất bán lẻ tại quầy!');
+            showToast.success('Thành công', 'Đã in hóa đơn và hoàn tất bán lẻ tại quầy!');
           },
         },
       ]
@@ -132,7 +133,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Cần quyền máy ảnh', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp ảnh đơn thuốc.');
+        showToast.error('Cần quyền máy ảnh', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp ảnh đơn thuốc.');
         return;
       }
       const res = await ImagePicker.launchCameraAsync({
@@ -154,7 +155,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Cần quyền thư viện', 'Vui lòng cấp quyền thư viện để chọn ảnh đơn thuốc.');
+        showToast.error('Cần quyền thư viện', 'Vui lòng cấp quyền thư viện để chọn ảnh đơn thuốc.');
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
@@ -192,13 +193,13 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           })),
         };
         setOcrResult(parsedResult);
-        Alert.alert('Thành công', 'AI đã hoàn tất quét và bóc tách đơn thuốc từ ảnh!');
+        showToast.success('Thành công', 'AI đã hoàn tất quét và bóc tách đơn thuốc từ ảnh!');
       } else {
-        Alert.alert('Thông báo', 'Không thể nhận diện nội dung đơn thuốc từ ảnh. Bạn có thể chọn đơn mẫu để thử nghiệm.');
+        showToast.info('Thông báo', 'Không thể nhận diện nội dung đơn thuốc từ ảnh. Bạn có thể chọn đơn mẫu để thử nghiệm.');
       }
     } catch (e) {
       console.warn('Lỗi quét đơn thuốc:', e);
-      Alert.alert('Lỗi', 'Không thể kết nối dịch vụ AI OCR.');
+      showToast.error('Lỗi', 'Không thể kết nối dịch vụ AI OCR.');
     } finally {
       setScanning(false);
     }
@@ -219,10 +220,10 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       }
     });
     if (addedCount > 0) {
-      Alert.alert('Thành công', `Đã thêm ${addedCount} loại thuốc vào giỏ hàng POS!`);
+      showToast.success('Thành công', `Đã thêm ${addedCount} loại thuốc vào giỏ hàng POS!`);
       setActiveTab('POS');
     } else {
-      Alert.alert('Thông báo', 'Chưa tìm thấy thuốc tương ứng trong kho chi nhánh để thêm tự động.');
+      showToast.info('Thông báo', 'Chưa tìm thấy thuốc tương ứng trong kho chi nhánh để thêm tự động.');
     }
   };
 
@@ -256,7 +257,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   const handleCheckInteractions = async () => {
     if (selectedInteractionMeds.length < 2) {
-      Alert.alert('Thông báo', 'Vui lòng chọn ít nhất 2 loại thuốc để kiểm tra tương tác chéo.');
+      showToast.info('Thông báo', 'Vui lòng chọn ít nhất 2 loại thuốc để kiểm tra tương tác chéo.');
       return;
     }
 
@@ -568,7 +569,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                         <AnimatedTouchable
                           onPress={() => {
                             addToCart(matchedMed);
-                            Alert.alert('Đã thêm', `Đã thêm ${matchedMed.name} vào giỏ POS!`);
+                            showToast.success('Đã thêm', `Đã thêm ${matchedMed.name} vào giỏ POS!`);
                           }}
                           style={styles.ocrAddBtn}
                         >
