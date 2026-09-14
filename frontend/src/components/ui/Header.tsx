@@ -1,4 +1,4 @@
-import { History, Search, LogOut, Menu, X } from "lucide-react";
+import { History, Search, LogOut, Menu, X, Store, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
@@ -86,7 +86,18 @@ export function Header({
             />
           </div>
         </div>
-        <div className="flex items-center gap-4 ml-4">
+        <div className="flex items-center gap-3 ml-4">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#0057cd] text-xs font-bold transition-all border border-slate-200 shadow-sm"
+            title="Xem giao diện Cửa Hàng / Khách Hàng (Mở tab mới)"
+          >
+            <Store size={15} className="text-[#0057cd]" />
+            <span className="hidden lg:inline">Xem Cửa Hàng</span>
+            <ExternalLink size={12} className="text-slate-400" />
+          </a>
           <NotificationBell />
           <button className="text-slate-600 hover:text-[#0057cd] transition-colors relative mt-0.5">
             <History size={22} />

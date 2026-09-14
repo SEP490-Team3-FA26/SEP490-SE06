@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Mail, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowRight, Mail, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon } from "lucide-react";
 import { authService } from "../../services/auth/auth.service";
 import { requestNotificationPermission } from "../../utils/notificationPermission";
 
@@ -14,20 +14,30 @@ export function Login() {
   const [error, setError] = useState("");
   const [sessionExpiredNotice, setSessionExpiredNotice] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeSessionUser, setActiveSessionUser] = useState<any>(null);
 
   useEffect(() => {
-    // Xử lý thông báo phiên đăng nhập hết hạn
+    // Check if user is already logged in
+    const token = localStorage.getItem("token");
+    if (token) {
+      const u = authService.getCurrentUser();
+      if (u) {
+        setActiveSessionUser(u);
+      }
+    }
+
+    // Handle session expired query param
     if (searchParams.get('sessionExpired') === 'true') {
       setSessionExpiredNotice(true);
     }
 
-    // Xử lý khi đăng nhập Google thành công và redirect về kèm token
-    const token = searchParams.get('token');
+    // Handle Google login return token
+    const googleToken = searchParams.get('token');
     const urlError = searchParams.get('error');
 
-    if (token) {
+    if (googleToken) {
       try {
-        const base64Url = token.split('.')[1];
+        const base64Url = googleToken.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(
           window.atob(base64)
@@ -45,11 +55,11 @@ export function Login() {
           branchName: decoded.branchName || null,
         };
 
-        authService.setSession(token, userObj);
+        authService.setSession(googleToken, userObj);
         navigate(redirectByRole(decoded.role || "user"));
       } catch (err) {
         console.error("Lỗi parse Google token:", err);
-        localStorage.setItem("token", token);
+        localStorage.setItem("token", googleToken);
         localStorage.setItem("userRole", "user");
         navigate('/customer');
       }
@@ -87,7 +97,7 @@ export function Login() {
       case "pharmacist":
         return "/pharmacist";
       case "user":
-        return "/customer";
+        return "/customer/shop";
       default:
         return "/admin";
     }
@@ -121,6 +131,52 @@ export function Login() {
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Đăng nhập</h2>
         <p className="text-sm font-medium text-slate-500 mt-2">Truy cập hệ thống quản trị ABC Pharmacy</p>
       </div>
+
+      {/* Active Session Prompt */}
+      {activeSessionUser && (
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-left flex flex-col gap-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#0057cd] text-white flex items-center justify-center font-black text-sm uppercase shadow-sm">
+                {activeSessionUser.role ? activeSessionUser.role.substring(0, 2).toUpperCase() : "US"}
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-900 leading-tight">
+                  {activeSessionUser.fullName || activeSessionUser.name || activeSessionUser.email}
+                </p>
+                <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                  Đang đăng nhập vai trò: <strong className="text-[#0057cd] uppercase font-bold">{activeSessionUser.role || 'User'}</strong>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                authService.clearSession();
+                setActiveSessionUser(null);
+              }}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+            >
+              Đổi tài khoản
+            </button>
+          </div>
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={() => navigate(redirectByRole(activeSessionUser.role || 'admin'))}
+              className="flex-1 py-2.5 bg-[#0057cd] hover:bg-[#0a58ca] text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <LayoutDashboard size={14} />
+              <span>Tiếp tục vào Không gian làm việc →</span>
+            </button>
+            <Link
+              to="/"
+              className="px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center"
+              title="Về trang chủ"
+            >
+              <StoreIcon size={14} />
+            </Link>
+          </div>
+        </div>
+      )}
 
       {sessionExpiredNotice && (
         <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs font-semibold flex items-center gap-2">

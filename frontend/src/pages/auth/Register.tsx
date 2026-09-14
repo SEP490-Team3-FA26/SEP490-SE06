@@ -22,22 +22,24 @@ export function Register() {
 
     try {
       const res = await authService.register(fullName, email, password);
+      const token = res?.access_token || res?.data?.access_token;
+      const user = res?.user || res?.data?.user;
 
-      if (res?.data?.access_token) {
+      if (token) {
         setSuccess("Đăng ký thành công! Đang chuyển hướng vào hệ thống...");
-        const role = res.data.user?.role || "user";
+        const role = user?.role || "user";
         setTimeout(() => {
           if (role === "admin" || role === "head_branch") navigate("/admin");
           else if (role === "warehouse") navigate("/warehouse");
           else if (role === "branch") navigate("/branch");
           else if (role === "pharmacist") navigate("/pharmacist");
-          else navigate("/customer");
-        }, 1200);
+          else navigate("/customer/shop");
+        }, 1000);
       } else {
         setSuccess("Đăng ký thành công! Vui lòng đăng nhập.");
         setTimeout(() => {
           navigate("/auth/login");
-        }, 1500);
+        }, 1200);
       }
     } catch (err: any) {
       setError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
