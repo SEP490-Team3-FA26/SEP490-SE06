@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ShoppingCart, BrainCircuit, HeartPulse, Menu, X, LogOut, ShieldAlert, User, MapPin, ClipboardList, ChevronDown } from "lucide-react";
 import api from "../services/core/api";
 import { notifyAuthTokenChanged } from "../utils/authEvents";
+import { authService } from "../services/auth/auth.service";
 
 export function CustomerLayout() {
   const location = useLocation();
@@ -25,9 +26,8 @@ export function CustomerLayout() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userRole");
+  const handleLogout = async () => {
+    await authService.logout();
     notifyAuthTokenChanged();
     navigate("/auth/login");
   };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { XCircle, Check, ShoppingCart, Info, Activity, ShieldAlert } from "lucide-react";
+import { XCircle, Check, ShoppingCart, Info, Activity, ShieldAlert, Tag } from "lucide-react";
+import { BarcodeLabelModal } from "./BarcodeLabelModal";
 
 export interface MedicineDetailModalProps {
   medicine: any | null;
@@ -11,6 +12,7 @@ export interface MedicineDetailModalProps {
 
 export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, addedItems }: MedicineDetailModalProps) {
   const [modalQuantity, setModalQuantity] = useState<number>(1);
+  const [showBarcodeModal, setShowBarcodeModal] = useState<boolean>(false);
 
   // Reset quantity when modal opens with a new medicine
   useEffect(() => {
@@ -101,19 +103,29 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
                 </div>
               </div>
 
-              <button 
-                onClick={() => onAddToCart(med, modalQuantity)}
-                disabled={isOutOfStock}
-                className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md ${
-                  isOutOfStock 
-                    ? "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none" 
-                    : addedItems[medId] 
-                      ? "bg-emerald-500 text-white" 
-                      : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95 cursor-pointer shadow-blue-100"
-                }`}
-              >
-                {isOutOfStock ? "Tạm hết hàng" : addedItems[medId] ? <><Check size={14} /> Đã thêm!</> : <><ShoppingCart size={14} /> Thêm vào giỏ</>}
-              </button>
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => onAddToCart(med, modalQuantity)}
+                  disabled={isOutOfStock}
+                  className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md ${
+                    isOutOfStock 
+                      ? "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none" 
+                      : addedItems[medId] 
+                        ? "bg-emerald-500 text-white" 
+                        : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95 cursor-pointer shadow-blue-100"
+                  }`}
+                >
+                  {isOutOfStock ? "Tạm hết hàng" : addedItems[medId] ? <><Check size={14} /> Đã thêm!</> : <><ShoppingCart size={14} /> Thêm vào giỏ</>}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowBarcodeModal(true)}
+                  className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700 transition-all cursor-pointer"
+                >
+                  <Tag size={13} className="text-emerald-600" /> In Tem Mã Vạch (EAN-13)
+                </button>
+              </div>
             </div>
           </div>
 
@@ -153,6 +165,12 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
           </div>
         </div>
       </div>
+
+      <BarcodeLabelModal 
+        isOpen={showBarcodeModal} 
+        onClose={() => setShowBarcodeModal(false)} 
+        medicine={med} 
+      />
     </div>
   );
 }

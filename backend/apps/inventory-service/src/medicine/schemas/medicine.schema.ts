@@ -14,6 +14,9 @@ export class MedicinePackagingUnit {
 
   @Prop({ default: false })
   isBaseUnit?: boolean;
+
+  @Prop({ sparse: true })
+  barcode?: string; // Mã vạch riêng cho từng quy cách (Hộp/Vỉ/Viên) nếu có
 }
 export const MedicinePackagingUnitSchema = SchemaFactory.createForClass(MedicinePackagingUnit);
 
