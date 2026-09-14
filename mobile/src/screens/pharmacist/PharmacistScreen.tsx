@@ -9,9 +9,12 @@ import {
   Alert,
   Modal,
   RefreshControl,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { ApiService } from '../../services/api.service';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
@@ -30,6 +33,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   // OCR Prescription State
   const [samples, setSamples] = useState<SamplePrescription[]>([]);
+  const [capturedPrescriptionUri, setCapturedPrescriptionUri] = useState<string | null>(null);
   const [scanning, setScanning] = useState<boolean>(false);
   const [ocrResult, setOcrResult] = useState<any | null>(null);
 
@@ -48,7 +52,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         ApiService.getSamplePrescriptions(),
       ]);
 
-      if (medList && medList.length > 0) setMedicines(medList);
+      if (medList) setMedicines(medList);
       if (sampleList && sampleList.length > 0) {
         setSamples(sampleList);
       } else {
@@ -123,7 +127,105 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     );
   };
 
-  // OCR Scan handler
+  // OCR Scan handlers
+  const handleTakePhotoPrescription = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Cần quyền máy ảnh', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp ảnh đơn thuốc.');
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        const uri = res.assets[0].uri;
+        setCapturedPrescriptionUri(uri);
+        await handleScanPrescriptionImage(uri);
+      }
+    } catch (e) {
+      console.warn('Lỗi chụp ảnh đơn thuốc:', e);
+    }
+  };
+
+  const handlePickPrescriptionFromGallery = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Cần quyền thư viện', 'Vui lòng cấp quyền thư viện để chọn ảnh đơn thuốc.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        const uri = res.assets[0].uri;
+        setCapturedPrescriptionUri(uri);
+        await handleScanPrescriptionImage(uri);
+      }
+    } catch (e) {
+      console.warn('Lỗi chọn ảnh đơn thuốc:', e);
+    }
+  };
+
+  const handleScanPrescriptionImage = async (uri: string) => {
+    setScanning(true);
+    try {
+      const res = await ApiService.scanPrescriptionAI(uri);
+      if (res) {
+        const ocr = res.ocr_result || res;
+        const meds = ocr.medications || res.medications || res.matched_drugs || [];
+
+        const parsedResult = {
+          diagnosis: ocr.diagnosis || res.diagnosis || 'Kê đơn theo phác đồ điều trị',
+          doctor: ocr.doctor || ocr.doctor_name || res.doctor || 'Bác sĩ điều trị',
+          patient: ocr.patient_name || res.patient_name || (ocr.patient ? `${ocr.patient.name} (${ocr.patient.age || ''})` : 'Bệnh nhân khám'),
+          medicines: meds.map((m: any) => ({
+            name: m.name || m.product_name || m.brand_name || 'Thuốc chỉ định',
+            dosage: m.dosage || m.instruction || m.usage || 'Theo chỉ định bác sĩ',
+            qty: m.qty || m.quantity || 10,
+            unit: m.unit || 'Hộp',
+          })),
+        };
+        setOcrResult(parsedResult);
+        Alert.alert('Thành công', 'AI đã hoàn tất quét và bóc tách đơn thuốc từ ảnh!');
+      } else {
+        Alert.alert('Thông báo', 'Không thể nhận diện nội dung đơn thuốc từ ảnh. Bạn có thể chọn đơn mẫu để thử nghiệm.');
+      }
+    } catch (e) {
+      console.warn('Lỗi quét đơn thuốc:', e);
+      Alert.alert('Lỗi', 'Không thể kết nối dịch vụ AI OCR.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleAddAllOcrToCart = () => {
+    if (!ocrResult?.medicines?.length) return;
+    let addedCount = 0;
+    ocrResult.medicines.forEach((m: any) => {
+      const matched = medicines.find(
+        (med) =>
+          med.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
+          (m.name && med.name.toLowerCase().includes(m.name.toLowerCase()))
+      );
+      if (matched) {
+        addToCart(matched);
+        addedCount++;
+      }
+    });
+    if (addedCount > 0) {
+      Alert.alert('Thành công', `Đã thêm ${addedCount} loại thuốc vào giỏ hàng POS!`);
+      setActiveTab('POS');
+    } else {
+      Alert.alert('Thông báo', 'Chưa tìm thấy thuốc tương ứng trong kho chi nhánh để thêm tự động.');
+    }
+  };
+
   const handleScanSample = async (filename: string) => {
     setScanning(true);
     const res = await ApiService.scanSamplePrescription(filename);
@@ -132,7 +234,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     if (res) {
       setOcrResult(res);
     } else {
-      // Mock OCR result
       setOcrResult({
         diagnosis: 'Viêm họng cấp tính & Sốt xuất huyết nhẹ',
         doctor: 'BS. CKII Lê Hoàng Minh (BV Chợ Rẫy)',
@@ -270,8 +371,18 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
                 {/* Cart Items Summary */}
                 <View style={styles.cartItemList}>
-                  {cart.map((item) => (
-                    <View key={item.medicine.id} style={styles.cartRow}>
+                  {cart.map((item, idx) => (
+                    <View key={item.medicine.id || (item.medicine as any)._id || `cart-${idx}`} style={styles.cartRow}>
+                      <Image
+                        source={{
+                          uri:
+                            item.medicine.image ||
+                            item.medicine.image_url ||
+                            'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                        }}
+                        style={styles.cartThumb}
+                        resizeMode="cover"
+                      />
                       <Text style={styles.cartMedName} numberOfLines={1}>
                         {item.medicine.name}
                       </Text>
@@ -296,22 +407,32 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               </GradientCard>
             )}
 
-            <Text style={styles.sectionTitle}>Danh Mục Thuốc Tại Quầy</Text>
-            {medicines.map((med) => (
-              <View key={med.id} style={styles.medCard}>
+            <Text style={styles.sectionTitle}>Danh Mục Thuốc Tại Quầy (Có Ảnh Thực Tế)</Text>
+            {medicines.map((med, idx) => (
+              <View key={med.id || (med as any)._id || `med-${idx}`} style={styles.medCard}>
+                <Image
+                  source={{
+                    uri:
+                      med.image ||
+                      med.image_url ||
+                      'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                  }}
+                  style={styles.medThumb}
+                  resizeMode="cover"
+                />
                 <AnimatedTouchable
                   onPress={() => setSelectedMedDetail(med)}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, marginLeft: 12 }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.medName}>{med.name}</Text>
+                    <Text style={styles.medName} numberOfLines={1}>{med.name}</Text>
                     {med.isRx ? (
                       <View style={styles.rxBadge}>
                         <Text style={styles.rxBadgeText}>Rx</Text>
                       </View>
                     ) : null}
                   </View>
-                  <Text style={styles.medActive}>Hoạt chất: {med.active}</Text>
+                  <Text style={styles.medActive} numberOfLines={1}>Hoạt chất: {med.active}</Text>
                   <Text style={styles.medPrice}>
                     {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
                   </Text>
@@ -332,7 +453,60 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         {/* TAB 2: OCR */}
         {activeTab === 'OCR' && (
           <View>
-            <Text style={styles.sectionTitle}>Chọn Đơn Thuốc Mẫu Để Quét AI OCR</Text>
+            <Text style={styles.sectionTitle}>Quét Đơn Thuốc Bằng Camera & AI OCR</Text>
+
+            {/* Camera & Gallery Action Buttons */}
+            <View style={styles.ocrActionRow}>
+              <AnimatedTouchable onPress={handleTakePhotoPrescription} style={styles.ocrCameraBtn}>
+                <Ionicons name="camera" size={18} color="#FFFFFF" />
+                <Text style={styles.ocrCameraBtnText}>Chụp Ảnh Đơn</Text>
+              </AnimatedTouchable>
+              <AnimatedTouchable onPress={handlePickPrescriptionFromGallery} style={styles.ocrGalleryBtn}>
+                <Ionicons name="images-outline" size={18} color="#059669" />
+                <Text style={styles.ocrGalleryBtnText}>Chọn Từ Thư Viện</Text>
+              </AnimatedTouchable>
+            </View>
+
+            {/* Captured Prescription Preview */}
+            {capturedPrescriptionUri && (
+              <View style={styles.capturedPrescriptionCard}>
+                <Image
+                  source={{ uri: capturedPrescriptionUri }}
+                  style={styles.capturedPrescriptionThumb}
+                  resizeMode="cover"
+                />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.capturedPrescriptionTitle} numberOfLines={1}>
+                    Đơn thuốc vừa chụp
+                  </Text>
+                  <Text style={styles.capturedPrescriptionSub}>
+                    {scanning ? 'AI đang bóc tách chữ...' : 'Sẵn sàng quét OCR'}
+                  </Text>
+                  <AnimatedTouchable
+                    onPress={() => handleScanPrescriptionImage(capturedPrescriptionUri)}
+                    style={styles.reScanBtn}
+                    disabled={scanning}
+                  >
+                    <Ionicons name="refresh" size={14} color="#059669" />
+                    <Text style={styles.reScanBtnText}>Quét lại AI</Text>
+                  </AnimatedTouchable>
+                </View>
+              </View>
+            )}
+
+            {/* Scanning indicator */}
+            {scanning && (
+              <View style={styles.ocrLoadingBox}>
+                <ActivityIndicator size="small" color="#059669" />
+                <Text style={styles.ocrLoadingText}>
+                  AI Vision LLM & OCR đang trích xuất tên bác sĩ, chẩn đoán và danh mục thuốc...
+                </Text>
+              </View>
+            )}
+
+            <Text style={[styles.sectionTitle, { marginTop: 14, fontSize: 13, color: '#64748B' }]}>
+              Hoặc Chọn Đơn Thuốc Mẫu Thử Nghiệm:
+            </Text>
             {samples.map((s, idx) => (
               <AnimatedTouchable
                 key={idx}
@@ -354,23 +528,66 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               <View style={styles.ocrCard}>
                 <View style={styles.ocrHeader}>
                   <Ionicons name="scan-circle" size={26} color="#059669" />
-                  <Text style={styles.ocrHeading}>Kết Quả Trích Xuất AI</Text>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.ocrHeading}>Kết Quả Trích Xuất AI Vision</Text>
+                    <Text style={styles.ocrSubHeading}>Đã đối chiếu danh mục kho chi nhánh</Text>
+                  </View>
                 </View>
 
                 <Text style={styles.ocrDiag}>Chẩn đoán: <Text style={{ fontWeight: '700' }}>{ocrResult.diagnosis}</Text></Text>
                 <Text style={styles.ocrDoc}>Bác sĩ kê đơn: {ocrResult.doctor}</Text>
+                {ocrResult.patient && <Text style={styles.ocrDoc}>Bệnh nhân: {ocrResult.patient}</Text>}
 
                 <Text style={[styles.sectionTitle, { fontSize: 14, marginTop: 14 }]}>
                   Danh Sách Thuốc Kê Đơn:
                 </Text>
-                {ocrResult.medicines?.map((m: any, idx: number) => (
-                  <View key={idx} style={styles.ocrMedItem}>
-                    <Text style={styles.ocrMedName}>
-                      {idx + 1}. {m.name} - SL: {m.qty} {m.unit}
-                    </Text>
-                    <Text style={styles.ocrDosage}>Cách dùng: {m.dosage}</Text>
-                  </View>
-                ))}
+                {ocrResult.medicines?.map((m: any, idx: number) => {
+                  const matchedMed = medicines.find((medItem) =>
+                    medItem.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
+                    (m.name && medItem.name.toLowerCase().includes(m.name.toLowerCase()))
+                  );
+                  return (
+                    <View key={idx} style={styles.ocrMedItem}>
+                      <Image
+                        source={{
+                          uri:
+                            matchedMed?.image ||
+                            matchedMed?.image_url ||
+                            'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg',
+                        }}
+                        style={styles.ocrMedThumb}
+                        resizeMode="cover"
+                      />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.ocrMedName}>
+                          {idx + 1}. {m.name} - SL: {m.qty} {m.unit}
+                        </Text>
+                        <Text style={styles.ocrDosage}>Cách dùng: {m.dosage}</Text>
+                      </View>
+                      {matchedMed && (
+                        <AnimatedTouchable
+                          onPress={() => {
+                            addToCart(matchedMed);
+                            Alert.alert('Đã thêm', `Đã thêm ${matchedMed.name} vào giỏ POS!`);
+                          }}
+                          style={styles.ocrAddBtn}
+                        >
+                          <Ionicons name="cart-outline" size={16} color="#059669" />
+                        </AnimatedTouchable>
+                      )}
+                    </View>
+                  );
+                })}
+
+                {/* Add all to cart button */}
+                <GradientButton
+                  title="THÊM TOÀN BỘ THUỐC VÀO GIỎ POS"
+                  onPress={handleAddAllOcrToCart}
+                  gradientVariant="success"
+                  size="md"
+                  style={{ marginTop: 14 }}
+                  icon={<Ionicons name="cart" size={18} color="#FFFFFF" />}
+                />
               </View>
             )}
           </View>
@@ -381,11 +598,11 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           <View>
             <Text style={styles.sectionTitle}>Chọn Thuốc Cần Kiểm Tra Tương Tác</Text>
             <View style={styles.interactionChipGrid}>
-              {medicines.map((m) => {
+              {medicines.map((m, idx) => {
                 const selected = selectedInteractionMeds.includes(m.name);
                 return (
                   <AnimatedTouchable
-                    key={m.id}
+                    key={m.id || (m as any)._id || `inter-${idx}`}
                     onPress={() => toggleInteractionMed(m.name)}
                     style={[
                       styles.interChip,
@@ -449,6 +666,16 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       <Modal visible={selectedMedDetail !== null} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
+            <Image
+              source={{
+                uri:
+                  selectedMedDetail?.image ||
+                  selectedMedDetail?.image_url ||
+                  'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+              }}
+              style={styles.modalMedImage}
+              resizeMode="cover"
+            />
             <Text style={styles.modalTitle}>{selectedMedDetail?.name}</Text>
             <Text style={styles.modalSub}>Hoạt chất: {selectedMedDetail?.active}</Text>
             <Text style={styles.modalPrice}>
@@ -704,6 +931,103 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 2,
   },
+  ocrActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  ocrCameraBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+  },
+  ocrCameraBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  ocrGalleryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+  },
+  ocrGalleryBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  capturedPrescriptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginBottom: 12,
+  },
+  capturedPrescriptionThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  capturedPrescriptionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  capturedPrescriptionSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  reScanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    gap: 4,
+  },
+  reScanBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  ocrLoadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginBottom: 12,
+    gap: 10,
+  },
+  ocrLoadingText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#065F46',
+    fontWeight: '600',
+    lineHeight: 18,
+  },
   ocrCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -721,7 +1045,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#059669',
-    marginLeft: 8,
+  },
+  ocrSubHeading: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
   ocrDiag: {
     fontSize: 13,
@@ -864,5 +1192,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#64748B',
+  },
+  medThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  cartThumb: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    marginRight: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modalMedImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 16,
+    marginBottom: 14,
+    backgroundColor: '#F1F5F9',
+  },
+  ocrMedThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  ocrAddBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginLeft: 8,
   },
 });
