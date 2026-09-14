@@ -641,94 +641,210 @@ export function Landing() {
               </button>
             </form>
 
-            {/* Live Search Auto-Complete Dropdown */}
+            {/* Live Search Auto-Complete Mega Dropdown (Long Châu & Pharmacity standard) */}
             {showSearchDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
-                {/* Trending Tags */}
-                <div className="px-4 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-1.5 text-[11px] font-black text-[#0057cd] uppercase tracking-wider mb-2">
-                    <Flame size={14} className="text-rose-500" />
-                    <span>Tìm kiếm phổ biến / Xu hướng</span>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[760px] lg:w-[860px] xl:w-[940px] max-w-[94vw] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden text-left">
+                
+                {/* 2-Column Split Grid */}
+                <div className="grid grid-cols-12 max-h-[550px]">
+                  
+                  {/* Left Column (4/12 cols): Trending keywords, Popular categories, Hotline */}
+                  <div className="col-span-4 bg-slate-50/80 border-r border-slate-100 p-4 flex flex-col justify-between overflow-y-auto">
+                    <div className="space-y-4">
+                      {/* Trending Keywords */}
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[11px] font-black text-rose-600 uppercase tracking-wider mb-2.5">
+                          <Flame size={14} className="text-rose-500 fill-rose-500" />
+                          <span>Từ khóa tìm kiếm Hot</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {trendingTags.map((tag, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setSearchQuery(tag);
+                                setShowSearchDropdown(false);
+                                navigate(`/customer/shop?search=${encodeURIComponent(tag)}`);
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-[#0057cd] hover:border-blue-200 border border-slate-200/80 rounded-lg text-[11px] font-semibold text-slate-700 transition-all text-left truncate max-w-full cursor-pointer shadow-2xs"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Quick Category Jump */}
+                      <div className="pt-2.5 border-t border-slate-200/70">
+                        <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-700 uppercase tracking-wider mb-2">
+                          <Pill size={13} className="text-[#0057cd]" />
+                          <span>Danh mục nổi bật</span>
+                        </div>
+                        <div className="space-y-1">
+                          {[
+                            { name: "Thuốc Kháng Sinh (Rx)", icon: "🧬", val: "Thuốc kháng sinh" },
+                            { name: "Giảm Đau & Hạ Sốt", icon: "🌡️", val: "Thuốc giảm đau hạ sốt" },
+                            { name: "Đường Hô Hấp & Cảm Cúm", icon: "🫁", val: "Thuốc trị ho cảm" },
+                            { name: "Dạ Dày & Tiêu Hóa", icon: "🧪", val: "Thuốc dạ dày" },
+                            { name: "Vitamin & TPCN", icon: "🌿", val: "Thuốc bổ" },
+                            { name: "Thiết Bị Y Tế Chuẩn", icon: "🩺", val: "Thiết bị y tế" },
+                          ].map((cat, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setActiveCategory(cat.val);
+                                setShowSearchDropdown(false);
+                                navigate(`/customer/shop?category=${encodeURIComponent(cat.val)}`);
+                              }}
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-[#0057cd] transition-colors text-left cursor-pointer"
+                            >
+                              <span className="flex items-center gap-2">
+                                <span>{cat.icon}</span>
+                                <span className="truncate">{cat.name}</span>
+                              </span>
+                              <ChevronRight size={12} className="text-slate-400" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pharmacist Consultation Tile */}
+                    <div className="mt-4 p-3 bg-gradient-to-tr from-[#0057cd] to-sky-600 rounded-2xl text-white text-xs shadow-sm">
+                      <div className="flex items-center gap-1.5 font-bold mb-1">
+                        <Sparkles size={13} className="text-amber-300" />
+                        <span>Dược sĩ tư vấn 1:1</span>
+                      </div>
+                      <p className="text-[11px] text-blue-100 mb-2.5 leading-relaxed">
+                        Cần tìm thuốc kê đơn đặc trị hoặc hỗ trợ liều dùng?
+                      </p>
+                      <a
+                        href="tel:18006928"
+                        className="inline-flex items-center justify-center w-full py-1.5 bg-white text-[#0057cd] font-black rounded-xl text-[11px] uppercase tracking-wider shadow-sm hover:bg-blue-50 transition-colors"
+                      >
+                        <PhoneCall size={12} className="mr-1 text-emerald-600" /> Gọi 1800 6928 (Free)
+                      </a>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {trendingTags.map((tag, idx) => (
+
+                  {/* Right Column (8/12 cols): Search Results / Product Cards */}
+                  <div className="col-span-8 p-4 flex flex-col justify-between overflow-y-auto bg-white">
+                    <div>
+                      {/* Top bar info */}
+                      <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
+                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <PackageSearch size={14} className="text-[#0057cd]" />
+                          {searchQuery.trim() ? (
+                            <span>Kết quả tìm kiếm cho "<strong className="text-slate-900">{searchQuery}</strong>" ({searchResults.length} thuốc)</span>
+                          ) : (
+                            <span>Gợi ý Dược phẩm được tin dùng</span>
+                          )}
+                        </span>
+                        <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                          <CheckCircle2 size={12} /> 100% Chính hãng GPP
+                        </span>
+                      </div>
+
+                      {/* Loading state */}
+                      {isSearchingLive ? (
+                        <div className="py-20 text-center text-xs text-slate-400 font-bold flex flex-col items-center justify-center gap-2.5">
+                          <Loader2 size={26} className="animate-spin text-[#0057cd]" />
+                          <span>Đang tra cứu kho dược phẩm và giá bán...</span>
+                        </div>
+                      ) : (searchResults.length > 0 ? searchResults : medicines.slice(0, 6)).length > 0 ? (
+                        /* 2-Column Product Grid */
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {(searchResults.length > 0 ? searchResults : medicines.slice(0, 6)).map((med) => {
+                            const medId = med.id || med._id;
+                            const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
+                            return (
+                              <div
+                                key={medId}
+                                onClick={() => {
+                                  setSelectedMedicineForModal(med);
+                                  setShowSearchDropdown(false);
+                                }}
+                                className="group p-3 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-blue-50/40 transition-all cursor-pointer flex gap-3 items-start relative hover:shadow-md bg-white"
+                              >
+                                {/* Thumbnail */}
+                                <div className="w-16 h-16 rounded-xl bg-slate-50 p-1.5 border border-slate-100 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+                                  <img
+                                    src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
+                                    alt={med.name}
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+
+                                {/* Medicine Info */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1 mb-1">
+                                    <span className={`text-[8px] font-black px-1.5 py-0.2 rounded uppercase border shrink-0 ${isRx ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
+                                      {isRx ? "Rx Kê Đơn" : "OTC Không Kê Đơn"}
+                                    </span>
+                                    {med.dosage_form && (
+                                      <span className="text-[9px] font-medium text-slate-400 truncate">• {med.dosage_form}</span>
+                                    )}
+                                  </div>
+                                  <h4 className="font-bold text-xs text-slate-900 group-hover:text-[#0057cd] line-clamp-1 leading-snug transition-colors">
+                                    {med.name}
+                                  </h4>
+                                  <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                                    {med.active_ingredient ? `Hoạt chất: ${med.active_ingredient}` : (med.specification || "Thuốc chuẩn Bộ Y Tế")}
+                                  </p>
+
+                                  <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/80">
+                                    <div className="flex items-baseline gap-1">
+                                      <span className="text-xs font-black text-rose-600">
+                                        {med.price ? med.price.toLocaleString() + "₫" : "Liên hệ"}
+                                      </span>
+                                      <span className="text-[9px] text-slate-400 font-medium">/ {med.unit || "Hộp"}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-[#0057cd] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                                      Xem chi tiết <ChevronRight size={10} />
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : searchQuery.trim() ? (
+                        <div className="py-12 text-center text-xs text-slate-500 font-medium flex flex-col items-center justify-center gap-2">
+                          <AlertCircle size={30} className="text-amber-500" />
+                          <p className="text-sm font-bold text-slate-800">Không tìm thấy sản phẩm phù hợp</p>
+                          <p className="text-[11px] text-slate-400 max-w-xs">
+                            Không tìm thấy thuốc nào khớp với từ khóa "<strong className="text-slate-700">{searchQuery}</strong>". Hãy thử tìm theo hoạt chất hoặc gọi Dược sĩ để được hỗ trợ.
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Bottom Action Footer */}
+                    <div className="pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
                       <button
-                        key={idx}
                         type="button"
                         onClick={() => {
-                          setSearchQuery(tag);
+                          setIsPrescriptionModalOpen(true);
                           setShowSearchDropdown(false);
-                          navigate(`/customer/shop?search=${encodeURIComponent(tag)}`);
                         }}
-                        className="px-2.5 py-1 bg-slate-50 hover:bg-blue-50 hover:text-[#0057cd] border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-600 transition-colors cursor-pointer"
+                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer"
                       >
-                        {tag}
+                        <UploadCloud size={14} /> Gửi toa thuốc cho Dược sĩ
                       </button>
-                    ))}
+
+                      <button
+                        type="button"
+                        onClick={handleSearchSubmit}
+                        className="py-2 px-4 bg-[#0057cd] hover:bg-[#0b5ed7] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                      >
+                        <span>Xem tất cả kết quả {searchQuery ? `cho "${searchQuery}"` : "trong Cửa hàng"}</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {/* Instant Search Results */}
-                {isSearchingLive ? (
-                  <div className="py-6 text-center text-xs text-slate-400 font-bold flex items-center justify-center gap-2">
-                    <Loader2 size={16} className="animate-spin text-[#0057cd]" />
-                    <span>Đang tìm kiếm thuốc trong kho...</span>
-                  </div>
-                ) : searchResults.length > 0 ? (
-                  <div className="py-2">
-                    <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sản phẩm gợi ý</p>
-                    <div className="divide-y divide-slate-100">
-                      {searchResults.map((med) => {
-                        const medId = med.id || med._id;
-                        const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
-                        return (
-                          <div
-                            key={medId}
-                            onClick={() => {
-                              setSelectedMedicineForModal(med);
-                              setShowSearchDropdown(false);
-                            }}
-                            className="px-4 py-2.5 hover:bg-blue-50/70 flex items-center gap-3 cursor-pointer transition-colors"
-                          >
-                            <img
-                              src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
-                              alt={med.name}
-                              className="w-10 h-10 object-contain bg-slate-50 rounded-lg p-1 border border-slate-100 shrink-0"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-bold text-xs text-slate-900 truncate">{med.name}</span>
-                                <span className={`text-[8px] font-black px-1.5 py-0.2 rounded uppercase border shrink-0 ${isRx ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-blue-50 text-[#0057cd] border-blue-200"}`}>
-                                  {isRx ? "Rx" : "OTC"}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-slate-400 font-medium truncate">
-                                Hoạt chất: <span className="text-slate-600 font-bold">{med.active_ingredient || "N/A"}</span> • {med.unit || "Viên"}
-                              </p>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <span className="text-xs font-black text-[#0057cd]">
-                                {med.price ? med.price.toLocaleString() + "₫" : "Liên hệ"}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="px-4 pt-2 border-t border-slate-100 mt-1">
-                      <button
-                        onClick={handleSearchSubmit}
-                        className="w-full py-2 bg-slate-50 hover:bg-[#0057cd] hover:text-white text-[#0057cd] rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer text-center"
-                      >
-                        Xem tất cả kết quả cho "{searchQuery}" →
-                      </button>
-                    </div>
-                  </div>
-                ) : searchQuery.trim() ? (
-                  <div className="py-4 text-center text-xs text-slate-500 font-medium">
-                    Không tìm thấy thuốc nào khớp với "<span className="font-bold text-slate-700">{searchQuery}</span>"
-                  </div>
-                ) : null}
               </div>
             )}
           </div>
@@ -848,6 +964,28 @@ export function Landing() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Mobile Search Bar (Only visible on screens < md) */}
+        <div className="px-4 pb-2.5 md:hidden bg-white">
+          <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+            <div className="absolute left-3 text-slate-400 pointer-events-none">
+              <Search size={16} />
+            </div>
+            <input
+              type="text"
+              placeholder="Tìm thuốc, hoạt chất, triệu chứng..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-20 py-2 bg-slate-100 focus:bg-white border border-slate-200 focus:border-[#0d6efd] rounded-full text-xs font-medium text-slate-800 outline-none transition-all shadow-inner"
+            />
+            <button
+              type="submit"
+              className="absolute right-1 bg-[#0057cd] text-white px-3.5 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider shadow-xs"
+            >
+              Tìm
+            </button>
+          </form>
         </div>
 
         {/* Mega Category Navigation Bar */}
