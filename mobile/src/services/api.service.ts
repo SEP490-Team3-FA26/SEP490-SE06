@@ -63,159 +63,7 @@ export class ApiService {
     return headers;
   }
 
-  // --- MOCK FALLBACK DATA ---
-  public static localMockMedicines: Medicine[] = [
-    {
-      id: 'MED-001',
-      name: 'Amoxicillin 500mg',
-      price: 85000,
-      unit: 'Hộp',
-      active: 'Amoxicillin',
-      category: 'Kháng sinh / Antibiotics',
-      stock: 25,
-      isRx: true,
-      image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô A1', expDate: '12/12/2026', stock: 15, status: 'ACTIVE' },
-        { batchNo: 'Lô A2', expDate: '10/05/2027', stock: 10, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Điều trị các bệnh nhiễm khuẩn đường hô hấp, tai mũi họng',
-      cach_dung: 'Uống 1 viên/lần x 2-3 lần/ngày',
-      tac_dung_phu: 'Dị ứng, buồn nôn, tiêu chảy',
-      luu_y: 'Chống chỉ định người mẫn cảm với Penicillin',
-      manufacturer: 'Dược Hậu Giang',
-    },
-    {
-      id: 'MED-002',
-      name: 'Panadol Extra Đỏ',
-      price: 45000,
-      unit: 'Hộp',
-      active: 'Paracetamol 500mg + Caffeine 65mg',
-      category: 'Giảm đau / Giảm sốt',
-      stock: 100,
-      isRx: false,
-      image: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô B1', expDate: '25/08/2026', stock: 100, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Giảm các cơn đau nhẹ đến vừa như đau đầu, đau nửa đầu, đau cơ',
-      cach_dung: '1-2 viên mỗi 4-6 giờ khi cần, tối đa 8 viên/ngày',
-      tac_dung_phu: 'Mất ngủ nếu uống ban đêm',
-      luu_y: 'Thận trọng với người suy gan nặng',
-      manufacturer: 'GSK GlaxoSmithKline',
-    },
-    {
-      id: 'MED-003',
-      name: 'Decolgen Forte Trị Cảm',
-      price: 38000,
-      unit: 'Vỉ',
-      active: 'Acetaminophen + Phenylephrine',
-      category: 'Hô hấp / Cough & Cold',
-      stock: 50,
-      isRx: false,
-      image: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô C1', expDate: '11/11/2026', stock: 50, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Điều trị cảm cúm, sổ mũi, nghẹt mũi, sốt',
-      cach_dung: '1 viên/lần x 3-4 lần/ngày',
-      tac_dung_phu: 'Khô miệng, buồn ngủ nhẹ',
-      manufacturer: 'United Pharma',
-    },
-    {
-      id: 'MED-004',
-      name: 'Cefuroxim 500mg',
-      price: 120000,
-      unit: 'Hộp',
-      active: 'Cefuroxim axetil',
-      category: 'Kháng sinh / Antibiotics',
-      stock: 12,
-      isRx: true,
-      image: 'https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô D1', expDate: '20/09/2026', stock: 12, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Kháng sinh nhóm Cephalosporin thế hệ 2',
-      cach_dung: 'Uống sau bữa ăn, 1 viên x 2 lần/ngày',
-      manufacturer: 'Dược TW1',
-    },
-    {
-      id: 'MED-005',
-      name: 'Strepsils Cool Bạc Hà',
-      price: 32000,
-      unit: 'Hộp',
-      active: 'Dichlorobenzyl Alcohol + Amylmetacresol',
-      category: 'Hô hấp / Cough & Cold',
-      stock: 40,
-      isRx: false,
-      image: 'https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô E1', expDate: '01/01/2027', stock: 40, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Làm dịu cơn đau rát họng tức thì',
-      cach_dung: 'Ngậm 1 viên mỗi 2-3 giờ',
-      manufacturer: 'Reckitt Benckiser',
-    },
-    {
-      id: 'MED-006',
-      name: 'Berberin Mộc Hoa Trị Tiêu Chảy',
-      price: 25000,
-      unit: 'Lọ',
-      active: 'Berberin Clorid 100mg',
-      category: 'Tiêu hóa / Gastrointestinal',
-      stock: 80,
-      isRx: false,
-      image: 'https://images.unsplash.com/photo-1563213126-a4273aed2016?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1563213126-a4273aed2016?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô F1', expDate: '15/06/2027', stock: 80, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Trị viêm ruột, lỵ amip, tiêu chảy do nhiễm trùng thực phẩm',
-      cach_dung: 'Uống 2-4 viên/lần x 2 lần/ngày',
-      manufacturer: 'Dược Phẩm TW3',
-    },
-    {
-      id: 'MED-007',
-      name: 'Omeprazol 20mg Dạ Dày',
-      price: 65000,
-      unit: 'Hộp',
-      active: 'Omeprazole 20mg',
-      category: 'Tiêu hóa / Gastrointestinal',
-      stock: 45,
-      isRx: true,
-      image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô G1', expDate: '01/08/2026', stock: 45, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Ức chế bơm proton, điều trị viêm loét dạ dày tá tràng, trào ngược dạ dày thực quản (GERD)',
-      cach_dung: 'Uống 1 viên trước bữa ăn sáng',
-      manufacturer: 'Dược Hậu Giang',
-    },
-    {
-      id: 'MED-008',
-      name: 'Vitamin C Sủi 1000mg Plus Zinc',
-      price: 52000,
-      unit: 'Tuýp',
-      active: 'Acid Ascorbic 1000mg + Kẽm 10mg',
-      category: 'Vitamin / Supplements',
-      stock: 60,
-      isRx: false,
-      image: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=80',
-      images: ['https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=80'],
-      batches: [
-        { batchNo: 'Lô H1', expDate: '30/12/2026', stock: 60, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Tăng cường sức đề kháng, giảm mệt mỏi, chống oxy hóa',
-      cach_dung: 'Hòa tan 1 viên trong 200ml nước đun sôi để nguội',
-      manufacturer: 'Bayer Berocca',
-    },
-  ];
+
 
   public static mapMedicine(m: any): Medicine {
     const activeIng = m.active_ingredient || m.active || 'N/A';
@@ -506,9 +354,9 @@ export class ApiService {
         return dataList.map((m: any) => ApiService.mapMedicine(m));
       }
     } catch (e) {
-      console.warn('API getMedicines offline/error, falling back to mock:', e);
+      console.warn('API getMedicines offline/error:', e);
     }
-    return this.localMockMedicines;
+    return [];
   }
 
   public static async getMedicineById(id: string): Promise<Medicine | null> {
@@ -523,7 +371,7 @@ export class ApiService {
     } catch (e) {
       console.warn('Failed to fetch medicine by ID:', e);
     }
-    return this.localMockMedicines.find((m) => m.id === id) || null;
+    return null;
   }
 
   public static async checkInteractions(medicineNames: string[]): Promise<any> {

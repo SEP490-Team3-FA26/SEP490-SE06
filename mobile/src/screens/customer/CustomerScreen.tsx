@@ -79,43 +79,8 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       ]);
 
       if (medList) setMedicines(medList);
-      if (voucherList && voucherList.length > 0) {
-        setVouchers(voucherList);
-      } else {
-        setVouchers([
-          { id: 'v1', code: 'PHARMA10', discountType: 'PERCENT', discountValue: 10, description: 'Giảm 10% cho mọi đơn thuốc', minOrderValue: 150000 },
-          { id: 'v2', code: 'FREESHIP', discountType: 'FIXED', discountValue: 25000, description: 'Miễn phí vận chuyển tận nhà', minOrderValue: 200000 },
-          { id: 'v3', code: 'HEALTHCARE50K', discountType: 'FIXED', discountValue: 50000, description: 'Giảm 50.000₫ cho đơn trên 500k', minOrderValue: 500000 },
-        ]);
-      }
-      if (orderList && orderList.length > 0) {
-        setOrders(orderList);
-      } else {
-        setOrders([
-          {
-            id: 'ord_1',
-            orderCode: 'ORD-2026-901',
-            items: [{ medicineId: 'm1', name: 'Panadol Extra', quantity: 2, price: 45000, unit: 'Hộp' }],
-            totalAmount: 90000,
-            finalAmount: 90000,
-            paymentMethod: 'PAYOS',
-            paymentStatus: 'PAID',
-            status: 'COMPLETED',
-            createdAt: '2026-08-30T10:00:00Z',
-          },
-          {
-            id: 'ord_2',
-            orderCode: 'ORD-2026-902',
-            items: [{ medicineId: 'm3', name: 'Strepsils Cool', quantity: 3, price: 32000, unit: 'Hộp' }],
-            totalAmount: 96000,
-            finalAmount: 96000,
-            paymentMethod: 'COD',
-            paymentStatus: 'PENDING',
-            status: 'PROCESSING',
-            createdAt: '2026-09-02T14:30:00Z',
-          },
-        ]);
-      }
+      setVouchers(voucherList || []);
+      setOrders(orderList || []);
     } catch (e) {
       console.warn('Error loading customer data:', e);
     } finally {
