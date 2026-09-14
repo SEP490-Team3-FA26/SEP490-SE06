@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { notifyAuthTokenChanged } from "../../utils/authEvents";
 import api from "../../services/core/api";
+import { authService } from "../../services/auth/auth.service";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -34,11 +35,10 @@ export function Landing() {
 
   const hasToken = !!localStorage.getItem("token");
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userRole");
+  const handleLogout = async () => {
+    await authService.logout();
     notifyAuthTokenChanged();
-    navigate("/login");
+    navigate("/auth/login");
   };
 
   // E-commerce states

@@ -2102,5 +2102,136 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi tìm kiếm thuốc trong kho');
     }
   }
+
+  // ==========================================
+  // GS1 EAN-13 & BARCODE UTILITIES
+  // ==========================================
+  private calculateEAN13Checksum(code12: string): number {
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      sum += parseInt(code12[i], 10) * (i % 2 === 0 ? 1 : 3);
+    }
+    const remainder = sum % 10;
+    return remainder === 0 ? 0 : 10 - remainder;
+  }
+
+  private generateValidEAN13(): string {
+    const prefix = '893'; // GS1 Vietnam prefix
+    const random9 = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0');
+    const code12 = prefix + random9;
+    const checksum = this.calculateEAN13Checksum(code12);
+    return code12 + checksum;
+  }
+
+  async getByBarcode(barcode: string, branchId?: string) {
+    try {
+      if (!barcode || barcode.trim() === '') {
+        throw new RpcException('Mã vạch không được để trống');
+      }
+
+      const cleanBarcode = barcode.trim();
+      this.logger.log(`[getByBarcode] Scanning barcode: "${cleanBarcode}", branchId: "${branchId || 'ALL'}"`);
+
+      // 1. Search by primary barcode, sku, or packaging units barcode
+      const medicine = await this.medicineModel.findOne({
+        $or: [
+          { barcode: cleanBarcode },
+          { sku: cleanBarcode },
+          { 'units.barcode': cleanBarcode }
+        ]
+      }).lean().exec();
+
+      if (!medicine) {
+        return {
+          success: false,
+          found: false,
+          message: `Không tìm thấy dược phẩm với mã vạch: ${cleanBarcode}`,
+          barcode: cleanBarcode
+        };
+      }
+
+      const medId = medicine._id.toString();
+
+      // 2. Fetch Active Batches for this medicine and branch (sorted FEFO: expDate ASC)
+      const batchFilter: any = {
+        medicineId: medId,
+        status: 'ACTIVE',
+        stock: { $gt: 0 }
+      };
+      if (branchId && branchId !== 'ALL') {
+        batchFilter.branchId = branchId;
+      }
+
+      const batches = await this.batchModel.find(batchFilter)
+        .sort({ expDate: 1 })
+        .lean()
+        .exec();
+
+      // 3. Compute total available stock at branch
+      const totalBranchStock = batches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+      const fefoBatch = batches.length > 0 ? batches[0] : null;
+
+      // 4. Identify if a specific packaging unit was scanned
+      let matchedUnit = null;
+      if (Array.isArray(medicine.units)) {
+        matchedUnit = medicine.units.find((u: any) => u.barcode === cleanBarcode) || null;
+      }
+
+      return {
+        success: true,
+        found: true,
+        medicine: {
+          ...medicine,
+          id: medId,
+          _id: medId,
+          totalBranchStock,
+        },
+        batches,
+        fefoBatch,
+        totalBranchStock,
+        matchedUnit,
+        barcode: cleanBarcode
+      };
+    } catch (error) {
+      this.logger.error(`[getByBarcode] Error scanning barcode ${barcode}:`, error);
+      throw new RpcException(error.message || 'Lỗi tra cứu mã vạch');
+    }
+  }
+
+  async generateBarcodeForMedicine(medicineId: string) {
+    try {
+      this.logger.log(`[generateBarcode] Generating new valid EAN-13 barcode for medicine: ${medicineId}`);
+      let barcode = this.generateValidEAN13();
+      
+      // Ensure unique collision-free
+      let existing = await this.medicineModel.findOne({ barcode }).lean().exec();
+      let attempts = 0;
+      while (existing && attempts < 10) {
+        barcode = this.generateValidEAN13();
+        existing = await this.medicineModel.findOne({ barcode }).lean().exec();
+        attempts++;
+      }
+
+      const updated = await this.medicineModel.findByIdAndUpdate(
+        medicineId,
+        { $set: { barcode } },
+        { new: true }
+      ).lean().exec();
+
+      if (!updated) {
+        throw new RpcException(`Không tìm thấy dược phẩm với ID: ${medicineId}`);
+      }
+
+      return {
+        success: true,
+        message: 'Đã sinh mã vạch EAN-13 chuẩn thành công',
+        medicine: updated,
+        barcode
+      };
+    } catch (error) {
+      this.logger.error(`[generateBarcode] Error:`, error);
+      throw new RpcException(error.message || 'Lỗi sinh mã vạch');
+    }
+  }
 }
 

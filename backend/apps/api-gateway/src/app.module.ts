@@ -239,6 +239,8 @@ export class AppGatewayModule implements OnModuleInit {
       'inventory.medicine.warehouse_search',
       'inventory.medicine.shelf_detail',
       'inventory.medicine.sync_locations',
+      'inventory.medicine.get_by_barcode',
+      'inventory.medicine.generate_barcode',
       'inventory.reports.forecast_dataset',
       'inventory.reports.seasonal_trends',
       'inventory.report.create',

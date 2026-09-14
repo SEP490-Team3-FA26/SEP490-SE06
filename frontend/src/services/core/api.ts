@@ -29,10 +29,13 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('userRole');
+      localStorage.removeItem('user');
+      localStorage.removeItem('branchId');
+      localStorage.removeItem('branchName');
       notifyAuthTokenChanged();
       // Redirect to login page if the user is not already there
-      if (!window.location.pathname.startsWith('/auth/login')) {
-        window.location.href = '/auth/login';
+      if (!window.location.pathname.startsWith('/auth/login') && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/auth/login?sessionExpired=true';
       }
     }
     return Promise.reject(error);

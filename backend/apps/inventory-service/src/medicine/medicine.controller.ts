@@ -268,5 +268,25 @@ export class MedicineController {
       throw new RpcException(error.message || 'Lỗi hệ thống khi đồng bộ vị trí kệ hàng');
     }
   }
+
+  @MessagePattern('inventory.medicine.get_by_barcode')
+  async getMedicineByBarcode(@Payload() data: { barcode: string; branchId?: string }) {
+    try {
+      return await this.medicineService.getByBarcode(data.barcode, data.branchId);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi tra cứu mã vạch');
+    }
+  }
+
+  @MessagePattern('inventory.medicine.generate_barcode')
+  async generateBarcode(@Payload() data: { id: string }) {
+    try {
+      return await this.medicineService.generateBarcodeForMedicine(data.id);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi sinh mã vạch');
+    }
+  }
 }
 

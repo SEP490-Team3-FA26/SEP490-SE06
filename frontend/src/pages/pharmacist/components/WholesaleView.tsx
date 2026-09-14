@@ -126,16 +126,11 @@ export default function WholesaleView() {
     const medId = med.id || med._id;
     const existing = cart.find(it => it.medicineId === medId);
     if (existing) {
-      if (existing.quantity >= med.stock) {
-        alert("Đã vượt quá số lượng tồn kho khả dụng!");
-        return;
-      }
       setCart(cart.map(it => it.medicineId === medId ? { ...it, quantity: it.quantity + 10 } : it));
-    } else {
-      if (med.stock <= 0) {
-        alert("Thuốc đã hết hàng khả dụng!");
-        return;
+      if (existing.quantity + 10 > (med.stock || 0)) {
+        alert(`Cảnh báo: Số lượng thuốc "${med.name}" vượt quá tồn kho khả dụng (${med.stock || 0} ${med.unit || 'hộp'})!`);
       }
+    } else {
       setCart([...cart, {
         medicineId: medId,
         name: med.name,
@@ -147,6 +142,10 @@ export default function WholesaleView() {
         stock: med.stock,
         expiry: med.expiry
       }]);
+
+      if ((med.stock || 0) <= 0) {
+        alert(`Thuốc "${med.name}" hiện đang hết hàng ở chi nhánh (Tồn: 0).`);
+      }
     }
     setSearchQuery("");
     setSearchResults([]);
