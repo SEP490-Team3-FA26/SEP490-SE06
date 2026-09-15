@@ -380,8 +380,10 @@ export function Landing() {
   };
 
   // Sparkle burst helper for premium microinteraction
-  const triggerSparkles = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const button = e.currentTarget;
+  const triggerSparkles = (e?: any) => {
+    if (!e || typeof e !== "object") return;
+    const button = e.currentTarget || e.target;
+    if (!button || typeof button.getBoundingClientRect !== "function") return;
     const rect = button.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -447,8 +449,17 @@ export function Landing() {
     }
   };
 
-  const handleAddToCart = async (med: any, e: React.MouseEvent<HTMLButtonElement>, customQty: number = 1) => {
-    triggerSparkles(e);
+  const handleAddToCart = async (med: any, eOrQty?: any, customQty: number = 1) => {
+    let qty = 1;
+    if (typeof eOrQty === "number") {
+      qty = eOrQty;
+    } else if (typeof customQty === "number") {
+      qty = customQty;
+    }
+
+    if (eOrQty && typeof eOrQty === "object") {
+      triggerSparkles(eOrQty);
+    }
 
     const medId = med.id || med._id;
     const currentToken = localStorage.getItem("token");
@@ -459,13 +470,13 @@ export function Landing() {
         const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
 
         if (existingItem) {
-          if (existingItem.quantity + customQty > med.stock) {
+          if (existingItem.quantity + qty > (med.stock || 999)) {
             alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
             return;
           }
-          existingItem.quantity += customQty;
+          existingItem.quantity += qty;
         } else {
-          if (med.stock <= 0) {
+          if ((med.stock ?? 1) <= 0) {
             alert("Sản phẩm đã hết hàng!");
             return;
           }
@@ -474,10 +485,10 @@ export function Landing() {
             _id: medId,
             name: med.name,
             category: med.category,
-            price: med.price,
-            quantity: customQty,
-            unit: med.unit || "Viên",
-            stock: med.stock,
+            price: med.salePrice || med.price,
+            quantity: qty,
+            unit: med.unit || "Hộp",
+            stock: med.stock || 100,
             active_ingredient: med.active_ingredient || "",
             image: med.image || ""
           });
@@ -496,8 +507,8 @@ export function Landing() {
     }
 
     try {
-      const response = await api.post("/api/users/cart",
-        { medicineId: medId, quantity: customQty },
+      await api.post("/api/users/cart",
+        { medicineId: medId, quantity: qty },
         { headers: { "Authorization": `Bearer ${currentToken}` } }
       );
 
@@ -508,7 +519,7 @@ export function Landing() {
       }, 1500);
 
     } catch (err: any) {
-      alert(err.message || "Lỗi kết nối");
+      alert(err.message || "Lỗi kết nối khi thêm vào giỏ");
       console.error(err);
     }
   };
@@ -1210,7 +1221,7 @@ export function Landing() {
               title: "Chat Với Dược Sĩ",
               subtitle: "Tư vấn 1:1 miễn phí",
               icon: <MessageSquareQuote size={22} className="text-teal-500" />,
-              action: () => navigate("/customer/consultant"),
+              action: () => navigate("/customer/ai-consult"),
               bg: "hover:border-teal-200"
             }
           ].map((item, idx) => (
@@ -1278,8 +1289,15 @@ export function Landing() {
                 id: "FS-01",
                 name: "Viên sủi Berocca Performance Hộp 10 viên",
                 brand: "Bayer (Đức)",
+                category: "Thuốc bổ",
+                active_ingredient: "Vitamin B, C, Kẽm, Magie",
+                specification: "Tuýp 10 viên sủi",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Viên sủi",
+                stock: 120,
+                unit: "Tuýp",
+                price: 95000,
                 originalPrice: 135000,
-                salePrice: 95000,
                 discount: 30,
                 soldPercent: 82,
                 image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"
@@ -1288,8 +1306,15 @@ export function Landing() {
                 id: "FS-02",
                 name: "Dầu cá Omega 3 Fish Oil 1000mg Hộp 100 viên",
                 brand: "Nature Made (Mỹ)",
+                category: "Thuốc bổ",
+                active_ingredient: "Omega 3, EPA, DHA",
+                specification: "Hộp 100 viên nang mềm",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Viên nang",
+                stock: 85,
+                unit: "Hộp",
+                price: 285000,
                 originalPrice: 380000,
-                salePrice: 285000,
                 discount: 25,
                 soldPercent: 91,
                 image: "https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=500&auto=format&fit=crop&q=60"
@@ -1298,8 +1323,15 @@ export function Landing() {
                 id: "FS-03",
                 name: "Nước muối sinh lý Physiodose Hộp 40 ống",
                 brand: "Gilbert (Pháp)",
+                category: "Thuốc trị ho cảm",
+                active_ingredient: "Natri Clorid 0.9%",
+                specification: "Hộp 40 ống x 5ml",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Dung dịch",
+                stock: 200,
+                unit: "Hộp",
+                price: 145000,
                 originalPrice: 195000,
-                salePrice: 145000,
                 discount: 26,
                 soldPercent: 68,
                 image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=60"
@@ -1308,8 +1340,15 @@ export function Landing() {
                 id: "FS-04",
                 name: "Máy đo huyết áp bắp tay tự động Omron HEM-7120",
                 brand: "Omron (Nhật Bản)",
+                category: "Thiết bị y tế",
+                active_ingredient: "Cảm biến IntelliSense",
+                specification: "Bộ máy đo + Vòng bít + Pin",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Thiết bị",
+                stock: 45,
+                unit: "Bộ",
+                price: 799000,
                 originalPrice: 1050000,
-                salePrice: 799000,
                 discount: 24,
                 soldPercent: 75,
                 image: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=500&auto=format&fit=crop&q=60"
@@ -1317,7 +1356,10 @@ export function Landing() {
             ].map((deal) => (
               <div
                 key={deal.id}
-                onClick={() => navigate("/customer/shop")}
+                onClick={() => {
+                  setSelectedMedicineForModal(deal);
+                  setModalQuantity(1);
+                }}
                 className="bg-white rounded-2xl p-4 text-slate-800 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 relative"
               >
                 <div className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">
@@ -1340,14 +1382,14 @@ export function Landing() {
 
                   <div className="flex items-baseline gap-2 mb-2">
                     <span className="text-base font-black text-rose-600">
-                      {deal.salePrice.toLocaleString()}₫
+                      {deal.price.toLocaleString()}₫
                     </span>
                     <span className="text-xs text-slate-400 line-through">
                       {deal.originalPrice.toLocaleString()}₫
                     </span>
                   </div>
 
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative">
+                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative mb-3">
                     <div
                       className="bg-gradient-to-r from-rose-500 to-amber-500 h-full rounded-full"
                       style={{ width: `${deal.soldPercent}%` }}
@@ -1356,6 +1398,28 @@ export function Landing() {
                       🔥 ĐÃ BÁN {deal.soldPercent}%
                     </span>
                   </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddToCart(deal, e, 1);
+                    }}
+                    className={`w-full py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                      addedItems[deal.id]
+                        ? "bg-emerald-600 text-white"
+                        : "bg-rose-600 hover:bg-rose-700 text-white active:scale-95"
+                    }`}
+                  >
+                    {addedItems[deal.id] ? (
+                      <>
+                        <Check size={14} /> Đã thêm!
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={13} /> Thêm Giờ Vàng
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
