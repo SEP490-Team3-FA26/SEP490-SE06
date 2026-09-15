@@ -367,3 +367,53 @@ Trong quá trình triển khai thực tế trên thiết bị di động (Expo G
   * Đồng bộ Interface `Medicine`, `Voucher`, `Order`, `GoodsReceipt` trong `src/types/`.
   * Áp dụng Type-casting an toàn `(med as any).sku` kết hợp kiểm tra tồn tại trường trước khi truy xuất.
   * Đạt kết quả kiểm tra nghiêm ngặt: **0 lỗi TypeScript (`tsc` exit code 0)** trên toàn bộ dự án.
+
+---
+
+### 8. Lỗi Gán Cứng Địa Chỉ IP Máy Chủ & Khả Năng Di Động Giữa Các Mạng (Dynamic Network Host & Environment Portability)
+* **Hiện tượng (Symptom):** Địa chỉ IP máy chủ phát triển bị gán cứng (`10.0.15.26`) trong `src/services/env.service.ts` và file `.env`. Khi lập trình viên đổi máy tính hoặc đổi điểm phát sóng WiFi (ở nhà, quán cà phê, công ty), ứng dụng trên điện thoại thật (Expo Go) lập tức bị mất kết nối hoàn toàn, phải mở mã nguồn để tìm và sửa IP thủ công.
+* **Nguyên nhân (Root Cause):** Cấu hình sử dụng địa chỉ IPv4 LAN tĩnh thay vì tự động nhận diện từ môi trường runtime của Expo và Metro Bundler.
+* **Cách khắc phục triệt để (Solution):**
+  * **Tự Động Nhận Diện IP Máy Chủ Dev:** Tích hợp logic bóc tách IP máy chủ tự động thông qua `Constants.expoConfig?.hostUri` kết hợp với `NativeModules.SourceCode.scriptURL`. Khi Metro Bundler chạy trên mạng bất kỳ, ứng dụng trên điện thoại tự động lấy đúng IP của máy host để kết nối API.
+  * **Chuẩn Hóa Đọc Biến Môi Trường:** Ưu tiên đọc biến môi trường qua tiền tố chuẩn `process.env.EXPO_PUBLIC_API_URL` và `process.env.EXPO_PUBLIC_AI_URL`.
+  * **Đa Nền Tảng Liền Mạch (Cross-Platform Fallbacks):**
+    * Web Browser: Mặc định trỏ về `http://localhost:4000`.
+    * Android Emulator: Tự động chuyển đổi `localhost` sang `http://10.0.2.2:4000` (địa chỉ loopback ảo của Android).
+    * Thiết bị thật (iOS/Android Expo Go): Tự động gán IP LAN đã phát hiện được từ Metro scriptURL.
+  * **Làm Sạch `.env`:** Đưa file `.env` về giá trị tiêu chuẩn `http://localhost:4000`, không lưu IP nội bộ cá nhân vào git.
+
+---
+
+### 9. Khắc Phục Dữ Liệu Rác & Tồn Dư Mock Data Trong `api.service.ts` (Clean Mock Data & Stale Artifacts)
+* **Hiện tượng (Symptom):** Trong `api.service.ts` vẫn còn tồn tại mảng tĩnh `localMockMedicines` và các khối mã fallback nạp thuốc giả lập khi truy vấn danh sách thuốc từ backend.
+* **Nguyên nhân (Root Cause):** Tàn dư từ giai đoạn đầu phát triển giao diện ngoại tuyến chưa được dọn dẹp sau khi đã hoàn thiện kết nối Microservices.
+* **Cách khắc phục triệt để (Solution):**
+  * Xóa bỏ hoàn toàn mảng `localMockMedicines` và các logic fallback dữ liệu thuốc giả trong `getMedicines()` và `getMedicineById()`.
+  * Đảm bảo mọi luồng dữ liệu đều được gọi trực tiếp từ API Gateway qua Kafka xuống Inventory Microservice và MongoDB. Khi không có dữ liệu, trả về mảng rỗng `[]` chuẩn hóa, chấm dứt hoàn toàn tình trạng dữ liệu giả/lệch pha với cơ sở dữ liệu thực.
+
+---
+
+### 10. Chuẩn Hóa Toàn Diện Thông Báo Từ `Alert.alert` Sang Toast Hiện Đại (Alert to Toast Migration)
+* **Hiện tượng (Symptom):** Hầu hết các màn hình trước đây đều sử dụng `Alert.alert()` mặc định của React Native. Hộp thoại modal popup này hiển thị thô cứng, che khuất toàn bộ màn hình, chặn luồng tương tác và bắt buộc người dùng phải nhấn nút "OK" mới có thể tiếp tục thao tác.
+* **Nguyên nhân (Root Cause):** Thói quen viết nhanh `Alert.alert` trong quá trình di chuyển từ Flutter `showDialog` / `SnackBar`.
+* **Cách khắc phục triệt để (Solution):**
+  * **Xây dựng Tiện ích Tập trung `toastHelper.ts`:**
+    * Tạo module `src/components/ui/toastHelper.ts` bao bọc thư viện chuẩn `react-native-toast-message` (`showToast.success`, `showToast.error`, `showToast.info`) với vị trí `top`, hiệu ứng trượt mượt mà và thời gian hiển thị tự động biến mất tối ưu (3000ms - 3500ms).
+    * Xác minh `<Toast />` component đã được mount toàn cục tại cấp cao nhất trong `App.tsx`.
+  * **Refactor Đồng Bộ Hơn 50+ Vị Trí Trên Toàn Ứng Dụng:**
+    * **Kho Dược Phẩm (`WarehouseScreen.tsx`):** Thông báo tra cứu lô thuốc, cảnh báo cấp quyền Camera/Thư viện, lỗi kết nối AI kiểm đếm, hoàn tất kiểm định từng mặt hàng, và thông báo nhập kho GRN thành công.
+    * **Quầy Dược Sĩ (`PharmacistScreen.tsx`):** Cảnh báo giỏ hàng trống, in hóa đơn xuất POS, quét đơn thuốc AI OCR, bóc tách đơn vào giỏ hàng, và cảnh báo kiểm tra tương tác thuốc chéo.
+    * **Khách Hàng & Đặt Hàng (`CustomerScreen.tsx`, `CustomerCheckoutScreen.tsx`):** Thông báo kiểm tra điều kiện áp mã giảm giá voucher, thêm thuốc vào giỏ hàng, xác thực thông tin giao hàng, và đặt hàng thành công qua cổng PayOS / COD.
+    * **Quản Trị & Ban Giám Đốc (`AdminScreen.tsx`, `BranchScreen.tsx`, `DirectorScreen.tsx`):** Thông báo khóa/mở khóa nhân viên, tạo tài khoản nhân sự mới, gửi phiếu yêu cầu điều chuyển kho, phê duyệt và từ chối đơn đặt hàng PO.
+    * **Trang Cá Nhân & Tiện Ích (`ProfileScreen.tsx`, `WebViewScreen.tsx`, `StaffHomeScreen.tsx`):** Thông báo cập nhật thông tin cá nhân, đổi mật khẩu, chuyển đổi vai trò người dùng, và kết quả mở trình duyệt thanh toán bên ngoài.
+    * **Toàn Bộ Luồng Xác Thực Auth (`LoginScreen.tsx`, `RegisterScreen.tsx`, `ForgotPasswordScreen.tsx`, `CreateAccount.tsx`, `ForgotPassword.tsx`, `VerifyEmail.tsx`):** Cảnh báo thiếu thông tin, mật khẩu không khớp/quá ngắn, gửi mã OTP kích hoạt tài khoản qua email, xác thực email thành công, và đổi mật khẩu mới.
+    * **Các Màn Hình Phụ Trợ (`Checkout.tsx`, `EditProfile.tsx`, `EventDetail.tsx`, `HelpSupport.tsx`, `NewsFeed.tsx`, `NewsManager.tsx`):** Cảnh báo giữ chỗ, lỗi thanh toán, gửi phản hồi hỗ trợ, và đồng bộ lịch sự kiện.
+  * **Bảo Toàn Các Hộp Thoại Xác Nhận Hai Chiều (Interactive Confirmation Dialogs):**
+    * Tuân thủ nghiêm ngặt nguyên tắc UX: Giữ lại đúng **5 hộp thoại `Alert.alert`** thực sự yêu cầu sự xác nhận hủy/đồng ý có chủ đích của người dùng:
+      1. Xác nhận đăng xuất khỏi tài khoản (`ProfileScreen.tsx`).
+      2. Xác nhận hủy giao dịch thanh toán trực tuyến PayOS (`WebViewScreen.tsx`).
+      3. Xác nhận thu tiền mặt và hoàn tất hóa đơn bán lẻ POS (`PharmacistScreen.tsx`).
+      4. Xác nhận gỡ bài viết khỏi bảng tin người dùng (`NewsFeed.tsx`).
+      5. Xác nhận gỡ bài viết quản trị (`NewsManager.tsx`).
+  * **Đạt Chuẩn Kiểm Tra Kiểu Dữ Liệu:** Đảm bảo `npx tsc --noEmit --skipLibCheck` vượt qua kiểm tra với **0 lỗi** trên toàn bộ các file đã refactor.
+

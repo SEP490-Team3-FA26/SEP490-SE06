@@ -134,29 +134,75 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   };
 
   const subtotal = cart.reduce((sum, i) => sum + i.medicine.price * i.quantity, 0);
-  const discount = appliedVoucher
-    ? appliedVoucher.discountType === 'PERCENT'
-      ? (subtotal * appliedVoucher.discountValue) / 100
-      : appliedVoucher.discountValue
-    : 0;
+  const discount = useMemo(() => {
+    if (!appliedVoucher) return 0;
+    if ((appliedVoucher as any).discount != null) {
+      return Number((appliedVoucher as any).discount);
+    }
+    const val = Number(appliedVoucher.discountValue ?? 0);
+    const type = appliedVoucher.discountType ?? 'FIXED_AMOUNT';
+    if (type === 'PERCENT' || type === 'PERCENTAGE') {
+      let d = (subtotal * val) / 100;
+      const maxDisc = Number(
+        (appliedVoucher as any).maxDiscountValue ??
+        (appliedVoucher as any).maxDiscount ??
+        0
+      );
+      if (maxDisc > 0 && d > maxDisc) d = maxDisc;
+      return d;
+    }
+    return Math.min(val, subtotal);
+  }, [appliedVoucher, subtotal]);
   const finalTotal = Math.max(0, subtotal - discount);
 
   const applyVoucher = async (codeToApply?: string) => {
     const code = (codeToApply || voucherCodeInput).trim().toUpperCase();
-    const found = vouchers.find((v) => v.code.toUpperCase() === code);
-    if (found) {
-      if (found.minOrderValue && subtotal < found.minOrderValue) {
-        showToast.info(
-          'Chưa đủ điều kiện',
-          `Voucher ${code} chỉ áp dụng cho đơn từ ${found.minOrderValue.toLocaleString('vi-VN')} ₫. Giỏ hàng hiện tại: ${subtotal.toLocaleString('vi-VN')} ₫.`
-        );
-        return;
+    if (!code) {
+      showToast.info('Thông báo', 'Vui lòng nhập mã voucher.');
+      return;
+    }
+    try {
+      const res = await ApiService.validateVoucher(code, subtotal);
+      if (res?.success === true) {
+        setAppliedVoucher({
+          id: res.code || code,
+          code: res.code || code,
+          title: `Giảm ${res.discountType === 'PERCENTAGE' ? `${res.discountValue}%` : `${res.discountValue?.toLocaleString('vi-VN')} ₫`}`,
+          description: `Được giảm ${res.discount?.toLocaleString('vi-VN') || 0} ₫`,
+          discountType: res.discountType,
+          discountValue: res.discountValue,
+          maxDiscountValue: res.maxDiscountValue,
+          discount: res.discount,
+        } as any);
+        setVoucherCodeInput(code);
+        showToast.success('Thành công', `Đã áp dụng mã giảm giá ${res.code || code}!`);
+      } else {
+        // Fallback to local search if offline or network error
+        const found = vouchers.find((v) => v.code.toUpperCase() === code);
+        if (found) {
+          if (found.minOrderValue && subtotal < found.minOrderValue) {
+            showToast.info(
+              'Chưa đủ điều kiện',
+              `Voucher ${code} chỉ áp dụng cho đơn từ ${found.minOrderValue.toLocaleString('vi-VN')} ₫. Giỏ hàng hiện tại: ${subtotal.toLocaleString('vi-VN')} ₫.`
+            );
+            return;
+          }
+          setAppliedVoucher(found);
+          setVoucherCodeInput(code);
+          showToast.success('Thành công', `Đã áp dụng mã giảm giá ${code}!`);
+        } else {
+          showToast.error('Voucher không hợp lệ', res?.message || 'Mã voucher không tồn tại hoặc đã hết hạn.');
+        }
       }
-      setAppliedVoucher(found);
-      setVoucherCodeInput(code);
-      showToast.success('Thành công', `Đã áp dụng mã giảm giá ${code}!`);
-    } else {
-      showToast.error('Lỗi', 'Mã voucher không hợp lệ.');
+    } catch {
+      const found = vouchers.find((v) => v.code.toUpperCase() === code);
+      if (found) {
+        setAppliedVoucher(found);
+        setVoucherCodeInput(code);
+        showToast.success('Thành công', `Đã áp dụng mã giảm giá ${code}!`);
+      } else {
+        showToast.error('Lỗi', 'Không thể xác thực mã giảm giá.');
+      }
     }
   };
 
@@ -461,6 +507,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     navigation.navigate('CustomerCheckoutScreen', {
                       cart,
                       appliedVoucher,
+                      subtotal,
                       finalTotal,
                     })
                   }

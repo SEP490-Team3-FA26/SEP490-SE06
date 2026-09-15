@@ -566,11 +566,14 @@ export class ApiService {
         headers: this.authHeaders,
         body: JSON.stringify(orderData),
       });
-      if (res.ok) return await res.json();
-    } catch (e) {
+      const data = await res.json().catch(() => null);
+      if (res.ok) return data;
+      const errMsg = data?.message || data?.error || `Lỗi tạo đơn hàng (Mã ${res.status})`;
+      throw new Error(errMsg);
+    } catch (e: any) {
       console.warn('Failed to create order:', e);
+      throw e;
     }
-    return null;
   }
 
   public static async createPayOSLink(orderId: string, amount: number, returnUrl?: string): Promise<any> {
@@ -587,12 +590,19 @@ export class ApiService {
     return null;
   }
 
-  public static async checkOrderPayment(orderId: string): Promise<any> {
+  public static async checkOrderPayment(orderIdentifier: string | number): Promise<any> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/payments/status/${orderId}`, {
+      // 1. Check via orders-service route: GET /api/orders/check/:orderCode
+      const res = await fetch(`${this.baseUrl}/api/orders/check/${orderIdentifier}`, {
         headers: this.authHeaders,
       });
       if (res.ok) return await res.json();
+
+      // 2. Fallback to payments status route if configured
+      const fallbackRes = await fetch(`${this.baseUrl}/api/payments/status/${orderIdentifier}`, {
+        headers: this.authHeaders,
+      });
+      if (fallbackRes.ok) return await fallbackRes.json();
     } catch (e) {
       console.warn('Failed to check order payment:', e);
     }
@@ -641,13 +651,18 @@ export class ApiService {
     return [];
   }
 
-  public static async validateVoucher(code: string, totalAmount: number): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/vouchers/validate`, {
-      method: 'POST',
-      headers: this.authHeaders,
-      body: JSON.stringify({ code: code.trim().toUpperCase(), totalAmount }),
-    });
-    return await res.json();
+  public static async validateVoucher(code: string, subtotal: number): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/vouchers/validate`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ code: code.trim().toUpperCase(), subtotal }),
+      });
+      return await res.json();
+    } catch (e: any) {
+      console.warn('Failed to validate voucher:', e);
+      return { error: true, success: false, message: e?.message || 'Lỗi mạng khi kiểm tra voucher' };
+    }
   }
 
   // --- AI PRESCRIPTIONS & OCR ---
