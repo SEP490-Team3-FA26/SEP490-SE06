@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ShoppingCart, BrainCircuit, HeartPulse, Menu, X, LogOut, ShieldAlert, User, MapPin, ClipboardList, ChevronDown } from "lucide-react";
 import api from "../services/core/api";
 import { notifyAuthTokenChanged } from "../utils/authEvents";
+import { authService } from "../services/auth/auth.service";
 
 export function CustomerLayout() {
   const location = useLocation();
@@ -11,9 +12,12 @@ export function CustomerLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loyalty, setLoyalty] = useState<{ points: number; tier: string; fullName?: string } | null>(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
 
   const fetchLoyaltyInfo = async () => {
     try {
+      const role = localStorage.getItem("userRole") || "";
+      setUserRole(role);
       const token = localStorage.getItem("token");
       if (!token) return;
       const res = await api.get("/api/users/loyalty");
@@ -25,9 +29,8 @@ export function CustomerLayout() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userRole");
+  const handleLogout = async () => {
+    await authService.logout();
     notifyAuthTokenChanged();
     navigate("/auth/login");
   };
@@ -81,7 +84,7 @@ export function CustomerLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
 
           {/* Logo */}
-          <Link to="/customer/shop" className="flex items-center gap-2.5 group">
+          <Link to="/" className="flex items-center gap-2.5 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0d6efd] to-sky-400 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-all">
               <HeartPulse size={22} className="animate-pulse" />
             </div>
@@ -133,13 +136,17 @@ export function CustomerLayout() {
                   onClick={() => setShowProfileDropdown(!showProfileDropdown)}
                   className="flex items-center gap-2.5 hover:bg-slate-50 p-1.5 rounded-xl transition-all cursor-pointer text-left focus:outline-none"
                 >
-                  <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-black text-xs uppercase shadow-inner">
-                    {loyalty?.tier?.substring(0, 2) || "KH"}
+                  <div className={`w-9 h-9 rounded-full ${userRole && userRole !== 'user' ? 'bg-indigo-600 text-white' : 'bg-blue-100 text-blue-600'} flex items-center justify-center font-black text-xs uppercase shadow-inner`}>
+                    {userRole && userRole !== 'user' ? userRole.substring(0, 2).toUpperCase() : (loyalty?.tier?.substring(0, 2) || "KH")}
                   </div>
                   <div className="hidden sm:flex flex-col">
-                    <span className="text-xs font-bold text-slate-800">{loyalty?.fullName || "Khách Hàng"}</span>
+                    <span className="text-xs font-bold text-slate-800">{loyalty?.fullName || (userRole && userRole !== 'user' ? `Quản trị (${userRole.toUpperCase()})` : "Khách Hàng")}</span>
                     <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
-                      Hạng {loyalty?.tier || "Bronze"} • <span className="text-blue-600">{loyalty?.points?.toLocaleString() || 0}đ</span>
+                      {userRole && userRole !== 'user' ? (
+                        <span className="text-indigo-600 font-black uppercase">Tài khoản Quản trị</span>
+                      ) : (
+                        <>Hạng {loyalty?.tier || "Bronze"} • <span className="text-blue-600">{loyalty?.points?.toLocaleString() || 0}đ</span></>
+                      )}
                     </span>
                   </div>
                   <ChevronDown size={14} className="text-slate-400" />
@@ -148,34 +155,38 @@ export function CustomerLayout() {
                 {showProfileDropdown && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
-                    <div className="absolute right-0 mt-2.5 w-60 bg-white rounded-2xl border border-slate-100 shadow-xl py-2 z-50 animate-fade-in text-left">
+                    <div className="absolute right-0 mt-2.5 w-64 bg-white rounded-2xl border border-slate-100 shadow-xl py-2 z-50 animate-fade-in text-left">
                       <div className="px-4 py-2 border-b border-slate-50 mb-1.5">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tài khoản</span>
-                        <span className="text-xs font-extrabold text-slate-800 truncate block">{loyalty?.fullName || "Khách Hàng"}</span>
+                        <span className="text-xs font-extrabold text-slate-800 truncate block">{loyalty?.fullName || (userRole && userRole !== 'user' ? `Tài khoản ${userRole.toUpperCase()}` : "Khách Hàng")}</span>
                       </div>
+
+                      {userRole && userRole !== 'user' && (
+                        <Link
+                          to={userRole === 'admin' || userRole === 'head_branch' ? '/admin' : userRole === 'warehouse' ? '/warehouse' : userRole === 'branch' ? '/branch' : userRole === 'pharmacist' ? '/pharmacist' : '/admin'}
+                          onClick={() => setShowProfileDropdown(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-black text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 transition-all mb-1"
+                        >
+                          <User size={15} className="text-indigo-600" />
+                          <span>Vào Bảng Quản Trị ({userRole.toUpperCase()})</span>
+                        </Link>
+                      )}
+
                       <Link
                         to="/customer/profile"
                         onClick={() => setShowProfileDropdown(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-blue-650 hover:bg-slate-50 transition-all"
+                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all"
                       >
                         <User size={15} />
-                        <span>Thông tin cá nhân</span>
+                        <span>Thông tin cá nhân & Điểm</span>
                       </Link>
                       <Link
                         to="/customer/orders"
                         onClick={() => setShowProfileDropdown(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-blue-650 hover:bg-slate-50 transition-all"
+                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all"
                       >
                         <ClipboardList size={15} />
-                        <span>Đơn hàng của tôi</span>
-                      </Link>
-                      <Link
-                        to="/customer/addresses"
-                        onClick={() => setShowProfileDropdown(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-blue-650 hover:bg-slate-50 transition-all"
-                      >
-                        <MapPin size={15} />
-                        <span>Sổ địa chỉ nhận hàng</span>
+                        <span>Đơn hàng & Toa thuốc</span>
                       </Link>
                       <div className="border-t border-slate-50 mt-1.5 pt-1.5">
                         <button

@@ -11,6 +11,7 @@ import { Cart, CartSchema } from './schemas/cart.schema';
 import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
 
 import { MedicineBatch, MedicineBatchSchema } from '../../inventory-service/src/medicine/schemas/medicine-batch.schema';
+import { Medicine, MedicineSchema } from '../../inventory-service/src/medicine/schemas/medicine.schema';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MedicineBatch, MedicineBatchSchema } from '../../inventory-service/src/
       { name: Cart.name, schema: CartSchema },
       { name: AuditLog.name, schema: AuditLogSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
+      { name: Medicine.name, schema: MedicineSchema },
     ]),
     ClientsModule.registerAsync([
       {

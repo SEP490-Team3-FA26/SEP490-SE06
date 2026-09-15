@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Mail, Lock, Building2, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users } from "lucide-react";
+import { ArrowRight, Mail, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon } from "lucide-react";
 import { authService } from "../../services/auth/auth.service";
 import { requestNotificationPermission } from "../../utils/notificationPermission";
-import { notifyAuthTokenChanged } from "../../utils/authEvents";
 
 export function Login() {
   const navigate = useNavigate();
@@ -11,19 +10,59 @@ export function Login() {
   const [role, setRole] = useState("admin");
   const [email, setEmail] = useState("admin@vinapharmacy.com");
   const [password, setPassword] = useState("123456");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeSessionUser, setActiveSessionUser] = useState<any>(null);
 
   useEffect(() => {
-    // Xử lý khi đăng nhập Google thành công và redirect về kèm token
-    const token = searchParams.get('token');
+    // Check if user is already logged in
+    const token = localStorage.getItem("token");
+    if (token) {
+      const u = authService.getCurrentUser();
+      if (u) {
+        setActiveSessionUser(u);
+      }
+    }
+
+    // Handle session expired query param
+    if (searchParams.get('sessionExpired') === 'true') {
+      setSessionExpiredNotice(true);
+    }
+
+    // Handle Google login return token
+    const googleToken = searchParams.get('token');
     const urlError = searchParams.get('error');
 
-    if (token) {
-      localStorage.setItem("token", token);
-      localStorage.setItem("userRole", "user"); // Mặc định role user từ google login
-      notifyAuthTokenChanged();
-      navigate('/customer');
+    if (googleToken) {
+      try {
+        const base64Url = googleToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          window.atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        const userObj = {
+          id: decoded.sub,
+          email: decoded.email,
+          fullName: decoded.fullName || "Người dùng Google",
+          role: decoded.role || "user",
+          branchId: decoded.branchId || null,
+          branchName: decoded.branchName || null,
+        };
+
+        authService.setSession(googleToken, userObj);
+        navigate(redirectByRole(decoded.role || "user"));
+      } catch (err) {
+        console.error("Lỗi parse Google token:", err);
+        localStorage.setItem("token", googleToken);
+        localStorage.setItem("userRole", "user");
+        navigate('/');
+      }
     }
 
     if (urlError) {
@@ -58,9 +97,8 @@ export function Login() {
       case "pharmacist":
         return "/pharmacist";
       case "user":
-        return "/customer";
       default:
-        return "/admin";
+        return "/";
     }
   };
 
@@ -72,20 +110,15 @@ export function Login() {
     try {
       const data = await authService.login(email, password);
 
-      // Lưu JWT Token và Role
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("userRole", data.user.role);
-      notifyAuthTokenChanged();
-
       // Request notification permission (don't block login)
       requestNotificationPermission().catch(err => {
         console.warn('Failed to request notification permission:', err);
       });
 
       // Redirect theo Role
-      navigate(redirectByRole(data.user.role));
+      navigate(redirectByRole(data.user?.role || "admin"));
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
     } finally {
       setLoading(false);
     }
@@ -95,8 +128,61 @@ export function Login() {
     <>
       <div className="mb-6 text-center mt-2">
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Đăng nhập</h2>
-        <p className="text-sm font-medium text-slate-500 mt-2">Truy cập không gian làm việc</p>
+        <p className="text-sm font-medium text-slate-500 mt-2">Truy cập hệ thống quản trị ABC Pharmacy</p>
       </div>
+
+      {/* Active Session Prompt */}
+      {activeSessionUser && (
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-left flex flex-col gap-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#0057cd] text-white flex items-center justify-center font-black text-sm uppercase shadow-sm">
+                {activeSessionUser.role ? activeSessionUser.role.substring(0, 2).toUpperCase() : "US"}
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-900 leading-tight">
+                  {activeSessionUser.fullName || activeSessionUser.name || activeSessionUser.email}
+                </p>
+                <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                  Đang đăng nhập vai trò: <strong className="text-[#0057cd] uppercase font-bold">{activeSessionUser.role || 'User'}</strong>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                authService.clearSession();
+                setActiveSessionUser(null);
+              }}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+            >
+              Đổi tài khoản
+            </button>
+          </div>
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={() => navigate(redirectByRole(activeSessionUser.role || 'admin'))}
+              className="flex-1 py-2.5 bg-[#0057cd] hover:bg-[#0a58ca] text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <LayoutDashboard size={14} />
+              <span>Tiếp tục vào Không gian làm việc →</span>
+            </button>
+            <Link
+              to="/"
+              className="px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center"
+              title="Về trang chủ"
+            >
+              <StoreIcon size={14} />
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {sessionExpiredNotice && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <AlertCircle size={16} className="text-amber-600 shrink-0" />
+          <span>Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.</span>
+        </div>
+      )}
 
       <form className="space-y-6" onSubmit={handleSubmit}>
         <div>
@@ -162,19 +248,27 @@ export function Login() {
                   <Lock size={18} />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full pl-11 pr-11 py-3 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
             {error && (
-              <div className="text-red-500 text-sm font-medium text-center bg-red-50 py-2 rounded-lg">
-                {error}
+              <div className="text-red-600 text-xs font-semibold text-center bg-red-50 border border-red-200 py-2.5 px-3 rounded-xl flex items-center justify-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{error}</span>
               </div>
             )}
           </div>
@@ -183,10 +277,19 @@ export function Login() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full flex justify-center items-center gap-2 py-3.5 px-4 mt-6 border border-transparent rounded-xl shadow-md text-sm font-black text-white bg-[#0057cd] hover:bg-[#0a58ca] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0057cd] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70 disabled:cursor-not-allowed"
+          className="w-full flex justify-center items-center gap-2 py-3.5 px-4 mt-6 border border-transparent rounded-xl shadow-md text-sm font-black text-white bg-[#0057cd] hover:bg-[#0a58ca] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0057cd] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
         >
-          {loading ? 'Đang xử lý...' : 'Truy cập hệ thống quản trị'}
-          {!loading && <ArrowRight size={18} />}
+          {loading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              <span>Đang xác thực...</span>
+            </>
+          ) : (
+            <>
+              <span>Truy cập hệ thống</span>
+              <ArrowRight size={18} />
+            </>
+          )}
         </button>
 
         <div className="relative my-6">

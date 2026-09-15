@@ -44,6 +44,9 @@ export class User extends Document {
   @Prop({ default: null })
   branchId?: string;
 
+  @Prop({ default: null })
+  branchName?: string;
+
   @Prop({ default: false })
   isTwoFactorEnabled: boolean;
 

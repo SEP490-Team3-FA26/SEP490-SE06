@@ -27,34 +27,55 @@ export class AuthService {
   ) {}
 
   // ============================================================
-  // ĐĂNG KÝ - Tạo tài khoản mới + Gửi OTP kích hoạt
+  // ĐĂNG KÝ - Tạo tài khoản mới + Cấp Token tức thì
   // ============================================================
   async register(dto: RegisterDto): Promise<any> {
-    const existing = await this.userModel.findOne({ email: dto.email });
+    const email = (dto.email || '').toLowerCase().trim();
+    const existing = await this.userModel.findOne({ email });
     if (existing) {
       throw new ConflictException(`Email "${dto.email}" đã được đăng ký!`);
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
+    const role = dto.role ?? UserRole.USER;
 
     const newUser = new this.userModel({
       fullName: dto.fullName,
-      email: dto.email,
+      email,
       passwordHash,
-      role: dto.role ?? UserRole.PHARMACIST,
-      isEmailVerified: false,
+      role,
+      isEmailVerified: true,
       phone: dto.phone,
+      isActive: true,
+      isApproved: 'approved',
     });
 
     const savedUser = await newUser.save();
 
-    // Sinh và gửi OTP kích hoạt qua email
-    await this.generateAndSendVerificationOtp(savedUser.email);
+    const payload = {
+      sub: savedUser._id.toString(),
+      email: savedUser.email,
+      role: savedUser.role,
+      fullName: savedUser.fullName,
+      branchId: savedUser.branchId || null,
+      branchName: savedUser.branchName || null,
+      phone: savedUser.phone || null,
+    };
+
+    const access_token = this.jwtService.sign(payload);
 
     return {
-      message: 'Đăng ký tài khoản thành công! Vui lòng kiểm tra email của bạn để lấy mã OTP kích hoạt tài khoản.',
-      userId: savedUser._id.toString(),
-      email: savedUser.email,
+      message: 'Đăng ký tài khoản thành công!',
+      access_token,
+      user: {
+        id: savedUser._id.toString(),
+        email: savedUser.email,
+        fullName: savedUser.fullName,
+        role: savedUser.role,
+        branchId: savedUser.branchId || null,
+        branchName: savedUser.branchName || null,
+        phone: savedUser.phone || null,
+      },
     };
   }
 
@@ -62,14 +83,15 @@ export class AuthService {
   // ĐĂNG NHẬP - Xác thực và cấp JWT Token
   // ============================================================
   async login(dto: LoginDto): Promise<any> {
-    const userFromDb = await this.userModel.findOne({ email: dto.email });
+    const email = (dto.email || '').toLowerCase().trim();
+    const userFromDb = await this.userModel.findOne({ email });
 
     if (!userFromDb) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
     }
 
     if (!userFromDb.isActive) {
-      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa!');
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa! Vui lòng liên hệ quản trị viên.');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, userFromDb.passwordHash);
@@ -78,11 +100,11 @@ export class AuthService {
     }
 
     if (!userFromDb.isEmailVerified) {
-      throw new UnauthorizedException('Tài khoản chưa được xác thực email!');
+      userFromDb.isEmailVerified = true;
+      await userFromDb.save();
     }
 
     if (userFromDb.isTwoFactorEnabled) {
-      // Sinh và gửi OTP qua email
       await this.generateAndSendTwoFactorOtp(userFromDb._id.toString(), userFromDb.email);
 
       const tempPayload = {
@@ -103,6 +125,9 @@ export class AuthService {
       role: userFromDb.role,
       fullName: userFromDb.fullName,
       branchId: userFromDb.branchId || null,
+      branchName: userFromDb.branchName || null,
+      phone: userFromDb.phone || null,
+      avatarUrl: userFromDb.avatarUrl || null,
     };
 
     const access_token = this.jwtService.sign(payload);
@@ -115,6 +140,10 @@ export class AuthService {
         fullName: userFromDb.fullName,
         role: userFromDb.role,
         branchId: userFromDb.branchId || null,
+        branchName: userFromDb.branchName || null,
+        phone: userFromDb.phone || null,
+        avatarUrl: userFromDb.avatarUrl || null,
+        points: userFromDb.points || 0,
       },
     };
   }
@@ -124,21 +153,24 @@ export class AuthService {
   // ============================================================
   async googleLogin(profile: any): Promise<{
     access_token: string;
-    user: { id: string; email: string; fullName: string; role: string; branchId?: string };
+    user: { id: string; email: string; fullName: string; role: string; branchId?: string; branchName?: string };
   }> {
-    const { email, fullName } = profile;
+    const email = (profile.email || '').toLowerCase().trim();
+    const fullName = profile.fullName || profile.name || 'Người dùng Google';
 
     let userFromDb = await this.userModel.findOne({ email });
 
-    // Nếu chưa tồn tại, tự động đăng ký mới vào MongoDB
     if (!userFromDb) {
-      const passwordHash = await bcrypt.hash(Math.random().toString(36).slice(-10), 12); // Random password cho Google users
+      const passwordHash = await bcrypt.hash(Math.random().toString(36).slice(-10), 12);
       userFromDb = new this.userModel({
         fullName,
         email,
         passwordHash,
         role: UserRole.USER,
         isActive: true,
+        isEmailVerified: true,
+        avatarUrl: profile.avatar || profile.picture || undefined,
+        googleId: profile.id || profile.sub || undefined,
       });
       await userFromDb.save();
     }
@@ -147,13 +179,15 @@ export class AuthService {
       throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa!');
     }
 
-    // Cấp JWT Token
     const payload = {
       sub: userFromDb._id.toString(),
       email: userFromDb.email,
       role: userFromDb.role,
       fullName: userFromDb.fullName,
       branchId: userFromDb.branchId || null,
+      branchName: userFromDb.branchName || null,
+      phone: userFromDb.phone || null,
+      avatarUrl: userFromDb.avatarUrl || null,
     };
 
     const access_token = this.jwtService.sign(payload);
@@ -166,6 +200,7 @@ export class AuthService {
         fullName: userFromDb.fullName,
         role: userFromDb.role,
         branchId: userFromDb.branchId || null,
+        branchName: userFromDb.branchName || null,
       },
     };
   }

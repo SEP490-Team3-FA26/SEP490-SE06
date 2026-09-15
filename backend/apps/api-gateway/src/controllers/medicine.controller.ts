@@ -1,11 +1,12 @@
-import { Controller, Get, Post, Put, Query, UseInterceptors, Param, Body, Patch, Inject, OnModuleInit, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Query, UseInterceptors, Param, Body, Patch, Inject, OnModuleInit, HttpException, HttpStatus, UseGuards, Optional } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
-import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
+import { CACHE_MANAGER, CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
 
 @ApiTags('💊 Medicines')
@@ -13,6 +14,7 @@ import { AuditLogAction } from '../decorators/audit-log.decorator';
 export class MedicineController implements OnModuleInit {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
+    @Optional() @Inject(CACHE_MANAGER) private readonly cacheManager?: Cache,
   ) { }
 
   async onModuleInit() {
@@ -218,6 +220,51 @@ export class MedicineController implements OnModuleInit {
       indication,
       brandOrigin,
     });
+  }
+
+  @Get('barcode/:barcode')
+  @ApiOperation({ summary: 'Tra cứu thuốc siêu tốc bằng Barcode/Mã vạch và lấy Lô FEFO của chi nhánh' })
+  @ApiQuery({ name: 'branchId', required: false, type: String })
+  async getMedicineByBarcode(
+    @Param('barcode') barcode: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    const cacheKey = `medicine:barcode:${barcode}:${branchId || 'ALL'}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_by_barcode', {
+      barcode,
+      branchId,
+    });
+
+    if (result && result.found && this.cacheManager) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 1800000); // 30 phút TTL
+      } catch (e) {}
+    }
+
+    return result;
+  }
+
+  @Post(':id/generate-barcode')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tự động sinh mã EAN-13 chuẩn Việt Nam và cập nhật cho thuốc' })
+  async generateBarcode(@Param('id') id: string) {
+    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.generate_barcode', { id });
+    if (result && result.barcode && this.cacheManager) {
+      try {
+        await this.cacheManager.del(`medicine:barcode:${result.barcode}:ALL`);
+      } catch (e) {}
+    }
+    return result;
   }
 
   @Get(':id')

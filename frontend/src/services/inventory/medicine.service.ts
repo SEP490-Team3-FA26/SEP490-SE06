@@ -161,6 +161,18 @@ export const medicineService = {
   async updateMedicine(id: string, payload: Partial<Medicine> & Record<string, any>) {
     const response = await api.put(`/api/medicines/${id}`, payload);
     return response.data;
+  },
+
+  async getByBarcode(barcode: string, branchId?: string) {
+    const response = await api.get(`/api/medicines/barcode/${encodeURIComponent(barcode)}`, {
+      params: { branchId }
+    });
+    return response.data;
+  },
+
+  async generateBarcode(id: string) {
+    const response = await api.post(`/api/medicines/${id}/generate-barcode`);
+    return response.data;
   }
 };
 
