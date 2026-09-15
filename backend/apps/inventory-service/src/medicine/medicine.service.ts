@@ -1829,7 +1829,7 @@ export class MedicineService implements OnModuleInit {
     try {
       this.logger.log('Fetching warehouse map aggregation...');
       
-      const pipeline = [
+      const pipeline: any[] = [
         {
           $match: {
             branchId: 'CENTRAL_WH',

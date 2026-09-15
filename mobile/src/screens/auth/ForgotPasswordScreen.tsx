@@ -17,6 +17,7 @@ import { GradientButton } from '../../components/ui/GradientButton';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 
 import { FlatCard, FlatInput, FlatButton, FlatBadge } from '../../components/flat';
+import { showToast } from '../../components/ui/toastHelper';
 
 export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { forgotPassword, resetPassword } = useAuth();
@@ -31,7 +32,7 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
 
   const handleSendOtp = async () => {
     if (!email.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập email đăng ký.');
+      showToast.error('Lỗi', 'Vui lòng nhập email đăng ký.');
       return;
     }
 
@@ -40,26 +41,26 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
     setLoading(false);
 
     if (success) {
-      Alert.alert('Đã gửi mã', 'Mã OTP đặt lại mật khẩu đã được gửi tới email của bạn.');
+      showToast.success('Đã gửi mã', 'Mã OTP đặt lại mật khẩu đã được gửi tới email của bạn.');
       setStep('RESET');
     } else {
-      Alert.alert('Lỗi', 'Không tìm thấy tài khoản với email đã nhập.');
+      showToast.error('Lỗi', 'Không tìm thấy tài khoản với email đã nhập.');
     }
   };
 
   const handleResetPassword = async () => {
     if (!otp.trim() || !newPassword.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng điền mã OTP và mật khẩu mới.');
+      showToast.error('Lỗi', 'Vui lòng điền mã OTP và mật khẩu mới.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp.');
+      showToast.error('Lỗi', 'Mật khẩu xác nhận không khớp.');
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert('Lỗi', 'Mật khẩu mới phải từ 6 ký tự trở lên.');
+      showToast.error('Lỗi', 'Mật khẩu mới phải từ 6 ký tự trở lên.');
       return;
     }
 
@@ -68,11 +69,10 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
     setLoading(false);
 
     if (success) {
-      Alert.alert('Thành công', 'Mật khẩu đã được thay đổi thành công. Vui lòng đăng nhập lại!', [
-        { text: 'Đăng nhập ngay', onPress: () => navigation.goBack() },
-      ]);
+      showToast.success('Thành công', 'Mật khẩu đã được thay đổi thành công. Vui lòng đăng nhập lại!');
+      navigation.goBack();
     } else {
-      Alert.alert('Lỗi', 'Mã OTP không hợp lệ hoặc đã hết hạn.');
+      showToast.error('Lỗi', 'Mã OTP không hợp lệ hoặc đã hết hạn.');
     }
   };
 

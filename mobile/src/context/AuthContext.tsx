@@ -57,6 +57,7 @@ type AuthContextValue = {
   resetPassword: (email: string, otp: string, newPass: string) => Promise<boolean>;
   updateProfile: (data: Partial<UserProfile>) => Promise<boolean>;
   logout: () => Promise<void>;
+  switchRole: (role: UserRoleMobile) => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
 };
@@ -272,6 +273,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const switchRole = useCallback(async (newRole: UserRoleMobile) => {
+    try {
+      const roleToName: Record<string, string> = {
+        admin: 'Admin Hệ Thống',
+        headBranch: 'Giám Đốc Chuỗi',
+        director: 'Giám Đốc Chuỗi',
+        warehouse: 'Thủ Kho Trung Tâm',
+        pharmacist: 'Dược Sĩ Bán Hàng',
+        branch: 'Quản Lý Chi Nhánh',
+        customer: 'Khách Hàng VIP',
+        user: 'Khách Hàng',
+      };
+      const updatedUser: UserProfile = user
+        ? { ...user, role: newRole as any, name: user.name || roleToName[newRole] || 'Người dùng' }
+        : {
+            id: `usr_${Date.now()}`,
+            name: roleToName[newRole] || 'Người dùng',
+            email: `${newRole}@vinapharmacy.com`,
+            role: newRole as any,
+          };
+      setUser(updatedUser);
+      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(updatedUser));
+    } catch (err) {
+      console.error('Error switching role:', err);
+    }
+  }, [user]);
+
   const refreshUser = useCallback(async () => {
     try {
       const profile = await ApiService.getProfile();
@@ -310,6 +338,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resetPassword,
       updateProfile,
       logout,
+      switchRole,
       refreshUser,
       clearError,
     }),
@@ -327,6 +356,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resetPassword,
       updateProfile,
       logout,
+      switchRole,
       refreshUser,
       clearError,
     ]

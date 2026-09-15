@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { CartItem, Voucher } from '../../types/pharmacy.types';
 
 export const CustomerCheckoutScreen: React.FC<{
@@ -36,12 +37,12 @@ export const CustomerCheckoutScreen: React.FC<{
 
   const handleSubmitOrder = async () => {
     if (!name.trim() || !phone.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng cung cấp tên người nhận và số điện thoại liên hệ.');
+      showToast.error('Lỗi', 'Vui lòng cung cấp tên người nhận và số điện thoại liên hệ.');
       return;
     }
 
     if (deliveryType === 'DELIVERY' && !address.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập địa chỉ giao hàng.');
+      showToast.error('Lỗi', 'Vui lòng nhập địa chỉ giao hàng.');
       return;
     }
 
@@ -75,25 +76,27 @@ export const CustomerCheckoutScreen: React.FC<{
           navigation.navigate('WebViewScreen', {
             title: 'Thanh Toán PayOS',
             url: payLinkRes.checkoutUrl,
+            orderId,
+            amount: finalTotal,
           });
         } else {
-          Alert.alert(
+          showToast.success(
             'Đặt Hàng Thành Công',
-            `Mã đơn hàng: ${orderId}\nChúng tôi đã ghi nhận đơn hàng thanh toán trực tuyến qua cổng PayOS!`,
-            [{ text: 'Đóng', onPress: () => navigation.popToTop() }]
+            `Mã đơn hàng: ${orderId}. Thanh toán trực tuyến qua cổng PayOS!`
           );
+          navigation.popToTop();
         }
       } else {
         setLoading(false);
-        Alert.alert(
+        showToast.success(
           'Đặt Hàng Thành Công',
-          `Mã đơn hàng: ${orderId}\nPhương thức: Thanh toán khi nhận hàng (COD). Dược sĩ sẽ liên hệ xác nhận sớm nhất!`,
-          [{ text: 'Hoàn Tất', onPress: () => navigation.popToTop() }]
+          `Mã đơn hàng: ${orderId}. Phương thức: Thanh toán COD khi nhận hàng!`
         );
+        navigation.popToTop();
       }
     } catch {
       setLoading(false);
-      Alert.alert('Lỗi', 'Không thể tạo đơn hàng lúc này.');
+      showToast.error('Lỗi', 'Không thể tạo đơn hàng lúc này.');
     }
   };
 

@@ -9,6 +9,8 @@ class SocketServiceClass {
   private isConnected: boolean = false;
   private listeners: SocketNotificationHandler[] = [];
 
+  private hasLoggedSocketError: boolean = false;
+
   public get connected(): boolean {
     return this.isConnected;
   }
@@ -26,10 +28,10 @@ class SocketServiceClass {
 
     try {
       this.socket = io(baseUrl, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionDelay: 5000,
-        reconnectionAttempts: 10,
+        reconnectionDelay: 10000,
+        reconnectionAttempts: 3,
         auth: { token },
       });
 
@@ -45,6 +47,7 @@ class SocketServiceClass {
 
     this.socket.on('connect', () => {
       this.isConnected = true;
+      this.hasLoggedSocketError = false;
       console.log('✅ Socket connected successfully to gateway');
     });
 
@@ -53,8 +56,11 @@ class SocketServiceClass {
       console.log('❌ Socket disconnected from gateway');
     });
 
-    this.socket.on('connect_error', (data) => {
-      console.warn('⚠️ Socket Connection Error:', data);
+    this.socket.on('connect_error', (_err) => {
+      if (!this.hasLoggedSocketError) {
+        console.log('ℹ️ Socket gateway offline/unreachable from mobile client. Realtime fallback enabled.');
+        this.hasLoggedSocketError = true;
+      }
     });
 
     // Custom notification events from NestJS gateway

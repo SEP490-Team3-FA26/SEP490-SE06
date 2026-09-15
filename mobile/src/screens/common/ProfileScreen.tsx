@@ -16,11 +16,12 @@ import { useAuth } from '../../context/AuthContext';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { HeaderBar } from '../../components/ui/HeaderBar';
+import { showToast } from '../../components/ui/toastHelper';
 import { USER_ROLE_LABELS } from '../../types/pharmacy.types';
 import { ApiService } from '../../services/api.service';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, logout, updateProfile, refreshUser } = useAuth();
+  const { user, logout, updateProfile, refreshUser, switchRole } = useAuth();
 
   const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
   const [name, setName] = useState<string>(user?.name || '');
@@ -38,7 +39,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   const handleSaveProfile = async () => {
     if (!name.trim()) {
-      Alert.alert('Lỗi', 'Họ tên không được để trống.');
+      showToast.error('Lỗi', 'Họ tên không được để trống.');
       return;
     }
 
@@ -48,25 +49,25 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     if (ok) {
       setEditModalVisible(false);
-      Alert.alert('Thành công', 'Thông tin cá nhân đã được cập nhật.');
+      showToast.success('Thành công', 'Thông tin cá nhân đã được cập nhật.');
     } else {
-      Alert.alert('Lỗi', 'Không thể cập nhật thông tin lúc này.');
+      showToast.error('Lỗi', 'Không thể cập nhật thông tin lúc này.');
     }
   };
 
   const handleChangePassword = async () => {
     if (!currentPw || !newPw) {
-      Alert.alert('Lỗi', 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.');
+      showToast.error('Lỗi', 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.');
       return;
     }
 
     if (newPw !== confirmPw) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không trùng khớp.');
+      showToast.error('Lỗi', 'Mật khẩu xác nhận không trùng khớp.');
       return;
     }
 
     if (newPw.length < 6) {
-      Alert.alert('Lỗi', 'Mật khẩu mới phải từ 6 ký tự trở lên.');
+      showToast.error('Lỗi', 'Mật khẩu mới phải từ 6 ký tự trở lên.');
       return;
     }
 
@@ -79,13 +80,13 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         setCurrentPw('');
         setNewPw('');
         setConfirmPw('');
-        Alert.alert('Thành công', 'Đổi mật khẩu thành công!');
+        showToast.success('Thành công', 'Đổi mật khẩu thành công!');
       } else {
-        Alert.alert('Lỗi', res.message || 'Mật khẩu hiện tại không đúng.');
+        showToast.error('Lỗi', res.message || 'Mật khẩu hiện tại không đúng.');
       }
     } catch {
       setLoadingPw(false);
-      Alert.alert('Lỗi', 'Không thể kết nối máy chủ.');
+      showToast.error('Lỗi', 'Không thể kết nối máy chủ.');
     }
   };
 
@@ -94,6 +95,15 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       { text: 'Hủy', style: 'cancel' },
       { text: 'Đăng xuất', style: 'destructive', onPress: () => logout() },
     ]);
+  };
+
+  const handleRoleSwitch = async (roleKey: any, screenName: string) => {
+    await switchRole(roleKey);
+    showToast.success(
+      'Chuyển vai trò thành công',
+      `Đã chuyển sang vai trò: ${USER_ROLE_LABELS[roleKey] || roleKey}.`
+    );
+    navigation.navigate(screenName);
   };
 
   return (
@@ -159,6 +169,73 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               <Text style={styles.infoLabel}>Địa chỉ</Text>
               <Text style={styles.infoValue}>{user?.address || 'Chưa thiết lập địa chỉ'}</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Quick Testing Role Switcher */}
+        <View style={styles.sectionCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <Ionicons name="swap-horizontal" size={20} color="#059669" style={{ marginRight: 6 }} />
+            <Text style={styles.sectionTitle}>Chuyển Đổi Nhanh Vai Trò (Testing Hub)</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
+            Chạm vào bất kỳ vai trò nào để chuyển đổi ngay và trải nghiệm toàn bộ màn hình đã chuyển giao từ Flutter:
+          </Text>
+
+          <View style={styles.roleGrid}>
+            <AnimatedTouchable
+              style={[styles.roleItem, user?.role === 'customer' && styles.activeRoleItem]}
+              onPress={() => handleRoleSwitch('customer', 'CustomerScreen')}
+            >
+              <Ionicons name="cart" size={22} color={user?.role === 'customer' ? '#059669' : '#475569'} />
+              <Text style={styles.roleItemTitle}>Khách Hàng</Text>
+              <Text style={styles.roleItemSub}>5 Tabs + PayOS</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleItem, user?.role === 'warehouse' && styles.activeRoleItem]}
+              onPress={() => handleRoleSwitch('warehouse', 'WarehouseScreen')}
+            >
+              <Ionicons name="cube" size={22} color={user?.role === 'warehouse' ? '#059669' : '#475569'} />
+              <Text style={styles.roleItemTitle}>Thủ Kho</Text>
+              <Text style={styles.roleItemSub}>5 Tabs + AI Dự Báo</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleItem, (user?.role === 'director' || user?.role === 'headBranch') && styles.activeRoleItem]}
+              onPress={() => handleRoleSwitch('director', 'DirectorScreen')}
+            >
+              <Ionicons name="business" size={22} color={(user?.role === 'director' || user?.role === 'headBranch') ? '#059669' : '#475569'} />
+              <Text style={styles.roleItemTitle}>Giám Đốc</Text>
+              <Text style={styles.roleItemSub}>AI Chuỗi & Doanh Thu</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleItem, user?.role === 'pharmacist' && styles.activeRoleItem]}
+              onPress={() => handleRoleSwitch('pharmacist', 'PharmacistScreen')}
+            >
+              <Ionicons name="medkit" size={22} color={user?.role === 'pharmacist' ? '#059669' : '#475569'} />
+              <Text style={styles.roleItemTitle}>Dược Sĩ</Text>
+              <Text style={styles.roleItemSub}>Kê Đơn Bán Lẻ OCR</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleItem, user?.role === 'branch' && styles.activeRoleItem]}
+              onPress={() => handleRoleSwitch('branch', 'BranchScreen')}
+            >
+              <Ionicons name="storefront" size={22} color={user?.role === 'branch' ? '#059669' : '#475569'} />
+              <Text style={styles.roleItemTitle}>Quản Lý</Text>
+              <Text style={styles.roleItemSub}>Chi Nhánh & Ca Trực</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleItem, user?.role === 'admin' && styles.activeRoleItem]}
+              onPress={() => handleRoleSwitch('admin', 'AdminScreen')}
+            >
+              <Ionicons name="shield-checkmark" size={22} color={user?.role === 'admin' ? '#059669' : '#475569'} />
+              <Text style={styles.roleItemTitle}>Admin</Text>
+              <Text style={styles.roleItemSub}>Hệ Thống & Logs</Text>
+            </AnimatedTouchable>
           </View>
         </View>
 
@@ -466,5 +543,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#64748B',
+  },
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  roleItem: {
+    width: '48%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  activeRoleItem: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  roleItemTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 6,
+  },
+  roleItemSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '600',
   },
 });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { showToast } from '../../components/ui/toastHelper';
 import { useAuth } from '../../context/AuthContext';
 import Animated, { 
   useSharedValue, 
@@ -80,16 +81,11 @@ export default function VerifyEmail({ navigation, route }: any) {
     const success = await verifyEmail(email.trim(), code.trim());
     
     if (success) {
-      Alert.alert(
+      showToast.success(
         'Xác thực thành công',
-        'Email của bạn đã được xác thực. Bạn có thể đăng nhập ngay bây giờ.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('Login'),
-          },
-        ]
+        'Email của bạn đã được xác thực. Bạn có thể đăng nhập ngay bây giờ.'
       );
+      navigation.replace('Login');
     }
   };
 
@@ -105,10 +101,9 @@ export default function VerifyEmail({ navigation, route }: any) {
     const success = await resendVerification(email.trim());
     
     if (success) {
-      Alert.alert(
+      showToast.success(
         'Đã gửi lại mã',
-        'Mã xác thực mới đã được gửi đến email của bạn.',
-        [{ text: 'OK' }]
+        'Mã xác thực mới đã được gửi đến email của bạn.'
       );
     }
   };

@@ -63,95 +63,7 @@ export class ApiService {
     return headers;
   }
 
-  // --- MOCK FALLBACK DATA ---
-  public static localMockMedicines: Medicine[] = [
-    {
-      id: 'MED-001',
-      name: 'Amoxicillin 500mg',
-      price: 85000,
-      unit: 'Hộp',
-      active: 'Amoxicillin',
-      category: 'Kháng sinh / Antibiotics',
-      stock: 25,
-      isRx: true,
-      batches: [
-        { batchNo: 'Lô A1', expDate: '12/12/2026', stock: 15, status: 'ACTIVE' },
-        { batchNo: 'Lô A2', expDate: '10/05/2027', stock: 10, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Điều trị các bệnh nhiễm khuẩn đường hô hấp, tai mũi họng',
-      cach_dung: 'Uống 1 viên/lần x 2-3 lần/ngày',
-      tac_dung_phu: 'Dị ứng, buồn nôn, tiêu chảy',
-      luu_y: 'Chống chỉ định người mẫn cảm với Penicillin',
-      manufacturer: 'Dược Hậu Giang',
-    },
-    {
-      id: 'MED-002',
-      name: 'Panadol Extra',
-      price: 45000,
-      unit: 'Hộp',
-      active: 'Paracetamol + Caffeine',
-      category: 'Giảm đau / Giảm sốt',
-      stock: 100,
-      isRx: false,
-      batches: [
-        { batchNo: 'Lô B1', expDate: '25/08/2026', stock: 100, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Giảm các cơn đau nhẹ đến vừa như đau đầu, đau nửa đầu, đau cơ',
-      cach_dung: '1-2 viên mỗi 4-6 giờ khi cần, tối đa 8 viên/ngày',
-      tac_dung_phu: 'Mất ngủ nếu uống ban đêm',
-      luu_y: 'Thận trọng với người suy gan nặng',
-      manufacturer: 'GSK',
-    },
-    {
-      id: 'MED-003',
-      name: 'Decolgen Forte',
-      price: 38000,
-      unit: 'Vỉ',
-      active: 'Acetaminophen + Phenylephrine',
-      category: 'Hô hấp / Cough & Cold',
-      stock: 50,
-      isRx: false,
-      batches: [
-        { batchNo: 'Lô C1', expDate: '11/11/2026', stock: 50, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Điều trị cảm cúm, sổ mũi, nghẹt mũi, sốt',
-      cach_dung: '1 viên/lần x 3-4 lần/ngày',
-      tac_dung_phu: 'Khô miệng, buồn ngủ nhẹ',
-      manufacturer: 'United Pharma',
-    },
-    {
-      id: 'MED-004',
-      name: 'Cefuroxim 500mg',
-      price: 120000,
-      unit: 'Hộp',
-      active: 'Cefuroxim',
-      category: 'Kháng sinh / Antibiotics',
-      stock: 12,
-      isRx: true,
-      batches: [
-        { batchNo: 'Lô D1', expDate: '20/09/2026', stock: 12, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Kháng sinh nhóm Cephalosporin thế hệ 2',
-      cach_dung: 'Uống sau bữa ăn, 1 viên x 2 lần/ngày',
-      manufacturer: 'Dược TW1',
-    },
-    {
-      id: 'MED-005',
-      name: 'Strepsils Cool',
-      price: 32000,
-      unit: 'Hộp',
-      active: 'Dichlorobenzyl Alcohol',
-      category: 'Hô hấp / Cough & Cold',
-      stock: 40,
-      isRx: false,
-      batches: [
-        { batchNo: 'Lô E1', expDate: '01/01/2027', stock: 40, status: 'ACTIVE' },
-      ],
-      cong_dung: 'Làm dịu cơn đau họng tức thì',
-      cach_dung: 'Ngậm 1 viên mỗi 2-3 giờ',
-      manufacturer: 'Reckitt Benckiser',
-    },
-  ];
+
 
   public static mapMedicine(m: any): Medicine {
     const activeIng = m.active_ingredient || m.active || 'N/A';
@@ -170,6 +82,23 @@ export class ApiService {
       }));
     }
 
+    const defaultMedImages: Record<string, string> = {
+      'Kháng sinh': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+      'Giảm đau': 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=80',
+      'Hô hấp': 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
+      'Tiêu hóa': 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
+      'Vitamin': 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=80',
+    };
+
+    let resolvedImage = m.image || m.image_url || '';
+    if (!resolvedImage || String(resolvedImage).trim().length === 0) {
+      const cat = m.category || '';
+      const matchedKey = Object.keys(defaultMedImages).find((k) => cat.includes(k));
+      resolvedImage = matchedKey
+        ? defaultMedImages[matchedKey]
+        : 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80';
+    }
+
     return {
       id: m.id || m._id || '',
       _id: m._id || m.id,
@@ -182,8 +111,9 @@ export class ApiService {
       stock: typeof m.stock === 'number' ? m.stock : parseInt(m.stock, 10) || 0,
       isRx,
       batches: batchesList,
-      image: m.image || m.image_url || '',
-      images: Array.isArray(m.images) ? m.images : [],
+      image: resolvedImage,
+      image_url: resolvedImage,
+      images: Array.isArray(m.images) && m.images.length > 0 ? m.images : [resolvedImage],
       cong_dung: m.cong_dung || m.indications || 'N/A',
       indications: m.indications || m.cong_dung || 'N/A',
       cach_dung: m.cach_dung || m.default_dosage || 'N/A',
@@ -407,7 +337,7 @@ export class ApiService {
     indication?: string;
   }): Promise<Medicine[]> {
     const page = params?.page || 1;
-    const limit = params?.limit || 20;
+    const limit = params?.limit || 50;
     const search = encodeURIComponent(params?.search || '');
     const category = encodeURIComponent(params?.category || '');
     const classification = encodeURIComponent(params?.classification || '');
@@ -421,14 +351,12 @@ export class ApiService {
       if (res.ok) {
         const json = await res.json();
         const dataList = json.data || json.medicines || (Array.isArray(json) ? json : []);
-        if (dataList.length > 0) {
-          return dataList.map(this.mapMedicine);
-        }
+        return dataList.map((m: any) => ApiService.mapMedicine(m));
       }
     } catch (e) {
-      console.warn('API getMedicines offline/error, falling back to mock:', e);
+      console.warn('API getMedicines offline/error:', e);
     }
-    return this.localMockMedicines;
+    return [];
   }
 
   public static async getMedicineById(id: string): Promise<Medicine | null> {
@@ -438,12 +366,12 @@ export class ApiService {
       });
       if (res.ok) {
         const json = await res.json();
-        return this.mapMedicine(json.data || json);
+        return ApiService.mapMedicine(json.data || json);
       }
     } catch (e) {
       console.warn('Failed to fetch medicine by ID:', e);
     }
-    return this.localMockMedicines.find((m) => m.id === id) || null;
+    return null;
   }
 
   public static async checkInteractions(medicineNames: string[]): Promise<any> {
@@ -679,7 +607,12 @@ export class ApiService {
       });
       if (res.ok) {
         const decoded = await res.json();
-        return Array.isArray(decoded) ? decoded : decoded?.data || [];
+        const rawList = Array.isArray(decoded) ? decoded : decoded?.data || [];
+        return rawList.map((ord: any, idx: number) => ({
+          ...ord,
+          id: ord.id || ord._id || ord.orderCode || `order-${idx}`,
+          _id: ord._id || ord.id || ord.orderCode || `order-${idx}`,
+        }));
       }
     } catch (e) {
       console.warn('Failed to fetch my orders:', e);
@@ -695,7 +628,12 @@ export class ApiService {
       });
       if (res.ok) {
         const decoded = await res.json();
-        return Array.isArray(decoded) ? decoded : decoded?.data || [];
+        const rawList = Array.isArray(decoded) ? decoded : decoded?.data || [];
+        return rawList.map((item: any, idx: number) => ({
+          ...item,
+          id: item.id || item._id || item.code || `voucher-${idx}`,
+          _id: item._id || item.id || item.code || `voucher-${idx}`,
+        }));
       }
     } catch (e) {
       console.warn('Failed to fetch vouchers:', e);
@@ -769,17 +707,50 @@ export class ApiService {
     return null;
   }
 
-  public static async scanPrescriptionAI(formData: FormData): Promise<any> {
-    const headers: Record<string, string> = {};
-    if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
-
+  public static async scanPrescriptionAI(imageUri: string, branchId = 'CENTRAL_WH'): Promise<any> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/ai/scan-prescription`, {
+      const formData = new FormData();
+      const filename = imageUri.split('/').pop() || 'prescription.jpg';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+      const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+      const fileObj = {
+        uri: imageUri,
+        name: filename,
+        type,
+      } as any;
+
+      formData.append('images', fileObj);
+      formData.append('file', fileObj);
+      formData.append('branch_id', branchId);
+
+      const headers: Record<string, string> = {
+        'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
+      };
+      if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
+
+      // 1. Try API Gateway first
+      try {
+        const res = await fetch(`${this.baseUrl}/api/prescriptions/scan-ai`, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data?.data || data;
+        }
+      } catch (_) {}
+
+      // 2. Direct AI Service fallback
+      const directRes = await fetch(`${this.aiBaseUrl}/api/ai/scan-prescription`, {
         method: 'POST',
         headers,
         body: formData,
       });
-      if (res.ok) return await res.json();
+      if (directRes.ok) {
+        return await directRes.json();
+      }
     } catch (e) {
       console.warn('Failed to scan prescription AI:', e);
     }
@@ -897,33 +868,107 @@ export class ApiService {
     }
     return [
       {
-        id: 'GRN-2026-001',
-        poNumber: 'PO-88231',
-        supplier: 'Dược Hậu Giang',
-        receivedDate: '2026-08-28',
+        id: 'GRN-2026-881',
+        poNumber: 'PO-2026-01',
+        supplier: 'Công ty Cổ phần Dược Hậu Giang (DHG)',
+        receivedDate: '2026-09-12',
+        status: 'INSPECTING',
+        items: [
+          {
+            name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu (15 gói x 2 miếng)',
+            expected: 150,
+            actual: 0,
+            unit: 'Hộp',
+            status: 'PENDING',
+            batchNo: 'B007-HIS',
+            expDate: '2027-02-03',
+            image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg',
+          },
+          {
+            name: 'Miếng dán Tiger Balm Plaster - RD Haw Par giảm mỏi cơ (7cm x 10cm)',
+            expected: 100,
+            actual: 0,
+            unit: 'Hộp',
+            status: 'PENDING',
+            batchNo: 'TB-2026-08',
+            expDate: '2027-11-20',
+            image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/00500745_tiger_balm_plaster_rd_7x10cm_4417_62bd_large_4776af9b3f.jpg',
+          },
+        ],
+      },
+      {
+        id: 'GRN-2026-882',
+        poNumber: 'PO-2026-02',
+        supplier: 'Hisamitsu Pharmaceutical Việt Nam',
+        receivedDate: '2026-09-11',
         status: 'PENDING_APPROVAL',
         items: [
-          { name: 'Amoxicillin 500mg', expected: 500, actual: 500, unit: 'Hộp', status: 'VERIFIED' },
-          { name: 'Decolgen Forte', expected: 300, actual: 300, unit: 'Vỉ', status: 'VERIFIED' },
+          {
+            name: 'Cao dán Salonsip Gel - Patch Hisamitsu giảm đau mỏi cơ (8 gói x 3 miếng)',
+            expected: 80,
+            actual: 80,
+            unit: 'Hộp',
+            status: 'VERIFIED',
+            batchNo: 'SLS-2026-04',
+            expDate: '2027-08-15',
+            image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_00638_2f20f0ff6a.jpg',
+          },
         ],
       },
     ];
   }
 
-  public static async inspectReceiptItemAI(receiptId: string, receiptItemId: string, formData: FormData): Promise<any> {
-    const headers: Record<string, string> = {
-      ...this.authHeaders,
-      'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
-    };
-    delete (headers as any)['Content-Type'];
-
+  public static async inspectReceiptItemAI(
+    receiptId: string,
+    receiptItemId: string,
+    imageInput: string | FormData
+  ): Promise<any> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspect-ai`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-      if (res.ok) return await res.json();
+      let formData: FormData;
+      if (typeof imageInput === 'string') {
+        formData = new FormData();
+        const filename = imageInput.split('/').pop() || 'package.jpg';
+        const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+        const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+        formData.append('file', {
+          uri: imageInput,
+          name: filename,
+          type,
+        } as any);
+      } else {
+        formData = imageInput;
+      }
+
+      const headers: Record<string, string> = {
+        'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
+      };
+      if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
+
+      // 1. Call AI Service directly on /api/ai/receipts/{receiptId}/items/{receiptItemId}/inspection
+      try {
+        const res = await fetch(
+          `${this.aiBaseUrl}/api/ai/receipts/${receiptId}/items/${receiptItemId}/inspection`,
+          {
+            method: 'POST',
+            headers,
+            body: formData,
+          }
+        );
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (_) {}
+
+      // 2. Fallback to API Gateway inspection endpoint
+      const gwRes = await fetch(
+        `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
+        {
+          headers,
+        }
+      );
+      if (gwRes.ok) {
+        return await gwRes.json();
+      }
     } catch (e) {
       console.warn('Failed AI inspection of receipt item:', e);
     }
