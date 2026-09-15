@@ -27,14 +27,22 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('user');
-      localStorage.removeItem('branchId');
-      localStorage.removeItem('branchName');
-      notifyAuthTokenChanged();
-      // Redirect to login page if the user is not already there
-      if (!window.location.pathname.startsWith('/auth/login') && !window.location.pathname.startsWith('/login')) {
+      const isAuthRequest = error.config?.url?.includes('/api/auth/login') || error.config?.url?.includes('/api/auth/register');
+      const isPublicPath = typeof window !== 'undefined' && (
+        window.location.pathname === '/' ||
+        window.location.pathname.startsWith('/auth/') ||
+        window.location.pathname.startsWith('/login') ||
+        window.location.pathname.startsWith('/interactions')
+      );
+
+      // Only perform auto-logout if it's NOT an auth attempt and NOT on a public page
+      if (!isAuthRequest && !isPublicPath) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('user');
+        localStorage.removeItem('branchId');
+        localStorage.removeItem('branchName');
+        notifyAuthTokenChanged();
         window.location.href = '/auth/login?sessionExpired=true';
       }
     }

@@ -302,6 +302,12 @@ export class AppGatewayModule implements OnModuleInit {
       'user.cart.update',
       'user.cart.delete',
       'user.cart.clear',
+      'user.loyalty.get',
+      'user.loyalty.lookup',
+      'user.loyalty.update_points',
+      'user.audit.list',
+      'user.audit.export',
+      'user.audit.export_status',
       'user.branch.list',
       'user.branch.create',
       'user.branch.update',
@@ -311,6 +317,8 @@ export class AppGatewayModule implements OnModuleInit {
       'user.admin.employee.get',
       'user.admin.employee.update',
       'user.admin.employee.ban_unban',
+      'user.admin.employee.delete',
+      'user.admin.employee.approve',
     ];
 
     // 4. ORDER_SERVICE Reply Topics
