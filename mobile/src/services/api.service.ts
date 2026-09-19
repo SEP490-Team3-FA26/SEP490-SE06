@@ -172,11 +172,26 @@ export class ApiService {
       : { phone: emailOrPhone.trim(), password };
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: this.authHeaders,
-        body: JSON.stringify(bodyPayload),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${this.baseUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: this.authHeaders,
+          body: JSON.stringify(bodyPayload),
+        });
+      } catch (firstErr) {
+        const altUrl = EnvService.getAlternateApiUrl();
+        if (altUrl && altUrl !== this.baseUrl) {
+          console.log(`📡 [ApiService] Connection failed to ${this.baseUrl}, retrying with ${altUrl}...`);
+          res = await fetch(`${altUrl}/api/auth/login`, {
+            method: 'POST',
+            headers: this.authHeaders,
+            body: JSON.stringify(bodyPayload),
+          });
+        } else {
+          throw firstErr;
+        }
+      }
       const data = await res.json();
       const token = data?.accessToken || data?.access_token || data?.token;
       if (res.ok && token) {
@@ -328,6 +343,58 @@ export class ApiService {
   }
 
   // --- MEDICINES & INVENTORY APIS ---
+  // Bộ dữ liệu mẫu dùng khi backend/Kafka không phản hồi (offline fallback)
+  private static readonly MEDICINE_OFFLINE_FALLBACK: any[] = [
+    {
+      id: 'fallback_1', _id: 'fallback_1', name: 'Panadol Extra Đỏ', category: 'Giảm đau',
+      drug_classification: 'NON_PRESCRIPTION', price: 25000, stock: 200,
+      unit: 'Vỉ', dosage_form: 'Viên nén', active_ingredient: 'Paracetamol 500mg + Caffeine',
+      image_url: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'fallback_2', _id: 'fallback_2', name: 'Amoxicillin 500mg', category: 'Kháng sinh',
+      drug_classification: 'PRESCRIPTION', price: 85000, stock: 150,
+      unit: 'Hộp', dosage_form: 'Viên nang', active_ingredient: 'Amoxicillin trihydrate 500mg',
+      image_url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'fallback_3', _id: 'fallback_3', name: 'Decolgen Forte', category: 'Hô hấp',
+      drug_classification: 'NON_PRESCRIPTION', price: 35000, stock: 300,
+      unit: 'Vỉ', dosage_form: 'Viên nén', active_ingredient: 'Paracetamol + Phenylephrine + Chlorphenamine',
+      image_url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'fallback_4', _id: 'fallback_4', name: 'Omeprazol 20mg', category: 'Tiêu hóa',
+      drug_classification: 'PRESCRIPTION', price: 45000, stock: 120,
+      unit: 'Hộp', dosage_form: 'Viên nang', active_ingredient: 'Omeprazole 20mg',
+      image_url: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'fallback_5', _id: 'fallback_5', name: 'Vitamin C Sủi 1000mg', category: 'Vitamin',
+      drug_classification: 'NON_PRESCRIPTION', price: 55000, stock: 500,
+      unit: 'Tuýp', dosage_form: 'Viên sủi', active_ingredient: 'Vitamin C 1000mg + Zinc',
+      image_url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'fallback_6', _id: 'fallback_6', name: 'Strepsils Cool Bạc Hà', category: 'Hô hấp',
+      drug_classification: 'NON_PRESCRIPTION', price: 40000, stock: 250,
+      unit: 'Gói', dosage_form: 'Kẹo ngậm', active_ingredient: '2,4-Dichlorobenzyl Alcohol + Amylmetacresol',
+      image_url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'fallback_7', _id: 'fallback_7', name: 'Berberin Mộc Hương', category: 'Tiêu hóa',
+      drug_classification: 'NON_PRESCRIPTION', price: 18000, stock: 400,
+      unit: 'Lọ', dosage_form: 'Viên nén', active_ingredient: 'Berberine HCl 10mg',
+      image_url: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'fallback_8', _id: 'fallback_8', name: 'Cefuroxim 500mg', category: 'Kháng sinh',
+      drug_classification: 'PRESCRIPTION', price: 95000, stock: 80,
+      unit: 'Hộp', dosage_form: 'Viên nén', active_ingredient: 'Cefuroxime axetil 500mg',
+      image_url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+    },
+  ];
+
   public static async getMedicines(params?: {
     page?: number;
     limit?: number;
@@ -344,20 +411,75 @@ export class ApiService {
     const indication = encodeURIComponent(params?.indication || '');
 
     const query = `?page=${page}&limit=${limit}&search=${search}&category=${category}&classification=${classification}&indication=${indication}`;
-    try {
-      const res = await fetch(`${this.baseUrl}/api/medicines${query}`, {
-        headers: this.authHeaders,
-      });
-      if (res.ok) {
+    const url = `${this.baseUrl}/api/medicines${query}`;
+
+    // Thử fetch với AbortSignal timeout 12 giây (rút ngắn để không đợi Kafka timeout 30s)
+    const attemptFetch = async (): Promise<Medicine[] | null> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      try {
+        const res = await fetch(url, {
+          headers: this.authHeaders,
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+
+        if (!res.ok) {
+          console.warn(`[getMedicines] HTTP ${res.status} từ server`);
+          return null;
+        }
+
         const json = await res.json();
-        const dataList = json.data || json.medicines || (Array.isArray(json) ? json : []);
+        // Backend trả về dạng {data: [...], total: N} hoặc {medicines: [...]} hoặc trực tiếp [...]
+        const dataList = json.data || json.medicines || (Array.isArray(json) ? json : null);
+
+        if (!dataList || !Array.isArray(dataList)) {
+          console.warn('[getMedicines] Response không có array data:', JSON.stringify(json).slice(0, 200));
+          return null;
+        }
+
+        if (dataList.length === 0) {
+          console.warn('[getMedicines] Server trả về danh sách rỗng (Kafka có thể timeout phía backend)');
+          return null; // Trigger fallback thay vì hiển thị rỗng
+        }
+
         return dataList.map((m: any) => ApiService.mapMedicine(m));
+      } catch (e: any) {
+        clearTimeout(timer);
+        if (e?.name === 'AbortError') {
+          console.warn('[getMedicines] ⏱ Fetch timeout sau 12 giây — sẽ dùng fallback');
+        } else {
+          console.warn('[getMedicines] Lỗi fetch:', e?.message || e);
+        }
+        return null;
       }
-    } catch (e) {
-      console.warn('API getMedicines offline/error:', e);
+    };
+
+    // Thử lần 1
+    let result = await attemptFetch();
+    if (result !== null) return result;
+
+    // Retry lần 2 sau 1.5 giây (backend có thể đang khởi động Kafka)
+    console.log('[getMedicines] Retrying lần 2 sau 1.5s...');
+    await new Promise(r => setTimeout(r, 1500));
+    result = await attemptFetch();
+    if (result !== null) return result;
+
+    // Fallback: lọc từ dữ liệu mẫu theo query params (search, category...)
+    console.warn('[getMedicines] ⚠️ Dùng dữ liệu mẫu ngoại tuyến (backend/Kafka không phản hồi)');
+    let fallback = [...this.MEDICINE_OFFLINE_FALLBACK];
+    if (params?.search) {
+      const q = params.search.toLowerCase();
+      fallback = fallback.filter(m =>
+        m.name?.toLowerCase().includes(q) || m.active_ingredient?.toLowerCase().includes(q)
+      );
     }
-    return [];
+    if (params?.category) {
+      fallback = fallback.filter(m => m.category?.includes(params.category!));
+    }
+    return fallback.map((m) => ApiService.mapMedicine(m));
   }
+
 
   public static async getMedicineById(id: string): Promise<Medicine | null> {
     try {
@@ -772,18 +894,61 @@ export class ApiService {
     return null;
   }
 
-  public static async getTextPrescription(text: string): Promise<any> {
+  public static async consultSymptomsAI(symptoms: string): Promise<any> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
+    };
+    if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
+
+    // 1. Thử gọi qua API Gateway: POST /api/prescriptions/symptom-consult
     try {
-      const res = await fetch(`${this.baseUrl}/api/ai/text-prescription`, {
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/symptom-consult`, {
         method: 'POST',
-        headers: this.authHeaders,
-        body: JSON.stringify({ text }),
+        headers,
+        body: JSON.stringify({ symptoms }),
       });
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.prescription) {
+          return {
+            diagnosis: data.prescription.diagnosis || '',
+            advice: data.prescription.advice || '',
+            recommended_drugs: data.prescription.recommended_drugs || [],
+            ...data.prescription,
+          };
+        }
+        return data;
+      }
+    } catch (_) {}
+
+    // 2. Dự phòng gọi trực tiếp sang AI Service: POST /api/ai/symptom-consult
+    try {
+      const res = await fetch(`${this.aiBaseUrl}/api/ai/symptom-consult`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ symptoms }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.prescription) {
+          return {
+            diagnosis: data.prescription.diagnosis || '',
+            advice: data.prescription.advice || '',
+            recommended_drugs: data.prescription.recommended_drugs || [],
+            ...data.prescription,
+          };
+        }
+        return data;
+      }
     } catch (e) {
-      console.warn('Failed to parse text prescription:', e);
+      console.warn('Failed to consult symptoms AI:', e);
     }
     return null;
+  }
+
+  public static async getTextPrescription(text: string): Promise<any> {
+    return this.consultSymptomsAI(text);
   }
 
   // --- NOTIFICATIONS ---

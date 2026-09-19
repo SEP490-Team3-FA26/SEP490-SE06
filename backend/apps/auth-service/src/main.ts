@@ -6,6 +6,13 @@ import * as bcrypt from 'bcryptjs';
 import { AuthServiceAppModule } from './app.module';
 import { User, UserRole } from './auth/user.schema';
 
+process.on('unhandledRejection', (reason) => {
+  console.warn('⚠️ [Auth MS] Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ [Auth MS] Uncaught Exception:', err);
+});
+
 async function bootstrap() {
   process.env.KAFKAJS_NO_PARTITIONER_WARNING = '1';
   let retries = 10;

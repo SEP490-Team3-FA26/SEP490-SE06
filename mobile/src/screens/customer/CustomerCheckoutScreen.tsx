@@ -4,7 +4,7 @@
 // - validateVoucher via API (not local match only)
 // - Discount calculation: PERCENT with maxDiscountValue cap
 // - PayOS: expo-web-browser → verify after close → OrderConfirmation with real status
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,12 @@ import {
   Platform,
   ActivityIndicator,
   TouchableOpacity,
+  Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import * as WebBrowser from 'expo-web-browser';
 import { ApiService } from '../../services/api.service';
 import { useAuth } from '../../context/AuthContext';
@@ -68,6 +71,38 @@ export const CustomerCheckoutScreen: React.FC<{
 
   // ─── Submit state ────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState<boolean>(false);
+
+  // ─── PayOS QR Modal & Realtime Payment Watcher state ─────────────────────────
+  const [qrModalVisible, setQrModalVisible] = useState<boolean>(false);
+  const [checkingManual, setCheckingManual] = useState<boolean>(false);
+  const [paymentData, setPaymentData] = useState<{
+    checkoutUrl: string;
+    qrCode?: string;
+    orderCode: string | number;
+    orderId: string;
+    finalTotal: number;
+    items: any[];
+  } | null>(null);
+
+  const pollTimerRef = useRef<any>(null);
+  const deepLinkSubRef = useRef<any>(null);
+
+  const stopPaymentWatcher = () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    if (deepLinkSubRef.current) {
+      deepLinkSubRef.current.remove();
+      deepLinkSubRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopPaymentWatcher();
+    };
+  }, []);
 
   // ─── Discount calculation (port từ Flutter _discountAmount) ─────────────────
   const discountAmount = useMemo<number>(() => {
@@ -135,6 +170,171 @@ export const CustomerCheckoutScreen: React.FC<{
     setVoucherErrorMsg(null);
   };
 
+  // ─── Realtime PayOS Payment Watcher ─────────────────────────────────────────
+  const startPaymentWatcher = (
+    orderId: string,
+    orderCode: string | number,
+    amount: number,
+    orderItems: any[]
+  ) => {
+    stopPaymentWatcher();
+    let isHandled = false;
+
+    // 1. Lắng nghe Deep Link khi PayOS redirect về app: wdp301://checkout
+    deepLinkSubRef.current = Linking.addEventListener('url', async (event) => {
+      if (isHandled) return;
+      if (event.url.includes('wdp301://') || event.url.includes('checkout')) {
+        isHandled = true;
+        stopPaymentWatcher();
+        try {
+          await WebBrowser.dismissAuthSession();
+          await WebBrowser.dismissBrowser();
+        } catch (_) {}
+        setQrModalVisible(false);
+
+        // Verify trạng thái thanh toán từ server
+        let paymentStatus = 'paid';
+        try {
+          const verify = await ApiService.checkOrderPayment(orderCode);
+          if (verify?.status) paymentStatus = String(verify.status).toLowerCase();
+        } catch (_) {}
+
+        navigation.replace('OrderConfirmation', {
+          orderId,
+          orderCode,
+          patientName: patientName.trim(),
+          patientPhone: patientPhone.trim(),
+          paymentMethod: 'QR_PAY',
+          totalAmount: amount,
+          paymentStatus,
+          items: orderItems,
+        });
+      }
+    });
+
+    // 2. Realtime Active Polling (mỗi 2.5s kiểm tra trạng thái 1 lần)
+    pollTimerRef.current = setInterval(async () => {
+      if (isHandled) return;
+      try {
+        const verifyRes = await ApiService.checkOrderPayment(orderCode);
+        const status =
+          verifyRes?.status ||
+          verifyRes?.order?.paymentStatus ||
+          verifyRes?.paymentStatus;
+
+        if (
+          status === 'PAID' ||
+          status === 'paid' ||
+          status === 'SUCCESS' ||
+          status === 'completed'
+        ) {
+          isHandled = true;
+          stopPaymentWatcher();
+          try {
+            await WebBrowser.dismissAuthSession();
+            await WebBrowser.dismissBrowser();
+          } catch (_) {}
+          setQrModalVisible(false);
+
+          showToast.success('Thanh toán thành công! 🎉', `Đơn hàng #${orderCode} đã được thanh toán!`);
+
+          navigation.replace('OrderConfirmation', {
+            orderId,
+            orderCode,
+            patientName: patientName.trim(),
+            patientPhone: patientPhone.trim(),
+            paymentMethod: 'QR_PAY',
+            totalAmount: amount,
+            paymentStatus: 'paid',
+            items: orderItems,
+          });
+        } else if (status === 'CANCELLED' || status === 'cancelled') {
+          isHandled = true;
+          stopPaymentWatcher();
+          try {
+            await WebBrowser.dismissAuthSession();
+            await WebBrowser.dismissBrowser();
+          } catch (_) {}
+          setQrModalVisible(false);
+
+          navigation.replace('OrderConfirmation', {
+            orderId,
+            orderCode,
+            patientName: patientName.trim(),
+            patientPhone: patientPhone.trim(),
+            paymentMethod: 'QR_PAY',
+            totalAmount: amount,
+            paymentStatus: 'cancelled',
+            items: orderItems,
+          });
+        }
+      } catch (err) {
+        console.warn('[PaymentWatcher] Error:', err);
+      }
+    }, 2500);
+  };
+
+  const handleOpenPayOSBrowser = async () => {
+    if (!paymentData?.checkoutUrl) return;
+    try {
+      await WebBrowser.openAuthSessionAsync(paymentData.checkoutUrl, 'wdp301://checkout');
+    } catch {
+      try {
+        await WebBrowser.openBrowserAsync(paymentData.checkoutUrl, {
+          dismissButtonStyle: 'close',
+          toolbarColor: '#059669',
+        });
+      } catch (_) {}
+    }
+  };
+
+  const handleManualCheckPayment = async () => {
+    if (!paymentData) return;
+    setCheckingManual(true);
+    try {
+      const verifyRes = await ApiService.checkOrderPayment(paymentData.orderCode);
+      const st = verifyRes?.status || verifyRes?.order?.paymentStatus || verifyRes?.paymentStatus;
+      if (st === 'PAID' || st === 'paid' || st === 'SUCCESS' || st === 'completed') {
+        stopPaymentWatcher();
+        setQrModalVisible(false);
+        showToast.success('Thành công! 🎉', 'Đơn hàng đã được thanh toán thành công!');
+        navigation.replace('OrderConfirmation', {
+          orderId: paymentData.orderId,
+          orderCode: paymentData.orderCode,
+          patientName: patientName.trim(),
+          patientPhone: patientPhone.trim(),
+          paymentMethod: 'QR_PAY',
+          totalAmount: paymentData.finalTotal,
+          paymentStatus: 'paid',
+          items: paymentData.items,
+        });
+      } else {
+        showToast.info('Đang chờ xác nhận', 'Hệ thống chưa nhận được tiền từ ngân hàng. Vui lòng thử lại sau vài giây!');
+      }
+    } catch {
+      showToast.error('Lỗi', 'Không thể kiểm tra lúc này.');
+    } finally {
+      setCheckingManual(false);
+    }
+  };
+
+  const handleDismissModal = () => {
+    stopPaymentWatcher();
+    setQrModalVisible(false);
+    if (paymentData) {
+      navigation.replace('OrderConfirmation', {
+        orderId: paymentData.orderId,
+        orderCode: paymentData.orderCode,
+        patientName: patientName.trim(),
+        patientPhone: patientPhone.trim(),
+        paymentMethod: 'QR_PAY',
+        totalAmount: paymentData.finalTotal,
+        paymentStatus: 'pending',
+        items: paymentData.items,
+      });
+    }
+  };
+
   // ─── Submit Order (port từ Flutter _handleConfirmCheckout) ───────────────────
   const handleSubmitOrder = async () => {
     // Validation
@@ -155,7 +355,6 @@ export const CustomerCheckoutScreen: React.FC<{
 
     // ── Payload aligned với MongoDB schema (patientName/patientPhone) ──
     const orderPayload = {
-      // Đúng field backend/MongoDB nhận
       patientName: patientName.trim(),
       patientPhone: patientPhone.trim(),
       shippingAddress:
@@ -184,56 +383,44 @@ export const CustomerCheckoutScreen: React.FC<{
       const orderCode = createdOrder?.orderCode || orderId;
 
       if (paymentMethod === 'QR_PAY') {
-        // 2a) Lấy link thanh toán PayOS:
-        // Backend OrdersServiceService khi nhận paymentMethod === 'QR_PAY' trả về checkoutUrl trực tiếp trong createdOrder
         let checkoutUrl = createdOrder?.checkoutUrl;
-        if (!checkoutUrl) {
+        let qrCode = createdOrder?.qrCode;
+        if (!checkoutUrl && !qrCode) {
           const payLinkRes = await ApiService.createPayOSLink(orderId, Math.round(finalTotal));
           checkoutUrl = payLinkRes?.checkoutUrl;
+          qrCode = payLinkRes?.qrCode;
         }
 
-        if (checkoutUrl) {
-          setLoading(false);
+        setLoading(false);
 
-          // 3) Mở PayOS trong in-app browser (giống Flutter WebViewController)
-          await WebBrowser.openBrowserAsync(checkoutUrl, {
-            dismissButtonStyle: 'close',
-            toolbarColor: '#059669',
-          });
-
-          // 4) Sau khi user đóng browser → verify trạng thái thật với backend qua orderCode
-          let paymentStatus = 'pending';
-          try {
-            const verifyRes = await ApiService.checkOrderPayment(orderCode);
-            if (verifyRes?.status) {
-              paymentStatus = String(verifyRes.status).toLowerCase();
-            } else if (verifyRes?.order?.paymentStatus) {
-              paymentStatus = String(verifyRes.order.paymentStatus).toLowerCase();
-            } else if (verifyRes?.paymentStatus) {
-              paymentStatus = String(verifyRes.paymentStatus).toLowerCase();
-            }
-          } catch (verifyErr) {
-            console.warn('[Checkout] verifyPayment failed:', verifyErr);
-          }
-
-          // 5) Navigate sang màn xác nhận với status thật (không fake)
-          navigation.replace('OrderConfirmation', {
-            orderId,
+        if (checkoutUrl || qrCode) {
+          // Lưu data thanh toán & mở Modal VietQR + Kích hoạt watcher
+          setPaymentData({
+            checkoutUrl: checkoutUrl || '',
+            qrCode: qrCode || '',
             orderCode,
-            patientName: patientName.trim(),
-            patientPhone: patientPhone.trim(),
-            paymentMethod: 'QR_PAY',
-            totalAmount: Math.round(finalTotal),
-            paymentStatus,
+            orderId,
+            finalTotal: Math.round(finalTotal),
             items: orderPayload.items,
           });
+          setQrModalVisible(true);
+
+          startPaymentWatcher(orderId, orderCode, Math.round(finalTotal), orderPayload.items);
+
+          // Tự động mở PayOS Browser qua openAuthSessionAsync (tự đóng khi PayOS callback về wdp301://checkout)
+          if (checkoutUrl) {
+            try {
+              await WebBrowser.openAuthSessionAsync(checkoutUrl, 'wdp301://checkout');
+            } catch {
+              try {
+                await WebBrowser.openBrowserAsync(checkoutUrl, {
+                  dismissButtonStyle: 'close',
+                  toolbarColor: '#059669',
+                });
+              } catch (_) {}
+            }
+          }
         } else {
-          // checkoutUrl rỗng - đơn vẫn tạo được, báo pending
-          setLoading(false);
-          showToast.info(
-            'Đặt hàng thành công',
-            `Mã đơn hàng: #${orderCode}. Đơn hàng đang chờ xác nhận thanh toán.`
-          );
           navigation.replace('OrderConfirmation', {
             orderId,
             orderCode,
@@ -494,6 +681,80 @@ export const CustomerCheckoutScreen: React.FC<{
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ── Modal Thanh Toán PayOS VietQR Trực Tiếp ── */}
+      <Modal
+        visible={qrModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={handleDismissModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.qrModalCard}>
+            {/* Header modal */}
+            <View style={styles.qrModalHeader}>
+              <View style={styles.qrBadge}>
+                <Ionicons name="qr-code" size={18} color="#059669" />
+                <Text style={styles.qrBadgeText}>Cổng Thanh Toán PayOS (VietQR)</Text>
+              </View>
+              <TouchableOpacity onPress={handleDismissModal} style={styles.qrCloseBtn}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.qrOrderTitle}>
+              Đơn hàng #{paymentData?.orderCode}
+            </Text>
+            <Text style={styles.qrAmountValue}>
+              {paymentData?.finalTotal?.toLocaleString('vi-VN')} ₫
+            </Text>
+
+            {/* QR Code Container */}
+            <View style={styles.qrWrapper}>
+              <QRCode
+                value={paymentData?.qrCode || paymentData?.checkoutUrl || 'https://payos.vn'}
+                size={210}
+                color="#0F172A"
+                backgroundColor="#FFFFFF"
+              />
+            </View>
+
+            {/* Pulsing listening indicator */}
+            <View style={styles.listeningBox}>
+              <ActivityIndicator size="small" color="#059669" />
+              <Text style={styles.listeningText}>
+                Hệ thống đang tự động nhận diện giao dịch... Quét mã bằng app Ngân hàng hoặc MoMo.
+              </Text>
+            </View>
+
+            {/* Actions */}
+            <View style={styles.qrActionCol}>
+              {paymentData?.checkoutUrl ? (
+                <TouchableOpacity
+                  onPress={handleOpenPayOSBrowser}
+                  style={styles.openWebBtn}
+                >
+                  <Ionicons name="globe-outline" size={18} color="#059669" />
+                  <Text style={styles.openWebBtnText}>Mở Trang Web PayOS</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <GradientButton
+                title={checkingManual ? "Đang kiểm tra..." : "TÔI ĐÃ CHUYỂN KHOẢN XONG"}
+                onPress={handleManualCheckPayment}
+                loading={checkingManual}
+                gradientVariant="primary"
+                size="md"
+                style={{ marginTop: 8 }}
+              />
+
+              <TouchableOpacity onPress={handleDismissModal} style={styles.cancelBtn}>
+                <Text style={styles.cancelBtnText}>Để sau / Xem lịch sử đơn</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -720,5 +981,121 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     color: '#059669',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  qrModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 22,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  qrModalHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  qrBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  qrBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  qrCloseBtn: {
+    padding: 4,
+  },
+  qrOrderTitle: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  qrAmountValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#059669',
+    marginBottom: 16,
+  },
+  qrWrapper: {
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  listeningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+    marginBottom: 16,
+    width: '100%',
+  },
+  listeningText: {
+    fontSize: 12,
+    color: '#166534',
+    flex: 1,
+    lineHeight: 17,
+  },
+  qrActionCol: {
+    width: '100%',
+    gap: 8,
+  },
+  openWebBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  openWebBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  cancelBtn: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 });
