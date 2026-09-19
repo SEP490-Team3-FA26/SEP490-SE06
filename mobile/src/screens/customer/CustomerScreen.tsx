@@ -56,6 +56,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [selectedOrderQR, setSelectedOrderQR] = useState<Order | null>(null);
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
 
   const categoriesList = useMemo(() => {
     const unique = new Set<string>();
@@ -79,7 +80,12 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         ApiService.getMyOrders(searchPhone || user?.phone),
       ]);
 
-      if (medList) setMedicines(medList);
+      if (medList && medList.length > 0) {
+        setMedicines(medList);
+        // Detect nếu đang dùng fallback offline (id có prefix fallback_)
+        const usingFallback = medList.some((m: any) => String(m.id || '').startsWith('fallback_'));
+        setIsOfflineMode(usingFallback);
+      }
       setVouchers(voucherList || []);
       setOrders(orderList || []);
     } catch (e) {
@@ -360,6 +366,38 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 onChangeText={setSearchQuery}
               />
             </View>
+
+            {/* Banner Lịch Nhắc Uống Thuốc Ngoại Tuyến */}
+            <AnimatedTouchable
+              onPress={() => navigation.navigate('MedicineReminderScreen')}
+              style={styles.reminderBanner}
+            >
+              <View style={styles.reminderBannerLeft}>
+                <View style={styles.reminderBannerIcon}>
+                  <Ionicons name="alarm" size={24} color="#0891B2" />
+                </View>
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={styles.reminderBannerTitle}>Lịch Nhắc Uống Thuốc 🔔</Text>
+                  <Text style={styles.reminderBannerSub}>Báo thức đúng giờ kể cả khi mất mạng (Offline 100%)</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#0891B2" />
+            </AnimatedTouchable>
+
+            {/* Banner cảnh báo dữ liệu ngoại tuyến */}
+            {isOfflineMode && (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7',
+                borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8,
+                borderLeftWidth: 3, borderLeftColor: '#F59E0B',
+              }}>
+                <Ionicons name="cloud-offline-outline" size={16} color="#B45309" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#B45309', fontSize: 12, flex: 1 }}>
+                  Đang hiển thị dữ liệu mẫu (server đang khởi động). Kéo để làm mới khi sẵn sàng.
+                </Text>
+              </View>
+            )}
+
 
             {/* Category horizontal scroll */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
@@ -1603,5 +1641,44 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
+  },
+  reminderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ECFEFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
+    shadowColor: '#0891B2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  reminderBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  reminderBannerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#CFFAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reminderBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0E7490',
+  },
+  reminderBannerSub: {
+    fontSize: 11,
+    color: '#0891B2',
+    marginTop: 2,
   },
 });

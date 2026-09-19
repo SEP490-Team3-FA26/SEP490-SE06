@@ -22,6 +22,7 @@ import { PharmacistScreen } from '../screens/pharmacist/PharmacistScreen';
 import { BranchScreen } from '../screens/branch/BranchScreen';
 import { CustomerScreen } from '../screens/customer/CustomerScreen';
 import { CustomerCheckoutScreen } from '../screens/customer/CustomerCheckoutScreen';
+import { MedicineReminderScreen } from '../screens/customer/MedicineReminderScreen';
 import { OrderConfirmation } from '../screens/OrderConfirmation';
 
 const Stack = createNativeStackNavigator();
@@ -70,6 +71,7 @@ export default function AppNavigator() {
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
           <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
           <Stack.Screen name="FlatComponentsShowcase" component={FlatComponentsShowcase} />
+          <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
         </Stack.Group>
       ) : (
         // Authenticated App Flow
@@ -83,6 +85,7 @@ export default function AppNavigator() {
           <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
 
           {/* Sub-screens */}
+          <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
           <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
           <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />

@@ -280,6 +280,17 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => navigation.navigate('MedicineReminderScreen')}
+            style={styles.menuItem}
+          >
+            <View style={styles.menuLeft}>
+              <Ionicons name="alarm-outline" size={22} color="#0891B2" />
+              <Text style={styles.menuText}>Lịch nhắc uống thuốc (Ngoại tuyến)</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+          </AnimatedTouchable>
         </View>
 
         {/* Logout Button */}
