@@ -81,17 +81,13 @@ export class OrderController implements OnModuleInit {
         <h2>${isSuccess ? 'Thanh toán thành công!' : 'Thanh toán chưa hoàn tất'}</h2>
         ${orderCode ? `<div class="order-badge">Đơn hàng #${orderCode}</div>` : ''}
         <p>${message}</p>
-        <a href="intent://checkout#Intent;scheme=wdp301;package=com.example.mobile;end;" class="btn">Đóng & Quay lại ứng dụng</a>
+        <a href="wdp301://checkout?orderCode=${orderCode || ''}&status=${isSuccess ? 'PAID' : 'CANCELLED'}" class="btn">Đóng & Quay lại ứng dụng</a>
       </div>
       <script>
         function returnToApp() {
-          try {
-            window.location.href = 'intent://checkout#Intent;scheme=wdp301;package=com.example.mobile;end;';
-          } catch(e) {
-            window.location.href = 'wdp301://checkout';
-          }
+          window.location.href = 'wdp301://checkout?orderCode=${orderCode || ''}&status=${isSuccess ? 'PAID' : 'CANCELLED'}';
         }
-        setTimeout(returnToApp, 1200);
+        setTimeout(returnToApp, 600);
       </script>
     </body>
     </html>

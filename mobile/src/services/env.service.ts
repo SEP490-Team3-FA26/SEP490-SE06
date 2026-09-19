@@ -45,6 +45,27 @@ class EnvServiceClass {
     this.detectedHostIp = '';
   }
 
+  public isAndroidEmulator(): boolean {
+    if (Platform.OS !== 'android') return false;
+    // 1. Check Expo Constants isDevice property
+    if (Constants.isDevice === false) return true;
+
+    // 2. Check React Native Platform constants
+    const c = Platform.constants as any;
+    if (
+      c?.Brand?.toLowerCase() === 'google' ||
+      c?.Manufacturer?.toLowerCase() === 'google' ||
+      c?.Fingerprint?.includes('generic') ||
+      c?.Fingerprint?.includes('sdk_gphone') ||
+      c?.Model?.toLowerCase().includes('sdk') ||
+      c?.Model?.toLowerCase().includes('emulator') ||
+      c?.Product?.toLowerCase().includes('sdk')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   public getHostIp(): string {
     if (!this.detectedHostIp) {
       this.detectHost();
@@ -57,13 +78,18 @@ class EnvServiceClass {
       return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
     }
 
-    // Ưu tiên 1: IP tự detect từ Metro (đổi wifi vẫn chạy tự động)
+    // Ưu tiên 1: Nếu là Android Emulator → luôn dùng 10.0.2.2 để kết nối trực tiếp vào host PC
+    if (this.isAndroidEmulator()) {
+      return 'http://10.0.2.2:4000';
+    }
+
+    // Ưu tiên 2: IP tự detect từ Metro (thiết bị thật qua Wi-Fi)
     const detectedHost = this.getHostIp();
     if (detectedHost) {
       return `http://${detectedHost}:4000`;
     }
 
-    // Ưu tiên 2: đọc từ EXPO_PUBLIC_API_URL trong .env
+    // Ưu tiên 3: đọc từ EXPO_PUBLIC_API_URL trong .env
     const envUrl = process.env.EXPO_PUBLIC_API_URL;
     if (envUrl) {
       if (Platform.OS === 'android' && envUrl.includes('localhost')) {
@@ -72,7 +98,7 @@ class EnvServiceClass {
       return envUrl;
     }
 
-    // Ưu tiên 3: Android emulator mặc định
+    // Ưu tiên 4: Android emulator mặc định
     if (Platform.OS === 'android') {
       return 'http://10.0.2.2:4000';
     }
@@ -85,6 +111,12 @@ class EnvServiceClass {
       return process.env.EXPO_PUBLIC_AI_URL || 'http://localhost:8000';
     }
 
+    // Ưu tiên 1: Android Emulator → 10.0.2.2
+    if (this.isAndroidEmulator()) {
+      return 'http://10.0.2.2:8000';
+    }
+
+    // Ưu tiên 2: Thiết bị thật qua IP Metro
     const detectedHost = this.getHostIp();
     if (detectedHost) {
       return `http://${detectedHost}:8000`;
@@ -103,6 +135,20 @@ class EnvServiceClass {
     }
 
     return 'http://localhost:8000';
+  }
+
+  // Cung cấp URL dự phòng khi gặp lỗi kết nối mạng (10.0.2.2 <-> LAN IP)
+  public getAlternateApiUrl(): string {
+    if (Platform.OS === 'android') {
+      const current = this.getApiBaseUrl();
+      if (current.includes('10.0.2.2')) {
+        const host = this.getHostIp();
+        return host ? `http://${host}:4000` : 'http://127.0.0.1:4000';
+      } else {
+        return 'http://10.0.2.2:4000';
+      }
+    }
+    return '';
   }
 
   // Đọc biến env tùy ý (EXPO_PUBLIC_*)

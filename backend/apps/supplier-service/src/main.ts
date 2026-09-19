@@ -2,6 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { SupplierServiceModule } from './supplier-service.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
+process.on('unhandledRejection', (reason) => {
+  console.warn('⚠️ [Supplier MS] Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ [Supplier MS] Uncaught Exception:', err);
+});
+
 async function bootstrap() {
   process.env.KAFKAJS_NO_PARTITIONER_WARNING = '1';
   let retries = 10;
