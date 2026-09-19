@@ -63,25 +63,38 @@ export const WebViewScreen: React.FC<{ route: any; navigation: any }> = ({
   const handleSimulateSuccess = async () => {
     setChecking(true);
     try {
-      // Simulate verifying payment with backend
-      await ApiService.checkOrderPayment(orderId);
+      // Verify payment with backend via checkOrderPayment
+      const res = await ApiService.checkOrderPayment(orderId);
+      const isPaid = res?.status === 'PAID' || res?.order?.paymentStatus === 'PAID';
       setIsSuccess(true);
       setChecking(false);
 
       if (onSuccessToken) {
-        onSuccessToken('mock_google_oauth_access_token_jwt_2026');
+        onSuccessToken(res?.token || 'oauth_token');
       }
 
       showToast.success(
-        'Giao Dịch Thành Công! 🎉',
-        `Mã đơn: ${orderId} - Thanh toán PayOS hoàn tất.`
+        isPaid ? 'Giao Dịch Thành Công! 🎉' : 'Đã Ghi Nhận Yêu Cầu',
+        `Mã đơn: #${orderId} - Trạng thái: ${res?.status || (isPaid ? 'Đã thanh toán' : 'Đang xử lý')}`
       );
-      navigation.popToTop();
+
+      navigation.replace('OrderConfirmation', {
+        orderId,
+        orderCode: orderId,
+        paymentStatus: isPaid ? 'paid' : (res?.status?.toLowerCase() || 'pending'),
+        paymentMethod: 'QR_PAY',
+        totalAmount: amount,
+      });
     } catch {
       setChecking(false);
       setIsSuccess(true);
-      showToast.success('Thành công', 'Đã ghi nhận thanh toán thành công!');
-      navigation.popToTop();
+      navigation.replace('OrderConfirmation', {
+        orderId,
+        orderCode: orderId,
+        paymentStatus: 'pending',
+        paymentMethod: 'QR_PAY',
+        totalAmount: amount,
+      });
     }
   };
 

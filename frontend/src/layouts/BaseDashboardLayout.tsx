@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Sidebar, NavItem } from "../components/ui/Sidebar";
 import { Header } from "../components/ui/Header";
 import { notifyAuthTokenChanged } from "../utils/authEvents";
+import { authService } from "../services/auth/auth.service";
 
 interface BaseDashboardLayoutProps {
   navItems: NavItem[];
@@ -13,9 +14,8 @@ export function BaseDashboardLayout({ navItems, userRole }: BaseDashboardLayoutP
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userRole");
+  const handleLogout = async () => {
+    await authService.logout();
     notifyAuthTokenChanged();
     navigate("/auth/login");
   };

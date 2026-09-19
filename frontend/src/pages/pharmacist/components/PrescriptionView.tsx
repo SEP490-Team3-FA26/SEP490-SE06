@@ -410,20 +410,15 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     const medId = med.id || med._id;
     const existing = prescriptionItems.find(it => it.medicineId === medId);
     if (existing) {
-      if (existing.quantity >= med.stock) {
-        showToast("Đã vượt quá số lượng tồn kho khả dụng của thuốc!", "warning");
-        return;
-      }
       setPrescriptionItems(prescriptionItems.map(it =>
         it.medicineId === medId
           ? { ...it, quantity: it.quantity + 1 }
           : it
       ));
-    } else {
-      if (med.stock <= 0) {
-        showToast("Thuốc này đã hết hàng khả dụng trong kho!", "error");
-        return;
+      if (existing.quantity + 1 > (med.stock || 0)) {
+        showToast(`Cảnh báo: Số lượng thuốc "${med.name}" vượt quá tồn kho (${med.stock || 0} ${med.unit || 'viên'})!`, "warning");
       }
+    } else {
       setPrescriptionItems([...prescriptionItems, {
         medicineId: medId,
         name: med.name,
@@ -434,8 +429,12 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         unit: med.unit,
         stock: med.stock,
         expiry: med.expiry,
-        status: "In Stock"
+        status: (med.stock || 0) > 0 ? "In Stock" : "Out of Stock"
       }]);
+
+      if ((med.stock || 0) <= 0) {
+        showToast(`Thuốc "${med.name}" hiện đang hết hàng ở chi nhánh (Tồn: 0).`, "warning");
+      }
     }
 
     // Reset search

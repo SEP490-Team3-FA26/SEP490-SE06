@@ -3,16 +3,11 @@
  * Handles all authentication-related API calls
  */
 
-// Base URL must NOT include path - only protocol + host (prevents path duplication on Railway)
+import { EnvService } from './env.service';
+
 function getBaseUrl(): string {
-  const raw = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return raw;
-  }
+  return EnvService.getApiBaseUrl();
 }
-const API_BASE_URL = getBaseUrl();
 
 export interface LoginRequest {
   email: string;
@@ -93,7 +88,7 @@ async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = `${getBaseUrl()}${endpoint}`;
 
   try {
     console.log('[AuthAPI] Request:', {

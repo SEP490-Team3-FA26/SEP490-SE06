@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { ClientKafka } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { User } from '../../auth-service/src/auth/user.schema';
+import { Medicine } from '../../inventory-service/src/medicine/schemas/medicine.schema';
 import { Cart } from './schemas/cart.schema';
 import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema';
 import { Branch, BranchDocument } from './schemas/branch.schema';
@@ -37,6 +38,8 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly userModel: Model<User>,
     @InjectModel(Cart.name)
     private readonly cartModel: Model<Cart>,
+    @InjectModel(Medicine.name)
+    private readonly medicineModel: Model<any>,
     @InjectModel(AuditLog.name)
     private readonly auditLogModel: Model<AuditLogDocument>,
     @InjectModel(Branch.name)
@@ -148,15 +151,28 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     let medicineDetails: any[] = [];
 
     try {
-      medicineDetails = await lastValueFrom(
-        this.inventoryClient.send('inventory.medicine.get_by_ids', { ids: itemIds })
-      );
-    } catch (err: any) {
-      this.logger.error(`Failed to fetch medicine details via Kafka RPC: ${err.message}`);
+      medicineDetails = await this.medicineModel.find({ _id: { $in: itemIds } }).lean().exec();
+    } catch (dbErr: any) {
+      this.logger.warn(`Direct DB medicine query failed, trying Kafka fallback: ${dbErr.message}`);
+    }
+
+    if (!medicineDetails || medicineDetails.length === 0) {
+      try {
+        const kafkaRes: any = await lastValueFrom(
+          this.inventoryClient.send('inventory.medicine.get_by_ids', { ids: itemIds }).pipe(
+            require('rxjs').timeout(3000)
+          )
+        );
+        if (Array.isArray(kafkaRes)) {
+          medicineDetails = kafkaRes;
+        }
+      } catch (err: any) {
+        this.logger.error(`Failed to fetch medicine details via Kafka RPC: ${err.message}`);
+      }
     }
 
     const medicineMap = new Map<string, any>(
-      medicineDetails.map((med) => [med.id.toString(), med])
+      medicineDetails.map((med) => [med._id ? med._id.toString() : (med.id ? med.id.toString() : ''), med])
     );
 
     let hasHealed = false;
@@ -170,16 +186,16 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
         continue;
       }
 
-      const currentStock = med.stock || 0;
+      const currentStock = med.stock !== undefined ? med.stock : 999;
       let finalQty = item.quantity;
 
       // Cap quantity if it exceeds current stock
-      if (finalQty > currentStock) {
+      if (finalQty > currentStock && currentStock > 0) {
         finalQty = currentStock;
         hasHealed = true;
       }
 
-      let currentPrice = med.price;
+      let currentPrice = med.price || 0;
       if (med.priceTiers && med.priceTiers.length > 0) {
         const applicableTiers = [...med.priceTiers].sort((a: any, b: any) => b.minQuantity - a.minQuantity);
         for (const tier of applicableTiers) {
@@ -198,8 +214,9 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
         active_ingredient: med.active_ingredient || '',
         category: med.category || 'Chưa phân loại',
         unit: med.unit || 'Viên',
+        image: med.image || '',
         price: currentPrice,
-        addedPrice: item.addedPrice,
+        addedPrice: item.addedPrice || currentPrice,
         priceChanged,
         stock: currentStock,
         quantity: finalQty,
@@ -210,7 +227,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     }
 
     // Filter out items with 0 quantity (out of stock/depleted items capped to 0) or deleted items
-    const validItems = cart.items.filter((it, index) => {
+    const validItems = cart.items.filter((it) => {
       const med = medicineMap.get(it.medicineId);
       return med && it.quantity > 0;
     });
@@ -220,11 +237,10 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       await cart.save();
     }
 
-    const finalEnrichedItems = enrichedItems.filter((it) => it.stock > 0 && it.quantity > 0);
-    const totalQuantity = finalEnrichedItems.reduce((sum, it) => sum + it.quantity, 0);
+    const totalQuantity = enrichedItems.reduce((sum, it) => sum + it.quantity, 0);
 
     return {
-      items: finalEnrichedItems,
+      items: enrichedItems,
       totalQuantity,
     };
   }
@@ -233,21 +249,28 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     let medicine: any;
 
     try {
-      this.logger.log(`[addToCart] Sending Kafka request to inventory for medicineId: ${medicineId} (userId: ${userId})`);
-      medicine = await lastValueFrom(
-        this.inventoryClient.send('inventory.medicine.get_by_id', { id: medicineId })
-      );
-      this.logger.log(`[addToCart] Received medicine from inventory: ${JSON.stringify(medicine)}`);
-    } catch (err: any) {
-      this.logger.error(`[addToCart] Error calling inventory.medicine.get_by_id for ID ${medicineId}: ${err.message}`, err.stack);
-      return { error: true, message: `Không tìm thấy thông tin thuốc trên hệ thống (Lỗi: ${err.message})`, statusCode: 404 };
+      medicine = await this.medicineModel.findById(medicineId).lean().exec();
+    } catch (dbErr: any) {
+      this.logger.warn(`Direct DB lookup for medicine ${medicineId} failed: ${dbErr.message}`);
     }
 
     if (!medicine) {
-      return { error: true, message: 'Thuốc không tồn tại', statusCode: 404 };
+      try {
+        medicine = await lastValueFrom(
+          this.inventoryClient.send('inventory.medicine.get_by_id', { id: medicineId }).pipe(
+            require('rxjs').timeout(3000)
+          )
+        );
+      } catch (err: any) {
+        this.logger.error(`[addToCart] Error calling inventory.medicine.get_by_id for ID ${medicineId}: ${err.message}`);
+      }
     }
 
-    const currentStock = medicine.stock || 0;
+    if (!medicine) {
+      return { error: true, message: 'Thuốc không tồn tại hoặc đã ngừng kinh doanh', statusCode: 404 };
+    }
+
+    const currentStock = medicine.stock !== undefined ? medicine.stock : 999;
     if (currentStock <= 0) {
       return { error: true, message: 'Thuốc hiện tại đã hết hàng. Vui lòng chọn sản phẩm khác.', statusCode: 400 };
     }
@@ -260,7 +283,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     const existingIndex = cart.items.findIndex((it) => it.medicineId === medicineId);
     if (existingIndex > -1) {
       const newQty = cart.items[existingIndex].quantity + quantity;
-      if (newQty > currentStock) {
+      if (newQty > currentStock && currentStock > 0) {
         return { error: true, message: `Chỉ còn ${currentStock} sản phẩm khả dụng trong kho!`, statusCode: 400 };
       }
       cart.items[existingIndex].quantity = newQty;
@@ -279,7 +302,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       cart.items[existingIndex].addedPrice = currentPrice;
 
     } else {
-      if (quantity > currentStock) {
+      if (quantity > currentStock && currentStock > 0) {
         return { error: true, message: `Chỉ còn ${currentStock} sản phẩm khả dụng trong kho!`, statusCode: 400 };
       }
 
@@ -325,15 +348,25 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
 
     let medicine: any;
     try {
-      medicine = await lastValueFrom(
-        this.inventoryClient.send('inventory.medicine.get_by_id', { id: medicineId })
-      );
-    } catch (err: any) {
-      return { error: true, message: 'Không thể kết nối đến kho dữ liệu', statusCode: 500 };
+      medicine = await this.medicineModel.findById(medicineId).lean().exec();
+    } catch {
+      // Fallback
     }
 
-    const currentStock = medicine ? medicine.stock : 0;
-    if (quantity > currentStock) {
+    if (!medicine) {
+      try {
+        medicine = await lastValueFrom(
+          this.inventoryClient.send('inventory.medicine.get_by_id', { id: medicineId }).pipe(
+            require('rxjs').timeout(3000)
+          )
+        );
+      } catch (err: any) {
+        // Continue with existing cart state
+      }
+    }
+
+    const currentStock = medicine && medicine.stock !== undefined ? medicine.stock : 999;
+    if (quantity > currentStock && currentStock > 0) {
       return { error: true, message: `Chỉ còn ${currentStock} sản phẩm khả dụng trong kho!`, statusCode: 400 };
     }
 
@@ -355,7 +388,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     }
 
     await cart.save();
-    return { success: true, message: 'Cập nhật số lượng thành công!' };
+    return { success: true, message: 'Cập nhật số lượng giỏ hàng thành công!' };
   }
 
   async deleteCartItem(userId: string, medicineId: string) {

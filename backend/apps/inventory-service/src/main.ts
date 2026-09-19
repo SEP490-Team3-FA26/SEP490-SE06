@@ -2,12 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { InventoryServiceModule } from './inventory-service.module';
 
+process.on('unhandledRejection', (reason) => {
+  console.warn('⚠️ [Inventory MS] Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ [Inventory MS] Uncaught Exception:', err);
+});
+
 async function bootstrap() {
   process.env.KAFKAJS_NO_PARTITIONER_WARNING = '1';
   let retries = 20;
   while (retries > 0) {
     try {
-      console.log('🔄 Đang kết nối tới Kafka...');
+      console.log('🔄 Đang kết nối tới Kafka (Inventory MS)...');
       const app = await NestFactory.createMicroservice<MicroserviceOptions>(
         InventoryServiceModule,
         {

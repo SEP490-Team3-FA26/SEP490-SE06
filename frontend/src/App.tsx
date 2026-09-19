@@ -126,6 +126,8 @@ export default function App() {
               <Route path="vouchers" element={<VoucherManagement />} />
               <Route path="approvals" element={<HQApproval />} />
               <Route path="finance" element={<Finance />} />
+              <Route path="pricing" element={<PriceManagement />} />
+              <Route path="price-management" element={<PriceManagement />} />
               <Route path="quotas" element={<QuotaManagement />} />
               <Route path="supplier-credit" element={<SupplierCreditManagement />} />
               <Route path="reports" element={<Reports />} />
@@ -202,6 +204,7 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="interactions" element={<DrugInteractions />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
             </Route>
