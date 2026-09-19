@@ -60,6 +60,7 @@ export interface Medicine {
   isRx: boolean;
   batches: MedicineBatch[];
   image?: string;
+  image_url?: string;
   images?: string[];
   cong_dung?: string;
   indications?: string;
@@ -86,12 +87,17 @@ export interface Voucher {
   id: string;
   _id?: string;
   code: string;
-  discountType: 'PERCENT' | 'FIXED';
+  discountType: 'PERCENT' | 'PERCENTAGE' | 'FIXED' | 'FIXED_AMOUNT' | string;
   discountValue: number;
   minOrderValue?: number;
   maxDiscount?: number;
+  maxDiscountValue?: number;
+  discount?: number;
+  startDate?: string;
+  expiryDate?: string;
   expDate?: string;
   description?: string;
+  title?: string;
   isActive?: boolean;
 }
 

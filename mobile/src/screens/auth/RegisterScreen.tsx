@@ -17,6 +17,7 @@ import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 
 import { FlatCard, FlatInput, FlatButton, FlatBadge } from '../../components/flat';
+import { showToast } from '../../components/ui/toastHelper';
 
 export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { register, verifyEmail, resendVerification } = useAuth();
@@ -34,17 +35,17 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   const handleRegister = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập đầy đủ họ tên, email và mật khẩu.');
+      showToast.error('Thiếu thông tin', 'Vui lòng nhập đầy đủ họ tên, email và mật khẩu.');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Mật khẩu không khớp', 'Mật khẩu xác nhận không trùng khớp.');
+      showToast.error('Mật khẩu không khớp', 'Mật khẩu xác nhận không trùng khớp.');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Mật khẩu quá ngắn', 'Mật khẩu phải có ít nhất 6 ký tự.');
+      showToast.error('Mật khẩu quá ngắn', 'Mật khẩu phải có ít nhất 6 ký tự.');
       return;
     }
 
@@ -59,18 +60,18 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     if (success) {
       setStep('OTP');
-      Alert.alert(
+      showToast.success(
         'Đăng ký thành công',
-        'Một mã xác thực OTP 6 số đã được gửi tới email của bạn. Hãy nhập mã để kích hoạt tài khoản!'
+        'Mã OTP 6 số đã được gửi tới email của bạn. Hãy nhập mã để kích hoạt!'
       );
     } else {
-      Alert.alert('Đăng ký thất bại', 'Email hoặc số điện thoại có thể đã được đăng ký.');
+      showToast.error('Đăng ký thất bại', 'Email hoặc số điện thoại có thể đã được đăng ký.');
     }
   };
 
   const handleVerifyOtp = async () => {
     if (!otp.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập mã OTP.');
+      showToast.error('Lỗi', 'Vui lòng nhập mã OTP.');
       return;
     }
 
@@ -79,11 +80,10 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     setLoading(false);
 
     if (success) {
-      Alert.alert('Xác thực thành công', 'Email của bạn đã được kích hoạt. Hãy đăng nhập để tiếp tục!', [
-        { text: 'Đăng nhập', onPress: () => navigation.goBack() },
-      ]);
+      showToast.success('Xác thực thành công', 'Email đã được kích hoạt. Hãy đăng nhập để tiếp tục!');
+      navigation.goBack();
     } else {
-      Alert.alert('Xác thực thất bại', 'Mã OTP không chính xác hoặc đã hết hạn.');
+      showToast.error('Xác thực thất bại', 'Mã OTP không chính xác hoặc đã hết hạn.');
     }
   };
 

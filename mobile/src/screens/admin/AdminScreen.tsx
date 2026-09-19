@@ -17,6 +17,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import { Employee, AuditLog } from '../../types/pharmacy.types';
 
 export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -96,7 +97,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       setEmployees((prev) =>
         prev.map((e) => (e.id === emp.id ? { ...e, isActive: nextStatus } : e))
       );
-      Alert.alert('Thành công', `Đã ${nextStatus ? 'mở khóa' : 'khóa'} tài khoản ${emp.name}.`);
+      showToast.success('Thành công', `Đã ${nextStatus ? 'mở khóa' : 'khóa'} tài khoản ${emp.name}.`);
     } else {
       // Local optimistic update
       setEmployees((prev) =>
@@ -107,7 +108,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const handleCreateEmployee = async () => {
     if (!newEmpName.trim() || !newEmpEmail.trim()) {
-      Alert.alert('Lỗi', 'Họ tên và Email là bắt buộc.');
+      showToast.error('Lỗi', 'Họ tên và Email là bắt buộc.');
       return;
     }
 
@@ -134,14 +135,16 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setNewEmpName('');
     setNewEmpEmail('');
     setNewEmpPhone('');
-    Alert.alert('Thành công', `Đã tạo tài khoản cho nhân viên ${created.name}!`);
+    showToast.success('Thành công', `Đã tạo tài khoản cho nhân viên ${created.name}!`);
   };
 
   const filteredEmployees = employees.filter(
-    (e) =>
-      e.name.toLowerCase().includes(searchEmployee.toLowerCase()) ||
-      e.email.toLowerCase().includes(searchEmployee.toLowerCase()) ||
-      e.role.toLowerCase().includes(searchEmployee.toLowerCase())
+    (e) => {
+      const q = (searchEmployee || '').toLowerCase();
+      return (e.name || '').toLowerCase().includes(q) ||
+        (e.email || '').toLowerCase().includes(q) ||
+        (e.role || '').toLowerCase().includes(q);
+    }
   );
 
   return (
@@ -209,6 +212,58 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#1E293B']} />}
       >
+        {/* Quick Role & Screen Switcher Banner */}
+        <View style={styles.roleBanner}>
+          <View style={styles.roleBannerHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="sparkles" size={16} color="#6366F1" style={{ marginRight: 6 }} />
+              <Text style={styles.roleBannerTitle}>Khám Phá Các Màn Hình Khác</Text>
+            </View>
+            <Text style={styles.roleBannerSub}>Chạm để xem trực tiếp</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleChipScroll}>
+            <AnimatedTouchable
+              style={[styles.roleChip, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
+              onPress={() => navigation.navigate('CustomerScreen')}
+            >
+              <Ionicons name="cart" size={14} color="#059669" />
+              <Text style={[styles.roleChipText, { color: '#065F46' }]}>🛒 Khách Hàng (5 Tabs + PayOS)</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleChip, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
+              onPress={() => navigation.navigate('WarehouseScreen')}
+            >
+              <Ionicons name="cube" size={14} color="#D97706" />
+              <Text style={[styles.roleChipText, { color: '#92400E' }]}>📦 Thủ Kho (5 Tabs + AI Dự Báo)</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleChip, { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }]}
+              onPress={() => navigation.navigate('DirectorScreen')}
+            >
+              <Ionicons name="business" size={14} color="#7C3AED" />
+              <Text style={[styles.roleChipText, { color: '#5B21B6' }]}>🏢 Giám Đốc (AI Chuỗi)</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleChip, { backgroundColor: '#E0F2FE', borderColor: '#BAE6FD' }]}
+              onPress={() => navigation.navigate('PharmacistScreen')}
+            >
+              <Ionicons name="medkit" size={14} color="#0284C7" />
+              <Text style={[styles.roleChipText, { color: '#0369A1' }]}>💊 Dược Sĩ (Kê Đơn OCR)</Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              style={[styles.roleChip, { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' }]}
+              onPress={() => navigation.navigate('BranchScreen')}
+            >
+              <Ionicons name="storefront" size={14} color="#475569" />
+              <Text style={[styles.roleChipText, { color: '#1E293B' }]}>🏪 Quản Lý Cơ Sở</Text>
+            </AnimatedTouchable>
+          </ScrollView>
+        </View>
+
         {/* TAB 1: SYSTEM HEALTH */}
         {activeTab === 'HEALTH' && (
           <View>
@@ -223,6 +278,20 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Ionicons name="hardware-chip" size={24} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>14.8%</Text>
                 <Text style={styles.kpiLabel}>CPU Utilization</Text>
+              </GradientCard>
+            </View>
+
+            <View style={[styles.kpiRow, { marginTop: -6 }]}>
+              <GradientCard gradientVariant="sunset" style={styles.kpiCard}>
+                <Ionicons name="server" size={24} color="#FFFFFF" />
+                <Text style={styles.kpiValue}>6.2 / 16 GB</Text>
+                <Text style={styles.kpiLabel}>RAM (61% free)</Text>
+              </GradientCard>
+
+              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+                <Ionicons name="people" size={24} color="#FFFFFF" />
+                <Text style={styles.kpiValue}>145 online</Text>
+                <Text style={styles.kpiLabel}>Active Sessions</Text>
               </GradientCard>
             </View>
 
@@ -266,8 +335,8 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               </AnimatedTouchable>
             </View>
 
-            {filteredEmployees.map((emp) => (
-              <View key={emp.id} style={styles.employeeCard}>
+            {filteredEmployees.map((emp, idx) => (
+              <View key={emp.id || (emp as any)._id || `emp-${idx}`} style={styles.employeeCard}>
                 <View style={styles.empInfo}>
                   <View style={styles.empAvatar}>
                     <Ionicons name="person" size={22} color="#475569" />
@@ -328,8 +397,8 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {activeTab === 'AUDIT' && (
           <View>
             <Text style={styles.sectionHeader}>Nhật Ký Thao Tác Hệ Thống</Text>
-            {auditLogs.map((log) => (
-              <View key={log.id} style={styles.auditCard}>
+            {auditLogs.map((log, idx) => (
+              <View key={log.id || (log as any)._id || `log-${idx}`} style={styles.auditCard}>
                 <View style={styles.auditHeader}>
                   <View style={styles.actionPill}>
                     <Text style={styles.actionPillText}>{log.action}</Text>
@@ -452,7 +521,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   activeTabItem: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#EEF2FF',
+    borderBottomWidth: 2,
+    borderBottomColor: '#4F46E5',
   },
   tabText: {
     fontSize: 13,
@@ -461,11 +532,56 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   activeTabText: {
-    color: '#0F172A',
+    color: '#4F46E5',
     fontWeight: '800',
   },
   scrollContent: {
     padding: 16,
+  },
+  roleBanner: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  roleBannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  roleBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  roleBannerSub: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  roleChipScroll: {
+    paddingVertical: 2,
+  },
+  roleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  roleChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 6,
   },
   kpiRow: {
     flexDirection: 'row',

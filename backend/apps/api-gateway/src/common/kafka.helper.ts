@@ -141,7 +141,7 @@ export async function sendKafkaMessage(client: ClientKafka, topic: string, data:
     console.log(`[API-Gateway][sendKafkaMessage] Sending to topic "${topic}"`);
     const result: any = await lastValueFrom(
       client.send(topic, payload).pipe(
-        require('rxjs').timeout(30000),
+        require('rxjs').timeout(8000),
         require('rxjs').retry(1)
       )
     );

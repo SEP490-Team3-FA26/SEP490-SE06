@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { showToast } from '../../components/ui/toastHelper';
 import { useAuth } from '../../context/AuthContext';
 import Animated, { 
   useSharedValue, 
@@ -109,11 +110,11 @@ export default function ForgotPassword({ navigation, route }: any) {
     const success = await forgotPassword(email.trim());
     
     if (success) {
-      Alert.alert(
+      showToast.success(
         'Email đã được gửi',
-        'Vui lòng kiểm tra email để nhận mã xác thực.',
-        [{ text: 'OK', onPress: () => setStep('code') }]
+        'Vui lòng kiểm tra email để nhận mã xác thực.'
       );
+      setStep('code');
     }
   };
 
@@ -143,16 +144,11 @@ export default function ForgotPassword({ navigation, route }: any) {
     const success = await resetPassword(email.trim(), code.trim(), newPassword);
     
     if (success) {
-      Alert.alert(
+      showToast.success(
         'Đặt lại mật khẩu thành công',
-        'Bạn có thể đăng nhập với mật khẩu mới.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('Login'),
-          },
-        ]
+        'Bạn có thể đăng nhập với mật khẩu mới.'
       );
+      navigation.replace('Login');
     }
   };
 

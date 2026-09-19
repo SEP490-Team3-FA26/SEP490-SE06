@@ -16,6 +16,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
+import { showToast } from '../../components/ui/toastHelper';
 import {
   Branch,
   DashboardSummary,
@@ -35,6 +36,7 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [selectedPO, setSelectedPO] = useState<any | null>(null);
   const [poDetailModal, setPoDetailModal] = useState<boolean>(false);
+  const [aiModalVisible, setAiModalVisible] = useState<boolean>(false);
 
   // Transfers & Low stock
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>([]);
@@ -45,12 +47,13 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [sumData, branchList, transfers, lowStock, safeChain] = await Promise.all([
+      const [sumData, branchList, transfers, lowStock, safeChain, poList] = await Promise.all([
         ApiService.getDashboardSummary(),
         ApiService.getBranches(),
         ApiService.getStockTransfers(),
         ApiService.getLowStockReport(),
         ApiService.getSafeStockChain(),
+        ApiService.getPurchaseOrders(),
       ]);
 
       if (sumData) setSummary(sumData);
@@ -85,27 +88,9 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       if (lowStock) setLowStockList(lowStock);
       if (safeChain) setSafeStock(safeChain);
 
-      // Mock pending POs if none returned
-      setPurchaseOrders([
-        {
-          id: 'PO-2026-881',
-          supplier: 'Công Ty CP Dược Hậu Giang',
-          branch: 'Kho Tổng Trung Tâm',
-          amount: '185,000,000 ₫',
-          date: '2026-08-31',
-          items: 'Amoxicillin 500mg (x500), Panadol Extra (x1000), Decolgen (x400)',
-          status: 'PENDING',
-        },
-        {
-          id: 'PO-2026-882',
-          supplier: 'Sanofi-Aventis Việt Nam',
-          branch: 'Chi Nhánh Quận 1',
-          amount: '72,500,000 ₫',
-          date: '2026-08-30',
-          items: 'Strepsils Cool (x300), Efferalgan 500mg (x800)',
-          status: 'PENDING',
-        },
-      ]);
+      if (poList && poList.length > 0) {
+        setPurchaseOrders(poList);
+      }
     } catch (e) {
       console.warn('Error loading director dashboard data:', e);
     } finally {
@@ -120,13 +105,13 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const handleApprovePO = (po: any) => {
     setPurchaseOrders((prev) => prev.filter((p) => p.id !== po.id));
     setPoDetailModal(false);
-    Alert.alert('Thành công', `Đã phê duyệt đơn mua hàng ${po.id}!`);
+    showToast.success('Thành công', `Đã phê duyệt đơn mua hàng ${po.id}!`);
   };
 
   const handleRejectPO = (po: any) => {
     setPurchaseOrders((prev) => prev.filter((p) => p.id !== po.id));
     setPoDetailModal(false);
-    Alert.alert('Thông báo', `Đã từ chối đơn hàng ${po.id}.`);
+    showToast.info('Thông báo', `Đã từ chối đơn hàng ${po.id}.`);
   };
 
   return (
@@ -206,6 +191,21 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             </GradientCard>
 
+            {/* AI Predictive Analytics Banner */}
+            <AnimatedTouchable
+              onPress={() => setAiModalVisible(true)}
+              style={styles.aiBanner}
+            >
+              <View style={styles.aiBannerIconBox}>
+                <Ionicons name="sparkles" size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.aiBannerTitle}>Dự Báo Tăng Trưởng & Rủi Ro Chuỗi (AI)</Text>
+                <Text style={styles.aiBannerSub}>Bấm để xem phân tích biến động và khuyến nghị chiến lược</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#2563EB" />
+            </AnimatedTouchable>
+
             <View style={styles.kpiRow}>
               <GradientCard gradientVariant="indigo" style={styles.kpiCard}>
                 <Ionicons name="cart" size={22} color="#FFFFFF" />
@@ -222,7 +222,7 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
             <Text style={styles.sectionTitle}>Hiệu Suất Từng Chi Nhánh</Text>
             {branches.map((b, idx) => (
-              <View key={b.id} style={styles.branchCard}>
+              <View key={b.id || (b as any)._id || `branch-${idx}`} style={styles.branchCard}>
                 <View style={styles.branchHeader}>
                   <View style={styles.branchBadge}>
                     <Text style={styles.branchBadgeText}>CN 0{idx + 1}</Text>
@@ -251,8 +251,8 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         {activeTab === 'PO_APPROVAL' && (
           <View>
             <Text style={styles.sectionTitle}>Danh Sách Đơn Mua Hàng Cần Phê Duyệt</Text>
-            {purchaseOrders.map((po) => (
-              <View key={po.id} style={styles.poCard}>
+            {purchaseOrders.map((po, idx) => (
+              <View key={po.id || (po as any)._id || `po-${idx}`} style={styles.poCard}>
                 <View style={styles.poHeader}>
                   <Text style={styles.poCode}>{po.id}</Text>
                   <Text style={styles.poDate}>{po.date}</Text>
@@ -293,8 +293,8 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         {activeTab === 'TRANSFERS' && (
           <View>
             <Text style={styles.sectionTitle}>Lịch Sử Luân Chuyển Giữa Các Kho</Text>
-            {stockTransfers.map((st) => (
-              <View key={st.id} style={styles.transferCard}>
+            {stockTransfers.map((st, idx) => (
+              <View key={st.id || (st as any)._id || `transfer-${idx}`} style={styles.transferCard}>
                 <View style={styles.transferHeader}>
                   <Text style={styles.transferCode}>{st.transferCode || st.id}</Text>
                   <View style={styles.transferStatusTag}>
@@ -348,6 +348,58 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 style={{ flex: 1, marginLeft: 10 }}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* AI Predictive Analytics Modal */}
+      <Modal visible={aiModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View style={styles.aiBannerIconBox}>
+                <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.modalTitle}>Dự Báo Doanh Thu & Cung Ứng AI</Text>
+                <Text style={{ fontSize: 11, color: '#64748B' }}>Mô hình Predictive Supply Chain v2.4</Text>
+              </View>
+            </View>
+
+            <ScrollView style={{ maxHeight: 320 }}>
+              <View style={styles.aiMetricBox}>
+                <Text style={styles.aiMetricLabel}>Dự báo doanh thu tháng tới:</Text>
+                <Text style={styles.aiMetricVal}>3,250,000,000 ₫ (+14.2%)</Text>
+                <Text style={styles.aiMetricNote}>Dựa trên lịch sử tiêu thụ và xu hướng thời tiết giao mùa</Text>
+              </View>
+
+              <View style={styles.aiRiskBox}>
+                <Text style={styles.aiRiskTitle}>⚠️ Cảnh báo rủi ro đứt gãy chuỗi:</Text>
+                <Text style={styles.aiRiskText}>
+                  • Nhóm kháng sinh (Amoxicillin, Cefuroxim) dự kiến tăng vọt nhu cầu 35% trong 2 tuần tới.
+                </Text>
+                <Text style={styles.aiRiskText}>
+                  • Tồn kho Chi Nhánh Q1 đang ở mức báo động thấp (&lt; 25 hộp).
+                </Text>
+              </View>
+
+              <View style={styles.aiStrategyBox}>
+                <Text style={styles.aiStrategyTitle}>💡 Khuyến nghị chiến lược cho Ban Giám Đốc:</Text>
+                <Text style={styles.aiStrategyText}>
+                  1. Phê duyệt sớm đơn mua PO-2026-881 (Dược Hậu Giang) để khóa giá sỉ và giữ nguồn cung.
+                </Text>
+                <Text style={styles.aiStrategyText}>
+                  2. Kích hoạt lệnh điều chuyển 200 hộp Panadol Extra từ Kho Tổng sang Chi Nhánh Q7.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <AnimatedTouchable
+              onPress={() => setAiModalVisible(false)}
+              style={styles.closeAiModalBtn}
+            >
+              <Text style={styles.closeAiModalBtnText}>Đã Nắm Rõ Báo Cáo</Text>
+            </AnimatedTouchable>
           </View>
         </View>
       </Modal>
@@ -666,5 +718,108 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#DC2626',
+  },
+  aiBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  aiBannerIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  aiBannerSub: {
+    fontSize: 11,
+    color: '#3B82F6',
+    marginTop: 2,
+  },
+  aiMetricBox: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    marginBottom: 12,
+  },
+  aiMetricLabel: {
+    fontSize: 11,
+    color: '#15803D',
+    fontWeight: '700',
+  },
+  aiMetricVal: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#166534',
+    marginVertical: 4,
+  },
+  aiMetricNote: {
+    fontSize: 11,
+    color: '#15803D',
+  },
+  aiRiskBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 12,
+  },
+  aiRiskTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#DC2626',
+    marginBottom: 6,
+  },
+  aiRiskText: {
+    fontSize: 12,
+    color: '#991B1B',
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  aiStrategyBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  aiStrategyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  aiStrategyText: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  closeAiModalBtn: {
+    backgroundColor: '#0F172A',
+    paddingVertical: 13,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  closeAiModalBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
   },
 });

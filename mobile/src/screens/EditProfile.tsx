@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Image, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { AuthAPI } from '../services/authApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showToast } from '../components/ui/toastHelper';
 
 export default function EditProfile({ navigation }: any) {
   const { user, refreshUser } = useAuth();
@@ -23,7 +24,7 @@ export default function EditProfile({ navigation }: any) {
 
   const handleSave = async () => {
     if (!firstName || !lastName) {
-      Alert.alert('Lỗi', 'Họ và tên không được để trống');
+      showToast.error('Lỗi', 'Họ và tên không được để trống');
       return;
     }
 
@@ -31,7 +32,7 @@ export default function EditProfile({ navigation }: any) {
       setLoading(true);
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
-        Alert.alert('Lỗi', 'Phiên đăng nhập hết hạn');
+        showToast.error('Lỗi', 'Phiên đăng nhập hết hạn');
         return;
       }
 
@@ -43,11 +44,11 @@ export default function EditProfile({ navigation }: any) {
       });
 
       await refreshUser();
-      Alert.alert('Thành công', 'Thông tin profile đã được cập nhật');
+      showToast.success('Thành công', 'Thông tin profile đã được cập nhật');
       navigation.goBack();
     } catch (error: any) {
       console.error('Update profile error:', error);
-      Alert.alert('Lỗi', error.message || 'Không thể cập nhật profile');
+      showToast.error('Lỗi', error.message || 'Không thể cập nhật profile');
     } finally {
       setLoading(false);
     }

@@ -15,6 +15,8 @@ interface AnimatedTouchableProps extends PressableProps {
   activeOpacity?: number;
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export const AnimatedTouchable: React.FC<AnimatedTouchableProps> = ({
   children,
   style,
@@ -62,24 +64,21 @@ export const AnimatedTouchable: React.FC<AnimatedTouchableProps> = ({
   };
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={onPress}
       disabled={disabled}
+      style={[
+        style,
+        {
+          transform: [{ scale: scaleAnim }],
+          opacity: disabled ? 0.5 : opacityAnim,
+        },
+      ]}
       {...rest}
     >
-      <Animated.View
-        style={[
-          style,
-          {
-            transform: [{ scale: scaleAnim }],
-            opacity: disabled ? 0.5 : opacityAnim,
-          },
-        ]}
-      >
-        {children}
-      </Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
   );
 };

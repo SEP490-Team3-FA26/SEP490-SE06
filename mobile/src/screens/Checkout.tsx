@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { showToast } from '../components/ui/toastHelper';
 import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -50,23 +51,23 @@ export default function Checkout({ navigation, route }: any) {
   const pay = async () => {
     try {
       if (!isAuthenticated || !user?.id) {
-        Alert.alert('Login', 'Bạn cần đăng nhập để mua vé.');
+        showToast.info('Login', 'Bạn cần đăng nhập để mua vé.');
         navigation.navigate('Login');
         return;
       }
 
       if (!orderDraft) {
-        Alert.alert('Lỗi', 'Thiếu dữ liệu đơn hàng');
+        showToast.error('Lỗi', 'Thiếu dữ liệu đơn hàng');
         return;
       }
 
       if (!orderDraft.eventId || !orderDraft.organizerId || !orderDraft.zoneName) {
-        Alert.alert('Lỗi', 'Thiếu thông tin sự kiện/organizer/zone');
+        showToast.error('Lỗi', 'Thiếu thông tin sự kiện/organizer/zone');
         return;
       }
 
       if (isTimerActive) {
-        Alert.alert('Thất bại', 'Bạn đang có một đơn hàng chưa thanh toán! Vui lòng huỷ đơn hàng cũ trước khi đặt đơn mới.');
+        showToast.error('Thất bại', 'Bạn đang có một đơn hàng chưa thanh toán! Vui lòng huỷ đơn hàng cũ trước khi đặt đơn mới.');
         return;
       }
 
@@ -86,7 +87,7 @@ export default function Checkout({ navigation, route }: any) {
           const res = await SeatAPI.getSeatsByZone(orderDraft.eventId, orderDraft.zoneId, { status: 'available', limit: 50 });
           availableStandingSeats = res.seats || [];
           if (availableStandingSeats.length < orderDraft.quantity) {
-            Alert.alert('Thất bại', 'Không đủ chỗ đứng khả dụng.');
+            showToast.error('Thất bại', 'Không đủ chỗ đứng khả dụng.');
             setIsPaying(false);
             return;
           }
@@ -139,7 +140,7 @@ export default function Checkout({ navigation, route }: any) {
         for (const mid of reservedMongoIds) {
           await SeatAPI.releaseReservation(orderDraft.eventId, mid).catch(() => {});
         }
-        Alert.alert('Thất bại', 'Ghế hoặc chỗ đứng đã bị người khác chọn. Vui lòng thử lại.');
+        showToast.error('Thất bại', 'Ghế hoặc chỗ đứng đã bị người khác chọn. Vui lòng thử lại.');
         setIsPaying(false);
         return;
       }
@@ -203,7 +204,7 @@ export default function Checkout({ navigation, route }: any) {
       navigation.popToTop();
 
     } catch (e: any) {
-      Alert.alert('Thanh toán thất bại', e?.message || 'Không thể tạo thanh toán');
+      showToast.error('Thanh toán thất bại', e?.message || 'Không thể tạo thanh toán');
     } finally {
       setIsPaying(false);
     }

@@ -88,7 +88,7 @@ export default function AIAssistant({ navigation }: any) {
     };
 
     setMessages(prev => [...prev, userMsg]);
-    const currentInput = outgoingText.toLowerCase();
+    const currentInput = (outgoingText || '').toLowerCase();
     setInput('');
     setIsTyping(true);
 
@@ -105,7 +105,7 @@ export default function AIAssistant({ navigation }: any) {
       timestamp: new Date(),
     };
 
-    const lowerText = text.toLowerCase();
+    const lowerText = (text || '').toLowerCase();
 
     // 1. Check for basic greetings
     if (lowerText.includes('xin chào') || lowerText.includes('hello') || lowerText.includes('hi')) {
