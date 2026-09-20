@@ -106,4 +106,8 @@ export const MedicineSchema = SchemaFactory.createForClass(Medicine);
 // MongoDB Index Optimization
 MedicineSchema.index({ name: 'text', active_ingredient: 'text', sku: 'text' });
 MedicineSchema.index({ category: 1, drug_classification: 1, status: 1 });
+MedicineSchema.index({ category: 1, status: 1, price: 1 });
+MedicineSchema.index({ category: 1, _id: 1 });
+MedicineSchema.index({ drug_classification: 1, status: 1, price: 1 });
+MedicineSchema.index({ status: 1, createdAt: -1 });
 MedicineSchema.index({ stock: 1, safetyStock: 1 });

@@ -43,12 +43,18 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     }
   }
 
-  if (role && !allowedRoles.includes(role)) {
+  const isAllowed = allowedRoles.includes(role) ||
+    (role === "head_branch" && allowedRoles.includes("director")) ||
+    (role === "director" && allowedRoles.includes("head_branch"));
+
+  if (role && !isAllowed) {
     // Redirect other roles to their respective dashboards
     switch (role) {
       case "admin":
-      case "head_branch":
         return <Navigate to="/admin" replace />;
+      case "director":
+      case "head_branch":
+        return <Navigate to="/director" replace />;
       case "warehouse":
         return <Navigate to="/warehouse" replace />;
       case "branch":

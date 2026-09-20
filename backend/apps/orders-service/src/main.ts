@@ -37,7 +37,7 @@ async function bootstrap() {
               allowAutoTopicCreation: true,
             },
           } as any,
-          logger: ['log', 'error', 'warn'],
+          logger: ['error', 'warn'],
         },
       );
 

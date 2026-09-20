@@ -4,6 +4,7 @@ import { NotificationProvider } from "./contexts/NotificationContext";
 // Layouts
 import { AuthLayout } from "./layouts/AuthLayout";
 import { AdminLayout } from "./layouts/AdminLayout";
+import { DirectorLayout } from "./layouts/DirectorLayout";
 import { WarehouseLayout } from "./layouts/WarehouseLayout";
 import { BranchLayout } from "./layouts/BranchLayout";
 import { PharmacistLayout } from "./layouts/PharmacistLayout";
@@ -118,8 +119,28 @@ export default function App() {
             <Route path="orders" element={<CustomerOrders />} />
           </Route>
 
+          {/* --- Director / Ban Giám Đốc Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["director", "head_branch"]} />}>
+            <Route path="/director" element={<DirectorLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="approvals" element={<HQApproval />} />
+              <Route path="quotas" element={<QuotaManagement />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="supplier-credit" element={<SupplierCreditManagement />} />
+              <Route path="supply-chain" element={<SupplyChainDashboard />} />
+              <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="ai-insights" element={<AIInsights />} />
+              <Route path="pricing" element={<PriceManagement />} />
+              <Route path="price-management" element={<PriceManagement />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Route>
+
           {/* --- Admin / HQ Routes --- */}
-          <Route element={<ProtectedRoute allowedRoles={["admin", "head_branch"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<DashboardHome />} />
               <Route path="branches" element={<Branches />} />
@@ -214,7 +235,7 @@ export default function App() {
           </Route>
 
           {/* Profile riêng lẻ cho user thường */}
-          <Route element={<ProtectedRoute allowedRoles={["admin", "head_branch", "warehouse", "branch", "pharmacist", "user"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["admin", "director", "head_branch", "warehouse", "branch", "pharmacist", "user"]} />}>
             <Route path="/profile" element={<Profile />} />
           </Route>
 
