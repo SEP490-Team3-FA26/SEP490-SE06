@@ -42,12 +42,6 @@ yarn-error.*
 /ios
 /android
 
-# Flutter & ephemeral build artifacts
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-linux/
-macos/
-windows/
-**/ephemeral/
+# build artifacts
+build/
 
