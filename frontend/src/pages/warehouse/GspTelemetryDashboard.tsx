@@ -11,10 +11,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Activity,
-  Server,
-  Zap,
-  CheckCircle2,
-  BellRing,
   Layers,
   Radio,
 } from "lucide-react";
@@ -37,19 +33,128 @@ import {
 } from "../../services/inventory/sensorTelemetry.service";
 import { useSocket } from "../../hooks/useSocket";
 
+// ── COMPONENT MINI SPARKLINE CANVAS (SIÊU NHẸ, 60 FPS, 0% CPU OVERHEAD) ──
+interface SparklineCanvasProps {
+  data: number[];
+  color: string;
+  height?: number;
+}
+
+const SparklineCanvas: React.FC<SparklineCanvasProps> = React.memo(({ data, color, height = 40 }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const width = canvas.offsetWidth || 140;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+
+    const validData = data.filter((v) => v !== null && v !== undefined && !isNaN(v));
+    if (validData.length < 2) return;
+
+    const min = Math.min(...validData);
+    const max = Math.max(...validData);
+    const range = max - min === 0 ? 1 : max - min;
+    const padding = 3;
+
+    const step = width / (validData.length - 1);
+
+    ctx.beginPath();
+    validData.forEach((val, i) => {
+      const x = i * step;
+      const y = height - padding - ((val - min) / range) * (height - padding * 2);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    // Dải gradient nhẹ dưới đường biểu đồ
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, `${color}25`);
+    grad.addColorStop(1, `${color}00`);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }, [data, color, height]);
+
+  return <canvas ref={canvasRef} className="w-full h-10 pointer-events-none" />;
+});
+
+// Kiểu loại 8 chỉ số theo dõi
+export type MetricKey =
+  | "temperature"
+  | "humidity"
+  | "dewPoint"
+  | "vpd"
+  | "chipTemp"
+  | "cpuLoad"
+  | "freeHeap"
+  | "wifiRssi";
+
+export type ViewMode = "climate" | "hardware" | "single";
+export type TimeRange = "5m" | "1h" | "24h" | "7d";
+
+// Cấu hình hiển thị chi tiết cho từng chỉ số
+const METRIC_DEFINITIONS: Record<
+  MetricKey,
+  { label: string; unit: string; color: string; desc: string }
+> = {
+  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 25°C" },
+  humidity: { label: "Độ Ẩm Không Khí", unit: "%RH", color: "#06b6d4", desc: "Chuẩn GSP ≤ 70%RH" },
+  dewPoint: { label: "Điểm Sương", unit: "°C", color: "#6366f1", desc: "Công thức Magnus Eq" },
+  vpd: { label: "Độ Hụt Áp Suất (VPD)", unit: "kPa", color: "#a855f7", desc: "Tốc độ bay hơi ẩm dược phẩm" },
+  chipTemp: { label: "Nhiệt Độ Chip ESP32", unit: "°C", color: "#f59e0b", desc: "Ngưỡng mát an toàn < 75°C" },
+  cpuLoad: { label: "Tải CPU Tổng", unit: "%", color: "#f97316", desc: "Xtensa Dual-Core 240MHz" },
+  freeHeap: { label: "RAM Heap Trống", unit: "KB", color: "#14b8a6", desc: "SRAM nội vi điều khiển" },
+  wifiRssi: { label: "Sóng Wi-Fi (RSSI)", unit: "dBm", color: "#0284c7", desc: "Cường độ tín hiệu trạm" },
+};
+
 export function GspTelemetryDashboard() {
   const [station, setStation] = useState<SensorStation | null>(null);
   const [latestData, setLatestData] = useState<TelemetryRecord | null>(null);
   const [historyRecords, setHistoryRecords] = useState<TelemetryRecord[]>([]);
-  const [range, setRange] = useState<"5m" | "1h" | "24h" | "7d">("1h");
+  const [range, setRange] = useState<TimeRange>("5m");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isLiveConnected, setIsLiveConnected] = useState(false);
+
+  // View mode & selected metric
+  const [viewMode, setViewMode] = useState<ViewMode>("climate");
+  const [selectedMetric, setSelectedMetric] = useState<MetricKey>("temperature");
+
+  // Bộ đệm 30 điểm gần nhất cho từng sparkline mini trên 8 thẻ
+  const [sparkSeries, setSparkSeries] = useState<{ [key in MetricKey]: number[] }>({
+    temperature: [],
+    humidity: [],
+    dewPoint: [],
+    vpd: [],
+    chipTemp: [],
+    cpuLoad: [],
+    freeHeap: [],
+    wifiRssi: [],
+  });
+
+  // Quản lý trạng thái online/offline thực tế (hoàn toàn không mock)
+  const [hasReceivedAny, setHasReceivedAny] = useState(false);
   const [lastPacketTime, setLastPacketTime] = useState<Date | null>(null);
+  const [isLiveConnected, setIsLiveConnected] = useState(false);
+  const [offlineElapsedSec, setOfflineElapsedSec] = useState<number | null>(null);
 
   const { onEvent, offEvent } = useSocket();
 
-  // 1. Tải dữ liệu ban đầu và lịch sử
+  // 1. Tải dữ liệu ban đầu
   const fetchAllData = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
@@ -59,18 +164,41 @@ export function GspTelemetryDashboard() {
       ]);
 
       if (latestRes.success) {
-        setStation(latestRes.station);
+        if (latestRes.station) setStation(latestRes.station);
         if (latestRes.data) {
           setLatestData(latestRes.data);
-          setLastPacketTime(new Date(latestRes.data.timestamp * 1000));
+          setHasReceivedAny(true);
+          const t = new Date(latestRes.data.timestamp * 1000);
+          setLastPacketTime(t);
+          const elapsed = Math.round((Date.now() - t.getTime()) / 1000);
+          if (elapsed < 4) {
+            setIsLiveConnected(true);
+            setOfflineElapsedSec(null);
+          } else {
+            setIsLiveConnected(false);
+            setOfflineElapsedSec(elapsed);
+          }
         }
       }
 
-      if (historyRes.success && historyRes.records) {
+      if (historyRes.success && Array.isArray(historyRes.records)) {
         setHistoryRecords(historyRes.records);
+
+        // Nạp 30 điểm gần nhất cho 8 sparklines
+        const recent = historyRes.records.slice(-30);
+        setSparkSeries({
+          temperature: recent.map((r) => r.metrics?.temperature ?? NaN).filter((v) => !isNaN(v)),
+          humidity: recent.map((r) => r.metrics?.humidity ?? NaN).filter((v) => !isNaN(v)),
+          dewPoint: recent.map((r) => (r.metrics?.dewPoint ?? r.metrics?.dew_point ?? NaN)).filter((v) => !isNaN(v)),
+          vpd: recent.map((r) => r.metrics?.vpd ?? NaN).filter((v) => !isNaN(v)),
+          chipTemp: recent.map((r) => (r.diagnostics?.chipTemp ?? r.diagnostics?.chip_temp ?? NaN)).filter((v) => !isNaN(v)),
+          cpuLoad: recent.map((r) => (r.diagnostics?.cpuLoad ?? r.diagnostics?.cpu_load ?? NaN)).filter((v) => !isNaN(v)),
+          freeHeap: recent.map((r) => Math.round(((r.diagnostics?.freeHeap ?? r.diagnostics?.free_heap ?? NaN) / 1024))).filter((v) => !isNaN(v)),
+          wifiRssi: recent.map((r) => (r.diagnostics?.wifiRssi ?? r.diagnostics?.wifi_rssi ?? NaN)).filter((v) => !isNaN(v)),
+        });
       }
     } catch (err) {
-      console.error("Lỗi khi tải dữ liệu telemetry:", err);
+      console.error("Lỗi khi nạp dữ liệu IoT telemetry:", err);
     } finally {
       setLoading(false);
       if (isManual) setRefreshing(false);
@@ -81,44 +209,68 @@ export function GspTelemetryDashboard() {
     fetchAllData();
   }, [range]);
 
-  // 2. Lắng nghe Realtime qua WebSocket / SSE (1s/lần)
+  // 2. Lắng nghe gói tin Realtime (1s/lần) qua WebSocket / SSE
   useEffect(() => {
     const handleRealtimePacket = (data: any) => {
+      setHasReceivedAny(true);
       setIsLiveConnected(true);
-      setLastPacketTime(new Date());
+      setOfflineElapsedSec(null);
+      const now = new Date();
+      setLastPacketTime(now);
 
       const record: TelemetryRecord = {
-        timestamp: data.timestamp || Math.floor(Date.now() / 1000),
-        seq: data.seq || 0,
+        timestamp: data.timestamp || Math.floor(now.getTime() / 1000),
+        seq: data.seq,
         metrics: {
-          temperature: Number(data.metrics?.temperature ?? 0),
-          humidity: Number(data.metrics?.humidity ?? 0),
-          dewPoint: Number(data.metrics?.dew_point ?? data.metrics?.dewPoint ?? 0),
-          vpd: Number(data.metrics?.vpd ?? 0),
+          temperature: data.metrics?.temperature !== undefined ? Number(data.metrics.temperature) : undefined,
+          humidity: data.metrics?.humidity !== undefined ? Number(data.metrics.humidity) : undefined,
+          dewPoint: data.metrics?.dew_point !== undefined ? Number(data.metrics.dew_point) : (data.metrics?.dewPoint !== undefined ? Number(data.metrics.dewPoint) : undefined),
+          vpd: data.metrics?.vpd !== undefined ? Number(data.metrics.vpd) : undefined,
         },
         diagnostics: {
-          chipTemp: Number(data.diagnostics?.chip_temp ?? data.diagnostics?.chipTemp ?? 0),
-          cpuLoad: Number(data.diagnostics?.cpu_load ?? data.diagnostics?.cpuLoad ?? 0),
-          cpu0: Number(data.diagnostics?.cpu0 ?? 0),
-          cpu1: Number(data.diagnostics?.cpu1 ?? 0),
-          freeHeap: Number(data.diagnostics?.free_heap ?? data.diagnostics?.freeHeap ?? 0),
-          uptimeSec: Number(data.diagnostics?.uptime_sec ?? data.diagnostics?.uptimeSec ?? 0),
-          wifiRssi: Number(data.diagnostics?.wifi_rssi ?? data.diagnostics?.wifiRssi ?? 0),
+          chipTemp: data.diagnostics?.chip_temp !== undefined ? Number(data.diagnostics.chip_temp) : (data.diagnostics?.chipTemp !== undefined ? Number(data.diagnostics.chipTemp) : undefined),
+          cpuLoad: data.diagnostics?.cpu_load !== undefined ? Number(data.diagnostics.cpu_load) : (data.diagnostics?.cpuLoad !== undefined ? Number(data.diagnostics.cpuLoad) : undefined),
+          cpu0: data.diagnostics?.cpu0 !== undefined ? Number(data.diagnostics.cpu0) : undefined,
+          cpu1: data.diagnostics?.cpu1 !== undefined ? Number(data.diagnostics.cpu1) : undefined,
+          freeHeap: data.diagnostics?.free_heap !== undefined ? Number(data.diagnostics.free_heap) : (data.diagnostics?.freeHeap !== undefined ? Number(data.diagnostics.freeHeap) : undefined),
+          uptimeSec: data.diagnostics?.uptime_sec !== undefined ? Number(data.diagnostics.uptime_sec) : (data.diagnostics?.uptimeSec !== undefined ? Number(data.diagnostics.uptimeSec) : undefined),
+          wifiRssi: data.diagnostics?.wifi_rssi !== undefined ? Number(data.diagnostics.wifi_rssi) : (data.diagnostics?.wifiRssi !== undefined ? Number(data.diagnostics.wifiRssi) : undefined),
         },
         status: {
           alert: Boolean(data.status?.alert),
-          sensorValid: data.status?.sensor_valid !== undefined ? Boolean(data.status?.sensor_valid) : true,
+          sensorValid: data.status?.sensor_valid !== undefined ? Boolean(data.status.sensor_valid) : true,
         },
       };
 
       setLatestData(record);
 
-      // Cập nhật biểu đồ lịch sử theo thời gian thực (nếu đang xem 5m hoặc 1h)
-      if (range === "5m" || range === "1h") {
+      // Cập nhật Sparklines mini trên 8 thẻ (tối đa 30 điểm gần nhất)
+      setSparkSeries((prev) => {
+        const pushPoint = (arr: number[], val?: number) => {
+          if (val === undefined || isNaN(val)) return arr;
+          const next = [...arr, val];
+          return next.length > 30 ? next.slice(-30) : next;
+        };
+
+        const freeHeapKb = record.diagnostics?.freeHeap !== undefined ? Math.round(record.diagnostics.freeHeap / 1024) : undefined;
+
+        return {
+          temperature: pushPoint(prev.temperature, record.metrics?.temperature),
+          humidity: pushPoint(prev.humidity, record.metrics?.humidity),
+          dewPoint: pushPoint(prev.dewPoint, record.metrics?.dewPoint),
+          vpd: pushPoint(prev.vpd, record.metrics?.vpd),
+          chipTemp: pushPoint(prev.chipTemp, record.diagnostics?.chipTemp),
+          cpuLoad: pushPoint(prev.cpuLoad, record.diagnostics?.cpuLoad),
+          freeHeap: pushPoint(prev.freeHeap, freeHeapKb),
+          wifiRssi: pushPoint(prev.wifiRssi, record.diagnostics?.wifiRssi),
+        };
+      });
+
+      // Nếu đang ở dải Realtime 5m: Giữ cửa sổ trượt 60 điểm gần nhất để đảm bảo 0% giật lag
+      if (range === "5m") {
         setHistoryRecords((prev) => {
-          const updated = [...prev, record];
-          const maxPoints = range === "5m" ? 300 : 3600;
-          return updated.slice(-maxPoints);
+          const next = [...prev, record];
+          return next.length > 60 ? next.slice(-60) : next;
         });
       }
     };
@@ -130,7 +282,27 @@ export function GspTelemetryDashboard() {
     };
   }, [range, onEvent, offEvent]);
 
-  // 3. Chuẩn hóa dữ liệu biểu đồ Recharts
+  // 3. Heartbeat kiểm tra trạng thái Online / Offline mỗi giây
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!lastPacketTime) {
+        setIsLiveConnected(false);
+        return;
+      }
+      const diffSec = Math.round((Date.now() - lastPacketTime.getTime()) / 1000);
+      if (diffSec >= 4) {
+        setIsLiveConnected(false);
+        setOfflineElapsedSec(diffSec);
+      } else {
+        setIsLiveConnected(true);
+        setOfflineElapsedSec(null);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lastPacketTime]);
+
+  // Chuẩn hóa danh sách dữ liệu cho biểu đồ Recharts (đầy đủ 8 thông số)
   const chartData = useMemo(() => {
     return historyRecords.map((r) => {
       const d = new Date(r.timestamp * 1000);
@@ -139,31 +311,81 @@ export function GspTelemetryDashboard() {
           ? `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")} ${d.getDate()}/${d.getMonth() + 1}`
           : `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
 
+      const rawFreeHeap = r.diagnostics?.freeHeap ?? r.diagnostics?.free_heap;
+
       return {
         time: timeLabel,
-        rawTime: r.timestamp,
-        temperature: r.metrics?.temperature ?? 0,
-        humidity: r.metrics?.humidity ?? 0,
-        dewPoint: r.metrics?.dewPoint ?? r.metrics?.dew_point ?? 0,
-        vpd: r.metrics?.vpd ?? 0,
-        cpuLoad: r.diagnostics?.cpuLoad ?? r.diagnostics?.cpu_load ?? 0,
+        rawTimestamp: r.timestamp,
+        temperature: r.metrics?.temperature,
+        humidity: r.metrics?.humidity,
+        dewPoint: r.metrics?.dewPoint ?? r.metrics?.dew_point,
+        vpd: r.metrics?.vpd,
+        chipTemp: r.diagnostics?.chipTemp ?? r.diagnostics?.chip_temp,
+        cpuLoad: r.diagnostics?.cpuLoad ?? r.diagnostics?.cpu_load,
+        freeHeap: rawFreeHeap !== undefined ? Math.round(rawFreeHeap / 1024) : undefined,
+        wifiRssi: r.diagnostics?.wifiRssi ?? r.diagnostics?.wifi_rssi,
       };
     });
   }, [historyRecords, range]);
 
-  // Đánh giá trạng thái chuẩn GSP hiện tại
-  const temp = latestData?.metrics?.temperature ?? 24.5;
-  const hum = latestData?.metrics?.humidity ?? 62.0;
-  const dewPoint = latestData?.metrics?.dewPoint ?? latestData?.metrics?.dew_point ?? 16.8;
-  const vpd = latestData?.metrics?.vpd ?? 1.15;
+  // Thống kê Min, Max, Avg từ dữ liệu đang vẽ
+  const stats = useMemo(() => {
+    if (chartData.length === 0) return { count: 0, min: "--", max: "--", avg: "--" };
 
-  const isTempViolated = temp < 15.0 || temp > (station?.tempMax || 25.0);
-  const isHumViolated = hum > (station?.humMax || 70.0);
+    let targetKey: keyof (typeof chartData)[0] = "temperature";
+    if (viewMode === "single") {
+      targetKey = selectedMetric;
+    } else if (viewMode === "hardware") {
+      targetKey = "chipTemp";
+    }
+
+    const values = chartData
+      .map((item) => item[targetKey] as number | undefined)
+      .filter((v): v is number => typeof v === "number" && !isNaN(v));
+
+    if (values.length === 0) return { count: 0, min: "--", max: "--", avg: "--" };
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+
+    return {
+      count: values.length,
+      min: min.toFixed(2),
+      max: max.toFixed(2),
+      avg: avg.toFixed(2),
+    };
+  }, [chartData, viewMode, selectedMetric]);
+
+  // Click chọn card để xem chi tiết
+  const handleCardClick = (metric: MetricKey) => {
+    setSelectedMetric(metric);
+    setViewMode("single");
+  };
+
+  // Giá trị thực tế từ trạm (không dùng mock fallback)
+  const tempVal = latestData?.metrics?.temperature;
+  const humVal = latestData?.metrics?.humidity;
+  const dewVal = latestData?.metrics?.dewPoint ?? latestData?.metrics?.dew_point;
+  const vpdVal = latestData?.metrics?.vpd;
+  const chipTempVal = latestData?.diagnostics?.chipTemp ?? latestData?.diagnostics?.chip_temp;
+  const cpuLoadVal = latestData?.diagnostics?.cpuLoad ?? latestData?.diagnostics?.cpu_load;
+  const cpu0Val = latestData?.diagnostics?.cpu0;
+  const cpu1Val = latestData?.diagnostics?.cpu1;
+  const rawHeap = latestData?.diagnostics?.freeHeap ?? latestData?.diagnostics?.free_heap;
+  const freeHeapKb = rawHeap !== undefined ? Math.round(rawHeap / 1024) : undefined;
+  const wifiVal = latestData?.diagnostics?.wifiRssi ?? latestData?.diagnostics?.wifi_rssi;
+  const uptimeVal = latestData?.diagnostics?.uptimeSec ?? latestData?.diagnostics?.uptime_sec;
+  const seqVal = latestData?.seq;
+
+  // Đánh giá vi phạm chuẩn GSP thực tế
+  const isTempViolated = tempVal !== undefined && (tempVal < 15.0 || tempVal > (station?.tempMax || 25.0));
+  const isHumViolated = humVal !== undefined && humVal > (station?.humMax || 70.0);
   const isGspAlert = isTempViolated || isHumViolated || Boolean(latestData?.status?.alert);
 
-  // Định dạng Uptime giờ:phút:giây
-  const uptimeSec = latestData?.diagnostics?.uptimeSec ?? latestData?.diagnostics?.uptime_sec ?? 0;
-  const formatUptime = (sec: number) => {
+  // Format Uptime
+  const formatUptime = (sec?: number) => {
+    if (sec === undefined) return "--";
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
     const s = sec % 60;
@@ -171,350 +393,730 @@ export function GspTelemetryDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
-      {/* ── HEADER PHÒNG ĐIỀU HÀNH IOT GSP ── */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-xl shadow-2xl">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8 flex flex-col gap-6 text-slate-800 antialiased">
+      {/* ── TOP HEADER: THÔNG TIN TRẠM & TRẠNG THÁI KẾT NỐI REALTIME ── */}
+      <div className="bg-white border border-slate-200 shadow-xs rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-sky-600 via-teal-500 to-emerald-400 p-0.5 shadow-lg shadow-teal-500/20 flex items-center justify-center">
-            <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-teal-400">
-              <Radio className="w-6 h-6 animate-pulse" />
-            </div>
+          <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center shrink-0">
+            <Radio className={`w-6 h-6 ${isLiveConnected ? "animate-pulse text-emerald-600" : "text-slate-400"}`} />
           </div>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                Trạm Giám Sát Môi Trường GSP — Kho Tổng
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                Giám Sát Môi Trường GSP — Kho Tổng
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 border border-sky-500/30 text-sky-400">
-                CENTRAL_WH
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 border border-teal-200 text-teal-700">
+                {station?.targetId || "CENTRAL_WH"}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 border border-purple-500/30 text-purple-300">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-600">
                 ESP32-S3 Dual-Core
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-              <span>Mã phần cứng: <code className="text-sky-300 font-mono">{station?.deviceId || "ESP32S3_404CCA44C814"}</code></span>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+              <span>Mã trạm: <code className="font-mono text-slate-700 font-semibold">{station?.deviceId || (latestData as any)?.deviceId || "ESP32S3_404CCA44C814"}</code></span>
               <span>•</span>
-              <span>Cảm biến: Sensirion SHT31 (I2C)</span>
+              <span>Gói tin: <strong className="font-mono text-slate-700">{seqVal !== undefined ? `#${seqVal}` : "--"}</strong></span>
+              <span>•</span>
+              <span>Lần cuối: <strong className="text-slate-700">{lastPacketTime ? lastPacketTime.toLocaleTimeString("vi-VN") : "Chưa có dữ liệu"}</strong></span>
             </p>
           </div>
         </div>
 
-        {/* Trạng thái GSP & Kết nối Realtime */}
+        {/* Trạng thái kết nối & Nút điều khiển */}
         <div className="flex items-center gap-3 flex-wrap">
           {/* Badge Chuẩn GSP */}
+          {hasReceivedAny ? (
+            <div
+              className={`px-3.5 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all ${
+                isGspAlert
+                  ? "bg-rose-50 border-rose-200 text-rose-700 animate-pulse"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
+              }`}
+            >
+              {isGspAlert ? <AlertTriangle className="w-4 h-4 text-rose-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+              <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : "ĐẠT CHUẨN GSP (15-25°C, ≤70%RH)"}</span>
+            </div>
+          ) : (
+            <div className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 flex items-center gap-2 text-xs font-semibold">
+              <ShieldCheck className="w-4 h-4 text-slate-400" />
+              <span>CHỜ KẾT NỐI TRẠM</span>
+            </div>
+          )}
+
+          {/* Badge Trực tiếp (1Hz) */}
           <div
-            className={`px-3.5 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all ${
-              isGspAlert
-                ? "bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse shadow-lg shadow-rose-500/20"
-                : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-md shadow-emerald-500/10"
+            className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-mono font-medium transition-all ${
+              isLiveConnected
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : hasReceivedAny
+                ? "bg-rose-50 border-rose-200 text-rose-700"
+                : "bg-slate-100 border-slate-200 text-slate-500"
             }`}
           >
-            {isGspAlert ? <AlertTriangle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-            <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : "ĐẠT CHUẨN GSP (15-25°C, <70%RH)"}</span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isLiveConnected
+                  ? "bg-emerald-500 animate-ping"
+                  : hasReceivedAny
+                  ? "bg-rose-500"
+                  : "bg-slate-400"
+              }`}
+            />
+            <span>
+              {isLiveConnected
+                ? "LIVE (1Hz)"
+                : hasReceivedAny
+                ? `MẤT TÍN HIỆU (${offlineElapsedSec || 4}s)`
+                : "CHỜ KẾT NỐI"}
+            </span>
           </div>
 
-          {/* Badge Live Realtime */}
-          <div className="bg-slate-800/80 border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs text-slate-300">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="font-mono text-emerald-400 font-semibold">1Hz Live</span>
-            {lastPacketTime && (
-              <span className="text-[11px] text-slate-400 hidden sm:inline">
-                ({lastPacketTime.toLocaleTimeString()})
-              </span>
-            )}
-          </div>
-
-          {/* Nút Làm mới */}
+          {/* Nút Làm mới thủ công */}
           <button
             onClick={() => fetchAllData(true)}
             disabled={refreshing}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-all disabled:opacity-50"
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all disabled:opacity-50 cursor-pointer"
             title="Tải lại dữ liệu"
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-sky-400" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-teal-600" : ""}`} />
           </button>
         </div>
       </div>
 
-      {/* ── THẺ CHỈ SỐ QUAN TRẮC MÔI TRƯỜNG THỰC TẾ ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* 1. Nhiệt độ */}
-        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900/90 to-slate-900/50 border border-slate-800 rounded-2xl p-5 backdrop-blur shadow-lg group hover:border-sky-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nhiệt độ Kho</span>
-            <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400">
-              <Thermometer className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
-              {temp.toFixed(2)}
-            </span>
-            <span className="text-lg font-bold text-sky-400">°C</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-            <span>Chuẩn GSP: 15.0°C – 25.0°C</span>
-            <span className={`font-semibold ${isTempViolated ? "text-rose-400" : "text-emerald-400"}`}>
-              {isTempViolated ? "Vượt chuẩn" : "An toàn"}
-            </span>
-          </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div
-              className={`h-full transition-all duration-500 ${
-                isTempViolated ? "bg-rose-500" : "bg-gradient-to-r from-sky-400 to-teal-400"
-              }`}
-              style={{ width: `${Math.min(100, Math.max(0, ((temp - 10) / 25) * 100))}%` }}
-            />
+      {/* ── BANNER CẢNH BÁO KHI TRẠM BỊ NGẮT KẾT NỐI ── */}
+      {hasReceivedAny && !isLiveConnected && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 text-xs text-amber-800 shadow-xs">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+          <div>
+            <span className="font-bold">THÔNG BÁO MẤT TÍN HIỆU:</span> Trạm cảm biến ESP32-S3 tại kho tổng hiện đang ngắt kết nối. Dưới đây là dữ liệu thực tế ghi nhận lần cuối lúc{" "}
+            <strong>{lastPacketTime?.toLocaleTimeString("vi-VN")} {lastPacketTime?.toLocaleDateString("vi-VN")}</strong>. Hệ thống sẽ tự động cập nhật ngay khi trạm kết nối lại.
           </div>
         </div>
+      )}
 
-        {/* 2. Độ ẩm */}
-        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900/90 to-slate-900/50 border border-slate-800 rounded-2xl p-5 backdrop-blur shadow-lg group hover:border-teal-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Độ ẩm Không khí</span>
-            <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400">
-              <Droplets className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
-              {hum.toFixed(2)}
-            </span>
-            <span className="text-lg font-bold text-teal-400">%RH</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-            <span>Ngưỡng tối đa: &lt; 70% RH</span>
-            <span className={`font-semibold ${isHumViolated ? "text-rose-400" : "text-emerald-400"}`}>
-              {isHumViolated ? "Ẩm cao" : "Chuẩn GSP"}
-            </span>
-          </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div
-              className={`h-full transition-all duration-500 ${
-                isHumViolated ? "bg-rose-500" : "bg-gradient-to-r from-teal-400 to-emerald-400"
-              }`}
-              style={{ width: `${Math.min(100, hum)}%` }}
-            />
-          </div>
+      {/* ── PHẦN 1: CÁC CHỈ SỐ MÔI TRƯỜNG GSP (4 THẺ CHÍNH KÈM MINI SPARKLINE) ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <span>1. Chỉ Số Khí Hậu & Môi Trường GSP</span>
+            <span className="text-[11px] font-normal text-slate-400">(Bấm vào thẻ để xem biểu đồ chi tiết)</span>
+          </h2>
+          <span className="text-xs font-mono text-slate-400">Sensirion SHT31 High Precision</span>
         </div>
 
-        {/* 3. Điểm sương */}
-        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900/90 to-slate-900/50 border border-slate-800 rounded-2xl p-5 backdrop-blur shadow-lg group hover:border-purple-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Điểm Sương (Dew Point)</span>
-            <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
-              <CloudFog className="w-5 h-5" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Nhiệt độ Kho */}
+          <div
+            onClick={() => handleCardClick("temperature")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "temperature"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                <Thermometer className="w-4 h-4 text-emerald-600" />
+                Nhiệt Độ Kho
+              </span>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                  tempVal === undefined
+                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                    : tempVal >= 15 && tempVal <= 25
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : tempVal > 25
+                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                    : "bg-cyan-50 text-cyan-700 border-cyan-200"
+                }`}
+              >
+                {tempVal === undefined
+                  ? "Chờ dữ liệu"
+                  : tempVal >= 15 && tempVal <= 25
+                  ? "Chuẩn GSP"
+                  : tempVal > 25
+                  ? "Vượt chuẩn"
+                  : "Thấp"}
+              </span>
             </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
-              {dewPoint.toFixed(2)}
-            </span>
-            <span className="text-lg font-bold text-purple-400">°C</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-            <span>Ngưng tụ hơi ẩm</span>
-            <span className="text-slate-300 font-mono">Magnus Eq</span>
-          </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-purple-400 to-indigo-400 transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, (dewPoint / 35) * 100))}%` }}
-            />
-          </div>
-        </div>
 
-        {/* 4. VPD (Vapor Pressure Deficit) */}
-        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900/90 to-slate-900/50 border border-slate-800 rounded-2xl p-5 backdrop-blur shadow-lg group hover:border-amber-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Độ Hụt Áp Suất (VPD)</span>
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-              <Gauge className="w-5 h-5" />
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+                {tempVal !== undefined ? tempVal.toFixed(2) : "--.-"}
+              </span>
+              <span className="text-base font-semibold text-slate-500">°C</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.temperature} color="#10b981" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Chuẩn: <strong>15 - 25°C</strong></span>
+              <span className="text-emerald-600 font-medium">Bảo quản mát</span>
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
-              {vpd.toFixed(2)}
-            </span>
-            <span className="text-lg font-bold text-amber-400">kPa</span>
+
+          {/* Card 2: Độ ẩm không khí */}
+          <div
+            onClick={() => handleCardClick("humidity")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "humidity"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-700 flex items-center gap-1.5">
+                <Droplets className="w-4 h-4 text-cyan-600" />
+                Độ Ẩm Không Khí
+              </span>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                  humVal === undefined
+                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                    : humVal <= 70
+                    ? "bg-teal-50 text-teal-700 border-teal-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                }`}
+              >
+                {humVal === undefined
+                  ? "Chờ dữ liệu"
+                  : humVal <= 70
+                  ? "Tối ưu"
+                  : "Quá ẩm"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-cyan-700 tracking-tight">
+                {humVal !== undefined ? humVal.toFixed(2) : "--.-"}
+              </span>
+              <span className="text-base font-semibold text-cyan-600">%RH</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.humidity} color="#06b6d4" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Giới hạn GSP: <strong>≤ 70%</strong></span>
+              <span className="text-cyan-700 font-medium">Độ ẩm an toàn</span>
+            </div>
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-            <span>Thoát ẩm dược phẩm</span>
-            <span className="text-amber-300 font-semibold">{vpd > 1.4 ? "Thoát ẩm nhanh" : "Tối ưu"}</span>
+
+          {/* Card 3: Điểm sương (Dew Point) */}
+          <div
+            onClick={() => handleCardClick("dewPoint")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "dewPoint"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+                <CloudFog className="w-4 h-4 text-indigo-600" />
+                Điểm Sương
+              </span>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                  dewVal === undefined
+                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                    : dewVal < 22
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
+                }`}
+              >
+                {dewVal === undefined ? "Magnus" : dewVal < 22 ? "Khô ráo" : "Nguy cơ đọng sương"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-indigo-700 tracking-tight">
+                {dewVal !== undefined ? dewVal.toFixed(2) : "--.-"}
+              </span>
+              <span className="text-base font-semibold text-indigo-500">°C</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.dewPoint} color="#6366f1" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Đọng sương:</span>
+              <span className={`font-medium ${dewVal !== undefined && dewVal >= 22 ? "text-amber-600" : "text-indigo-600"}`}>
+                {dewVal === undefined ? "--" : dewVal >= 22 ? "Cần thông khí" : "Không đọng ẩm"}
+              </span>
+            </div>
           </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-amber-400 to-orange-400 transition-all duration-500"
-              style={{ width: `${Math.min(100, (vpd / 2.5) * 100)}%` }}
-            />
+
+          {/* Card 4: Độ hụt áp suất hơi nước (VPD) */}
+          <div
+            onClick={() => handleCardClick("vpd")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "vpd"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-700 flex items-center gap-1.5">
+                <Gauge className="w-4 h-4 text-purple-600" />
+                Độ Hụt Áp Suất (VPD)
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                Thoát ẩm
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-purple-700 tracking-tight">
+                {vpdVal !== undefined ? vpdVal.toFixed(2) : "--.-"}
+              </span>
+              <span className="text-base font-semibold text-purple-500">kPa</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.vpd} color="#a855f7" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Mức thoát ẩm:</span>
+              <span className="font-medium text-purple-600">
+                {vpdVal === undefined ? "--" : vpdVal >= 0.8 && vpdVal <= 1.2 ? "Ổn định" : vpdVal < 0.8 ? "Bốc ẩm chậm" : "Bốc ẩm nhanh"}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── BIỂU ĐỒ DIỄN BIẾN LỊCH SỬ CHUẨN GSP ── */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 lg:p-6 backdrop-blur shadow-2xl flex flex-col gap-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800/80 pb-4">
+      {/* ── PHẦN 2: CHẨN ĐOÁN PHẦN CỨNG ESP32-S3 (ĐẦY ĐỦ 4 THẺ CHẨN ĐOÁN) ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <span>2. Chẩn Đoán Phần Cứng ESP32-S3</span>
+            <span className="text-[11px] font-normal text-slate-400">(Bấm vào thẻ để xem biểu đồ chi tiết)</span>
+          </h2>
+          <span className="text-xs font-mono text-slate-400">Xtensa LX7 Dual-Core Telemetry</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 5: Nhiệt độ Chip ESP32 */}
+          <div
+            onClick={() => handleCardClick("chipTemp")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "chipTemp"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
+                <Cpu className="w-4 h-4 text-amber-600" />
+                Nhiệt Độ Chip
+              </span>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                  chipTempVal === undefined
+                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                    : chipTempVal <= 65
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : chipTempVal <= 75
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                }`}
+              >
+                {chipTempVal === undefined ? "Chờ đo" : chipTempVal <= 65 ? "Mát" : chipTempVal <= 75 ? "Ấm" : "Nóng"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-amber-700 tracking-tight">
+                {chipTempVal !== undefined ? chipTempVal.toFixed(1) : "--.-"}
+              </span>
+              <span className="text-base font-semibold text-amber-500">°C</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.chipTemp} color="#f59e0b" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Giới hạn: <strong>&lt; 75°C</strong></span>
+              <span className="text-slate-600 font-mono">Tự làm mát</span>
+            </div>
+          </div>
+
+          {/* Card 6: Tải CPU Tổng */}
+          <div
+            onClick={() => handleCardClick("cpuLoad")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "cpuLoad"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-orange-700 flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-orange-600" />
+                Tải CPU Tổng
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                Core 0 & 1
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-orange-700 tracking-tight">
+                {cpuLoadVal !== undefined ? Math.round(cpuLoadVal) : "--"}
+              </span>
+              <span className="text-base font-semibold text-orange-500">%</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.cpuLoad} color="#f97316" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
+              <span>C0: <strong>{cpu0Val !== undefined ? `${Math.round(cpu0Val)}%` : "--"}</strong></span>
+              <span>C1: <strong>{cpu1Val !== undefined ? `${Math.round(cpu1Val)}%` : "--"}</strong></span>
+            </div>
+          </div>
+
+          {/* Card 7: RAM Heap Trống */}
+          <div
+            onClick={() => handleCardClick("freeHeap")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "freeHeap"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-700 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-teal-600" />
+                RAM Heap Trống
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                SRAM
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-teal-700 tracking-tight">
+                {freeHeapKb !== undefined ? freeHeapKb : "--"}
+              </span>
+              <span className="text-base font-semibold text-teal-500">KB</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.freeHeap} color="#14b8a6" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Uptime:</span>
+              <span className="font-mono text-slate-700 font-semibold">{formatUptime(uptimeVal)}</span>
+            </div>
+          </div>
+
+          {/* Card 8: Tín hiệu Wi-Fi (RSSI) */}
+          <div
+            onClick={() => handleCardClick("wifiRssi")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "wifiRssi"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-sky-700 flex items-center gap-1.5">
+                <Wifi className="w-4 h-4 text-sky-600" />
+                Sóng Wi-Fi (RSSI)
+              </span>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                  wifiVal === undefined
+                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                    : wifiVal >= -65
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : wifiVal >= -75
+                    ? "bg-sky-50 text-sky-700 border-sky-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
+                }`}
+              >
+                {wifiVal === undefined ? "Chờ đo" : wifiVal >= -65 ? "Rất mạnh" : wifiVal >= -75 ? "Tốt" : "Yếu"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-sky-700 tracking-tight">
+                {wifiVal !== undefined ? wifiVal : "--"}
+              </span>
+              <span className="text-base font-semibold text-sky-500">dBm</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.wifiRssi} color="#0284c7" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
+              <span>Gói tin: <strong className="text-slate-700">{seqVal !== undefined ? `#${seqVal}` : "--"}</strong></span>
+              <span className="text-sky-700 font-medium">{wifiVal !== undefined && wifiVal >= -75 ? "Ổn định" : "Cần kiểm tra AP"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── PHẦN 3: MASTER DETAILED CHART (BIỂU ĐỒ CHI TIẾT TƯƠNG TÁC) ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 lg:p-6 shadow-xs flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Activity className="w-5 h-5 text-sky-400" />
-              <span>Biểu Đồ Xu Hướng Nhiệt Độ & Độ Ẩm (Chuỗi Thời Gian)</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Đường nét đứt màu đỏ và cam đánh dấu ngưỡng giới hạn an toàn dược phẩm theo tiêu chuẩn GSP
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-teal-600" />
+              <h2 className="text-base font-bold text-slate-900">
+                {viewMode === "climate"
+                  ? "Biểu Đồ Toàn Cảnh: Khí Hậu & Môi Trường Kho"
+                  : viewMode === "hardware"
+                  ? "Biểu Đồ Toàn Cảnh: Chẩn Đoán Phần Cứng ESP32-S3"
+                  : `Biểu Đồ Chi Tiết: ${METRIC_DEFINITIONS[selectedMetric].label} (${METRIC_DEFINITIONS[selectedMetric].unit})`}
+              </h2>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                {range === "5m" ? "Realtime 1Hz" : range === "1h" ? "1 Giờ" : range === "24h" ? "24 Giờ" : "7 Ngày"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Dữ liệu chuỗi thời gian thực tế thu thập từ trạm ESP32-S3 tại kho tổng CENTRAL_WH.
             </p>
           </div>
 
-          {/* Dải chọn thời gian */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
-            {(["5m", "1h", "24h", "7d"] as const).map((item) => (
+          {/* Controls: Chế độ xem & Dải thời gian */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* View Mode Buttons */}
+            <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
               <button
-                key={item}
-                onClick={() => setRange(item)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  range === item
-                    ? "bg-sky-600 text-white shadow-md shadow-sky-600/30"
-                    : "text-slate-400 hover:text-white"
+                onClick={() => setViewMode("climate")}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "climate"
+                    ? "bg-white text-slate-900 font-semibold shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                {item === "5m" ? "5 Phút" : item === "1h" ? "1 Giờ" : item === "24h" ? "24 Giờ" : "7 Ngày"}
+                Khí Hậu
               </button>
-            ))}
+              <button
+                onClick={() => setViewMode("hardware")}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "hardware"
+                    ? "bg-white text-slate-900 font-semibold shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Phần Cứng
+              </button>
+              <button
+                onClick={() => setViewMode("single")}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "single"
+                    ? "bg-white text-slate-900 font-semibold shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Đơn Lẻ
+              </button>
+            </div>
+
+            {/* Time Range Selector */}
+            <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
+              {(["5m", "1h", "24h", "7d"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    range === r
+                      ? "bg-teal-600 text-white font-semibold shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {r === "5m" ? "5 Phút" : r === "1h" ? "1 Giờ" : r === "24h" ? "24 Giờ" : "7 Ngày"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Khung vẽ Recharts */}
-        <div className="w-full h-72 sm:h-80 lg:h-96">
+        {/* Khung vẽ biểu đồ Recharts (Tắt hoạt ảnh để triệt tiêu hoàn toàn giật lag) */}
+        <div className="w-full h-80 sm:h-96 relative">
           {chartData.length === 0 ? (
-            <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">
-              Đang tiếp nhận dữ liệu telemetry từ trạm cảm biến...
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200 text-center p-6">
+              <Radio className="w-10 h-10 text-slate-400 mb-2 animate-pulse" />
+              <span className="text-sm font-semibold text-slate-700">Chưa có dữ liệu từ trạm cảm biến ESP32-S3</span>
+              <span className="text-xs text-slate-500 mt-1 max-w-md">
+                Biểu đồ sẽ tự động vẽ ngay khi nhận được gói tin dữ liệu thực tế đầu tiên từ thiết bị.
+              </span>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="humGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis dataKey="time" stroke="#64748b" fontSize={11} tickLine={false} />
-                <YAxis yAxisId="left" stroke="#38bdf8" fontSize={11} domain={[10, 35]} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" stroke="#2dd4bf" fontSize={11} domain={[30, 90]} tickLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#090d16",
-                    borderColor: "#1e293b",
-                    borderRadius: "12px",
-                    boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
-                    fontSize: "12px",
-                  }}
-                  labelStyle={{ color: "#94a3b8", fontWeight: 600, marginBottom: "4px" }}
-                />
+              {viewMode === "climate" ? (
+                <LineChart data={chartData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <YAxis yAxisId="left" stroke="#10b981" fontSize={11} domain={["auto", "auto"]} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#06b6d4" fontSize={11} domain={[0, 100]} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#ffffff",
+                      borderColor: "#e2e8f0",
+                      borderRadius: "12px",
+                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+                      fontSize: "12px",
+                      color: "#1e293b",
+                    }}
+                  />
+                  {/* Ngưỡng GSP */}
+                  <ReferenceLine yAxisId="left" y={25} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Max 25°C", fill: "#ef4444", fontSize: 10 }} />
+                  <ReferenceLine yAxisId="left" y={15} stroke="#3b82f6" strokeDasharray="4 4" label={{ value: "Min 15°C", fill: "#3b82f6", fontSize: 10 }} />
+                  <ReferenceLine yAxisId="right" y={70} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Max 70%RH", fill: "#f59e0b", fontSize: 10 }} />
 
-                {/* Ngưỡng cảnh báo GSP */}
-                <ReferenceLine yAxisId="left" y={25} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Max 25°C", fill: "#ef4444", fontSize: 10, position: "insideTopLeft" }} />
-                <ReferenceLine yAxisId="left" y={15} stroke="#38bdf8" strokeDasharray="4 4" label={{ value: "Min 15°C", fill: "#38bdf8", fontSize: 10, position: "insideBottomLeft" }} />
-                <ReferenceLine yAxisId="right" y={70} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Max 70%RH", fill: "#f59e0b", fontSize: 10, position: "insideTopRight" }} />
-
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="temperature"
-                  name="Nhiệt độ (°C)"
-                  stroke="#38bdf8"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#tempGradient)"
-                />
-                <Area
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="humidity"
-                  name="Độ ẩm (%RH)"
-                  stroke="#2dd4bf"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#humGradient)"
-                />
-              </AreaChart>
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="temperature"
+                    name="Nhiệt độ (°C)"
+                    stroke="#10b981"
+                    strokeWidth={2.2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="humidity"
+                    name="Độ ẩm (%RH)"
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="dewPoint"
+                    name="Điểm sương (°C)"
+                    stroke="#6366f1"
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              ) : viewMode === "hardware" ? (
+                <LineChart data={chartData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <YAxis yAxisId="left" stroke="#f59e0b" fontSize={11} domain={["auto", "auto"]} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#f97316" fontSize={11} domain={[0, 100]} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#ffffff",
+                      borderColor: "#e2e8f0",
+                      borderRadius: "12px",
+                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+                      fontSize: "12px",
+                      color: "#1e293b",
+                    }}
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="chipTemp"
+                    name="Nhiệt độ Chip (°C)"
+                    stroke="#f59e0b"
+                    strokeWidth={2.2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="cpuLoad"
+                    name="Tải CPU (%)"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="wifiRssi"
+                    name="Wi-Fi RSSI (dBm)"
+                    stroke="#0284c7"
+                    strokeWidth={1.8}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              ) : (
+                <AreaChart data={chartData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="singleMetricGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={METRIC_DEFINITIONS[selectedMetric].color} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={METRIC_DEFINITIONS[selectedMetric].color} stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <YAxis stroke={METRIC_DEFINITIONS[selectedMetric].color} fontSize={11} domain={["auto", "auto"]} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#ffffff",
+                      borderColor: "#e2e8f0",
+                      borderRadius: "12px",
+                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+                      fontSize: "12px",
+                      color: "#1e293b",
+                    }}
+                  />
+                  {selectedMetric === "temperature" && (
+                    <>
+                      <ReferenceLine y={25} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Max 25°C", fill: "#ef4444", fontSize: 10 }} />
+                      <ReferenceLine y={15} stroke="#3b82f6" strokeDasharray="4 4" label={{ value: "Min 15°C", fill: "#3b82f6", fontSize: 10 }} />
+                    </>
+                  )}
+                  {selectedMetric === "humidity" && (
+                    <ReferenceLine y={70} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Max 70%RH", fill: "#f59e0b", fontSize: 10 }} />
+                  )}
+                  {selectedMetric === "chipTemp" && (
+                    <ReferenceLine y={75} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Cảnh báo 75°C", fill: "#ef4444", fontSize: 10 }} />
+                  )}
+                  <Area
+                    type="monotone"
+                    dataKey={selectedMetric}
+                    name={`${METRIC_DEFINITIONS[selectedMetric].label} (${METRIC_DEFINITIONS[selectedMetric].unit})`}
+                    stroke={METRIC_DEFINITIONS[selectedMetric].color}
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#singleMetricGrad)"
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              )}
             </ResponsiveContainer>
           )}
         </div>
-      </div>
 
-      {/* ── CHẨN ĐOÁN PHẦN CỨNG ESP32-S3 (HARDWARE HEALTH) ── */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur">
-        <div className="flex items-center gap-2 mb-4">
-          <Server className="w-4 h-4 text-purple-400" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            Chẩn Đoán Sức Khỏe Vi Điều Khiển ESP32-S3
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-          {/* Chip Temp */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-            <span className="text-slate-400">Nhiệt độ Chip</span>
-            <div className="text-base font-bold font-mono text-white mt-1">
-              {(latestData?.diagnostics?.chipTemp ?? latestData?.diagnostics?.chip_temp ?? 42.5).toFixed(1)}°C
-            </div>
-            <span className="text-[10px] text-slate-500">Mức an toàn &lt; 75°C</span>
-          </div>
-
-          {/* CPU Total */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-            <span className="text-slate-400">Tải CPU Tổng</span>
-            <div className="text-base font-bold font-mono text-emerald-400 mt-1">
-              {(latestData?.diagnostics?.cpuLoad ?? latestData?.diagnostics?.cpu_load ?? 3.0).toFixed(1)}%
-            </div>
-            <span className="text-[10px] text-slate-500">Dual-Core 240MHz</span>
-          </div>
-
-          {/* CPU Core 0 / Core 1 */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-            <span className="text-slate-400">Nhân C0 / C1</span>
-            <div className="text-sm font-bold font-mono text-sky-400 mt-1">
-              {(latestData?.diagnostics?.cpu0 ?? 2.1).toFixed(0)}% / {(latestData?.diagnostics?.cpu1 ?? 3.5).toFixed(0)}%
-            </div>
-            <span className="text-[10px] text-slate-500">C0: Network | C1: Sensor</span>
-          </div>
-
-          {/* Free Heap */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-            <span className="text-slate-400">RAM Khả Dụng</span>
-            <div className="text-sm font-bold font-mono text-purple-300 mt-1">
-              {Math.round((latestData?.diagnostics?.freeHeap ?? latestData?.diagnostics?.free_heap ?? 184320) / 1024)} KB
-            </div>
-            <span className="text-[10px] text-slate-500">+8MB PSRAM Buffer</span>
-          </div>
-
-          {/* Wi-Fi RSSI */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-            <span className="text-slate-400">Sóng Wi-Fi</span>
-            <div className="text-sm font-bold font-mono text-teal-400 mt-1 flex items-center gap-1">
-              <Wifi className="w-3.5 h-3.5" />
-              <span>{latestData?.diagnostics?.wifiRssi ?? latestData?.diagnostics?.wifi_rssi ?? -58} dBm</span>
-            </div>
-            <span className="text-[10px] text-slate-500">Kết nối ổn định</span>
-          </div>
-
-          {/* Uptime */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-            <span className="text-slate-400">Thời Gian Chạy</span>
-            <div className="text-sm font-bold font-mono text-amber-300 mt-1">
-              {formatUptime(uptimeSec)}
-            </div>
-            <span className="text-[10px] text-slate-500">Seq #{latestData?.seq ?? 1052}</span>
-          </div>
+        {/* Master Chart Footer Stats */}
+        <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono text-slate-500">
+          <div>Điểm dữ liệu: <strong className="text-slate-800 font-semibold">{stats.count}</strong></div>
+          <div>Thấp nhất: <strong className="text-slate-800 font-semibold">{stats.min}</strong></div>
+          <div>Cao nhất: <strong className="text-slate-800 font-semibold">{stats.max}</strong></div>
+          <div>Trung bình: <strong className="text-slate-800 font-semibold">{stats.avg}</strong></div>
         </div>
       </div>
     </div>
   );
 }
+
 export default GspTelemetryDashboard;
