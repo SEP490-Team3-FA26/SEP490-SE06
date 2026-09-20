@@ -6,7 +6,6 @@ import {
   CloudFog,
   Cpu,
   Wifi,
-  Clock,
   ShieldCheck,
   AlertTriangle,
   RefreshCw,
@@ -38,60 +37,69 @@ interface SparklineCanvasProps {
   data: number[];
   color: string;
   height?: number;
+  minRange?: number;
 }
 
-const SparklineCanvas: React.FC<SparklineCanvasProps> = React.memo(({ data, color, height = 40 }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+const SparklineCanvas: React.FC<SparklineCanvasProps> = React.memo(
+  ({ data, color, height = 40, minRange = 1.0 }) => {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    const width = canvas.offsetWidth || 140;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, width, height);
+      const width = canvas.offsetWidth || 140;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, width, height);
 
-    const validData = data.filter((v) => v !== null && v !== undefined && !isNaN(v));
-    if (validData.length < 2) return;
+      const validData = data.filter((v) => v !== null && v !== undefined && !isNaN(v));
+      if (validData.length < 2) return;
 
-    const min = Math.min(...validData);
-    const max = Math.max(...validData);
-    const range = max - min === 0 ? 1 : max - min;
-    const padding = 3;
+      const min = Math.min(...validData);
+      const max = Math.max(...validData);
+      const diff = max - min;
+      // Dùng effectiveRange để tránh dao động siêu nhỏ (ví dụ 0.01) bị phóng to thành sóng vuông
+      const effectiveRange = Math.max(diff, minRange);
+      const mid = (min + max) / 2;
+      const plotMin = mid - effectiveRange / 2;
+      const plotMax = mid + effectiveRange / 2;
+      const range = plotMax - plotMin === 0 ? 1 : plotMax - plotMin;
+      const padding = 3;
 
-    const step = width / (validData.length - 1);
+      const step = width / (validData.length - 1);
 
-    ctx.beginPath();
-    validData.forEach((val, i) => {
-      const x = i * step;
-      const y = height - padding - ((val - min) / range) * (height - padding * 2);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+      ctx.beginPath();
+      validData.forEach((val, i) => {
+        const x = i * step;
+        const y = height - padding - ((val - plotMin) / range) * (height - padding * 2);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.8;
-    ctx.lineJoin = "round";
-    ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = "round";
+      ctx.stroke();
 
-    // Dải gradient nhẹ dưới đường biểu đồ
-    ctx.lineTo(width, height);
-    ctx.lineTo(0, height);
-    ctx.closePath();
-    const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, `${color}25`);
-    grad.addColorStop(1, `${color}00`);
-    ctx.fillStyle = grad;
-    ctx.fill();
-  }, [data, color, height]);
+      // Dải gradient nhẹ dưới đường biểu đồ
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, `${color}25`);
+      grad.addColorStop(1, `${color}00`);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }, [data, color, height, minRange]);
 
-  return <canvas ref={canvasRef} className="w-full h-10 pointer-events-none" />;
-});
+    return <canvas ref={canvasRef} className="w-full h-10 pointer-events-none" />;
+  }
+);
 
 // Kiểu loại 8 chỉ số theo dõi
 export type MetricKey =
@@ -110,16 +118,16 @@ export type TimeRange = "5m" | "1h" | "24h" | "7d";
 // Cấu hình hiển thị chi tiết cho từng chỉ số
 const METRIC_DEFINITIONS: Record<
   MetricKey,
-  { label: string; unit: string; color: string; desc: string }
+  { label: string; unit: string; color: string; desc: string; minRange: number }
 > = {
-  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 25°C" },
-  humidity: { label: "Độ Ẩm Không Khí", unit: "%RH", color: "#06b6d4", desc: "Chuẩn GSP ≤ 70%RH" },
-  dewPoint: { label: "Điểm Sương", unit: "°C", color: "#6366f1", desc: "Công thức Magnus Eq" },
-  vpd: { label: "Độ Hụt Áp Suất (VPD)", unit: "kPa", color: "#a855f7", desc: "Tốc độ bay hơi ẩm dược phẩm" },
-  chipTemp: { label: "Nhiệt Độ Chip ESP32", unit: "°C", color: "#f59e0b", desc: "Ngưỡng mát an toàn < 75°C" },
-  cpuLoad: { label: "Tải CPU Tổng", unit: "%", color: "#f97316", desc: "Xtensa Dual-Core 240MHz" },
-  freeHeap: { label: "RAM Heap Trống", unit: "KB", color: "#14b8a6", desc: "SRAM nội vi điều khiển" },
-  wifiRssi: { label: "Sóng Wi-Fi (RSSI)", unit: "dBm", color: "#0284c7", desc: "Cường độ tín hiệu trạm" },
+  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 25°C", minRange: 2.0 },
+  humidity: { label: "Độ Ẩm Không Khí", unit: "%RH", color: "#06b6d4", desc: "Chuẩn GSP ≤ 70%RH", minRange: 5.0 },
+  dewPoint: { label: "Điểm Sương (Td)", unit: "°C", color: "#6366f1", desc: "Công thức Magnus Eq", minRange: 2.0 },
+  vpd: { label: "Áp Suất Hơi (VPD)", unit: "kPa", color: "#a855f7", desc: "Tốc độ bay hơi ẩm dược phẩm", minRange: 0.5 },
+  chipTemp: { label: "Nhiệt Độ Chip ESP32", unit: "°C", color: "#f59e0b", desc: "Ngưỡng mát an toàn < 75°C", minRange: 5.0 },
+  cpuLoad: { label: "Tải CPU Tổng", unit: "%", color: "#f97316", desc: "Xtensa Dual-Core 240MHz", minRange: 10.0 },
+  freeHeap: { label: "RAM Heap Trống", unit: "KB", color: "#14b8a6", desc: "SRAM nội vi điều khiển", minRange: 20.0 },
+  wifiRssi: { label: "Sóng Wi-Fi (RSSI)", unit: "dBm", color: "#0284c7", desc: "Cường độ tín hiệu trạm", minRange: 10.0 },
 };
 
 export function GspTelemetryDashboard() {
@@ -383,6 +391,11 @@ export function GspTelemetryDashboard() {
   const isHumViolated = humVal !== undefined && humVal > (station?.humMax || 70.0);
   const isGspAlert = isTempViolated || isHumViolated || Boolean(latestData?.status?.alert);
 
+  // Đánh giá khoa học về nguy cơ đọng sương:
+  // Nguy cơ đọng sương CHỈ xảy ra khi nhiệt độ môi trường tiến gần điểm sương (chênh lệch <= 2.5°C) VÀ độ ẩm cao
+  const dewDelta = tempVal !== undefined && dewVal !== undefined ? tempVal - dewVal : undefined;
+  const isDewRisk = dewDelta !== undefined && (dewDelta <= 2.5 || (humVal !== undefined && humVal >= 85));
+
   // Format Uptime
   const formatUptime = (sec?: number) => {
     if (sec === undefined) return "--";
@@ -416,6 +429,8 @@ export function GspTelemetryDashboard() {
               <span>Mã trạm: <code className="font-mono text-slate-700 font-semibold">{station?.deviceId || (latestData as any)?.deviceId || "ESP32S3_404CCA44C814"}</code></span>
               <span>•</span>
               <span>Gói tin: <strong className="font-mono text-slate-700">{seqVal !== undefined ? `#${seqVal}` : "--"}</strong></span>
+              <span>•</span>
+              <span>Uptime: <strong className="font-mono text-slate-700">{formatUptime(uptimeVal)}</strong></span>
               <span>•</span>
               <span>Lần cuối: <strong className="text-slate-700">{lastPacketTime ? lastPacketTime.toLocaleTimeString("vi-VN") : "Chưa có dữ liệu"}</strong></span>
             </p>
@@ -514,13 +529,13 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
-                <Thermometer className="w-4 h-4 text-emerald-600" />
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Thermometer className="w-4 h-4 text-emerald-600 shrink-0" />
                 Nhiệt Độ Kho
               </span>
               <span
-                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
                   tempVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
                     : tempVal >= 15 && tempVal <= 25
@@ -548,12 +563,30 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.temperature} color="#10b981" />
+              <SparklineCanvas data={sparkSeries.temperature} color="#10b981" minRange={2.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>Chuẩn: <strong>15 - 25°C</strong></span>
-              <span className="text-emerald-600 font-medium">Bảo quản mát</span>
+              <span
+                className={`font-semibold ${
+                  tempVal === undefined
+                    ? "text-slate-400"
+                    : tempVal > 25
+                    ? "text-rose-600"
+                    : tempVal < 15
+                    ? "text-cyan-600"
+                    : "text-emerald-600"
+                }`}
+              >
+                {tempVal === undefined
+                  ? "--"
+                  : tempVal > 25
+                  ? "Vượt chuẩn (Quá nóng)"
+                  : tempVal < 15
+                  ? "Thấp hơn chuẩn"
+                  : "Bảo quản mát chuẩn GSP"}
+              </span>
             </div>
           </div>
 
@@ -566,13 +599,13 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-cyan-700 flex items-center gap-1.5">
-                <Droplets className="w-4 h-4 text-cyan-600" />
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Droplets className="w-4 h-4 text-cyan-600 shrink-0" />
                 Độ Ẩm Không Khí
               </span>
               <span
-                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
                   humVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
                     : humVal <= 70
@@ -596,12 +629,14 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.humidity} color="#06b6d4" />
+              <SparklineCanvas data={sparkSeries.humidity} color="#06b6d4" minRange={5.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>Giới hạn GSP: <strong>≤ 70%</strong></span>
-              <span className="text-cyan-700 font-medium">Độ ẩm an toàn</span>
+              <span className={`font-semibold ${humVal !== undefined && humVal > 70 ? "text-rose-600" : "text-cyan-700"}`}>
+                {humVal === undefined ? "--" : humVal <= 70 ? "Độ ẩm an toàn" : "Quá ẩm (Nguy cơ hỏng thuốc)"}
+              </span>
             </div>
           </div>
 
@@ -614,21 +649,19 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
-                <CloudFog className="w-4 h-4 text-indigo-600" />
-                Điểm Sương
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <CloudFog className="w-4 h-4 text-indigo-600 shrink-0" />
+                Điểm Sương (Td)
               </span>
               <span
-                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                  dewVal === undefined
-                    ? "bg-slate-100 text-slate-500 border-slate-200"
-                    : dewVal < 22
-                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
+                  isDewRisk
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
                 }`}
               >
-                {dewVal === undefined ? "Magnus" : dewVal < 22 ? "Khô ráo" : "Nguy cơ đọng sương"}
+                {dewVal === undefined ? "Magnus" : isDewRisk ? "Nguy cơ ngưng tụ" : "An toàn (Khô)"}
               </span>
             </div>
 
@@ -640,13 +673,13 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.dewPoint} color="#6366f1" />
+              <SparklineCanvas data={sparkSeries.dewPoint} color="#6366f1" minRange={2.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Đọng sương:</span>
-              <span className={`font-medium ${dewVal !== undefined && dewVal >= 22 ? "text-amber-600" : "text-indigo-600"}`}>
-                {dewVal === undefined ? "--" : dewVal >= 22 ? "Cần thông khí" : "Không đọng ẩm"}
+              <span>Độ chênh (T - Td):</span>
+              <span className={`font-semibold ${isDewRisk ? "text-amber-600" : "text-indigo-600"}`}>
+                {dewDelta !== undefined ? `+${dewDelta.toFixed(1)}°C (${isDewRisk ? "Gần bão hòa" : "Khô ráo"})` : "--"}
               </span>
             </div>
           </div>
@@ -660,12 +693,12 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-700 flex items-center gap-1.5">
-                <Gauge className="w-4 h-4 text-purple-600" />
-                Độ Hụt Áp Suất (VPD)
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Gauge className="w-4 h-4 text-purple-600 shrink-0" />
+                Áp Suất Hơi (VPD)
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap shrink-0">
                 Thoát ẩm
               </span>
             </div>
@@ -678,13 +711,21 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.vpd} color="#a855f7" />
+              <SparklineCanvas data={sparkSeries.vpd} color="#a855f7" minRange={0.5} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>Mức thoát ẩm:</span>
-              <span className="font-medium text-purple-600">
-                {vpdVal === undefined ? "--" : vpdVal >= 0.8 && vpdVal <= 1.2 ? "Ổn định" : vpdVal < 0.8 ? "Bốc ẩm chậm" : "Bốc ẩm nhanh"}
+              <span className="font-semibold text-purple-600">
+                {vpdVal === undefined
+                  ? "--"
+                  : vpdVal > 2.0
+                  ? "Bốc hơi rất nhanh"
+                  : vpdVal >= 1.2
+                  ? "Bốc hơi nhanh"
+                  : vpdVal >= 0.8
+                  ? "Lý tưởng (0.8 - 1.2)"
+                  : "Bốc ẩm chậm"}
               </span>
             </div>
           </div>
@@ -711,23 +752,33 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
-                <Cpu className="w-4 h-4 text-amber-600" />
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Cpu className="w-4 h-4 text-amber-600 shrink-0" />
                 Nhiệt Độ Chip
               </span>
               <span
-                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
                   chipTempVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
-                    : chipTempVal <= 65
+                    : chipTempVal < 45
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : chipTempVal <= 65
+                    ? "bg-teal-50 text-teal-700 border-teal-200"
                     : chipTempVal <= 75
                     ? "bg-amber-50 text-amber-700 border-amber-200"
                     : "bg-rose-50 text-rose-700 border-rose-200"
                 }`}
               >
-                {chipTempVal === undefined ? "Chờ đo" : chipTempVal <= 65 ? "Mát" : chipTempVal <= 75 ? "Ấm" : "Nóng"}
+                {chipTempVal === undefined
+                  ? "Chờ đo"
+                  : chipTempVal < 45
+                  ? "Mát"
+                  : chipTempVal <= 65
+                  ? "Bình thường"
+                  : chipTempVal <= 75
+                  ? "Ấm"
+                  : "Quá nhiệt"}
               </span>
             </div>
 
@@ -739,12 +790,12 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.chipTemp} color="#f59e0b" />
+              <SparklineCanvas data={sparkSeries.chipTemp} color="#f59e0b" minRange={5.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Giới hạn: <strong>&lt; 75°C</strong></span>
-              <span className="text-slate-600 font-mono">Tự làm mát</span>
+              <span>Giới hạn an toàn:</span>
+              <span className="text-slate-700 font-semibold">&lt; 75°C (Tự làm mát)</span>
             </div>
           </div>
 
@@ -757,12 +808,12 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-orange-700 flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-orange-600" />
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-orange-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Activity className="w-4 h-4 text-orange-600 shrink-0" />
                 Tải CPU Tổng
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap shrink-0">
                 Core 0 & 1
               </span>
             </div>
@@ -775,7 +826,7 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.cpuLoad} color="#f97316" />
+              <SparklineCanvas data={sparkSeries.cpuLoad} color="#f97316" minRange={10.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
@@ -793,12 +844,12 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-teal-700 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-teal-600" />
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Layers className="w-4 h-4 text-teal-600 shrink-0" />
                 RAM Heap Trống
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 whitespace-nowrap shrink-0">
                 SRAM
               </span>
             </div>
@@ -811,12 +862,12 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.freeHeap} color="#14b8a6" />
+              <SparklineCanvas data={sparkSeries.freeHeap} color="#14b8a6" minRange={20.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Uptime:</span>
-              <span className="font-mono text-slate-700 font-semibold">{formatUptime(uptimeVal)}</span>
+              <span>SRAM khả dụng:</span>
+              <span className="font-semibold text-teal-700">{freeHeapKb !== undefined ? `~${freeHeapKb} KB (Ổn định)` : "--"}</span>
             </div>
           </div>
 
@@ -829,13 +880,13 @@ export function GspTelemetryDashboard() {
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-sky-700 flex items-center gap-1.5">
-                <Wifi className="w-4 h-4 text-sky-600" />
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-sky-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Wifi className="w-4 h-4 text-sky-600 shrink-0" />
                 Sóng Wi-Fi (RSSI)
               </span>
               <span
-                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
                   wifiVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
                     : wifiVal >= -65
@@ -857,12 +908,12 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.wifiRssi} color="#0284c7" />
+              <SparklineCanvas data={sparkSeries.wifiRssi} color="#0284c7" minRange={10.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
               <span>Gói tin: <strong className="text-slate-700">{seqVal !== undefined ? `#${seqVal}` : "--"}</strong></span>
-              <span className="text-sky-700 font-medium">{wifiVal !== undefined && wifiVal >= -75 ? "Ổn định" : "Cần kiểm tra AP"}</span>
+              <span className="text-sky-700 font-medium">{wifiVal !== undefined && wifiVal >= -75 ? "Kết nối tốt" : "Cần kiểm tra AP"}</span>
             </div>
           </div>
         </div>
