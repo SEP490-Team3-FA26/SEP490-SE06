@@ -135,17 +135,22 @@ export async function sendKafkaMessage(client: ClientKafka, topic: string, data:
       }
     }
 
-    console.log(`[API-Gateway][sendKafkaMessage] Diagnostics - topic: "${topic}", client patterns:`, rawClient?.responsePatterns, 'assignments:', Object.keys(rawClient?.consumerAssignments || {}));
+    if (process.env.DEBUG_KAFKA === 'true') {
+      console.log(`[API-Gateway][sendKafkaMessage] Diagnostics - topic: "${topic}", client patterns:`, rawClient?.responsePatterns, 'assignments:', Object.keys(rawClient?.consumerAssignments || {}));
+      console.log(`[API-Gateway][sendKafkaMessage] Sending to topic "${topic}"`);
+    }
 
     const payload = (data && typeof data === 'object') ? JSON.parse(JSON.stringify(data)) : data;
-    console.log(`[API-Gateway][sendKafkaMessage] Sending to topic "${topic}"`);
     const result: any = await lastValueFrom(
       client.send(topic, payload).pipe(
         require('rxjs').timeout(8000),
         require('rxjs').retry(1)
       )
     );
-    console.log(`[API-Gateway][sendKafkaMessage] Received response from topic "${topic}"`);
+
+    if (process.env.DEBUG_KAFKA === 'true') {
+      console.log(`[API-Gateway][sendKafkaMessage] Received response from topic "${topic}"`);
+    }
     if (result?.error) {
       throw new HttpException(result.message || 'Internal Microservice Error', result.statusCode || 500);
     }
