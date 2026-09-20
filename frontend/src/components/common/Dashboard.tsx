@@ -198,45 +198,40 @@ export function DashboardHome() {
         };
       case "warehouse":
         return {
-          title: "Quản trị Kho vận (Logistics & Inventory)",
-          subtitle: "Theo dõi quy trình xuất nhập tồn, điều chuyển nội bộ và cảnh báo HSD.",
-          badge: "Trung tâm Logistics",
-          stats: stats ? [
-            { title: "Tổng loại thuốc", value: String(stats.totalMedicines), icon: <Package size={20} />, trend: "Dược phẩm hoạt động", trendUp: true, subtitle: "Đã chuẩn hóa danh mục" },
-            { title: "Tổng tồn kho toàn mạng", value: `${stats.totalStock.toLocaleString('vi-VN')} đv`, icon: <Boxes size={20} />, trend: "Tổng số lượng tồn", trendUp: true, subtitle: "Giá trị tồn: ~1.2B" },
-            { title: "Cần bổ sung hàng", value: `${stats.lowStockCount} sắp hết | ${stats.outOfStockCount} hết`, icon: <AlertTriangle size={20} />, trend: "Dưới mức tối thiểu", trendUp: false, subtitle: "Cần tạo PO bổ sung" },
-            { title: "Hạn sử dụng lô", value: `${stats.soonToExpireCount} cận | ${stats.expiredCount} hết hạn`, icon: <Clock size={20} />, trend: "Lô cần xử lý", trendUp: false, subtitle: "AI gợi ý xả hàng" },
-          ] : [
-            { title: "Tổng loại thuốc", value: "1,240", icon: <Package size={20} />, trend: "Đang tải...", trendUp: true, subtitle: "Dược phẩm hoạt động" },
-            { title: "Tổng tồn kho", value: "48,500 đv", icon: <Boxes size={20} />, trend: "Đang tải...", trendUp: true, subtitle: "Giá trị tồn kho" },
-            { title: "Cần bổ sung hàng", value: "8 sắp hết", icon: <AlertTriangle size={20} />, trend: "Đang tải...", trendUp: false, subtitle: "Dưới mức an toàn" },
-            { title: "Hạn sử dụng lô", value: "12 cận hạn", icon: <Clock size={20} />, trend: "Đang tải...", trendUp: false, subtitle: "Cần kiểm tra" },
+          title: "Quản trị Kho Dược Tổng (GSP)",
+          subtitle: "Theo dõi nhập xuất, nhiệt độ bảo quản, hạn dùng và dự báo tồn kho AI.",
+          badge: "Kho Trung Tâm GSP",
+          stats: [
+            { title: "Thuốc cận hạn (< 30 ngày)", value: `${stats?.expiringCount || expiringList.length || 0} mục`, icon: <AlertTriangle size={20} />, trend: "Cần xử lý luân chuyển", trendUp: false, subtitle: "FEFO priority mode" },
+            { title: "Mặt hàng dưới định mức", value: `${stats?.lowStockCount || lowStockList.length || 0} mục`, icon: <Package size={20} />, trend: "Đề xuất lập PO tự động", trendUp: false, subtitle: "Nguy cơ đứt gãy cung ứng" },
+            { title: "Đơn nhập kho chờ xử lý", value: "3 đơn", icon: <TrendingUp size={20} />, trend: "2 NCC đã giao đến cổng", trendUp: true, subtitle: "Cần nghiệm thu GSP" },
+            { title: "Nhiệt độ & Độ ẩm kho", value: "22.4°C / 58%", icon: <Activity size={20} />, trend: "Chuẩn GSP WHO", trendUp: true, subtitle: "Cảm biến IoT Real-time" },
           ],
           actions: [
             {
-              id: "import-stock",
-              name: "Nhập kho & Kiểm định AI",
-              desc: "Tạo phiếu nhập từ NCC, quét kiểm đếm số lượng thông minh bằng AI Vision",
-              icon: <Package size={22} />,
-              color: "bg-blue-500 text-white",
+              id: "inventory-checks",
+              name: "Biên Bản Kiểm Kê Định Kỳ",
+              desc: "Kiểm đếm thực tế, đối soát sai lệch tồn kho và xử lý hao hụt theo quy chuẩn",
+              icon: <ClipboardCheck size={22} />,
+              color: "bg-emerald-600 text-white",
+              bgCard: "hover:border-emerald-300",
+              badge: "Kiểm kê",
+              link: "/warehouse/inventory/checks"
+            },
+            {
+              id: "warehouse-map",
+              name: "Sơ Đồ Kho & Vị Trí Kệ",
+              desc: "Bản đồ nhiệt 2D/3D trực quan vị trí lô thuốc theo khu vực A-B-C và kệ lưu trữ",
+              icon: <Layers size={22} />,
+              color: "bg-blue-600 text-white",
               bgCard: "hover:border-blue-300",
-              badge: "Nhập kho",
-              link: "/warehouse/inventory/import"
+              badge: "Bản đồ kho",
+              link: "/warehouse/inventory/map"
             },
             {
-              id: "internal-export",
-              name: "Xuất kho điều chuyển",
-              desc: "Xuất kho cấp phát cho chi nhánh theo nguyên tắc FIFO chuẩn GPP",
-              icon: <ArrowRightLeft size={22} />,
-              color: "bg-amber-500 text-white",
-              bgCard: "hover:border-amber-300",
-              badge: "Xuất kho",
-              link: "/warehouse/inventory/export"
-            },
-            {
-              id: "lot-tracking",
-              name: "Truy xuất nguồn gốc Lô",
-              desc: "Tra cứu vòng đời lô thuốc, nhà cung cấp, lịch sử phân phối và HSD",
+              id: "lot-tracking-gsp",
+              name: "Truy Vết Lô & Hạn Dùng FEFO",
+              desc: "Quản lý chi tiết từng số lô, hạn dùng, nhà sản xuất và điều kiện bảo quản",
               icon: <History size={22} />,
               color: "bg-indigo-500 text-white",
               bgCard: "hover:border-indigo-300",
@@ -255,13 +250,12 @@ export function DashboardHome() {
             },
           ]
         };
+      case "director":
       case "head_branch":
-      case "admin":
-      default:
         return {
-          title: "Điều hành Hệ thống & Tổng Chi nhánh",
-          subtitle: "Giám sát thời gian thực toàn chuỗi: doanh thu, kho vận, phân tích AI và an ninh hệ thống.",
-          badge: "Trung tâm Điều hành HQ",
+          title: "Trung tâm Điều hành Ban Giám Đốc",
+          subtitle: "Báo cáo chiến lược, phê duyệt đơn hàng PO, kiểm soát hạn mức ngân sách & dự báo chuỗi cung ứng AI.",
+          badge: "Ban Giám Đốc Chuỗi",
           stats: [
             {
               title: "Doanh thu Toàn Chuỗi (Tháng)",
@@ -274,97 +268,148 @@ export function DashboardHome() {
               color: "from-blue-600 to-indigo-600"
             },
             {
-              title: "Đơn hàng & Giao dịch",
-              value: "1,428 đơn",
-              icon: <ShoppingCart size={22} />,
-              trend: "+156 đơn tuần này",
+              title: "Đơn Mua Hàng (PO) Chờ Duyệt",
+              value: "5 đơn PO",
+              icon: <FileCheck2 size={22} />,
+              trend: "Tổng trị giá: 840,000,000đ",
+              trendUp: false,
+              subtitle: "Cần Giám Đốc phê duyệt",
+              progress: 60,
+              color: "from-amber-600 to-orange-600"
+            },
+            {
+              title: "Hạn Mức Ngân Sách Đã Dùng",
+              value: "72.4% / Quota",
+              icon: <TrendingUp size={22} />,
+              trend: "8 / 8 Chi nhánh trong ngưỡng",
               trendUp: true,
-              subtitle: "Tỷ lệ hoàn tất đơn: 98.4%",
-              progress: 98.4,
+              subtitle: "An toàn dòng vốn lưu động",
+              progress: 72.4,
               color: "from-emerald-600 to-teal-600"
             },
+            {
+              title: "Dự Báo Nhu Cầu AI & Chuỗi Cung Ứng",
+              value: "99.2% Sẵn sàng",
+              icon: <Sparkles size={22} />,
+              trend: "0 rủi ro đứt gãy",
+              trendUp: true,
+              subtitle: "AI Insights hoạt động 24/7",
+              progress: 99.2,
+              color: "from-purple-600 to-pink-600"
+            },
+          ],
+          actions: [
+            {
+              id: "po-approvals",
+              name: "Phê duyệt Mua hàng (PO)",
+              desc: "Kiểm tra và ký duyệt các đơn đặt hàng dược phẩm từ chi nhánh và kho tổng",
+              icon: <FileCheck2 size={24} />,
+              color: "bg-gradient-to-br from-indigo-500 to-violet-600 text-white",
+              badge: "Cần phê duyệt",
+              badgeColor: "bg-indigo-100 text-indigo-700 border-indigo-200",
+              link: "/director/approvals"
+            },
+            {
+              id: "quota-management",
+              name: "Hạn mức Ngân sách Chi nhánh",
+              desc: "Phân bổ và giám sát trần hạn mức nhập hàng của từng cơ sở theo tháng",
+              icon: <TrendingUp size={24} />,
+              color: "bg-gradient-to-br from-emerald-500 to-teal-600 text-white",
+              badge: "Hạn mức",
+              badgeColor: "bg-emerald-100 text-emerald-700 border-emerald-200",
+              link: "/director/quotas"
+            },
+            {
+              id: "director-finance",
+              name: "Báo cáo Tài chính & Dòng tiền",
+              desc: "Tổng hợp doanh thu chuỗi, chi phí vận hành và biên lợi nhuận ròng P&L",
+              icon: <DollarSign size={24} />,
+              color: "bg-gradient-to-br from-blue-500 to-indigo-600 text-white",
+              badge: "Tài chính",
+              badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
+              link: "/director/finance"
+            },
+            {
+              id: "chain-reports",
+              name: "Báo cáo Doanh số & Mùa vụ",
+              desc: "So sánh hiệu suất tăng trưởng giữa các chi nhánh và dự báo theo mùa",
+              icon: <BarChart3 size={24} />,
+              color: "bg-gradient-to-br from-cyan-500 to-blue-600 text-white",
+              badge: "Báo cáo BI",
+              badgeColor: "bg-cyan-100 text-cyan-700 border-cyan-200",
+              link: "/director/reports"
+            },
+            {
+              id: "ai-forecast-exec",
+              name: "Dự báo Nhu cầu (AI Forecast)",
+              desc: "Mô hình Machine Learning phân tích xu hướng tiêu thụ dược phẩm",
+              icon: <Sparkles size={24} />,
+              color: "bg-gradient-to-br from-purple-500 to-indigo-600 text-white",
+              badge: "AI Engine",
+              badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
+              link: "/director/ai-forecast"
+            },
+            {
+              id: "supply-chain-exec",
+              name: "Giám sát Chuỗi Cung ứng",
+              desc: "Bản đồ nhiệt tồn kho toàn hệ thống và điều phối thuốc khẩn cấp giữa các cơ sở",
+              icon: <Layers size={24} />,
+              color: "bg-gradient-to-br from-teal-500 to-emerald-600 text-white",
+              badge: "Supply Chain",
+              badgeColor: "bg-teal-100 text-teal-700 border-teal-200",
+              link: "/director/supply-chain"
+            },
+          ]
+        };
+      case "admin":
+      default:
+        return {
+          title: "Trung tâm Quản trị Hệ thống (Admin HQ)",
+          subtitle: "Quản trị người dùng, phân quyền nhân sự, cơ sở chi nhánh, danh mục master data và nhật ký kiểm toán hệ thống.",
+          badge: "Quản trị viên Hệ thống",
+          stats: [
             {
               title: "Nhân sự & Chi nhánh",
               value: "48 / 50 Nhân sự",
               icon: <Users size={22} />,
               trend: "8 / 8 Chi nhánh hoạt động",
               trendUp: true,
-              subtitle: "2 nhân sự off-shift hôm nay",
+              subtitle: "2 nhân sự nghỉ ca hôm nay",
               progress: 96,
+              color: "from-blue-600 to-indigo-600"
+            },
+            {
+              title: "Tài khoản Hệ thống",
+              value: "1,428 Users",
+              icon: <ShieldCheck size={22} />,
+              trend: "+24 tài khoản mới tuần này",
+              trendUp: true,
+              subtitle: "100% tài khoản active",
+              progress: 98.4,
+              color: "from-emerald-600 to-teal-600"
+            },
+            {
+              title: "Danh mục Dược phẩm & NCC",
+              value: "1,250 Thuốc",
+              icon: <Package size={22} />,
+              trend: "45 Nhà cung cấp liên kết",
+              trendUp: true,
+              subtitle: "Chuẩn GDP & Bộ Y Tế",
+              progress: 94,
               color: "from-purple-600 to-pink-600"
             },
             {
-              title: "Độ tin cậy AI & An ninh",
-              value: "99.8% Ổn định",
-              icon: <ShieldCheck size={22} />,
+              title: "An ninh Hệ thống & Audit",
+              value: "99.9% Ổn định",
+              icon: <History size={22} />,
               trend: "0 Bất thường bảo mật",
               trendUp: true,
-              subtitle: "12 Cảnh báo kho cần duyệt",
-              progress: 99.8,
-              color: "from-amber-600 to-orange-600"
+              subtitle: "Lưu trữ Y tế 50 năm sẵn sàng",
+              progress: 99.9,
+              color: "from-rose-600 to-orange-600"
             },
           ],
           actions: [
-            {
-              id: "chain-performance",
-              name: "So sánh Hiệu suất Chuỗi",
-              desc: "Báo cáo so sánh doanh thu, biên lợi nhuận và tốc độ tăng trưởng của 8 chi nhánh",
-              icon: <BarChart3 size={24} />,
-              color: "bg-gradient-to-br from-blue-500 to-indigo-600 text-white",
-              badge: "Real-time BI",
-              badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
-              link: "/admin/reports"
-            },
-            {
-              id: "ai-forecast",
-              name: "Dự báo Nhu cầu (AI Forecast)",
-              desc: "Mô hình Machine Learning phân tích xu hướng tiêu thụ và tự động tạo đơn PO",
-              icon: <Sparkles size={24} />,
-              color: "bg-gradient-to-br from-emerald-500 to-teal-600 text-white",
-              badge: "AI Engine",
-              badgeColor: "bg-emerald-100 text-emerald-700 border-emerald-200",
-              link: "/admin/ai-forecast"
-            },
-            {
-              id: "ai-insights",
-              name: "Phân tích Theo Mùa & Dịch bệnh",
-              desc: "AI Insights nhận diện biến động dịch bệnh, thời tiết để điều phối kho kịp thời",
-              icon: <BrainCircuit size={24} />,
-              color: "bg-gradient-to-br from-purple-500 to-indigo-600 text-white",
-              badge: "Predictive",
-              badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
-              link: "/admin/ai-insights"
-            },
-            {
-              id: "supply-chain",
-              name: "Chuỗi Cung ứng Toàn chuỗi",
-              desc: "Bản đồ nhiệt tồn kho, thuật toán tồn kho an toàn và phát hiện bất thường Z-score",
-              icon: <Layers size={24} />,
-              color: "bg-gradient-to-br from-cyan-500 to-blue-600 text-white",
-              badge: "Supply Chain",
-              badgeColor: "bg-cyan-100 text-cyan-700 border-cyan-200",
-              link: "/admin/supply-chain"
-            },
-            {
-              id: "finance",
-              name: "Kế toán & Quản lý Dòng tiền",
-              desc: "Sổ quỹ thu chi, chi phí cố định (mặt bằng, lương) và báo cáo lợi nhuận ròng",
-              icon: <DollarSign size={24} />,
-              color: "bg-gradient-to-br from-amber-500 to-orange-600 text-white",
-              badge: "Tài chính",
-              badgeColor: "bg-amber-100 text-amber-700 border-amber-200",
-              link: "/admin/finance"
-            },
-            {
-              id: "approvals",
-              name: "Phê duyệt Mua hàng (HQ)",
-              desc: "Kiểm tra và duyệt các yêu cầu mua hàng (PR/PO) từ các chi nhánh và kho tổng",
-              icon: <FileCheck2 size={24} />,
-              color: "bg-gradient-to-br from-teal-500 to-emerald-600 text-white",
-              badge: "Phê duyệt",
-              badgeColor: "bg-teal-100 text-teal-700 border-teal-200",
-              link: "/admin/approvals"
-            },
             {
               id: "role-management",
               name: "Quản lý Nhân sự & Phân quyền",
@@ -723,7 +768,7 @@ export function DashboardHome() {
       )}
 
       {/* ─── 5. CHAIN HEALTH & BRANCH PULSE (BOTTOM WIDGET) ─── */}
-      {(role === "admin" || role === "head_branch") && (
+      {(role === "admin" || role === "director" || role === "head_branch") && (
         <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-200/90 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -734,10 +779,10 @@ export function DashboardHome() {
               <p className="text-xs text-slate-500 mt-0.5">Giám sát doanh số trong ngày và độ ổn định hệ thống POS từng điểm bán</p>
             </div>
             <Link
-              to="/admin/branches"
+              to={role === "director" || role === "head_branch" ? "/director/reports" : "/admin/branches"}
               className="text-xs font-bold text-[#0057cd] hover:underline flex items-center gap-1 self-start sm:self-auto"
             >
-              Quản lý toàn bộ 8 chi nhánh <ChevronRight size={14} />
+              {role === "director" || role === "head_branch" ? "Xem báo cáo doanh số toàn chuỗi" : "Quản lý toàn bộ 8 chi nhánh"} <ChevronRight size={14} />
             </Link>
           </div>
 

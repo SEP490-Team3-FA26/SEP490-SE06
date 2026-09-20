@@ -6,9 +6,10 @@ import { notifyAuthTokenChanged } from '../../utils/authEvents';
 
 const ROLE_MAP: Record<string, { label: string; color: string; bg: string }> = {
   admin:       { label: 'Quản trị viên',       color: 'text-purple-700', bg: 'bg-purple-100' },
-  head_branch: { label: 'Quản lý Chuỗi',       color: 'text-blue-700',   bg: 'bg-blue-100'   },
+  director:    { label: 'Ban Giám Đốc',         color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  head_branch: { label: 'Ban Giám Đốc',         color: 'text-indigo-700', bg: 'bg-indigo-100' },
   warehouse:   { label: 'Thủ kho Tổng',         color: 'text-orange-700', bg: 'bg-orange-100' },
-  branch:      { label: 'Quản lý Chi nhánh',    color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  branch:      { label: 'Quản lý Chi nhánh',    color: 'text-emerald-700', bg: 'bg-emerald-100' },
   pharmacist:  { label: 'Dược sĩ Chi nhánh',   color: 'text-green-700',  bg: 'bg-green-100'  },
   user:        { label: 'Khách hàng',           color: 'text-slate-700',  bg: 'bg-slate-100'  },
 };
@@ -16,9 +17,10 @@ const ROLE_MAP: Record<string, { label: string; color: string; bg: string }> = {
 function getAvatarGradient(role: string) {
   switch (role) {
     case 'admin':       return 'from-purple-500 to-indigo-600';
-    case 'head_branch': return 'from-blue-500 to-cyan-600';
+    case 'director':
+    case 'head_branch': return 'from-indigo-600 to-violet-700';
     case 'warehouse':   return 'from-orange-500 to-amber-600';
-    case 'branch':      return 'from-indigo-500 to-violet-600';
+    case 'branch':      return 'from-emerald-500 to-teal-600';
     case 'pharmacist':  return 'from-green-500 to-emerald-600';
     default:            return 'from-slate-500 to-slate-700';
   }

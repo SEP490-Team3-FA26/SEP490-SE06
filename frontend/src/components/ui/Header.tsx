@@ -21,7 +21,8 @@ function getUserFromToken() {
 function getProfilePath(role: string) {
   switch (role) {
     case 'admin':       return '/admin/profile';
-    case 'head_branch': return '/admin/profile';
+    case 'director':
+    case 'head_branch': return '/director/profile';
     case 'warehouse':   return '/warehouse/profile';
     case 'branch':      return '/branch/profile';
     case 'pharmacist':  return '/pharmacist/profile';

@@ -41,5 +41,6 @@ export const MedicineBatchSchema = SchemaFactory.createForClass(MedicineBatch);
 
 // Tối ưu hóa Index MongoDB cho truy vấn FIFO và kiểm kê lô hàng nhanh
 MedicineBatchSchema.index({ branchId: 1, medicineId: 1, status: 1, expDate: 1 });
+MedicineBatchSchema.index({ medicineId: 1, status: 1, expDate: 1, stock: 1 });
 MedicineBatchSchema.index({ expDate: 1, status: 1 });
 MedicineBatchSchema.index({ 'location.zone': 1, 'location.rack': 1, 'location.shelf': 1 });
