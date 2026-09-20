@@ -7,6 +7,7 @@ import { SalesModule } from './sales/sales.module';
 import { PricingModule } from './pricing/pricing.module';
 import { ReportsModule } from './reports/reports.module';
 import { QuotaModule } from './quota/quota.module';
+import { TelemetryModule } from './telemetry/telemetry.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { QuotaModule } from './quota/quota.module';
     PricingModule,
     ReportsModule,
     QuotaModule,
+    TelemetryModule,
   ],
 })
 export class InventoryServiceModule { }
