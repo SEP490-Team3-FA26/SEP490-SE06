@@ -48,6 +48,7 @@ import { InventoryCheck } from "./pages/warehouse/InventoryCheck";
 import { WarehouseInventoryHub } from "./pages/warehouse/WarehouseInventoryHub";
 import { MobileAIInspection } from "./pages/warehouse/MobileAIInspection";
 import { WarehouseMapPage } from "./pages/warehouse/WarehouseMapPage";
+import { GspTelemetryDashboard } from "./pages/warehouse/GspTelemetryDashboard";
 
 // Admin / HQ Pages
 import { Finance } from "./pages/admin/Finance";
@@ -158,6 +159,8 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="inventory" element={<Inventory />} />
               <Route path="inventory/map" element={<WarehouseMapPage />} />
+              <Route path="inventory/telemetry" element={<GspTelemetryDashboard />} />
+              <Route path="telemetry" element={<GspTelemetryDashboard />} />
               <Route path="inventory/checks" element={<InventoryCheck />} />
               <Route path="inventory/requisitions" element={<WarehouseInventoryHub />} />
               <Route path="inventory/import" element={<WarehouseInventoryHub />} />
