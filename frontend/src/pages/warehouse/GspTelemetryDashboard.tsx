@@ -11,10 +11,8 @@ import {
   AlertTriangle,
   RefreshCw,
   Activity,
-  Server,
+  Layers,
   Radio,
-  SlidersHorizontal,
-  ChevronRight,
 } from "lucide-react";
 import {
   AreaChart,
@@ -95,10 +93,34 @@ const SparklineCanvas: React.FC<SparklineCanvasProps> = React.memo(({ data, colo
   return <canvas ref={canvasRef} className="w-full h-10 pointer-events-none" />;
 });
 
-// Kiểu loại chỉ số có thể chọn xem chi tiết
-type MetricKey = "temperature" | "humidity" | "dewPoint" | "vpd" | "chipTemp" | "wifiRssi";
-type ViewMode = "climate" | "hardware" | "single";
-type TimeRange = "5m" | "1h" | "24h" | "7d";
+// Kiểu loại 8 chỉ số theo dõi
+export type MetricKey =
+  | "temperature"
+  | "humidity"
+  | "dewPoint"
+  | "vpd"
+  | "chipTemp"
+  | "cpuLoad"
+  | "freeHeap"
+  | "wifiRssi";
+
+export type ViewMode = "climate" | "hardware" | "single";
+export type TimeRange = "5m" | "1h" | "24h" | "7d";
+
+// Cấu hình hiển thị chi tiết cho từng chỉ số
+const METRIC_DEFINITIONS: Record<
+  MetricKey,
+  { label: string; unit: string; color: string; desc: string }
+> = {
+  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 25°C" },
+  humidity: { label: "Độ Ẩm Không Khí", unit: "%RH", color: "#06b6d4", desc: "Chuẩn GSP ≤ 70%RH" },
+  dewPoint: { label: "Điểm Sương", unit: "°C", color: "#6366f1", desc: "Công thức Magnus Eq" },
+  vpd: { label: "Độ Hụt Áp Suất (VPD)", unit: "kPa", color: "#a855f7", desc: "Tốc độ bay hơi ẩm dược phẩm" },
+  chipTemp: { label: "Nhiệt Độ Chip ESP32", unit: "°C", color: "#f59e0b", desc: "Ngưỡng mát an toàn < 75°C" },
+  cpuLoad: { label: "Tải CPU Tổng", unit: "%", color: "#f97316", desc: "Xtensa Dual-Core 240MHz" },
+  freeHeap: { label: "RAM Heap Trống", unit: "KB", color: "#14b8a6", desc: "SRAM nội vi điều khiển" },
+  wifiRssi: { label: "Sóng Wi-Fi (RSSI)", unit: "dBm", color: "#0284c7", desc: "Cường độ tín hiệu trạm" },
+};
 
 export function GspTelemetryDashboard() {
   const [station, setStation] = useState<SensorStation | null>(null);
@@ -112,17 +134,19 @@ export function GspTelemetryDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("climate");
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("temperature");
 
-  // Bộ đệm 30 điểm gần nhất cho từng sparkline mini
+  // Bộ đệm 30 điểm gần nhất cho từng sparkline mini trên 8 thẻ
   const [sparkSeries, setSparkSeries] = useState<{ [key in MetricKey]: number[] }>({
     temperature: [],
     humidity: [],
     dewPoint: [],
     vpd: [],
     chipTemp: [],
+    cpuLoad: [],
+    freeHeap: [],
     wifiRssi: [],
   });
 
-  // Quản lý trạng thái online/offline thực tế
+  // Quản lý trạng thái online/offline thực tế (hoàn toàn không mock)
   const [hasReceivedAny, setHasReceivedAny] = useState(false);
   const [lastPacketTime, setLastPacketTime] = useState<Date | null>(null);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
@@ -160,7 +184,7 @@ export function GspTelemetryDashboard() {
       if (historyRes.success && Array.isArray(historyRes.records)) {
         setHistoryRecords(historyRes.records);
 
-        // Nạp 30 điểm gần nhất cho các sparkline
+        // Nạp 30 điểm gần nhất cho 8 sparklines
         const recent = historyRes.records.slice(-30);
         setSparkSeries({
           temperature: recent.map((r) => r.metrics?.temperature ?? NaN).filter((v) => !isNaN(v)),
@@ -168,6 +192,8 @@ export function GspTelemetryDashboard() {
           dewPoint: recent.map((r) => (r.metrics?.dewPoint ?? r.metrics?.dew_point ?? NaN)).filter((v) => !isNaN(v)),
           vpd: recent.map((r) => r.metrics?.vpd ?? NaN).filter((v) => !isNaN(v)),
           chipTemp: recent.map((r) => (r.diagnostics?.chipTemp ?? r.diagnostics?.chip_temp ?? NaN)).filter((v) => !isNaN(v)),
+          cpuLoad: recent.map((r) => (r.diagnostics?.cpuLoad ?? r.diagnostics?.cpu_load ?? NaN)).filter((v) => !isNaN(v)),
+          freeHeap: recent.map((r) => Math.round(((r.diagnostics?.freeHeap ?? r.diagnostics?.free_heap ?? NaN) / 1024))).filter((v) => !isNaN(v)),
           wifiRssi: recent.map((r) => (r.diagnostics?.wifiRssi ?? r.diagnostics?.wifi_rssi ?? NaN)).filter((v) => !isNaN(v)),
         });
       }
@@ -183,7 +209,7 @@ export function GspTelemetryDashboard() {
     fetchAllData();
   }, [range]);
 
-  // 2. Lắng nghe gói tin Realtime (1s/lần)
+  // 2. Lắng nghe gói tin Realtime (1s/lần) qua WebSocket / SSE
   useEffect(() => {
     const handleRealtimePacket = (data: any) => {
       setHasReceivedAny(true);
@@ -203,8 +229,10 @@ export function GspTelemetryDashboard() {
         },
         diagnostics: {
           chipTemp: data.diagnostics?.chip_temp !== undefined ? Number(data.diagnostics.chip_temp) : (data.diagnostics?.chipTemp !== undefined ? Number(data.diagnostics.chipTemp) : undefined),
-          cpuLoad: data.diagnostics?.cpu_load !== undefined ? Number(data.diagnostics.cpu_load) : undefined,
-          freeHeap: data.diagnostics?.free_heap !== undefined ? Number(data.diagnostics.free_heap) : undefined,
+          cpuLoad: data.diagnostics?.cpu_load !== undefined ? Number(data.diagnostics.cpu_load) : (data.diagnostics?.cpuLoad !== undefined ? Number(data.diagnostics.cpuLoad) : undefined),
+          cpu0: data.diagnostics?.cpu0 !== undefined ? Number(data.diagnostics.cpu0) : undefined,
+          cpu1: data.diagnostics?.cpu1 !== undefined ? Number(data.diagnostics.cpu1) : undefined,
+          freeHeap: data.diagnostics?.free_heap !== undefined ? Number(data.diagnostics.free_heap) : (data.diagnostics?.freeHeap !== undefined ? Number(data.diagnostics.freeHeap) : undefined),
           uptimeSec: data.diagnostics?.uptime_sec !== undefined ? Number(data.diagnostics.uptime_sec) : (data.diagnostics?.uptimeSec !== undefined ? Number(data.diagnostics.uptimeSec) : undefined),
           wifiRssi: data.diagnostics?.wifi_rssi !== undefined ? Number(data.diagnostics.wifi_rssi) : (data.diagnostics?.wifiRssi !== undefined ? Number(data.diagnostics.wifiRssi) : undefined),
         },
@@ -216,7 +244,7 @@ export function GspTelemetryDashboard() {
 
       setLatestData(record);
 
-      // Cập nhật Sparklines mini (giữ tối đa 30 điểm gần nhất)
+      // Cập nhật Sparklines mini trên 8 thẻ (tối đa 30 điểm gần nhất)
       setSparkSeries((prev) => {
         const pushPoint = (arr: number[], val?: number) => {
           if (val === undefined || isNaN(val)) return arr;
@@ -224,17 +252,21 @@ export function GspTelemetryDashboard() {
           return next.length > 30 ? next.slice(-30) : next;
         };
 
+        const freeHeapKb = record.diagnostics?.freeHeap !== undefined ? Math.round(record.diagnostics.freeHeap / 1024) : undefined;
+
         return {
           temperature: pushPoint(prev.temperature, record.metrics?.temperature),
           humidity: pushPoint(prev.humidity, record.metrics?.humidity),
           dewPoint: pushPoint(prev.dewPoint, record.metrics?.dewPoint),
           vpd: pushPoint(prev.vpd, record.metrics?.vpd),
           chipTemp: pushPoint(prev.chipTemp, record.diagnostics?.chipTemp),
+          cpuLoad: pushPoint(prev.cpuLoad, record.diagnostics?.cpuLoad),
+          freeHeap: pushPoint(prev.freeHeap, freeHeapKb),
           wifiRssi: pushPoint(prev.wifiRssi, record.diagnostics?.wifiRssi),
         };
       });
 
-      // Nếu đang xem ở chế độ Realtime (5m), trượt mượt mà tối đa 60 điểm (1 phút gần nhất) để tránh quá tải SVG
+      // Nếu đang ở dải Realtime 5m: Giữ cửa sổ trượt 60 điểm gần nhất để đảm bảo 0% giật lag
       if (range === "5m") {
         setHistoryRecords((prev) => {
           const next = [...prev, record];
@@ -270,7 +302,7 @@ export function GspTelemetryDashboard() {
     return () => clearInterval(timer);
   }, [lastPacketTime]);
 
-  // Chuẩn hóa danh sách dữ liệu cho biểu đồ Recharts (tối ưu hóa bộ nhớ)
+  // Chuẩn hóa danh sách dữ liệu cho biểu đồ Recharts (đầy đủ 8 thông số)
   const chartData = useMemo(() => {
     return historyRecords.map((r) => {
       const d = new Date(r.timestamp * 1000);
@@ -278,6 +310,8 @@ export function GspTelemetryDashboard() {
         range === "24h" || range === "7d"
           ? `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")} ${d.getDate()}/${d.getMonth() + 1}`
           : `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
+
+      const rawFreeHeap = r.diagnostics?.freeHeap ?? r.diagnostics?.free_heap;
 
       return {
         time: timeLabel,
@@ -287,12 +321,14 @@ export function GspTelemetryDashboard() {
         dewPoint: r.metrics?.dewPoint ?? r.metrics?.dew_point,
         vpd: r.metrics?.vpd,
         chipTemp: r.diagnostics?.chipTemp ?? r.diagnostics?.chip_temp,
+        cpuLoad: r.diagnostics?.cpuLoad ?? r.diagnostics?.cpu_load,
+        freeHeap: rawFreeHeap !== undefined ? Math.round(rawFreeHeap / 1024) : undefined,
         wifiRssi: r.diagnostics?.wifiRssi ?? r.diagnostics?.wifi_rssi,
       };
     });
   }, [historyRecords, range]);
 
-  // Tính toán thống kê Min, Max, Avg từ dữ liệu đang vẽ trên biểu đồ
+  // Thống kê Min, Max, Avg từ dữ liệu đang vẽ
   const stats = useMemo(() => {
     if (chartData.length === 0) return { count: 0, min: "--", max: "--", avg: "--" };
 
@@ -333,6 +369,11 @@ export function GspTelemetryDashboard() {
   const dewVal = latestData?.metrics?.dewPoint ?? latestData?.metrics?.dew_point;
   const vpdVal = latestData?.metrics?.vpd;
   const chipTempVal = latestData?.diagnostics?.chipTemp ?? latestData?.diagnostics?.chip_temp;
+  const cpuLoadVal = latestData?.diagnostics?.cpuLoad ?? latestData?.diagnostics?.cpu_load;
+  const cpu0Val = latestData?.diagnostics?.cpu0;
+  const cpu1Val = latestData?.diagnostics?.cpu1;
+  const rawHeap = latestData?.diagnostics?.freeHeap ?? latestData?.diagnostics?.free_heap;
+  const freeHeapKb = rawHeap !== undefined ? Math.round(rawHeap / 1024) : undefined;
   const wifiVal = latestData?.diagnostics?.wifiRssi ?? latestData?.diagnostics?.wifi_rssi;
   const uptimeVal = latestData?.diagnostics?.uptimeSec ?? latestData?.diagnostics?.uptime_sec;
   const seqVal = latestData?.seq;
@@ -368,11 +409,11 @@ export function GspTelemetryDashboard() {
                 {station?.targetId || "CENTRAL_WH"}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-600">
-                ESP32-S3 SHT31
+                ESP32-S3 Dual-Core
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
-              <span>Mã trạm: <code className="font-mono text-slate-700 font-semibold">{station?.deviceId || latestData?.seq ? (latestData as any)?.deviceId || "ESP32S3_404CCA44C814" : "ESP32S3_404CCA44C814"}</code></span>
+              <span>Mã trạm: <code className="font-mono text-slate-700 font-semibold">{station?.deviceId || (latestData as any)?.deviceId || "ESP32S3_404CCA44C814"}</code></span>
               <span>•</span>
               <span>Gói tin: <strong className="font-mono text-slate-700">{seqVal !== undefined ? `#${seqVal}` : "--"}</strong></span>
               <span>•</span>
@@ -506,7 +547,6 @@ export function GspTelemetryDashboard() {
               <span className="text-base font-semibold text-slate-500">°C</span>
             </div>
 
-            {/* Mini Sparkline Canvas */}
             <div className="mt-2">
               <SparklineCanvas data={sparkSeries.temperature} color="#10b981" />
             </div>
@@ -555,7 +595,6 @@ export function GspTelemetryDashboard() {
               <span className="text-base font-semibold text-cyan-600">%RH</span>
             </div>
 
-            {/* Mini Sparkline Canvas */}
             <div className="mt-2">
               <SparklineCanvas data={sparkSeries.humidity} color="#06b6d4" />
             </div>
@@ -600,7 +639,6 @@ export function GspTelemetryDashboard() {
               <span className="text-base font-semibold text-indigo-500">°C</span>
             </div>
 
-            {/* Mini Sparkline Canvas */}
             <div className="mt-2">
               <SparklineCanvas data={sparkSeries.dewPoint} color="#6366f1" />
             </div>
@@ -639,7 +677,6 @@ export function GspTelemetryDashboard() {
               <span className="text-base font-semibold text-purple-500">kPa</span>
             </div>
 
-            {/* Mini Sparkline Canvas */}
             <div className="mt-2">
               <SparklineCanvas data={sparkSeries.vpd} color="#a855f7" />
             </div>
@@ -654,16 +691,17 @@ export function GspTelemetryDashboard() {
         </div>
       </div>
 
-      {/* ── PHẦN 2: CHẨN ĐOÁN THIẾT BỊ ESP32 (TINH GIẢN, DỄ HIỂU CHO NGƯỜI DÙNG) ── */}
+      {/* ── PHẦN 2: CHẨN ĐOÁN PHẦN CỨNG ESP32-S3 (ĐẦY ĐỦ 4 THẺ CHẨN ĐOÁN) ── */}
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-500 flex items-center gap-2">
-            <span>2. Tình Trạng Thiết Bị Quan Trắc Kho</span>
+            <span>2. Chẩn Đoán Phần Cứng ESP32-S3</span>
+            <span className="text-[11px] font-normal text-slate-400">(Bấm vào thẻ để xem biểu đồ chi tiết)</span>
           </h2>
-          <span className="text-xs font-mono text-slate-400">ESP32-S3 Hardware Health</span>
+          <span className="text-xs font-mono text-slate-400">Xtensa LX7 Dual-Core Telemetry</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 5: Nhiệt độ Chip ESP32 */}
           <div
             onClick={() => handleCardClick("chipTemp")}
@@ -676,7 +714,7 @@ export function GspTelemetryDashboard() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
                 <Cpu className="w-4 h-4 text-amber-600" />
-                Nhiệt Độ Chip ESP32
+                Nhiệt Độ Chip
               </span>
               <span
                 className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
@@ -705,12 +743,84 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Ngưỡng an toàn: <strong>&lt; 75°C</strong></span>
+              <span>Giới hạn: <strong>&lt; 75°C</strong></span>
               <span className="text-slate-600 font-mono">Tự làm mát</span>
             </div>
           </div>
 
-          {/* Card 6: Tín hiệu Wi-Fi (RSSI) */}
+          {/* Card 6: Tải CPU Tổng */}
+          <div
+            onClick={() => handleCardClick("cpuLoad")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "cpuLoad"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-orange-700 flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-orange-600" />
+                Tải CPU Tổng
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                Core 0 & 1
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-orange-700 tracking-tight">
+                {cpuLoadVal !== undefined ? Math.round(cpuLoadVal) : "--"}
+              </span>
+              <span className="text-base font-semibold text-orange-500">%</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.cpuLoad} color="#f97316" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
+              <span>C0: <strong>{cpu0Val !== undefined ? `${Math.round(cpu0Val)}%` : "--"}</strong></span>
+              <span>C1: <strong>{cpu1Val !== undefined ? `${Math.round(cpu1Val)}%` : "--"}</strong></span>
+            </div>
+          </div>
+
+          {/* Card 7: RAM Heap Trống */}
+          <div
+            onClick={() => handleCardClick("freeHeap")}
+            className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
+              viewMode === "single" && selectedMetric === "freeHeap"
+                ? "border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-700 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-teal-600" />
+                RAM Heap Trống
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                SRAM
+              </span>
+            </div>
+
+            <div className="flex items-baseline space-x-1.5 my-1">
+              <span className="text-3xl font-extrabold font-mono text-teal-700 tracking-tight">
+                {freeHeapKb !== undefined ? freeHeapKb : "--"}
+              </span>
+              <span className="text-base font-semibold text-teal-500">KB</span>
+            </div>
+
+            <div className="mt-2">
+              <SparklineCanvas data={sparkSeries.freeHeap} color="#14b8a6" />
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Uptime:</span>
+              <span className="font-mono text-slate-700 font-semibold">{formatUptime(uptimeVal)}</span>
+            </div>
+          </div>
+
+          {/* Card 8: Tín hiệu Wi-Fi (RSSI) */}
           <div
             onClick={() => handleCardClick("wifiRssi")}
             className={`bg-white rounded-2xl border p-5 cursor-pointer relative overflow-hidden transition-all shadow-xs hover:shadow-md ${
@@ -722,7 +832,7 @@ export function GspTelemetryDashboard() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-sky-700 flex items-center gap-1.5">
                 <Wifi className="w-4 h-4 text-sky-600" />
-                Sóng Wi-Fi Kho
+                Sóng Wi-Fi (RSSI)
               </span>
               <span
                 className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
@@ -750,37 +860,9 @@ export function GspTelemetryDashboard() {
               <SparklineCanvas data={sparkSeries.wifiRssi} color="#0284c7" />
             </div>
 
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Độ ổn định sóng:</span>
-              <span className="text-sky-700 font-medium">{wifiVal !== undefined && wifiVal >= -75 ? "Kết nối tốt" : "Kiểm tra AP"}</span>
-            </div>
-          </div>
-
-          {/* Card 7: Thời gian hoạt động liên tục (Uptime) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 relative overflow-hidden shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-slate-600" />
-                Thời Gian Hoạt Động (Uptime)
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                Online
-              </span>
-            </div>
-
-            <div className="my-2">
-              <span className="text-2xl font-extrabold font-mono text-slate-800 tracking-tight">
-                {formatUptime(uptimeVal)}
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-500 mt-2">
-              Trạm chạy liên tục trên nguồn cấp dự phòng, chống mất điện và tự động reconnect Wi-Fi.
-            </p>
-
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Gói tin:</span>
-              <span className="font-mono text-slate-700 font-semibold">{seqVal !== undefined ? `#${seqVal}` : "--"}</span>
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
+              <span>Gói tin: <strong className="text-slate-700">{seqVal !== undefined ? `#${seqVal}` : "--"}</strong></span>
+              <span className="text-sky-700 font-medium">{wifiVal !== undefined && wifiVal >= -75 ? "Ổn định" : "Cần kiểm tra AP"}</span>
             </div>
           </div>
         </div>
@@ -796,20 +878,8 @@ export function GspTelemetryDashboard() {
                 {viewMode === "climate"
                   ? "Biểu Đồ Toàn Cảnh: Khí Hậu & Môi Trường Kho"
                   : viewMode === "hardware"
-                  ? "Biểu Đồ Toàn Cảnh: Chẩn Đoán Phần Cứng Thiết Bị"
-                  : `Biểu Đồ Chi Tiết: ${
-                      selectedMetric === "temperature"
-                        ? "Nhiệt Độ Kho (°C)"
-                        : selectedMetric === "humidity"
-                        ? "Độ Ẩm Không Khí (%RH)"
-                        : selectedMetric === "dewPoint"
-                        ? "Điểm Sương (°C)"
-                        : selectedMetric === "vpd"
-                        ? "Độ Hụt Áp Suất VPD (kPa)"
-                        : selectedMetric === "chipTemp"
-                        ? "Nhiệt Độ Chip ESP32 (°C)"
-                        : "Sóng Wi-Fi (dBm)"
-                    }`}
+                  ? "Biểu Đồ Toàn Cảnh: Chẩn Đoán Phần Cứng ESP32-S3"
+                  : `Biểu Đồ Chi Tiết: ${METRIC_DEFINITIONS[selectedMetric].label} (${METRIC_DEFINITIONS[selectedMetric].unit})`}
               </h2>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
                 {range === "5m" ? "Realtime 1Hz" : range === "1h" ? "1 Giờ" : range === "24h" ? "24 Giờ" : "7 Ngày"}
@@ -842,7 +912,7 @@ export function GspTelemetryDashboard() {
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Thiết Bị
+                Phần Cứng
               </button>
               <button
                 onClick={() => setViewMode("single")}
@@ -945,7 +1015,7 @@ export function GspTelemetryDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
                   <YAxis yAxisId="left" stroke="#f59e0b" fontSize={11} domain={["auto", "auto"]} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#0284c7" fontSize={11} domain={[-100, -30]} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#f97316" fontSize={11} domain={[0, 100]} tickLine={false} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#ffffff",
@@ -969,10 +1039,20 @@ export function GspTelemetryDashboard() {
                   <Line
                     yAxisId="right"
                     type="monotone"
+                    dataKey="cpuLoad"
+                    name="Tải CPU (%)"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
                     dataKey="wifiRssi"
                     name="Wi-Fi RSSI (dBm)"
                     stroke="#0284c7"
-                    strokeWidth={2}
+                    strokeWidth={1.8}
                     dot={false}
                     isAnimationActive={false}
                   />
@@ -981,13 +1061,13 @@ export function GspTelemetryDashboard() {
                 <AreaChart data={chartData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="singleMetricGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#0d9488" stopOpacity={0.0} />
+                      <stop offset="5%" stopColor={METRIC_DEFINITIONS[selectedMetric].color} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={METRIC_DEFINITIONS[selectedMetric].color} stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#0d9488" fontSize={11} domain={["auto", "auto"]} tickLine={false} />
+                  <YAxis stroke={METRIC_DEFINITIONS[selectedMetric].color} fontSize={11} domain={["auto", "auto"]} tickLine={false} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#ffffff",
@@ -1007,11 +1087,14 @@ export function GspTelemetryDashboard() {
                   {selectedMetric === "humidity" && (
                     <ReferenceLine y={70} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Max 70%RH", fill: "#f59e0b", fontSize: 10 }} />
                   )}
+                  {selectedMetric === "chipTemp" && (
+                    <ReferenceLine y={75} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Cảnh báo 75°C", fill: "#ef4444", fontSize: 10 }} />
+                  )}
                   <Area
                     type="monotone"
                     dataKey={selectedMetric}
-                    name={selectedMetric}
-                    stroke="#0d9488"
+                    name={`${METRIC_DEFINITIONS[selectedMetric].label} (${METRIC_DEFINITIONS[selectedMetric].unit})`}
+                    stroke={METRIC_DEFINITIONS[selectedMetric].color}
                     strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#singleMetricGrad)"
