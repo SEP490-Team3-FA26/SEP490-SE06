@@ -190,6 +190,7 @@ services:
         required: false
     environment:
       QDRANT_HOST: qdrant
+      PORT: 8000
     ports:
       - "8000:8000"
     depends_on:

@@ -9,6 +9,7 @@ export function WarehouseLayout() {
       icon: <PackageSearch size={20} />,
       subItems: [
         { name: "Sơ đồ kho", href: "/warehouse/inventory/map" },
+        { name: "Giám sát Môi trường GSP (IoT)", href: "/warehouse/inventory/telemetry" },
         { name: "Tổng quan kho", href: "/warehouse/inventory" },
         { name: "Quản trị Nhập / Xuất", href: "/warehouse/inventory/import" },
         { name: "Biên bản kiểm kê", href: "/warehouse/inventory/checks" },

@@ -28,6 +28,7 @@ import { AdminEmployeeController } from './controllers/admin-employee.controller
 import { ReportController } from './controllers/report.controller';
 import { QuotaController } from './controllers/quota.controller';
 import { FinanceController } from './controllers/finance.controller';
+import { SensorController } from './controllers/sensor.controller';
 import { subscribeToKafkaTopics } from './common/kafka.helper';
 
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -191,6 +192,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     ReportController,
     QuotaController,
     FinanceController,
+    SensorController,
   ],
   providers: [
     JwtAuthGuard,
@@ -281,6 +283,9 @@ export class AppGatewayModule implements OnModuleInit {
       'inventory.transfer.list',
       'inventory.transfer.get_by_id',
       'inventory.sale.report',
+      'inventory.sensor.get_latest',
+      'inventory.sensor.get_history',
+      'inventory.sensor.get_stations',
       'quota.get.by.id',
       'quota.get.by.branch',
       'quota.get.summary',

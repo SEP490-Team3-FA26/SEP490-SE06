@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Mail, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon } from "lucide-react";
+import { ArrowRight, Mail, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon, Briefcase } from "lucide-react";
 import { authService } from "../../services/auth/auth.service";
 import { requestNotificationPermission } from "../../utils/notificationPermission";
 
@@ -72,6 +72,7 @@ export function Login() {
 
   const roles = [
     { id: "admin", label: "Admin Tổng", subLabel: "Hệ thống", email: "admin@vinapharmacy.com", icon: <ShieldCheck size={20} />, activeColor: "bg-rose-50 border-rose-200 text-rose-700", iconColor: "text-rose-500" },
+    { id: "director", label: "Giám Đốc", subLabel: "Điều hành", email: "director@vinapharmacy.com", icon: <Briefcase size={20} />, activeColor: "bg-indigo-50 border-indigo-200 text-indigo-700", iconColor: "text-indigo-600" },
     { id: "warehouse", label: "Quản lý kho", subLabel: "Kho vận", email: "warehouse@vinapharmacy.com", icon: <PackageSearch size={20} />, activeColor: "bg-amber-50 border-amber-200 text-amber-700", iconColor: "text-amber-500" },
     { id: "branch", label: "QL Chi nhánh", subLabel: "Cơ sở", email: "manager@vinapharmacy.com", icon: <Store size={20} />, activeColor: "bg-emerald-50 border-emerald-200 text-emerald-700", iconColor: "text-emerald-500" },
     { id: "pharmacist", label: "Thuốc / Bán", subLabel: "Dược sĩ", email: "pharmacist@vinapharmacy.com", icon: <Pill size={20} />, activeColor: "bg-blue-50 border-blue-200 text-blue-700", iconColor: "text-[#0057cd]" },
@@ -88,8 +89,10 @@ export function Login() {
   const redirectByRole = (userRole: string) => {
     switch (userRole) {
       case "admin":
-      case "head_branch":
         return "/admin";
+      case "director":
+      case "head_branch":
+        return "/director";
       case "warehouse":
         return "/warehouse";
       case "branch":

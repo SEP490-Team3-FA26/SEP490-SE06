@@ -201,11 +201,14 @@ export function Landing() {
     setUserRole(role || (t ? "user" : ""));
 
     // Staff Auto-redirect: If a staff member visits '/', route them directly to their work dashboard
-    if (role && ["admin", "head_branch", "warehouse", "branch", "pharmacist"].includes(role)) {
+    if (role && ["admin", "director", "head_branch", "warehouse", "branch", "pharmacist"].includes(role)) {
       switch (role) {
         case "admin":
-        case "head_branch":
           navigate("/admin", { replace: true });
+          break;
+        case "director":
+        case "head_branch":
+          navigate("/director", { replace: true });
           break;
         case "warehouse":
           navigate("/warehouse", { replace: true });

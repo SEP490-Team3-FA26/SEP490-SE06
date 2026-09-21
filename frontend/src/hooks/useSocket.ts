@@ -63,10 +63,17 @@ class SSEManager {
         'new_po_notification',
         'grn_completed_notification',
         'pr_updated',
+        'sensor:telemetry',
+        'sensor:alert',
         'ping',
       ];
 
-      standardEvents.forEach((eventName) => {
+      const allEventsToSubscribe = new Set([
+        ...standardEvents,
+        ...Array.from(this.listeners.keys()),
+      ]);
+
+      allEventsToSubscribe.forEach((eventName) => {
         this.eventSource?.addEventListener(eventName, (event: MessageEvent) => {
           try {
             const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
