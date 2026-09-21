@@ -2048,8 +2048,15 @@ export class MedicineService implements OnModuleInit {
       this.logger.log(`[WarehouseSearch] Searching for: "${q}"`);
       const regex = new RegExp(q, 'i');
       const medicines = await this.medicineModel.find(
-        { $or: [{ name: regex }, { sku: regex }] },
-        { name: 1, sku: 1, category: 1 }
+        {
+          $or: [
+            { name: regex },
+            { sku: regex },
+            { barcode: regex },
+            { 'units.barcode': regex }
+          ]
+        },
+        { name: 1, sku: 1, category: 1, barcode: 1 }
       ).limit(20).lean().exec();
 
       if (medicines.length === 0) return [];
@@ -2115,7 +2122,7 @@ export class MedicineService implements OnModuleInit {
     return code12 + checksum;
   }
 
-  async getByBarcode(barcode: string, branchId?: string) {
+  async getByBarcode(barcode: string, branchId?: string): Promise<any> {
     try {
       if (!barcode || barcode.trim() === '') {
         throw new RpcException('Mã vạch không được để trống');
@@ -2124,14 +2131,32 @@ export class MedicineService implements OnModuleInit {
       const cleanBarcode = barcode.trim();
       this.logger.log(`[getByBarcode] Scanning barcode: "${cleanBarcode}", branchId: "${branchId || 'ALL'}"`);
 
-      // 1. Search by primary barcode, sku, or packaging units barcode
-      const medicine = await this.medicineModel.findOne({
+      // 1. Search by primary barcode, sku, or packaging units barcode (including UPC-A / EAN-13 zero-prefix conversions)
+      const searchCodes = [cleanBarcode];
+      if (cleanBarcode.length === 12) {
+        searchCodes.push('0' + cleanBarcode);
+      } else if (cleanBarcode.length === 13 && cleanBarcode.startsWith('0')) {
+        searchCodes.push(cleanBarcode.slice(1));
+      }
+
+      let medicine = await this.medicineModel.findOne({
         $or: [
-          { barcode: cleanBarcode },
-          { sku: cleanBarcode },
-          { 'units.barcode': cleanBarcode }
+          { barcode: { $in: searchCodes } },
+          { sku: { $in: searchCodes } },
+          { 'units.barcode': { $in: searchCodes } }
         ]
       }).lean().exec();
+
+      // Smart Fallback: Nếu ảnh trên mạng hoặc barcode scan lệch Check Digit ở số cuối, khớp theo tiền tố 12 số GS1
+      if (!medicine && cleanBarcode.length === 13) {
+        const prefix12 = cleanBarcode.slice(0, 12);
+        medicine = await this.medicineModel.findOne({
+          $or: [
+            { barcode: new RegExp(`^${prefix12}`) },
+            { 'units.barcode': new RegExp(`^${prefix12}`) }
+          ]
+        }).lean().exec();
+      }
 
       if (!medicine) {
         return {

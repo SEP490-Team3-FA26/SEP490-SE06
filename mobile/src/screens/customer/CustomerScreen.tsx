@@ -21,6 +21,7 @@ import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, Order, Voucher } from '../../types/pharmacy.types';
+import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedMedDetail, setSelectedMedDetail] = useState<Medicine | null>(null);
+  const [showScanner, setShowScanner] = useState<boolean>(false);
 
   // Cart & Vouchers
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -212,6 +214,36 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     }
   };
 
+  // Barcode Scan for Customer (quét vỏ hộp thuốc tại nhà)
+  const handleScanBarcode = async (code: string) => {
+    setShowScanner(false);
+    try {
+      const res = await ApiService.getByBarcode(code);
+      if (res && res.medicine) {
+        setSelectedMedDetail(res.medicine);
+        showToast.success('Tìm Thấy Thuốc', `Đã nhận diện: ${res.medicine.name}`);
+      } else {
+        const local = medicines.find(
+          (m) =>
+            m.barcode === code ||
+            m.sku === code ||
+            m.name.toLowerCase().includes(code.toLowerCase()) ||
+            m.units?.some((u) => u.barcode === code)
+        );
+        if (local) {
+          setSelectedMedDetail(local);
+          showToast.success('Tìm Thấy Thuốc', `Đã nhận diện: ${local.name}`);
+        } else {
+          setSearchQuery(code);
+          showToast.info('Thông báo', `Không tìm thấy chính xác thuốc với mã: ${code}. Đã điền vào ô tìm kiếm.`);
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi quét barcode:', e);
+      showToast.error('Lỗi', 'Không thể kết nối máy chủ tra cứu mã vạch.');
+    }
+  };
+
   // AI Chat Logic
   const handleSendChat = async (overrideText?: string) => {
     const userMsg = overrideText || chatInput.trim();
@@ -356,15 +388,29 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         {/* TAB 1: STORE */}
         {activeTab === 'STORE' && (
           <View>
-            <View style={styles.searchBox}>
-              <Ionicons name="search" size={18} color="#94A3B8" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Tìm tên thuốc, hoạt chất, chỉ định..."
-                placeholderTextColor="#94A3B8"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
+            <View style={styles.searchRow}>
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={18} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Tìm tên thuốc, hoạt chất, chỉ định..."
+                  placeholderTextColor="#94A3B8"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery ? (
+                  <AnimatedTouchable onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </AnimatedTouchable>
+                ) : null}
+              </View>
+              <AnimatedTouchable
+                onPress={() => setShowScanner(true)}
+                style={styles.scanBarcodeBtn}
+              >
+                <Ionicons name="barcode-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.scanBarcodeBtnText}>Quét Hộp</Text>
+              </AnimatedTouchable>
             </View>
 
             {/* Banner Lịch Nhắc Uống Thuốc Ngoại Tuyến */}
@@ -889,6 +935,15 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           </View>
         </View>
       </Modal>
+
+      {/* Barcode Scanner Modal for Customer */}
+      <BarcodeScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanBarcode}
+        title="Quét Mã Vạch Hộp Thuốc"
+        subtitle="Hướng camera vào mã vạch trên vỏ hộp thuốc tại nhà để tìm sản phẩm chính hãng"
+      />
     </SafeAreaView>
   );
 };
@@ -929,7 +984,14 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
   searchBox: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -937,7 +999,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    marginBottom: 10,
+  },
+  scanBarcodeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    gap: 4,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  scanBarcodeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   searchInput: {
     flex: 1,

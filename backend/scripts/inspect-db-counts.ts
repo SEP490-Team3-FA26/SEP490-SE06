@@ -18,7 +18,7 @@ async function run() {
     console.log('✅ Connected!');
 
     const db = connection.db;
-    const branchId = 'BR-001';
+    const branchId: string = 'BR-001';
     const monthsCount = 12;
 
     // Simulate getSeasonalDataset
