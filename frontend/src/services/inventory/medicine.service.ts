@@ -34,6 +34,7 @@ export interface PaginatedResult<T> {
 
 export interface Medicine {
   id: string;
+  _id?: string;
   name: string;
   price?: number;
   sku?: string;

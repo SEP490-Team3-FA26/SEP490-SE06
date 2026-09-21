@@ -93,6 +93,14 @@ export class SupplierServiceService implements OnModuleInit {
     return await this.supplierModel.findByIdAndUpdate(id, data, { new: true }).exec();
   }
 
+  async delete(id: string) {
+    const deleted = await this.supplierModel.findByIdAndDelete(id).exec();
+    if (!deleted) {
+      throw new NotFoundException(`Nhà cung cấp ID ${id} không tồn tại để xóa!`);
+    }
+    return { success: true, message: `Đã xóa thành công nhà cung cấp ${id}` };
+  }
+
   async validateSupplierForOrder(supplierId: string): Promise<boolean> {
     const supplier = await this.supplierModel.findById(supplierId);
     if (!supplier) {

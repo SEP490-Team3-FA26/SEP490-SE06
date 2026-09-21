@@ -51,7 +51,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [mapSearchQuery, setMapSearchQuery] = useState<string>('');
 
   // --- Inventory State ---
-  const [medicines, setMedicines] = useState<Medicine[]>(ApiService.MEDICINE_OFFLINE_FALLBACK);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedMedId, setExpandedMedId] = useState<string | null>(null);
 

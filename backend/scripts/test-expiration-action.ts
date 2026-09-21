@@ -6,7 +6,7 @@ function post(url: string, data: any, token?: string): Promise<{ statusCode: num
     const parsedUrl = new URL(url);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(postData)
+      'Content-Length': String(Buffer.byteLength(postData))
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;

@@ -374,104 +374,7 @@ export class ApiService {
     return await res.json();
   }
 
-  // --- MEDICINES & INVENTORY APIS ---
-  // Bộ dữ liệu mẫu dùng khi backend/Kafka không phản hồi (offline fallback)
-  public static readonly MEDICINE_OFFLINE_FALLBACK: any[] = [
-    {
-      id: 'fallback_1', _id: 'fallback_1', name: 'Panadol Extra Đỏ', category: 'Giảm đau',
-      sku: 'MED-PANADOL-01', barcode: '8930003785326',
-      drug_classification: 'NON_PRESCRIPTION', price: 25000, stock: 200, totalBranchStock: 200,
-      unit: 'Vỉ', dosage_form: 'Viên nén', active_ingredient: 'Paracetamol 500mg + Caffeine',
-      units: [
-        { name: 'Hộp', conversionRate: 10, price: 230000, barcode: '8930003785326', isBase: false },
-        { name: 'Vỉ', conversionRate: 1, price: 25000, barcode: '8930003785327', isBase: true },
-      ],
-      batches: [
-        { batchNo: 'BATCH-2026-001', expDate: '2026-11-30T00:00:00.000Z', stock: 80, status: 'ACTIVE', location: { zone: 'B', rack: 'B1', shelf: 1 } },
-        { batchNo: 'BATCH-2026-002', expDate: '2027-08-15T00:00:00.000Z', stock: 120, status: 'ACTIVE', location: { zone: 'B', rack: 'B1', shelf: 2 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'fallback_2', _id: 'fallback_2', name: 'Amoxicillin 500mg', category: 'Kháng sinh',
-      sku: 'MED-AMOX-02', barcode: '8935001234567',
-      drug_classification: 'PRESCRIPTION', price: 85000, stock: 150, totalBranchStock: 150,
-      unit: 'Hộp', dosage_form: 'Viên nang', active_ingredient: 'Amoxicillin trihydrate 500mg',
-      units: [
-        { name: 'Hộp', conversionRate: 1, price: 85000, barcode: '8935001234567', isBase: true },
-        { name: 'Vỉ', conversionRate: 0.1, price: 9000, barcode: '8935001234568', isBase: false },
-      ],
-      batches: [
-        { batchNo: 'AMX-2026-11', expDate: '2027-04-20T00:00:00.000Z', stock: 150, status: 'ACTIVE', location: { zone: 'A', rack: 'A1', shelf: 1 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'fallback_3', _id: 'fallback_3', name: 'Decolgen Forte', category: 'Hô hấp',
-      sku: 'MED-DECOL-03', barcode: '8936009876543',
-      drug_classification: 'NON_PRESCRIPTION', price: 35000, stock: 300, totalBranchStock: 300,
-      unit: 'Vỉ', dosage_form: 'Viên nén', active_ingredient: 'Paracetamol + Phenylephrine + Chlorphenamine',
-      units: [
-        { name: 'Hộp', conversionRate: 10, price: 320000, barcode: '8936009876543', isBase: false },
-        { name: 'Vỉ', conversionRate: 1, price: 35000, barcode: '8936009876544', isBase: true },
-      ],
-      batches: [
-        { batchNo: 'DEC-2026-05', expDate: '2026-12-15T00:00:00.000Z', stock: 300, status: 'ACTIVE', location: { zone: 'B', rack: 'B2', shelf: 1 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'fallback_4', _id: 'fallback_4', name: 'Omeprazol 20mg', category: 'Tiêu hóa',
-      sku: 'MED-OMEP-04', barcode: '8937001122334',
-      drug_classification: 'PRESCRIPTION', price: 45000, stock: 120, totalBranchStock: 120,
-      unit: 'Hộp', dosage_form: 'Viên nang', active_ingredient: 'Omeprazole 20mg',
-      batches: [
-        { batchNo: 'OMP-2026-08', expDate: '2027-09-30T00:00:00.000Z', stock: 120, status: 'ACTIVE', location: { zone: 'D', rack: 'D1', shelf: 1 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'fallback_5', _id: 'fallback_5', name: 'Vitamin C Sủi 1000mg', category: 'Thực phẩm chức năng',
-      sku: 'MED-VITC-05', barcode: '8938009988776',
-      drug_classification: 'NON_PRESCRIPTION', price: 55000, stock: 500, totalBranchStock: 500,
-      unit: 'Tuýp', dosage_form: 'Viên sủi', active_ingredient: 'Vitamin C 1000mg + Zinc',
-      batches: [
-        { batchNo: 'VTC-2026-01', expDate: '2028-01-01T00:00:00.000Z', stock: 500, status: 'ACTIVE', location: { zone: 'E', rack: 'E1', shelf: 1 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'fallback_6', _id: 'fallback_6', name: 'Strepsils Cool Bạc Hà', category: 'Hô hấp',
-      sku: 'MED-STREP-06', barcode: '8939004455667',
-      drug_classification: 'NON_PRESCRIPTION', price: 40000, stock: 250, totalBranchStock: 250,
-      unit: 'Gói', dosage_form: 'Kẹo ngậm', active_ingredient: '2,4-Dichlorobenzyl Alcohol + Amylmetacresol',
-      batches: [
-        { batchNo: 'STP-2026-09', expDate: '2027-06-18T00:00:00.000Z', stock: 250, status: 'ACTIVE', location: { zone: 'B', rack: 'B2', shelf: 2 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'fallback_7', _id: 'fallback_7', name: 'Berberin Mộc Hương', category: 'Tiêu hóa',
-      sku: 'MED-BERB-07', barcode: '8931003344556',
-      drug_classification: 'NON_PRESCRIPTION', price: 18000, stock: 400, totalBranchStock: 400,
-      unit: 'Lọ', dosage_form: 'Viên nén', active_ingredient: 'Berberine HCl 10mg',
-      batches: [
-        { batchNo: 'BRB-2026-03', expDate: '2027-12-01T00:00:00.000Z', stock: 400, status: 'ACTIVE', location: { zone: 'D', rack: 'D1', shelf: 2 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'fallback_8', _id: 'fallback_8', name: 'Cefuroxim 500mg', category: 'Kháng sinh',
-      sku: 'MED-CEFU-08', barcode: '8932007788990',
-      drug_classification: 'PRESCRIPTION', price: 95000, stock: 80, totalBranchStock: 80,
-      unit: 'Hộp', dosage_form: 'Viên nén', active_ingredient: 'Cefuroxime axetil 500mg',
-      batches: [
-        { batchNo: 'CFX-2026-10', expDate: '2026-10-30T00:00:00.000Z', stock: 80, status: 'ACTIVE', location: { zone: 'A', rack: 'A2', shelf: 1 } },
-      ],
-      image_url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-    },
-  ];
-
+  // --- MEDICINES & INVENTORY APIS (Strictly from Database & Backend) ---
   public static async getMedicines(params?: {
     page?: number;
     limit?: number;
@@ -490,7 +393,6 @@ export class ApiService {
     const query = `?page=${page}&limit=${limit}&search=${search}&category=${category}&classification=${classification}&indication=${indication}`;
     const url = `${this.baseUrl}/api/medicines${query}`;
 
-    // 1. Fetch trực tiếp từ Server VPS / Database với timeout 12 giây
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 12000); // 12s timeout cho kết nối Kafka & MongoDB
@@ -504,32 +406,17 @@ export class ApiService {
         const json = await res.json();
         const dataList = json.data || json.medicines || (Array.isArray(json) ? json : null);
         if (Array.isArray(dataList) && dataList.length > 0) {
-          console.log(`✅ [getMedicines] Đã nhận ${dataList.length} thuốc THẬT từ Database/Server!`);
+          console.log(`✅ [getMedicines] Đã nhận ${dataList.length} thuốc từ Database/Server!`);
           return dataList.map((m: any) => ApiService.mapMedicine(m));
         }
       } else {
         console.warn(`⚠️ [getMedicines] Server trả về mã lỗi HTTP ${res.status}`);
       }
     } catch (e: any) {
-      console.warn(`⚠️ [getMedicines] Lỗi kết nối tới Server/Kafka: ${e?.message || e}`);
+      console.warn(`⚠️ [getMedicines] Lỗi kết nối tới Server/Database: ${e?.message || e}`);
     }
 
-    // 2. Nếu server chưa phản hồi (Kafka timeout), log cảnh báo rõ ràng
-    console.warn('⚠️ [getMedicines] Chưa nhận được danh sách thuốc từ Server/Kafka (đang dùng fallback tạm thời)');
-    let fallback = [...this.MEDICINE_OFFLINE_FALLBACK];
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      fallback = fallback.filter(m =>
-        m.name?.toLowerCase().includes(q) ||
-        m.active_ingredient?.toLowerCase().includes(q) ||
-        m.barcode?.includes(q) ||
-        m.sku?.toLowerCase().includes(q)
-      );
-    }
-    if (params?.category && params.category !== 'ALL') {
-      fallback = fallback.filter(m => m.category?.includes(params.category!));
-    }
-    return fallback.map((m) => ApiService.mapMedicine(m));
+    return [];
   }
 
 
@@ -576,36 +463,17 @@ export class ApiService {
             totalBranchStock: data.totalBranchStock ?? data.medicine?.stock ?? 0,
             matchedUnit: data.matchedUnit || null,
           };
+        } else {
+          return {
+            success: false,
+            found: false,
+            barcode: cleanCode,
+            message: data?.message || `Không tìm thấy thuốc khớp với mã vạch: ${cleanCode}`,
+          };
         }
       }
-    } catch (e) {
-      console.warn('[getByBarcode] API failed, attempting offline fallback search:', e);
-    }
-
-    // Offline / Fallback local search
-    const foundFallback = this.MEDICINE_OFFLINE_FALLBACK.find((m) => {
-      const matchPrimary = m.barcode === cleanCode || m.sku === cleanCode || m.id === cleanCode;
-      const matchUnit = Array.isArray(m.units) && m.units.some((u: any) => u.barcode === cleanCode);
-      return matchPrimary || matchUnit;
-    });
-
-    if (foundFallback) {
-      const med = ApiService.mapMedicine(foundFallback);
-      const activeBatches = (med.batches || []).sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
-      const matchedUnit = Array.isArray(foundFallback.units)
-        ? foundFallback.units.find((u: any) => u.barcode === cleanCode) || null
-        : null;
-
-      return {
-        success: true,
-        found: true,
-        barcode: cleanCode,
-        medicine: med,
-        batches: activeBatches,
-        fefoBatch: activeBatches[0] || null,
-        totalBranchStock: med.stock,
-        matchedUnit,
-      };
+    } catch (e: any) {
+      console.warn('[getByBarcode] API failed:', e);
     }
 
     return {
@@ -671,7 +539,6 @@ export class ApiService {
     return { zones: DEFAULT_GSP_ZONES };
   }
 
-
   public static async getShelfDetail(zone: string, rack: string, shelf: number): Promise<any> {
     try {
       const res = await fetch(
@@ -686,24 +553,11 @@ export class ApiService {
       console.warn('[getShelfDetail] API failed:', e);
     }
 
-    // Fallback: match batches in offline list with this location
-    const matchedMeds = this.MEDICINE_OFFLINE_FALLBACK.filter((m) =>
-      Array.isArray(m.batches) && m.batches.some((b: any) => b.location?.zone === zone || b.location?.rack === rack)
-    );
-
     return {
       zone,
       rack,
       shelf,
-      batches: matchedMeds.map((m) => ({
-        medicineId: m.id,
-        name: m.name,
-        sku: m.sku,
-        barcode: m.barcode,
-        unit: m.unit,
-        category: m.category,
-        batches: m.batches,
-      })),
+      batches: [],
     };
   }
 
@@ -718,30 +572,10 @@ export class ApiService {
         return Array.isArray(json) ? json : json.data || [];
       }
     } catch (e) {
-      console.warn('[warehouseSearch] Failed, searching offline list:', e);
+      console.warn('[warehouseSearch] API failed:', e);
     }
 
-    const term = q.trim().toLowerCase();
-    const results: WarehouseSearchResult[] = [];
-    for (const m of this.MEDICINE_OFFLINE_FALLBACK) {
-      const matchName = m.name?.toLowerCase().includes(term);
-      const matchSku = m.sku?.toLowerCase().includes(term);
-      const matchBarcode = m.barcode?.includes(term);
-      if (matchName || matchSku || matchBarcode) {
-        const batch = m.batches?.[0] || { location: { zone: 'A', rack: 'A1', shelf: 1 } };
-        const loc = batch.location || { zone: 'A', rack: 'A1', shelf: 1 };
-        results.push({
-          medicineId: m.id,
-          name: m.name,
-          sku: m.sku,
-          barcode: m.barcode,
-          category: m.category,
-          location: loc,
-          targetId: `${loc.zone}-${loc.rack}-${loc.shelf}`,
-        });
-      }
-    }
-    return results;
+    return [];
   }
 
   // ==========================================
@@ -987,10 +821,15 @@ export class ApiService {
 
   public static async createPayOSLink(orderId: string, amount: number, returnUrl?: string): Promise<any> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/payments/create-payos-link`, {
+      const res = await fetch(`${this.baseUrl}/api/orders/payos-link`, {
         method: 'POST',
         headers: this.authHeaders,
-        body: JSON.stringify({ orderId, amount, returnUrl }),
+        body: JSON.stringify({
+          totalAmount: amount,
+          items: [{ medicineId: orderId, name: `Đơn hàng #${orderId}`, price: amount, quantity: 1 }],
+          returnUrl: returnUrl || 'wdp301://checkout',
+          paymentMethod: 'QR_PAY',
+        }),
       });
       if (res.ok) return await res.json();
     } catch (e) {
@@ -1241,7 +1080,8 @@ export class ApiService {
   // --- NOTIFICATIONS ---
   public static async getMyNotifications(page = 1, limit = 20): Promise<AppNotification[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/notifications?page=${page}&limit=${limit}`, {
+      const offset = (page - 1) * limit;
+      const res = await fetch(`${this.baseUrl}/api/notifications/me?limit=${limit}&offset=${offset}`, {
         headers: this.authHeaders,
       });
       if (res.ok) {
@@ -1261,7 +1101,10 @@ export class ApiService {
       });
       if (res.ok) {
         const decoded = await res.json();
-        return decoded?.count || (typeof decoded === 'number' ? decoded : 0);
+        if (typeof decoded?.data === 'number') return decoded.data;
+        if (typeof decoded?.data?.count === 'number') return decoded.data.count;
+        if (typeof decoded?.count === 'number') return decoded.count;
+        if (typeof decoded === 'number') return decoded;
       }
     } catch (e) {
       console.warn('Failed to fetch unread count:', e);
@@ -1272,7 +1115,7 @@ export class ApiService {
   public static async markAsRead(id: string): Promise<boolean> {
     try {
       const res = await fetch(`${this.baseUrl}/api/notifications/${id}/read`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: this.authHeaders,
       });
       return res.ok;
@@ -1284,7 +1127,7 @@ export class ApiService {
   public static async markAllAsRead(): Promise<boolean> {
     try {
       const res = await fetch(`${this.baseUrl}/api/notifications/mark-all-read`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: this.authHeaders,
       });
       return res.ok;

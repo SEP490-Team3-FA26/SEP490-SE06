@@ -28,7 +28,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [activeTab, setActiveTab] = useState<'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS'>('STORE');
 
   // Products & Categories
-  const [medicines, setMedicines] = useState<Medicine[]>(ApiService.MEDICINE_OFFLINE_FALLBACK);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedMedDetail, setSelectedMedDetail] = useState<Medicine | null>(null);

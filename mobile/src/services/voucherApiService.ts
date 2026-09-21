@@ -10,25 +10,24 @@ export interface Voucher {
   _id: string;
   code: string;
   description?: string;
-  discountType: 'percentage' | 'fixed';
+  discountType: 'percentage' | 'fixed' | 'PERCENTAGE' | 'FIXED_AMOUNT';
   discountValue: number;
-  maxUses: number;
-  usedCount: number;
+  maxUses?: number;
+  usedCount?: number;
+  minOrderValue?: number;
   startDate?: string;
   endDate?: string;
-  status: 'active' | 'inactive' | 'expired';
-  eventId?: string;
-  organizerId: string;
+  status?: string;
 }
 
 export interface CreateVoucherInput {
   code: string;
   description?: string;
-  discountType: 'percentage' | 'fixed';
+  discountType: 'percentage' | 'fixed' | 'PERCENTAGE' | 'FIXED_AMOUNT';
   discountValue: number;
   maxUses?: number;
+  minOrderValue?: number;
   endDate?: string;
-  eventId?: string;
 }
 
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -45,27 +44,28 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   if (userId) headers['x-user-id'] = userId;
 
   const response = await fetch(url, { ...options, headers });
-  const json = await response.json();
+  const json = await response.json().catch(() => ({}));
 
-  if (!response.ok) throw new Error(json.message || 'API Error');
-  return json.data;
+  if (!response.ok) throw new Error(json.message || `API Error: ${response.status}`);
+  return (Array.isArray(json) ? json : (json.data ?? json)) as T;
 }
 
 export const VoucherAPI = {
   async getOrganizerVouchers(): Promise<Voucher[]> {
-    return apiRequest<Voucher[]>('/api/payments/organizer/vouchers');
+    return apiRequest<Voucher[]>('/api/vouchers');
   },
 
   async createVoucher(data: CreateVoucherInput): Promise<Voucher> {
-    return apiRequest<Voucher>('/api/payments/organizer/vouchers', {
+    return apiRequest<Voucher>('/api/vouchers', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async deleteVoucher(id: string): Promise<void> {
-    return apiRequest<void>(`/api/payments/organizer/vouchers/${id}`, {
+    return apiRequest<void>(`/api/vouchers/${id}`, {
       method: 'DELETE',
     });
   },
 };
+

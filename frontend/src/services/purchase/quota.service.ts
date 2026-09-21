@@ -19,6 +19,11 @@ export interface QuotaSummary {
   branchCount: number;
 }
 
+export interface AsyncAcceptedResponse {
+  status: string;
+  message: string;
+}
+
 export const quotaService = {
   getQuotaSummary: async (cycle: string): Promise<QuotaSummary> => {
     const response = await api.get('/api/quotas/summary', { params: { cycle } });
@@ -40,17 +45,18 @@ export const quotaService = {
     return response.data;
   },
 
-  createQuota: async (data: QuotaData): Promise<QuotaData> => {
+  createQuota: async (data: QuotaData): Promise<AsyncAcceptedResponse | QuotaData> => {
     const response = await api.post('/api/quotas', data);
     return response.data;
   },
 
-  updateQuota: async (id: string, data: Partial<QuotaData>): Promise<QuotaData> => {
+  updateQuota: async (id: string, data: Partial<QuotaData>): Promise<AsyncAcceptedResponse | QuotaData> => {
     const response = await api.put(`/api/quotas/${id}`, data);
     return response.data;
   },
 
-  deleteQuota: async (id: string): Promise<void> => {
-    await api.delete(`/api/quotas/${id}`);
+  deleteQuota: async (id: string): Promise<AsyncAcceptedResponse | void> => {
+    const response = await api.delete(`/api/quotas/${id}`);
+    return response.data;
   }
 };

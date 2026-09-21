@@ -29,7 +29,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [activeTab, setActiveTab] = useState<'POS' | 'OCR' | 'INTERACTIONS'>('POS');
 
   // POS State
-  const [medicines, setMedicines] = useState<Medicine[]>(ApiService.MEDICINE_OFFLINE_FALLBACK);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [searchMed, setSearchMed] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedMedDetail, setSelectedMedDetail] = useState<Medicine | null>(null);
