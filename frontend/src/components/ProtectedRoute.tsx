@@ -1,15 +1,20 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 interface ProtectedRouteProps {
   allowedRoles: string[];
 }
 
 export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
+  const location = useLocation();
   const token = localStorage.getItem("token");
   let role = localStorage.getItem("userRole");
 
+  // Deep linking: Lưu lại đường dẫn người dùng đang muốn truy cập
+  const currentPath = location.pathname + location.search;
+  const returnUrl = encodeURIComponent(currentPath);
+
   if (!token) {
-    return <Navigate to="/auth/login" replace />;
+    return <Navigate to={`/auth/login?redirect=${returnUrl}`} replace />;
   }
 
   // Fallback: If role is not directly in localStorage, inspect user object or decode JWT
@@ -43,13 +48,16 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     }
   }
 
-  const isAllowed = allowedRoles.includes(role) ||
-    (role === "head_branch" && allowedRoles.includes("director")) ||
-    (role === "director" && allowedRoles.includes("head_branch"));
+  const normalizedRole = role ? role.toLowerCase() : "";
+  const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
+
+  const isAllowed = normalizedAllowedRoles.includes(normalizedRole) ||
+    (normalizedRole === "head_branch" && normalizedAllowedRoles.includes("director")) ||
+    (normalizedRole === "director" && normalizedAllowedRoles.includes("head_branch"));
 
   if (role && !isAllowed) {
     // Redirect other roles to their respective dashboards
-    switch (role) {
+    switch (normalizedRole) {
       case "admin":
         return <Navigate to="/admin" replace />;
       case "director":
@@ -64,7 +72,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
       case "user":
         return <Navigate to="/customer" replace />;
       default:
-        return <Navigate to="/auth/login" replace />;
+        return <Navigate to={`/auth/login?redirect=${returnUrl}`} replace />;
     }
   }
 
