@@ -1,13 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EnvService } from './env.service';
 
-// Base URL giống AuthAPI
 function getBaseUrl(): string {
-  const raw = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return raw;
-  }
+  return EnvService.getApiBaseUrl();
 }
 
 const API_BASE_URL = getBaseUrl();

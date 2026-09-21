@@ -45,6 +45,16 @@ export interface MedicineBatch {
   expDate: string;
   stock: number;
   status?: string;
+  location?: { zone: string; rack: string; shelf: number };
+  importPrice?: number;
+}
+
+export interface PackagingUnit {
+  name: string;
+  conversionRate: number;
+  price: number;
+  barcode?: string;
+  isBase?: boolean;
 }
 
 export interface Medicine {
@@ -53,6 +63,10 @@ export interface Medicine {
   name: string;
   price: number;
   unit: string;
+  sku?: string;
+  barcode?: string;
+  units?: PackagingUnit[];
+  totalBranchStock?: number;
   active: string;
   active_ingredient?: string;
   category: string;
@@ -76,11 +90,56 @@ export interface Medicine {
   dosage_form?: string;
 }
 
+export interface BarcodeLookupResponse {
+  success: boolean;
+  found: boolean;
+  message?: string;
+  barcode?: string;
+  medicine?: Medicine;
+  batches?: MedicineBatch[];
+  fefoBatch?: MedicineBatch | null;
+  matchedLot?: any;
+  totalBranchStock?: number;
+  matchedUnit?: PackagingUnit | null;
+}
+
+export interface WarehouseShelf {
+  shelf: number;
+  batchCount: number;
+  totalStock: number;
+  status: 'NORMAL' | 'NEAR_EXPIRY' | 'EXPIRED' | 'LOW_STOCK' | 'EMPTY';
+}
+
+export interface WarehouseRack {
+  rackId: string;
+  shelves: WarehouseShelf[];
+}
+
+export interface WarehouseZone {
+  zoneId: string;
+  name: string;
+  category: string;
+  color?: string;
+  racks: WarehouseRack[];
+}
+
+export interface WarehouseSearchResult {
+  medicineId: string;
+  name: string;
+  sku?: string;
+  barcode?: string;
+  category: string;
+  location: { zone: string; rack: string; shelf: number };
+  targetId: string;
+}
+
 export interface CartItem {
   medicine: Medicine;
   quantity: number;
   batchNo?: string;
+  expDate?: string;
   selectedUnit?: string;
+  fefoAllocated?: boolean;
 }
 
 export interface Voucher {
@@ -156,24 +215,35 @@ export interface Branch {
 export interface StockTransferItem {
   medicineId: string;
   name: string;
-  batchNo: string;
+  batchNo?: string;
   quantity: number;
   unit: string;
+  barcode?: string;
+  sku?: string;
+  scannedQty?: number;
 }
 
 export interface StockTransfer {
   id: string;
   _id?: string;
   transferCode?: string;
+  prId?: string;
+  prCode?: string;
   fromBranchId: string;
   fromBranchName?: string;
   toBranchId: string;
   toBranchName?: string;
   items: StockTransferItem[];
-  status: 'PENDING' | 'APPROVED' | 'IN_TRANSIT' | 'COMPLETED' | 'REJECTED';
+  status: 'PENDING' | 'APPROVED' | 'IN_TRANSIT' | 'SHIPPING' | 'DELIVERED' | 'DISPATCHED' | 'RECEIVED' | 'COMPLETED' | 'REJECTED';
   reason?: string;
+  notes?: string;
+  shippedBy?: string;
+  receivedBy?: string;
+  shippedAt?: string;
+  receivedAt?: string;
   createdBy?: string;
   createdAt?: string;
+  qrCode?: string;
 }
 
 export interface AuditLog {

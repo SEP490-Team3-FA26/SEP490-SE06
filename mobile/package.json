@@ -4,7 +4,10 @@
   "type": "commonjs",
   "main": "index.ts",
   "scripts": {
+    "postinstall": "node scripts/patch-expo-notifications.js",
     "start": "expo start",
+    "go": "expo start --go",
+    "go:clean": "expo start --go -c",
     "dev": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",

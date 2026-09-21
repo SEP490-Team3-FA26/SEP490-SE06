@@ -2056,8 +2056,15 @@ export class MedicineService implements OnModuleInit {
       this.logger.log(`[WarehouseSearch] Searching for: "${q}"`);
       const regex = new RegExp(q, 'i');
       const medicines = await this.medicineModel.find(
-        { $or: [{ name: regex }, { sku: regex }] },
-        { name: 1, sku: 1, category: 1 }
+        {
+          $or: [
+            { name: regex },
+            { sku: regex },
+            { barcode: regex },
+            { 'units.barcode': regex }
+          ]
+        },
+        { name: 1, sku: 1, category: 1, barcode: 1 }
       ).limit(20).lean().exec();
 
       if (medicines.length === 0) return [];

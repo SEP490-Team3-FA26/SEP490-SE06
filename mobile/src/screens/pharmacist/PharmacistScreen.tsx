@@ -22,15 +22,21 @@ import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, SamplePrescription } from '../../types/pharmacy.types';
+import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
+import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<'POS' | 'OCR' | 'INTERACTIONS'>('POS');
 
   // POS State
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [medicines, setMedicines] = useState<Medicine[]>(ApiService.MEDICINE_OFFLINE_FALLBACK);
   const [searchMed, setSearchMed] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedMedDetail, setSelectedMedDetail] = useState<Medicine | null>(null);
+
+  // Barcode & Label State
+  const [showScanner, setShowScanner] = useState<boolean>(false);
+  const [selectedLabelMed, setSelectedLabelMed] = useState<Medicine | null>(null);
 
   // OCR Prescription State
   const [samples, setSamples] = useState<SamplePrescription[]>([]);
@@ -126,6 +132,43 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         },
       ]
     );
+  };
+
+  // Barcode Scan Handler for POS
+  const handleBarcodeScan = async (code: string) => {
+    setShowScanner(false);
+    try {
+      const result = await ApiService.getByBarcode(code);
+      if (result && result.medicine) {
+        const med = result.medicine;
+        addToCart(med);
+
+        let batchInfo = '';
+        if (result.matchedLot) {
+          const lotCode = result.matchedLot.lotNumber || result.matchedLot.lot || 'Chỉ định tự động';
+          const exp = result.matchedLot.expiryDate || result.matchedLot.expDate || '';
+          batchInfo = ` (Lô FEFO: ${lotCode}${exp ? ` - HSD: ${exp}` : ''})`;
+        }
+        showToast.success('Quét Barcode Thành Công', `Đã thêm ${med.name}${batchInfo} vào giỏ POS!`);
+      } else {
+        const localMatched = medicines.find(
+          (m) =>
+            m.barcode === code ||
+            m.sku === code ||
+            m.name.toLowerCase().includes(code.toLowerCase()) ||
+            m.units?.some((u) => u.barcode === code)
+        );
+        if (localMatched) {
+          addToCart(localMatched);
+          showToast.success('Quét Barcode Thành Công', `Đã tìm thấy và thêm ${localMatched.name} vào giỏ hàng!`);
+        } else {
+          showToast.error('Không tìm thấy thuốc', `Không có sản phẩm nào khớp với mã vạch: ${code}`);
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi tra cứu barcode:', e);
+      showToast.error('Lỗi tra cứu', 'Không thể kết nối máy chủ tra cứu mã vạch.');
+    }
   };
 
   // OCR Scan handlers
@@ -345,15 +388,29 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         {/* TAB 1: POS */}
         {activeTab === 'POS' && (
           <View>
-            <View style={styles.searchBox}>
-              <Ionicons name="search" size={18} color="#94A3B8" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Tra cứu thuốc bán lẻ..."
-                placeholderTextColor="#94A3B8"
-                value={searchMed}
-                onChangeText={setSearchMed}
-              />
+            <View style={styles.searchRow}>
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={18} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Tra cứu thuốc bán lẻ, SKU, Barcode..."
+                  placeholderTextColor="#94A3B8"
+                  value={searchMed}
+                  onChangeText={setSearchMed}
+                />
+                {searchMed ? (
+                  <AnimatedTouchable onPress={() => setSearchMed('')} style={{ padding: 4 }}>
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </AnimatedTouchable>
+                ) : null}
+              </View>
+              <AnimatedTouchable
+                onPress={() => setShowScanner(true)}
+                style={styles.scanBarcodeBtn}
+              >
+                <Ionicons name="barcode-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.scanBarcodeBtnText}>Quét</Text>
+              </AnimatedTouchable>
             </View>
 
             {/* Cart Preview Banner */}
@@ -408,7 +465,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               </GradientCard>
             )}
 
-            <Text style={styles.sectionTitle}>Danh Mục Thuốc Tại Quầy (Có Ảnh Thực Tế)</Text>
+            <Text style={styles.sectionTitle}>Danh Mục Thuốc Tại Quầy (Có Ảnh & Mã Vạch)</Text>
             {medicines.map((med, idx) => (
               <View key={med.id || (med as any)._id || `med-${idx}`} style={styles.medCard}>
                 <Image
@@ -434,18 +491,42 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                     ) : null}
                   </View>
                   <Text style={styles.medActive} numberOfLines={1}>Hoạt chất: {med.active}</Text>
+                  
+                  <View style={styles.codeRow}>
+                    {med.sku ? (
+                      <View style={styles.codeBadge}>
+                        <Text style={styles.codeBadgeText}>SKU: {med.sku}</Text>
+                      </View>
+                    ) : null}
+                    {med.barcode ? (
+                      <View style={[styles.codeBadge, { backgroundColor: '#F1F5F9' }]}>
+                        <Ionicons name="barcode" size={11} color="#475569" style={{ marginRight: 2 }} />
+                        <Text style={[styles.codeBadgeText, { color: '#475569' }]}>{med.barcode}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
                   <Text style={styles.medPrice}>
                     {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
                   </Text>
                 </AnimatedTouchable>
 
-                <AnimatedTouchable
-                  onPress={() => addToCart(med)}
-                  style={styles.addCartBtn}
-                >
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
-                  <Text style={styles.addCartBtnText}>Thêm</Text>
-                </AnimatedTouchable>
+                <View style={styles.actionCol}>
+                  <AnimatedTouchable
+                    onPress={() => setSelectedLabelMed(med)}
+                    style={styles.labelIconBtn}
+                  >
+                    <Ionicons name="print-outline" size={16} color="#0284C7" />
+                  </AnimatedTouchable>
+
+                  <AnimatedTouchable
+                    onPress={() => addToCart(med)}
+                    style={styles.addCartBtn}
+                  >
+                    <Ionicons name="add" size={18} color="#FFFFFF" />
+                    <Text style={styles.addCartBtnText}>Thêm</Text>
+                  </AnimatedTouchable>
+                </View>
               </View>
             ))}
           </View>
@@ -683,6 +764,22 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               Giá: {selectedMedDetail?.price.toLocaleString('vi-VN')} ₫ / {selectedMedDetail?.unit}
             </Text>
 
+            <View style={styles.codeRow}>
+              {selectedMedDetail?.sku ? (
+                <View style={styles.codeBadge}>
+                  <Text style={styles.codeBadgeText}>SKU: {selectedMedDetail.sku}</Text>
+                </View>
+              ) : null}
+              {selectedMedDetail?.barcode ? (
+                <View style={[styles.codeBadge, { backgroundColor: '#F1F5F9' }]}>
+                  <Ionicons name="barcode" size={12} color="#475569" style={{ marginRight: 3 }} />
+                  <Text style={[styles.codeBadgeText, { color: '#475569' }]}>
+                    {selectedMedDetail.barcode}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
             <View style={styles.modalSection}>
               <Text style={styles.secTitle}>Công dụng & Chỉ định:</Text>
               <Text style={styles.secText}>{selectedMedDetail?.cong_dung || 'N/A'}</Text>
@@ -692,6 +789,18 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               <Text style={styles.secTitle}>Cách dùng & Liều lượng:</Text>
               <Text style={styles.secText}>{selectedMedDetail?.cach_dung || 'N/A'}</Text>
             </View>
+
+            <AnimatedTouchable
+              onPress={() => {
+                const med = selectedMedDetail;
+                setSelectedMedDetail(null);
+                if (med) setSelectedLabelMed(med);
+              }}
+              style={styles.labelModalBtn}
+            >
+              <Ionicons name="print-outline" size={16} color="#0284C7" />
+              <Text style={styles.labelModalBtnText}>Xem / In Tem Nhãn Barcode 50x30mm</Text>
+            </AnimatedTouchable>
 
             <View style={styles.modalBtnRow}>
               <AnimatedTouchable onPress={() => setSelectedMedDetail(null)} style={styles.closeBtn}>
@@ -711,6 +820,22 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </View>
         </View>
       </Modal>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleBarcodeScan}
+        title="Quét Barcode / QR Thuốc POS"
+        subtitle="Hướng camera vào mã EAN-13, SKU hoặc QR trên hộp thuốc"
+      />
+
+      {/* Barcode Label Modal */}
+      <BarcodeLabelModal
+        visible={selectedLabelMed !== null}
+        medicine={selectedLabelMed}
+        onClose={() => setSelectedLabelMed(null)}
+      />
     </SafeAreaView>
   );
 };
@@ -752,7 +877,14 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 8,
+  },
   searchBox: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -760,7 +892,80 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    marginBottom: 14,
+  },
+  scanBarcodeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    gap: 4,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  scanBarcodeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  codeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  codeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  codeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  actionCol: {
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 8,
+  },
+  labelIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  labelModalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E0F2FE',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    marginTop: 8,
+    marginBottom: 4,
+    gap: 6,
+  },
+  labelModalBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0284C7',
   },
   searchInput: {
     flex: 1,
