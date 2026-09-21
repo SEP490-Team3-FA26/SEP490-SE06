@@ -163,7 +163,7 @@ export function CustomerLayout() {
 
                       {userRole && userRole !== 'user' && (
                         <Link
-                          to={userRole === 'admin' || userRole === 'head_branch' ? '/admin' : userRole === 'warehouse' ? '/warehouse' : userRole === 'branch' ? '/branch' : userRole === 'pharmacist' ? '/pharmacist' : '/admin'}
+                          to={userRole === 'director' || userRole === 'head_branch' ? '/director' : userRole === 'admin' ? '/admin' : userRole === 'warehouse' ? '/warehouse' : userRole === 'branch' ? '/branch' : userRole === 'pharmacist' ? '/pharmacist' : '/admin'}
                           onClick={() => setShowProfileDropdown(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-black text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 transition-all mb-1"
                         >

@@ -128,7 +128,7 @@ export class AuthController implements OnModuleInit {
     const role = result.user?.role;
     let targetUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-    if (role === 'pharmacist' || role === 'admin' || role === 'head_branch' || role === 'warehouse') {
+    if (role === 'pharmacist' || role === 'admin' || role === 'director' || role === 'head_branch' || role === 'warehouse') {
       targetUrl = process.env.FRONTEND_STAFF_URL || 'http://localhost:3001'; // Thay đổi port/domain cho staff
     } else {
       targetUrl = process.env.FRONTEND_CUSTOMER_URL || process.env.FRONTEND_URL || 'http://localhost:3000'; // Dành cho customer
@@ -154,7 +154,8 @@ export class AuthController implements OnModuleInit {
     
     let mappedRole = 'user';
     if (role === 'admin') mappedRole = 'admin';
-    else if (role === 'head_branch' || role === 'headbranch') mappedRole = 'head_branch';
+    else if (role === 'director') mappedRole = 'director';
+    else if (role === 'head_branch' || role === 'headbranch') mappedRole = 'director';
     else if (role === 'warehouse') mappedRole = 'warehouse';
     else if (role === 'pharmacist') mappedRole = 'pharmacist';
 
