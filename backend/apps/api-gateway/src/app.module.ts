@@ -295,7 +295,10 @@ export class AppGatewayModule implements OnModuleInit {
     // 2. SUPPLIER_SERVICE Reply Topics
     const supplierTopics = [
       'supplier.get_all',
+      'supplier.get_by_id',
       'supplier.create',
+      'supplier.update',
+      'supplier.delete',
     ];
 
     // 3. USER_SERVICE Reply Topics

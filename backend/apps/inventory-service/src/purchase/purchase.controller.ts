@@ -164,7 +164,7 @@ export class PurchaseController {
   }
 
   @MessagePattern('inventory.grn.list')
-  async listGoodsReceiptNotes() {
+  async listGoodsReceiptNotes(): Promise<any> {
     try {
       return await this.purchaseService.listGoodsReceiptNotes();
     } catch (error) {

@@ -1148,7 +1148,7 @@ export class PurchaseService {
     return this.poModel.findById(id).exec();
   }
 
-  async listGoodsReceiptNotes() {
+  async listGoodsReceiptNotes(): Promise<any> {
     const grns = await this.grnModel.find().sort({ createdAt: -1 }).lean().exec();
     
     // Fetch POs to attach poCode

@@ -2,6 +2,32 @@ import api from '../core/api';
 import { notifyAuthTokenChanged } from '../../utils/authEvents';
 
 const PENDING_EMAIL_KEY = "pendingVerificationEmail";
+const SESSION_COOKIE_KEY = "abc_session_active";
+
+// Enforce browser-session lifecycle:
+// If the browser was completely closed and reopened, session cookies are discarded by the browser.
+// We detect this and automatically purge stale localStorage authentication.
+function enforceBrowserSession(): void {
+  try {
+    const hasToken = !!localStorage.getItem("token");
+    if (hasToken) {
+      const hasCookie = document.cookie.split(";").some((item) => item.trim().startsWith(`${SESSION_COOKIE_KEY}=`));
+      if (!hasCookie) {
+        // Browser was closed and restarted -> clear session
+        localStorage.removeItem("token");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("user");
+        localStorage.removeItem("branchId");
+        localStorage.removeItem("branchName");
+      }
+    }
+  } catch (err) {
+    console.warn("Session check error:", err);
+  }
+}
+
+// Run check on script initialization
+enforceBrowserSession();
 
 export const authService = {
   getPendingEmail(): string {
@@ -18,6 +44,7 @@ export const authService = {
 
   getCurrentUser(): any {
     try {
+      enforceBrowserSession();
       const userStr = localStorage.getItem("user");
       return userStr ? JSON.parse(userStr) : null;
     } catch {
@@ -26,6 +53,9 @@ export const authService = {
   },
 
   setSession(token: string, user: any): void {
+    // Set a session cookie without expires/max-age (browser deletes it when closed)
+    document.cookie = `${SESSION_COOKIE_KEY}=1; path=/; SameSite=Lax`;
+
     localStorage.setItem("token", token);
     localStorage.setItem("userRole", user?.role || "user");
     localStorage.setItem("user", JSON.stringify(user || {}));
@@ -39,6 +69,9 @@ export const authService = {
   },
 
   clearSession(): void {
+    // Expire the session cookie immediately
+    document.cookie = `${SESSION_COOKIE_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+
     localStorage.removeItem("token");
     localStorage.removeItem("userRole");
     localStorage.removeItem("user");

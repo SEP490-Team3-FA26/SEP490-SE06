@@ -270,7 +270,7 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.medicine.get_by_barcode')
-  async getMedicineByBarcode(@Payload() data: { barcode: string; branchId?: string }) {
+  async getMedicineByBarcode(@Payload() data: { barcode: string; branchId?: string }): Promise<any> {
     try {
       return await this.medicineService.getByBarcode(data.barcode, data.branchId);
     } catch (error) {

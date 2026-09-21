@@ -74,23 +74,29 @@ class EnvServiceClass {
   }
 
   public getApiBaseUrl(): string {
-    if (Platform.OS === 'web') {
-      return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+    const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+
+    // 1. Ưu tiên số 1: Nếu cấu hình Server từ xa (VD: http://103.75.187.86:4000 hoặc domain https://...)
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl;
     }
 
-    // Ưu tiên 1: Nếu là Android Emulator → luôn dùng 10.0.2.2 để kết nối trực tiếp vào host PC
+    // 2. Chế độ Web Local
+    if (Platform.OS === 'web') {
+      return envUrl || 'http://localhost:4000';
+    }
+
+    // 3. Chế độ Android Emulator Local
     if (this.isAndroidEmulator()) {
       return 'http://10.0.2.2:4000';
     }
 
-    // Ưu tiên 2: IP tự detect từ Metro (thiết bị thật qua Wi-Fi)
+    // 4. Chế độ Điện thoại thật qua Wi-Fi Local (Auto-detect IP máy tính từ Metro)
     const detectedHost = this.getHostIp();
     if (detectedHost) {
       return `http://${detectedHost}:4000`;
     }
 
-    // Ưu tiên 3: đọc từ EXPO_PUBLIC_API_URL trong .env
-    const envUrl = process.env.EXPO_PUBLIC_API_URL;
     if (envUrl) {
       if (Platform.OS === 'android' && envUrl.includes('localhost')) {
         return envUrl.replace('localhost', '10.0.2.2');
@@ -98,7 +104,6 @@ class EnvServiceClass {
       return envUrl;
     }
 
-    // Ưu tiên 4: Android emulator mặc định
     if (Platform.OS === 'android') {
       return 'http://10.0.2.2:4000';
     }
@@ -107,22 +112,29 @@ class EnvServiceClass {
   }
 
   public getAiBaseUrl(): string {
-    if (Platform.OS === 'web') {
-      return process.env.EXPO_PUBLIC_AI_URL || 'http://localhost:8000';
+    const envUrl = process.env.EXPO_PUBLIC_AI_URL?.trim();
+
+    // 1. Ưu tiên số 1: Nếu cấu hình AI Server từ xa (VD: http://103.75.187.86:8000)
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl;
     }
 
-    // Ưu tiên 1: Android Emulator → 10.0.2.2
+    // 2. Chế độ Web Local
+    if (Platform.OS === 'web') {
+      return envUrl || 'http://localhost:8000';
+    }
+
+    // 3. Chế độ Android Emulator Local
     if (this.isAndroidEmulator()) {
       return 'http://10.0.2.2:8000';
     }
 
-    // Ưu tiên 2: Thiết bị thật qua IP Metro
+    // 4. Chế độ Điện thoại thật qua Wi-Fi Local
     const detectedHost = this.getHostIp();
     if (detectedHost) {
       return `http://${detectedHost}:8000`;
     }
 
-    const envUrl = process.env.EXPO_PUBLIC_AI_URL;
     if (envUrl) {
       if (Platform.OS === 'android' && envUrl.includes('localhost')) {
         return envUrl.replace('localhost', '10.0.2.2');
