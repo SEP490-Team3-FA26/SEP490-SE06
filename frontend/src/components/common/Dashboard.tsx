@@ -28,7 +28,8 @@ import {
   PlusCircle,
   ExternalLink,
   Layers,
-  BarChart3
+  BarChart3,
+  ClipboardCheck
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { medicineService } from "../../services/inventory/medicine.service";
