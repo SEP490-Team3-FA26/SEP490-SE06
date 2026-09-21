@@ -108,17 +108,17 @@ export function generateEAN13SVG(
   } = {}
 ): string {
   const {
-    width = 200,
-    height = 70,
-    fontSize = 12,
+    width = 240,
+    height = 80,
+    fontSize = 13,
     showText = true,
     barColor = '#000000',
-    bgColor = 'transparent'
+    bgColor = '#FFFFFF'
   } = options;
 
   const { binary, displayCode } = encodeEAN13(barcode);
   const totalModules = binary.length; // 95 modules
-  const quietZone = 6;
+  const quietZone = 9; // GS1 standard quiet zone margin
   const totalWidthUnits = totalModules + quietZone * 2;
   const unitWidth = width / totalWidthUnits;
   const barHeight = showText ? height - fontSize - 6 : height;
@@ -127,15 +127,16 @@ export function generateEAN13SVG(
   for (let i = 0; i < binary.length; i++) {
     if (binary[i] === '1') {
       const x = (quietZone + i) * unitWidth;
-      rects += `<rect x="${x.toFixed(2)}" y="0" width="${(unitWidth + 0.1).toFixed(2)}" height="${barHeight}" fill="${barColor}" />`;
+      rects += `<rect x="${x.toFixed(2)}" y="0" width="${(unitWidth + 0.15).toFixed(2)}" height="${barHeight}" fill="${barColor}" shape-rendering="crispEdges" />`;
     }
   }
 
   const textSvg = showText
-    ? `<text x="${(width / 2).toFixed(2)}" y="${(height - 2).toFixed(2)}" text-anchor="middle" font-family="monospace, sans-serif" font-size="${fontSize}" font-weight="600" fill="${barColor}" letter-spacing="2">${displayCode}</text>`
+    ? `<text x="${(width / 2).toFixed(2)}" y="${(height - 2).toFixed(2)}" text-anchor="middle" font-family="monospace, sans-serif" font-size="${fontSize}" font-weight="700" fill="${barColor}" letter-spacing="2.5">${displayCode}</text>`
     : '';
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color: ${bgColor};">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color: ${bgColor}; border-radius: 4px;">
+    <rect width="100%" height="100%" fill="${bgColor}" />
     ${rects}
     ${textSvg}
   </svg>`;

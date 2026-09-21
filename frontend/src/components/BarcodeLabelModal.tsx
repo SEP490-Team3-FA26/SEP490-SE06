@@ -21,17 +21,24 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<string>(medicine?.unit || 'Hộp');
+  const [isScreenScanMode, setIsScreenScanMode] = useState<boolean>(true);
 
   const barcodeValue = useMemo(() => {
+    // 1. Kiểm tra unit được chọn có barcode riêng không
+    if (medicine?.units && Array.isArray(medicine.units)) {
+      const u = medicine.units.find((item: any) => item.unitName === selectedUnit);
+      if (u && u.barcode && u.barcode.trim() !== '') return u.barcode.trim();
+    }
+    // 2. Barcode chính của thuốc
     if (medicine?.barcode && medicine.barcode.trim() !== '') {
-      return medicine.barcode;
+      return medicine.barcode.trim();
     }
-    // Fallback: SKU or generate preview
+    // 3. Fallback SKU nếu là số
     if (medicine?.sku && /^\d{12,13}$/.test(medicine.sku)) {
-      return medicine.sku;
+      return medicine.sku.trim();
     }
-    return '8930000000000';
-  }, [medicine]);
+    return '';
+  }, [medicine, selectedUnit]);
 
   const currentPrice = useMemo(() => {
     if (medicine?.units && Array.isArray(medicine.units)) {
@@ -42,14 +49,16 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   }, [medicine, selectedUnit]);
 
   const svgBarcode = useMemo(() => {
+    if (!barcodeValue) return '';
     return generateEAN13SVG(barcodeValue, {
-      width: 220,
-      height: 65,
-      fontSize: 12,
+      width: isScreenScanMode ? 280 : 220,
+      height: isScreenScanMode ? 85 : 65,
+      fontSize: isScreenScanMode ? 14 : 12,
       showText: true,
-      barColor: '#111827'
+      barColor: '#000000',
+      bgColor: '#FFFFFF'
     });
-  }, [barcodeValue]);
+  }, [barcodeValue, isScreenScanMode]);
 
   if (!isOpen || !medicine) return null;
 
@@ -236,11 +245,25 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Real-time Thermal Label Preview */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
-              Xem Trước Bản In Tem Nhiệt (50x30mm)
-            </label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Xem Trước Bản In Tem Nhiệt (50x30mm)
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsScreenScanMode(!isScreenScanMode)}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${
+                  isScreenScanMode
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>🔍 Phóng to quét qua điện thoại:</span>
+                <span className="font-bold">{isScreenScanMode ? 'BẬT' : 'TẮT'}</span>
+              </button>
+            </div>
             <div className="bg-slate-100 p-6 rounded-xl flex items-center justify-center border border-slate-200 shadow-inner">
-              <div className="w-[300px] h-[180px] bg-white rounded-lg p-3 shadow-md border border-slate-300 flex flex-col justify-between select-none">
+              <div className={`${isScreenScanMode ? 'w-[340px] min-h-[200px]' : 'w-[300px] h-[180px]'} bg-white rounded-lg p-3 shadow-md border border-slate-300 flex flex-col justify-between select-none transition-all`}>
                 <div className="flex justify-between items-center border-b border-slate-800 pb-1">
                   <span className="text-[10px] font-black text-slate-800 tracking-wider">PHARMACHAIN GSP</span>
                   <span className="text-[9px] font-bold bg-slate-900 text-white px-1.5 py-0.5 rounded">
@@ -261,10 +284,24 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                 </div>
 
                 {/* SVG Render */}
-                <div
-                  className="flex justify-center items-center my-0.5"
-                  dangerouslySetInnerHTML={{ __html: svgBarcode }}
-                />
+                {barcodeValue ? (
+                  <div
+                    className="flex justify-center items-center my-0.5 bg-white p-1 rounded"
+                    dangerouslySetInnerHTML={{ __html: svgBarcode }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-center my-1">
+                    <span className="text-[11px] font-semibold">⚠️ Thuốc chưa có mã vạch trong Database</span>
+                    <button
+                      type="button"
+                      onClick={handleRegenerateBarcode}
+                      disabled={isGenerating}
+                      className="mt-1 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-bold shadow transition-colors"
+                    >
+                      {isGenerating ? 'Đang cấp mã...' : 'Cấp mã vạch GS1 ngay'}
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center text-[8px] text-slate-500 border-t border-slate-200 pt-0.5">
                   <span>HSD: {medicine.expiry_date || '2027-12-31'}</span>

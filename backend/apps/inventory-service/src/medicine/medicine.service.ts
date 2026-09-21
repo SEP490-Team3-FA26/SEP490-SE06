@@ -494,7 +494,7 @@ export class MedicineService implements OnModuleInit {
             } else {
               // Filter AI results against actual database to prevent returning non-existent medicines
               const rawAiMedIds = aiData.map((med: any) => (med._id || med.id || '').toString()).filter(id => id);
-              const existingMeds = await this.medicineModel.find({ _id: { $in: rawAiMedIds } }).select('_id stock price').lean().exec();
+              const existingMeds = await this.medicineModel.find({ _id: { $in: rawAiMedIds } }).select('_id stock price barcode sku units').lean().exec();
               const existingMedIds = new Set(existingMeds.map(m => m._id.toString()));
               const existingMedMap = new Map(existingMeds.map(m => [m._id.toString(), m]));
 
@@ -533,17 +533,19 @@ export class MedicineService implements OnModuleInit {
                 return {
                   id: medId,
                   name: med.name,
+                  barcode: dbMed?.barcode || med.barcode || (dbMed?.units && dbMed.units[0]?.barcode) || '',
+                  sku: dbMed?.sku || med.sku || '',
                   category: med.category || 'Chưa phân loại',
                   drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
                   price: actualPrice,
                   stock: totalStock,
                   unopenedBoxes: Math.max(0, Math.floor(totalStock / 100)),
                   openedBoxUnits: med.openedBoxUnits !== undefined ? med.openedBoxUnits : (totalStock % 100),
-                  units: med.units && med.units.length > 0 ? med.units : [
+                  units: (dbMed?.units && dbMed.units.length > 0) ? dbMed.units : (med.units && med.units.length > 0 ? med.units : [
                     { unitName: med.unit || 'Hộp', exchangeValue: 100, price: actualPrice, isBaseUnit: true },
                     { unitName: 'Vỉ', exchangeValue: 10, price: Math.round(actualPrice / 10 * 1.05) },
                     { unitName: 'Viên', exchangeValue: 1, price: Math.round(actualPrice / 100 * 1.1) }
-                  ],
+                  ]),
                   minStock: 50,
                   status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
                   expiry: earliestExpiryStr,
@@ -620,6 +622,8 @@ export class MedicineService implements OnModuleInit {
             return {
               id: medId,
               name: med.name,
+              barcode: med.barcode || (med.units && med.units[0]?.barcode) || '',
+              sku: med.sku || '',
               category: med.category || 'Chưa phân loại',
               drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
               price: med.price || 50000,
