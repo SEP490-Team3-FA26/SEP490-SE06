@@ -51,10 +51,13 @@ export interface MedicineBatch {
 
 export interface PackagingUnit {
   name: string;
+  unitName?: string;
   conversionRate: number;
+  exchangeValue?: number;
   price: number;
   barcode?: string;
   isBase?: boolean;
+  isBaseUnit?: boolean;
 }
 
 export interface Medicine {

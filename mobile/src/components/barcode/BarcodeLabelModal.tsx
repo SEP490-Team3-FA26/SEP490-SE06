@@ -38,27 +38,38 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   // Synchronize when medicine changes
   React.useEffect(() => {
     if (medicine) {
-      setCurrentBarcode(medicine.barcode || medicine.sku || '8930003785326');
-      setSelectedUnit(medicine.unit || 'Hộp');
+      const defaultCode =
+        medicine.barcode ||
+        (Array.isArray(medicine.units) && medicine.units[0]?.barcode) ||
+        medicine.sku ||
+        '';
+      setCurrentBarcode(defaultCode);
+      const defaultUnit =
+        (Array.isArray(medicine.units) && (medicine.units[0]?.unitName || medicine.units[0]?.name)) ||
+        medicine.unit ||
+        'Hộp';
+      setSelectedUnit(defaultUnit);
     }
   }, [medicine]);
 
   const activeUnitInfo = useMemo(() => {
     if (!medicine) return { name: 'Hộp', price: 0, barcode: currentBarcode };
     if (Array.isArray(medicine.units) && medicine.units.length > 0) {
-      const found = medicine.units.find((u) => u.name === selectedUnit);
+      const found = medicine.units.find(
+        (u) => (u as any).unitName === selectedUnit || u.name === selectedUnit
+      );
       if (found) {
         return {
-          name: found.name,
+          name: (found as any).unitName || found.name || 'Hộp',
           price: found.price,
-          barcode: found.barcode || currentBarcode,
+          barcode: found.barcode || currentBarcode || medicine.barcode || medicine.sku || '',
         };
       }
     }
     return {
       name: medicine.unit || 'Hộp',
       price: medicine.price || 0,
-      barcode: currentBarcode,
+      barcode: currentBarcode || medicine.barcode || medicine.sku || '',
     };
   }, [medicine, selectedUnit, currentBarcode]);
 
@@ -131,25 +142,32 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               <View style={styles.unitSelectorContainer}>
                 <Text style={styles.unitLabel}>Chọn quy cách in tem:</Text>
                 <View style={styles.unitPillsRow}>
-                  {medicine.units.map((u, idx) => (
-                    <TouchableOpacity
-                      key={`unit-${idx}`}
-                      onPress={() => setSelectedUnit(u.name)}
-                      style={[
-                        styles.unitPill,
-                        selectedUnit === u.name && styles.unitPillActive,
-                      ]}
-                    >
-                      <Text
+                  {medicine.units.map((u, idx) => {
+                    const uName = (u as any).unitName || u.name || `Đơn vị ${idx + 1}`;
+                    const isSelected = selectedUnit === uName || selectedUnit === u.name;
+                    return (
+                      <TouchableOpacity
+                        key={`unit-${idx}`}
+                        onPress={() => {
+                          setSelectedUnit(uName);
+                          if (u.barcode) setCurrentBarcode(u.barcode);
+                        }}
                         style={[
-                          styles.unitPillText,
-                          selectedUnit === u.name && styles.unitPillTextActive,
+                          styles.unitPill,
+                          isSelected && styles.unitPillActive,
                         ]}
                       >
-                        {u.name} ({u.price.toLocaleString('vi-VN')} ₫)
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={[
+                            styles.unitPillText,
+                            isSelected && styles.unitPillTextActive,
+                          ]}
+                        >
+                          {uName} ({u.price.toLocaleString('vi-VN')} ₫)
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
             )}
