@@ -1,15 +1,24 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SensorTelemetry } from './schemas/sensor-telemetry.schema';
 import { SensorStation } from './schemas/sensor-station.schema';
 
 @Injectable()
-export class TelemetryService {
+export class TelemetryService implements OnModuleInit {
   private readonly logger = new Logger(TelemetryService.name);
 
-  // Bộ nhớ đệm ghi nhận mốc thời gian lưu MongoDB gần nhất của từng trạm (chu kỳ 60s)
+  // Bộ nhớ đệm ghi nhận mốc thời gian lưu MongoDB gần nhất của từng trạm
   private readonly lastSavedMap = new Map<string, number>();
+
+  // Ghi nhận trạng thái cảnh báo gần nhất để phát hiện mốc chuyển đổi trạng thái (State Transition)
+  private readonly lastAlertMap = new Map<string, boolean>();
+
+  // Bộ nhớ đệm cấu hình trạm trong RAM để tránh query findOne vào MongoDB mỗi giây
+  private readonly stationCache = new Map<string, { station: any; cachedAt: number }>();
+
+  // Mốc thời gian cập nhật sensor_stations gần nhất (giãn cách tối thiểu 15s để giảm tải DB)
+  private readonly lastStationUpdateMap = new Map<string, number>();
 
   constructor(
     @InjectModel(SensorTelemetry.name)
@@ -17,6 +26,19 @@ export class TelemetryService {
     @InjectModel(SensorStation.name)
     private readonly stationModel: Model<SensorStation>,
   ) {}
+
+  async onModuleInit() {
+    try {
+      // Tự động đồng bộ các index khai báo trong schema (bao gồm TTL 7 ngày tự dọn dẹp)
+      await Promise.all([
+        this.telemetryModel.syncIndexes(),
+        this.stationModel.syncIndexes(),
+      ]);
+      this.logger.log('Đã đồng bộ indexes và TTL cho Telemetry và SensorStation thành công');
+    } catch (err) {
+      this.logger.warn(`Lỗi khi syncIndexes telemetry: ${err?.message || err}`);
+    }
+  }
 
   // =========================================================================
   // XỬ LÝ INGESTION TỪ KAFKA (HỖ TRỢ CẢ REALTIME VÀ BATCH INGESTION)
@@ -31,20 +53,28 @@ export class TelemetryService {
     const { deviceId, isBatch, record, records } = payload;
     if (!deviceId) return;
 
-    // 1. Tự động upsert trạm cảm biến nếu chưa đăng ký
-    let station = await this.stationModel.findOne({ deviceId });
-    if (!station) {
-      station = await this.stationModel.create({
-        deviceId,
-        name: `Trạm Quan Trắc Kho Tổng GSP (${deviceId})`,
-        targetType: 'WAREHOUSE',
-        targetId: 'CENTRAL_WH',
-        tempMin: 15.0,
-        tempMax: 25.0,
-        humMax: 70.0,
-        isActive: true,
-      });
-      this.logger.log(`[SensorStation] Đã tự động tạo trạm mới cho thiết bị: ${deviceId}`);
+    const nowMs = Date.now();
+
+    // 1. Tự động tìm hoặc upsert trạm cảm biến (ưu tiên đọc từ cache RAM)
+    let stationEntry = this.stationCache.get(deviceId);
+    let station = stationEntry?.station;
+
+    if (!station || nowMs - stationEntry.cachedAt > 300000) {
+      station = await this.stationModel.findOne({ deviceId });
+      if (!station) {
+        station = await this.stationModel.create({
+          deviceId,
+          name: `Trạm Quan Trắc Kho Tổng GSP (${deviceId})`,
+          targetType: 'WAREHOUSE',
+          targetId: 'CENTRAL_WH',
+          tempMin: 15.0,
+          tempMax: 25.0,
+          humMax: 70.0,
+          isActive: true,
+        });
+        this.logger.log(`[SensorStation] Đã tự động tạo trạm mới cho thiết bị: ${deviceId}`);
+      }
+      this.stationCache.set(deviceId, { station, cachedAt: nowMs });
     }
 
     const items = isBatch ? (records || []) : (record ? [record] : []);
@@ -90,16 +120,20 @@ export class TelemetryService {
 
     const latestDoc = docs[docs.length - 1];
 
-    // 3. Luôn cập nhật trạng thái trạm cảm biến (cho API /latest và Web Dashboard 1s/lần)
-    await this.stationModel.updateOne(
-      { deviceId },
-      {
-        $set: {
-          lastSeenAt: new Date(),
-          lastMetrics: latestDoc.metrics,
+    // 3. Cập nhật trạng thái trạm cảm biến (giãn cách tối thiểu 15s để tránh đập DB mỗi giây)
+    const lastStationUpdate = this.lastStationUpdateMap.get(deviceId) || 0;
+    if (nowMs - lastStationUpdate >= 15000) {
+      this.lastStationUpdateMap.set(deviceId, nowMs);
+      this.stationModel.updateOne(
+        { deviceId },
+        {
+          $set: {
+            lastSeenAt: new Date(),
+            lastMetrics: latestDoc.metrics,
+          },
         },
-      },
-    );
+      ).catch((err) => this.logger.warn(`Lỗi cập nhật trạm ${deviceId}: ${err?.message}`));
+    }
 
     if (latestDoc.status.alert) {
       this.logger.warn(
@@ -107,22 +141,29 @@ export class TelemetryService {
       );
     }
 
-    // 4. Cơ chế lưu trữ MongoDB thông minh (1 phút / lần hoặc lưu ngay khi có cảnh báo)
+    // 4. Cơ chế lưu trữ MongoDB thông minh (Khắc phục việc spam DB mỗi giây)
     try {
       if (isBatch) {
         // Gói gửi bù dữ liệu offline: Lưu toàn bộ bản ghi
         await this.telemetryModel.insertMany(docs, { ordered: false });
         this.logger.log(`[Storage-Batch] Đã lưu ${docs.length} bản ghi offline từ ${deviceId} vào MongoDB`);
       } else {
-        // Gói Realtime 1s: Chỉ lưu DB nếu cách lần lưu trước >= 60 giây HOẶC có cảnh báo vượt ngưỡng
+        // Gói Realtime 1s:
+        // - Lưu NGAY LẬP TỨC khi phát hiện chuyển đổi trạng thái (vừa vào alert hoặc vừa hết alert)
+        // - Khi duy trì cảnh báo kéo dài: Lưu giãn cách tối thiểu 30 giây / lần (thay vì mỗi giây)
+        // - Khi trạng thái bình thường: Lưu giãn cách 60 giây / lần
         const lastSaved = this.lastSavedMap.get(deviceId) || 0;
-        const shouldPersist = latestDoc.status.alert || (latestDoc.timestamp - lastSaved >= 60);
+        const lastAlert = this.lastAlertMap.get(deviceId);
+        const isAlertTransition = lastAlert !== undefined && lastAlert !== latestDoc.status.alert;
+        const interval = latestDoc.status.alert ? 30 : 60;
+        const shouldPersist = isAlertTransition || (latestDoc.timestamp - lastSaved >= interval);
 
         if (shouldPersist) {
           await this.telemetryModel.create(latestDoc);
           this.lastSavedMap.set(deviceId, latestDoc.timestamp);
+          this.lastAlertMap.set(deviceId, latestDoc.status.alert);
           this.logger.log(
-            `[Storage-1m] Đã lưu mốc quan trắc (${latestDoc.metrics.temperature}°C - ${latestDoc.metrics.humidity}%) từ ${deviceId} vào MongoDB ${latestDoc.status.alert ? '[ALERT]' : ''}`,
+            `[Storage-${interval}s] Đã lưu mốc quan trắc (${latestDoc.metrics.temperature}°C - ${latestDoc.metrics.humidity}%) từ ${deviceId} vào MongoDB ${latestDoc.status.alert ? '[ALERT]' : ''} ${isAlertTransition ? '[TRANSITION]' : ''}`,
           );
         }
       }
