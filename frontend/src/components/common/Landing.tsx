@@ -17,6 +17,8 @@ import {
 import { notifyAuthTokenChanged } from "../../utils/authEvents";
 import api from "../../services/core/api";
 import { authService } from "../../services/auth/auth.service";
+import { DoveMascotSection } from "../mascot/DoveMascotSection";
+import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -1248,6 +1250,11 @@ export function Landing() {
       </section>
 
       {/* ========================================================================= */}
+      {/* 4.5. MASCOT SHOWCASE: BỒ CÂU Y TẾ AI (INTERACTIVE COMPANION) */}
+      {/* ========================================================================= */}
+      <DoveMascotSection />
+
+      {/* ========================================================================= */}
       {/* 5. FLASH SALE COUNTDOWN SECTION */}
       {/* ========================================================================= */}
       <section id="flash-sale-section" className="py-8 px-4 max-w-7xl mx-auto w-full">
@@ -2157,6 +2164,8 @@ export function Landing() {
         );
       })()}
 
+      {/* Floating Mascot Companion */}
+      <DoveFloatingWidget />
     </div>
   );
 }

@@ -1,0 +1,201 @@
+/* Mascot Bồ Câu Y Tế (Medical Dove) - SEP490 ABC Pharmacy */
+
+.figuur {
+  --color-dove-body: #ffffff;
+  --color-dove-shadow: #e2e8f0;
+  --color-dove-belly: #e0f2fe;
+  --color-dove-beak: #fb923c;
+  --color-dove-blush: #fecdd3;
+  --color-medical-blue: #0d6efd;
+  --color-medical-green: #10b981;
+  --color-stetho-tube: #475569;
+  --color-ink: #0f172a;
+  color-scheme: only light;
+  overflow: visible;
+  user-select: none;
+}
+
+.figuur * {
+  transform-box: fill-box;
+}
+
+/* Easter egg: hit between eyes */
+.lijf {
+  transform-origin: 50% 92%;
+}
+
+.zone {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.kruisOog {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.geraakt .kruisOog {
+  opacity: 1;
+}
+
+.geraakt .oogGroep {
+  opacity: 0;
+}
+
+.hitmarker {
+  opacity: 0;
+}
+
+/* Idle layers: adem (breathing) */
+.romp {
+  transform-origin: 50% 90%;
+  animation: adem 3.4s ease-in-out infinite;
+}
+
+@keyframes adem {
+  0%, 100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.015, 0.985);
+  }
+}
+
+/* Kuif (feathers crest on top) */
+.kuif {
+  transform-origin: 20% 95%;
+  animation: kuifveer 6s infinite;
+}
+
+@keyframes kuifveer {
+  0%, 75%, 100% {
+    transform: rotate(0deg);
+  }
+  80% {
+    transform: rotate(-10deg);
+  }
+  85% {
+    transform: rotate(6deg);
+  }
+  90% {
+    transform: rotate(-3deg);
+  }
+  95% {
+    transform: rotate(1deg);
+  }
+}
+
+/* Wings idle */
+.vleugelL {
+  transform-origin: 85% 15%;
+  animation: vleugelL 3.4s ease-in-out infinite 0.2s;
+}
+
+.vleugelR {
+  transform-origin: 15% 15%;
+  animation: vleugelR 3.4s ease-in-out infinite 0.2s;
+}
+
+@keyframes vleugelL {
+  0%, 100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+}
+
+@keyframes vleugelR {
+  0%, 100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(-2.5deg);
+  }
+}
+
+/* Eyes blinking */
+.oogGroep {
+  transform-origin: center;
+  animation: knipper 4.2s infinite;
+}
+
+.oogGroep.r {
+  animation-delay: 0.05s;
+}
+
+@keyframes knipper {
+  0%, 93.5%, 100% {
+    transform: scaleY(1);
+  }
+  95%, 96.5% {
+    transform: scaleY(0.08);
+  }
+}
+
+.wenkbrauw {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.gezicht {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: 50% 60%;
+}
+
+/* Standen */
+.denkt .gezicht {
+  transform: rotate(5deg) translateY(2px);
+}
+
+.denkt .kuif {
+  animation: kuiftril 0.3s linear infinite;
+}
+
+@keyframes kuiftril {
+  0%, 100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+.alert .romp {
+  animation: none;
+  transform: scale(0.96, 1.06);
+}
+
+.alert .kuif {
+  animation: none;
+  transform: rotate(-18deg);
+}
+
+.slaapt .oogGroep {
+  animation: none;
+  transform: scaleY(0.08);
+}
+
+.slaapt .kuif {
+  animation: none;
+}
+
+.slaapt .zzz {
+  opacity: 1;
+}
+
+.zzz {
+  opacity: 0;
+  transition: opacity 0.4s;
+  font: 700 15px system-ui, -apple-system, sans-serif;
+  fill: #64748b;
+}
+
+.praat .wenkbrauw {
+  transform: translateY(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .figuur * {
+    animation: none !important;
+  }
+}
