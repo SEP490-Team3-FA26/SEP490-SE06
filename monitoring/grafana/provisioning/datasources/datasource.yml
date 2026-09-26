@@ -1,12 +1,12 @@
 apiVersion: 1
 
 datasources:
-  - name: VictoriaMetrics
+  - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
-    url: http://victoriametrics:8428
+    url: http://prometheus:9090
     isDefault: true
-    editable: false
+    editable: true
     jsonData:
-      timeInterval: 15s
-      httpMethod: POST
+      timeInterval: 5s

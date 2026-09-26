@@ -1,13 +1,13 @@
 apiVersion: 1
 
 providers:
-  - name: 'Default'
+  - name: 'default'
     orgId: 1
-    folder: 'WDP301 Monitoring'
+    folder: ''
     type: file
-    disableDeletion: true
+    disableDeletion: false
     editable: true
-    updateIntervalSeconds: 30
+    updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      path: /etc/grafana/dashboards
+      path: /var/lib/grafana/dashboards

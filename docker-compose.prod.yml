@@ -238,7 +238,7 @@ services:
     networks: [wdp301-network]
 
   # ──────────────────────────────────────────────────────────
-  # Monitoring (Zero-VPS-RAM Hybrid: Dozzle + Grafana Alloy)
+  # Monitoring (Production Stack: Dozzle + Node Exporter + Prometheus + Grafana)
   # ──────────────────────────────────────────────────────────
   dozzle:
     image: amir20/dozzle:latest
@@ -257,34 +257,70 @@ services:
           memory: 64m
     networks: [wdp301-network]
 
-  alloy:
-    image: grafana/alloy:v1.0.0
-    container_name: wdp301-alloy
+  node-exporter:
+    image: prom/node-exporter:v1.8.0
+    container_name: wdp301-node-exporter
     restart: unless-stopped
     pid: host
     command:
-      - "run"
-      - "--server.http.listen-addr=0.0.0.0:12345"
-      - "--storage.path=/var/lib/alloy/data"
-      - "/etc/alloy/config.alloy"
-    env_file:
-      - path: .env
-        required: false
-      - path: backend/.env
-        required: false
-    environment:
-      GRAFANA_CLOUD_PROMETHEUS_URL: ${GRAFANA_CLOUD_PROMETHEUS_URL:-https://prometheus-prod-37-prod-ap-southeast-1.grafana.net/api/prom/push}
-      GRAFANA_CLOUD_PROMETHEUS_USER: ${GRAFANA_CLOUD_PROMETHEUS_USER:-3614098}
-      GRAFANA_CLOUD_API_KEY: ${GRAFANA_CLOUD_API_KEY:-glc_eyJvIjoiMTkyNDc4OCIsIm4iOiJzdGFjay0xODQ0OTM3LWhtLXdyaXRlLWdyYWZhbmEtc2VwNDkwIiwiayI6IllXcUxNWFYNDAxVDdNNjBFck0wM2ZVNCIsIm0iOnsiciI6InByb2QtYXAtc291dGhlYXN0LTEifX0=}
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     volumes:
-      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/host/rootfs:ro
+      - /:/rootfs:ro
     deploy:
       resources:
         limits:
-          memory: 64m
+          memory: 32m
+    networks: [wdp301-network]
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: wdp301-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.wal-compression'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api-gateway
+      - node-exporter
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks: [wdp301-network]
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: wdp301-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=wdp301admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-and-api-overview.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     networks: [wdp301-network]
 
 networks:
@@ -295,3 +331,4 @@ networks:
 volumes:
   redis_data:
   qdrant_data:
+  prometheus_data:
