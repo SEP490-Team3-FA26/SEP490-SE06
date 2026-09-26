@@ -35,11 +35,11 @@ prometheus.scrape "gateway_metrics" {
 // ─── 3. Đẩy lên Grafana Cloud qua Remote Write ────────────────
 prometheus.remote_write "grafana_cloud" {
   endpoint {
-    url = sys.env("GRAFANA_CLOUD_PROMETHEUS_URL")
+    url = env("GRAFANA_CLOUD_PROMETHEUS_URL")
 
     basic_auth {
-      username = sys.env("GRAFANA_CLOUD_PROMETHEUS_USER")
-      password = sys.env("GRAFANA_CLOUD_API_KEY")
+      username = env("GRAFANA_CLOUD_PROMETHEUS_USER")
+      password = env("GRAFANA_CLOUD_API_KEY")
     }
   }
 }

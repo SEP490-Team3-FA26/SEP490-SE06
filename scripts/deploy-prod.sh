@@ -35,6 +35,7 @@ if command -v ufw > /dev/null 2>&1; then
   ufw allow 443/tcp > /dev/null 2>&1 || true
   ufw allow 3000/tcp > /dev/null 2>&1 || true
   ufw allow 4000/tcp > /dev/null 2>&1 || true
+  ufw allow 8888/tcp > /dev/null 2>&1 || true
 fi
 
 # 3. Đảm bảo chứng chỉ SSL cho Nginx (Cloudflare Full SSL)
