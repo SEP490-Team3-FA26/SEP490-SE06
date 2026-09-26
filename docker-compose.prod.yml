@@ -237,8 +237,59 @@ services:
           memory: 128m
     networks: [wdp301-network]
 
+  # ──────────────────────────────────────────────────────────
+  # Monitoring (Zero-VPS-RAM Hybrid: Dozzle + Grafana Alloy)
+  # ──────────────────────────────────────────────────────────
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: wdp301-dozzle
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOZZLE_LEVEL: info
+      DOZZLE_NO_ANALYTICS: "true"
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    networks: [wdp301-network]
+
+  alloy:
+    image: grafana/alloy:v1.0.0
+    container_name: wdp301-alloy
+    restart: unless-stopped
+    pid: host
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    env_file:
+      - path: .env
+        required: false
+      - path: backend/.env
+        required: false
+    environment:
+      GRAFANA_CLOUD_PROMETHEUS_URL: ${GRAFANA_CLOUD_PROMETHEUS_URL:-https://prometheus-prod-37-prod-ap-southeast-1.grafana.net/api/prom/push}
+      GRAFANA_CLOUD_PROMETHEUS_USER: ${GRAFANA_CLOUD_PROMETHEUS_USER:-3614098}
+      GRAFANA_CLOUD_API_KEY: ${GRAFANA_CLOUD_API_KEY:-glc_eyJvIjoiMTkyNDc4OCIsIm4iOiJzdGFjay0xODQ0OTM3LWhtLXdyaXRlLWdyYWZhbmEtc2VwNDkwIiwiayI6IllXcUxNWFYNDAxVDdNNjBFck0wM2ZVNCIsIm0iOnsiciI6InByb2QtYXAtc291dGhlYXN0LTEifX0=}
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/rootfs:ro
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    networks: [wdp301-network]
+
 networks:
   wdp301-network:
+    name: wdp301-network
     driver: bridge
 
 volumes:

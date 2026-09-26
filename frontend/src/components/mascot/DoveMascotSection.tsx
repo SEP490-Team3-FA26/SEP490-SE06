@@ -24,9 +24,9 @@ export function DoveMascotSection() {
             </h2>
 
             <p className="text-slate-200 text-sm sm:text-base font-normal leading-relaxed mb-6 max-w-xl">
-              Chim bồ câu trắng từ lâu là biểu tượng của sự bình an và phục hồi. Tại ABC Pharmacy, 
-              chú chim bồ câu nhỏ mang trên mình ống nghe và túi cứu thương con con — luôn sẵn sàng 
-              lắng nghe, hỗ trợ tra cứu tương tác thuốc và nhắc nhở bạn chăm sóc bản thân mỗi ngày.
+              Chú chim bồ câu xanh nước biển thân thiện là biểu tượng của niềm tin và sự tận tâm tại ABC Pharmacy.
+              Mang trên mình ống nghe và túi cứu thương nhỏ nhắn — Bồ câu luôn sẵn sàng 
+              lắng nghe, hỗ trợ tra cứu tương tác thuốc và nhắc nhở bạn chăm sóc sức khỏe mỗi ngày.
             </p>
 
             {/* Feature Highlights Grid */}

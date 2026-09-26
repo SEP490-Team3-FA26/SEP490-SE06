@@ -27,6 +27,7 @@ type Props = {
   label?: string;
   className?: string;
   onClick?: () => void;
+  colorScheme?: "ocean" | "white";
 };
 
 const beweegArm = () =>
@@ -44,6 +45,7 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
     label = "Bồ câu y tế - Mascot nhà thuốc",
     className,
     onClick,
+    colorScheme = "ocean",
   },
   ref,
 ) {
@@ -320,6 +322,7 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
     };
   }, [oogVolgen]);
 
+  const isOcean = colorScheme === "ocean";
   const hoogte = Math.round((size / 260) * 270);
 
   return (
@@ -343,23 +346,55 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
           <ellipse cx="130" cy="160" rx="70" ry="74" />
         </clipPath>
         <linearGradient id={`dove-grad-${clipId}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#f1f5f9" />
+          {isOcean ? (
+            <>
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="55%" stopColor="#0ea5e9" />
+              <stop offset="100%" stopColor="#0284c7" />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="100%" stopColor="#f1f5f9" />
+            </>
+          )}
         </linearGradient>
         <linearGradient id={`belly-grad-${clipId}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#e0f2fe" />
-          <stop offset="100%" stopColor="#bae6fd" />
+          {isOcean ? (
+            <>
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="100%" stopColor="#dbeafe" />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor="#e0f2fe" />
+              <stop offset="100%" stopColor="#bae6fd" />
+            </>
+          )}
+        </linearGradient>
+        <linearGradient id={`wing-grad-${clipId}`} x1="0" y1="0" x2="0" y2="1">
+          {isOcean ? (
+            <>
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="100%" stopColor="#0369a1" />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="100%" stopColor="#f1f5f9" />
+            </>
+          )}
         </linearGradient>
       </defs>
 
       {/* Cloud or Base Perch */}
       {!kaal && (
         <g data-tak>
-          <ellipse cx="130" cy="256" rx="86" ry="12" fill="#e2e8f0" opacity="0.6" />
+          <ellipse cx="130" cy="256" rx="86" ry="12" fill={isOcean ? "#bfdbfe" : "#e2e8f0"} opacity="0.6" />
           <path
             d="M50 254 C60 242 80 242 92 250 C104 238 132 238 144 250 C156 240 184 240 196 250 C206 244 218 248 222 254"
-            fill="#f8fafc"
-            stroke="#cbd5e1"
+            fill="#ffffff"
+            stroke={isOcean ? "#93c5fd" : "#cbd5e1"}
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -369,18 +404,18 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
       {/* Main Body */}
       <g data-lijf className={styles.lijf}>
         <g className={styles.romp}>
-          {/* Main White Body */}
+          {/* Main Body */}
           <ellipse
             cx="130"
             cy="160"
             rx="70"
             ry="74"
             fill={`url(#dove-grad-${clipId})`}
-            stroke="#e2e8f0"
+            stroke={isOcean ? "#0284c7" : "#e2e8f0"}
             strokeWidth="2.5"
           />
 
-          {/* Soft Pastel Blue Belly */}
+          {/* Soft Belly */}
           <g clipPath={`url(#dove-clip-${clipId})`}>
             <ellipse
               cx="130"
@@ -395,8 +430,8 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
           <g className={styles.vleugelL}>
             <path
               d="M62 142 C36 172 44 212 56 220 C72 212 76 178 72 152 Z"
-              fill="#f8fafc"
-              stroke="#cbd5e1"
+              fill={isOcean ? `url(#wing-grad-${clipId})` : "#f8fafc"}
+              stroke={isOcean ? "#0369a1" : "#cbd5e1"}
               strokeWidth="2"
             />
           </g>
@@ -405,8 +440,8 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
           <g className={styles.vleugelR}>
             <path
               d="M198 142 C224 172 216 212 204 220 C188 212 184 178 188 152 Z"
-              fill="#f8fafc"
-              stroke="#cbd5e1"
+              fill={isOcean ? `url(#wing-grad-${clipId})` : "#f8fafc"}
+              stroke={isOcean ? "#0369a1" : "#cbd5e1"}
               strokeWidth="2"
             />
           </g>
@@ -417,19 +452,19 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
             <g className={styles.kuif}>
               <path
                 d="M124 94 Q132 50 152 42 Q142 66 144 93 Z"
-                fill="#ffffff"
-                stroke="#cbd5e1"
+                fill={isOcean ? "#38bdf8" : "#ffffff"}
+                stroke={isOcean ? "#0284c7" : "#cbd5e1"}
                 strokeWidth="2"
               />
             </g>
 
             {/* Rosy Cheeks */}
-            <circle cx="82" cy="144" r="8" fill="#fecdd3" opacity="0.7" />
-            <circle cx="178" cy="144" r="8" fill="#fecdd3" opacity="0.7" />
+            <circle cx="82" cy="144" r="8" fill={isOcean ? "#fda4af" : "#fecdd3"} opacity={isOcean ? 0.85 : 0.7} />
+            <circle cx="178" cy="144" r="8" fill={isOcean ? "#fda4af" : "#fecdd3"} opacity={isOcean ? 0.85 : 0.7} />
 
             {/* Eyes */}
-            <circle cx="98" cy="126" r="18" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5" />
-            <circle cx="162" cy="126" r="18" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5" />
+            <circle cx="98" cy="126" r="18" fill="#ffffff" stroke={isOcean ? "#0284c7" : "#cbd5e1"} strokeWidth="1.5" />
+            <circle cx="162" cy="126" r="18" fill="#ffffff" stroke={isOcean ? "#0284c7" : "#cbd5e1"} strokeWidth="1.5" />
 
             {/* Eyebrows */}
             <path
@@ -492,14 +527,14 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
             <path
               d="M86 166 C84 196 112 216 130 216 C148 216 176 196 174 166"
               fill="none"
-              stroke="#475569"
+              stroke={isOcean ? "#1e293b" : "#475569"}
               strokeWidth="3.8"
               strokeLinecap="round"
             />
-            <path d="M130 216 L130 226" fill="none" stroke="#475569" strokeWidth="3.8" />
+            <path d="M130 216 L130 226" fill="none" stroke={isOcean ? "#1e293b" : "#475569"} strokeWidth="3.8" />
             {/* Chest Piece */}
             <circle cx="130" cy="232" r="9" fill="#94a3b8" />
-            <circle cx="130" cy="232" r="7" fill="#0d6efd" />
+            <circle cx="130" cy="232" r="7" fill={isOcean ? "#0057cd" : "#0d6efd"} />
             <circle cx="130" cy="232" r="2.5" fill="#ffffff" />
           </g>
 

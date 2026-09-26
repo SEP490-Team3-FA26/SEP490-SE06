@@ -1,14 +1,14 @@
 /* Mascot Bồ Câu Y Tế (Medical Dove) - SEP490 ABC Pharmacy */
 
 .figuur {
-  --color-dove-body: #ffffff;
-  --color-dove-shadow: #e2e8f0;
-  --color-dove-belly: #e0f2fe;
+  --color-dove-body: #0284c7;
+  --color-dove-shadow: #0369a1;
+  --color-dove-belly: #ffffff;
   --color-dove-beak: #fb923c;
-  --color-dove-blush: #fecdd3;
-  --color-medical-blue: #0d6efd;
+  --color-dove-blush: #fda4af;
+  --color-medical-blue: #0057cd;
   --color-medical-green: #10b981;
-  --color-stetho-tube: #475569;
+  --color-stetho-tube: #1e293b;
   --color-ink: #0f172a;
   color-scheme: only light;
   overflow: visible;

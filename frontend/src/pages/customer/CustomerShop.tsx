@@ -245,6 +245,8 @@ export function CustomerShop() {
         setMedicines((prev) => prev.filter((m) => (m.id || m._id) !== medId));
         return;
       }
+      const msg = err.response?.data?.message || err.message || "Lỗi khi thêm vào giỏ hàng";
+      alert(msg);
       console.error("Error adding to cart:", err);
     }
   };

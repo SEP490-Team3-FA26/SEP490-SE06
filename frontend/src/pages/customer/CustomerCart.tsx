@@ -42,6 +42,23 @@ export function CustomerCart() {
     }
 
     try {
+      // Auto-merge guest_cart into user cart upon login
+      const guestCartStr = localStorage.getItem("guest_cart");
+      if (guestCartStr) {
+        const guestItems = JSON.parse(guestCartStr);
+        if (Array.isArray(guestItems) && guestItems.length > 0) {
+          for (const gItem of guestItems) {
+            const gId = gItem.id || gItem._id;
+            const gQty = Number(gItem.quantity) || 1;
+            if (gId) {
+              await cartService.addToCart(gId, gQty).catch(e => console.warn("Failed to merge guest item:", e));
+            }
+          }
+          localStorage.removeItem("guest_cart");
+          window.dispatchEvent(new Event("cartUpdated"));
+        }
+      }
+
       const data = await cartService.getCart();
       setCartItems(data.items || []);
     } catch (err) {
@@ -51,12 +68,15 @@ export function CustomerCart() {
 
   useEffect(() => {
     loadCart();
+    const handleCartUpdate = () => loadCart();
+    window.addEventListener("cartUpdated", handleCartUpdate);
+    return () => window.removeEventListener("cartUpdated", handleCartUpdate);
   }, []);
 
   const updateQuantity = async (id: string, newQty: number | string) => {
     // Nếu truyền chuỗi rỗng để user xoá số nhập lại
     if (newQty === "") {
-      setCartItems(prev => prev.map(it => it.id === id ? { ...it, quantity: "" } : it));
+      setCartItems(prev => prev.map(it => ((it.id || it._id) === id ? { ...it, quantity: "" } : it)));
       return;
     }
 
@@ -69,23 +89,43 @@ export function CustomerCart() {
     }
 
     // Check client-side stock first before sending request
-    const item = cartItems.find((it) => it.id === id);
-    if (item && numericQty > item.stock) {
+    const item = cartItems.find((it) => (it.id || it._id) === id);
+    if (item && numericQty > (item.stock || 999)) {
       showAlert(`Chỉ còn ${item.stock} sản phẩm khả dụng trong kho!`);
       // Revert back to stock limit
-      setCartItems(prev => prev.map(it => it.id === id ? { ...it, quantity: item.stock } : it));
+      setCartItems(prev => prev.map(it => ((it.id || it._id) === id ? { ...it, quantity: item.stock } : it)));
       return;
     }
 
     // Optimistic UI update cho mượt (cập nhật state ngay lập tức)
-    setCartItems(prev => prev.map(it => it.id === id ? { ...it, quantity: numericQty } : it));
+    setCartItems(prev => prev.map(it => ((it.id || it._id) === id ? { ...it, quantity: numericQty } : it)));
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // Guest mode: Cập nhật trực tiếp vào localStorage guest_cart
+      try {
+        const guestCartStr = localStorage.getItem("guest_cart");
+        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const updated = cart.map((it: any) => {
+          if (it.id === id || it._id === id) {
+            return { ...it, quantity: numericQty };
+          }
+          return it;
+        });
+        localStorage.setItem("guest_cart", JSON.stringify(updated));
+        window.dispatchEvent(new Event("cartUpdated"));
+      } catch (err) {
+        console.error("Error updating guest cart:", err);
+      }
+      return;
+    }
 
     // Clear previous debounce timer
     if (updateQuantityTimerRef.current) {
       clearTimeout(updateQuantityTimerRef.current);
     }
 
-    // Debounce the backend call
+    // Debounce the backend call for logged-in users
     updateQuantityTimerRef.current = setTimeout(async () => {
       try {
         await cartService.updateCartItem(id, numericQty);
@@ -364,64 +404,67 @@ export function CustomerCart() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {cartItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
-                      <td className="px-6 py-5">
-                        <div className="font-extrabold text-slate-900 text-[14px]">{item.name}</div>
-                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">{item.category}</div>
-                        {item.active_ingredient && (
-                          <div className="text-[10px] font-semibold text-[#0d6efd] mt-1">Hoạt chất: {item.active_ingredient}</div>
-                        )}
-                        {item.priceChanged && (
-                          <div className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5 inline-block">
-                            ⚠️ Đã đổi giá (Giá cũ: {item.addedPrice.toLocaleString()}₫)
+                  {cartItems.map((item) => {
+                    const itemId = item.id || item._id;
+                    return (
+                      <tr key={itemId} className="hover:bg-slate-50/30 transition-colors">
+                        <td className="px-6 py-5">
+                          <div className="font-extrabold text-slate-900 text-[14px]">{item.name}</div>
+                          <div className="text-[11px] text-slate-400 font-medium mt-0.5">{item.category}</div>
+                          {item.active_ingredient && (
+                            <div className="text-[10px] font-semibold text-[#0d6efd] mt-1">Hoạt chất: {item.active_ingredient}</div>
+                          )}
+                          {item.priceChanged && (
+                            <div className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5 inline-block">
+                              ⚠️ Đã đổi giá (Giá cũ: {item.addedPrice.toLocaleString()}₫)
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-5 text-center">
+                          <div className="flex items-center justify-center gap-2.5">
+                            <button
+                              onClick={() => updateQuantity(itemId, (Number(item.quantity) || 1) - 1)}
+                              className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
+                            >
+                              <Minus size={12} />
+                            </button>
+                            <input
+                              type="text"
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(itemId, e.target.value)}
+                              onBlur={(e) => {
+                                if (e.target.value === "" || Number(e.target.value) <= 0) {
+                                  updateQuantity(itemId, 1);
+                                }
+                              }}
+                              className="font-bold text-[14px] text-slate-900 w-10 text-center bg-transparent border border-transparent hover:border-slate-200 focus:border-[#0d6efd] focus:outline-none rounded transition-all py-0.5"
+                            />
+                            <button
+                              onClick={() => updateQuantity(itemId, (Number(item.quantity) || 0) + 1)}
+                              className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
+                            >
+                              <Plus size={12} />
+                            </button>
                           </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-5 text-center">
-                        <div className="flex items-center justify-center gap-2.5">
+                        </td>
+                        <td className="px-6 py-5 text-right font-medium text-slate-500">
+                          {item.price.toLocaleString()}₫
+                          <span className="text-[10px] text-slate-400 block mt-0.5">/{item.unit}</span>
+                        </td>
+                        <td className="px-6 py-5 text-right font-black text-slate-900">
+                          {(item.price * (Number(item.quantity) || 0)).toLocaleString()}₫
+                        </td>
+                        <td className="px-4 py-5 text-center">
                           <button
-                            onClick={() => updateQuantity(item.id, (Number(item.quantity) || 1) - 1)}
-                            className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
+                            onClick={() => handleDelete(itemId)}
+                            className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer"
                           >
-                            <Minus size={12} />
+                            <Trash2 size={16} />
                           </button>
-                          <input
-                            type="text"
-                            value={item.quantity}
-                            onChange={(e) => updateQuantity(item.id, e.target.value)}
-                            onBlur={(e) => {
-                              if (e.target.value === "" || Number(e.target.value) <= 0) {
-                                updateQuantity(item.id, 1);
-                              }
-                            }}
-                            className="font-bold text-[14px] text-slate-900 w-10 text-center bg-transparent border border-transparent hover:border-slate-200 focus:border-[#0d6efd] focus:outline-none rounded transition-all py-0.5"
-                          />
-                          <button
-                            onClick={() => updateQuantity(item.id, (Number(item.quantity) || 0) + 1)}
-                            className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
-                          >
-                            <Plus size={12} />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-right font-medium text-slate-500">
-                        {item.price.toLocaleString()}₫
-                        <span className="text-[10px] text-slate-400 block mt-0.5">/{item.unit}</span>
-                      </td>
-                      <td className="px-6 py-5 text-right font-black text-slate-900">
-                        {(item.price * (Number(item.quantity) || 0)).toLocaleString()}₫
-                      </td>
-                      <td className="px-4 py-5 text-center">
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

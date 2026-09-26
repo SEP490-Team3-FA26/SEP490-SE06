@@ -60,7 +60,7 @@ export function Header({
     <>
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 print:hidden">
-        <Logo />
+        <Logo size="sm" />
         <div className="flex items-center gap-4">
           <NotificationBell />
           <button 

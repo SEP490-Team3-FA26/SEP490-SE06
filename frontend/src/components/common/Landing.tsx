@@ -19,6 +19,7 @@ import api from "../../services/core/api";
 import { authService } from "../../services/auth/auth.service";
 import { DoveMascotSection } from "../mascot/DoveMascotSection";
 import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
+import { MascotLogoIcon } from "../ui/Logo";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -384,7 +385,7 @@ export function Landing() {
     }
   };
 
-  // Sparkle burst helper for premium microinteraction
+  // Sparkle burst & Fly-to-cart helper for premium microinteraction
   const triggerSparkles = (e?: any) => {
     if (!e || typeof e !== "object") return;
     const button = e.currentTarget || e.target;
@@ -428,6 +429,43 @@ export function Landing() {
         ease: "power3.out",
         onComplete: () => {
           particle.remove();
+        }
+      });
+    }
+
+    // Parabolic fly-to-cart animation
+    if (cartIconRef.current) {
+      const cartRect = cartIconRef.current.getBoundingClientRect();
+      const flyer = document.createElement("div");
+      flyer.className = "fixed pointer-events-none rounded-full z-[9999] flex items-center justify-center font-bold text-white text-xs shadow-lg";
+      Object.assign(flyer.style, {
+        width: "24px",
+        height: "24px",
+        backgroundColor: "#0057cd",
+        backgroundImage: "linear-gradient(135deg, #0d6efd, #0057cd)",
+        left: `${centerX - 12}px`,
+        top: `${centerY - 12}px`,
+        boxShadow: "0 4px 14px rgba(13, 110, 253, 0.5)",
+      });
+      flyer.innerHTML = `<span style="font-size: 13px;">💊</span>`;
+      document.body.appendChild(flyer);
+
+      gsap.to(flyer, {
+        x: cartRect.left + cartRect.width / 2 - centerX,
+        y: cartRect.top + cartRect.height / 2 - centerY,
+        scale: 0.6,
+        opacity: 0.9,
+        duration: 0.7,
+        ease: "power2.inOut",
+        onComplete: () => {
+          flyer.remove();
+          if (cartIconRef.current) {
+            gsap.fromTo(
+              cartIconRef.current,
+              { scale: 1 },
+              { scale: 1.25, duration: 0.15, yoyo: true, repeat: 1, ease: "back.out(2)" }
+            );
+          }
         }
       });
     }
@@ -524,7 +562,8 @@ export function Landing() {
       }, 1500);
 
     } catch (err: any) {
-      alert(err.message || "Lỗi kết nối khi thêm vào giỏ");
+      const msg = err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ";
+      alert(msg);
       console.error(err);
     }
   };
@@ -559,7 +598,7 @@ export function Landing() {
   };
 
   return (
-    <div className="bg-[#f4f7fb] text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-x-hidden min-h-screen flex flex-col" ref={containerRef}>
+    <div className="bg-[#f4f7fb] text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-x-clip min-h-screen flex flex-col" ref={containerRef}>
 
       {/* ========================================================================= */}
       {/* 1. TOP UTILITY BAR (CHUẨN CHUỖI NHÀ THUỐC LONG CHÂU / PHARMACITY) */}
@@ -608,12 +647,10 @@ export function Landing() {
 
           {/* Brand Logo */}
           <Link to="/" className="flex items-center gap-3 group shrink-0">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#0057cd] via-[#0d6efd] to-sky-400 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-all">
-              <HeartPulse size={26} className="animate-pulse" />
-            </div>
+            <MascotLogoIcon size="lg" />
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-xl text-slate-900 tracking-tight leading-none">ABC Pharmacy</span>
+                <span className="font-black text-xl text-slate-900 tracking-tight leading-none group-hover:text-[#0057cd] transition-colors">ABC Pharmacy</span>
                 <span className="px-1.5 py-0.5 rounded bg-blue-100 text-[#0057cd] text-[9px] font-black uppercase">GPP</span>
               </div>
               <span className="text-[10px] font-bold text-slate-400 tracking-wider mt-0.5">Hệ Thống Dược Phẩm Số 3.0</span>
@@ -1833,10 +1870,8 @@ export function Landing() {
       <footer className="bg-[#0b1329] text-white pt-16 pb-8 px-4 text-xs border-t border-slate-800 mt-auto">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
           <div className="md:col-span-4">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-[#0057cd] flex items-center justify-center text-white">
-                <HeartPulse size={20} />
-              </div>
+            <div className="flex items-center gap-2.5 mb-4 group">
+              <MascotLogoIcon size="sm" />
               <span className="font-black text-lg text-white tracking-tight">ABC Pharmacy</span>
             </div>
             <p className="text-slate-400 leading-relaxed mb-4 text-xs">

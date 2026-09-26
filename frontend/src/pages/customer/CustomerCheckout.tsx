@@ -108,6 +108,14 @@ export function CustomerCheckout() {
           const data = localStorage.getItem("customer_cart");
           if (data) {
             setCartItems(JSON.parse(data));
+          } else {
+            // Fallback: If customer_cart is not in localStorage, fetch from backend cart
+            cartService.getCart().then(res => {
+              if (res && res.items && res.items.length > 0) {
+                setCartItems(res.items);
+                localStorage.setItem("customer_cart", JSON.stringify(res.items));
+              }
+            }).catch(e => console.error("Error fallback fetching cart:", e));
           }
           const savedVoucher = localStorage.getItem("applied_voucher");
           if (savedVoucher) {
@@ -207,7 +215,7 @@ export function CustomerCheckout() {
     localStorage.removeItem("applied_voucher");
     const token = localStorage.getItem("token");
     if (token) {
-      cartService.clearCart()
+      cartService.clearCart().catch((e) => console.warn("Error clearing cart on server:", e));
     }
     window.dispatchEvent(new Event("cartUpdated"));
   };
@@ -244,7 +252,7 @@ export function CustomerCheckout() {
     localStorage.removeItem("applied_voucher");
   };
 
-  const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((acc, item) => acc + item.price * (Number(item.quantity) || 0), 0);
   const memberDiscount = Math.round(subtotal * 0.05);
   const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
   

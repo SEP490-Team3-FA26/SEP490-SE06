@@ -4,6 +4,7 @@ import { ShoppingCart, BrainCircuit, HeartPulse, Menu, X, LogOut, ShieldAlert, U
 import api from "../services/core/api";
 import { notifyAuthTokenChanged } from "../utils/authEvents";
 import { authService } from "../services/auth/auth.service";
+import { MascotLogoIcon } from "../components/ui/Logo";
 
 export function CustomerLayout() {
   const location = useLocation();
@@ -85,11 +86,9 @@ export function CustomerLayout() {
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0d6efd] to-sky-400 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-all">
-              <HeartPulse size={22} className="animate-pulse" />
-            </div>
+            <MascotLogoIcon size="md" />
             <div className="flex flex-col">
-              <span className="font-black text-[18px] text-slate-800 tracking-tight leading-none"> ABC Pharma</span>
+              <span className="font-black text-[18px] text-slate-800 tracking-tight leading-none group-hover:text-[#0d6efd] transition-colors"> ABC Pharma</span>
               <span className="text-[10px] font-bold text-[#0d6efd] uppercase tracking-wider mt-1">Cổng Khách Hàng / Customer</span>
             </div>
           </Link>
