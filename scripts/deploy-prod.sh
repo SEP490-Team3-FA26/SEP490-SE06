@@ -60,14 +60,14 @@ echo "🏗️ 1/3 Đang Build Docker Image Backend Microservices..."
 docker build -t wdp301-backend:latest ./backend -f ./backend/docker/backend.Dockerfile
 
 echo "🏗️ 2/3 Đang Build Docker Image Frontend Web..."
-docker build -t wdp301-frontend:latest . -f ./backend/docker/frontend.Dockerfile
+docker build --build-arg CACHEBUST=$(date +%s) -t wdp301-frontend:latest . -f ./backend/docker/frontend.Dockerfile
 
 echo "🏗️ 3/3 Đang Build Docker Image AI Service..."
 docker build -t wdp301-ai:latest ./backend/apps/ai-service -f ./backend/apps/ai-service/Dockerfile
 
 # 6. Khởi chạy toàn bộ hệ sinh thái Microservices
 echo "🐳 Đang khởi động hệ thống qua Docker Compose..."
-docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
 # 7. Dọn dẹp Docker images rác
 echo "🧹 Dọn dẹp Docker images trung gian..."

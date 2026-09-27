@@ -178,9 +178,25 @@ export function BranchSchedule() {
     return schedule.assignments.filter(a => a.employeeId === employeeId).length;
   };
 
+  // Tra cứu vai trò chính xác của nhân sự (Quản lý hay Dược sĩ)
+  const getEmployeeRoleInfo = (empId: string) => {
+    const emp = employees.find(
+      e => String(e._id) === String(empId) || String(e.id) === String(empId)
+    );
+    if (!emp) {
+      return { role: 'pharmacist', label: 'Dược sĩ', isManager: false };
+    }
+    const isManager = emp.role === 'branch' || emp.role === 'admin' || emp.role === 'manager' || emp.role !== 'pharmacist';
+    return {
+      role: emp.role,
+      label: isManager ? 'Quản lý' : 'Dược sĩ',
+      isManager
+    };
+  };
+
   const handleAssign = async (date: Date, shift: WorkShift, empId: string) => {
     if (!schedule || schedule.status === 'published') return;
-    const emp = employees.find(e => e._id === empId);
+    const emp = employees.find(e => String(e._id) === String(empId) || String(e.id) === String(empId));
     if (!emp) return;
 
     const targetDateStr = formatDate(date);
@@ -378,52 +394,48 @@ export function BranchSchedule() {
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[1150px] table-fixed">
-              {/* Column Width Distribution */}
+            <table className="w-full border-collapse min-w-[1100px] table-fixed">
+              {/* Column Width Distribution: Cột ca chỉ 112px (w-28), dành tối đa diện tích cho các ngày */}
               <colgroup>
-                <col className="w-48" /> {/* Cột Ca Làm Việc */}
+                <col className="w-28" />
                 {weekDays.map(d => (
-                  <col key={d.toISOString()} className="w-[calc((100%-12rem)/7)] min-w-[138px]" />
+                  <col key={d.toISOString()} className="w-[calc((100%-7rem)/7)] min-w-[130px]" />
                 ))}
               </colgroup>
 
               {/* Table Header */}
               <thead>
                 <tr className="bg-slate-50/90 border-b border-slate-200">
-                  <th className="p-4 border-r border-slate-200 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-slate-400" />
+                  <th className="p-2.5 border-r border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-slate-400" />
                       Ca / Ngày
                     </div>
                   </th>
-                  {weekDays.map(d => {
-                    const isToday = formatDate(d) === todayStr;
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6; // Thứ 7 hoặc CN
-                    return (
-                      <th 
-                        key={d.toISOString()} 
-                        className={`p-3.5 border-r border-slate-200 last:border-r-0 text-center transition-colors ${
-                          isToday ? 'bg-blue-50/70 border-b-2 border-b-[#0057cd]' : isWeekend ? 'bg-slate-100/50' : ''
-                        }`}
-                      >
-                        <div className="flex flex-col items-center">
-                          <div className={`text-xs font-extrabold uppercase tracking-wider ${isToday ? 'text-[#0057cd]' : 'text-slate-700'}`}>
-                            {d.toLocaleDateString('vi-VN', { weekday: 'short' })}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className={`text-sm font-bold ${isToday ? 'text-[#0057cd]' : 'text-slate-900'}`}>
-                              {d.getDate()}/{d.getMonth() + 1}
-                            </span>
-                            {isToday && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#0057cd] text-white rounded-md">
-                                Hôm nay
-                              </span>
-                            )}
-                          </div>
+                  {weekDays.map(d => (
+                    <th 
+                      key={d.toISOString()} 
+                      className={`p-2.5 border-r border-slate-200 last:border-r-0 text-center transition-colors ${
+                        formatDate(d) === todayStr ? 'bg-blue-50/70 border-b-2 border-b-[#0057cd]' : (d.getDay() === 0 || d.getDay() === 6) ? 'bg-slate-100/50' : ''
+                      }`}
+                    >
+                      <div className="flex flex-col items-center">
+                        <div className={`text-xs font-extrabold uppercase tracking-wider ${formatDate(d) === todayStr ? 'text-[#0057cd]' : 'text-slate-700'}`}>
+                          {d.toLocaleDateString('vi-VN', { weekday: 'short' })}
                         </div>
-                      </th>
-                    );
-                  })}
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className={`text-sm font-bold ${formatDate(d) === todayStr ? 'text-[#0057cd]' : 'text-slate-900'}`}>
+                            {d.getDate()}/{d.getMonth() + 1}
+                          </span>
+                          {formatDate(d) === todayStr && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#0057cd] text-white rounded-md">
+                              Hôm nay
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
@@ -431,23 +443,19 @@ export function BranchSchedule() {
               <tbody className="divide-y divide-slate-100">
                 {shifts.map(shift => (
                   <tr key={shift._id} className="hover:bg-slate-50/40 transition-colors">
-                    {/* Shift Header Column */}
-                    <td className="p-4 border-r border-slate-200 bg-slate-50/20 align-top">
-                      <div className="sticky left-0">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div 
-                            className="w-3 h-3 rounded-full shrink-0 shadow-xs" 
-                            style={{ backgroundColor: shift.color || '#0057cd' }}
-                          ></div>
-                          <span className="font-bold text-slate-800 text-sm tracking-tight truncate">
-                            {shift.name}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500 font-semibold flex items-center gap-1 pl-5">
-                          <span>{shift.startTime}</span>
-                          <span className="text-slate-300">-</span>
-                          <span>{shift.endTime}</span>
-                        </div>
+                    {/* Shift Header Column - Thu gọn kích thước tối đa */}
+                    <td className="p-2 border-r border-slate-200 bg-slate-50/30 align-top">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <div 
+                          className="w-2 h-2 rounded-full shrink-0" 
+                          style={{ backgroundColor: shift.color || '#0057cd' }}
+                        ></div>
+                        <span className="font-semibold text-slate-800 text-xs tracking-tight truncate">
+                          {shift.name}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-normal pl-3.5 whitespace-nowrap">
+                        {shift.startTime} - {shift.endTime}
                       </div>
                     </td>
 
@@ -459,16 +467,16 @@ export function BranchSchedule() {
                       return (
                         <td 
                           key={d.toISOString()} 
-                          className={`p-2.5 border-r border-slate-100 last:border-r-0 align-top h-28 relative group transition-colors ${
+                          className={`p-2 border-r border-slate-100 last:border-r-0 align-top h-24 relative group transition-colors ${
                             isToday ? 'bg-blue-50/15' : ''
                           }`}
                         >
                           {assignment ? (
-                            /* Assigned Employee Card */
-                            <div className={`h-full min-h-[72px] p-2.5 rounded-xl flex flex-col justify-between border shadow-xs transition-all relative overflow-hidden ${
+                            /* Assigned Employee Card - Không avatar chữ tắt, tên không bôi đậm, hiển thị chuẩn Quản lý / Dược sĩ */
+                            <div className={`h-full min-h-[62px] p-2 rounded-xl flex flex-col justify-between border shadow-2xs transition-all relative overflow-hidden ${
                               isPublished 
                                 ? 'bg-slate-50 border-slate-200' 
-                                : 'bg-white border-blue-200 hover:border-blue-400 hover:shadow-sm'
+                                : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-xs'
                             }`}>
                               {/* Left Colored Accent Bar */}
                               <div 
@@ -476,22 +484,28 @@ export function BranchSchedule() {
                                 style={{ backgroundColor: shift.color || '#0057cd' }}
                               ></div>
 
-                              {/* Card Content Top: Avatar + Full Name */}
-                              <div className="flex items-start gap-2 pl-1.5 min-w-0 pr-5">
-                                <div className="w-7 h-7 rounded-lg bg-blue-100 text-[#0057cd] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                                  {getInitials(assignment.employeeName)}
+                              {/* Card Content: Full Name (Not Bold) + Accurate Role Badge */}
+                              <div className="pl-1.5 pr-4">
+                                <div 
+                                  className="text-xs font-medium text-slate-700 leading-snug break-words" 
+                                  title={assignment.employeeName}
+                                >
+                                  {formatEmployeeName(assignment.employeeName)}
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                  <div 
-                                    className="text-xs font-bold text-slate-800 leading-snug break-words" 
-                                    title={assignment.employeeName}
-                                  >
-                                    {formatEmployeeName(assignment.employeeName)}
-                                  </div>
-                                  <div className="text-[10px] font-medium text-slate-400 mt-0.5 truncate">
-                                    Dược sĩ
-                                  </div>
-                                </div>
+                                {(() => {
+                                  const roleInfo = getEmployeeRoleInfo(assignment.employeeId);
+                                  return (
+                                    <div className="mt-1">
+                                      <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                        roleInfo.isManager 
+                                          ? 'bg-purple-50 text-purple-700 border border-purple-200/80' 
+                                          : 'bg-slate-100 text-slate-600 border border-slate-200/60'
+                                      }`}>
+                                        {roleInfo.label}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
                               </div>
 
                               {/* Remove Action Button (Top Right) */}
@@ -499,9 +513,9 @@ export function BranchSchedule() {
                                 <button 
                                   onClick={() => handleRemoveAssignment(d, shift._id)} 
                                   title="Hủy gán ca này"
-                                  className="absolute top-2 right-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                  className="absolute top-1 right-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100"
                                 >
-                                  <Trash2 size={13} />
+                                  <Trash2 size={12} />
                                 </button>
                               )}
                             </div>
@@ -513,12 +527,10 @@ export function BranchSchedule() {
                                   setSearchEmployeeQuery("");
                                   setAssignModal({ isOpen: true, date: d, shift });
                                 }}
-                                className="w-full h-full min-h-[72px] rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/50 text-slate-400 hover:text-[#0057cd] flex flex-col items-center justify-center gap-1.5 transition-all group/btn cursor-pointer p-2"
+                                className="w-full h-full min-h-[62px] rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/50 text-slate-400 hover:text-[#0057cd] flex flex-col items-center justify-center gap-1 transition-all group/btn cursor-pointer p-1.5"
                               >
-                                <div className="w-6 h-6 rounded-full bg-slate-100 group-hover/btn:bg-blue-100 flex items-center justify-center transition-colors">
-                                  <Plus size={14} className="text-slate-500 group-hover/btn:text-[#0057cd]" />
-                                </div>
-                                <span className="text-[11px] font-semibold tracking-tight text-slate-500 group-hover/btn:text-[#0057cd]">
+                                <Plus size={14} className="text-slate-400 group-hover/btn:text-[#0057cd] group-hover/btn:scale-110 transition-transform" />
+                                <span className="text-[11px] font-medium tracking-tight text-slate-500 group-hover/btn:text-[#0057cd]">
                                   + Gán ca
                                 </span>
                               </button>
@@ -593,15 +605,17 @@ export function BranchSchedule() {
                       className="w-full p-3 rounded-xl hover:bg-blue-50/70 border border-transparent hover:border-blue-200 flex items-center justify-between text-left transition-all group cursor-pointer"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-blue-100 text-[#0057cd] flex items-center justify-center text-xs font-bold shrink-0">
-                          {getInitials(emp.fullName)}
+                        <div className="w-8 h-8 rounded-full bg-blue-50 text-[#0057cd] flex items-center justify-center shrink-0">
+                          <User size={15} />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-bold text-slate-800 group-hover:text-[#0057cd] truncate">
+                          <div className="text-sm font-medium text-slate-800 group-hover:text-[#0057cd] truncate">
                             {formatEmployeeName(emp.fullName)}
                           </div>
                           <div className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-2">
-                            <span>{emp.role === 'pharmacist' ? 'Dược sĩ' : 'Quản lý'}</span>
+                            <span className={getEmployeeRoleInfo(emp._id).isManager ? 'text-purple-700 font-medium' : 'text-slate-600'}>
+                              {getEmployeeRoleInfo(emp._id).label}
+                            </span>
                             <span>•</span>
                             <span className="text-slate-400">{emp.email}</span>
                           </div>

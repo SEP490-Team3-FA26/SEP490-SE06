@@ -250,19 +250,19 @@ export function PharmacistSchedule() {
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[1150px] table-fixed">
+            <table className="w-full border-collapse min-w-[1100px] table-fixed">
               <colgroup>
-                <col className="w-48" />
+                <col className="w-28" />
                 {weekDays.map(d => (
-                  <col key={d.toISOString()} className="w-[calc((100%-12rem)/7)] min-w-[138px]" />
+                  <col key={d.toISOString()} className="w-[calc((100%-7rem)/7)] min-w-[130px]" />
                 ))}
               </colgroup>
 
               <thead>
                 <tr className="bg-slate-50/90 border-b border-slate-200">
-                  <th className="p-4 border-r border-slate-200 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-slate-400" />
+                  <th className="p-2.5 border-r border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-slate-400" />
                       Ca / Ngày
                     </div>
                   </th>
@@ -272,7 +272,7 @@ export function PharmacistSchedule() {
                     return (
                       <th 
                         key={d.toISOString()} 
-                        className={`p-3.5 border-r border-slate-200 last:border-r-0 text-center transition-colors ${
+                        className={`p-2.5 border-r border-slate-200 last:border-r-0 text-center transition-colors ${
                           isToday ? 'bg-blue-50/70 border-b-2 border-b-[#0057cd]' : isWeekend ? 'bg-slate-100/50' : ''
                         }`}
                       >
@@ -300,20 +300,18 @@ export function PharmacistSchedule() {
               <tbody className="divide-y divide-slate-100">
                 {shifts.map(shift => (
                   <tr key={shift._id} className="hover:bg-slate-50/40 transition-colors">
-                    <td className="p-4 border-r border-slate-200 bg-slate-50/20 align-top">
-                      <div className="flex items-center gap-2 mb-1.5">
+                    <td className="p-2 border-r border-slate-200 bg-slate-50/30 align-top">
+                      <div className="flex items-center gap-1.5 mb-1">
                         <div 
-                          className="w-3 h-3 rounded-full shrink-0 shadow-xs" 
+                          className="w-2 h-2 rounded-full shrink-0 shadow-xs" 
                           style={{ backgroundColor: shift.color || '#0057cd' }}
                         ></div>
-                        <span className="font-bold text-slate-800 text-sm tracking-tight truncate">
+                        <span className="font-semibold text-slate-800 text-xs tracking-tight truncate">
                           {shift.name}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500 font-semibold flex items-center gap-1 pl-5">
-                        <span>{shift.startTime}</span>
-                        <span className="text-slate-300">-</span>
-                        <span>{shift.endTime}</span>
+                      <div className="text-[10px] text-slate-500 font-normal pl-3.5 whitespace-nowrap">
+                        {shift.startTime} - {shift.endTime}
                       </div>
                     </td>
 
@@ -328,7 +326,7 @@ export function PharmacistSchedule() {
                         return (
                           <td 
                             key={d.toISOString()} 
-                            className={`p-2.5 border-r border-slate-100 last:border-r-0 align-middle h-28 text-center ${
+                            className={`p-2 border-r border-slate-100 last:border-r-0 align-middle h-24 text-center ${
                               isToday ? 'bg-blue-50/15' : ''
                             }`}
                           >
@@ -342,53 +340,44 @@ export function PharmacistSchedule() {
                       return (
                         <td 
                           key={d.toISOString()} 
-                          className={`p-2.5 border-r border-slate-100 last:border-r-0 align-top h-28 relative group transition-colors ${
+                          className={`p-2 border-r border-slate-100 last:border-r-0 align-top h-24 relative group transition-colors ${
                             isToday ? 'bg-blue-50/15' : ''
                           }`}
                         >
-                          <div className={`h-full min-h-[72px] p-2.5 rounded-xl flex flex-col justify-between border shadow-xs transition-all relative overflow-hidden ${
+                          <div className={`h-full min-h-[62px] p-2 rounded-xl flex flex-col justify-between border shadow-2xs transition-all relative overflow-hidden ${
                             isMine 
                               ? 'bg-blue-50/80 border-[#0057cd]/50 ring-2 ring-[#0057cd]/20' 
-                              : 'bg-white border-slate-200 opacity-70 hover:opacity-100'
+                              : 'bg-white border-slate-200 opacity-80 hover:opacity-100'
                           }`}>
                             <div 
                               className="absolute left-0 top-0 bottom-0 w-1" 
                               style={{ backgroundColor: isMine ? '#0057cd' : (shift.color || '#94a3b8') }}
                             ></div>
 
-                            <div>
-                              <div className="flex items-start gap-2 pl-1.5 min-w-0">
-                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 ${
-                                  isMine ? 'bg-[#0057cd] text-white' : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {getInitials(assignment.employeeName)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div 
-                                    className="text-xs font-bold text-slate-900 leading-snug break-words"
-                                    title={assignment.employeeName}
-                                  >
-                                    {formatEmployeeName(assignment.employeeName)}
-                                  </div>
-                                  <div className="text-[10px] font-medium text-slate-500 mt-0.5">
-                                    {isMine ? (
-                                      <span className="text-[#0057cd] font-bold">Ca của bạn</span>
-                                    ) : (
-                                      <span>Dược sĩ</span>
-                                    )}
-                                  </div>
-                                </div>
+                            <div className="pl-1.5 pr-2">
+                              <div 
+                                className="text-xs font-medium text-slate-700 leading-snug break-words"
+                                title={assignment.employeeName}
+                              >
+                                {formatEmployeeName(assignment.employeeName)}
+                              </div>
+                              <div className="text-[10px] font-normal text-slate-500 mt-1">
+                                {isMine ? (
+                                  <span className="text-[#0057cd] font-semibold px-1.5 py-0.5 bg-blue-100/60 rounded">Ca của bạn</span>
+                                ) : (
+                                  <span className="text-slate-500 px-1.5 py-0.5 bg-slate-100 rounded">Nhân sự trực</span>
+                                )}
                               </div>
                             </div>
 
                             {/* Shift Swap Action (If it's my shift and published) */}
                             {isMine && isPublished && (
-                              <div className="pt-2 pl-1.5">
+                              <div className="pt-1.5 pl-1.5">
                                 <button 
                                   onClick={() => navigate('/pharmacist/shift-swaps')}
-                                  className="w-full py-1 px-2 text-[10px] uppercase font-bold text-[#0057cd] hover:text-white bg-white hover:bg-[#0057cd] border border-blue-200 rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
+                                  className="w-full py-0.5 px-1.5 text-[10px] uppercase font-bold text-[#0057cd] hover:text-white bg-white hover:bg-[#0057cd] border border-blue-200 rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
                                 >
-                                  <RefreshCw size={11} /> Đổi ca
+                                  <RefreshCw size={10} /> Đổi ca
                                 </button>
                               </div>
                             )}
