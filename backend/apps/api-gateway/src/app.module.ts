@@ -335,6 +335,10 @@ export class AppGatewayModule implements OnModuleInit {
       "user.feedback.resolve",
       "user.feedback.chain_summary",
       "user.feedback.get_by_customer",
+      "user.rfm.get_by_phone",
+      "user.rfm.overview",
+      "user.rfm.recalculate",
+      "user.rfm.at_risk_list",
       "hr.shift.list",
       "hr.shift.create",
       "hr.shift.update",
@@ -362,6 +366,11 @@ export class AppGatewayModule implements OnModuleInit {
       "finance.expense.create",
       "finance.expense.list",
       "finance.cashflow.summary",
+      "orders.payment.webhook_received",
+      "orders.reconciliation.manual_override",
+      "orders.reconciliation.get_discrepancies",
+      "orders.reconciliation.summary",
+      "orders.reconciliation.resolve",
     ];
 
     // 5. KAFKA_SERVICE Reply Topics

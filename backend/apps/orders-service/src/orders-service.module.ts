@@ -7,6 +7,8 @@ import { OrdersServiceService } from './orders-service.service';
 import { Order, OrderSchema } from './schemas/order.schema';
 import { Voucher, VoucherSchema } from './schemas/voucher.schema';
 import { Expense, ExpenseSchema } from './schemas/expense.schema';
+import { PaymentWebhookLog, PaymentWebhookLogSchema } from './schemas/payment-webhook-log.schema';
+import { PaymentReconciliation, PaymentReconciliationSchema } from './schemas/payment-reconciliation.schema';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { Expense, ExpenseSchema } from './schemas/expense.schema';
       { name: Order.name, schema: OrderSchema },
       { name: Voucher.name, schema: VoucherSchema },
       { name: Expense.name, schema: ExpenseSchema },
+      { name: PaymentWebhookLog.name, schema: PaymentWebhookLogSchema },
+      { name: PaymentReconciliation.name, schema: PaymentReconciliationSchema },
     ]),
     ClientsModule.registerAsync([
       {

@@ -19,6 +19,8 @@ import { ShiftSwapRequest, ShiftSwapRequestSchema } from './schemas/shift-swap-r
 import { StaffNotification, StaffNotificationSchema } from './schemas/staff-notification.schema';
 import { HrService } from './hr.service';
 
+import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segment.schema';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -41,6 +43,7 @@ import { HrService } from './hr.service';
       { name: WorkSchedule.name, schema: WorkScheduleSchema },
       { name: ShiftSwapRequest.name, schema: ShiftSwapRequestSchema },
       { name: StaffNotification.name, schema: StaffNotificationSchema },
+      { name: CustomerSegment.name, schema: CustomerSegmentSchema },
     ]),
     ClientsModule.registerAsync([
       {

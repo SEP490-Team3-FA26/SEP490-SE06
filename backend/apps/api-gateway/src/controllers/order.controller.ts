@@ -1,15 +1,39 @@
-import { Controller, Post, Get, Body, Param, Inject, OnModuleInit, Req, UseGuards, Query, Res } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Body,
+  Param,
+  Inject,
+  OnModuleInit,
+  Req,
+  UseGuards,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../guards/optional-jwt-auth.guard';
 import { CreateOrderDto, CreatePayOSLinkDto } from '../dto/create-order.dto';
+import {
+  PayOSWebhookDto,
+  ManualOverridePaymentDto,
+  ReconciliationQueryDto,
+  ResolveDiscrepancyDto,
+} from '../dto/payment-reconciliation.dto';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
+@ApiTags('🛒 Orders & Payment Reconciliation')
 @Controller('api/orders')
 export class OrderController implements OnModuleInit {
   constructor(
     @Inject('ORDER_SERVICE') private readonly orderClient: ClientKafka,
-  ) { }
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+  ) {}
 
   async onModuleInit() {
     await subscribeToKafkaTopics(this.orderClient, [
@@ -17,11 +41,17 @@ export class OrderController implements OnModuleInit {
       'orders.check',
       'orders.list',
       'orders.my-orders',
+      'orders.payment.webhook_received',
+      'orders.reconciliation.manual_override',
+      'orders.reconciliation.get_discrepancies',
+      'orders.reconciliation.summary',
+      'orders.reconciliation.resolve',
     ]);
   }
 
   @Post()
   @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Tạo đơn hàng mới' })
   async createOrder(@Body() data: CreateOrderDto, @Req() req: any) {
     if (req.user) {
       if (req.user.sub) data.userId = req.user.sub;
@@ -31,8 +61,84 @@ export class OrderController implements OnModuleInit {
   }
 
   @Get('check/:orderCode')
+  @ApiOperation({ summary: 'Kiểm tra trạng thái thanh toán đơn hàng tức thời' })
   async checkOrderPayment(@Param('orderCode') orderCode: string) {
     return await sendKafkaMessage(this.orderClient, 'orders.check', { orderCode: Number(orderCode) });
+  }
+
+  // =========================================================================
+  // 1. WEBHOOK THANH TOÁN (PAYOS / NGÂN HÀNG) - IDEMPOTENT 24H
+  // =========================================================================
+  @Post('webhook/payos')
+  @ApiOperation({ summary: 'Tiếp nhận webhook thanh toán tự động với khóa chống lặp Idempotency 24h' })
+  async handlePayOSWebhook(@Body() body: PayOSWebhookDto) {
+    const reference = body?.data?.reference || body?.data?.paymentLinkId || String(body?.data?.orderCode);
+    const lockKey = `webhook:lock:payos:${reference}`;
+
+    // 1. Kiểm tra Idempotency Lock trên Redis
+    const isLocked = await this.cacheManager.get(lockKey);
+    if (isLocked) {
+      return { success: true, message: 'Giao dịch đã được tiếp nhận và xử lý trước đó (Idempotent OK)' };
+    }
+
+    // 2. Set Lock 24 giờ (86400s)
+    await this.cacheManager.set(lockKey, 'PROCESSED', 86400 * 1000);
+
+    // 3. Chuyển tiếp vào Kafka để xử lý đối soát và dung sai thông minh
+    return await sendKafkaMessage(this.orderClient, 'orders.payment.webhook_received', body);
+  }
+
+  // =========================================================================
+  // 2. POS EMERGENCY OVERRIDE (DƯỢC SĨ XÁC NHẬN KHẨN CẤP KHI MẤT MẠNG)
+  // =========================================================================
+  @Post('reconciliation/override')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Dược sĩ xác nhận thanh toán khẩn cấp tại quầy khi mạng đối tác gặp sự cố' })
+  async manualOverridePayment(@Body() body: ManualOverridePaymentDto, @Req() req: any) {
+    const cashierId = req.user?.sub || req.user?.id || 'POS-CASHIER';
+    return await sendKafkaMessage(this.orderClient, 'orders.reconciliation.manual_override', {
+      ...body,
+      cashierId,
+    });
+  }
+
+  // =========================================================================
+  // 3. KẾ TOÁN: TRUY VẤN DANH SÁCH CHÊNH LỆCH ĐỐI SOÁT
+  // =========================================================================
+  @Get('reconciliation/discrepancies')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Lấy danh sách các đơn hàng sai lệch đối soát (Thừa, Thiếu, Khẩn cấp, Mồ côi)' })
+  async getReconciliationDiscrepancies(@Query() query: ReconciliationQueryDto) {
+    return await sendKafkaMessage(this.orderClient, 'orders.reconciliation.get_discrepancies', query);
+  }
+
+  // =========================================================================
+  // 4. BAN GIÁM ĐỐC / KẾ TOÁN: BÁO CÁO TỔNG QUAN ĐỐI SOÁT
+  // =========================================================================
+  @Get('reconciliation/summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Báo cáo tỷ lệ khớp và tổng hợp dòng tiền đối soát theo chi nhánh' })
+  async getReconciliationSummary(@Query() query: ReconciliationQueryDto) {
+    return await sendKafkaMessage(this.orderClient, 'orders.reconciliation.summary', query);
+  }
+
+  // =========================================================================
+  // 5. KẾ TOÁN: XỬ LÝ BIÊN BẢN CHÊNH LỆCH
+  // =========================================================================
+  @Patch('reconciliation/:id/resolve')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kế toán xử lý giải trình và khép lại biên bản sai lệch đối soát' })
+  async resolveDiscrepancy(
+    @Param('id') id: string,
+    @Body() body: ResolveDiscrepancyDto,
+    @Req() req: any,
+  ) {
+    const resolvedBy = req.user?.name || req.user?.email || 'Accountant';
+    return await sendKafkaMessage(this.orderClient, 'orders.reconciliation.resolve', {
+      id,
+      resolutionNotes: body.resolutionNotes,
+      resolvedBy,
+    });
   }
 
   @Get('payos-callback')
@@ -98,12 +204,12 @@ export class OrderController implements OnModuleInit {
 
   @Post('payos-link')
   @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Tạo link thanh toán PayOS' })
   async createPayOSLink(@Body() data: CreatePayOSLinkDto, @Req() req: any) {
     if (req.user) {
       if (req.user.sub) data.userId = req.user.sub;
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
     }
-    // Force method to QR_PAY and create payment link
     return await sendKafkaMessage(this.orderClient, 'orders.create', {
       ...data,
       paymentMethod: 'QR_PAY',
@@ -113,12 +219,14 @@ export class OrderController implements OnModuleInit {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Danh sách đơn hàng' })
   async listOrders() {
     return await sendKafkaMessage(this.orderClient, 'orders.list', {});
   }
 
   @Get('my-orders')
   @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Danh sách đơn hàng của khách hàng hiện tại' })
   async getMyOrders(@Req() req: any, @Query('phone') phone?: string) {
     const userId = req.user?.sub;
     const fullName = req.user?.fullName || '';
