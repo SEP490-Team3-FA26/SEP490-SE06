@@ -163,10 +163,10 @@ export function BranchSchedule() {
   const weekDays = getWeekDays(currentWeekStart);
   const todayStr = formatDate(new Date());
 
-  const getAssignment = (date: Date, shiftId: string) => {
-    if (!schedule || !schedule.assignments || !Array.isArray(schedule.assignments)) return null;
+  const getAssignments = (date: Date, shiftId: string): WorkScheduleAssignment[] => {
+    if (!schedule || !schedule.assignments || !Array.isArray(schedule.assignments)) return [];
     const targetDateStr = formatDate(date);
-    return schedule.assignments.find(a => {
+    return schedule.assignments.filter(a => {
       const aDateStr = getIsoDateStr(a.date);
       return aDateStr === targetDateStr && a.shiftId === shiftId;
     });
@@ -175,7 +175,7 @@ export function BranchSchedule() {
   // Tính số ca nhân viên đã được xếp trong tuần hiện tại
   const getEmployeeWeeklyShiftCount = (employeeId: string) => {
     if (!schedule || !schedule.assignments) return 0;
-    return schedule.assignments.filter(a => a.employeeId === employeeId).length;
+    return schedule.assignments.filter(a => String(a.employeeId) === String(employeeId)).length;
   };
 
   // Tra cứu vai trò chính xác của nhân sự (Quản lý hay Dược sĩ)
@@ -200,6 +200,16 @@ export function BranchSchedule() {
     if (!emp) return;
 
     const targetDateStr = formatDate(date);
+
+    // Kiểm tra tránh gán trùng chính nhân viên này vào cùng 1 ca
+    const alreadyInShift = (schedule.assignments || []).some(
+      a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id && String(a.employeeId) === String(emp._id)
+    );
+    if (alreadyInShift) {
+      alert("Nhân viên này đã có tên trong ca trực này rồi.");
+      return;
+    }
+
     const newAssignment: WorkScheduleAssignment = {
       date: `${targetDateStr}T00:00:00.000Z`,
       shiftId: shift._id,
@@ -211,10 +221,7 @@ export function BranchSchedule() {
       note: ""
     };
 
-    const newAssignments = (schedule.assignments || []).filter(
-      a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id)
-    );
-    newAssignments.push(newAssignment);
+    const newAssignments = [...(schedule.assignments || []), newAssignment];
 
     // Optimistic UI update
     setSchedule({ ...schedule, assignments: newAssignments });
@@ -237,11 +244,11 @@ export function BranchSchedule() {
     }
   };
 
-  const handleRemoveAssignment = async (date: Date, shiftId: string) => {
+  const handleRemoveAssignment = async (date: Date, shiftId: string, employeeId: string) => {
     if (!schedule || schedule.status === 'published') return;
     const targetDateStr = formatDate(date);
     const newAssignments = (schedule.assignments || []).filter(
-      a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shiftId)
+      a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shiftId && String(a.employeeId) === String(employeeId))
     );
 
     setSchedule({ ...schedule, assignments: newAssignments });
@@ -461,42 +468,44 @@ export function BranchSchedule() {
 
                     {/* Day Slot Cells */}
                     {weekDays.map(d => {
-                      const assignment = getAssignment(d, shift._id);
+                      const cellAssignments = getAssignments(d, shift._id);
                       const isToday = formatDate(d) === todayStr;
 
                       return (
                         <td 
                           key={d.toISOString()} 
-                          className={`p-2 border-r border-slate-100 last:border-r-0 align-top h-24 relative group transition-colors ${
+                          className={`p-1.5 border-r border-slate-100 last:border-r-0 align-top min-h-[80px] relative transition-colors ${
                             isToday ? 'bg-blue-50/15' : ''
                           }`}
                         >
-                          {assignment ? (
-                            /* Assigned Employee Card - Không avatar chữ tắt, tên không bôi đậm, hiển thị chuẩn Quản lý / Dược sĩ */
-                            <div className={`h-full min-h-[62px] p-2 rounded-xl flex flex-col justify-between border shadow-2xs transition-all relative overflow-hidden ${
-                              isPublished 
-                                ? 'bg-slate-50 border-slate-200' 
-                                : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-xs'
-                            }`}>
-                              {/* Left Colored Accent Bar */}
-                              <div 
-                                className="absolute left-0 top-0 bottom-0 w-1" 
-                                style={{ backgroundColor: shift.color || '#0057cd' }}
-                              ></div>
-
-                              {/* Card Content: Full Name (Not Bold) + Accurate Role Badge */}
-                              <div className="pl-1.5 pr-4">
+                          <div className="flex flex-col gap-1.5 min-h-[72px]">
+                            {/* Danh sách thẻ nhân viên trong ca */}
+                            {cellAssignments.map(assignment => {
+                              const roleInfo = getEmployeeRoleInfo(assignment.employeeId);
+                              return (
                                 <div 
-                                  className="text-xs font-medium text-slate-700 leading-snug break-words" 
-                                  title={assignment.employeeName}
+                                  key={assignment.employeeId + '_' + assignment.shiftId}
+                                  className={`p-2 rounded-xl flex items-center justify-between border shadow-2xs transition-all relative overflow-hidden group ${
+                                    isPublished 
+                                      ? 'bg-slate-50 border-slate-200' 
+                                      : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-xs'
+                                  }`}
                                 >
-                                  {formatEmployeeName(assignment.employeeName)}
-                                </div>
-                                {(() => {
-                                  const roleInfo = getEmployeeRoleInfo(assignment.employeeId);
-                                  return (
-                                    <div className="mt-1">
-                                      <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                  {/* Left Colored Accent Bar */}
+                                  <div 
+                                    className="absolute left-0 top-0 bottom-0 w-1" 
+                                    style={{ backgroundColor: shift.color || '#0057cd' }}
+                                  ></div>
+
+                                  <div className="pl-1.5 pr-2 min-w-0 flex-1">
+                                    <div 
+                                      className="text-xs font-medium text-slate-700 leading-snug break-words" 
+                                      title={assignment.employeeName}
+                                    >
+                                      {formatEmployeeName(assignment.employeeName)}
+                                    </div>
+                                    <div className="mt-0.5">
+                                      <span className={`inline-block text-[9px] font-medium px-1.5 py-0.2 rounded ${
                                         roleInfo.isManager 
                                           ? 'bg-purple-50 text-purple-700 border border-purple-200/80' 
                                           : 'bg-slate-100 text-slate-600 border border-slate-200/60'
@@ -504,38 +513,42 @@ export function BranchSchedule() {
                                         {roleInfo.label}
                                       </span>
                                     </div>
-                                  );
-                                })()}
-                              </div>
+                                  </div>
 
-                              {/* Remove Action Button (Top Right) */}
-                              {!isPublished && (
-                                <button 
-                                  onClick={() => handleRemoveAssignment(d, shift._id)} 
-                                  title="Hủy gán ca này"
-                                  className="absolute top-1 right-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            /* Unassigned Slot Action Button */
-                            !isPublished && (
+                                  {/* Remove Action Button (Chỉ xóa nhân sự này khỏi ca) */}
+                                  {!isPublished && (
+                                    <button 
+                                      onClick={() => handleRemoveAssignment(d, shift._id, assignment.employeeId)} 
+                                      title={`Xóa ${assignment.employeeName} khỏi ca này`}
+                                      className="text-slate-300 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {/* Nút thêm nhân sự vào ca */}
+                            {!isPublished && (
                               <button
                                 onClick={() => {
                                   setSearchEmployeeQuery("");
                                   setAssignModal({ isOpen: true, date: d, shift });
                                 }}
-                                className="w-full h-full min-h-[62px] rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/50 text-slate-400 hover:text-[#0057cd] flex flex-col items-center justify-center gap-1 transition-all group/btn cursor-pointer p-1.5"
+                                className={`rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/50 text-slate-400 hover:text-[#0057cd] flex items-center justify-center gap-1 transition-all group/btn cursor-pointer ${
+                                  cellAssignments.length === 0 
+                                    ? 'w-full h-full min-h-[62px] flex-col p-1.5' 
+                                    : 'w-full py-1 px-2 text-[11px] font-medium'
+                                }`}
                               >
-                                <Plus size={14} className="text-slate-400 group-hover/btn:text-[#0057cd] group-hover/btn:scale-110 transition-transform" />
+                                <Plus size={13} className="text-slate-400 group-hover/btn:text-[#0057cd] transition-transform" />
                                 <span className="text-[11px] font-medium tracking-tight text-slate-500 group-hover/btn:text-[#0057cd]">
-                                  + Gán ca
+                                  {cellAssignments.length === 0 ? '+ Gán ca' : '+ Thêm'}
                                 </span>
                               </button>
-                            )
-                          )}
+                            )}
+                          </div>
                         </td>
                       );
                     })}
@@ -598,18 +611,28 @@ export function BranchSchedule() {
               ) : (
                 filteredEmployees.map(emp => {
                   const shiftCount = getEmployeeWeeklyShiftCount(emp._id);
+                  const targetDateStr = assignModal.date ? formatDate(assignModal.date) : "";
+                  const isAlreadyInShift = (schedule?.assignments || []).some(
+                    a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === assignModal.shift?._id && String(a.employeeId) === String(emp._id)
+                  );
+
                   return (
                     <button
                       key={emp._id}
+                      disabled={isAlreadyInShift}
                       onClick={() => handleAssign(assignModal.date!, assignModal.shift!, emp._id)}
-                      className="w-full p-3 rounded-xl hover:bg-blue-50/70 border border-transparent hover:border-blue-200 flex items-center justify-between text-left transition-all group cursor-pointer"
+                      className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-left transition-all ${
+                        isAlreadyInShift 
+                          ? 'bg-slate-50/70 border-slate-100 opacity-60 cursor-not-allowed' 
+                          : 'hover:bg-blue-50/70 border-transparent hover:border-blue-200 cursor-pointer group'
+                      }`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-8 h-8 rounded-full bg-blue-50 text-[#0057cd] flex items-center justify-center shrink-0">
                           <User size={15} />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-slate-800 group-hover:text-[#0057cd] truncate">
+                          <div className={`text-sm font-medium truncate ${isAlreadyInShift ? 'text-slate-500' : 'text-slate-800 group-hover:text-[#0057cd]'}`}>
                             {formatEmployeeName(emp.fullName)}
                           </div>
                           <div className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-2">
@@ -623,9 +646,15 @@ export function BranchSchedule() {
                       </div>
 
                       <div className="text-right shrink-0 pl-3">
-                        <span className="text-[11px] font-semibold px-2.5 py-1 bg-slate-100 group-hover:bg-blue-100/70 text-slate-600 group-hover:text-[#0057cd] rounded-lg transition-colors">
-                          {shiftCount} ca/tuần
-                        </span>
+                        {isAlreadyInShift ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
+                            Đã trong ca
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold px-2.5 py-1 bg-slate-100 group-hover:bg-blue-100/70 text-slate-600 group-hover:text-[#0057cd] rounded-lg transition-colors">
+                            {shiftCount} ca/tuần
+                          </span>
+                        )}
                       </div>
                     </button>
                   );
