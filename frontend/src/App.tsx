@@ -70,8 +70,13 @@ import { BranchStockReceive } from "./pages/branch/BranchStockReceive";
 import { BranchInventory } from "./pages/branch/BranchInventory";
 import { BranchTransfer } from "./pages/branch/BranchTransfer";
 import { BranchEmployees } from "./pages/branch/BranchEmployees";
+import { BranchShiftManagement } from "./pages/branch/BranchShiftManagement";
+import { BranchSchedule } from "./pages/branch/BranchSchedule";
+import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 
 import { Sales } from "./pages/pharmacist/Sales";
+import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
+import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
 
 // Helper component to preserve query parameters on redirect
 function RedirectWithSearch({ to }: { to: string }) {
@@ -201,6 +206,9 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
               <Route path="employees" element={<BranchEmployees />} />
+              <Route path="shifts" element={<BranchShiftManagement />} />
+              <Route path="schedule" element={<BranchSchedule />} />
+              <Route path="shift-swaps" element={<BranchShiftSwap />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="requisitions" element={<BranchRequisition />} />
               <Route path="receive-transfers" element={<BranchStockReceive />} />
@@ -221,6 +229,8 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="schedule" element={<PharmacistSchedule />} />
+              <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
             </Route>

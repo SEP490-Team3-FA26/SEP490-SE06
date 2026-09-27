@@ -5,7 +5,6 @@ import { PassportModule } from "@nestjs/passport";
 import { JwtModule } from "@nestjs/jwt";
 import { ClientsModule, Transport, ClientKafka } from "@nestjs/microservices";
 import { MongooseModule } from "@nestjs/mongoose";
-
 import { SupplierController } from "./controllers/supplier.controller";
 import { PurchaseRequisitionController } from "./controllers/purchase-requisition.controller";
 import { PurchaseOrderController } from "./controllers/purchase-order.controller";
@@ -28,6 +27,7 @@ import { AdminEmployeeController } from "./controllers/admin-employee.controller
 import { ReportController } from "./controllers/report.controller";
 import { FinanceController } from "./controllers/finance.controller";
 import { SensorController } from "./controllers/sensor.controller";
+import { HrController } from "./controllers/hr.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
@@ -198,6 +198,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     ReportController,
     FinanceController,
     SensorController,
+    HrController,
   ],
   providers: [
     JwtAuthGuard,
@@ -328,6 +329,22 @@ export class AppGatewayModule implements OnModuleInit {
       "user.admin.employee.ban_unban",
       "user.admin.employee.delete",
       "user.admin.employee.approve",
+      "hr.shift.list",
+      "hr.shift.create",
+      "hr.shift.update",
+      "hr.shift.toggle",
+      "hr.schedule.get_week",
+      "hr.schedule.upsert",
+      "hr.schedule.publish",
+      "hr.schedule.my_week",
+      "hr.swap.list",
+      "hr.swap.my_list",
+      "hr.swap.create",
+      "hr.swap.target_respond",
+      "hr.swap.manager_respond",
+      "hr.notification.list",
+      "hr.notification.mark_read",
+      "hr.notification.unread_count",
     ];
 
     // 4. ORDER_SERVICE Reply Topics

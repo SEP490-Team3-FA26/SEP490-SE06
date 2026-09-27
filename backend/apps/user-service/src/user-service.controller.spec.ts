@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserServiceController } from './user-service.controller';
 import { UserService } from './user-service.service';
 import { BranchService } from './branch.service';
+import { HrService } from './hr.service';
 
 describe('UserServiceController', () => {
   let controller: UserServiceController;
@@ -19,6 +20,7 @@ describe('UserServiceController', () => {
       providers: [
         { provide: UserService, useValue: mockUserService },
         { provide: BranchService, useValue: mockBranchService },
+        { provide: HrService, useValue: {} },
       ],
     }).compile();
 
