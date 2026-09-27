@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { hrService, WorkSchedule, WorkShift } from "../../services/hr/hr.service";
 import { authService } from "../../services/auth/auth.service";
@@ -64,10 +64,10 @@ export function PharmacistSchedule() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const getUserId = () => {
+  const getUserInfo = () => {
     const userObj = authService.getCurrentUser();
-    if (userObj?.id) return userObj.id;
-    if (userObj?._id) return userObj._id;
+    let id = userObj?.id || userObj?._id || '';
+    let name = userObj?.fullName || userObj?.name || '';
 
     const token = localStorage.getItem("token");
     if (token) {
@@ -81,32 +81,40 @@ export function PharmacistSchedule() {
             .join("")
         );
         const decoded = JSON.parse(jsonPayload);
-        return decoded.sub || "";
+        if (!id) id = decoded.sub || "";
+        if (!name) name = decoded.fullName || decoded.name || "";
       } catch {
-        return "";
+        // Ignored
       }
     }
-    return "";
+    return { id, name };
   };
-  const userId = getUserId();
+  const { id: userId, name: userName } = getUserInfo();
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [sched, sh] = await Promise.all([
+      const [schedRes, shRes] = await Promise.allSettled([
         hrService.getMyWeekSchedule(currentWeekStart),
         hrService.listShifts()
       ]);
-      let schedData: any = sched;
-      if (typeof schedData === "string") {
-        try {
-          schedData = JSON.parse(schedData);
-        } catch {
-          schedData = null;
+
+      if (schedRes.status === 'fulfilled') {
+        let schedData: any = schedRes.value;
+        if (typeof schedData === "string") {
+          try {
+            schedData = JSON.parse(schedData);
+          } catch {
+            schedData = null;
+          }
         }
+        setSchedule(schedData);
       }
-      setSchedule(schedData);
-      setShifts(Array.isArray(sh) ? sh.filter(s => s.isActive) : []);
+
+      if (shRes.status === 'fulfilled') {
+        const sh = shRes.value;
+        setShifts(Array.isArray(sh) ? sh.filter(s => s.isActive) : []);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -141,8 +149,33 @@ export function PharmacistSchedule() {
   const todayStr = formatDate(new Date());
   const isPublished = schedule?.status === 'published';
 
-  // Thống kê số ca trực của chính dược sĩ trong tuần
-  const myShiftsCount = (schedule?.assignments || []).filter(a => a.employeeId === userId).length;
+  // Cơ chế phòng thủ: Tự động trích xuất ca làm việc từ chính phân công nếu shifts rỗng
+  const effectiveShifts: WorkShift[] = useMemo(() => {
+    if (shifts.length > 0) return shifts;
+    if (!schedule?.assignments || schedule.assignments.length === 0) return [];
+
+    const shiftMap = new Map<string, WorkShift>();
+    schedule.assignments.forEach((a) => {
+      const sId = a.shiftId || 'default-shift';
+      if (!shiftMap.has(sId)) {
+        shiftMap.set(sId, {
+          _id: sId,
+          branchId: schedule.branchId || '',
+          name: a.shiftName || 'Ca làm việc',
+          startTime: a.shiftStart || '06:00',
+          endTime: a.shiftEnd || '14:00',
+          color: '#0057cd',
+          isActive: true,
+        });
+      }
+    });
+    return Array.from(shiftMap.values()).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [shifts, schedule]);
+
+  // Thống kê số ca trực của chính dược sĩ trong tuần (khớp theo userId hoặc userName)
+  const myShiftsCount = (schedule?.assignments || []).filter(
+    a => (userId && String(a.employeeId) === String(userId)) || (userName && a.employeeName === userName)
+  ).length;
 
   return (
     <div className="flex flex-col min-h-full bg-[#f8fafc] p-6 lg:p-8 space-y-6">
@@ -241,7 +274,7 @@ export function PharmacistSchedule() {
           <div className="w-10 h-10 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
           <span className="mt-4 text-sm font-semibold text-slate-500">Đang tải lịch trực tuần...</span>
         </div>
-      ) : shifts.length === 0 ? (
+      ) : effectiveShifts.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
           <AlertCircle size={40} className="mx-auto text-amber-500 mb-3" />
           <h3 className="text-lg font-bold text-slate-800">Chưa có dữ liệu ca trực</h3>
@@ -298,7 +331,7 @@ export function PharmacistSchedule() {
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {shifts.map(shift => (
+                {effectiveShifts.map(shift => (
                   <tr key={shift._id} className="hover:bg-slate-50/40 transition-colors">
                     <td className="p-2 border-r border-slate-200 bg-slate-50/30 align-top">
                       <div className="flex items-center gap-1.5 mb-1">
@@ -344,7 +377,7 @@ export function PharmacistSchedule() {
                         >
                           <div className="flex flex-col gap-1.5 min-h-[72px]">
                             {cellAssignments.map(assignment => {
-                              const isMine = String(assignment.employeeId) === String(userId);
+                              const isMine = (userId && String(assignment.employeeId) === String(userId)) || (userName && assignment.employeeName === userName);
                               return (
                                 <div 
                                   key={assignment.employeeId + '_' + assignment.shiftId}
