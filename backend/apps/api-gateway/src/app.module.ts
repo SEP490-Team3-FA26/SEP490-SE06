@@ -200,6 +200,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     FinanceController,
     FeedbackController,
     HrController,
+    SensorController,
   ],
   providers: [
     JwtAuthGuard,

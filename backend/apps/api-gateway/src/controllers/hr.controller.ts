@@ -170,7 +170,7 @@ export class HrController implements OnModuleInit {
 
   // --- HR: NOTIFICATION ---
   @Get('notifications')
-  @Roles('branch', 'pharmacist')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
   @ApiOperation({ summary: 'Lấy danh sách thông báo' })
   async listNotifications(@Request() req, @Query('limit') limit?: number, @Query('skip') skip?: number) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.notification.list', { 
@@ -181,7 +181,7 @@ export class HrController implements OnModuleInit {
   }
 
   @Patch('notifications/mark-read')
-  @Roles('branch', 'pharmacist')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
   @ApiOperation({ summary: 'Đánh dấu đã đọc' })
   async markRead(@Request() req, @Body() data: { notificationId?: string }) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.notification.mark_read', { 
@@ -191,7 +191,7 @@ export class HrController implements OnModuleInit {
   }
 
   @Get('notifications/unread-count')
-  @Roles('branch', 'pharmacist')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
   @ApiOperation({ summary: 'Lấy số lượng thông báo chưa đọc' })
   async unreadCount(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.notification.unread_count', { userId: req.user.sub });
