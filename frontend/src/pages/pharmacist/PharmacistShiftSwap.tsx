@@ -120,9 +120,16 @@ export function PharmacistShiftSwap() {
       if (sched1 && sched1.status === 'published') allAssignments.push(...sched1.assignments);
       if (sched2 && sched2.status === 'published') allAssignments.push(...sched2.assignments);
 
+      const currentUser = authService.getCurrentUser();
+      const myRole = currentUser?.role || 'pharmacist';
       const mine = allAssignments.filter(a => a.employeeId === userId);
       setMyAssignments(mine);
-      setEmployees(emps.filter(e => e._id !== userId));
+      
+      // Chỉ cho phép đổi chéo ca với đồng nghiệp CÙNG VAI TRÒ (Dược sĩ chỉ đổi với Dược sĩ)
+      const peers = (Array.isArray(emps) ? emps : []).filter(
+        e => e._id !== userId && (e.role === myRole || (!e.role && myRole === 'pharmacist'))
+      );
+      setEmployees(peers);
       setTargetAssignments(allAssignments); // all published assignments
     } catch (err) {
       console.error(err);

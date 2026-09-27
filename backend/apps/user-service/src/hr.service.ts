@@ -127,6 +127,22 @@ export class HrService {
   }
 
   async createSwapRequest(dto: any) {
+    // 1. Kiểm tra ràng buộc: Chỉ cho phép đổi chéo ca giữa các nhân sự CÙNG VAI TRÒ
+    if (dto.requesterId && dto.targetId) {
+      const [requester, target] = await Promise.all([
+        this.userModel.findById(dto.requesterId).lean().exec(),
+        this.userModel.findById(dto.targetId).lean().exec()
+      ]);
+
+      if (!requester || !target) {
+        throw new RpcException('Không tìm thấy thông tin nhân viên tham gia đổi ca.');
+      }
+
+      if (requester.role !== target.role) {
+        throw new RpcException('Chỉ có thể đổi chéo ca với nhân sự cùng vai trò (Dược sĩ không thể đổi ca với Quản lý).');
+      }
+    }
+
     const request = await this.shiftSwapRequestModel.create({
       ...dto,
       status: 'pending_target'

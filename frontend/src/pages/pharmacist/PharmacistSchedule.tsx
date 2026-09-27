@@ -317,12 +317,12 @@ export function PharmacistSchedule() {
 
                     {weekDays.map(d => {
                       const targetDateStr = formatDate(d);
-                      const assignment = (schedule?.assignments || []).find(
+                      const cellAssignments = (schedule?.assignments || []).filter(
                         a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id
                       );
                       const isToday = targetDateStr === todayStr;
 
-                      if (!assignment) {
+                      if (cellAssignments.length === 0) {
                         return (
                           <td 
                             key={d.toISOString()} 
@@ -335,52 +335,60 @@ export function PharmacistSchedule() {
                         );
                       }
 
-                      const isMine = assignment.employeeId === userId;
-
                       return (
                         <td 
                           key={d.toISOString()} 
-                          className={`p-2 border-r border-slate-100 last:border-r-0 align-top h-24 relative group transition-colors ${
+                          className={`p-1.5 border-r border-slate-100 last:border-r-0 align-top min-h-[80px] relative transition-colors ${
                             isToday ? 'bg-blue-50/15' : ''
                           }`}
                         >
-                          <div className={`h-full min-h-[62px] p-2 rounded-xl flex flex-col justify-between border shadow-2xs transition-all relative overflow-hidden ${
-                            isMine 
-                              ? 'bg-blue-50/80 border-[#0057cd]/50 ring-2 ring-[#0057cd]/20' 
-                              : 'bg-white border-slate-200 opacity-80 hover:opacity-100'
-                          }`}>
-                            <div 
-                              className="absolute left-0 top-0 bottom-0 w-1" 
-                              style={{ backgroundColor: isMine ? '#0057cd' : (shift.color || '#94a3b8') }}
-                            ></div>
-
-                            <div className="pl-1.5 pr-2">
-                              <div 
-                                className="text-xs font-medium text-slate-700 leading-snug break-words"
-                                title={assignment.employeeName}
-                              >
-                                {formatEmployeeName(assignment.employeeName)}
-                              </div>
-                              <div className="text-[10px] font-normal text-slate-500 mt-1">
-                                {isMine ? (
-                                  <span className="text-[#0057cd] font-semibold px-1.5 py-0.5 bg-blue-100/60 rounded">Ca của bạn</span>
-                                ) : (
-                                  <span className="text-slate-500 px-1.5 py-0.5 bg-slate-100 rounded">Nhân sự trực</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Shift Swap Action (If it's my shift and published) */}
-                            {isMine && isPublished && (
-                              <div className="pt-1.5 pl-1.5">
-                                <button 
-                                  onClick={() => navigate('/pharmacist/shift-swaps')}
-                                  className="w-full py-0.5 px-1.5 text-[10px] uppercase font-bold text-[#0057cd] hover:text-white bg-white hover:bg-[#0057cd] border border-blue-200 rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
+                          <div className="flex flex-col gap-1.5 min-h-[72px]">
+                            {cellAssignments.map(assignment => {
+                              const isMine = String(assignment.employeeId) === String(userId);
+                              return (
+                                <div 
+                                  key={assignment.employeeId + '_' + assignment.shiftId}
+                                  className={`p-2 rounded-xl flex flex-col justify-between border shadow-2xs transition-all relative overflow-hidden ${
+                                    isMine 
+                                      ? 'bg-blue-50/80 border-[#0057cd]/50 ring-2 ring-[#0057cd]/20' 
+                                      : 'bg-white border-slate-200 opacity-80 hover:opacity-100'
+                                  }`}
                                 >
-                                  <RefreshCw size={10} /> Đổi ca
-                                </button>
-                              </div>
-                            )}
+                                  <div 
+                                    className="absolute left-0 top-0 bottom-0 w-1" 
+                                    style={{ backgroundColor: isMine ? '#0057cd' : (shift.color || '#94a3b8') }}
+                                  ></div>
+
+                                  <div className="pl-1.5 pr-2">
+                                    <div 
+                                      className="text-xs font-medium text-slate-700 leading-snug break-words"
+                                      title={assignment.employeeName}
+                                    >
+                                      {formatEmployeeName(assignment.employeeName)}
+                                    </div>
+                                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">
+                                      {isMine ? (
+                                        <span className="text-[#0057cd] font-semibold px-1.5 py-0.2 bg-blue-100/60 rounded">Ca của bạn</span>
+                                      ) : (
+                                        <span className="text-slate-500 px-1.5 py-0.2 bg-slate-100 rounded">Nhân sự trực</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Shift Swap Action (If it's my shift and published) */}
+                                  {isMine && isPublished && (
+                                    <div className="pt-1.5 pl-1.5">
+                                      <button 
+                                        onClick={() => navigate('/pharmacist/shift-swaps')}
+                                        className="w-full py-0.5 px-1.5 text-[10px] uppercase font-bold text-[#0057cd] hover:text-white bg-white hover:bg-[#0057cd] border border-blue-200 rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
+                                      >
+                                        <RefreshCw size={10} /> Đổi ca
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </td>
                       );
