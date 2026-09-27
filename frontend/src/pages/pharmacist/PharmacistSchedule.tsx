@@ -11,7 +11,12 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle,
-  Briefcase
+  Briefcase,
+  ArrowRightLeft,
+  Send,
+  UserCheck,
+  ShieldCheck,
+  Info
 } from "lucide-react";
 
 function getMonday(d: Date) {
@@ -433,6 +438,157 @@ export function PharmacistSchedule() {
           </div>
         </div>
       )}
+
+      {/* 4. Shift Swap Guide & Workflow Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+        {/* Cột 1: Chú thích hiển thị & Ý nghĩa ca trực */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2.5 text-slate-900 font-bold text-base mb-4">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0057cd] flex items-center justify-center font-bold">
+                <Info size={18} />
+              </div>
+              <h3>Chú Thích Lịch Trực</h3>
+            </div>
+            
+            <div className="space-y-3 text-xs">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/70 border border-[#0057cd]/30">
+                <div className="w-3 h-3 rounded-full bg-[#0057cd] mt-0.5 shrink-0 ring-4 ring-blue-100"></div>
+                <div>
+                  <div className="font-bold text-slate-900">Ca của bạn (Được phân công)</div>
+                  <p className="text-slate-600 mt-0.5 leading-relaxed">
+                    Khung giờ bạn có nhiệm vụ trực. Bấm nút <strong>"Đổi ca"</strong> trực tiếp trên ô để gửi yêu cầu đổi ca cho đồng nghiệp.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="w-3 h-3 rounded-full bg-slate-400 mt-0.5 shrink-0"></div>
+                <div>
+                  <div className="font-bold text-slate-900">Nhân sự trực (Đồng nghiệp)</div>
+                  <p className="text-slate-600 mt-0.5 leading-relaxed">
+                    Ca làm việc của đồng nghiệp khác trong chi nhánh. Bạn có thể chọn hoán đổi với các ca này.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/50 border border-dashed border-slate-200">
+                <div className="w-3 h-3 rounded-full border border-slate-300 mt-0.5 shrink-0"></div>
+                <div>
+                  <div className="font-bold text-slate-700">Ô Trống</div>
+                  <p className="text-slate-500 mt-0.5 leading-relaxed">
+                    Khung giờ chưa xếp nhân sự hoặc ca nghỉ của chi nhánh.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 mt-4 border-t border-slate-100">
+            <button
+              onClick={() => navigate('/pharmacist/shift-swaps')}
+              className="w-full py-2.5 px-4 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#0057cd] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border border-slate-200"
+            >
+              <ArrowRightLeft size={14} />
+              Xem danh sách yêu cầu đổi ca
+            </button>
+          </div>
+        </div>
+
+        {/* Cột 2 & 3: Luồng quy trình đổi ca 3 bước & Quy định */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2.5 text-slate-900 font-bold text-base mb-4">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <ArrowRightLeft size={18} />
+              </div>
+              <h3>Quy Trình & Luồng Đổi Ca Trực (3 Bước)</h3>
+            </div>
+
+            {/* 3 Steps */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-5">
+              {/* Bước 1 */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-100 text-[#0057cd] font-black text-xs flex items-center justify-center">
+                      1
+                    </span>
+                    <Send size={15} className="text-[#0057cd]" />
+                  </div>
+                  <div className="text-xs font-bold text-slate-900 mb-1">Tạo yêu cầu đổi ca</div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Chọn ca của bạn muốn đổi đi, chọn dược sĩ đồng nghiệp và ca của họ muốn nhận lại, nhập lý do rồi gửi.
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-amber-700 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  Trạng thái: Chờ đối phương
+                </div>
+              </div>
+
+              {/* Bước 2 */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-black text-xs flex items-center justify-center">
+                      2
+                    </span>
+                    <UserCheck size={15} className="text-amber-600" />
+                  </div>
+                  <div className="text-xs font-bold text-slate-900 mb-1">Đồng nghiệp xác nhận</div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Hệ thống gửi chuông thông báo đến đồng nghiệp. Họ vào trang Đổi ca để bấm <strong>Đồng ý</strong> hoặc <strong>Từ chối</strong>.
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-blue-700 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                  Trạng thái: Chờ Quản lý duyệt
+                </div>
+              </div>
+
+              {/* Bước 3 */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center">
+                      3
+                    </span>
+                    <ShieldCheck size={15} className="text-emerald-600" />
+                  </div>
+                  <div className="text-xs font-bold text-slate-900 mb-1">Quản lý chi nhánh duyệt</div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Quản lý chi nhánh xem xét và phê duyệt chính thức. Sau khi duyệt, hệ thống tự động hoán đổi lịch trực trên bảng tuần.
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-emerald-700 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Trạng thái: Đã duyệt hoàn tất
+                </div>
+              </div>
+            </div>
+
+            {/* Quy tắc quan trọng */}
+            <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs text-amber-900 leading-relaxed space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                <AlertCircle size={15} className="text-amber-600" />
+                Quy định & Ràng buộc đổi ca trực:
+              </div>
+              <ul className="list-disc list-inside space-y-1 pl-1 text-[11px] text-amber-900/90">
+                <li>
+                  <strong>Chỉ đổi chéo cùng vai trò:</strong> Dược sĩ chỉ được đổi ca với Dược sĩ khác cùng chi nhánh. Hệ thống sẽ chặn đổi chéo với Quản lý.
+                </li>
+                <li>
+                  <strong>Lịch tuần đã công bố:</strong> Chỉ có thể tạo yêu cầu đổi ca đối với các tuần làm việc đã được Quản lý chi nhánh công bố chính thức.
+                </li>
+                <li>
+                  <strong>Thông báo tự động:</strong> Mọi biến động (gửi yêu cầu, đồng nghiệp phản hồi, quản lý duyệt) đều được gửi thông báo trực tiếp qua quả chuông hệ thống.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
