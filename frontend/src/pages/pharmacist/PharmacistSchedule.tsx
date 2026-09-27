@@ -15,6 +15,12 @@ function formatDate(d: Date) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+function formatEmployeeName(fullName: string) {
+  if (!fullName) return "";
+  const clean = fullName.replace(/\s*\([^)]*\)/g, "").trim();
+  return clean || fullName;
+}
+
 function getIsoDateStr(d: any): string {
   if (!d) return "";
   if (typeof d === "string") {
@@ -137,14 +143,16 @@ export function PharmacistSchedule() {
         <div className="flex justify-center p-12"><div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div></div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-          <table className="w-full border-collapse min-w-[800px]">
+          <table className="w-full border-collapse min-w-[1050px] table-fixed">
             <thead>
-              <tr className="bg-slate-50">
-                <th className="p-4 border-b border-r border-slate-200 text-left text-sm font-bold text-slate-500 w-48">Ca / Ngày</th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="p-3.5 border-r border-slate-200 text-left text-xs font-bold uppercase tracking-wider text-slate-500 w-44">
+                  Ca / Ngày
+                </th>
                 {weekDays.map(d => (
-                  <th key={d.toISOString()} className="p-4 border-b border-slate-200 text-center">
-                    <div className="text-sm font-bold text-slate-800">{d.toLocaleDateString('vi-VN', { weekday: 'short' })}</div>
-                    <div className="text-xs text-slate-500 mt-1">{d.getDate()}/{d.getMonth()+1}</div>
+                  <th key={d.toISOString()} className="p-3 border-r border-slate-200 last:border-r-0 text-center w-[calc((100%-11rem)/7)] min-w-[125px]">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-800">{d.toLocaleDateString('vi-VN', { weekday: 'short' })}</div>
+                    <div className="text-xs font-medium text-slate-500 mt-0.5">{d.getDate()}/{d.getMonth()+1}</div>
                   </th>
                 ))}
               </tr>
@@ -152,10 +160,10 @@ export function PharmacistSchedule() {
             <tbody>
               {shifts.map(shift => (
                 <tr key={shift._id} className="border-b border-slate-100 last:border-0">
-                  <td className="p-4 border-r border-slate-200">
-                    <div className="flex items-center gap-2 font-bold text-slate-700 mb-1">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: shift.color }}></div>
-                      {shift.name}
+                  <td className="p-3.5 border-r border-slate-200 bg-slate-50/30">
+                    <div className="flex items-center gap-2 font-bold text-slate-800 mb-1 text-sm">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: shift.color }}></div>
+                      <span className="truncate">{shift.name}</span>
                     </div>
                     <div className="text-xs text-slate-500 font-medium">
                       {shift.startTime} - {shift.endTime}
@@ -163,18 +171,18 @@ export function PharmacistSchedule() {
                   </td>
                   {weekDays.map(d => {
                     const assignment = (schedule?.assignments || []).find(a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id);
-                    if (!assignment) return <td key={d.toISOString()} className="p-2 border-r border-slate-100 h-24"></td>;
+                    if (!assignment) return <td key={d.toISOString()} className="p-2 border-r border-slate-100 last:border-r-0 h-24"></td>;
 
                     const isMine = assignment.employeeId === userId;
                     return (
-                      <td key={d.toISOString()} className={`p-2 border-r border-slate-100 align-top h-24 relative group ${isMine ? 'bg-blue-50/50' : 'opacity-40'}`}>
-                        <div className={`p-2 rounded-xl flex flex-col justify-between h-full border ${isMine ? 'bg-white border-[#0057cd]/30 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isMine ? 'bg-[#0057cd] text-white' : 'bg-slate-200 text-slate-600'}`}>
+                      <td key={d.toISOString()} className={`p-2 border-r border-slate-100 last:border-r-0 align-top h-24 relative group ${isMine ? 'bg-blue-50/50' : 'opacity-60'}`}>
+                        <div className={`p-2 rounded-xl flex flex-col justify-between h-full border ${isMine ? 'bg-white border-[#0057cd]/40 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${isMine ? 'bg-[#0057cd] text-white' : 'bg-slate-200 text-slate-600'}`}>
                               <User size={12} />
                             </div>
-                            <span className="text-sm font-semibold text-slate-800 truncate" title={assignment.employeeName}>
-                              {assignment.employeeName.split(' ').pop()}
+                            <span className="text-xs font-semibold text-slate-800 truncate" title={assignment.employeeName}>
+                              {formatEmployeeName(assignment.employeeName)}
                             </span>
                           </div>
                           {isMine && isPublished && (
