@@ -2,24 +2,50 @@ import React, { useState, useEffect } from "react";
 import { hrService, WorkSchedule, WorkShift, WorkScheduleAssignment } from "../../services/hr/hr.service";
 import { employeeService, Employee } from "../../services/admin/employee.service";
 import { authService } from "../../services/auth/auth.service";
-import { Calendar, ChevronLeft, ChevronRight, User, Trash2, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { 
+  Calendar, 
+  ChevronLeft, 
+  ChevronRight, 
+  User, 
+  Trash2, 
+  ShieldCheck, 
+  CheckCircle2, 
+  Clock, 
+  Plus, 
+  Search, 
+  X, 
+  Users, 
+  Briefcase,
+  AlertCircle
+} from "lucide-react";
 
 // Utilities
 function getMonday(d: Date) {
   d = new Date(d);
-  const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d;
 }
+
 function formatDate(d: Date) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
 function formatEmployeeName(fullName: string) {
   if (!fullName) return "";
   const clean = fullName.replace(/\s*\([^)]*\)/g, "").trim();
   return clean || fullName;
+}
+
+function getInitials(name: string) {
+  if (!name) return "NV";
+  const words = name.trim().split(" ");
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
 
 function getIsoDateStr(d: any): string {
@@ -37,12 +63,24 @@ function getIsoDateStr(d: any): string {
   }
 }
 
+interface AssignModalState {
+  isOpen: boolean;
+  date: Date | null;
+  shift: WorkShift | null;
+}
+
 export function BranchSchedule() {
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(formatDate(getMonday(new Date())));
   const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
   const [shifts, setShifts] = useState<WorkShift[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchEmployeeQuery, setSearchEmployeeQuery] = useState("");
+  const [assignModal, setAssignModal] = useState<AssignModalState>({
+    isOpen: false,
+    date: null,
+    shift: null,
+  });
   
   // Lấy chi nhánh an toàn từ localStorage hoặc authService
   const getBranchId = () => {
@@ -109,6 +147,10 @@ export function BranchSchedule() {
     setCurrentWeekStart(formatDate(d));
   };
 
+  const goToToday = () => {
+    setCurrentWeekStart(formatDate(getMonday(new Date())));
+  };
+
   const getWeekDays = (start: string) => {
     const days: Date[] = [];
     const [year, month, day] = start.split('-').map(Number);
@@ -119,7 +161,8 @@ export function BranchSchedule() {
   };
 
   const weekDays = getWeekDays(currentWeekStart);
-  
+  const todayStr = formatDate(new Date());
+
   const getAssignment = (date: Date, shiftId: string) => {
     if (!schedule || !schedule.assignments || !Array.isArray(schedule.assignments)) return null;
     const targetDateStr = formatDate(date);
@@ -127,6 +170,12 @@ export function BranchSchedule() {
       const aDateStr = getIsoDateStr(a.date);
       return aDateStr === targetDateStr && a.shiftId === shiftId;
     });
+  };
+
+  // Tính số ca nhân viên đã được xếp trong tuần hiện tại
+  const getEmployeeWeeklyShiftCount = (employeeId: string) => {
+    if (!schedule || !schedule.assignments) return 0;
+    return schedule.assignments.filter(a => a.employeeId === employeeId).length;
   };
 
   const handleAssign = async (date: Date, shift: WorkShift, empId: string) => {
@@ -151,8 +200,9 @@ export function BranchSchedule() {
     );
     newAssignments.push(newAssignment);
 
-    // Cập nhật state UI ngay lập tức để không bị giật lag
+    // Optimistic UI update
     setSchedule({ ...schedule, assignments: newAssignments });
+    setAssignModal({ isOpen: false, date: null, shift: null });
 
     try {
       let updated: any = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
@@ -178,7 +228,6 @@ export function BranchSchedule() {
       a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shiftId)
     );
 
-    // Cập nhật state UI ngay lập tức
     setSchedule({ ...schedule, assignments: newAssignments });
 
     try {
@@ -199,7 +248,7 @@ export function BranchSchedule() {
   };
 
   const handlePublish = async () => {
-    if (window.confirm("Bạn có chắc chắn muốn đăng lịch này? Lịch đã đăng sẽ không thể chỉnh sửa tự do và nhân viên sẽ nhận được thông báo.")) {
+    if (window.confirm("Bạn có chắc chắn muốn đăng lịch này? Lịch đã đăng sẽ không thể chỉnh sửa tự do và toàn bộ nhân viên sẽ nhận được thông báo.")) {
       try {
         await hrService.publishSchedule(currentWeekStart);
         fetchData();
@@ -210,133 +259,376 @@ export function BranchSchedule() {
   };
 
   const isPublished = schedule?.status === 'published';
+  const totalAssignmentsCount = schedule?.assignments?.length || 0;
+  const uniqueEmployeesWorking = new Set((schedule?.assignments || []).map(a => a.employeeId)).size;
+
+  // Lọc nhân viên trong modal tìm kiếm
+  const filteredEmployees = employees.filter(e => {
+    const q = searchEmployeeQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      e.fullName.toLowerCase().includes(q) ||
+      (e.email && e.email.toLowerCase().includes(q)) ||
+      (e.role && e.role.toLowerCase().includes(q))
+    );
+  });
 
   return (
-    <div className="flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+    <div className="flex flex-col min-h-full bg-[#f8fafc] p-6 lg:p-8 space-y-6">
+      {/* 1. Header Page Title & Primary Actions */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Phân Công Lịch Làm Việc</h1>
-          <p className="text-slate-500 mt-1">Lên lịch trực cho dược sĩ tại chi nhánh</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0057cd] flex items-center justify-center font-bold">
+              <Calendar size={22} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Phân Công Lịch Làm Việc</h1>
+              <p className="text-slate-500 text-sm mt-0.5">Lên kế hoạch và điều phối ca trực cho nhân sự chi nhánh</p>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3 items-center">
+
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
           {schedule && (
-            <span className={`px-3 py-1.5 text-sm font-bold rounded-xl flex items-center gap-2 ${isPublished ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+            <div className={`px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-2 border ${
+              isPublished 
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}>
               {isPublished ? <CheckCircle2 size={16} /> : <ShieldCheck size={16} />}
-              {isPublished ? "Đã Đăng Lịch" : "Bản Nháp"}
-            </span>
+              {isPublished ? "Đã Công Bố Lịch" : "Bản Nháp (Chưa Đăng)"}
+            </div>
           )}
+
           <button
             onClick={handlePublish}
-            disabled={!schedule || isPublished || (schedule.assignments || []).length === 0}
-            className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] disabled:opacity-50 transition-colors shadow-sm"
+            disabled={!schedule || isPublished || totalAssignmentsCount === 0}
+            className="px-5 py-2.5 bg-[#0057cd] hover:bg-[#00419e] text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow flex items-center gap-2"
           >
+            <CheckCircle2 size={18} />
             Đăng Lịch Tuần
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex justify-between items-center">
-        <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-slate-100 rounded-lg"><ChevronLeft /></button>
-        <div className="flex items-center gap-2 font-bold text-lg text-slate-700">
-          <Calendar className="text-[#0057cd]" />
-          Tuần {formatDate(weekDays[0])} đến {formatDate(weekDays[6])}
+      {/* 2. Control Toolbar: Week Navigation & Quick Statistics */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+        {/* Week Navigator */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={goToToday}
+            className="px-3.5 py-2 text-xs font-bold text-slate-700 hover:text-[#0057cd] bg-slate-100 hover:bg-blue-50 rounded-xl transition-colors border border-slate-200"
+          >
+            Hôm nay
+          </button>
+
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button 
+              onClick={() => changeWeek(-1)} 
+              title="Tuần trước"
+              className="p-1.5 hover:bg-white text-slate-700 rounded-lg transition-colors"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button 
+              onClick={() => changeWeek(1)} 
+              title="Tuần sau"
+              className="p-1.5 hover:bg-white text-slate-700 rounded-lg transition-colors"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 pl-2 font-bold text-slate-800 text-sm md:text-base">
+            <span className="text-slate-500 font-medium">Tuần:</span>
+            <span>{formatDate(weekDays[0])}</span>
+            <span className="text-slate-400">→</span>
+            <span>{formatDate(weekDays[6])}</span>
+          </div>
         </div>
-        <button onClick={() => changeWeek(1)} className="p-2 hover:bg-slate-100 rounded-lg"><ChevronRight /></button>
+
+        {/* Quick Stats Badges */}
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 font-medium">
+            <Briefcase size={14} className="text-[#0057cd]" />
+            <span>Đã gán: <strong className="text-slate-900 font-bold">{totalAssignmentsCount}</strong> ca</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 font-medium">
+            <Users size={14} className="text-emerald-600" />
+            <span>Nhân sự trực: <strong className="text-slate-900 font-bold">{uniqueEmployeesWorking}</strong> người</span>
+          </div>
+        </div>
       </div>
 
+      {/* 3. Main Schedule Matrix Table */}
       {loading ? (
-        <div className="flex justify-center p-12"><div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div></div>
+        <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-200">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+          <span className="mt-4 text-sm font-semibold text-slate-500">Đang tải bảng phân công ca trực...</span>
+        </div>
+      ) : shifts.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+          <AlertCircle size={40} className="mx-auto text-amber-500 mb-3" />
+          <h3 className="text-lg font-bold text-slate-800">Chưa có ca làm việc nào</h3>
+          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+            Chi nhánh chưa thiết lập danh sách ca làm việc. Vui lòng vào mục "Quản lý Ca Làm Việc" để cấu hình trước.
+          </p>
+        </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-          <table className="w-full border-collapse min-w-[1050px] table-fixed">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="p-3.5 border-r border-slate-200 text-left text-xs font-bold uppercase tracking-wider text-slate-500 w-44">
-                  Ca / Ngày
-                </th>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[1150px] table-fixed">
+              {/* Column Width Distribution */}
+              <colgroup>
+                <col className="w-48" /> {/* Cột Ca Làm Việc */}
                 {weekDays.map(d => (
-                  <th key={d.toISOString()} className="p-3 border-r border-slate-200 last:border-r-0 text-center w-[calc((100%-11rem)/7)] min-w-[125px]">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-800">{d.toLocaleDateString('vi-VN', { weekday: 'short' })}</div>
-                    <div className="text-xs font-medium text-slate-500 mt-0.5">{d.getDate()}/{d.getMonth()+1}</div>
-                  </th>
+                  <col key={d.toISOString()} className="w-[calc((100%-12rem)/7)] min-w-[138px]" />
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {shifts.map(shift => (
-                <tr key={shift._id} className="border-b border-slate-100 last:border-0">
-                  <td className="p-3.5 border-r border-slate-200 bg-slate-50/30">
-                    <div className="flex items-center gap-2 font-bold text-slate-800 mb-1 text-sm">
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: shift.color }}></div>
-                      <span className="truncate">{shift.name}</span>
+              </colgroup>
+
+              {/* Table Header */}
+              <thead>
+                <tr className="bg-slate-50/90 border-b border-slate-200">
+                  <th className="p-4 border-r border-slate-200 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <div className="flex items-center gap-2">
+                      <Clock size={16} className="text-slate-400" />
+                      Ca / Ngày
                     </div>
-                    <div className="text-xs text-slate-500 font-medium">
-                      {shift.startTime} - {shift.endTime}
-                    </div>
-                  </td>
+                  </th>
                   {weekDays.map(d => {
-                    const assignment = getAssignment(d, shift._id);
+                    const isToday = formatDate(d) === todayStr;
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6; // Thứ 7 hoặc CN
                     return (
-                      <td key={d.toISOString()} className="p-2 border-r border-slate-100 last:border-r-0 align-top h-24 relative group">
-                        {assignment ? (
-                          <div className={`p-2 rounded-xl flex items-center justify-between gap-1 border transition-all ${
-                            isPublished ? 'bg-slate-50 border-slate-200' : 'bg-blue-50/70 border-blue-200 hover:border-blue-300 shadow-sm'
-                          }`}>
-                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                                <User size={12} />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-800 truncate" title={assignment.employeeName}>
-                                {formatEmployeeName(assignment.employeeName)}
+                      <th 
+                        key={d.toISOString()} 
+                        className={`p-3.5 border-r border-slate-200 last:border-r-0 text-center transition-colors ${
+                          isToday ? 'bg-blue-50/70 border-b-2 border-b-[#0057cd]' : isWeekend ? 'bg-slate-100/50' : ''
+                        }`}
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className={`text-xs font-extrabold uppercase tracking-wider ${isToday ? 'text-[#0057cd]' : 'text-slate-700'}`}>
+                            {d.toLocaleDateString('vi-VN', { weekday: 'short' })}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className={`text-sm font-bold ${isToday ? 'text-[#0057cd]' : 'text-slate-900'}`}>
+                              {d.getDate()}/{d.getMonth() + 1}
+                            </span>
+                            {isToday && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#0057cd] text-white rounded-md">
+                                Hôm nay
                               </span>
-                            </div>
-                            {!isPublished && (
-                              <button 
-                                onClick={() => handleRemoveAssignment(d, shift._id)} 
-                                title="Hủy phân công"
-                                className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-white/80 transition-colors shrink-0"
-                              >
-                                <Trash2 size={13} />
-                              </button>
                             )}
                           </div>
-                        ) : (
-                          !isPublished && (
-                            <div className="h-full flex flex-col justify-center">
-                              <select 
-                                className="w-full text-xs font-medium border border-dashed border-slate-300 hover:border-[#0057cd] hover:bg-blue-50/30 bg-slate-50/60 rounded-lg px-2 py-2 text-slate-600 focus:ring-2 focus:ring-[#0057cd] transition-all cursor-pointer text-center truncate"
-                                onChange={async (e) => {
-                                  const val = e.target.value;
-                                  if (val) {
-                                    e.target.disabled = true;
-                                    await handleAssign(d, shift, val);
-                                    e.target.disabled = false;
-                                  }
-                                  e.target.value = "";
-                                }}
-                                defaultValue=""
-                              >
-                                <option value="" disabled>+ Gán ca</option>
-                                {employees.length === 0 ? (
-                                  <option value="" disabled>Không có nhân viên</option>
-                                ) : (
-                                  employees.map(e => (
-                                    <option key={e._id} value={e._id}>
-                                      {formatEmployeeName(e.fullName)} {e.role === 'pharmacist' ? '(Dược sĩ)' : '(Quản lý)'}
-                                    </option>
-                                  ))
-                                )}
-                              </select>
-                            </div>
-                          )
-                        )}
-                      </td>
+                        </div>
+                      </th>
                     );
                   })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+
+              {/* Table Body */}
+              <tbody className="divide-y divide-slate-100">
+                {shifts.map(shift => (
+                  <tr key={shift._id} className="hover:bg-slate-50/40 transition-colors">
+                    {/* Shift Header Column */}
+                    <td className="p-4 border-r border-slate-200 bg-slate-50/20 align-top">
+                      <div className="sticky left-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div 
+                            className="w-3 h-3 rounded-full shrink-0 shadow-xs" 
+                            style={{ backgroundColor: shift.color || '#0057cd' }}
+                          ></div>
+                          <span className="font-bold text-slate-800 text-sm tracking-tight truncate">
+                            {shift.name}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 font-semibold flex items-center gap-1 pl-5">
+                          <span>{shift.startTime}</span>
+                          <span className="text-slate-300">-</span>
+                          <span>{shift.endTime}</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Day Slot Cells */}
+                    {weekDays.map(d => {
+                      const assignment = getAssignment(d, shift._id);
+                      const isToday = formatDate(d) === todayStr;
+
+                      return (
+                        <td 
+                          key={d.toISOString()} 
+                          className={`p-2.5 border-r border-slate-100 last:border-r-0 align-top h-28 relative group transition-colors ${
+                            isToday ? 'bg-blue-50/15' : ''
+                          }`}
+                        >
+                          {assignment ? (
+                            /* Assigned Employee Card */
+                            <div className={`h-full min-h-[72px] p-2.5 rounded-xl flex flex-col justify-between border shadow-xs transition-all relative overflow-hidden ${
+                              isPublished 
+                                ? 'bg-slate-50 border-slate-200' 
+                                : 'bg-white border-blue-200 hover:border-blue-400 hover:shadow-sm'
+                            }`}>
+                              {/* Left Colored Accent Bar */}
+                              <div 
+                                className="absolute left-0 top-0 bottom-0 w-1" 
+                                style={{ backgroundColor: shift.color || '#0057cd' }}
+                              ></div>
+
+                              {/* Card Content Top: Avatar + Full Name */}
+                              <div className="flex items-start gap-2 pl-1.5 min-w-0 pr-5">
+                                <div className="w-7 h-7 rounded-lg bg-blue-100 text-[#0057cd] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                                  {getInitials(assignment.employeeName)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div 
+                                    className="text-xs font-bold text-slate-800 leading-snug break-words" 
+                                    title={assignment.employeeName}
+                                  >
+                                    {formatEmployeeName(assignment.employeeName)}
+                                  </div>
+                                  <div className="text-[10px] font-medium text-slate-400 mt-0.5 truncate">
+                                    Dược sĩ
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Remove Action Button (Top Right) */}
+                              {!isPublished && (
+                                <button 
+                                  onClick={() => handleRemoveAssignment(d, shift._id)} 
+                                  title="Hủy gán ca này"
+                                  className="absolute top-2 right-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            /* Unassigned Slot Action Button */
+                            !isPublished && (
+                              <button
+                                onClick={() => {
+                                  setSearchEmployeeQuery("");
+                                  setAssignModal({ isOpen: true, date: d, shift });
+                                }}
+                                className="w-full h-full min-h-[72px] rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/50 text-slate-400 hover:text-[#0057cd] flex flex-col items-center justify-center gap-1.5 transition-all group/btn cursor-pointer p-2"
+                              >
+                                <div className="w-6 h-6 rounded-full bg-slate-100 group-hover/btn:bg-blue-100 flex items-center justify-center transition-colors">
+                                  <Plus size={14} className="text-slate-500 group-hover/btn:text-[#0057cd]" />
+                                </div>
+                                <span className="text-[11px] font-semibold tracking-tight text-slate-500 group-hover/btn:text-[#0057cd]">
+                                  + Gán ca
+                                </span>
+                              </button>
+                            )
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Professional Assign Employee Modal Dialog */}
+      {assignModal.isOpen && assignModal.date && assignModal.shift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Gán Nhân Viên Trực Ca</h3>
+                <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-600 font-medium">
+                  <span className="px-2 py-0.5 rounded-md font-semibold text-white text-[11px]" style={{ backgroundColor: assignModal.shift.color || '#0057cd' }}>
+                    {assignModal.shift.name}
+                  </span>
+                  <span>({assignModal.shift.startTime} - {assignModal.shift.endTime})</span>
+                  <span>•</span>
+                  <span className="text-slate-800 font-bold">
+                    {assignModal.date.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setAssignModal({ isOpen: false, date: null, shift: null })}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Search Input */}
+            <div className="p-4 border-b border-slate-100">
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="Tìm nhân viên theo tên..."
+                  value={searchEmployeeQuery}
+                  onChange={(e) => setSearchEmployeeQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0057cd] focus:border-transparent"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Modal Employee List */}
+            <div className="p-3 overflow-y-auto space-y-1 flex-1">
+              {filteredEmployees.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  Không tìm thấy nhân viên nào phù hợp.
+                </div>
+              ) : (
+                filteredEmployees.map(emp => {
+                  const shiftCount = getEmployeeWeeklyShiftCount(emp._id);
+                  return (
+                    <button
+                      key={emp._id}
+                      onClick={() => handleAssign(assignModal.date!, assignModal.shift!, emp._id)}
+                      className="w-full p-3 rounded-xl hover:bg-blue-50/70 border border-transparent hover:border-blue-200 flex items-center justify-between text-left transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-blue-100 text-[#0057cd] flex items-center justify-center text-xs font-bold shrink-0">
+                          {getInitials(emp.fullName)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-slate-800 group-hover:text-[#0057cd] truncate">
+                            {formatEmployeeName(emp.fullName)}
+                          </div>
+                          <div className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-2">
+                            <span>{emp.role === 'pharmacist' ? 'Dược sĩ' : 'Quản lý'}</span>
+                            <span>•</span>
+                            <span className="text-slate-400">{emp.email}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 pl-3">
+                        <span className="text-[11px] font-semibold px-2.5 py-1 bg-slate-100 group-hover:bg-blue-100/70 text-slate-600 group-hover:text-[#0057cd] rounded-lg transition-colors">
+                          {shiftCount} ca/tuần
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-100 bg-slate-50/50 text-right">
+              <button
+                onClick={() => setAssignModal({ isOpen: false, date: null, shift: null })}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-200/60 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
