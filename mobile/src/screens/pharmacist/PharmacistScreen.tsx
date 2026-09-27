@@ -26,7 +26,7 @@ import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModa
 import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState<'POS' | 'OCR' | 'INTERACTIONS'>('POS');
+  const [activeTab, setActiveTab] = useState<'POS' | 'OCR'>('POS');
 
   // POS State
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -44,10 +44,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [scanning, setScanning] = useState<boolean>(false);
   const [ocrResult, setOcrResult] = useState<any | null>(null);
 
-  // Drug Interaction State
-  const [selectedInteractionMeds, setSelectedInteractionMeds] = useState<string[]>([]);
-  const [checkingInteractions, setCheckingInteractions] = useState<boolean>(false);
-  const [interactionResult, setInteractionResult] = useState<any | null>(null);
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
@@ -238,29 +234,60 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     setScanning(true);
     try {
       const res = await ApiService.scanPrescriptionAI(uri);
-      if (res) {
-        const ocr = res.ocr_result || res;
-        const meds = ocr.medications || res.medications || res.matched_drugs || [];
-
-        const parsedResult = {
-          diagnosis: ocr.diagnosis || res.diagnosis || 'Kê đơn theo phác đồ điều trị',
-          doctor: ocr.doctor || ocr.doctor_name || res.doctor || 'Bác sĩ điều trị',
-          patient: ocr.patient_name || res.patient_name || (ocr.patient ? `${ocr.patient.name} (${ocr.patient.age || ''})` : 'Bệnh nhân khám'),
-          medicines: meds.map((m: any) => ({
-            name: m.name || m.product_name || m.brand_name || 'Thuốc chỉ định',
-            dosage: m.dosage || m.instruction || m.usage || 'Theo chỉ định bác sĩ',
-            qty: m.qty || m.quantity || 10,
-            unit: m.unit || 'Hộp',
-          })),
-        };
-        setOcrResult(parsedResult);
-        showToast.success('Thành công', 'AI đã hoàn tất quét và bóc tách đơn thuốc từ ảnh!');
-      } else {
+      if (!res) {
         showToast.info('Thông báo', 'Không thể nhận diện nội dung đơn thuốc từ ảnh. Bạn có thể chọn đơn mẫu để thử nghiệm.');
+        return;
       }
-    } catch (e) {
+
+      if (res.error_code === 'HANDWRITTEN_PRESCRIPTION_REJECTED' || res.is_handwritten) {
+        showToast.error('Từ chối', 'Đơn thuốc viết tay không được hỗ trợ! Vui lòng chụp hoặc tải lên đơn bản in điện tử rõ nét.');
+        return;
+      }
+
+      if (res.success === false && res.message) {
+        showToast.error('Lỗi quét', res.message);
+        return;
+      }
+
+      let meds: any[] = [];
+      if (Array.isArray(res.items)) {
+        meds = res.items.map((item: any) => {
+          const sku = item.selected_sku || {};
+          const ext = item.extracted || {};
+          return {
+            name: sku.product_name || ext.brand_name || ext.generic_name || item.raw_text || 'Thuốc chỉ định',
+            dosage: ext.usage_instruction || 'Theo chỉ định bác sĩ',
+            qty: ext.quantity || 1,
+            unit: sku.unit || ext.unit || 'Viên',
+            price: sku.retail_price || 0,
+            medicineId: sku.product_id,
+            stock: sku.stock || 0,
+            batchNo: item.fefo_batch?.batch_no || 'DEFAULT',
+          };
+        });
+      } else {
+        const ocr = res.ocr_result || res;
+        const rawMeds = ocr.medications || res.medications || res.matched_drugs || [];
+        meds = rawMeds.map((m: any) => ({
+          name: m.name || m.product_name || m.brand_name || 'Thuốc chỉ định',
+          dosage: m.dosage || m.instruction || m.usage || 'Theo chỉ định bác sĩ',
+          qty: m.qty || m.quantity || 10,
+          unit: m.unit || 'Hộp',
+        }));
+      }
+
+      const parsedResult = {
+        diagnosis: res.patient?.diagnosis || res.ocr_result?.diagnosis || res.diagnosis || 'Kê đơn theo phác đồ điều trị',
+        doctor: res.doctor?.name ? `${res.doctor.name}${res.doctor.hospital ? ` (${res.doctor.hospital})` : ''}` : (res.ocr_result?.doctor || res.doctor || 'Bác sĩ điều trị'),
+        patient: res.patient?.name ? `${res.patient.name}${res.patient.age ? ` (${res.patient.age}T)` : ''}` : (res.ocr_result?.patient_name || res.patient_name || 'Bệnh nhân khám'),
+        medicines: meds,
+      };
+
+      setOcrResult(parsedResult);
+      showToast.success('Thành công', `AI đã hoàn tất quét và bóc tách ${meds.length} thuốc từ bản in!`);
+    } catch (e: any) {
       console.warn('Lỗi quét đơn thuốc:', e);
-      showToast.error('Lỗi', 'Không thể kết nối dịch vụ AI OCR.');
+      showToast.error('Lỗi', e?.message || 'Không thể kết nối dịch vụ AI OCR.');
     } finally {
       setScanning(false);
     }
@@ -270,11 +297,14 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     if (!ocrResult?.medicines?.length) return;
     let addedCount = 0;
     ocrResult.medicines.forEach((m: any) => {
-      const matched = medicines.find(
-        (med) =>
-          med.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
-          (m.name && med.name.toLowerCase().includes(m.name.toLowerCase()))
-      );
+      let matched = medicines.find((med) => m.medicineId && med.id === m.medicineId);
+      if (!matched) {
+        matched = medicines.find(
+          (med) =>
+            med.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
+            (m.name && med.name.toLowerCase().includes(m.name.toLowerCase()))
+        );
+      }
       if (matched) {
         addToCart(matched);
         addedCount++;
@@ -309,40 +339,12 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     }
   };
 
-  // Drug Interaction checker
-  const toggleInteractionMed = (medName: string) => {
-    setSelectedInteractionMeds((prev) =>
-      prev.includes(medName) ? prev.filter((m) => m !== medName) : [...prev, medName]
-    );
-  };
-
-  const handleCheckInteractions = async () => {
-    if (selectedInteractionMeds.length < 2) {
-      showToast.info('Thông báo', 'Vui lòng chọn ít nhất 2 loại thuốc để kiểm tra tương tác chéo.');
-      return;
-    }
-
-    setCheckingInteractions(true);
-    const res = await ApiService.checkInteractions(selectedInteractionMeds);
-    setCheckingInteractions(false);
-
-    if (res) {
-      setInteractionResult(res);
-    } else {
-      setInteractionResult({
-        hasInteraction: true,
-        severity: 'MODERATE',
-        description: 'Tương tác giữa Paracetamol và Kháng sinh Amoxicillin: Không có chống chỉ định tuyệt đối, nhưng cần theo dõi chức năng gan khi dùng liều cao dài ngày.',
-        recommendation: 'Uống cách nhau 2 tiếng để giảm thiểu kích ứng dạ dày.',
-      });
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
         title="Dược Sĩ Bán Hàng"
-        subtitle="POS Bán lẻ, Quét Đơn OCR & Kiểm tra tương tác thuốc"
+        subtitle="POS Bán lẻ & Quét Đơn OCR"
         gradientVariant="emerald"
         rightAction={{
           icon: 'person-circle-outline',
@@ -384,19 +386,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </Text>
         </AnimatedTouchable>
 
-        <AnimatedTouchable
-          onPress={() => setActiveTab('INTERACTIONS')}
-          style={[styles.tabItem, activeTab === 'INTERACTIONS' && styles.activeTabItem]}
-        >
-          <Ionicons
-            name="git-compare"
-            size={18}
-            color={activeTab === 'INTERACTIONS' ? '#065F46' : '#94A3B8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'INTERACTIONS' && styles.activeTabText]}>
-            Tương Tác Thuốc
-          </Text>
-        </AnimatedTouchable>
       </View>
 
       <ScrollView
@@ -555,6 +544,16 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           <View>
             <Text style={styles.sectionTitle}>Quét Đơn Thuốc Bằng Camera & AI OCR</Text>
 
+            {/* Notice Banner: Printed-only */}
+            <View style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: '#92400E', fontWeight: 'bold' }}>
+                ⚠️ CHỈ HỖ TRỢ ĐƠN THUỐC BẢN IN ĐIỆN TỬ
+              </Text>
+              <Text style={{ fontSize: 11, color: '#B45309', marginTop: 2, lineHeight: 15 }}>
+                Hệ thống chỉ xử lý đơn in rõ nét từ bệnh viện/phòng khám. Tuyệt đối không tiếp nhận đơn chữ viết tay để tránh sai sót y khoa.
+              </Text>
+            </View>
+
             {/* Camera & Gallery Action Buttons */}
             <View style={styles.ocrActionRow}>
               <AnimatedTouchable onPress={handleTakePhotoPrescription} style={styles.ocrCameraBtn}>
@@ -693,73 +692,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </View>
         )}
 
-        {/* TAB 3: INTERACTIONS */}
-        {activeTab === 'INTERACTIONS' && (
-          <View>
-            <Text style={styles.sectionTitle}>Chọn Thuốc Cần Kiểm Tra Tương Tác</Text>
-            <View style={styles.interactionChipGrid}>
-              {medicines.map((m, idx) => {
-                const selected = selectedInteractionMeds.includes(m.name);
-                return (
-                  <AnimatedTouchable
-                    key={m.id || (m as any)._id || `inter-${idx}`}
-                    onPress={() => toggleInteractionMed(m.name)}
-                    style={[
-                      styles.interChip,
-                      selected && styles.selectedInterChip,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.interChipText,
-                        selected && styles.selectedInterChipText,
-                      ]}
-                    >
-                      {m.name}
-                    </Text>
-                  </AnimatedTouchable>
-                );
-              })}
-            </View>
-
-            <GradientButton
-              title="KIỂM TRA TƯƠNG TÁC CHÉO"
-              onPress={handleCheckInteractions}
-              loading={checkingInteractions}
-              gradientVariant="indigo"
-              size="md"
-              style={{ marginVertical: 14 }}
-            />
-
-            {interactionResult && (
-              <View
-                style={[
-                  styles.interactionCard,
-                  { borderLeftColor: interactionResult.hasInteraction ? '#F59E0B' : '#10B981' },
-                ]}
-              >
-                <View style={styles.interactionHeader}>
-                  <Ionicons
-                    name={interactionResult.hasInteraction ? 'warning' : 'checkmark-circle'}
-                    size={24}
-                    color={interactionResult.hasInteraction ? '#D97706' : '#059669'}
-                  />
-                  <Text style={styles.interactionTitle}>
-                    {interactionResult.hasInteraction
-                      ? `CẢNH BÁO MỨC ĐỘ: ${interactionResult.severity}`
-                      : 'AN TOÀN - KHÔNG PHÁT HIỆN TƯƠNG TÁC NGUY HIỂM'}
-                  </Text>
-                </View>
-                <Text style={styles.interactionDesc}>{interactionResult.description}</Text>
-                {interactionResult.recommendation ? (
-                  <Text style={styles.interactionRec}>
-                    Khuyến nghị: {interactionResult.recommendation}
-                  </Text>
-                ) : null}
-              </View>
-            )}
-          </View>
-        )}
       </ScrollView>
 
       {/* Medicine Detail Modal */}
@@ -1300,63 +1232,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#059669',
     marginTop: 2,
-  },
-  interactionChipGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  interChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    marginRight: 8,
-    marginBottom: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  selectedInterChip: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#4F46E5',
-  },
-  interChipText: {
-    fontSize: 13,
-    color: '#475569',
-  },
-  selectedInterChipText: {
-    color: '#4F46E5',
-    fontWeight: '700',
-  },
-  interactionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    borderLeftWidth: 5,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  interactionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  interactionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginLeft: 8,
-    flex: 1,
-  },
-  interactionDesc: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 18,
-  },
-  interactionRec: {
-    fontSize: 12,
-    color: '#059669',
-    fontWeight: '600',
-    marginTop: 8,
   },
   modalOverlay: {
     flex: 1,

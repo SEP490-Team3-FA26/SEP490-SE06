@@ -75,7 +75,7 @@ export function Reports() {
     }
   }
 
-  const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch';
+  const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch' || userDetails.role === 'director';
   const isBranch = userDetails.role === 'branch';
   const isPharmacist = userDetails.role === 'pharmacist';
 

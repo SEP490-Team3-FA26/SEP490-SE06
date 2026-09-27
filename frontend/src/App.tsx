@@ -61,7 +61,6 @@ import { HQApproval } from "./pages/admin/HQApproval";
 import { PriceManagement } from "./pages/admin/PriceManagement";
 import { SupplierCreditManagement } from "./pages/admin/SupplierCreditManagement";
 import { AuditLogs } from "./pages/admin/AuditLogs";
-import { QuotaManagement } from "./pages/admin/QuotaManagement";
 import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
 import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
 
@@ -75,9 +74,7 @@ import { BranchShiftManagement } from "./pages/branch/BranchShiftManagement";
 import { BranchSchedule } from "./pages/branch/BranchSchedule";
 import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 
-// Pharmacist / Branch Pages
 import { Sales } from "./pages/pharmacist/Sales";
-import { DrugInteractions } from "./pages/pharmacist/DrugInteractions";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
 import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
 
@@ -94,7 +91,6 @@ export default function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Landing />} />
-          <Route path="/interactions" element={<DrugInteractions />} />
 
           {/* Auth Routes */}
           <Route path="/auth" element={<AuthLayout />}>
@@ -118,7 +114,6 @@ export default function App() {
             <Route path="shop" element={<CustomerShop />} />
             <Route path="cart" element={<CustomerCart />} />
             <Route path="checkout" element={<CustomerCheckout />} />
-            <Route path="interactions" element={<DrugInteractions />} />
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
             <Route path="orders" element={<CustomerOrders />} />
@@ -129,7 +124,6 @@ export default function App() {
             <Route path="/director" element={<DirectorLayout />}>
               <Route index element={<DashboardHome />} />
               <Route path="approvals" element={<HQApproval />} />
-              <Route path="quotas" element={<QuotaManagement />} />
               <Route path="finance" element={<Finance />} />
               <Route path="reports" element={<Reports />} />
               <Route path="supplier-credit" element={<SupplierCreditManagement />} />
@@ -155,7 +149,6 @@ export default function App() {
               <Route path="finance" element={<Finance />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="price-management" element={<PriceManagement />} />
-              <Route path="quotas" element={<QuotaManagement />} />
               <Route path="supplier-credit" element={<SupplierCreditManagement />} />
               <Route path="reports" element={<Reports />} />
               <Route path="audit-logs" element={<AuditLogs />} />
@@ -238,7 +231,6 @@ export default function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="schedule" element={<PharmacistSchedule />} />
               <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
-              <Route path="interactions" element={<DrugInteractions />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
             </Route>

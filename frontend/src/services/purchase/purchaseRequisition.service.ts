@@ -12,6 +12,8 @@ export interface PurchaseRequisitionPayload {
   branchName: string;
   branchId?: string;
   isUrgent?: boolean;
+  totalEstimatedCost?: number;
+  isManagerResponsible?: boolean;
   isAiGenerated?: boolean;
   aiConfidence?: number;
   aiReason?: string;

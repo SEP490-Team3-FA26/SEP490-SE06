@@ -17,7 +17,6 @@ import {
 import { notifyAuthTokenChanged } from "../../utils/authEvents";
 import api from "../../services/core/api";
 import { authService } from "../../services/auth/auth.service";
-import { DoveMascotSection } from "../mascot/DoveMascotSection";
 import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
 import { MascotLogoIcon } from "../ui/Logo";
 
@@ -85,12 +84,12 @@ const heroSlides = [
   {
     id: 2,
     tag: "CÔNG NGHỆ ĐỘT PHÁ AI 3.0",
-    title: "Trợ Lý Dược Khoa AI",
-    subtitle: "Tự Động Kiểm Tra Tương Tác Thuốc",
-    desc: "Bảo vệ an toàn sức khỏe gia đình bạn với thư viện phân tích tương tác thuốc độc quyền, tra cứu liều dùng theo chuẩn Dược thư Quốc gia.",
+    title: "Trợ Lý Sức Khỏe AI",
+    subtitle: "Tư Vấn Dược Khoa & Toa Thuốc Thông Minh",
+    desc: "Bảo vệ an toàn sức khỏe gia đình bạn với hệ thống hỗ trợ phân tích triệu chứng, tra cứu hoạt chất theo chuẩn Dược thư Quốc gia.",
     badge: "Chuẩn Bộ Y Tế",
-    ctaText: "Kiểm tra tương tác thuốc ngay",
-    ctaLink: "/interactions",
+    ctaText: "Khám phá danh mục thuốc ngay",
+    ctaLink: "/customer/shop",
     bgGradient: "from-indigo-600 via-blue-600 to-teal-500",
     pillBg: "bg-indigo-500/20"
   },
@@ -914,14 +913,7 @@ export function Landing() {
               <span>Gửi Đơn Thuốc</span>
             </button>
 
-            {/* AI Drug Interaction Tool Link */}
-            <Link
-              to="/interactions"
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-sky-50 hover:bg-sky-100 text-[#0057cd] text-xs font-bold border border-sky-200/80 transition-all"
-            >
-              <BrainCircuit size={15} className="text-[#0d6efd]" />
-              <span>AI Tương Tác</span>
-            </Link>
+
 
             {/* Cart Badge Button */}
             <Link
@@ -1063,9 +1055,6 @@ export function Landing() {
               <button onClick={() => { setActiveCategory("Thiết bị y tế"); navigate("/customer/shop?category=" + encodeURIComponent("Thiết bị y tế")); }} className="px-3 py-1.5 rounded-lg hover:bg-blue-50 hover:text-[#0057cd] transition-all">
                 Thiết Bị Y Tế
               </button>
-              <Link to="/interactions" className="px-3 py-1.5 rounded-lg hover:bg-indigo-50 text-indigo-700 transition-all flex items-center gap-1">
-                <BrainCircuit size={14} /> Tra Cứu Tương Tác
-              </Link>
             </div>
 
             <div className="hidden lg:flex items-center gap-3 pl-4 border-l border-slate-200 shrink-0 text-[11px] text-slate-500">
@@ -1182,33 +1171,33 @@ export function Landing() {
               </div>
             </div>
 
-            {/* Sub-card 2: AI Drug Interaction Check */}
-            <Link
-              to="/interactions"
-              className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-[24px] p-6 border border-indigo-800 shadow-md hover:shadow-xl hover:border-indigo-400 transition-all flex-1 flex flex-col justify-between group"
+            {/* Sub-card 2: Dược Sĩ Tư Vấn Tận Tâm */}
+            <div
+              onClick={() => setIsPrescriptionModalOpen(true)}
+              className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-[24px] p-6 border border-indigo-800 shadow-md hover:shadow-xl hover:border-indigo-400 transition-all flex-1 flex flex-col justify-between group cursor-pointer"
             >
               <div className="flex items-start justify-between">
                 <div>
                   <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-[10px] font-black uppercase tracking-wider">
-                    CÔNG NGHỆ ĐỘC QUYỀN
+                    DƯỢC SĨ TƯ VẤN 24/7
                   </span>
                   <h3 className="text-lg font-black text-white mt-2 group-hover:text-sky-300 transition-colors">
-                    Tra Cứu Tương Tác Thuốc AI
+                    Tư Vấn Đơn Thuốc Trực Tuyến
                   </h3>
                   <p className="text-xs text-indigo-200/80 font-medium mt-1">
-                    Phát hiện ngay các hoạt chất xung đột và tương tác bất lợi trước khi dùng.
+                    Gửi hình ảnh toa thuốc nhận tư vấn hướng dẫn sử dụng và báo giá chỉ sau 15 phút.
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform border border-indigo-500/30">
-                  <BrainCircuit size={24} />
+                  <FileText size={24} />
                 </div>
               </div>
 
               <div className="mt-4 pt-3 border-t border-indigo-800/80 flex items-center justify-between text-xs font-bold text-sky-300">
-                <span>Kiểm tra an toàn thuốc</span>
+                <span>Gửi toa tư vấn ngay</span>
                 <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </div>
-            </Link>
+            </div>
 
           </div>
 
@@ -1239,10 +1228,10 @@ export function Landing() {
               bg: "hover:border-rose-200"
             },
             {
-              title: "Kiểm Tra Tương Tác",
-              subtitle: "AI Dược lý độc quyền",
-              icon: <BrainCircuit size={22} className="text-[#0d6efd]" />,
-              action: () => navigate("/interactions"),
+              title: "Thuốc Chuẩn GPP",
+              subtitle: "100% Chính hãng",
+              icon: <ShieldCheck size={22} className="text-[#0d6efd]" />,
+              action: () => navigate("/customer/shop"),
               bg: "hover:border-blue-200"
             },
             {
@@ -1285,11 +1274,6 @@ export function Landing() {
           ))}
         </div>
       </section>
-
-      {/* ========================================================================= */}
-      {/* 4.5. MASCOT SHOWCASE: BỒ CÂU Y TẾ AI (INTERACTIVE COMPANION) */}
-      {/* ========================================================================= */}
-      <DoveMascotSection />
 
       {/* ========================================================================= */}
       {/* 5. FLASH SALE COUNTDOWN SECTION */}
@@ -1910,7 +1894,7 @@ export function Landing() {
               <li><Link to="/customer/shop" className="hover:text-white transition-colors">Thực Phẩm Chức Năng</Link></li>
               <li><Link to="/customer/shop" className="hover:text-white transition-colors">Dược Mỹ Phẩm</Link></li>
               <li><Link to="/customer/shop" className="hover:text-white transition-colors">Thiết Bị Y Tế</Link></li>
-              <li><Link to="/interactions" className="hover:text-white transition-colors">Tra Cứu Tương Tác AI</Link></li>
+              <li><Link to="/customer/shop" className="hover:text-white transition-colors">Danh Mục Dược Phẩm</Link></li>
             </ul>
           </div>
 

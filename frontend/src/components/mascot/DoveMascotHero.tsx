@@ -114,7 +114,7 @@ export function DoveMascotHero() {
         </button>
 
         <Link
-          to="/interactions"
+          to="/customer/ai-consult"
           className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-[#0d6efd] to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold text-xs transition-all shadow-sm shadow-blue-500/20 active:scale-95"
         >
           <BrainCircuit size={14} />

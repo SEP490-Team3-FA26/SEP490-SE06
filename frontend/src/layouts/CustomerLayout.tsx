@@ -75,7 +75,6 @@ export function CustomerLayout() {
   const navItems = [
     { name: "Cửa Hàng Dược Phẩm", href: "/customer/shop", icon: <ShoppingCart size={18} /> },
     { name: "Tư Vấn AI (Giọng Nói)", href: "/customer/ai-consult", icon: <BrainCircuit size={18} /> },
-    { name: "Tương Tác Thuốc AI", href: "/customer/interactions", icon: <ShieldAlert size={18} /> },
   ].filter(Boolean) as any[];
 
   return (
