@@ -8,6 +8,7 @@ import { Medicine } from '../../inventory-service/src/medicine/schemas/medicine.
 import { Cart } from './schemas/cart.schema';
 import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema';
 import { Branch, BranchDocument } from './schemas/branch.schema';
+import { BranchFeedback, BranchFeedbackDocument } from './schemas/branch-feedback.schema';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as zlib from 'zlib';
@@ -44,6 +45,8 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly auditLogModel: Model<AuditLogDocument>,
     @InjectModel(Branch.name)
     private readonly branchModel: Model<BranchDocument>,
+    @InjectModel(BranchFeedback.name)
+    private readonly feedbackModel: Model<BranchFeedbackDocument>,
     @Inject('INVENTORY_SERVICE')
     private readonly inventoryClient: ClientKafka,
   ) { }
@@ -484,8 +487,9 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       user.accumulatedPoints = (user.accumulatedPoints || 0) + data.accumulatedDelta;
     }
 
-    await user.save();
     const tierInfo = this.getMemberTier(user.accumulatedPoints);
+    user.tier = tierInfo.name;
+    await user.save();
     return {
       success: true,
       points: user.points,
@@ -911,6 +915,261 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       return { error: true, message: 'Nhân viên không tồn tại', statusCode: 404 };
     }
     return { success: true, message: 'Xóa nhân viên thành công' };
+  }
+
+  // =========================================================================
+  // 🌟 KHÁCH HÀNG ĐÁNH GIÁ TRẢI NGHIỆM CHI NHÁNH & CSKH (LOYALTY INTEGRATED)
+  // =========================================================================
+
+  async createFeedback(data: any): Promise<any> {
+    const {
+      orderCode,
+      orderId,
+      branchId,
+      branchName,
+      customerPhone,
+      customerName,
+      rating,
+      tags,
+      comment,
+      images,
+      pharmacistId,
+      pharmacistName,
+    } = data;
+
+    if (!orderCode || !customerPhone || !rating) {
+      throw new RpcException('Thiếu thông tin bắt buộc: orderCode, customerPhone hoặc rating');
+    }
+
+    // 1. Kiểm tra đơn hàng đã đánh giá chưa (Khóa mỗi đơn hàng chỉ đánh giá 1 lần)
+    const existingFeedback = await this.feedbackModel.findOne({ orderCode }).exec();
+    if (existingFeedback) {
+      return {
+        success: false,
+        alreadyReviewed: true,
+        message: 'Hóa đơn này đã được gửi đánh giá trước đó.',
+        feedback: existingFeedback,
+      };
+    }
+
+    // 2. Chống gian lận / Farm điểm: Kiểm tra tần suất trong ngày của SĐT
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const todayFeedbackCount = await this.feedbackModel.countDocuments({
+      customerPhone,
+      createdAt: { $gte: startOfDay },
+    });
+
+    let rewardPoints = 0;
+    let rewardMessage = '';
+    const isAbuse = todayFeedbackCount >= 1; // Giới hạn 1 lần nhận điểm thưởng / ngày
+
+    if (!isAbuse) {
+      rewardPoints = 1000; // Đánh giá cơ bản được 1.000 điểm (= 1.000 VNĐ)
+      if ((comment && comment.trim().length >= 30) || (images && images.length > 0)) {
+        rewardPoints += 1000; // Nhận xét có tâm / có ảnh quầy được thêm 1.000 điểm (tối đa 2.000 điểm)
+      }
+      rewardMessage = `Bạn đã nhận được +${rewardPoints.toLocaleString('vi-VN')} điểm thưởng vào tài khoản thành viên!`;
+    } else {
+      rewardMessage = 'Cảm ơn bạn đã đóng góp ý kiến! Điểm thưởng đánh giá được áp dụng tối đa 1 lần mỗi ngày.';
+    }
+
+    // 3. Cập nhật điểm cho User & Tính Hạng thành viên (Tiering)
+    let updatedCustomer: any = null;
+    let customerTier = 'Bronze';
+    try {
+      if (rewardPoints > 0) {
+        updatedCustomer = await this.updatePoints({
+          phone: customerPhone,
+          pointsDelta: rewardPoints,
+          accumulatedDelta: rewardPoints,
+        });
+        customerTier = updatedCustomer?.tier || this.getMemberTier(updatedCustomer?.accumulatedPoints || 0).name;
+      } else {
+        const user = await this.userModel.findOne({ phone: customerPhone }).exec();
+        if (user) {
+          customerTier = this.getMemberTier(user.accumulatedPoints || 0).name;
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`Không thể cập nhật điểm thưởng cho SĐT ${customerPhone}: ${e.message}`);
+    }
+
+    // 4. Phát sinh mã voucher giảm giá cho lần mua sau (Retention Voucher)
+    const cleanBranchId = branchId || 'BR01';
+    const issuedVoucherCode = `THANKS-${cleanBranchId.replace(/[^A-Za-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
+
+    const numRating = Number(rating);
+    const isNegative = numRating <= 2;
+
+    const newFeedback = new this.feedbackModel({
+      orderId: orderId || orderCode,
+      orderCode,
+      branchId: cleanBranchId,
+      branchName: branchName || 'Chi nhánh nhà thuốc ABC',
+      pharmacistId,
+      pharmacistName,
+      customerPhone,
+      customerName: updatedCustomer?.name || customerName || 'Khách hàng thân thiết',
+      customerTier,
+      rating: numRating,
+      tags: Array.isArray(tags) ? tags : [],
+      comment,
+      images: Array.isArray(images) ? images : [],
+      rewardPointsEarned: rewardPoints,
+      issuedVoucherCode,
+      isNegative,
+      status: isNegative ? 'PENDING' : 'CLOSED',
+    });
+
+    const saved = await newFeedback.save();
+
+    return {
+      success: true,
+      message: 'Gửi đánh giá dịch vụ thành công!',
+      rewardPointsEarned: rewardPoints,
+      rewardMessage,
+      customerTier,
+      currentPoints: updatedCustomer?.points || 0,
+      voucher: {
+        code: issuedVoucherCode,
+        discountAmount: 5000,
+        minOrderValue: 100000,
+        description: 'Giảm 5.000đ cho đơn hàng kế tiếp từ 100.000đ tại chi nhánh',
+        expiryDays: 14,
+      },
+      feedback: saved,
+    };
+  }
+
+  async getFeedbacksByBranch(params: {
+    branchId: string;
+    status?: string;
+    rating?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<any> {
+    const { branchId, status, rating, page = 1, limit = 20 } = params;
+    const query: any = { branchId };
+    if (status) query.status = status;
+    if (rating) query.rating = Number(rating);
+
+    const skip = (page - 1) * limit;
+    const [feedbacks, total, stats] = await Promise.all([
+      this.feedbackModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).exec(),
+      this.feedbackModel.countDocuments(query),
+      this.feedbackModel.aggregate([
+        { $match: { branchId } },
+        {
+          $group: {
+            _id: null,
+            avgRating: { $avg: '$rating' },
+            totalFeedbacks: { $sum: 1 },
+            count1: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } },
+            count2: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
+            count3: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
+            count4: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+            count5: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+            unresolvedNegative: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $lte: ['$rating', 2] }, { $eq: ['$status', 'PENDING'] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const statData = stats[0] || {
+      avgRating: 5.0,
+      totalFeedbacks: 0,
+      count1: 0,
+      count2: 0,
+      count3: 0,
+      count4: 0,
+      count5: 0,
+      unresolvedNegative: 0,
+    };
+
+    return {
+      feedbacks,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      stats: {
+        avgRating: Math.round(statData.avgRating * 10) / 10,
+        totalFeedbacks: statData.totalFeedbacks,
+        ratingBreakdown: {
+          1: statData.count1,
+          2: statData.count2,
+          3: statData.count3,
+          4: statData.count4,
+          5: statData.count5,
+        },
+        unresolvedNegative: statData.unresolvedNegative,
+      },
+    };
+  }
+
+  async resolveFeedback(id: string, resolutionData: any): Promise<any> {
+    const feedback = await this.feedbackModel.findById(id).exec();
+    if (!feedback) {
+      throw new RpcException(`Không tìm thấy đánh giá với ID ${id}`);
+    }
+
+    feedback.status = 'RESOLVED';
+    feedback.resolution = {
+      handledBy: resolutionData.handledBy,
+      handledByName: resolutionData.handledByName || 'Trưởng chi nhánh',
+      actionTaken: resolutionData.actionTaken || 'CALLED_CUSTOMER',
+      notes: resolutionData.notes || '',
+      resolvedAt: new Date(),
+      customerSatisfied: resolutionData.customerSatisfied ?? true,
+    };
+
+    return feedback.save();
+  }
+
+  async getChainFeedbackSummary(): Promise<any> {
+    const summary = await this.feedbackModel.aggregate([
+      {
+        $group: {
+          _id: '$branchId',
+          branchName: { $first: '$branchName' },
+          avgRating: { $avg: '$rating' },
+          totalFeedbacks: { $sum: 1 },
+          negativeCount: { $sum: { $cond: [{ $lte: ['$rating', 2] }, 1, 0] } },
+          resolvedCount: { $sum: { $cond: [{ $eq: ['$status', 'RESOLVED'] }, 1, 0] } },
+        },
+      },
+      { $sort: { avgRating: -1 } },
+    ]);
+
+    return summary.map((s) => ({
+      branchId: s._id,
+      branchName: s.branchName,
+      avgRating: Math.round(s.avgRating * 10) / 10,
+      totalFeedbacks: s.totalFeedbacks,
+      negativeCount: s.negativeCount,
+      resolvedCount: s.resolvedCount,
+      resolutionRate:
+        s.negativeCount > 0 ? Math.round((s.resolvedCount / s.negativeCount) * 100) : 100,
+    }));
+  }
+
+  async getFeedbacksByCustomerPhone(customerPhone: string): Promise<any[]> {
+    if (!customerPhone) return [];
+    return this.feedbackModel
+      .find({ customerPhone }, { orderCode: 1, rating: 1, comment: 1, createdAt: 1 })
+      .lean()
+      .exec();
   }
 }
 

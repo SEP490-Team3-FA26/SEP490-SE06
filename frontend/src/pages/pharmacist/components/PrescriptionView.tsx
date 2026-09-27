@@ -1659,6 +1659,26 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                     </span>
                   </div>
                 </div>
+
+                {/* QR Code Đánh giá Dịch vụ & Nhận Điểm Thưởng */}
+                <div className="mt-2 pt-3 border-t border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-2 bg-gradient-to-b from-blue-50/40 to-white p-3 rounded-xl border border-blue-100 print:border-black print:bg-white">
+                  <div className="text-[12px] font-bold text-[#0057cd] print:text-black uppercase tracking-wide">
+                    ⭐ ĐÁNH GIÁ DỊCH VỤ - NHẬN QUÀ NGAY ⭐
+                  </div>
+                  <div className="bg-white p-1 rounded-lg border border-slate-200 print:border-black shadow-sm">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                        `${window.location.origin}/feedback/${invoiceData.data?.orderCode || invoiceData.data?._id || ""}`
+                      )}`}
+                      alt="QR Đánh giá dịch vụ" 
+                      className="w-[100px] h-[100px] object-contain"
+                    />
+                  </div>
+                  <div className="text-[11px] text-slate-600 print:text-black font-medium leading-tight">
+                    Quét mã nhận ngay <span className="font-bold text-emerald-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br/>
+                    và Voucher giảm giá cho lần mua sau!
+                  </div>
+                </div>
               </div>
             </div>
 

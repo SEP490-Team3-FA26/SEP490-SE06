@@ -1,9 +1,10 @@
 import { BaseDashboardLayout } from "./BaseDashboardLayout";
-import { LayoutDashboard, Banknote, BarChart3, Sparkles, PackageSearch, ShieldCheck, Tag, CreditCard, Link2 } from "lucide-react";
+import { LayoutDashboard, Banknote, BarChart3, Sparkles, PackageSearch, ShieldCheck, Tag, CreditCard, Link2, HeartHandshake } from "lucide-react";
 
 export function DirectorLayout() {
   const directorNavItems = [
     { name: "Tổng quan Điều hành", href: "/director", icon: <LayoutDashboard size={20} /> },
+    { name: "CSKH & Đánh giá Chi nhánh", href: "/director/feedbacks", icon: <HeartHandshake size={20} /> },
     { name: "Phê duyệt mua hàng (PO)", href: "/director/approvals", icon: <ShieldCheck size={20} /> },
     { name: "Báo cáo Tài chính", href: "/director/finance", icon: <Banknote size={20} /> },
     { name: "Báo cáo Thống kê & Mùa vụ", href: "/director/reports", icon: <BarChart3 size={20} /> },

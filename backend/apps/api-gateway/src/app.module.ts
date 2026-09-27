@@ -30,6 +30,7 @@ import { SensorController } from "./controllers/sensor.controller";
 import { HrController } from "./controllers/hr.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
+import { FeedbackController } from "./controllers/feedback.controller";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { GoogleStrategy } from "./strategies/google.strategy";
@@ -197,7 +198,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     AdminEmployeeController,
     ReportController,
     FinanceController,
-    SensorController,
+    FeedbackController,
     HrController,
   ],
   providers: [
@@ -329,6 +330,11 @@ export class AppGatewayModule implements OnModuleInit {
       "user.admin.employee.ban_unban",
       "user.admin.employee.delete",
       "user.admin.employee.approve",
+      "user.feedback.create",
+      "user.feedback.get_by_branch",
+      "user.feedback.resolve",
+      "user.feedback.chain_summary",
+      "user.feedback.get_by_customer",
       "hr.shift.list",
       "hr.shift.create",
       "hr.shift.update",
