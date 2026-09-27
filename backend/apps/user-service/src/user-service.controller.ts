@@ -151,7 +151,34 @@ export class UserServiceController {
   }
 
   @MessagePattern('user.audit.export_status')
-  async handleExportAuditLogsStatus(@Payload() data: { jobId: string }): Promise < ExportJobStatusDto > {
+  async handleExportAuditLogsStatus(@Payload() data: { jobId: string }): Promise<ExportJobStatusDto> {
     return this.userService.getExportJobStatus(data.jobId);
+  }
+
+  // --- BRANCH FEEDBACK & CSKH LOYALTY ---
+
+  @MessagePattern('feedback.create')
+  handleCreateFeedback(@Payload() data: any) {
+    return this.userService.createFeedback(data);
+  }
+
+  @MessagePattern('feedback.get_by_branch')
+  handleGetFeedbacksByBranch(@Payload() data: any) {
+    return this.userService.getFeedbacksByBranch(data);
+  }
+
+  @MessagePattern('feedback.resolve')
+  handleResolveFeedback(@Payload() data: { id: string; resolution: any }) {
+    return this.userService.resolveFeedback(data.id, data.resolution);
+  }
+
+  @MessagePattern('feedback.chain_summary')
+  handleGetChainFeedbackSummary() {
+    return this.userService.getChainFeedbackSummary();
+  }
+
+  @MessagePattern('feedback.get_by_customer')
+  handleGetFeedbacksByCustomer(@Payload() data: { customerPhone: string }) {
+    return this.userService.getFeedbacksByCustomerPhone(data.customerPhone);
   }
 }

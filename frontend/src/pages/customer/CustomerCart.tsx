@@ -219,14 +219,41 @@ export function CustomerCart() {
   const hasPriceChangedItem = cartItems.some((it) => it.priceChanged);
 
   return (
-    <div className="flex flex-col gap-6 flex-1">
-      <div className="flex items-center gap-3 border-b border-slate-150 pb-4">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-[#0d6efd]">
-          <ShoppingCart size={22} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Giỏ Hàng Của Bạn</h1>
-          <p className="text-xs text-slate-500 font-medium">Kiểm tra danh mục sản phẩm đã chọn trước khi thanh toán.</p>
+    <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
+      {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
+      <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-3xl flex flex-col gap-4">
+          <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
+            <ShoppingCart size={14} className="text-blue-400" />
+            Giỏ Hàng Dược Phẩm Trực Tuyến ABC Pharma
+          </span>
+
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+            Giỏ Hàng Mua Thuốc <br className="hidden sm:block" />
+            Đối Soát & Nhận Ưu Đãi
+          </h1>
+
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-semibold max-w-2xl">
+            Kiểm tra danh mục thuốc, kiểm tra tương tác dược lý AI tự động trước khi thanh toán và tích lũy điểm thưởng thành viên khi hoàn tất đơn hàng.
+          </p>
+
+          {/* Quick Stats Pills */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Số Loại Thuốc</span>
+              <span className="text-lg sm:text-xl font-black text-white mt-0.5">{cartItems.length} Sản phẩm</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tạm Tính Giỏ Hàng</span>
+              <span className="text-lg sm:text-xl font-black text-amber-300 mt-0.5">{subtotal.toLocaleString()}đ</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tích Lũy Dự Kiến</span>
+              <span className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">+{Math.round(total / 100).toLocaleString()}đ</span>
+            </div>
+          </div>
         </div>
       </div>
 

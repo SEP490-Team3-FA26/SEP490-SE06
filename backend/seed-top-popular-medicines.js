@@ -1,5 +1,12 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const mongoose = require('mongoose');
-const uri = 'mongodb+srv://phuocthde180577_db_user:Phuoc12345@cluster0.ruhl6tb.mongodb.net/WDP201?appName=Cluster0';
+const uri = process.env.MONGODB_URI || process.env.MONGODB_CONNECTION_STRING;
+
+if (!uri) {
+  console.error('❌ Thiếu biến môi trường MONGODB_URI trong file .env');
+  process.exit(1);
+}
 
 const POPULAR_NATIONAL_MEDICINES = [
   {

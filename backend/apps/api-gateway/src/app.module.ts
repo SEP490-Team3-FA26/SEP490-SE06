@@ -29,6 +29,7 @@ import { ReportController } from './controllers/report.controller';
 import { QuotaController } from './controllers/quota.controller';
 import { FinanceController } from './controllers/finance.controller';
 import { SensorController } from './controllers/sensor.controller';
+import { FeedbackController } from './controllers/feedback.controller';
 import { subscribeToKafkaTopics } from './common/kafka.helper';
 
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -193,6 +194,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     QuotaController,
     FinanceController,
     SensorController,
+    FeedbackController,
   ],
   providers: [
     JwtAuthGuard,
@@ -327,6 +329,10 @@ export class AppGatewayModule implements OnModuleInit {
       'user.admin.employee.ban_unban',
       'user.admin.employee.delete',
       'user.admin.employee.approve',
+      'feedback.create',
+      'feedback.get_by_branch',
+      'feedback.resolve',
+      'feedback.chain_summary',
     ];
 
     // 4. ORDER_SERVICE Reply Topics

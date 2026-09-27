@@ -52,10 +52,58 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordDuration, setRecordDuration] = useState<number>(0);
 
-  // Orders
+  // Orders & Feedback
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchPhone, setSearchPhone] = useState<string>('');
   const [selectedOrderQR, setSelectedOrderQR] = useState<Order | null>(null);
+  const [feedbackOrder, setFeedbackOrder] = useState<Order | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState<number>(5);
+  const [feedbackTags, setFeedbackTags] = useState<string[]>([]);
+  const [feedbackComment, setFeedbackComment] = useState<string>('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState<boolean>(false);
+
+  const handleOpenFeedback = (ord: Order) => {
+    setFeedbackOrder(ord);
+    setFeedbackRating(5);
+    setFeedbackTags(['Dược sĩ tận tâm', 'Thuốc chuẩn chính hãng']);
+    setFeedbackComment('');
+  };
+
+  const handleToggleTag = (tag: string) => {
+    setFeedbackTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackOrder) return;
+    try {
+      setFeedbackSubmitting(true);
+      const res = await ApiService.submitFeedback({
+        orderCode: feedbackOrder.orderCode || feedbackOrder.id,
+        branchId: (feedbackOrder as any).branchId || (feedbackOrder as any).branch || 'CN-01',
+        rating: feedbackRating,
+        comment: feedbackComment,
+        tags: feedbackTags,
+        customerPhone: user?.phone || searchPhone || (feedbackOrder as any).phone || '',
+        customerName: (user as any)?.fullName || user?.name || (feedbackOrder as any).patientName || 'Khách hàng',
+      });
+
+      if (res.success) {
+        showToast.success(
+          'Đánh giá thành công!',
+          `Đã cộng +${res.data?.rewardPoints || 1000}đ điểm thưởng & gửi voucher giảm giá vào tài khoản!`
+        );
+        setFeedbackOrder(null);
+      } else {
+        showToast.error('Không thành công', res.error || 'Có lỗi xảy ra');
+      }
+    } catch (e: any) {
+      showToast.error('Lỗi', e.message || 'Lỗi gửi đánh giá');
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
@@ -833,13 +881,23 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                       </Text>
                     </View>
 
-                    <AnimatedTouchable
-                      onPress={() => setSelectedOrderQR(ord)}
-                      style={styles.qrOrderBtn}
-                    >
-                      <Ionicons name="qr-code-outline" size={16} color="#0284C7" />
-                      <Text style={styles.qrOrderBtnText}>Mã QR</Text>
-                    </AnimatedTouchable>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <AnimatedTouchable
+                        onPress={() => handleOpenFeedback(ord)}
+                        style={[styles.qrOrderBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
+                      >
+                        <Ionicons name="star" size={15} color="#059669" />
+                        <Text style={[styles.qrOrderBtnText, { color: '#059669', fontWeight: '700' }]}>Đánh Giá</Text>
+                      </AnimatedTouchable>
+
+                      <AnimatedTouchable
+                        onPress={() => setSelectedOrderQR(ord)}
+                        style={styles.qrOrderBtn}
+                      >
+                        <Ionicons name="qr-code-outline" size={16} color="#0284C7" />
+                        <Text style={styles.qrOrderBtnText}>Mã QR</Text>
+                      </AnimatedTouchable>
+                    </View>
                   </View>
                 </View>
               ))
@@ -932,6 +990,136 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             >
               <Text style={styles.closeQrBtnText}>Đóng</Text>
             </AnimatedTouchable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Customer Branch Feedback Modal */}
+      <Modal visible={feedbackOrder !== null} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '90%' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <View>
+                <Text style={styles.modalTitle}>Đánh Giá Trải Nghiệm</Text>
+                <Text style={styles.modalSub}>
+                  Đơn #{feedbackOrder?.orderCode || feedbackOrder?.id}
+                </Text>
+              </View>
+              <AnimatedTouchable onPress={() => setFeedbackOrder(null)} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={24} color="#94A3B8" />
+              </AnimatedTouchable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Reward incentive banner */}
+              <View style={styles.feedbackRewardBanner}>
+                <Ionicons name="gift" size={22} color="#D97706" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.feedbackRewardTitle}>Nhận Ngay Điểm Thưởng & Quà Tặng</Text>
+                  <Text style={styles.feedbackRewardSub}>
+                    Cộng ngay <Text style={{ fontWeight: '700', color: '#059669' }}>+1.000đ - 2.000đ</Text> vào điểm tích lũy & Voucher 5.000đ cho đơn sau!
+                  </Text>
+                </View>
+              </View>
+
+              {/* Star Rating selector */}
+              <View style={styles.ratingBox}>
+                <Text style={styles.ratingHeading}>Mức độ hài lòng của bạn</Text>
+                <View style={styles.starRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <AnimatedTouchable
+                      key={star}
+                      onPress={() => setFeedbackRating(star)}
+                      style={{ padding: 6 }}
+                    >
+                      <Ionicons
+                        name={star <= feedbackRating ? 'star' : 'star-outline'}
+                        size={36}
+                        color={star <= feedbackRating ? '#F59E0B' : '#CBD5E1'}
+                      />
+                    </AnimatedTouchable>
+                  ))}
+                </View>
+                <Text style={styles.ratingLabel}>
+                  {feedbackRating === 5 && '🌟 Cực kỳ hài lòng, vượt mong đợi'}
+                  {feedbackRating === 4 && '😊 Hài lòng với dịch vụ & thuốc'}
+                  {feedbackRating === 3 && '😐 Tạm ổn, cần cải thiện thêm'}
+                  {feedbackRating === 2 && '🙁 Chưa hài lòng, phục vụ chưa tốt'}
+                  {feedbackRating === 1 && '😡 Rất thất vọng, khiếu nại dịch vụ'}
+                </Text>
+              </View>
+
+              {/* Quick tags */}
+              <View style={{ marginTop: 14 }}>
+                <Text style={styles.secTitle}>Điểm bạn ấn tượng hoặc muốn góp ý:</Text>
+                <View style={styles.tagsContainer}>
+                  {[
+                    'Dược sĩ tận tâm',
+                    'Thuốc chuẩn chính hãng',
+                    'Không gian sạch sẽ',
+                    'Tư vấn dễ hiểu',
+                    'Giá cả minh bạch',
+                    'Thời gian chờ lâu',
+                    'Cần tư vấn kỹ hơn',
+                    'Thiếu thuốc theo đơn',
+                  ].map((tag) => {
+                    const isSelected = feedbackTags.includes(tag);
+                    return (
+                      <AnimatedTouchable
+                        key={tag}
+                        onPress={() => handleToggleTag(tag)}
+                        style={[
+                          styles.tagPill,
+                          isSelected && styles.tagPillSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.tagPillText,
+                            isSelected && styles.tagPillTextSelected,
+                          ]}
+                        >
+                          {isSelected ? '✓ ' : ''}{tag}
+                        </Text>
+                      </AnimatedTouchable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Comment text */}
+              <View style={{ marginTop: 14 }}>
+                <Text style={styles.secTitle}>Cảm nhận chi tiết của bạn:</Text>
+                <TextInput
+                  style={styles.feedbackInput}
+                  placeholder="Chia sẻ thêm về trải nghiệm mua thuốc hoặc thái độ của dược sĩ tại chi nhánh..."
+                  placeholderTextColor="#94A3B8"
+                  value={feedbackComment}
+                  onChangeText={setFeedbackComment}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+            </ScrollView>
+
+            <View style={[styles.modalBtnRow, { marginTop: 16 }]}>
+              <AnimatedTouchable
+                onPress={() => setFeedbackOrder(null)}
+                style={styles.closeBtn}
+                disabled={feedbackSubmitting}
+              >
+                <Text style={styles.closeBtnText}>Hủy</Text>
+              </AnimatedTouchable>
+              <GradientButton
+                title={feedbackSubmitting ? 'ĐANG GỬI...' : 'GỬI ĐÁNH GIÁ & NHẬN THƯỞNG'}
+                onPress={handleSubmitFeedback}
+                gradientVariant="primary"
+                size="md"
+                disabled={feedbackSubmitting}
+                style={{ flex: 1, marginLeft: 10 }}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -1760,5 +1948,89 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#0891B2',
     marginTop: 2,
+  },
+  feedbackRewardBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+  },
+  feedbackRewardTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  feedbackRewardSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  ratingBox: {
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  ratingHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 4,
+  },
+  starRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginVertical: 4,
+  },
+  ratingLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+    marginTop: 4,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  tagPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  tagPillSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  tagPillText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  tagPillTextSelected: {
+    color: '#059669',
+    fontWeight: '700',
+  },
+  feedbackInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 13,
+    color: '#0F172A',
+    minHeight: 80,
+    marginTop: 6,
   },
 });

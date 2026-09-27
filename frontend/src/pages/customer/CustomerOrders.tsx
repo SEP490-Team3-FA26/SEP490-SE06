@@ -27,12 +27,17 @@ import {
   Store,
   QrCode,
   Calendar,
-  CheckSquare
+  CheckSquare,
+  Star,
+  Gift,
+  ThumbsUp
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import api from '../../services/core/api';
+import { feedbackService, FeedbackSubmissionResponse } from '../../services/feedback/feedback.service';
 
 interface CustomerShipmentLogistics {
   trackingCode: string;
@@ -324,6 +329,7 @@ function RealDeliveryMap({
 }
 
 export function CustomerOrders() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -331,6 +337,7 @@ export function CustomerOrders() {
   const [trackingOrder, setTrackingOrder] = useState<any | null>(null);
   const [posInvoiceOrder, setPosInvoiceOrder] = useState<any | null>(null);
   const [userProfile, setUserProfile] = useState<any | null>(null);
+  const [loyaltyInfo, setLoyaltyInfo] = useState<any | null>(null);
 
   // Quick Address Update Modal State
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -338,19 +345,127 @@ export function CustomerOrders() {
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [addressSuccessMsg, setAddressSuccessMsg] = useState('');
 
+  // Feedback Modal State (Đánh giá ngay tại chỗ không cần redirect)
+  const [feedbackOrder, setFeedbackOrder] = useState<any | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState<number>(5);
+  const [feedbackTags, setFeedbackTags] = useState<string[]>(['Dược sĩ tận tâm', 'Thuốc chuẩn chính hãng']);
+  const [feedbackComment, setFeedbackComment] = useState<string>('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<boolean>(false);
+  const [feedbackResult, setFeedbackResult] = useState<FeedbackSubmissionResponse | null>(null);
+
+  const handleOpenFeedback = (order: any) => {
+    setFeedbackOrder(order);
+    if (order.isReviewed) {
+      setFeedbackResult({
+        success: true,
+        message: 'Đơn hàng này đã được bạn gửi đánh giá thành công! Điểm thưởng đã được tích lũy vào tài khoản thành viên của bạn.',
+        rewardPointsEarned: 1000,
+      });
+      return;
+    }
+    setFeedbackRating(5);
+    setFeedbackTags(['Dược sĩ tận tâm', 'Thuốc chuẩn chính hãng']);
+    setFeedbackComment('');
+    setFeedbackResult(null);
+  };
+
+  const handleToggleTag = (tag: string) => {
+    setFeedbackTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleSubmitFeedbackModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackOrder) return;
+    setIsSubmittingFeedback(true);
+    const orderKey = String(feedbackOrder.orderCode || feedbackOrder._id);
+    try {
+      const res = await feedbackService.submitFeedback({
+        orderCode: orderKey,
+        branchId: feedbackOrder.branchId || 'CN-01',
+        branchName: branches.find(b => b.branchCode === feedbackOrder.branchId)?.name || 'Chi Nhánh VinaPharmacy',
+        customerPhone: userProfile?.phone || feedbackOrder.patientPhone || '',
+        customerName: userProfile?.fullName || feedbackOrder.patientName || 'Khách hàng',
+        rating: feedbackRating,
+        tags: feedbackTags,
+        comment: feedbackComment,
+      });
+      setFeedbackResult(res);
+
+      // 🌟 Lưu mã đơn hàng đã đánh giá vào localStorage để không bao giờ bị mất khi reset trang
+      try {
+        const storedCodes: string[] = JSON.parse(localStorage.getItem('reviewed_order_codes') || '[]');
+        if (!storedCodes.includes(orderKey)) {
+          storedCodes.push(orderKey);
+          localStorage.setItem('reviewed_order_codes', JSON.stringify(storedCodes));
+        }
+      } catch (err) {
+        console.warn('Could not save to localStorage:', err);
+      }
+
+      // Đánh dấu đã đánh giá trong UI
+      setOrders(prev => prev.map(o => (String(o._id) === orderKey || String(o.orderCode) === orderKey) ? { ...o, isReviewed: true } : o));
+      window.dispatchEvent(new Event('loyaltyUpdated'));
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Lỗi khi gửi đánh giá');
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   const filteredOrders = orders.filter(order => filterStatus === 'ALL' || order.paymentStatus === filterStatus);
 
   const fetchOrdersData = async () => {
     setLoading(true);
     try {
-      const [ordersRes, profileRes, branchesRes] = await Promise.all([
+      const [ordersRes, profileRes, branchesRes, loyaltyRes] = await Promise.all([
         api.get('/api/orders/my-orders').catch(() => ({ data: [] })),
         api.get('/api/auth/profile').catch(() => ({ data: null })),
-        api.get('/api/branches').catch(() => ({ data: [] }))
+        api.get('/api/branches').catch(() => ({ data: [] })),
+        api.get('/api/users/loyalty').catch(() => ({ data: null }))
       ]);
-      setOrders(ordersRes.data || []);
+
+      const phone = profileRes?.data?.phone || '';
+      
+      // 🌟 Lấy danh sách các đơn đã đánh giá từ localStorage
+      let reviewedCodes: string[] = [];
+      try {
+        reviewedCodes = JSON.parse(localStorage.getItem('reviewed_order_codes') || '[]');
+      } catch (e) {
+        reviewedCodes = [];
+      }
+
+      // 🌟 Lấy thêm danh sách từ API backend theo số điện thoại (đồng bộ 2 chiều)
+      if (phone && phone !== 'Chưa cập nhật') {
+        try {
+          const fbRes = await api.get(`/api/feedbacks/customer/${encodeURIComponent(phone)}`);
+          if (Array.isArray(fbRes.data)) {
+            fbRes.data.forEach((f: any) => {
+              if (f.orderCode && !reviewedCodes.includes(String(f.orderCode))) {
+                reviewedCodes.push(String(f.orderCode));
+              }
+            });
+            localStorage.setItem('reviewed_order_codes', JSON.stringify(reviewedCodes));
+          }
+        } catch (e) {
+          // Bỏ qua lỗi mạng ngầm
+        }
+      }
+
+      const reviewedSet = new Set(reviewedCodes.map(String));
+      const rawOrders = ordersRes.data || [];
+      const mappedOrders = rawOrders.map((o: any) => ({
+        ...o,
+        isReviewed: o.isReviewed || reviewedSet.has(String(o.orderCode)) || reviewedSet.has(String(o._id))
+      }));
+
+      setOrders(mappedOrders);
       setUserProfile(profileRes.data || null);
       setBranches(branchesRes.data || []);
+      if (loyaltyRes && loyaltyRes.data && !loyaltyRes.data.error) {
+        setLoyaltyInfo(loyaltyRes.data);
+      }
     } catch (error) {
       console.error("Failed to load orders data:", error);
     } finally {
@@ -528,32 +643,107 @@ export function CustomerOrders() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <Package className="text-blue-600" />
-            Đơn Hàng & Lịch Sử Mua Thuốc
+    <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
+      {/* ============================================================ */}
+      {/* 1. PREMIUM HERO BANNER (Đồng bộ format chuẩn CustomerShop.tsx) */}
+      {/* ============================================================ */}
+      <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-3xl flex flex-col gap-4">
+          <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
+            <Package size={14} className="text-blue-400" />
+            Quản Lý Đơn Hàng & Lộ Trình Giao Thuốc ABC Pharma
+          </span>
+
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+            Lịch Sử Mua Thuốc <br className="hidden sm:block" />
+            & Theo Dõi Đơn Hàng
           </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Quản lý đơn mua thuốc tại quầy chuẩn GPP và theo dõi lộ trình giao hàng trực tuyến theo thời gian thực.
+
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-semibold max-w-2xl">
+            Theo dõi lộ trình shipper giao hàng hỏa tốc trong điều kiện bảo quản GSP, kiểm tra hóa đơn điện tử POS và gửi đánh giá dịch vụ sau khi nhận thuốc để nhận điểm thưởng.
           </p>
+
+          {/* Quick Stats Pills */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tổng Đơn Hàng</span>
+              <span className="text-lg sm:text-xl font-black text-white mt-0.5">{orders.length} Đơn</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Đã Hoàn Tất</span>
+              <span className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">
+                {orders.filter(o => o.paymentStatus === 'PAID').length} Đơn
+              </span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Chờ Thanh Toán</span>
+              <span className="text-lg sm:text-xl font-black text-amber-300 mt-0.5">
+                {orders.filter(o => o.paymentStatus === 'PENDING').length} Đơn
+              </span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Hội Viên Tích Điểm</span>
+              <span className="text-lg sm:text-xl font-black text-sky-300 mt-0.5">
+                {(loyaltyInfo?.points || userProfile?.points || 0).toLocaleString()}đ
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* 2. BANNER CSKH & ĐỊA CHỈ NHẬN HÀNG THỰC TẾ TRONG DATABASE    */}
+      {/* ============================================================ */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Banner tri ân feedback (8 cols) */}
+        <div className="lg:col-span-8 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-700 text-white p-5 rounded-3xl shadow-sm flex items-center justify-between gap-4 border border-emerald-400/20">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+              <Gift size={24} className="text-amber-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
+                  ⭐ Quà Tặng Đánh Giá
+                </span>
+                <span className="text-xs text-emerald-100 font-semibold hidden sm:inline">Tri ân khách hàng</span>
+              </div>
+              <p className="text-xs sm:text-sm font-bold text-white mt-1 leading-snug">
+                Đánh giá đơn hàng đã nhận để nhận ngay <strong className="text-amber-300 font-black">+1.000đ – +2.000đ Điểm Thưởng</strong> & <strong className="text-white font-black underline">Voucher 5.000đ</strong>!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFilterStatus('PAID')}
+            className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-black rounded-xl text-xs transition-all shadow-md shrink-0 whitespace-nowrap active:scale-95"
+          >
+            Đánh Giá Đơn Đã Nhận
+          </button>
         </div>
 
-        {/* Địa chỉ nhận hàng hiện tại trong DB */}
-        <div className="flex items-center gap-3 bg-slate-50 p-2.5 px-4 rounded-2xl border border-slate-200">
-          <MapPin size={16} className="text-blue-600 shrink-0" />
-          <div className="text-xs">
-            <span className="text-slate-400 block font-semibold">Địa chỉ nhận hàng mặc định (DB):</span>
-            <strong className="text-slate-800 line-clamp-1">{userProfile?.address || "Chưa có địa chỉ trong DB"}</strong>
+        {/* Địa chỉ nhận hàng mặc định trong DB (4 cols) */}
+        <div className="lg:col-span-4 bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+              <MapPin size={20} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Địa Chỉ Giao Hàng (DB)
+              </span>
+              <strong className="text-xs sm:text-sm text-slate-800 line-clamp-1 block font-bold">
+                {userProfile?.address || "Chưa có địa chỉ trong DB"}
+              </strong>
+            </div>
           </div>
-          <button 
+          <button
             onClick={() => {
               setNewAddressInput(userProfile?.address || '');
               setIsAddressModalOpen(true);
             }}
-            className="ml-2 text-xs font-bold text-blue-600 hover:text-blue-800 underline shrink-0"
+            className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-blue-600 rounded-xl text-xs font-bold shrink-0 border border-slate-200 transition-all"
           >
             {userProfile?.address ? 'Sửa' : '+ Thêm'}
           </button>
@@ -676,7 +866,23 @@ export function CustomerOrders() {
                     </strong>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    {/* Nút Đánh giá chi nhánh & nhận điểm thưởng tại chỗ (In-page Modal) */}
+                    {!isCancelled && (
+                      <button
+                        onClick={() => handleOpenFeedback(order)}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-[0.98] ${
+                          order.isReviewed
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-emerald-500/10'
+                            : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-amber-500/20'
+                        }`}
+                        title="Đánh giá chất lượng phục vụ & nhận +1.000đ - 2.000đ điểm thưởng và voucher 5k"
+                      >
+                        <Star size={14} className={order.isReviewed ? "fill-emerald-600 text-emerald-600" : "fill-white"} />
+                        {order.isReviewed ? "Đã Đánh Giá" : "⭐ Đánh Giá (+2k điểm)"}
+                      </button>
+                    )}
+
                     {/* Logic nút bấm phân biệt rõ ràng giữa Mua tại quầy vs Giao hàng Online */}
                     {isCancelled ? (
                       <button 
@@ -872,6 +1078,38 @@ export function CustomerOrders() {
                         {(posInvoiceOrder.totalAmount || 0).toLocaleString()} đ
                       </strong>
                     </div>
+                  </div>
+
+                  {/* Khối Đánh giá trải nghiệm nhận quà */}
+                  <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(
+                          `${window.location.origin}/feedback/${posInvoiceOrder.orderCode || posInvoiceOrder._id || ""}`
+                        )}`}
+                        alt="QR Feedback" 
+                        className="w-16 h-16 bg-white p-1 rounded-xl border border-amber-200 shrink-0"
+                      />
+                      <div>
+                        <span className="text-xs font-black text-amber-900 uppercase flex items-center gap-1">
+                          <Star size={14} className="fill-amber-500 text-amber-500" /> Đánh giá trải nghiệm & Nhận quà
+                        </span>
+                        <p className="text-[11px] text-amber-800 mt-0.5">
+                          Quét mã QR hoặc bấm nút bên cạnh nhận ngay <strong>+1.000đ - 2.000đ</strong> tích lũy & Voucher 5k!
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const targetCode = posInvoiceOrder.orderCode || posInvoiceOrder._id;
+                        setPosInvoiceOrder(null);
+                        navigate(`/feedback/${targetCode}`);
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shrink-0 shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Star size={14} className="fill-white" />
+                      Đánh Giá Ngay
+                    </button>
                   </div>
                 </div>
 
@@ -1162,6 +1400,224 @@ export function CustomerOrders() {
                         </>
                       )}
                     </button>
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── MODAL ĐÁNH GIÁ TRẢI NGHIỆM TẠI CHỖ (IN-PAGE FEEDBACK MODAL) ─── */}
+      <AnimatePresence>
+        {feedbackOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isSubmittingFeedback && setFeedbackOrder(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] z-10"
+            >
+              {/* Header */}
+              <div className="p-5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                    <Star size={20} className="fill-white text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base text-white">Đánh Giá Dịch Vụ Chi Nhánh</h3>
+                    <p className="text-xs text-amber-100">
+                      Đơn hàng: <strong className="text-white font-mono">#{feedbackOrder.orderCode || feedbackOrder._id?.slice(-6).toUpperCase()}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => !isSubmittingFeedback && setFeedbackOrder(null)}
+                  className="p-1.5 text-amber-100 hover:text-white rounded-full hover:bg-white/10"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-4 text-sm">
+                {feedbackResult ? (
+                  /* Kết quả thành công */
+                  <div className="text-center py-4 space-y-4">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
+                      <CheckCircle2 size={36} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-lg">Cảm Ơn Bạn Đã Đánh Giá!</h4>
+                      <p className="text-xs text-slate-500 mt-1">Ý kiến của bạn là động lực để đội ngũ dược sĩ nâng cao chất lượng phục vụ mỗi ngày.</p>
+                    </div>
+
+                    {/* Hộp quà tặng nhận được */}
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 text-left space-y-2.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-amber-900 uppercase">
+                        <Gift size={16} className="text-amber-600" />
+                        <span>Phần thưởng đã cộng vào tài khoản:</span>
+                      </div>
+                      <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-amber-100 text-xs font-semibold">
+                        <span className="text-slate-600">Điểm Loyalty thưởng:</span>
+                        <strong className="text-emerald-600 text-sm font-black">+{feedbackResult.rewardPointsEarned?.toLocaleString() || '1.000'}đ</strong>
+                      </div>
+                      {feedbackResult.voucher && (
+                        <div className="bg-white p-2.5 rounded-xl border border-amber-100 text-xs space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-600">Voucher giảm giá tặng kèm:</span>
+                            <span className="font-mono font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                              {feedbackResult.voucher.code}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500">Giảm {feedbackResult.voucher.discountAmount?.toLocaleString()}đ cho đơn từ {feedbackResult.voucher.minOrderValue?.toLocaleString()}đ (HSD: {feedbackResult.voucher.expiryDays} ngày).</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setFeedbackOrder(null)}
+                      className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-sm font-black transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                    >
+                      <CheckCircle2 size={18} className="text-white" />
+                      Hoàn Tất & Đóng
+                    </button>
+                  </div>
+                ) : (
+                  /* Form đánh giá */
+                  <form onSubmit={handleSubmitFeedbackModal} className="space-y-4">
+                    {/* Banner thưởng */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+                        <Gift size={18} />
+                      </div>
+                      <p className="text-xs text-amber-800 leading-snug">
+                        Nhận ngay <strong className="text-emerald-700 font-black">+1.000đ - 2.000đ</strong> tích lũy & Voucher 5k cho lần mua sau khi gửi đánh giá!
+                      </p>
+                    </div>
+
+                    {/* Xếp hạng Sao */}
+                    <div className="text-center py-2 bg-slate-50 rounded-2xl border border-slate-100">
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">
+                        Mức độ hài lòng của bạn
+                      </span>
+                      <div className="flex justify-center items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setFeedbackRating(star)}
+                            className="p-1.5 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                          >
+                            <Star
+                              size={32}
+                              className={
+                                star <= feedbackRating
+                                  ? "fill-amber-400 text-amber-400 drop-shadow"
+                                  : "text-slate-200"
+                              }
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-xs font-bold text-slate-700 block mt-2">
+                        {feedbackRating === 5 && '🌟 Tuyệt vời! Vượt trên mong đợi'}
+                        {feedbackRating === 4 && '😊 Hài lòng với thuốc & dược sĩ'}
+                        {feedbackRating === 3 && '😐 Tạm ổn, cần cải thiện thêm'}
+                        {feedbackRating === 2 && '🙁 Chưa hài lòng, phục vụ chưa tốt'}
+                        {feedbackRating === 1 && '😡 Rất thất vọng, khiếu nại chất lượng'}
+                      </span>
+                    </div>
+
+                    {/* Thẻ gợi ý (Tags) */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">
+                        Điểm bạn ấn tượng hoặc muốn góp ý:
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          'Dược sĩ tận tâm',
+                          'Thuốc chuẩn chính hãng',
+                          'Tư vấn nhiệt tình',
+                          'Không gian sạch sẽ',
+                          'Giá cả minh bạch',
+                          'Thời gian chờ lâu',
+                          'Cần tư vấn kỹ hơn',
+                          'Thiếu thuốc theo đơn',
+                        ].map((tag) => {
+                          const isSelected = feedbackTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => handleToggleTag(tag)}
+                              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border cursor-pointer ${
+                                isSelected
+                                  ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              {isSelected ? '✓ ' : ''}{tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Ô nhận xét chi tiết */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                        Cảm nhận chi tiết (Tùy chọn):
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={feedbackComment}
+                        onChange={(e) => setFeedbackComment(e.target.value)}
+                        placeholder="Hãy chia sẻ thêm về thái độ của dược sĩ, chất lượng thuốc hoặc điều chi nhánh cần hoàn thiện hơn..."
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                        disabled={isSubmittingFeedback}
+                      />
+                      <span className="text-[11px] text-slate-400 block mt-1">
+                        Góp ý trên 30 ký tự sẽ được cộng thêm +1.000 điểm thưởng (tổng +2.000đ).
+                      </span>
+                    </div>
+
+                    {/* Submit Button */}
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setFeedbackOrder(null)}
+                        disabled={isSubmittingFeedback}
+                        className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Để Sau
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmittingFeedback}
+                        className="flex-2 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        {isSubmittingFeedback ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            Đang gửi...
+                          </>
+                        ) : (
+                          <>
+                            <Star size={14} className="fill-white" />
+                            GỬI ĐÁNH GIÁ & NHẬN THƯỞNG
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </form>
                 )}
               </div>

@@ -62,6 +62,9 @@ export class User extends Document {
 
   @Prop({ default: 0 })
   accumulatedPoints: number;
+
+  @Prop({ default: 'Bronze' })
+  tier?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
