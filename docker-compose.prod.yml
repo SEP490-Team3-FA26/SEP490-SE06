@@ -237,10 +237,98 @@ services:
           memory: 128m
     networks: [wdp301-network]
 
+  # ──────────────────────────────────────────────────────────
+  # Monitoring (Production Stack: Dozzle + Node Exporter + Prometheus + Grafana)
+  # ──────────────────────────────────────────────────────────
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: wdp301-dozzle
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOZZLE_LEVEL: info
+      DOZZLE_NO_ANALYTICS: "true"
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    networks: [wdp301-network]
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.0
+    container_name: wdp301-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    deploy:
+      resources:
+        limits:
+          memory: 32m
+    networks: [wdp301-network]
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: wdp301-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.wal-compression'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./gitops/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api-gateway
+      - node-exporter
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks: [wdp301-network]
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: wdp301-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=wdp301admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-and-api-overview.json
+    volumes:
+      - ./gitops/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./gitops/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks: [wdp301-network]
+
 networks:
   wdp301-network:
+    name: wdp301-network
     driver: bridge
 
 volumes:
   redis_data:
   qdrant_data:
+  prometheus_data:

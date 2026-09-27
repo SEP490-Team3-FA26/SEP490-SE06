@@ -1,13 +1,11 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { MedicineModule } from './medicine/medicine.module';
-import { PurchaseModule } from './purchase/purchase.module';
-import { SalesModule } from './sales/sales.module';
-import { PricingModule } from './pricing/pricing.module';
-import { ReportsModule } from './reports/reports.module';
-import { QuotaModule } from './quota/quota.module';
-import { TelemetryModule } from './telemetry/telemetry.module';
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { MongooseModule } from "@nestjs/mongoose";
+import { MedicineModule } from "./medicine/medicine.module";
+import { PurchaseModule } from "./purchase/purchase.module";
+import { SalesModule } from "./sales/sales.module";
+import { PricingModule } from "./pricing/pricing.module";
+import { ReportsModule } from "./reports/reports.module";
 
 @Module({
   imports: [
@@ -15,7 +13,7 @@ import { TelemetryModule } from './telemetry/telemetry.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
+        uri: configService.get<string>("MONGODB_URI"),
       }),
       inject: [ConfigService],
     }),
@@ -24,8 +22,6 @@ import { TelemetryModule } from './telemetry/telemetry.module';
     SalesModule,
     PricingModule,
     ReportsModule,
-    QuotaModule,
-    TelemetryModule,
   ],
 })
-export class InventoryServiceModule { }
+export class InventoryServiceModule {}

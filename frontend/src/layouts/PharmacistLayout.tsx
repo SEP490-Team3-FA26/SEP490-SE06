@@ -1,12 +1,13 @@
 import { BaseDashboardLayout } from "./BaseDashboardLayout";
-import { LayoutDashboard, ShoppingCart, BarChart3, BrainCircuit, PackageSearch } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, BarChart3, PackageSearch, Calendar, RefreshCcw } from "lucide-react";
 
 export function PharmacistLayout() {
   const pharmacistNavItems = [
     { name: "Tổng quan Cá nhân", href: "/pharmacist", icon: <LayoutDashboard size={20} /> },
     { name: "Bán hàng (POS)", href: "/pharmacist/sales", icon: <ShoppingCart size={20} /> },
-    { name: "Tương tác thuốc AI", href: "/pharmacist/interactions", icon: <BrainCircuit size={20} /> },
     { name: "Truy xuất Lô & HSD", href: "/pharmacist/lot-tracking", icon: <PackageSearch size={20} /> },
+    { name: "Lịch Làm Việc", href: "/pharmacist/schedule", icon: <Calendar size={20} /> },
+    { name: "Yêu Cầu Đổi Ca", href: "/pharmacist/shift-swaps", icon: <RefreshCcw size={20} /> },
     { name: "Báo cáo thống kê", href: "/pharmacist/reports", icon: <BarChart3 size={20} /> },
   ];
 

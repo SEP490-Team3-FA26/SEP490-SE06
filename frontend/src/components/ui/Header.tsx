@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
+import { NotificationBell as HrNotificationBell } from "../common/NotificationBell";
 
 function getUserFromToken() {
   try {
@@ -60,9 +61,10 @@ export function Header({
     <>
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 print:hidden">
-        <Logo />
+        <Logo size="sm" />
         <div className="flex items-center gap-4">
           <NotificationBell />
+          {(userRole === 'branch' || userRole === 'pharmacist') && <HrNotificationBell />}
           <button 
             className="text-slate-500 hover:text-slate-900"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -100,6 +102,7 @@ export function Header({
             <ExternalLink size={12} className="text-slate-400" />
           </a>
           <NotificationBell />
+          {(userRole === 'branch' || userRole === 'pharmacist') && <HrNotificationBell />}
           <button className="text-slate-600 hover:text-[#0057cd] transition-colors relative mt-0.5">
             <History size={22} />
           </button>

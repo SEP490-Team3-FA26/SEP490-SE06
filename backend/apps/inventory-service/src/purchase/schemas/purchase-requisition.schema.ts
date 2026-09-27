@@ -1,5 +1,5 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document } from "mongoose";
 
 @Schema()
 export class PurchaseRequisitionItem {
@@ -15,9 +15,11 @@ export class PurchaseRequisitionItem {
   @Prop({ type: String })
   unit: string; // Hộp, Viên, Chai, etc.
 }
-export const PurchaseRequisitionItemSchema = SchemaFactory.createForClass(PurchaseRequisitionItem);
+export const PurchaseRequisitionItemSchema = SchemaFactory.createForClass(
+  PurchaseRequisitionItem,
+);
 
-@Schema({ timestamps: true, collection: 'purchaserequisitions' })
+@Schema({ timestamps: true, collection: "purchaserequisitions" })
 export class PurchaseRequisition extends Document {
   @Prop({ type: String, required: true, unique: true })
   prCode: string; // Auto-generated PR-YYYYMMDD-XXXX
@@ -42,8 +44,20 @@ export class PurchaseRequisition extends Document {
 
   @Prop({
     type: String,
-    default: 'SUBMITTED',
-    enum: ['DRAFT', 'SUBMITTED', 'WAREHOUSE_SUBMITTED', 'CONSOLIDATED', 'URGENT_PENDING', 'APPROVED', 'SHIPPING', 'COMPLETED', 'OUT_OF_STOCK', 'REJECTED', 'CANCELLED'],
+    default: "SUBMITTED",
+    enum: [
+      "DRAFT",
+      "SUBMITTED",
+      "WAREHOUSE_SUBMITTED",
+      "CONSOLIDATED",
+      "URGENT_PENDING",
+      "APPROVED",
+      "SHIPPING",
+      "COMPLETED",
+      "OUT_OF_STOCK",
+      "REJECTED",
+      "CANCELLED",
+    ],
   })
   status: string;
 
@@ -82,6 +96,13 @@ export class PurchaseRequisition extends Document {
 
   @Prop({ type: String })
   aiAnalysisVersion?: string;
+
+  @Prop({ type: Number, default: 0 })
+  totalEstimatedCost?: number; // Tổng chi phí dự kiến của yêu cầu nhập hàng
+
+  @Prop({ type: Boolean, default: true })
+  isManagerResponsible?: boolean; // Flag xác nhận Quản lý chi nhánh tự chịu trách nhiệm
 }
 
-export const PurchaseRequisitionSchema = SchemaFactory.createForClass(PurchaseRequisition);
+export const PurchaseRequisitionSchema =
+  SchemaFactory.createForClass(PurchaseRequisition);

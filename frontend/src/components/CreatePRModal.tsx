@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, X, AlertTriangle, Loader2, ClipboardList, Package, Trash2, Send, Search } from "lucide-react";
+import { Plus, X, AlertTriangle, Loader2, ClipboardList, Package, Trash2, Send, Search, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
@@ -169,6 +169,14 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
   const getMedDetails = (id: string) => medicines.find(m => m.id === id || m._id === id);
   const getMedName = (id: string) => getMedDetails(id)?.name || id.slice(-8);
 
+  const totalEstimatedCost = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const med = getMedDetails(item.medicineId);
+      const price = med?.price || 0;
+      return sum + item.quantity * price;
+    }, 0);
+  }, [items, medicines]);
+
   const handleSubmit = async () => {
     if (items.length === 0) {
       setErr("Vui lòng thêm ít nhất 1 sản phẩm vào danh sách");
@@ -188,6 +196,8 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
           branchId: currentBranchId,
           reason,
           isUrgent,
+          totalEstimatedCost,
+          isManagerResponsible: true,
           items: items.map(i => ({ medicineId: i.medicineId, requestedQuantity: i.quantity, unit: "Hộp" })),
           isAiGenerated: isAiGenerated || false,
           aiConfidence: isAiGenerated ? prefillPrItems[0].aiConfidence : undefined,
@@ -201,6 +211,8 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
           branchId: currentBranchId,
           reason,
           isUrgent,
+          totalEstimatedCost,
+          isManagerResponsible: true,
           items: items.map(i => ({ medicineId: i.medicineId, requestedQuantity: i.quantity, unit: "Hộp" })),
         });
         onSuccess(resData.message || "Gửi yêu cầu thành công!");
@@ -413,6 +425,31 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
                       })
                     )}
                   </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Tổng giá trị dự kiến & Cam kết tự chịu trách nhiệm */}
+              <div className="space-y-2.5">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50/80 p-3.5 rounded-xl border border-blue-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Tổng chi phí dự kiến</span>
+                    <span className="text-base font-extrabold text-blue-700 font-mono">
+                      {totalEstimatedCost.toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-1 bg-blue-600/10 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-200">
+                    Tự chủ ngân sách
+                  </span>
+                </div>
+
+                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2.5">
+                  <ShieldCheck size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-emerald-900">Quản lý chi nhánh tự chịu trách nhiệm</p>
+                    <p className="text-[11px] text-emerald-700 mt-0.5 leading-relaxed">
+                      Yêu cầu nhập thuốc không bị giới hạn bởi ngưỡng tiền. Quản lý chi nhánh chịu trách nhiệm trực tiếp về số lượng và tính cần thiết của đơn hàng.
+                    </p>
+                  </div>
                 </div>
               </div>
 

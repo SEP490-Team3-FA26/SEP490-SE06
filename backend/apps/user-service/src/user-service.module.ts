@@ -13,6 +13,11 @@ import { BranchFeedback, BranchFeedbackSchema } from './schemas/branch-feedback.
 
 import { MedicineBatch, MedicineBatchSchema } from '../../inventory-service/src/medicine/schemas/medicine-batch.schema';
 import { Medicine, MedicineSchema } from '../../inventory-service/src/medicine/schemas/medicine.schema';
+import { WorkShift, WorkShiftSchema } from './schemas/work-shift.schema';
+import { WorkSchedule, WorkScheduleSchema } from './schemas/work-schedule.schema';
+import { ShiftSwapRequest, ShiftSwapRequestSchema } from './schemas/shift-swap-request.schema';
+import { StaffNotification, StaffNotificationSchema } from './schemas/staff-notification.schema';
+import { HrService } from './hr.service';
 
 @Module({
   imports: [
@@ -32,6 +37,10 @@ import { Medicine, MedicineSchema } from '../../inventory-service/src/medicine/s
       { name: BranchFeedback.name, schema: BranchFeedbackSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
       { name: Medicine.name, schema: MedicineSchema },
+      { name: WorkShift.name, schema: WorkShiftSchema },
+      { name: WorkSchedule.name, schema: WorkScheduleSchema },
+      { name: ShiftSwapRequest.name, schema: ShiftSwapRequestSchema },
+      { name: StaffNotification.name, schema: StaffNotificationSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -56,7 +65,7 @@ import { Medicine, MedicineSchema } from '../../inventory-service/src/medicine/s
     ]),
   ],
   controllers: [UserServiceController],
-  providers: [UserService, BranchService],
+  providers: [UserService, BranchService, HrService],
 })
 export class UserServiceModule {}
 

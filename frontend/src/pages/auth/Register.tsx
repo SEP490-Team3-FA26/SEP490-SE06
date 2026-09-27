@@ -29,7 +29,8 @@ export function Register() {
         setSuccess("Đăng ký thành công! Đang chuyển hướng về trang chủ...");
         const role = user?.role || "user";
         setTimeout(() => {
-          if (role === "admin" || role === "head_branch") navigate("/admin");
+          if (role === "admin") navigate("/admin");
+          else if (role === "director" || role === "head_branch") navigate("/director");
           else if (role === "warehouse") navigate("/warehouse");
           else if (role === "branch") navigate("/branch");
           else if (role === "pharmacist") navigate("/pharmacist");

@@ -4,20 +4,22 @@ import {
   OnGatewayInit,
   OnGatewayConnection,
   OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
-import { SseService } from './sse.service';
+} from "@nestjs/websockets";
+import { Logger } from "@nestjs/common";
+import { Server, Socket } from "socket.io";
+import { JwtService } from "@nestjs/jwt";
+import { SseService } from "./sse.service";
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: "*",
   },
 })
-export class AppWebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class AppWebsocketGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer() server: Server;
-  private logger: Logger = new Logger('AppWebsocketGateway');
+  private logger: Logger = new Logger("AppWebsocketGateway");
 
   constructor(
     private readonly jwtService: JwtService,
@@ -25,7 +27,7 @@ export class AppWebsocketGateway implements OnGatewayInit, OnGatewayConnection, 
   ) {}
 
   afterInit(server: Server) {
-    this.logger.log('🚀 WebSocket Gateway & SSE Bridge Initialized');
+    this.logger.log("🚀 WebSocket Gateway & SSE Bridge Initialized");
 
     // Tạo Proxy bao bọc server để tự động phát sang SSE mỗi khi có event
     if (server) {
@@ -60,49 +62,59 @@ export class AppWebsocketGateway implements OnGatewayInit, OnGatewayConnection, 
   handleConnection(client: Socket, ...args: any[]) {
     try {
       // Extract token from handshake auth or query
-      const token = client.handshake.auth?.token || client.handshake.query?.token;
-      
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
+
       if (token) {
         // Verify JWT token
         const decoded = this.jwtService.verify(token as string);
         const { role, branchId, email, fullName } = decoded;
         const userId = decoded.sub || decoded._id;
-        
+
         // Store user data in socket
         client.data.user = { userId, role, branchId, email, fullName };
-        
+
         this.logger.log(`🔌 User connecting: ${email} with role: ${role}`);
-        
+
         // Join rooms based on role
-        if (role === 'admin' || role === 'head_branch') {
-          client.join('admin');
-          this.logger.log(`👤 Admin connected: ${email} (${client.id}) → joined room 'admin'`);
+        if (role === "admin" || role === "head_branch" || role === "director") {
+          client.join("admin");
+          this.logger.log(
+            `👤 Admin/Director connected: ${email} (${client.id}) → joined room 'admin'`,
+          );
         }
-        
-        if (role === 'warehouse') {
-          client.join('warehouse');
-          this.logger.log(`📦 Warehouse connected: ${email} (${client.id}) → joined room 'warehouse'`);
+
+        if (role === "warehouse") {
+          client.join("warehouse");
+          this.logger.log(
+            `📦 Warehouse connected: ${email} (${client.id}) → joined room 'warehouse'`,
+          );
         }
-        
-        if (role === 'branch' && branchId) {
+
+        if (role === "branch" && branchId) {
           client.join(`branch-${branchId}`);
-          this.logger.log(`🏪 Branch connected: ${email} from ${branchId} (${client.id}) → joined room 'branch-${branchId}'`);
+          this.logger.log(
+            `🏪 Branch connected: ${email} from ${branchId} (${client.id}) → joined room 'branch-${branchId}'`,
+          );
         }
-        
-        if (role === 'pharmacist' && branchId) {
+
+        if (role === "pharmacist" && branchId) {
           client.join(`branch-${branchId}`);
-          this.logger.log(`💊 Pharmacist connected: ${email} from ${branchId} (${client.id}) → joined room 'branch-${branchId}'`);
+          this.logger.log(
+            `💊 Pharmacist connected: ${email} from ${branchId} (${client.id}) → joined room 'branch-${branchId}'`,
+          );
         }
-        
+
         // Join personal room for targeted messages
         if (userId) {
           client.join(`user-${userId}`);
         }
-        
+
         // Log all rooms this client joined
         const rooms = Array.from(client.rooms);
-        this.logger.log(`✅ Client ${email} joined ${rooms.length} rooms: ${rooms.join(', ')}`);
-        
+        this.logger.log(
+          `✅ Client ${email} joined ${rooms.length} rooms: ${rooms.join(", ")}`,
+        );
       } else {
         this.logger.warn(`⚠️  Client connected without token: ${client.id}`);
       }
@@ -120,5 +132,4 @@ export class AppWebsocketGateway implements OnGatewayInit, OnGatewayConnection, 
       this.logger.log(`👋 Client disconnected: ${client.id}`);
     }
   }
-
 }

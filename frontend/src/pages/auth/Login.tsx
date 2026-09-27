@@ -80,6 +80,11 @@ export function Login() {
   ];
 
   const handleRoleSelect = (selectedRole: any) => {
+    // Nếu chọn một vai trò khác với phiên đang đăng nhập -> xóa phiên cũ để tránh nhầm lẫn giao diện
+    if (activeSessionUser && activeSessionUser.role?.toLowerCase() !== selectedRole.id.toLowerCase()) {
+      authService.clearSession();
+      setActiveSessionUser(null);
+    }
     setRole(selectedRole.id);
     setEmail(selectedRole.email);
     setPassword("123456");
@@ -87,7 +92,7 @@ export function Login() {
   };
 
   const redirectByRole = (userRole: string) => {
-    switch (userRole) {
+    switch (userRole?.toLowerCase()) {
       case "admin":
         return "/admin";
       case "director":
@@ -105,6 +110,18 @@ export function Login() {
     }
   };
 
+  const redirectParam = searchParams.get('redirect');
+  const getDestinationUrl = (fallbackRole: string) => {
+    if (redirectParam) {
+      try {
+        return decodeURIComponent(redirectParam);
+      } catch {
+        return redirectParam;
+      }
+    }
+    return redirectByRole(fallbackRole);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -118,8 +135,8 @@ export function Login() {
         console.warn('Failed to request notification permission:', err);
       });
 
-      // Redirect theo Role
-      navigate(redirectByRole(data.user?.role || "admin"));
+      // Redirect ưu tiên theo return URL (Deep Linking), nếu không có mới về dashboard theo Role
+      navigate(getDestinationUrl(data.user?.role || "admin"));
     } catch (err: any) {
       setError(err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
     } finally {
@@ -163,7 +180,7 @@ export function Login() {
           </div>
           <div className="flex gap-2 mt-1">
             <button
-              onClick={() => navigate(redirectByRole(activeSessionUser.role || 'admin'))}
+              onClick={() => navigate(getDestinationUrl(activeSessionUser.role || 'admin'))}
               className="flex-1 py-2.5 bg-[#0057cd] hover:bg-[#0a58ca] text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               <LayoutDashboard size={14} />

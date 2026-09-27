@@ -822,20 +822,6 @@ export class ApiService {
     return { success: true, message: 'Đã xác nhận nhập kho chuyển thành công (Demo mode)' };
   }
 
-  public static async checkInteractions(medicineNames: string[]): Promise<any> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/medicines/check-interaction`, {
-        method: 'POST',
-        headers: this.authHeaders,
-        body: JSON.stringify({ medicines: medicineNames }),
-      });
-      if (res.ok) return await res.json();
-    } catch (e) {
-      console.warn('Interaction check API error:', e);
-    }
-    return null;
-  }
-
   public static async traceLot(batchNo: string): Promise<any> {
     try {
       const res = await fetch(
@@ -1125,23 +1111,15 @@ export class ApiService {
       'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
     };
     try {
-      const res = await fetch(`${this.baseUrl}/api/ai/sample-prescriptions`, { headers });
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/samples`, { headers });
       if (res.ok) {
         const decoded = await res.json();
         if (decoded?.success && Array.isArray(decoded.samples)) {
           return decoded.samples;
         }
       }
-    } catch (_) {
-      try {
-        const res = await fetch(`${this.aiBaseUrl}/api/ai/sample-prescriptions`, { headers });
-        if (res.ok) {
-          const decoded = await res.json();
-          if (decoded?.success && Array.isArray(decoded.samples)) return decoded.samples;
-        }
-      } catch (e) {
-        console.warn('Failed to fetch sample prescriptions:', e);
-      }
+    } catch (e) {
+      console.warn('Failed to fetch sample prescriptions via Gateway:', e);
     }
     return [];
   }
@@ -1150,27 +1128,21 @@ export class ApiService {
     const body = JSON.stringify({ filename });
     const headers = {
       ...this.authHeaders,
+      'Content-Type': 'application/json',
       'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
     };
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/ai/scan-sample-prescription`, {
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/scan-sample`, {
         method: 'POST',
         headers,
         body,
       });
       if (res.ok) return await res.json();
-    } catch (_) {
-      try {
-        const res = await fetch(`${this.aiBaseUrl}/api/ai/scan-sample-prescription`, {
-          method: 'POST',
-          headers,
-          body,
-        });
-        if (res.ok) return await res.json();
-      } catch (e) {
-        console.warn('Failed to scan sample prescription:', e);
-      }
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, message: errData.message || 'Lỗi quét đơn thuốc mẫu' };
+    } catch (e) {
+      console.warn('Failed to scan sample prescription via Gateway:', e);
     }
     return null;
   }
@@ -1189,7 +1161,6 @@ export class ApiService {
       } as any;
 
       formData.append('images', fileObj);
-      formData.append('file', fileObj);
       formData.append('branch_id', branchId);
 
       const headers: Record<string, string> = {
@@ -1197,32 +1168,38 @@ export class ApiService {
       };
       if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
 
-      // 1. Try API Gateway first
-      try {
-        const res = await fetch(`${this.baseUrl}/api/prescriptions/scan-ai`, {
-          method: 'POST',
-          headers,
-          body: formData,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return data?.data || data;
-        }
-      } catch (_) {}
-
-      // 2. Direct AI Service fallback
-      const directRes = await fetch(`${this.aiBaseUrl}/api/ai/scan-prescription`, {
+      // Strictly route via API Gateway: POST /api/prescriptions/scan-ai
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/scan-ai`, {
         method: 'POST',
         headers,
         body: formData,
       });
-      if (directRes.ok) {
-        return await directRes.json();
+
+      const data = await res.json().catch(() => null);
+
+      if (res.ok) {
+        return data?.data || data;
       }
-    } catch (e) {
+
+      // Check if handwriting rejection occurred
+      const errMsg = data?.message || data?.detail || 'Lỗi quét đơn thuốc AI';
+      const isHandwritten = typeof errMsg === 'string' && (errMsg.includes('HANDWRITTEN_PRESCRIPTION_REJECTED') || errMsg.includes('chữ viết tay'));
+
+      return {
+        success: false,
+        error_code: isHandwritten ? 'HANDWRITTEN_PRESCRIPTION_REJECTED' : 'SCAN_FAILED',
+        message: isHandwritten
+          ? 'Hệ thống chỉ hỗ trợ quét đơn thuốc bản in điện tử, không tiếp nhận đơn viết tay.'
+          : errMsg,
+        is_handwritten: isHandwritten,
+      };
+    } catch (e: any) {
       console.warn('Failed to scan prescription AI:', e);
+      return {
+        success: false,
+        message: e?.message || 'Lỗi kết nối tới API Gateway',
+      };
     }
-    return null;
   }
 
   public static async consultSymptomsAI(symptoms: string): Promise<any> {

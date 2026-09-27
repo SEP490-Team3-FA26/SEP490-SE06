@@ -63,7 +63,6 @@ import { HQApproval } from "./pages/admin/HQApproval";
 import { PriceManagement } from "./pages/admin/PriceManagement";
 import { SupplierCreditManagement } from "./pages/admin/SupplierCreditManagement";
 import { AuditLogs } from "./pages/admin/AuditLogs";
-import { QuotaManagement } from "./pages/admin/QuotaManagement";
 import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
 import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
 
@@ -73,10 +72,13 @@ import { BranchStockReceive } from "./pages/branch/BranchStockReceive";
 import { BranchInventory } from "./pages/branch/BranchInventory";
 import { BranchTransfer } from "./pages/branch/BranchTransfer";
 import { BranchEmployees } from "./pages/branch/BranchEmployees";
+import { BranchShiftManagement } from "./pages/branch/BranchShiftManagement";
+import { BranchSchedule } from "./pages/branch/BranchSchedule";
+import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 
-// Pharmacist / Branch Pages
 import { Sales } from "./pages/pharmacist/Sales";
-import { DrugInteractions } from "./pages/pharmacist/DrugInteractions";
+import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
+import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
 
 // Helper component to preserve query parameters on redirect
 function RedirectWithSearch({ to }: { to: string }) {
@@ -91,7 +93,6 @@ export default function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Landing />} />
-          <Route path="/interactions" element={<DrugInteractions />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
 
@@ -117,7 +118,6 @@ export default function App() {
             <Route path="shop" element={<CustomerShop />} />
             <Route path="cart" element={<CustomerCart />} />
             <Route path="checkout" element={<CustomerCheckout />} />
-            <Route path="interactions" element={<DrugInteractions />} />
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
             <Route path="orders" element={<CustomerOrders />} />
@@ -130,7 +130,6 @@ export default function App() {
             <Route path="/director" element={<DirectorLayout />}>
               <Route index element={<DashboardHome />} />
               <Route path="approvals" element={<HQApproval />} />
-              <Route path="quotas" element={<QuotaManagement />} />
               <Route path="finance" element={<Finance />} />
               <Route path="reports" element={<Reports />} />
               <Route path="supplier-credit" element={<SupplierCreditManagement />} />
@@ -157,7 +156,6 @@ export default function App() {
               <Route path="finance" element={<Finance />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="price-management" element={<PriceManagement />} />
-              <Route path="quotas" element={<QuotaManagement />} />
               <Route path="supplier-credit" element={<SupplierCreditManagement />} />
               <Route path="reports" element={<Reports />} />
               <Route path="audit-logs" element={<AuditLogs />} />
@@ -216,6 +214,9 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
               <Route path="employees" element={<BranchEmployees />} />
+              <Route path="shifts" element={<BranchShiftManagement />} />
+              <Route path="schedule" element={<BranchSchedule />} />
+              <Route path="shift-swaps" element={<BranchShiftSwap />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="requisitions" element={<BranchRequisition />} />
               <Route path="receive-transfers" element={<BranchStockReceive />} />
@@ -237,7 +238,8 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
               <Route path="reports" element={<Reports />} />
-              <Route path="interactions" element={<DrugInteractions />} />
+              <Route path="schedule" element={<PharmacistSchedule />} />
+              <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
             </Route>

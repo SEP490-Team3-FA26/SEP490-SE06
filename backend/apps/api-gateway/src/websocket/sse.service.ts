@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Subject, Observable } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
+import { Injectable, Logger } from "@nestjs/common";
+import { Subject, Observable } from "rxjs";
+import { filter, map } from "rxjs/operators";
 
 export interface SseEventMessage {
   event?: string;
@@ -25,14 +25,23 @@ export class SseService {
   /**
    * Đăng ký một client kết nối SSE và trả về Observable stream tương ứng
    */
-  registerClient(user: { userId: string; email: string; role: string; branchId?: string }): Observable<MessageEvent> {
-    const userRooms = new Set<string>(['all']);
+  registerClient(user: {
+    userId: string;
+    email: string;
+    role: string;
+    branchId?: string;
+  }): Observable<MessageEvent> {
+    const userRooms = new Set<string>(["all"]);
 
-    if (user.role === 'admin' || user.role === 'head_branch') {
-      userRooms.add('admin');
+    if (
+      user.role === "admin" ||
+      user.role === "head_branch" ||
+      user.role === "director"
+    ) {
+      userRooms.add("admin");
     }
-    if (user.role === 'warehouse') {
-      userRooms.add('warehouse');
+    if (user.role === "warehouse") {
+      userRooms.add("warehouse");
     }
     if (user.branchId) {
       userRooms.add(`branch-${user.branchId}`);
@@ -42,16 +51,18 @@ export class SseService {
     }
 
     this.activeClientsCount++;
-    this.logger.log(`🔌 [SSE] Client connected: ${user.email} (${user.role}) → Rooms: ${Array.from(userRooms).join(', ')} (Total active: ${this.activeClientsCount})`);
+    this.logger.log(
+      `🔌 [SSE] Client connected: ${user.email} (${user.role}) → Rooms: ${Array.from(userRooms).join(", ")} (Total active: ${this.activeClientsCount})`,
+    );
 
     return this.eventSubject.asObservable().pipe(
       filter((msg: SseEventMessage) => {
-        if (!msg.targetRoom || msg.targetRoom === 'all') return true;
+        if (!msg.targetRoom || msg.targetRoom === "all") return true;
         return userRooms.has(msg.targetRoom);
       }),
       map((msg: SseEventMessage) => {
         return {
-          type: msg.event || 'message',
+          type: msg.event || "message",
           data: msg.data,
         } as unknown as MessageEvent;
       }),
@@ -60,7 +71,9 @@ export class SseService {
 
   clientDisconnected(email: string) {
     this.activeClientsCount = Math.max(0, this.activeClientsCount - 1);
-    this.logger.log(`👋 [SSE] Client disconnected: ${email} (Remaining active: ${this.activeClientsCount})`);
+    this.logger.log(
+      `👋 [SSE] Client disconnected: ${email} (Remaining active: ${this.activeClientsCount})`,
+    );
   }
 
   /**
@@ -70,7 +83,7 @@ export class SseService {
     this.eventSubject.next({
       event,
       data,
-      targetRoom: 'all',
+      targetRoom: "all",
     });
   }
 
