@@ -41,8 +41,8 @@ export function AuthLayout() {
       <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-purple-400/10 rounded-full blur-[80px] pointer-events-none"></div>
 
       <div className="w-full max-w-md flex flex-col items-center relative z-10">
-        <div className="mb-6 bg-white/70 p-4 rounded-3xl shadow-sm border border-white backdrop-blur-md">
-          <Logo className="items-center" textClassName="text-3xl" />
+        <div className="mb-6 bg-white/80 p-5 rounded-3xl shadow-sm border border-white backdrop-blur-md">
+          <Logo layout="vertical" size="xl" textClassName="text-2xl sm:text-3xl" />
         </div>
 
         <div className="w-full bg-white/90 backdrop-blur-xl shadow-2xl shadow-blue-900/5 rounded-[2rem] border border-white/80 p-6 sm:p-10 relative">

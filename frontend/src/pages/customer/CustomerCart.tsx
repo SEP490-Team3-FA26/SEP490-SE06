@@ -1,19 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, ShieldAlert, Sparkles, XCircle, Info, HeartPulse } from "lucide-react";
+import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, Info } from "lucide-react";
 import { cartService } from "../../services/sales/cart.service";
-import { medicineService } from "../../services/inventory/medicine.service";
 import { voucherService } from "../../services/sales/voucher.service";
 
 export function CustomerCart() {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState<any[]>([]);
   const updateQuantityTimerRef = useRef<any>(null);
-
-  // AI Interaction check states
-  const [checkingInteraction, setCheckingInteraction] = useState(false);
-  const [interactionResult, setInteractionResult] = useState<any>(null);
-  const [showInteractionBox, setShowInteractionBox] = useState(false);
 
   // Custom premium non-blocking alert modal state
   const [alertModal, setAlertModal] = useState<{ message: string; title?: string; onConfirm?: () => void } | null>(null);
@@ -42,6 +36,23 @@ export function CustomerCart() {
     }
 
     try {
+      // Auto-merge guest_cart into user cart upon login
+      const guestCartStr = localStorage.getItem("guest_cart");
+      if (guestCartStr) {
+        const guestItems = JSON.parse(guestCartStr);
+        if (Array.isArray(guestItems) && guestItems.length > 0) {
+          for (const gItem of guestItems) {
+            const gId = gItem.id || gItem._id;
+            const gQty = Number(gItem.quantity) || 1;
+            if (gId) {
+              await cartService.addToCart(gId, gQty).catch(e => console.warn("Failed to merge guest item:", e));
+            }
+          }
+          localStorage.removeItem("guest_cart");
+          window.dispatchEvent(new Event("cartUpdated"));
+        }
+      }
+
       const data = await cartService.getCart();
       setCartItems(data.items || []);
     } catch (err) {
@@ -51,12 +62,15 @@ export function CustomerCart() {
 
   useEffect(() => {
     loadCart();
+    const handleCartUpdate = () => loadCart();
+    window.addEventListener("cartUpdated", handleCartUpdate);
+    return () => window.removeEventListener("cartUpdated", handleCartUpdate);
   }, []);
 
   const updateQuantity = async (id: string, newQty: number | string) => {
     // Nếu truyền chuỗi rỗng để user xoá số nhập lại
     if (newQty === "") {
-      setCartItems(prev => prev.map(it => it.id === id ? { ...it, quantity: "" } : it));
+      setCartItems(prev => prev.map(it => ((it.id || it._id) === id ? { ...it, quantity: "" } : it)));
       return;
     }
 
@@ -69,23 +83,43 @@ export function CustomerCart() {
     }
 
     // Check client-side stock first before sending request
-    const item = cartItems.find((it) => it.id === id);
-    if (item && numericQty > item.stock) {
+    const item = cartItems.find((it) => (it.id || it._id) === id);
+    if (item && numericQty > (item.stock || 999)) {
       showAlert(`Chỉ còn ${item.stock} sản phẩm khả dụng trong kho!`);
       // Revert back to stock limit
-      setCartItems(prev => prev.map(it => it.id === id ? { ...it, quantity: item.stock } : it));
+      setCartItems(prev => prev.map(it => ((it.id || it._id) === id ? { ...it, quantity: item.stock } : it)));
       return;
     }
 
     // Optimistic UI update cho mượt (cập nhật state ngay lập tức)
-    setCartItems(prev => prev.map(it => it.id === id ? { ...it, quantity: numericQty } : it));
+    setCartItems(prev => prev.map(it => ((it.id || it._id) === id ? { ...it, quantity: numericQty } : it)));
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // Guest mode: Cập nhật trực tiếp vào localStorage guest_cart
+      try {
+        const guestCartStr = localStorage.getItem("guest_cart");
+        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const updated = cart.map((it: any) => {
+          if (it.id === id || it._id === id) {
+            return { ...it, quantity: numericQty };
+          }
+          return it;
+        });
+        localStorage.setItem("guest_cart", JSON.stringify(updated));
+        window.dispatchEvent(new Event("cartUpdated"));
+      } catch (err) {
+        console.error("Error updating guest cart:", err);
+      }
+      return;
+    }
 
     // Clear previous debounce timer
     if (updateQuantityTimerRef.current) {
       clearTimeout(updateQuantityTimerRef.current);
     }
 
-    // Debounce the backend call
+    // Debounce the backend call for logged-in users
     updateQuantityTimerRef.current = setTimeout(async () => {
       try {
         await cartService.updateCartItem(id, numericQty);
@@ -110,8 +144,6 @@ export function CustomerCart() {
         localStorage.setItem("guest_cart", JSON.stringify(filtered));
         setCartItems(filtered);
         window.dispatchEvent(new Event("cartUpdated"));
-        setInteractionResult(null);
-        setShowInteractionBox(false);
       } catch (err) {
         console.error("Error deleting guest cart item:", err);
       }
@@ -123,8 +155,6 @@ export function CustomerCart() {
 
       await loadCart();
       window.dispatchEvent(new Event("cartUpdated"));
-      setInteractionResult(null);
-      setShowInteractionBox(false);
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Lỗi xóa sản phẩm";
       showAlert(msg);
@@ -181,33 +211,6 @@ export function CustomerCart() {
     navigate("/customer/checkout");
   };
 
-  // Check drug interactions using the API Gateway
-  const handleCheckInteractions = async () => {
-    if (cartItems.length < 2) {
-      showAlert("Cần có ít nhất 2 loại thuốc trong giỏ hàng để kiểm tra tương tác chéo!");
-      return;
-    }
-    setCheckingInteraction(true);
-    setInteractionResult(null);
-    setShowInteractionBox(true);
-
-    try {
-      const medicineNames = cartItems.map((it) => it.name);
-
-      const data = await medicineService.checkInteraction(medicineNames);
-      setInteractionResult(data);
-    } catch (err: any) {
-      console.error(err);
-      const msg = err.response?.data?.detail || err.response?.data?.message || err.message || "Lỗi không xác định khi kiểm tra tương tác.";
-      setInteractionResult({
-        error: true,
-        message: msg
-      });
-    } finally {
-      setCheckingInteraction(false);
-    }
-  };
-
   // Pricing calculations
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * (Number(item.quantity) || 0), 0);
   const memberDiscount = Math.round(subtotal * 0.05); // 5% discount
@@ -219,14 +222,41 @@ export function CustomerCart() {
   const hasPriceChangedItem = cartItems.some((it) => it.priceChanged);
 
   return (
-    <div className="flex flex-col gap-6 flex-1">
-      <div className="flex items-center gap-3 border-b border-slate-150 pb-4">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-[#0d6efd]">
-          <ShoppingCart size={22} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Giỏ Hàng Của Bạn</h1>
-          <p className="text-xs text-slate-500 font-medium">Kiểm tra danh mục sản phẩm đã chọn trước khi thanh toán.</p>
+    <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
+      {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
+      <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-3xl flex flex-col gap-4">
+          <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
+            <ShoppingCart size={14} className="text-blue-400" />
+            Giỏ Hàng Dược Phẩm Trực Tuyến ABC Pharma
+          </span>
+
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+            Giỏ Hàng Mua Thuốc <br className="hidden sm:block" />
+            Đối Soát & Nhận Ưu Đãi
+          </h1>
+
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-semibold max-w-2xl">
+            Kiểm tra danh mục thuốc, kiểm tra tương tác dược lý AI tự động trước khi thanh toán và tích lũy điểm thưởng thành viên khi hoàn tất đơn hàng.
+          </p>
+
+          {/* Quick Stats Pills */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Số Loại Thuốc</span>
+              <span className="text-lg sm:text-xl font-black text-white mt-0.5">{cartItems.length} Sản phẩm</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tạm Tính Giỏ Hàng</span>
+              <span className="text-lg sm:text-xl font-black text-amber-300 mt-0.5">{subtotal.toLocaleString()}đ</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tích Lũy Dự Kiến</span>
+              <span className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">+{Math.round(total / 100).toLocaleString()}đ</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -250,106 +280,7 @@ export function CustomerCart() {
               </div>
             )}
 
-            {/* AI Drug Interaction Checker Widget */}
-            <div className="bg-gradient-to-r from-indigo-50/50 to-blue-50/30 border border-blue-100 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-start gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                  <HeartPulse size={20} />
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
-                    Kiểm Tra Tương Tác Dược Lý Bằng AI
-                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-black rounded-full uppercase tracking-wider">AI Powered</span>
-                  </h4>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                    Hệ thống AI sẽ đối chiếu dữ liệu tương tác từ FDA và Bộ Y Tế để phân tích tính an toàn của giỏ hàng.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleCheckInteractions}
-                disabled={cartItems.length < 2 || checkingInteraction}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm shrink-0 flex items-center gap-1.5"
-              >
-                <Sparkles size={13} />
-                {checkingInteraction ? "Đang phân tích..." : "Kiểm tra ngay"}
-              </button>
-            </div>
 
-            {/* Render Interaction results box */}
-            {showInteractionBox && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4 animate-slide-in-top">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldAlert size={16} className="text-indigo-600 animate-pulse" /> Kết quả đánh giá lâm sàng
-                  </h4>
-                  <button
-                    onClick={() => setShowInteractionBox(false)}
-                    className="text-xs text-slate-400 hover:text-slate-700 font-bold"
-                  >
-                    Đóng
-                  </button>
-                </div>
-
-                {checkingInteraction ? (
-                  <div className="flex items-center justify-center py-6 gap-2.5">
-                    <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Dược sĩ AI đang duyệt toa...</span>
-                  </div>
-                ) : interactionResult?.error ? (
-                  <div className="p-4 bg-red-50 text-red-700 border border-red-100 rounded-xl text-xs font-semibold flex items-center gap-2">
-                    <XCircle size={16} className="text-red-500 shrink-0" />
-                    {interactionResult.message}
-                  </div>
-                ) : interactionResult ? (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-500">Mức độ cảnh báo:</span>
-                      <span
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${interactionResult.severity === "Cao"
-                            ? "bg-red-100 text-red-800 animate-bounce"
-                            : interactionResult.severity === "Trung bình"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                      >
-                        {interactionResult.severity || "An toàn / Safe"}
-                      </span>
-                    </div>
-
-                    {interactionResult.has_interactions && interactionResult.interactions?.length > 0 ? (
-                      <div className="space-y-3 mt-1.5">
-                        {interactionResult.interactions.map((inter: any, idx: number) => (
-                          <div
-                            key={idx}
-                            className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 flex flex-col gap-2"
-                          >
-                            <div className="font-extrabold text-[13px] text-rose-950 flex items-center gap-1.5">
-                              ⚠️ Tương tác: <span className="underline">{inter.drug_a}</span> x <span className="underline">{inter.drug_b}</span>
-                            </div>
-                            <p className="text-xs text-rose-800 leading-relaxed font-semibold">
-                              {inter.description}
-                            </p>
-                            <div className="text-[11px] bg-white border border-rose-100/50 p-2.5 rounded-lg text-slate-700 font-bold leading-normal">
-                              Khuyến nghị: {inter.recommendation}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl p-4 font-semibold text-xs leading-relaxed">
-                        Không phát hiện bất kỳ tương tác chéo nguy hại nào giữa các thành phần thuốc trong giỏ hàng. Bạn có thể yên tâm sử dụng!
-                      </div>
-                    )}
-                    {interactionResult.general_advice && (
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-[11px] font-bold text-slate-600 leading-relaxed mt-2.5">
-                        💡 Lời khuyên y tế: {interactionResult.general_advice}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            )}
 
             {/* Cart Items Table container */}
             <div className="bg-white border border-slate-200 rounded-[20px] shadow-sm overflow-hidden">
@@ -364,64 +295,67 @@ export function CustomerCart() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {cartItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
-                      <td className="px-6 py-5">
-                        <div className="font-extrabold text-slate-900 text-[14px]">{item.name}</div>
-                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">{item.category}</div>
-                        {item.active_ingredient && (
-                          <div className="text-[10px] font-semibold text-[#0d6efd] mt-1">Hoạt chất: {item.active_ingredient}</div>
-                        )}
-                        {item.priceChanged && (
-                          <div className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5 inline-block">
-                            ⚠️ Đã đổi giá (Giá cũ: {item.addedPrice.toLocaleString()}₫)
+                  {cartItems.map((item) => {
+                    const itemId = item.id || item._id;
+                    return (
+                      <tr key={itemId} className="hover:bg-slate-50/30 transition-colors">
+                        <td className="px-6 py-5">
+                          <div className="font-extrabold text-slate-900 text-[14px]">{item.name}</div>
+                          <div className="text-[11px] text-slate-400 font-medium mt-0.5">{item.category}</div>
+                          {item.active_ingredient && (
+                            <div className="text-[10px] font-semibold text-[#0d6efd] mt-1">Hoạt chất: {item.active_ingredient}</div>
+                          )}
+                          {item.priceChanged && (
+                            <div className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5 inline-block">
+                              ⚠️ Đã đổi giá (Giá cũ: {item.addedPrice.toLocaleString()}₫)
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-5 text-center">
+                          <div className="flex items-center justify-center gap-2.5">
+                            <button
+                              onClick={() => updateQuantity(itemId, (Number(item.quantity) || 1) - 1)}
+                              className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
+                            >
+                              <Minus size={12} />
+                            </button>
+                            <input
+                              type="text"
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(itemId, e.target.value)}
+                              onBlur={(e) => {
+                                if (e.target.value === "" || Number(e.target.value) <= 0) {
+                                  updateQuantity(itemId, 1);
+                                }
+                              }}
+                              className="font-bold text-[14px] text-slate-900 w-10 text-center bg-transparent border border-transparent hover:border-slate-200 focus:border-[#0d6efd] focus:outline-none rounded transition-all py-0.5"
+                            />
+                            <button
+                              onClick={() => updateQuantity(itemId, (Number(item.quantity) || 0) + 1)}
+                              className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
+                            >
+                              <Plus size={12} />
+                            </button>
                           </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-5 text-center">
-                        <div className="flex items-center justify-center gap-2.5">
+                        </td>
+                        <td className="px-6 py-5 text-right font-medium text-slate-500">
+                          {item.price.toLocaleString()}₫
+                          <span className="text-[10px] text-slate-400 block mt-0.5">/{item.unit}</span>
+                        </td>
+                        <td className="px-6 py-5 text-right font-black text-slate-900">
+                          {(item.price * (Number(item.quantity) || 0)).toLocaleString()}₫
+                        </td>
+                        <td className="px-4 py-5 text-center">
                           <button
-                            onClick={() => updateQuantity(item.id, (Number(item.quantity) || 1) - 1)}
-                            className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
+                            onClick={() => handleDelete(itemId)}
+                            className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer"
                           >
-                            <Minus size={12} />
+                            <Trash2 size={16} />
                           </button>
-                          <input
-                            type="text"
-                            value={item.quantity}
-                            onChange={(e) => updateQuantity(item.id, e.target.value)}
-                            onBlur={(e) => {
-                              if (e.target.value === "" || Number(e.target.value) <= 0) {
-                                updateQuantity(item.id, 1);
-                              }
-                            }}
-                            className="font-bold text-[14px] text-slate-900 w-10 text-center bg-transparent border border-transparent hover:border-slate-200 focus:border-[#0d6efd] focus:outline-none rounded transition-all py-0.5"
-                          />
-                          <button
-                            onClick={() => updateQuantity(item.id, (Number(item.quantity) || 0) + 1)}
-                            className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:scale-90 transition-transform"
-                          >
-                            <Plus size={12} />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-right font-medium text-slate-500">
-                        {item.price.toLocaleString()}₫
-                        <span className="text-[10px] text-slate-400 block mt-0.5">/{item.unit}</span>
-                      </td>
-                      <td className="px-6 py-5 text-right font-black text-slate-900">
-                        {(item.price * (Number(item.quantity) || 0)).toLocaleString()}₫
-                      </td>
-                      <td className="px-4 py-5 text-center">
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

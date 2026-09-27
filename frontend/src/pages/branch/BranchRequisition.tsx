@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Plus, X, CheckCircle2, AlertTriangle, Loader2, ClipboardList,
-  Calendar, Package, Trash2, Send, FileText, ChevronRight, Eye, Search, ChevronDown, Edit
+  Calendar, Package, Trash2, Send, FileText, ChevronRight, Eye, Search, ChevronDown, Edit, ShieldCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { purchaseRequisitionService } from "../../services/purchase/purchaseRequisition.service";
@@ -40,7 +40,7 @@ export function BranchRequisition() {
   }, []);
 
   const handleDeletePr = async (id: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn hủy/xóa yêu cầu mua hàng này? Ngân sách hạn mức dự kiến sẽ được hoàn lại.")) {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy/xóa yêu cầu mua hàng này không?")) {
       return;
     }
     setLoading(true);
@@ -133,7 +133,7 @@ export function BranchRequisition() {
       )}
 
       {/* Workflow explainer */}
-      <div className="mb-6 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="mb-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Quy trình xử lý yêu cầu</p>
         <div className="flex items-center gap-2 flex-wrap text-xs font-bold">
           <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg">1. Bạn tạo PR</span>
@@ -143,6 +143,22 @@ export function BranchRequisition() {
           <span className="px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg">3. Admin thanh toán</span>
           <ChevronRight size={14} className="text-slate-400" />
           <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg">4. Kho nhận hàng</span>
+        </div>
+      </div>
+
+      {/* Branch Autonomy & Responsibility Banner */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-emerald-50/80 rounded-xl border border-blue-200/70 shadow-sm flex items-start gap-3">
+        <div className="p-2 bg-blue-600 text-white rounded-lg shadow-xs mt-0.5">
+          <ShieldCheck size={18} />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-900 text-sm">Cơ chế Tự chủ & Tự chịu trách nhiệm</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Không giới hạn ngưỡng tiền</span>
+          </div>
+          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+            Quản lý chi nhánh chủ động lập và gửi yêu cầu nhập thuốc theo nhu cầu thực tế của cơ sở mà không bị giới hạn bởi ngưỡng ngân sách. Chi nhánh chịu trách nhiệm trực tiếp về số lượng và tính cần thiết của từng đơn hàng.
+          </p>
         </div>
       </div>
 
@@ -167,6 +183,7 @@ export function BranchRequisition() {
                   <th className="px-5 py-3">Ngày gửi</th>
                   <th className="px-5 py-3">Lý do</th>
                   <th className="px-5 py-3 text-center">Số SP</th>
+                  <th className="px-5 py-3 text-right">Chi phí ước tính</th>
                   <th className="px-5 py-3 text-center">Trạng thái</th>
                   <th className="px-5 py-3"></th>
                 </tr>
@@ -178,6 +195,9 @@ export function BranchRequisition() {
                     <td className="px-5 py-3.5 text-slate-600 flex items-center gap-1.5"><Calendar size={14} className="text-slate-400" />{new Date(pr.createdAt).toLocaleDateString("vi-VN")}</td>
                     <td className="px-5 py-3.5 text-slate-600 max-w-[200px] truncate">{pr.reason || "—"}</td>
                     <td className="px-5 py-3.5 text-center font-bold">{pr.items?.length || 0}</td>
+                    <td className="px-5 py-3.5 text-right font-mono font-bold text-slate-700">
+                      {pr.totalEstimatedCost ? `${pr.totalEstimatedCost.toLocaleString('vi-VN')} đ` : "—"}
+                    </td>
                     <td className="px-5 py-3.5 text-center">{statusBadge(pr.status)}</td>
                     <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-2 justify-end">
@@ -247,6 +267,18 @@ export function BranchRequisition() {
                 <div className="grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div><span className="text-slate-500 font-bold text-xs block">Chi nhánh</span><span className="font-semibold text-slate-800">{detailPr.branchName}</span></div>
                   <div><span className="text-slate-500 font-bold text-xs block">Ngày tạo</span><span className="font-semibold text-slate-800">{new Date(detailPr.createdAt).toLocaleString("vi-VN")}</span></div>
+                  <div>
+                    <span className="text-slate-500 font-bold text-xs block">Chi phí ước tính</span>
+                    <span className="font-extrabold text-blue-700 font-mono">
+                      {detailPr.totalEstimatedCost ? `${detailPr.totalEstimatedCost.toLocaleString('vi-VN')} đ` : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold text-xs block">Trách nhiệm</span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-0.5">
+                      <ShieldCheck size={12} /> Tự chịu trách nhiệm
+                    </span>
+                  </div>
                   <div className="col-span-2"><span className="text-slate-500 font-bold text-xs block">Lý do</span><span className="font-semibold text-slate-800">{detailPr.reason || "—"}</span></div>
                   {detailPr.rejectionReason && <div className="col-span-2"><span className="text-rose-500 font-bold text-xs block">Lý do từ chối</span><span className="font-semibold text-rose-700">{detailPr.rejectionReason}</span></div>}
                 </div>

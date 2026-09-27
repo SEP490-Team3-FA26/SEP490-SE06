@@ -3,7 +3,7 @@
       image: redis:7-alpine
 
       ports:
-        - "6379:6379"
+        - "6380:6379"
       command: redis-server --save 60 1 --loglevel warning
       networks:
         - wdp301-network
@@ -58,6 +58,7 @@
         - "4000:4000"
       environment:
         - PORT=4000
+        - AI_SERVICE_URL=http://ai-service:8000
         - REDIS_HOST=redis
         - REDIS_PORT=6379
         - KAFKA_BROKERS=kafka:29092
@@ -84,7 +85,7 @@
         - type: volume
           target: /app/node_modules
       ports:
-        - "3000:3000"
+        - "3001:3001"
       environment:
         - DOCKER=true
         #hot module reload
@@ -113,7 +114,9 @@
         - "8000:8000"
         - "6006:6006"
       environment:
+        - PORT=8000
         - QDRANT_HOST=qdrant
+      command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
       depends_on:
         - qdrant
       networks:

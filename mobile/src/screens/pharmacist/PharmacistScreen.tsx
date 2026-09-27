@@ -26,13 +26,25 @@ import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModa
 import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState<'POS' | 'OCR' | 'INTERACTIONS'>('POS');
+  const [activeTab, setActiveTab] = useState<'POS' | 'OCR'>('POS');
 
   // POS State
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [searchMed, setSearchMed] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedMedDetail, setSelectedMedDetail] = useState<Medicine | null>(null);
+  const [modalSelectedUnit, setModalSelectedUnit] = useState<{
+    unitName: string;
+    exchangeValue: number;
+    price: number;
+    isBaseUnit?: boolean;
+  } | null>(null);
+
+  // Alternatives State (Thuốc tương đương / thay thế)
+  const [showAlternativesModal, setShowAlternativesModal] = useState<boolean>(false);
+  const [selectedTargetMed, setSelectedTargetMed] = useState<Medicine | null>(null);
+  const [alternativesList, setAlternativesList] = useState<Medicine[]>([]);
+  const [loadingAlternatives, setLoadingAlternatives] = useState<boolean>(false);
 
   // Barcode & Label State
   const [showScanner, setShowScanner] = useState<boolean>(false);
@@ -44,10 +56,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [scanning, setScanning] = useState<boolean>(false);
   const [ocrResult, setOcrResult] = useState<any | null>(null);
 
-  // Drug Interaction State
-  const [selectedInteractionMeds, setSelectedInteractionMeds] = useState<string[]>([]);
-  const [checkingInteractions, setCheckingInteractions] = useState<boolean>(false);
-  const [interactionResult, setInteractionResult] = useState<any | null>(null);
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
@@ -80,24 +88,96 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     loadData();
   }, [loadData]);
 
-  // Cart operations
-  const addToCart = (med: Medicine) => {
-    setCart((prev) => {
-      const idx = prev.findIndex((i) => i.medicine.id === med.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
-        return next;
-      }
-      return [...prev, { medicine: med, quantity: 1 }];
-    });
+  // Open Medicine Detail with default unit
+  const handleOpenMedDetail = (med: Medicine) => {
+    const unitOptions = ApiService.buildUnitOptions(med);
+    // Ưu tiên đơn vị đầu tiên (Hộp) hoặc đơn vị lẻ nếu muốn
+    setModalSelectedUnit(unitOptions[0] || { unitName: med.unit || 'Hộp', price: med.price, exchangeValue: 1 });
+    setSelectedMedDetail(med);
   };
 
-  const updateQuantity = (medId: string, delta: number) => {
+  // Open Alternatives Modal
+  const handleOpenAlternatives = async (med: Medicine) => {
+    setSelectedTargetMed(med);
+    setShowAlternativesModal(true);
+    setLoadingAlternatives(true);
+    try {
+      const list = await ApiService.getAlternatives(med.id);
+      setAlternativesList(list || []);
+    } catch (e) {
+      console.warn('Lỗi lấy thuốc thay thế:', e);
+      setAlternativesList([]);
+    } finally {
+      setLoadingAlternatives(false);
+    }
+  };
+
+  // Cart operations
+  const addToCart = (
+    med: Medicine,
+    customUnit?: string,
+    customPrice?: number,
+    initialQty: number = 1
+  ) => {
+    const unitOptions = ApiService.buildUnitOptions(med);
+    const selectedUnit = customUnit || unitOptions[0]?.unitName || med.unit || 'Hộp';
+    const selectedPrice =
+      customPrice !== undefined
+        ? customPrice
+        : unitOptions.find((u) => u.unitName === selectedUnit)?.price ?? med.price;
+
+    const expInfo = ApiService.getExpiryStatus(med);
+    if (expInfo.status === 'EXPIRED') {
+      Alert.alert(
+        '⛔ CẢNH BÁO: LÔ THUỐC ĐÃ HẾT HẠN',
+        `Thuốc "${med.name}" (${expInfo.batchNo}) đã hết hạn sử dụng (${expInfo.expDateFormatted}).\n\nTheo quy chuẩn GPP, tuyệt đối không được bán thuốc đã hết hạn! Bạn có muốn tìm thuốc tương đương thay thế không?`,
+        [
+          { text: 'Hủy bỏ', style: 'cancel' },
+          {
+            text: 'Tìm Thuốc Thay Thế',
+            onPress: () => handleOpenAlternatives(med),
+          },
+        ]
+      );
+      return;
+    }
+
+    setCart((prev) => {
+      const itemKey = `${med.id}_${selectedUnit}`;
+      const idx = prev.findIndex(
+        (i) => `${i.medicine.id}_${i.selectedUnit || i.medicine.unit}` === itemKey
+      );
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], quantity: next[idx].quantity + initialQty };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          medicine: med,
+          quantity: initialQty,
+          selectedUnit,
+          unitPrice: selectedPrice,
+          unitOptions,
+          batchNo: expInfo.batchNo,
+          expDate: expInfo.expDateFormatted,
+        },
+      ];
+    });
+
+    showToast.success(
+      'Đã thêm vào giỏ',
+      `${med.name} (${initialQty} ${selectedUnit} - ${(selectedPrice * initialQty).toLocaleString('vi-VN')} ₫)`
+    );
+  };
+
+  const updateQuantity = (medId: string, delta: number, unit?: string) => {
     setCart((prev) =>
       prev
         .map((item) => {
-          if (item.medicine.id === medId) {
+          const match = item.medicine.id === medId && (!unit || item.selectedUnit === unit);
+          if (match) {
             const nextQty = item.quantity + delta;
             return nextQty > 0 ? { ...item, quantity: nextQty } : null;
           }
@@ -107,8 +187,33 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     );
   };
 
+  const handleChangeCartUnit = (itemKey: string, newUnitName: string) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        const key = `${item.medicine.id}_${item.selectedUnit || item.medicine.unit}`;
+        if (key !== itemKey) return item;
+
+        const options =
+          item.unitOptions && item.unitOptions.length > 0
+            ? item.unitOptions
+            : ApiService.buildUnitOptions(item.medicine);
+        const opt = options.find((u) => u.unitName === newUnitName) || {
+          unitName: newUnitName,
+          price: item.medicine.price,
+          exchangeValue: 1,
+        };
+
+        return {
+          ...item,
+          selectedUnit: opt.unitName,
+          unitPrice: opt.price,
+        };
+      })
+    );
+  };
+
   const totalCartPrice = cart.reduce(
-    (sum, item) => sum + item.medicine.price * item.quantity,
+    (sum, item) => sum + (item.unitPrice !== undefined ? item.unitPrice : item.medicine.price) * item.quantity,
     0
   );
 
@@ -238,29 +343,60 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     setScanning(true);
     try {
       const res = await ApiService.scanPrescriptionAI(uri);
-      if (res) {
-        const ocr = res.ocr_result || res;
-        const meds = ocr.medications || res.medications || res.matched_drugs || [];
-
-        const parsedResult = {
-          diagnosis: ocr.diagnosis || res.diagnosis || 'Kê đơn theo phác đồ điều trị',
-          doctor: ocr.doctor || ocr.doctor_name || res.doctor || 'Bác sĩ điều trị',
-          patient: ocr.patient_name || res.patient_name || (ocr.patient ? `${ocr.patient.name} (${ocr.patient.age || ''})` : 'Bệnh nhân khám'),
-          medicines: meds.map((m: any) => ({
-            name: m.name || m.product_name || m.brand_name || 'Thuốc chỉ định',
-            dosage: m.dosage || m.instruction || m.usage || 'Theo chỉ định bác sĩ',
-            qty: m.qty || m.quantity || 10,
-            unit: m.unit || 'Hộp',
-          })),
-        };
-        setOcrResult(parsedResult);
-        showToast.success('Thành công', 'AI đã hoàn tất quét và bóc tách đơn thuốc từ ảnh!');
-      } else {
+      if (!res) {
         showToast.info('Thông báo', 'Không thể nhận diện nội dung đơn thuốc từ ảnh. Bạn có thể chọn đơn mẫu để thử nghiệm.');
+        return;
       }
-    } catch (e) {
+
+      if (res.error_code === 'HANDWRITTEN_PRESCRIPTION_REJECTED' || res.is_handwritten) {
+        showToast.error('Từ chối', 'Đơn thuốc viết tay không được hỗ trợ! Vui lòng chụp hoặc tải lên đơn bản in điện tử rõ nét.');
+        return;
+      }
+
+      if (res.success === false && res.message) {
+        showToast.error('Lỗi quét', res.message);
+        return;
+      }
+
+      let meds: any[] = [];
+      if (Array.isArray(res.items)) {
+        meds = res.items.map((item: any) => {
+          const sku = item.selected_sku || {};
+          const ext = item.extracted || {};
+          return {
+            name: sku.product_name || ext.brand_name || ext.generic_name || item.raw_text || 'Thuốc chỉ định',
+            dosage: ext.usage_instruction || 'Theo chỉ định bác sĩ',
+            qty: ext.quantity || 1,
+            unit: sku.unit || ext.unit || 'Viên',
+            price: sku.retail_price || 0,
+            medicineId: sku.product_id,
+            stock: sku.stock || 0,
+            batchNo: item.fefo_batch?.batch_no || 'DEFAULT',
+          };
+        });
+      } else {
+        const ocr = res.ocr_result || res;
+        const rawMeds = ocr.medications || res.medications || res.matched_drugs || [];
+        meds = rawMeds.map((m: any) => ({
+          name: m.name || m.product_name || m.brand_name || 'Thuốc chỉ định',
+          dosage: m.dosage || m.instruction || m.usage || 'Theo chỉ định bác sĩ',
+          qty: m.qty || m.quantity || 10,
+          unit: m.unit || 'Hộp',
+        }));
+      }
+
+      const parsedResult = {
+        diagnosis: res.patient?.diagnosis || res.ocr_result?.diagnosis || res.diagnosis || 'Kê đơn theo phác đồ điều trị',
+        doctor: res.doctor?.name ? `${res.doctor.name}${res.doctor.hospital ? ` (${res.doctor.hospital})` : ''}` : (res.ocr_result?.doctor || res.doctor || 'Bác sĩ điều trị'),
+        patient: res.patient?.name ? `${res.patient.name}${res.patient.age ? ` (${res.patient.age}T)` : ''}` : (res.ocr_result?.patient_name || res.patient_name || 'Bệnh nhân khám'),
+        medicines: meds,
+      };
+
+      setOcrResult(parsedResult);
+      showToast.success('Thành công', `AI đã hoàn tất quét và bóc tách ${meds.length} thuốc từ bản in!`);
+    } catch (e: any) {
       console.warn('Lỗi quét đơn thuốc:', e);
-      showToast.error('Lỗi', 'Không thể kết nối dịch vụ AI OCR.');
+      showToast.error('Lỗi', e?.message || 'Không thể kết nối dịch vụ AI OCR.');
     } finally {
       setScanning(false);
     }
@@ -270,11 +406,14 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     if (!ocrResult?.medicines?.length) return;
     let addedCount = 0;
     ocrResult.medicines.forEach((m: any) => {
-      const matched = medicines.find(
-        (med) =>
-          med.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
-          (m.name && med.name.toLowerCase().includes(m.name.toLowerCase()))
-      );
+      let matched = medicines.find((med) => m.medicineId && med.id === m.medicineId);
+      if (!matched) {
+        matched = medicines.find(
+          (med) =>
+            med.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
+            (m.name && med.name.toLowerCase().includes(m.name.toLowerCase()))
+        );
+      }
       if (matched) {
         addToCart(matched);
         addedCount++;
@@ -309,40 +448,12 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     }
   };
 
-  // Drug Interaction checker
-  const toggleInteractionMed = (medName: string) => {
-    setSelectedInteractionMeds((prev) =>
-      prev.includes(medName) ? prev.filter((m) => m !== medName) : [...prev, medName]
-    );
-  };
-
-  const handleCheckInteractions = async () => {
-    if (selectedInteractionMeds.length < 2) {
-      showToast.info('Thông báo', 'Vui lòng chọn ít nhất 2 loại thuốc để kiểm tra tương tác chéo.');
-      return;
-    }
-
-    setCheckingInteractions(true);
-    const res = await ApiService.checkInteractions(selectedInteractionMeds);
-    setCheckingInteractions(false);
-
-    if (res) {
-      setInteractionResult(res);
-    } else {
-      setInteractionResult({
-        hasInteraction: true,
-        severity: 'MODERATE',
-        description: 'Tương tác giữa Paracetamol và Kháng sinh Amoxicillin: Không có chống chỉ định tuyệt đối, nhưng cần theo dõi chức năng gan khi dùng liều cao dài ngày.',
-        recommendation: 'Uống cách nhau 2 tiếng để giảm thiểu kích ứng dạ dày.',
-      });
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
         title="Dược Sĩ Bán Hàng"
-        subtitle="POS Bán lẻ, Quét Đơn OCR & Kiểm tra tương tác thuốc"
+        subtitle="POS Bán lẻ & Quét Đơn OCR"
         gradientVariant="emerald"
         rightAction={{
           icon: 'person-circle-outline',
@@ -384,19 +495,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </Text>
         </AnimatedTouchable>
 
-        <AnimatedTouchable
-          onPress={() => setActiveTab('INTERACTIONS')}
-          style={[styles.tabItem, activeTab === 'INTERACTIONS' && styles.activeTabItem]}
-        >
-          <Ionicons
-            name="git-compare"
-            size={18}
-            color={activeTab === 'INTERACTIONS' ? '#065F46' : '#94A3B8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'INTERACTIONS' && styles.activeTabText]}>
-            Tương Tác Thuốc
-          </Text>
-        </AnimatedTouchable>
       </View>
 
       <ScrollView
@@ -447,106 +545,205 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
                 {/* Cart Items Summary */}
                 <View style={styles.cartItemList}>
-                  {cart.map((item, idx) => (
-                    <View key={item.medicine.id || (item.medicine as any)._id || `cart-${idx}`} style={styles.cartRow}>
-                      <Image
-                        source={{
-                          uri:
-                            item.medicine.image ||
-                            item.medicine.image_url ||
-                            'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-                        }}
-                        style={styles.cartThumb}
-                        resizeMode="cover"
-                      />
-                      <Text style={styles.cartMedName} numberOfLines={1}>
-                        {item.medicine.name}
-                      </Text>
-                      <View style={styles.qtyControl}>
-                        <AnimatedTouchable
-                          onPress={() => updateQuantity(item.medicine.id, -1)}
-                          style={styles.qtyBtn}
-                        >
-                          <Text style={styles.qtyBtnText}>-</Text>
-                        </AnimatedTouchable>
-                        <Text style={styles.qtyVal}>{item.quantity}</Text>
-                        <AnimatedTouchable
-                          onPress={() => updateQuantity(item.medicine.id, 1)}
-                          style={styles.qtyBtn}
-                        >
-                          <Text style={styles.qtyBtnText}>+</Text>
-                        </AnimatedTouchable>
+                  {cart.map((item, idx) => {
+                    const itemKey = `${item.medicine.id}_${item.selectedUnit || item.medicine.unit}`;
+                    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : item.medicine.price;
+                    const itemTotal = unitPrice * item.quantity;
+                    const unitOpts = item.unitOptions && item.unitOptions.length > 0
+                      ? item.unitOptions
+                      : ApiService.buildUnitOptions(item.medicine);
+                    const isOutOfStock = (item.medicine.stock || 0) <= 0;
+
+                    return (
+                      <View key={itemKey || `cart-${idx}`} style={styles.cartRow}>
+                        <Image
+                          source={{
+                            uri:
+                              item.medicine.image ||
+                              item.medicine.image_url ||
+                              'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                          }}
+                          style={styles.cartThumb}
+                          resizeMode="cover"
+                        />
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={styles.cartMedName} numberOfLines={1}>
+                            {item.medicine.name}
+                          </Text>
+
+                          <View style={styles.cartSubRow}>
+                            {/* Bộ chọn hoặc hiển thị đơn vị */}
+                            {unitOpts.length > 1 ? (
+                              <View style={styles.cartUnitSelector}>
+                                {unitOpts.map((opt) => {
+                                  const isSel = (item.selectedUnit || item.medicine.unit) === opt.unitName;
+                                  return (
+                                    <AnimatedTouchable
+                                      key={opt.unitName}
+                                      onPress={() => handleChangeCartUnit(itemKey, opt.unitName)}
+                                      style={[styles.cartUnitChip, isSel && styles.cartUnitChipActive]}
+                                    >
+                                      <Text style={[styles.cartUnitChipText, isSel && styles.cartUnitChipTextActive]}>
+                                        {opt.unitName}
+                                      </Text>
+                                    </AnimatedTouchable>
+                                  );
+                                })}
+                              </View>
+                            ) : (
+                              <Text style={styles.cartUnitStaticText}>
+                                {item.selectedUnit || item.medicine.unit}
+                              </Text>
+                            )}
+
+                            <Text style={styles.cartPriceText}>
+                              {itemTotal.toLocaleString('vi-VN')} ₫
+                            </Text>
+                          </View>
+
+                          {/* Cảnh báo hết hàng nếu stock <= 0 */}
+                          {isOutOfStock && (
+                            <View style={styles.cartStockWarningRow}>
+                              <Text style={styles.cartStockWarningText}>⚠️ Hết hàng (Tồn: 0)</Text>
+                              <AnimatedTouchable
+                                onPress={() => handleOpenAlternatives(item.medicine)}
+                                style={styles.cartAltBtn}
+                              >
+                                <Ionicons name="swap-horizontal" size={12} color="#7C3AED" />
+                                <Text style={styles.cartAltBtnText}>Tìm thay thế</Text>
+                              </AnimatedTouchable>
+                            </View>
+                          )}
+                        </View>
+
+                        <View style={styles.qtyControl}>
+                          <AnimatedTouchable
+                            onPress={() => updateQuantity(item.medicine.id, -1, item.selectedUnit)}
+                            style={styles.qtyBtn}
+                          >
+                            <Text style={styles.qtyBtnText}>-</Text>
+                          </AnimatedTouchable>
+                          <Text style={styles.qtyVal}>{item.quantity}</Text>
+                          <AnimatedTouchable
+                            onPress={() => updateQuantity(item.medicine.id, 1, item.selectedUnit)}
+                            style={styles.qtyBtn}
+                          >
+                            <Text style={styles.qtyBtnText}>+</Text>
+                          </AnimatedTouchable>
+                        </View>
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               </GradientCard>
             )}
 
             <Text style={styles.sectionTitle}>Danh Mục Thuốc Tại Quầy (Có Ảnh & Mã Vạch)</Text>
-            {medicines.map((med, idx) => (
-              <View key={med.id || (med as any)._id || `med-${idx}`} style={styles.medCard}>
-                <Image
-                  source={{
-                    uri:
-                      med.image ||
-                      med.image_url ||
-                      'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-                  }}
-                  style={styles.medThumb}
-                  resizeMode="cover"
-                />
-                <AnimatedTouchable
-                  onPress={() => setSelectedMedDetail(med)}
-                  style={{ flex: 1, marginLeft: 12 }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.medName} numberOfLines={1}>{med.name}</Text>
-                    {med.isRx ? (
-                      <View style={styles.rxBadge}>
-                        <Text style={styles.rxBadgeText}>Rx</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={styles.medActive} numberOfLines={1}>Hoạt chất: {med.active}</Text>
-                  
-                  <View style={styles.codeRow}>
-                    {med.sku ? (
-                      <View style={styles.codeBadge}>
-                        <Text style={styles.codeBadgeText}>SKU: {med.sku}</Text>
-                      </View>
-                    ) : null}
-                    {med.barcode ? (
-                      <View style={[styles.codeBadge, { backgroundColor: '#F1F5F9' }]}>
-                        <Ionicons name="barcode" size={11} color="#475569" style={{ marginRight: 2 }} />
-                        <Text style={[styles.codeBadgeText, { color: '#475569' }]}>{med.barcode}</Text>
-                      </View>
-                    ) : null}
-                  </View>
+            {medicines.map((med, idx) => {
+              const opts = ApiService.buildUnitOptions(med);
+              const expStatus = ApiService.getExpiryStatus(med);
+              const isOutStock = (med.stock || 0) <= 0;
 
-                  <Text style={styles.medPrice}>
-                    {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
-                  </Text>
-                </AnimatedTouchable>
-
-                <View style={styles.actionCol}>
+              return (
+                <View key={med.id || (med as any)._id || `med-${idx}`} style={styles.medCard}>
+                  <Image
+                    source={{
+                      uri:
+                        med.image ||
+                        med.image_url ||
+                        'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                    }}
+                    style={styles.medThumb}
+                    resizeMode="cover"
+                  />
                   <AnimatedTouchable
-                    onPress={() => handleOpenLabelModal(med)}
-                    style={styles.labelIconBtn}
+                    onPress={() => handleOpenMedDetail(med)}
+                    style={{ flex: 1, marginLeft: 12 }}
                   >
-                    <Ionicons name="print-outline" size={16} color="#0284C7" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Text style={styles.medName} numberOfLines={1}>{med.name}</Text>
+                      {med.isRx ? (
+                        <View style={styles.rxBadge}>
+                          <Text style={styles.rxBadgeText}>Rx</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.medActive} numberOfLines={1}>Hoạt chất: {med.active}</Text>
+                    
+                    <View style={styles.codeRow}>
+                      {med.sku ? (
+                        <View style={styles.codeBadge}>
+                          <Text style={styles.codeBadgeText}>SKU: {med.sku}</Text>
+                        </View>
+                      ) : null}
+                      {med.barcode ? (
+                        <View style={[styles.codeBadge, { backgroundColor: '#F1F5F9' }]}>
+                          <Ionicons name="barcode" size={11} color="#475569" style={{ marginRight: 2 }} />
+                          <Text style={[styles.codeBadgeText, { color: '#475569' }]}>{med.barcode}</Text>
+                        </View>
+                      ) : null}
+
+                      {/* Badge Hạn Dùng / FEFO */}
+                      <View style={[styles.expiryBadge, { backgroundColor: expStatus.badgeBg, borderColor: expStatus.badgeColor }]}>
+                        <Ionicons name={expStatus.icon as any} size={10} color={expStatus.badgeColor} style={{ marginRight: 2 }} />
+                        <Text style={[styles.expiryBadgeText, { color: expStatus.badgeColor }]}>
+                          {expStatus.status === 'EXPIRED'
+                            ? 'HẾT HẠN'
+                            : expStatus.status === 'NEAR_EXPIRY'
+                            ? `CẬN HẠN (${expStatus.daysLeft}d)`
+                            : `HSD: ${expStatus.expDateFormatted}`}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Hiển thị Giá: Gồm cả giá Hộp và giá quy cách lẻ */}
+                    <View style={{ marginTop: 2 }}>
+                      {opts.length > 1 ? (
+                        <View>
+                          <Text style={styles.medPrice}>
+                            {opts[0].price.toLocaleString('vi-VN')} ₫ / {opts[0].unitName}
+                          </Text>
+                          <Text style={styles.medSubPrice}>
+                            hoặc {opts[1].price.toLocaleString('vi-VN')} ₫ / {opts[1].unitName}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.medPrice}>
+                          {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
+                        </Text>
+                      )}
+                    </View>
                   </AnimatedTouchable>
 
-                  <AnimatedTouchable
-                    onPress={() => addToCart(med)}
-                    style={styles.addCartBtn}
-                  >
-                    <Ionicons name="add" size={18} color="#FFFFFF" />
-                    <Text style={styles.addCartBtnText}>Thêm</Text>
-                  </AnimatedTouchable>
+                  <View style={styles.actionCol}>
+                    <AnimatedTouchable
+                      onPress={() => handleOpenLabelModal(med)}
+                      style={styles.labelIconBtn}
+                    >
+                      <Ionicons name="print-outline" size={16} color="#0284C7" />
+                    </AnimatedTouchable>
+
+                    {isOutStock ? (
+                      <AnimatedTouchable
+                        onPress={() => handleOpenAlternatives(med)}
+                        style={styles.altQuickBtn}
+                      >
+                        <Ionicons name="swap-horizontal" size={14} color="#7C3AED" />
+                        <Text style={styles.altQuickBtnText}>Thay thế</Text>
+                      </AnimatedTouchable>
+                    ) : (
+                      <AnimatedTouchable
+                        onPress={() => handleOpenMedDetail(med)}
+                        style={styles.addCartBtn}
+                      >
+                        <Ionicons name="add" size={18} color="#FFFFFF" />
+                        <Text style={styles.addCartBtnText}>Thêm</Text>
+                      </AnimatedTouchable>
+                    )}
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -554,6 +751,16 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         {activeTab === 'OCR' && (
           <View>
             <Text style={styles.sectionTitle}>Quét Đơn Thuốc Bằng Camera & AI OCR</Text>
+
+            {/* Notice Banner: Printed-only */}
+            <View style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: '#92400E', fontWeight: 'bold' }}>
+                ⚠️ CHỈ HỖ TRỢ ĐƠN THUỐC BẢN IN ĐIỆN TỬ
+              </Text>
+              <Text style={{ fontSize: 11, color: '#B45309', marginTop: 2, lineHeight: 15 }}>
+                Hệ thống chỉ xử lý đơn in rõ nét từ bệnh viện/phòng khám. Tuyệt đối không tiếp nhận đơn chữ viết tay để tránh sai sót y khoa.
+              </Text>
+            </View>
 
             {/* Camera & Gallery Action Buttons */}
             <View style={styles.ocrActionRow}>
@@ -693,132 +900,164 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </View>
         )}
 
-        {/* TAB 3: INTERACTIONS */}
-        {activeTab === 'INTERACTIONS' && (
-          <View>
-            <Text style={styles.sectionTitle}>Chọn Thuốc Cần Kiểm Tra Tương Tác</Text>
-            <View style={styles.interactionChipGrid}>
-              {medicines.map((m, idx) => {
-                const selected = selectedInteractionMeds.includes(m.name);
-                return (
-                  <AnimatedTouchable
-                    key={m.id || (m as any)._id || `inter-${idx}`}
-                    onPress={() => toggleInteractionMed(m.name)}
-                    style={[
-                      styles.interChip,
-                      selected && styles.selectedInterChip,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.interChipText,
-                        selected && styles.selectedInterChipText,
-                      ]}
-                    >
-                      {m.name}
-                    </Text>
-                  </AnimatedTouchable>
-                );
-              })}
-            </View>
-
-            <GradientButton
-              title="KIỂM TRA TƯƠNG TÁC CHÉO"
-              onPress={handleCheckInteractions}
-              loading={checkingInteractions}
-              gradientVariant="indigo"
-              size="md"
-              style={{ marginVertical: 14 }}
-            />
-
-            {interactionResult && (
-              <View
-                style={[
-                  styles.interactionCard,
-                  { borderLeftColor: interactionResult.hasInteraction ? '#F59E0B' : '#10B981' },
-                ]}
-              >
-                <View style={styles.interactionHeader}>
-                  <Ionicons
-                    name={interactionResult.hasInteraction ? 'warning' : 'checkmark-circle'}
-                    size={24}
-                    color={interactionResult.hasInteraction ? '#D97706' : '#059669'}
-                  />
-                  <Text style={styles.interactionTitle}>
-                    {interactionResult.hasInteraction
-                      ? `CẢNH BÁO MỨC ĐỘ: ${interactionResult.severity}`
-                      : 'AN TOÀN - KHÔNG PHÁT HIỆN TƯƠNG TÁC NGUY HIỂM'}
-                  </Text>
-                </View>
-                <Text style={styles.interactionDesc}>{interactionResult.description}</Text>
-                {interactionResult.recommendation ? (
-                  <Text style={styles.interactionRec}>
-                    Khuyến nghị: {interactionResult.recommendation}
-                  </Text>
-                ) : null}
-              </View>
-            )}
-          </View>
-        )}
       </ScrollView>
 
       {/* Medicine Detail Modal */}
       <Modal visible={selectedMedDetail !== null} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Image
-              source={{
-                uri:
-                  selectedMedDetail?.image ||
-                  selectedMedDetail?.image_url ||
-                  'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-              }}
-              style={styles.modalMedImage}
-              resizeMode="cover"
-            />
-            <Text style={styles.modalTitle}>{selectedMedDetail?.name}</Text>
-            <Text style={styles.modalSub}>Hoạt chất: {selectedMedDetail?.active}</Text>
-            <Text style={styles.modalPrice}>
-              Giá: {selectedMedDetail?.price.toLocaleString('vi-VN')} ₫ / {selectedMedDetail?.unit}
-            </Text>
+          <View style={[styles.modalCard, { maxHeight: '90%' }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Image
+                source={{
+                  uri:
+                    selectedMedDetail?.image ||
+                    selectedMedDetail?.image_url ||
+                    'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                }}
+                style={styles.modalMedImage}
+                resizeMode="cover"
+              />
+              <Text style={styles.modalTitle}>{selectedMedDetail?.name}</Text>
+              <Text style={styles.modalSub}>
+                Hoạt chất: {selectedMedDetail?.active || selectedMedDetail?.active_ingredient || 'N/A'}
+              </Text>
 
-            <View style={styles.codeRow}>
-              {selectedMedDetail?.sku ? (
-                <View style={styles.codeBadge}>
-                  <Text style={styles.codeBadgeText}>SKU: {selectedMedDetail.sku}</Text>
-                </View>
-              ) : null}
-              {selectedMedDetail?.barcode ? (
-                <View style={[styles.codeBadge, { backgroundColor: '#F1F5F9' }]}>
-                  <Ionicons name="barcode" size={12} color="#475569" style={{ marginRight: 3 }} />
-                  <Text style={[styles.codeBadgeText, { color: '#475569' }]}>
-                    {selectedMedDetail.barcode}
+              {/* GIÁ THEO ĐƠN VỊ ĐÃ CHỌN */}
+              {(() => {
+                const curPrice = modalSelectedUnit?.price ?? selectedMedDetail?.price ?? 0;
+                const curUnit = modalSelectedUnit?.unitName ?? selectedMedDetail?.unit ?? 'Hộp';
+                return (
+                  <Text style={styles.modalPrice}>
+                    Giá: {curPrice.toLocaleString('vi-VN')} ₫ / {curUnit}
                   </Text>
-                </View>
-              ) : null}
-            </View>
+                );
+              })()}
 
-            <View style={styles.modalSection}>
-              <Text style={styles.secTitle}>Công dụng & Chỉ định:</Text>
-              <Text style={styles.secText}>{selectedMedDetail?.cong_dung || 'N/A'}</Text>
-            </View>
+              {/* BỘ CHỌN QUY CÁCH / ĐƠN VỊ BÁN LẺ (ĐỒNG BỘ VỚI WEB) */}
+              {selectedMedDetail && (() => {
+                const unitOpts = ApiService.buildUnitOptions(selectedMedDetail);
+                if (unitOpts.length <= 1) return null;
+                const currentUnitName = modalSelectedUnit?.unitName || selectedMedDetail.unit;
 
-            <View style={styles.modalSection}>
-              <Text style={styles.secTitle}>Cách dùng & Liều lượng:</Text>
-              <Text style={styles.secText}>{selectedMedDetail?.cach_dung || 'N/A'}</Text>
-            </View>
+                return (
+                  <View style={styles.unitSelectorBox}>
+                    <Text style={styles.unitSelectorLabel}>
+                      Quy cách đóng gói & Đơn vị bán lẻ:
+                    </Text>
+                    <View style={styles.unitOptionRow}>
+                      {unitOpts.map((opt) => {
+                        const isSelected = currentUnitName === opt.unitName;
+                        return (
+                          <AnimatedTouchable
+                            key={opt.unitName}
+                            onPress={() => setModalSelectedUnit(opt)}
+                            style={[styles.unitOptionChip, isSelected && styles.activeUnitOptionChip]}
+                          >
+                            <Text
+                              style={[
+                                styles.unitOptionChipText,
+                                isSelected && styles.activeUnitOptionChipText,
+                              ]}
+                            >
+                              {opt.unitName} ({opt.price.toLocaleString('vi-VN')} ₫)
+                            </Text>
+                          </AnimatedTouchable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })()}
 
-            <AnimatedTouchable
-              onPress={() => {
-                const med = selectedMedDetail;
-                setSelectedMedDetail(null);
-                if (med) handleOpenLabelModal(med);
-              }}
-              style={styles.labelModalBtn}
-            >
-              <Ionicons name="print-outline" size={16} color="#0284C7" />
-              <Text style={styles.labelModalBtnText}>Xem / In Tem Nhãn Barcode 50x30mm</Text>
-            </AnimatedTouchable>
+              <View style={styles.codeRow}>
+                {selectedMedDetail?.sku ? (
+                  <View style={styles.codeBadge}>
+                    <Text style={styles.codeBadgeText}>SKU: {selectedMedDetail.sku}</Text>
+                  </View>
+                ) : null}
+                {selectedMedDetail?.barcode ? (
+                  <View style={[styles.codeBadge, { backgroundColor: '#F1F5F9' }]}>
+                    <Ionicons name="barcode" size={12} color="#475569" style={{ marginRight: 3 }} />
+                    <Text style={[styles.codeBadgeText, { color: '#475569' }]}>
+                      {selectedMedDetail.barcode}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* CẢNH BÁO LÔ HÀNG & HẠN SỬ DỤNG (FEFO / EXPIRED / NEAR EXPIRY) */}
+              {selectedMedDetail && (() => {
+                const exp = ApiService.getExpiryStatus(selectedMedDetail);
+                return (
+                  <View
+                    style={[
+                      styles.fefoBox,
+                      { backgroundColor: exp.badgeBg, borderColor: exp.badgeColor },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons
+                        name={exp.icon as any}
+                        size={18}
+                        color={exp.badgeColor}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={[styles.fefoTitle, { color: exp.badgeColor }]}>
+                        {exp.status === 'EXPIRED'
+                          ? '⛔ CẢNH BÁO: LÔ THUỐC ĐÃ HẾT HẠN'
+                          : exp.status === 'NEAR_EXPIRY'
+                          ? '⚠️ CẢNH BÁO: CẬN HẠN SỬ DỤNG (FEFO)'
+                          : 'KIỂM SOÁT HẠN DÙNG & LÔ FEFO'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.fefoMessage, { color: exp.badgeColor }]}>
+                      {exp.warningMessage}
+                    </Text>
+                  </View>
+                );
+              })()}
+
+              {/* ĐỀ XUẤT THUỐC TƯƠNG ĐƯƠNG / THAY THẾ */}
+              <AnimatedTouchable
+                onPress={() => {
+                  const med = selectedMedDetail;
+                  setSelectedMedDetail(null);
+                  if (med) handleOpenAlternatives(med);
+                }}
+                style={styles.altSearchBtn}
+              >
+                <Ionicons name="git-branch-outline" size={16} color="#7C3AED" />
+                <Text style={styles.altSearchBtnText}>
+                  Tìm Thuốc Tương Đương / Thay Thế Cùng Hoạt Chất
+                </Text>
+              </AnimatedTouchable>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.secTitle}>Công dụng & Chỉ định:</Text>
+                <Text style={styles.secText}>
+                  {selectedMedDetail?.cong_dung || selectedMedDetail?.indications || 'Giảm đau, kháng viêm tại chỗ, đau khớp, đau mỏi cơ.'}
+                </Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.secTitle}>Cách dùng & Liều lượng:</Text>
+                <Text style={styles.secText}>
+                  {selectedMedDetail?.cach_dung || selectedMedDetail?.default_dosage || 'Dán hoặc uống theo chỉ định của bác sĩ/dược sĩ.'}
+                </Text>
+              </View>
+
+              <AnimatedTouchable
+                onPress={() => {
+                  const med = selectedMedDetail;
+                  setSelectedMedDetail(null);
+                  if (med) handleOpenLabelModal(med);
+                }}
+                style={styles.labelModalBtn}
+              >
+                <Ionicons name="print-outline" size={16} color="#0284C7" />
+                <Text style={styles.labelModalBtnText}>Xem / In Tem Nhãn Barcode 50x30mm</Text>
+              </AnimatedTouchable>
+            </ScrollView>
 
             <View style={styles.modalBtnRow}>
               <AnimatedTouchable onPress={() => setSelectedMedDetail(null)} style={styles.closeBtn}>
@@ -827,13 +1066,127 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               <GradientButton
                 title="THÊM VÀO GIỎ"
                 onPress={() => {
-                  if (selectedMedDetail) addToCart(selectedMedDetail);
+                  if (selectedMedDetail) {
+                    const curPrice = modalSelectedUnit?.price ?? selectedMedDetail.price;
+                    const curUnit = modalSelectedUnit?.unitName ?? selectedMedDetail.unit;
+                    addToCart(selectedMedDetail, curUnit, curPrice);
+                  }
                   setSelectedMedDetail(null);
                 }}
                 gradientVariant="primary"
                 size="md"
                 style={{ flex: 1, marginLeft: 10 }}
               />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Alternatives Modal (Đề xuất thuốc tương đương cùng hoạt chất) */}
+      <Modal visible={showAlternativesModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '85%' }]}>
+            <View style={styles.altModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <Ionicons name="git-branch" size={22} color="#7C3AED" style={{ marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.altModalTitle}>Đề Xuất Thuốc Tương Đương</Text>
+                  <Text style={styles.altModalSub} numberOfLines={1}>
+                    Gốc: {selectedTargetMed?.name}
+                  </Text>
+                </View>
+              </View>
+              <AnimatedTouchable onPress={() => setShowAlternativesModal(false)} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={24} color="#94A3B8" />
+              </AnimatedTouchable>
+            </View>
+
+            <View style={styles.altActiveIngBox}>
+              <Text style={styles.altActiveIngLabel}>Hoạt chất tương đương:</Text>
+              <Text style={styles.altActiveIngVal}>
+                {selectedTargetMed?.active || selectedTargetMed?.active_ingredient || 'N/A'}
+              </Text>
+            </View>
+
+            <ScrollView style={{ marginTop: 10, flexGrow: 0 }} showsVerticalScrollIndicator={false}>
+              {loadingAlternatives ? (
+                <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#7C3AED" />
+                  <Text style={{ marginTop: 10, fontSize: 13, color: '#64748B' }}>
+                    Đang tìm thuốc cùng hoạt chất tại chi nhánh...
+                  </Text>
+                </View>
+              ) : alternativesList.length > 0 ? (
+                alternativesList.map((alt, idx) => {
+                  const altOpts = ApiService.buildUnitOptions(alt);
+                  const isAvailable = (alt.stock || 0) > 0;
+                  return (
+                    <View key={alt.id || (alt as any)._id || idx} style={styles.altItemCard}>
+                      <Image
+                        source={{
+                          uri:
+                            alt.image ||
+                            alt.image_url ||
+                            'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                        }}
+                        style={styles.altItemThumb}
+                        resizeMode="cover"
+                      />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.altItemName} numberOfLines={2}>
+                          {alt.name}
+                        </Text>
+                        <Text style={styles.altItemActive} numberOfLines={1}>
+                          Hoạt chất: {alt.active || alt.active_ingredient || 'N/A'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 4 }}>
+                          <View style={[styles.stockBadge, { backgroundColor: isAvailable ? '#ECFDF5' : '#FEE2E2' }]}>
+                            <Text style={[styles.stockBadgeText, { color: isAvailable ? '#059669' : '#DC2626' }]}>
+                              {isAvailable ? `Tồn: ${alt.stock} ${alt.unit}` : 'Tạm hết kho'}
+                            </Text>
+                          </View>
+                          <View style={styles.altMatchBadge}>
+                            <Text style={styles.altMatchBadgeText}>Khớp hoạt chất</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.altItemPrice}>
+                          {alt.price.toLocaleString('vi-VN')} ₫ / {alt.unit}
+                        </Text>
+                      </View>
+                      <AnimatedTouchable
+                        onPress={() => {
+                          addToCart(alt);
+                          setShowAlternativesModal(false);
+                          showToast.success('Đã chọn thuốc thay thế', `Đã thêm ${alt.name} vào giỏ hàng`);
+                        }}
+                        style={styles.altSelectBtn}
+                      >
+                        <Ionicons name="swap-horizontal" size={15} color="#FFFFFF" />
+                        <Text style={styles.altSelectBtnText}>Chọn</Text>
+                      </AnimatedTouchable>
+                    </View>
+                  );
+                })
+              ) : (
+                <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                  <Ionicons name="search-outline" size={40} color="#CBD5E1" />
+                  <Text style={{ marginTop: 10, fontSize: 14, fontWeight: '700', color: '#475569' }}>
+                    Không có thuốc thay thế phù hợp
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 4, paddingHorizontal: 20 }}>
+                    Hiện không tìm thấy thuốc khác cùng hoạt chất hoặc cùng danh mục còn tồn kho tại chi nhánh này.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={{ marginTop: 14 }}>
+              <AnimatedTouchable
+                onPress={() => setShowAlternativesModal(false)}
+                style={styles.altCloseModalBtn}
+              >
+                <Text style={styles.altCloseModalBtnText}>Đóng</Text>
+              </AnimatedTouchable>
             </View>
           </View>
         </View>
@@ -1301,63 +1654,6 @@ const styles = StyleSheet.create({
     color: '#059669',
     marginTop: 2,
   },
-  interactionChipGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  interChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    marginRight: 8,
-    marginBottom: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  selectedInterChip: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#4F46E5',
-  },
-  interChipText: {
-    fontSize: 13,
-    color: '#475569',
-  },
-  selectedInterChipText: {
-    color: '#4F46E5',
-    fontWeight: '700',
-  },
-  interactionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    borderLeftWidth: 5,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  interactionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  interactionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginLeft: 8,
-    flex: 1,
-  },
-  interactionDesc: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 18,
-  },
-  interactionRec: {
-    fontSize: 12,
-    color: '#059669',
-    fontWeight: '600',
-    marginTop: 8,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1453,5 +1749,308 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#A7F3D0',
     marginLeft: 8,
+  },
+  // Cart SubRow & Unit Selector
+  cartSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  cartUnitSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cartUnitChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  cartUnitChipActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  cartUnitChipText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#E6FFFA',
+  },
+  cartUnitChipTextActive: {
+    color: '#065F46',
+  },
+  cartUnitStaticText: {
+    fontSize: 11,
+    color: '#E6FFFA',
+    fontWeight: '600',
+  },
+  cartPriceText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FEF08A',
+  },
+  cartStockWarningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(254, 226, 226, 0.95)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  cartStockWarningText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  cartAltBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2,
+  },
+  cartAltBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#7C3AED',
+  },
+
+  // Expiry & Pricing for medCard
+  expiryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  expiryBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  medSubPrice: {
+    fontSize: 11,
+    color: '#0284C7',
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  altQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3E8FF',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    gap: 3,
+  },
+  altQuickBtnText: {
+    color: '#7C3AED',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // Modal Unit Selector
+  unitSelectorBox: {
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginVertical: 8,
+  },
+  unitSelectorLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 6,
+  },
+  unitOptionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  unitOptionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  activeUnitOptionChip: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  unitOptionChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  activeUnitOptionChipText: {
+    color: '#059669',
+    fontWeight: '800',
+  },
+
+  // FEFO Alert Box in Detail Modal
+  fefoBox: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginVertical: 8,
+  },
+  fefoTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  fefoMessage: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 3,
+    lineHeight: 15,
+  },
+
+  // Alt Search button in Detail Modal
+  altSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
+    marginBottom: 8,
+  },
+  altSearchBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7C3AED',
+  },
+
+  // Alternatives Modal Styles
+  altModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  altModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E1B4B',
+  },
+  altModalSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  altActiveIngBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAF5FF',
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    marginTop: 8,
+    gap: 6,
+  },
+  altActiveIngLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B21A8',
+  },
+  altActiveIngVal: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#7C3AED',
+    flex: 1,
+  },
+  altItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 8,
+  },
+  altItemThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  altItemName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  altItemActive: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  altItemPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#059669',
+    marginTop: 3,
+  },
+  stockBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  stockBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  altMatchBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  altMatchBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  altSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#7C3AED',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginLeft: 8,
+    gap: 4,
+  },
+  altSelectBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  altCloseModalBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  altCloseModalBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
   },
 });

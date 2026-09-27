@@ -10,7 +10,10 @@
     "dev:frontend": "npm run --prefix frontend dev",
     "dev": "npx concurrently -k -p \"[{name}]\" -n \"Backend,Frontend\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:all": "npm run --prefix backend build:all",
-    "infra:k8s-logs": "bash scripts/k8s-logs.sh"
+    "infra:k8s-logs": "bash scripts/k8s-logs.sh",
+    "prod:up": "docker compose -f docker-compose.prod.yml up -d",
+    "prod:down": "docker compose -f docker-compose.prod.yml down",
+    "prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
   },
   "dependencies": {
     "axios": "^1.18.1",

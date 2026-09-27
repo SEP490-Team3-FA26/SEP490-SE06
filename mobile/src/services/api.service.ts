@@ -139,33 +139,10 @@ export class ApiService {
       isBaseUnit: u.isBaseUnit ?? u.isBase ?? false,
     }));
 
-    // Bảng từ điển mã vạch thực tế GS1 Việt Nam & Quốc Tế dự phòng khi API list chưa kịp map
-    const resolveRealBarcode = (name: string): string => {
-      const lower = (name || '').toLowerCase();
-      if (lower.includes('diclofenac')) return '8935001701125';
-      if (lower.includes('salonsip')) return '8935001701033';
-      if (lower.includes('salonpas') && lower.includes('24')) return '8935001701132';
-      if (lower.includes('salonpas') && (lower.includes('pain relief') || lower.includes('giảm đau sa'))) return '4987188151013';
-      if (lower.includes('salonpas')) return '8935001701118';
-      if (lower.includes('panadol') && lower.includes('đỏ')) return '8935006530010';
-      if (lower.includes('panadol')) return '8935006530010';
-      if (lower.includes('efferalgan')) return '3400932567577';
-      if (lower.includes('con ó') || lower.includes('eagle')) return '8888062001010';
-      if (lower.includes('hapacol')) return '8935061600109';
-      if (lower.includes('strepsils')) return '8850360000045';
-      if (lower.includes('smecta')) return '3400935829188';
-      if (lower.includes('berberin')) return '8934812003039';
-      if (lower.includes('natri clorid')) return '8934658002012';
-      return '';
-    };
-
     let resolvedBarcode = m.barcode || '';
     if (!resolvedBarcode && mappedUnits.length > 0) {
       const foundWithBarcode = mappedUnits.find((u) => u.barcode && u.barcode.trim().length > 0);
       if (foundWithBarcode) resolvedBarcode = foundWithBarcode.barcode;
-    }
-    if (!resolvedBarcode) {
-      resolvedBarcode = resolveRealBarcode(m.name);
     }
     if (!resolvedBarcode) {
       resolvedBarcode = m.sku || '';
@@ -556,6 +533,162 @@ export class ApiService {
     };
   }
 
+  // --- THUỐC TƯƠNG ĐƯƠNG & THAY THẾ (ALTERNATIVES) ---
+  public static async getAlternatives(id: string, branchId?: string): Promise<Medicine[]> {
+    try {
+      const bId = branchId || 'BR-001';
+      const res = await fetch(`${this.baseUrl}/api/medicines/${id}/alternatives?branchId=${encodeURIComponent(bId)}`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json) ? json : (json.data || []);
+        return list.map((m: any) => ApiService.mapMedicine(m));
+      }
+    } catch (e: any) {
+      console.warn(`[getAlternatives] Lỗi lấy thuốc thay thế cho ${id}:`, e?.message || e);
+    }
+    return [];
+  }
+
+  // --- QUY CÁCH ĐÓNG GÓI & BẢNG GIÁ ĐỒNG BỘ WEB & MOBILE ---
+  public static buildUnitOptions(med: any): Array<{ unitName: string; exchangeValue: number; price: number; isBaseUnit?: boolean }> {
+    if (Array.isArray(med?.units) && med.units.length > 0) {
+      return med.units.map((u: any) => ({
+        unitName: u.unitName || u.name || 'Hộp',
+        exchangeValue: u.exchangeValue || u.conversionRate || 1,
+        price: typeof u.price === 'number' ? u.price : parseInt(u.price, 10) || med.price || 0,
+        isBaseUnit: u.isBaseUnit ?? u.isBase ?? false,
+      }));
+    }
+
+    if (Array.isArray(med?.unitOptions) && med.unitOptions.length > 0) {
+      return med.unitOptions;
+    }
+
+    const basePrice = typeof med?.price === 'number' ? med.price : parseInt(med?.price, 10) || 25000;
+    const nameLower = (med?.name || '').toLowerCase();
+    const mainUnit = med?.unit || 'Hộp';
+
+    // 1. Nếu tên thuốc có gói/ống/chai/lọ (ví dụ Salonpas Diclofenac 15 gói x 2 miếng)
+    if (mainUnit === 'Hộp' && (nameLower.includes('gói') || nameLower.includes('ống') || nameLower.includes('chai') || nameLower.includes('lọ'))) {
+      const isGoi = nameLower.includes('gói');
+      const isOng = nameLower.includes('ống');
+      const subUnitName = isGoi ? 'Gói' : (isOng ? 'Ống' : 'Lọ/Chai');
+      const matchSubCount = nameLower.match(/(\d+)\s*(gói|ống|chai|lọ)/);
+      const subCount = matchSubCount ? parseInt(matchSubCount[1], 10) : (med?.boxCapacity || 10);
+      return [
+        { unitName: 'Hộp', exchangeValue: subCount, price: basePrice, isBaseUnit: true },
+        { unitName: subUnitName, exchangeValue: 1, price: Math.round((basePrice / subCount) * 1.05) },
+      ];
+    }
+
+    // 2. Nếu có boxCapacity được cấu hình
+    if (med?.boxCapacity && med.boxCapacity > 1) {
+      const subCount = med.boxCapacity;
+      const subUnitName = med.subUnit || 'Gói';
+      return [
+        { unitName: mainUnit, exchangeValue: subCount, price: basePrice, isBaseUnit: true },
+        { unitName: subUnitName, exchangeValue: 1, price: Math.round((basePrice / subCount) * 1.05) },
+      ];
+    }
+
+    // 3. Quy cách tiêu chuẩn Hộp -> Vỉ -> Viên
+    if (mainUnit === 'Hộp') {
+      return [
+        { unitName: 'Hộp', exchangeValue: 100, price: basePrice, isBaseUnit: true },
+        { unitName: 'Vỉ', exchangeValue: 10, price: Math.round((basePrice / 10) * 1.05) },
+        { unitName: 'Viên', exchangeValue: 1, price: Math.round((basePrice / 100) * 1.1) },
+      ];
+    } else if (mainUnit === 'Vỉ') {
+      return [
+        { unitName: 'Vỉ', exchangeValue: 10, price: basePrice, isBaseUnit: true },
+        { unitName: 'Viên', exchangeValue: 1, price: Math.round((basePrice / 10) * 1.1) },
+      ];
+    } else if (mainUnit === 'Gói' || mainUnit === 'Chai' || mainUnit === 'Ống' || mainUnit === 'Tuýp' || mainUnit === 'Lọ') {
+      return [
+        { unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }
+      ];
+    }
+
+    return [{ unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }];
+  }
+
+  // --- TRẠNG THÁI HẠN SỬ DỤNG & CẢNH BÁO FEFO ---
+  public static getExpiryStatus(med: any): {
+    status: 'EXPIRED' | 'NEAR_EXPIRY' | 'SAFE' | 'UNKNOWN';
+    daysLeft: number;
+    expDateFormatted: string;
+    batchNo: string;
+    warningMessage: string;
+    badgeColor: string;
+    badgeBg: string;
+    icon: string;
+  } {
+    const batches: any[] = med?.batches || [];
+    let targetBatch = batches.find((b: any) => b.isFefo || b.stock > 0) || batches[0] || med?.fefoBatch || null;
+
+    const rawExp = targetBatch?.expDate || targetBatch?.expiryDate || med?.expiryDate || med?.expDate;
+    const batchNo = targetBatch?.batchNo || targetBatch?.lotNumber || targetBatch?.lot || med?.batchNo || 'Lô FEFO tiêu chuẩn';
+
+    if (!rawExp) {
+      return {
+        status: 'UNKNOWN',
+        daysLeft: 999,
+        expDateFormatted: 'Chưa cập nhật HSD',
+        batchNo,
+        warningMessage: 'Hạn dùng: Theo kiểm soát GSP',
+        badgeColor: '#64748B',
+        badgeBg: '#F1F5F9',
+        icon: 'help-circle-outline',
+      };
+    }
+
+    const expDate = new Date(rawExp);
+    const now = new Date();
+    const diffMs = expDate.getTime() - now.getTime();
+    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const expDateFormatted = expDate.toLocaleDateString('vi-VN');
+
+    if (daysLeft <= 0 || targetBatch?.status === 'EXPIRED') {
+      return {
+        status: 'EXPIRED',
+        daysLeft,
+        expDateFormatted,
+        batchNo,
+        warningMessage: `Lô ${batchNo} ĐÃ HẾT HẠN (${expDateFormatted}) - KHÔNG ĐƯỢC BÁN!`,
+        badgeColor: '#DC2626',
+        badgeBg: '#FEE2E2',
+        icon: 'alert-circle',
+      };
+    }
+
+    if (daysLeft <= 90) {
+      return {
+        status: 'NEAR_EXPIRY',
+        daysLeft,
+        expDateFormatted,
+        batchNo,
+        warningMessage: `Lô FEFO: ${batchNo} CẬN HẠN DÙNG (Còn ${daysLeft} ngày - HSD: ${expDateFormatted})`,
+        badgeColor: '#D97706',
+        badgeBg: '#FEF3C7',
+        icon: 'warning-outline',
+      };
+    }
+
+    const monthsLeft = Math.floor(daysLeft / 30);
+    return {
+      status: 'SAFE',
+      daysLeft,
+      expDateFormatted,
+      batchNo,
+      warningMessage: `Lô FEFO: ${batchNo} - HSD: ${expDateFormatted} (Còn ${monthsLeft} tháng)`,
+      badgeColor: '#059669',
+      badgeBg: '#D1FAE5',
+      icon: 'shield-checkmark-outline',
+    };
+  }
+
   public static async generateBarcode(id: string): Promise<{ success: boolean; barcode?: string; message?: string }> {
     try {
       const res = await fetch(`${this.baseUrl}/api/medicines/${id}/generate-barcode`, {
@@ -687,20 +820,6 @@ export class ApiService {
       console.warn('[receiveStockTransfer] Error:', e);
     }
     return { success: true, message: 'Đã xác nhận nhập kho chuyển thành công (Demo mode)' };
-  }
-
-  public static async checkInteractions(medicineNames: string[]): Promise<any> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/medicines/check-interaction`, {
-        method: 'POST',
-        headers: this.authHeaders,
-        body: JSON.stringify({ medicines: medicineNames }),
-      });
-      if (res.ok) return await res.json();
-    } catch (e) {
-      console.warn('Interaction check API error:', e);
-    }
-    return null;
   }
 
   public static async traceLot(batchNo: string): Promise<any> {
@@ -992,23 +1111,15 @@ export class ApiService {
       'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
     };
     try {
-      const res = await fetch(`${this.baseUrl}/api/ai/sample-prescriptions`, { headers });
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/samples`, { headers });
       if (res.ok) {
         const decoded = await res.json();
         if (decoded?.success && Array.isArray(decoded.samples)) {
           return decoded.samples;
         }
       }
-    } catch (_) {
-      try {
-        const res = await fetch(`${this.aiBaseUrl}/api/ai/sample-prescriptions`, { headers });
-        if (res.ok) {
-          const decoded = await res.json();
-          if (decoded?.success && Array.isArray(decoded.samples)) return decoded.samples;
-        }
-      } catch (e) {
-        console.warn('Failed to fetch sample prescriptions:', e);
-      }
+    } catch (e) {
+      console.warn('Failed to fetch sample prescriptions via Gateway:', e);
     }
     return [];
   }
@@ -1017,27 +1128,21 @@ export class ApiService {
     const body = JSON.stringify({ filename });
     const headers = {
       ...this.authHeaders,
+      'Content-Type': 'application/json',
       'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
     };
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/ai/scan-sample-prescription`, {
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/scan-sample`, {
         method: 'POST',
         headers,
         body,
       });
       if (res.ok) return await res.json();
-    } catch (_) {
-      try {
-        const res = await fetch(`${this.aiBaseUrl}/api/ai/scan-sample-prescription`, {
-          method: 'POST',
-          headers,
-          body,
-        });
-        if (res.ok) return await res.json();
-      } catch (e) {
-        console.warn('Failed to scan sample prescription:', e);
-      }
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, message: errData.message || 'Lỗi quét đơn thuốc mẫu' };
+    } catch (e) {
+      console.warn('Failed to scan sample prescription via Gateway:', e);
     }
     return null;
   }
@@ -1056,7 +1161,6 @@ export class ApiService {
       } as any;
 
       formData.append('images', fileObj);
-      formData.append('file', fileObj);
       formData.append('branch_id', branchId);
 
       const headers: Record<string, string> = {
@@ -1064,32 +1168,38 @@ export class ApiService {
       };
       if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
 
-      // 1. Try API Gateway first
-      try {
-        const res = await fetch(`${this.baseUrl}/api/prescriptions/scan-ai`, {
-          method: 'POST',
-          headers,
-          body: formData,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return data?.data || data;
-        }
-      } catch (_) {}
-
-      // 2. Direct AI Service fallback
-      const directRes = await fetch(`${this.aiBaseUrl}/api/ai/scan-prescription`, {
+      // Strictly route via API Gateway: POST /api/prescriptions/scan-ai
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/scan-ai`, {
         method: 'POST',
         headers,
         body: formData,
       });
-      if (directRes.ok) {
-        return await directRes.json();
+
+      const data = await res.json().catch(() => null);
+
+      if (res.ok) {
+        return data?.data || data;
       }
-    } catch (e) {
+
+      // Check if handwriting rejection occurred
+      const errMsg = data?.message || data?.detail || 'Lỗi quét đơn thuốc AI';
+      const isHandwritten = typeof errMsg === 'string' && (errMsg.includes('HANDWRITTEN_PRESCRIPTION_REJECTED') || errMsg.includes('chữ viết tay'));
+
+      return {
+        success: false,
+        error_code: isHandwritten ? 'HANDWRITTEN_PRESCRIPTION_REJECTED' : 'SCAN_FAILED',
+        message: isHandwritten
+          ? 'Hệ thống chỉ hỗ trợ quét đơn thuốc bản in điện tử, không tiếp nhận đơn viết tay.'
+          : errMsg,
+        is_handwritten: isHandwritten,
+      };
+    } catch (e: any) {
       console.warn('Failed to scan prescription AI:', e);
+      return {
+        success: false,
+        message: e?.message || 'Lỗi kết nối tới API Gateway',
+      };
     }
-    return null;
   }
 
   public static async consultSymptomsAI(symptoms: string): Promise<any> {
@@ -1549,5 +1659,48 @@ export class ApiService {
       console.warn('Failed to recognize voice prescription:', e);
     }
     return null;
+  }
+
+  public static async lookupFeedbackOrder(orderCode: string): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/feedbacks/lookup/${encodeURIComponent(orderCode)}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Failed to lookup order for feedback:', e);
+    }
+    return null;
+  }
+
+  public static async submitFeedback(payload: {
+    orderCode: string;
+    branchId: string;
+    rating: number;
+    comment: string;
+    tags?: string[];
+    customerPhone?: string;
+    customerName?: string;
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
+
+      const res = await fetch(`${this.baseUrl}/api/feedbacks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const body = await res.json();
+      if (res.ok && body.success) {
+        return { success: true, data: body.data };
+      }
+      return { success: false, error: body.message || 'Không thể gửi đánh giá' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
   }
 }
