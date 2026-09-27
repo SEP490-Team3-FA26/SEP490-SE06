@@ -14,7 +14,8 @@ import {
   Award,
   Calendar,
 } from 'lucide-react';
-import { feedbackService, FeedbackData } from '../../services/feedback/feedback.service';
+import { useBranchFeedback } from '../../hooks/useBranchFeedback';
+import { FeedbackData } from '../../services/sales/feedback.service';
 
 export const BranchFeedbackPage: React.FC = () => {
   // Get branchId from token/storage or default to current branch
@@ -22,77 +23,32 @@ export const BranchFeedbackPage: React.FC = () => {
   const user = storedUser ? JSON.parse(storedUser) : null;
   const branchId = user?.branchId || 'BR-001';
 
-  const [feedbacks, setFeedbacks] = useState<FeedbackData[]>([]);
-  const [stats, setStats] = useState<any>({
-    avgRating: 5.0,
-    totalFeedbacks: 0,
-    ratingBreakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-    unresolvedNegative: 0,
-  });
-
-  const [loading, setLoading] = useState<boolean>(true);
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterRating, setFilterRating] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Modal Resolve state
-  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackData | null>(null);
-  const [actionTaken, setActionTaken] = useState<string>('CALLED_CUSTOMER');
-  const [resolutionNotes, setResolutionNotes] = useState<string>('');
-  const [customerSatisfied, setCustomerSatisfied] = useState<boolean>(true);
-  const [resolving, setResolving] = useState<boolean>(false);
+  const {
+    feedbacks,
+    stats,
+    loading,
+    refresh,
+    selectedFeedback,
+    actionTaken,
+    setActionTaken,
+    resolutionNotes,
+    setResolutionNotes,
+    customerSatisfied,
+    setCustomerSatisfied,
+    resolving,
+    handleOpenResolveModal,
+    handleCloseResolveModal,
+    handleConfirmResolve,
+  } = useBranchFeedback(branchId, filterStatus, filterRating);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await feedbackService.getBranchFeedbacks(branchId, {
-        status: filterStatus || undefined,
-        rating: filterRating ? Number(filterRating) : undefined,
-      });
-
-      if (res) {
-        setFeedbacks(res.feedbacks || []);
-        if (res.stats) setStats(res.stats);
-      }
-    } catch (err: any) {
-      console.warn('Lỗi tải danh sách phản hồi chi nhánh:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [branchId, filterStatus, filterRating]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const handleOpenResolveModal = (fb: FeedbackData) => {
-    setSelectedFeedback(fb);
-    setActionTaken('CALLED_CUSTOMER');
-    setResolutionNotes('');
-    setCustomerSatisfied(true);
-  };
-
-  const handleConfirmResolve = async () => {
-    if (!selectedFeedback?._id) return;
-    if (!resolutionNotes.trim()) {
-      alert('Vui lòng nhập ghi chú biên bản giải quyết khiếu nại.');
-      return;
-    }
-
-    try {
-      setResolving(true);
-      await feedbackService.resolveFeedback(selectedFeedback._id, {
-        actionTaken,
-        notes: resolutionNotes.trim(),
-        customerSatisfied,
-      });
-
-      setSelectedFeedback(null);
-      await loadData();
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Lỗi khi cập nhật giải quyết khiếu nại.');
-    } finally {
-      setResolving(false);
+  const onConfirmResolve = async () => {
+    const res = await handleConfirmResolve();
+    if (!res.success && res.error) {
+      alert(res.error);
     }
   };
 
@@ -124,7 +80,7 @@ export const BranchFeedbackPage: React.FC = () => {
         </div>
 
         <button
-          onClick={loadData}
+          onClick={refresh}
           disabled={loading}
           className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
         >
@@ -381,7 +337,7 @@ export const BranchFeedbackPage: React.FC = () => {
                 Biên Bản Xử Lý Khiếu Nại (SLA 24h)
               </h3>
               <button
-                onClick={() => setSelectedFeedback(null)}
+                onClick={handleCloseResolveModal}
                 className="text-slate-400 hover:text-slate-600 font-black cursor-pointer"
               >
                 ✕
@@ -447,14 +403,14 @@ export const BranchFeedbackPage: React.FC = () => {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 type="button"
-                onClick={() => setSelectedFeedback(null)}
+                onClick={handleCloseResolveModal}
                 className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-50 cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 type="button"
-                onClick={handleConfirmResolve}
+                onClick={onConfirmResolve}
                 disabled={resolving}
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
               >

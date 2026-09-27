@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Star,
@@ -15,7 +15,7 @@ import {
   Loader2,
   Heart,
 } from 'lucide-react';
-import { feedbackService } from '../../services/feedback/feedback.service';
+import { useCustomerFeedback } from '../../hooks/useCustomerFeedback';
 
 const POSITIVE_TAGS = [
   'Dược sĩ tư vấn tận tình',
@@ -42,91 +42,29 @@ export const FeedbackPage: React.FC = () => {
 
   const orderCode = paramCode || searchParams.get('code') || searchParams.get('orderCode') || '';
 
-  // Order state
-  const [loadingOrder, setLoadingOrder] = useState<boolean>(true);
-  const [orderData, setOrderData] = useState<any>(null);
-
-  // Form state
-  const [rating, setRating] = useState<number>(5);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [comment, setComment] = useState<string>('');
-  const [phone, setPhone] = useState<string>('');
-  const [customerName, setCustomerName] = useState<string>('');
-  const [submitting, setSubmitting] = useState<boolean>(false);
-
-  // Result state
-  const [submittedResult, setSubmittedResult] = useState<any>(null);
-  const [copiedVoucher, setCopiedVoucher] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string>('');
-
-  useEffect(() => {
-    if (!orderCode) {
-      setLoadingOrder(false);
-      return;
-    }
-
-    const fetchOrder = async () => {
-      try {
-        setLoadingOrder(true);
-        const data = await feedbackService.lookupOrder(orderCode);
-        setOrderData(data);
-        if (data.customerPhone) setPhone(data.customerPhone);
-        if (data.customerName) setCustomerName(data.customerName);
-      } catch (err: any) {
-        console.warn('Lỗi tra cứu đơn hàng:', err);
-      } finally {
-        setLoadingOrder(false);
-      }
-    };
-
-    fetchOrder();
-  }, [orderCode]);
-
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
-  };
-
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedVoucher(true);
-    setTimeout(() => setCopiedVoucher(false), 2000);
-  };
+  const {
+    orderData,
+    rating,
+    setRating,
+    selectedTags,
+    toggleTag,
+    comment,
+    setComment,
+    phone,
+    setPhone,
+    customerName,
+    setCustomerName,
+    submitting,
+    submittedResult,
+    copiedVoucher,
+    errorMsg,
+    handleCopyCode,
+    submitFeedback,
+  } = useCustomerFeedback(orderCode);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg('');
-
-    if (!phone.trim()) {
-      setErrorMsg('Vui lòng nhập Số điện thoại để hệ thống cộng điểm thưởng và gửi mã giảm giá cho bạn.');
-      return;
-    }
-
-    if (!orderCode) {
-      setErrorMsg('Thiếu mã hóa đơn. Vui lòng quét lại mã QR trên hóa đơn của bạn.');
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      const res = await feedbackService.submitFeedback({
-        orderCode,
-        branchId: orderData?.branchId || 'BR-001',
-        branchName: orderData?.branchName || 'Chi nhánh ABC Pharmacy',
-        customerPhone: phone.trim(),
-        customerName: customerName.trim(),
-        rating,
-        tags: selectedTags,
-        comment: comment.trim(),
-      });
-
-      setSubmittedResult(res);
-    } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || err.message || 'Lỗi khi gửi đánh giá. Vui lòng thử lại sau.');
-    } finally {
-      setSubmitting(false);
-    }
+    await submitFeedback();
   };
 
   // Màn hình hoàn tất đánh giá thành công

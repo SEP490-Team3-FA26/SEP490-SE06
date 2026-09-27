@@ -37,7 +37,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import api from '../../services/core/api';
-import { feedbackService, FeedbackSubmissionResponse } from '../../services/feedback/feedback.service';
+import { feedbackService, FeedbackSubmissionResponse } from '../../services/sales/feedback.service';
 
 interface CustomerShipmentLogistics {
   trackingCode: string;

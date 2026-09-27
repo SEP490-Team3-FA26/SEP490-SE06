@@ -12,25 +12,36 @@ import {
   Req,
 } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import {
+  CreateFeedbackDto,
+  ResolveFeedbackDto,
+  BranchFeedbackQueryDto,
+} from '../dto/feedback.dto';
 
 @ApiTags('⭐ Customer Experience & Branch Feedback')
 @Controller('api/feedbacks')
 export class FeedbackController implements OnModuleInit {
+  private readonly CHAIN_SUMMARY_CACHE_KEY = 'feedback:chain_summary';
+  private readonly CHAIN_SUMMARY_TTL = 15 * 60 * 1000; // 15 phút (ms)
+
   constructor(
     @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
     @Inject('ORDER_SERVICE') private readonly orderClient: ClientKafka,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   async onModuleInit() {
     await subscribeToKafkaTopics(this.userClient, [
-      'feedback.create',
-      'feedback.get_by_branch',
-      'feedback.resolve',
-      'feedback.chain_summary',
-      'feedback.get_by_customer',
+      'user.feedback.create',
+      'user.feedback.get_by_branch',
+      'user.feedback.resolve',
+      'user.feedback.chain_summary',
+      'user.feedback.get_by_customer',
     ]);
     await subscribeToKafkaTopics(this.orderClient, ['orders.check']);
   }
@@ -69,14 +80,17 @@ export class FeedbackController implements OnModuleInit {
   // =========================================================================
   @Post()
   @ApiOperation({ summary: 'Khách hàng gửi đánh giá trải nghiệm tại chi nhánh' })
-  async submitFeedback(@Body() body: any) {
-    return await sendKafkaMessage(this.userClient, 'feedback.create', body);
+  async submitFeedback(@Body() dto: CreateFeedbackDto) {
+    const result = await sendKafkaMessage(this.userClient, 'user.feedback.create', dto);
+    // Invalidate báo cáo CSAT chuỗi trong Redis Cache để dữ liệu luôn phản ánh mới nhất
+    await this.cacheManager.del(this.CHAIN_SUMMARY_CACHE_KEY);
+    return result;
   }
 
   @Get('customer/:phone')
   @ApiOperation({ summary: 'Lấy danh sách phản hồi của khách hàng theo số điện thoại' })
   async getFeedbacksByCustomerPhone(@Param('phone') phone: string) {
-    return await sendKafkaMessage(this.userClient, 'feedback.get_by_customer', { customerPhone: phone });
+    return await sendKafkaMessage(this.userClient, 'user.feedback.get_by_customer', { customerPhone: phone });
   }
 
   // =========================================================================
@@ -87,17 +101,14 @@ export class FeedbackController implements OnModuleInit {
   @ApiOperation({ summary: 'Lấy danh sách phản hồi & CSAT của chi nhánh' })
   async getFeedbacksByBranch(
     @Param('branchId') branchId: string,
-    @Query('status') status?: string,
-    @Query('rating') rating?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: BranchFeedbackQueryDto,
   ) {
-    return await sendKafkaMessage(this.userClient, 'feedback.get_by_branch', {
+    return await sendKafkaMessage(this.userClient, 'user.feedback.get_by_branch', {
       branchId,
-      status,
-      rating: rating ? Number(rating) : undefined,
-      page: page ? Number(page) : 1,
-      limit: limit ? Number(limit) : 20,
+      status: query.status,
+      rating: query.rating,
+      page: query.page || 1,
+      limit: query.limit || 20,
     });
   }
 
@@ -109,27 +120,41 @@ export class FeedbackController implements OnModuleInit {
   @ApiOperation({ summary: 'Trưởng chi nhánh cập nhật biên bản giải quyết khiếu nại' })
   async resolveFeedback(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() dto: ResolveFeedbackDto,
     @Req() req: any,
   ) {
     const resolutionData = {
-      ...body,
+      ...dto,
       handledBy: req.user?.sub || req.user?.id || 'branch-manager',
       handledByName: req.user?.name || req.user?.email || 'Trưởng chi nhánh',
     };
-    return await sendKafkaMessage(this.userClient, 'feedback.resolve', {
+    const result = await sendKafkaMessage(this.userClient, 'user.feedback.resolve', {
       id,
       resolution: resolutionData,
     });
+    // Invalidate cache sau khi giải quyết khiếu nại
+    await this.cacheManager.del(this.CHAIN_SUMMARY_CACHE_KEY);
+    return result;
   }
 
   // =========================================================================
-  // 5. ADMIN / BAN GIÁM ĐỐC: Báo cáo xếp hạng CSAT toàn chuỗi
+  // 5. ADMIN / BAN GIÁM ĐỐC: Báo cáo xếp hạng CSAT toàn chuỗi (Redis Cache-Aside)
   // =========================================================================
   @Get('analytics/chain-summary')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Báo cáo xếp hạng mức độ hài lòng CSAT toàn chuỗi' })
+  @ApiOperation({ summary: 'Báo cáo xếp hạng mức độ hài lòng CSAT toàn chuỗi (Redis Cache)' })
   async getChainFeedbackSummary() {
-    return await sendKafkaMessage(this.userClient, 'feedback.chain_summary', {});
+    // 1. Kiểm tra cache
+    const cachedData = await this.cacheManager.get(this.CHAIN_SUMMARY_CACHE_KEY);
+    if (cachedData) {
+      return cachedData;
+    }
+
+    // 2. Cache miss -> Lấy dữ liệu qua Kafka
+    const summary = await sendKafkaMessage(this.userClient, 'user.feedback.chain_summary', {});
+    if (summary) {
+      await this.cacheManager.set(this.CHAIN_SUMMARY_CACHE_KEY, summary, this.CHAIN_SUMMARY_TTL);
+    }
+    return summary;
   }
 }
