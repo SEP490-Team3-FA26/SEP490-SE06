@@ -11,7 +11,10 @@ function getMonday(d: Date) {
   return new Date(d.setDate(diff));
 }
 function formatDate(d: Date) {
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 function getIsoDateStr(d: any): string {
   if (!d) return "";
@@ -19,7 +22,7 @@ function getIsoDateStr(d: any): string {
     return d.split("T")[0];
   }
   if (d instanceof Date) {
-    return d.toISOString().split("T")[0];
+    return formatDate(d);
   }
   try {
     return new Date(d).toISOString().split("T")[0];
@@ -72,9 +75,17 @@ export function BranchSchedule() {
         hrService.listShifts(),
         employeeService.getEmployees({ branchId })
       ]);
-      setSchedule(sched);
-      setShifts(sh.filter(s => s.isActive));
-      setEmployees(emps);
+      let schedData: any = sched;
+      if (typeof schedData === "string") {
+        try {
+          schedData = JSON.parse(schedData);
+        } catch {
+          schedData = null;
+        }
+      }
+      setSchedule(schedData || { branchId, weekStart: currentWeekStart, status: 'draft', assignments: [] } as any);
+      setShifts(Array.isArray(sh) ? sh.filter(s => s.isActive) : []);
+      setEmployees(Array.isArray(emps) ? emps : []);
     } catch (err: any) {
       console.error("Lỗi tải dữ liệu lịch tuần:", err);
     } finally {
@@ -87,17 +98,16 @@ export function BranchSchedule() {
   }, [currentWeekStart]);
 
   const changeWeek = (offset: number) => {
-    const d = new Date(currentWeekStart);
-    d.setDate(d.getDate() + offset * 7);
+    const [year, month, day] = currentWeekStart.split('-').map(Number);
+    const d = new Date(year, month - 1, day + offset * 7);
     setCurrentWeekStart(formatDate(d));
   };
 
   const getWeekDays = (start: string) => {
-    const days = [];
-    let curr = new Date(start);
+    const days: Date[] = [];
+    const [year, month, day] = start.split('-').map(Number);
     for (let i = 0; i < 7; i++) {
-      days.push(new Date(curr));
-      curr.setDate(curr.getDate() + 1);
+      days.push(new Date(year, month - 1, day + i));
     }
     return days;
   };
@@ -105,7 +115,7 @@ export function BranchSchedule() {
   const weekDays = getWeekDays(currentWeekStart);
   
   const getAssignment = (date: Date, shiftId: string) => {
-    if (!schedule || !schedule.assignments) return null;
+    if (!schedule || !schedule.assignments || !Array.isArray(schedule.assignments)) return null;
     const targetDateStr = formatDate(date);
     return schedule.assignments.find(a => {
       const aDateStr = getIsoDateStr(a.date);
@@ -120,7 +130,7 @@ export function BranchSchedule() {
 
     const targetDateStr = formatDate(date);
     const newAssignment: WorkScheduleAssignment = {
-      date: date.toISOString(),
+      date: `${targetDateStr}T00:00:00.000Z`,
       shiftId: shift._id,
       shiftName: shift.name,
       shiftStart: shift.startTime,
@@ -135,12 +145,23 @@ export function BranchSchedule() {
     );
     newAssignments.push(newAssignment);
 
+    // Cập nhật state UI ngay lập tức để không bị giật lag
+    setSchedule({ ...schedule, assignments: newAssignments });
+
     try {
-      const updated = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
-      setSchedule(updated);
+      let updated: any = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
+      if (typeof updated === "string") {
+        try {
+          updated = JSON.parse(updated);
+        } catch {}
+      }
+      if (updated && typeof updated === "object" && Array.isArray(updated.assignments)) {
+        setSchedule(updated);
+      }
     } catch (err: any) {
       console.error("Lỗi khi gán lịch:", err);
       alert(err.response?.data?.message || err.message || "Lỗi khi gán lịch nhân viên");
+      fetchData();
     }
   };
 
@@ -150,12 +171,24 @@ export function BranchSchedule() {
     const newAssignments = (schedule.assignments || []).filter(
       a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shiftId)
     );
+
+    // Cập nhật state UI ngay lập tức
+    setSchedule({ ...schedule, assignments: newAssignments });
+
     try {
-      const updated = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
-      setSchedule(updated);
+      let updated: any = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
+      if (typeof updated === "string") {
+        try {
+          updated = JSON.parse(updated);
+        } catch {}
+      }
+      if (updated && typeof updated === "object" && Array.isArray(updated.assignments)) {
+        setSchedule(updated);
+      }
     } catch (err: any) {
       console.error("Lỗi khi xóa phân công:", err);
       alert(err.response?.data?.message || err.message || "Lỗi khi xóa phân công");
+      fetchData();
     }
   };
 

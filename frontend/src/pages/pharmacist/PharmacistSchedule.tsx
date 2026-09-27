@@ -10,7 +10,10 @@ function getMonday(d: Date) {
   return new Date(d.setDate(diff));
 }
 function formatDate(d: Date) {
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 function getIsoDateStr(d: any): string {
   if (!d) return "";
@@ -18,7 +21,7 @@ function getIsoDateStr(d: any): string {
     return d.split("T")[0];
   }
   if (d instanceof Date) {
-    return d.toISOString().split("T")[0];
+    return formatDate(d);
   }
   try {
     return new Date(d).toISOString().split("T")[0];
@@ -67,8 +70,16 @@ export function PharmacistSchedule() {
         hrService.getMyWeekSchedule(currentWeekStart),
         hrService.listShifts()
       ]);
-      setSchedule(sched);
-      setShifts(sh.filter(s => s.isActive));
+      let schedData: any = sched;
+      if (typeof schedData === "string") {
+        try {
+          schedData = JSON.parse(schedData);
+        } catch {
+          schedData = null;
+        }
+      }
+      setSchedule(schedData);
+      setShifts(Array.isArray(sh) ? sh.filter(s => s.isActive) : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -81,17 +92,16 @@ export function PharmacistSchedule() {
   }, [currentWeekStart]);
 
   const changeWeek = (offset: number) => {
-    const d = new Date(currentWeekStart);
-    d.setDate(d.getDate() + offset * 7);
+    const [year, month, day] = currentWeekStart.split('-').map(Number);
+    const d = new Date(year, month - 1, day + offset * 7);
     setCurrentWeekStart(formatDate(d));
   };
 
   const getWeekDays = (start: string) => {
-    const days = [];
-    let curr = new Date(start);
+    const days: Date[] = [];
+    const [year, month, day] = start.split('-').map(Number);
     for (let i = 0; i < 7; i++) {
-      days.push(new Date(curr));
-      curr.setDate(curr.getDate() + 1);
+      days.push(new Date(year, month - 1, day + i));
     }
     return days;
   };
@@ -152,8 +162,7 @@ export function PharmacistSchedule() {
                     </div>
                   </td>
                   {weekDays.map(d => {
-                    const targetDateStr = formatDate(d);
-                    const assignment = schedule?.assignments.find(a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id);
+                    const assignment = (schedule?.assignments || []).find(a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id);
                     if (!assignment) return <td key={d.toISOString()} className="p-2 border-r border-slate-100 h-24"></td>;
 
                     const isMine = assignment.employeeId === userId;

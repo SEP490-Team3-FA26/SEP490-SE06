@@ -154,6 +154,25 @@ export async function sendKafkaMessage(client: ClientKafka, topic: string, data:
     if (result?.error) {
       throw new HttpException(result.message || 'Internal Microservice Error', result.statusCode || 500);
     }
+
+    if (typeof result === 'string') {
+      const trimmed = result.trim();
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          return JSON.parse(trimmed);
+        } catch {
+          try {
+            const sanitized = trimmed
+              .replace(/new ObjectId\('([a-f0-9]+)'\)/g, '"$1"')
+              .replace(/ObjectId\('([a-f0-9]+)'\)/g, '"$1"')
+              .replace(/(\w+):/g, '"$1":')
+              .replace(/'/g, '"');
+            return JSON.parse(sanitized);
+          } catch {}
+        }
+      }
+    }
+
     return result;
   } catch (err: any) {
     if (err instanceof HttpException) {

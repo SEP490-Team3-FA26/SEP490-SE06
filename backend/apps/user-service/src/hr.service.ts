@@ -20,11 +20,12 @@ export class HrService {
 
   // --- Nhóm Ca Làm Việc ---
   async listShifts(branchId: string) {
-    return this.workShiftModel.find({ branchId }).exec();
+    return this.workShiftModel.find({ branchId }).lean().exec();
   }
 
   async createShift(branchId: string, dto: { name: string, startTime: string, endTime: string, color: string }) {
-    return this.workShiftModel.create({ branchId, ...dto, isActive: true });
+    const shift = await this.workShiftModel.create({ branchId, ...dto, isActive: true });
+    return shift ? (shift.toObject ? shift.toObject() : shift) : null;
   }
 
   async updateShift(shiftId: string, branchId: string, dto: any) {
@@ -32,7 +33,7 @@ export class HrService {
       { _id: shiftId, branchId },
       { $set: dto },
       { new: true }
-    ).exec();
+    ).lean().exec();
     if (!shift) throw new RpcException('Shift not found');
     return shift;
   }
@@ -42,13 +43,13 @@ export class HrService {
     if (!shift) throw new RpcException('Shift not found');
     shift.isActive = !shift.isActive;
     await shift.save();
-    return shift;
+    return shift.toObject ? shift.toObject() : shift;
   }
 
   // --- Nhóm Lịch Phân Công ---
   async getWeekSchedule(branchId: string, weekStart: string) {
     const start = new Date(weekStart);
-    const schedule = await this.workScheduleModel.findOne({ branchId, weekStart: start }).exec();
+    const schedule = await this.workScheduleModel.findOne({ branchId, weekStart: start }).lean().exec();
     if (schedule) return schedule;
     
     // Return empty draft
@@ -77,7 +78,7 @@ export class HrService {
         $setOnInsert: { status: 'draft' }
       },
       { upsert: true, new: true }
-    ).exec();
+    ).lean().exec();
     return schedule;
   }
 
@@ -105,7 +106,7 @@ export class HrService {
       );
     }
 
-    return schedule;
+    return schedule.toObject ? schedule.toObject() : schedule;
   }
 
   async getMyWeekSchedule(employeeId: string, branchId: string, weekStart: string) {
@@ -116,13 +117,13 @@ export class HrService {
   async listSwapRequests(branchId: string, status?: string) {
     const filter: any = { branchId };
     if (status) filter.status = status;
-    return this.shiftSwapRequestModel.find(filter).sort({ createdAt: -1 }).exec();
+    return this.shiftSwapRequestModel.find(filter).sort({ createdAt: -1 }).lean().exec();
   }
 
   async listMySwapRequests(userId: string) {
     return this.shiftSwapRequestModel.find({
       $or: [{ requesterId: userId }, { targetId: userId }]
-    }).sort({ createdAt: -1 }).exec();
+    }).sort({ createdAt: -1 }).lean().exec();
   }
 
   async createSwapRequest(dto: any) {
@@ -140,7 +141,7 @@ export class HrService {
       request._id.toString()
     );
 
-    return request;
+    return request.toObject ? request.toObject() : request;
   }
 
   async targetRespond(swapId: string, targetId: string, response: 'accepted' | 'rejected', rejectReason?: string) {
@@ -182,7 +183,7 @@ export class HrService {
       }
     }
 
-    return request;
+    return request.toObject ? request.toObject() : request;
   }
 
   async managerRespond(swapId: string, managerId: string, response: 'approved' | 'rejected', rejectReason?: string) {
@@ -252,7 +253,7 @@ export class HrService {
       await this.sendNotification(request.targetId, request.branchId, 'shift_swap_approved', 'Đổi ca thành công', msg, request._id.toString());
     }
 
-    return request;
+    return request.toObject ? request.toObject() : request;
   }
 
   private async sendNotification(recipientId: string, branchId: string, type: string, title: string, message: string, relatedId?: string) {
@@ -272,6 +273,7 @@ export class HrService {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .lean()
       .exec();
   }
 
