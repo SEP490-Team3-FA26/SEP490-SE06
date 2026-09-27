@@ -8,6 +8,15 @@ echo "=================================================="
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$APP_DIR"
 
+# 0. Tự động cài đặt Docker & Docker Compose nếu VPS chưa có
+if ! command -v docker > /dev/null 2>&1; then
+  echo "🐳 Docker chưa cài đặt. Đang tiến hành cài đặt Docker Engine..."
+  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+  sh /tmp/get-docker.sh
+  systemctl enable docker
+  systemctl start docker
+fi
+
 # 1. Kích hoạt Swap 4GB nếu chưa có (chống tràn RAM cho VPS 6GB chạy 11 containers)
 CURRENT_SWAP=$(free -m | awk '/^Swap:/ {print $2}')
 if [ "$CURRENT_SWAP" -eq 0 ]; then
@@ -26,6 +35,8 @@ if command -v ufw > /dev/null 2>&1; then
   ufw allow 443/tcp > /dev/null 2>&1 || true
   ufw allow 3000/tcp > /dev/null 2>&1 || true
   ufw allow 4000/tcp > /dev/null 2>&1 || true
+  ufw allow 8888/tcp > /dev/null 2>&1 || true
+  ufw allow 3001/tcp > /dev/null 2>&1 || true
 fi
 
 # 3. Đảm bảo chứng chỉ SSL cho Nginx (Cloudflare Full SSL)

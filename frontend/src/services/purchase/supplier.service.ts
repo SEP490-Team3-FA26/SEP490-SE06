@@ -12,6 +12,7 @@ export interface SupplierData {
 export interface Supplier extends Partial<SupplierData> {
   _id?: string;
   id?: string;
+  code?: string;
   name: string;
 }
 

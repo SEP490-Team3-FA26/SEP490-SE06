@@ -17,6 +17,9 @@ import {
 import { notifyAuthTokenChanged } from "../../utils/authEvents";
 import api from "../../services/core/api";
 import { authService } from "../../services/auth/auth.service";
+import { DoveMascotSection } from "../mascot/DoveMascotSection";
+import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
+import { MascotLogoIcon } from "../ui/Logo";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -201,11 +204,14 @@ export function Landing() {
     setUserRole(role || (t ? "user" : ""));
 
     // Staff Auto-redirect: If a staff member visits '/', route them directly to their work dashboard
-    if (role && ["admin", "head_branch", "warehouse", "branch", "pharmacist"].includes(role)) {
+    if (role && ["admin", "director", "head_branch", "warehouse", "branch", "pharmacist"].includes(role)) {
       switch (role) {
         case "admin":
-        case "head_branch":
           navigate("/admin", { replace: true });
+          break;
+        case "director":
+        case "head_branch":
+          navigate("/director", { replace: true });
           break;
         case "warehouse":
           navigate("/warehouse", { replace: true });
@@ -379,9 +385,11 @@ export function Landing() {
     }
   };
 
-  // Sparkle burst helper for premium microinteraction
-  const triggerSparkles = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const button = e.currentTarget;
+  // Sparkle burst & Fly-to-cart helper for premium microinteraction
+  const triggerSparkles = (e?: any) => {
+    if (!e || typeof e !== "object") return;
+    const button = e.currentTarget || e.target;
+    if (!button || typeof button.getBoundingClientRect !== "function") return;
     const rect = button.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -424,6 +432,43 @@ export function Landing() {
         }
       });
     }
+
+    // Parabolic fly-to-cart animation
+    if (cartIconRef.current) {
+      const cartRect = cartIconRef.current.getBoundingClientRect();
+      const flyer = document.createElement("div");
+      flyer.className = "fixed pointer-events-none rounded-full z-[9999] flex items-center justify-center font-bold text-white text-xs shadow-lg";
+      Object.assign(flyer.style, {
+        width: "24px",
+        height: "24px",
+        backgroundColor: "#0057cd",
+        backgroundImage: "linear-gradient(135deg, #0d6efd, #0057cd)",
+        left: `${centerX - 12}px`,
+        top: `${centerY - 12}px`,
+        boxShadow: "0 4px 14px rgba(13, 110, 253, 0.5)",
+      });
+      flyer.innerHTML = `<span style="font-size: 13px;">💊</span>`;
+      document.body.appendChild(flyer);
+
+      gsap.to(flyer, {
+        x: cartRect.left + cartRect.width / 2 - centerX,
+        y: cartRect.top + cartRect.height / 2 - centerY,
+        scale: 0.6,
+        opacity: 0.9,
+        duration: 0.7,
+        ease: "power2.inOut",
+        onComplete: () => {
+          flyer.remove();
+          if (cartIconRef.current) {
+            gsap.fromTo(
+              cartIconRef.current,
+              { scale: 1 },
+              { scale: 1.25, duration: 0.15, yoyo: true, repeat: 1, ease: "back.out(2)" }
+            );
+          }
+        }
+      });
+    }
   };
 
   useEffect(() => {
@@ -447,8 +492,17 @@ export function Landing() {
     }
   };
 
-  const handleAddToCart = async (med: any, e: React.MouseEvent<HTMLButtonElement>, customQty: number = 1) => {
-    triggerSparkles(e);
+  const handleAddToCart = async (med: any, eOrQty?: any, customQty: number = 1) => {
+    let qty = 1;
+    if (typeof eOrQty === "number") {
+      qty = eOrQty;
+    } else if (typeof customQty === "number") {
+      qty = customQty;
+    }
+
+    if (eOrQty && typeof eOrQty === "object") {
+      triggerSparkles(eOrQty);
+    }
 
     const medId = med.id || med._id;
     const currentToken = localStorage.getItem("token");
@@ -459,13 +513,13 @@ export function Landing() {
         const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
 
         if (existingItem) {
-          if (existingItem.quantity + customQty > med.stock) {
+          if (existingItem.quantity + qty > (med.stock || 999)) {
             alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
             return;
           }
-          existingItem.quantity += customQty;
+          existingItem.quantity += qty;
         } else {
-          if (med.stock <= 0) {
+          if ((med.stock ?? 1) <= 0) {
             alert("Sản phẩm đã hết hàng!");
             return;
           }
@@ -474,10 +528,10 @@ export function Landing() {
             _id: medId,
             name: med.name,
             category: med.category,
-            price: med.price,
-            quantity: customQty,
-            unit: med.unit || "Viên",
-            stock: med.stock,
+            price: med.salePrice || med.price,
+            quantity: qty,
+            unit: med.unit || "Hộp",
+            stock: med.stock || 100,
             active_ingredient: med.active_ingredient || "",
             image: med.image || ""
           });
@@ -496,8 +550,8 @@ export function Landing() {
     }
 
     try {
-      const response = await api.post("/api/users/cart",
-        { medicineId: medId, quantity: customQty },
+      await api.post("/api/users/cart",
+        { medicineId: medId, quantity: qty },
         { headers: { "Authorization": `Bearer ${currentToken}` } }
       );
 
@@ -508,7 +562,8 @@ export function Landing() {
       }, 1500);
 
     } catch (err: any) {
-      alert(err.message || "Lỗi kết nối");
+      const msg = err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ";
+      alert(msg);
       console.error(err);
     }
   };
@@ -543,7 +598,7 @@ export function Landing() {
   };
 
   return (
-    <div className="bg-[#f4f7fb] text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-x-hidden min-h-screen flex flex-col" ref={containerRef}>
+    <div className="bg-[#f4f7fb] text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-x-clip min-h-screen flex flex-col" ref={containerRef}>
 
       {/* ========================================================================= */}
       {/* 1. TOP UTILITY BAR (CHUẨN CHUỖI NHÀ THUỐC LONG CHÂU / PHARMACITY) */}
@@ -592,12 +647,10 @@ export function Landing() {
 
           {/* Brand Logo */}
           <Link to="/" className="flex items-center gap-3 group shrink-0">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#0057cd] via-[#0d6efd] to-sky-400 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-all">
-              <HeartPulse size={26} className="animate-pulse" />
-            </div>
+            <MascotLogoIcon size="lg" />
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-xl text-slate-900 tracking-tight leading-none">ABC Pharmacy</span>
+                <span className="font-black text-xl text-slate-900 tracking-tight leading-none group-hover:text-[#0057cd] transition-colors">ABC Pharmacy</span>
                 <span className="px-1.5 py-0.5 rounded bg-blue-100 text-[#0057cd] text-[9px] font-black uppercase">GPP</span>
               </div>
               <span className="text-[10px] font-bold text-slate-400 tracking-wider mt-0.5">Hệ Thống Dược Phẩm Số 3.0</span>
@@ -1210,7 +1263,7 @@ export function Landing() {
               title: "Chat Với Dược Sĩ",
               subtitle: "Tư vấn 1:1 miễn phí",
               icon: <MessageSquareQuote size={22} className="text-teal-500" />,
-              action: () => navigate("/customer/consultant"),
+              action: () => navigate("/customer/ai-consult"),
               bg: "hover:border-teal-200"
             }
           ].map((item, idx) => (
@@ -1232,6 +1285,11 @@ export function Landing() {
           ))}
         </div>
       </section>
+
+      {/* ========================================================================= */}
+      {/* 4.5. MASCOT SHOWCASE: BỒ CÂU Y TẾ AI (INTERACTIVE COMPANION) */}
+      {/* ========================================================================= */}
+      <DoveMascotSection />
 
       {/* ========================================================================= */}
       {/* 5. FLASH SALE COUNTDOWN SECTION */}
@@ -1278,8 +1336,15 @@ export function Landing() {
                 id: "FS-01",
                 name: "Viên sủi Berocca Performance Hộp 10 viên",
                 brand: "Bayer (Đức)",
+                category: "Thuốc bổ",
+                active_ingredient: "Vitamin B, C, Kẽm, Magie",
+                specification: "Tuýp 10 viên sủi",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Viên sủi",
+                stock: 120,
+                unit: "Tuýp",
+                price: 95000,
                 originalPrice: 135000,
-                salePrice: 95000,
                 discount: 30,
                 soldPercent: 82,
                 image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"
@@ -1288,8 +1353,15 @@ export function Landing() {
                 id: "FS-02",
                 name: "Dầu cá Omega 3 Fish Oil 1000mg Hộp 100 viên",
                 brand: "Nature Made (Mỹ)",
+                category: "Thuốc bổ",
+                active_ingredient: "Omega 3, EPA, DHA",
+                specification: "Hộp 100 viên nang mềm",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Viên nang",
+                stock: 85,
+                unit: "Hộp",
+                price: 285000,
                 originalPrice: 380000,
-                salePrice: 285000,
                 discount: 25,
                 soldPercent: 91,
                 image: "https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=500&auto=format&fit=crop&q=60"
@@ -1298,8 +1370,15 @@ export function Landing() {
                 id: "FS-03",
                 name: "Nước muối sinh lý Physiodose Hộp 40 ống",
                 brand: "Gilbert (Pháp)",
+                category: "Thuốc trị ho cảm",
+                active_ingredient: "Natri Clorid 0.9%",
+                specification: "Hộp 40 ống x 5ml",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Dung dịch",
+                stock: 200,
+                unit: "Hộp",
+                price: 145000,
                 originalPrice: 195000,
-                salePrice: 145000,
                 discount: 26,
                 soldPercent: 68,
                 image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=60"
@@ -1308,8 +1387,15 @@ export function Landing() {
                 id: "FS-04",
                 name: "Máy đo huyết áp bắp tay tự động Omron HEM-7120",
                 brand: "Omron (Nhật Bản)",
+                category: "Thiết bị y tế",
+                active_ingredient: "Cảm biến IntelliSense",
+                specification: "Bộ máy đo + Vòng bít + Pin",
+                drug_classification: "COMMON_SUPPLEMENT",
+                dosage_form: "Thiết bị",
+                stock: 45,
+                unit: "Bộ",
+                price: 799000,
                 originalPrice: 1050000,
-                salePrice: 799000,
                 discount: 24,
                 soldPercent: 75,
                 image: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=500&auto=format&fit=crop&q=60"
@@ -1317,7 +1403,10 @@ export function Landing() {
             ].map((deal) => (
               <div
                 key={deal.id}
-                onClick={() => navigate("/customer/shop")}
+                onClick={() => {
+                  setSelectedMedicineForModal(deal);
+                  setModalQuantity(1);
+                }}
                 className="bg-white rounded-2xl p-4 text-slate-800 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 relative"
               >
                 <div className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">
@@ -1340,14 +1429,14 @@ export function Landing() {
 
                   <div className="flex items-baseline gap-2 mb-2">
                     <span className="text-base font-black text-rose-600">
-                      {deal.salePrice.toLocaleString()}₫
+                      {deal.price.toLocaleString()}₫
                     </span>
                     <span className="text-xs text-slate-400 line-through">
                       {deal.originalPrice.toLocaleString()}₫
                     </span>
                   </div>
 
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative">
+                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative mb-3">
                     <div
                       className="bg-gradient-to-r from-rose-500 to-amber-500 h-full rounded-full"
                       style={{ width: `${deal.soldPercent}%` }}
@@ -1356,6 +1445,28 @@ export function Landing() {
                       🔥 ĐÃ BÁN {deal.soldPercent}%
                     </span>
                   </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddToCart(deal, e, 1);
+                    }}
+                    className={`w-full py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                      addedItems[deal.id]
+                        ? "bg-emerald-600 text-white"
+                        : "bg-rose-600 hover:bg-rose-700 text-white active:scale-95"
+                    }`}
+                  >
+                    {addedItems[deal.id] ? (
+                      <>
+                        <Check size={14} /> Đã thêm!
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={13} /> Thêm Giờ Vàng
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
@@ -1759,10 +1870,8 @@ export function Landing() {
       <footer className="bg-[#0b1329] text-white pt-16 pb-8 px-4 text-xs border-t border-slate-800 mt-auto">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
           <div className="md:col-span-4">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-[#0057cd] flex items-center justify-center text-white">
-                <HeartPulse size={20} />
-              </div>
+            <div className="flex items-center gap-2.5 mb-4 group">
+              <MascotLogoIcon size="sm" />
               <span className="font-black text-lg text-white tracking-tight">ABC Pharmacy</span>
             </div>
             <p className="text-slate-400 leading-relaxed mb-4 text-xs">
@@ -2090,6 +2199,8 @@ export function Landing() {
         );
       })()}
 
+      {/* Floating Mascot Companion */}
+      <DoveFloatingWidget />
     </div>
   );
 }

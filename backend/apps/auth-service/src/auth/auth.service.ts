@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
   InternalServerErrorException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -16,7 +17,7 @@ import { RegisterDto } from './dto/register.dto';
 import { SqsEmailService } from '../email/sqs-email.service';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnApplicationBootstrap {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
@@ -25,6 +26,30 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly emailService: SqsEmailService,
   ) {}
+
+  async onApplicationBootstrap() {
+    try {
+      const directorEmail = 'director@vinapharmacy.com';
+      const existing = await this.userModel.findOne({ email: directorEmail });
+      if (!existing) {
+        const passwordHash = await bcrypt.hash('123456', 12);
+        await this.userModel.create({
+          fullName: 'Ban Giám Đốc Chuỗi (Director)',
+          email: directorEmail,
+          passwordHash,
+          role: UserRole.DIRECTOR,
+          isActive: true,
+          isEmailVerified: true,
+          isApproved: 'approved',
+          branchId: 'BR-001',
+          branchName: 'Chi Nhánh Trung Tâm',
+        });
+        console.log('✅ [AuthService] Đã tự động tạo tài khoản: director@vinapharmacy.com');
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [AuthService] Bỏ qua tạo tài khoản director:', err.message);
+    }
+  }
 
   // ============================================================
   // ĐĂNG KÝ - Tạo tài khoản mới + Cấp Token tức thì

@@ -4,8 +4,13 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Copy root package.json để giải quyết phụ thuộc file:.. nếu có
+COPY package.json /package.json
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci
+
+# Xóa tham chiếu workspace cục bộ nếu còn sót lại và cài đặt dependencies
+RUN npm pkg delete dependencies.wdp301-workspace 2>/dev/null || true
+RUN npm install --legacy-peer-deps
 
 COPY frontend/ ./
 RUN npm run build

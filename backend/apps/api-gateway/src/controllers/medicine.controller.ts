@@ -24,8 +24,22 @@ export class MedicineController implements OnModuleInit {
   @Get('filters')
   @ApiOperation({ summary: 'Lấy danh sách các bộ lọc có sẵn' })
   async getFilters() {
+    const cacheKey = 'medicines:filters:all';
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
     try {
-      return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_filters', {});
+      const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_filters', {});
+      if (this.cacheManager && result) {
+        try {
+          await this.cacheManager.set(cacheKey, result, 3600000); // Cache 1 giờ
+        } catch (e) {}
+      }
+      return result;
     } catch (error) {
       return {
         categories: ['Kháng sinh', 'Hạ sốt & Giảm đau', 'Tim mạch', 'Tiêu hóa', 'Thực phẩm chức năng', 'Vật tư y tế'],
@@ -393,8 +407,21 @@ export class MedicineController implements OnModuleInit {
     @Query('brandOrigin') brandOrigin = '',
     @Query('branchId') branchId = '',
   ) {
+    const cacheKey = `medicines:list:${page}:${limit}:${search}:${category}:${classification}:${targetGroup}:${minPrice || ''}:${maxPrice || ''}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}`;
+
+    // 1. Kiểm tra cache Redis (Cache Hit)
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+      } catch (e) {}
+    }
+
+    // 2. Cache Miss: Gọi sang Microservice qua Kafka
     try {
-      return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.list', {
+      const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.list', {
         page: Number(page),
         limit: Number(limit),
         search,
@@ -410,6 +437,15 @@ export class MedicineController implements OnModuleInit {
         brandOrigin,
         branchId,
       });
+
+      // 3. Ghi kết quả vào Redis Cache (TTL: 2 phút = 120,000 ms)
+      if (this.cacheManager && result) {
+        try {
+          await this.cacheManager.set(cacheKey, result, 120000);
+        } catch (e) {}
+      }
+
+      return result;
     } catch (error) {
       return { data: [], total: 0, page: Number(page), limit: Number(limit), totalPages: 0 };
     }

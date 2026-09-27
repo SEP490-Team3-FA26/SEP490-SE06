@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { InventoryServiceModule } from './inventory-service.module';
 
+import { TelemetryConsumerModule } from './telemetry/telemetry-consumer.module';
+
 process.on('unhandledRejection', (reason) => {
   console.warn('⚠️ [Inventory MS] Unhandled Rejection:', reason);
 });
@@ -11,27 +13,31 @@ process.on('uncaughtException', (err) => {
 
 async function bootstrap() {
   process.env.KAFKAJS_NO_PARTITIONER_WARNING = '1';
+  const kafkaBrokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(',');
+  const kafkaBaseGroup = process.env.KAFKA_GROUP_ID || 'wdp301-consumers';
+
   let retries = 20;
   while (retries > 0) {
     try {
       console.log('🔄 Đang kết nối tới Kafka (Inventory MS)...');
+
+      // 1. Khởi động Microservice chính cho nghiệp vụ CRUD / User RPC (Consumer Group: ...-inventory)
       const app = await NestFactory.createMicroservice<MicroserviceOptions>(
         InventoryServiceModule,
         {
           transport: Transport.KAFKA,
           options: {
             client: {
-              clientId: 'inventory-service',
-              brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+              clientId: 'inventory-crud-service',
+              brokers: kafkaBrokers,
               connectionTimeout: 10000,
               retry: { initialRetryTime: 1000, retries: 10 },
               logLevel: 0,
             },
             consumer: {
-              groupId: (process.env.KAFKA_GROUP_ID || 'wdp301-consumers') + '-inventory',
+              groupId: `${kafkaBaseGroup}-inventory`,
             },
             producer: {
-              // Cho phép gửi message lớn hơn (10MB) để tránh MESSAGE_TOO_LARGE
               maxInFlightRequests: 1,
               maxMessageBytes: 10485760,
             },
@@ -42,9 +48,41 @@ async function bootstrap() {
           logger: ['error', 'warn'],
         },
       );
-
       await app.listen();
-      console.log('🚀 Inventory Microservice khởi động thành công!');
+      console.log(`🚀 Inventory CRUD Microservice khởi động thành công (Group: ${kafkaBaseGroup}-inventory)!`);
+
+      // 2. Khởi động Microservice riêng biệt cho IoT Telemetry Ingestion (Consumer Group: ...-telemetry)
+      // Áp dụng Consumer Group Isolation: Tách riêng luồng dữ liệu stream lưu lượng cao
+      // để không gây Head-of-Line Blocking cho các request CRUD của người dùng.
+      const telemetryApp = await NestFactory.createMicroservice<MicroserviceOptions>(
+        TelemetryConsumerModule,
+        {
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'inventory-telemetry-service',
+              brokers: kafkaBrokers,
+              connectionTimeout: 10000,
+              retry: { initialRetryTime: 1000, retries: 10 },
+              logLevel: 0,
+            },
+            consumer: {
+              groupId: `${kafkaBaseGroup}-telemetry`,
+            },
+            producer: {
+              maxInFlightRequests: 1,
+              maxMessageBytes: 10485760,
+            },
+            subscribe: {
+              allowAutoTopicCreation: true,
+            },
+          } as any,
+          logger: ['error', 'warn'],
+        },
+      );
+      await telemetryApp.listen();
+      console.log(`📡 Telemetry Ingestion Microservice khởi động thành công (Group: ${kafkaBaseGroup}-telemetry)!`);
+
       break;
     } catch (error) {
       console.error('❌ Lỗi khởi động Inventory MS:', error);

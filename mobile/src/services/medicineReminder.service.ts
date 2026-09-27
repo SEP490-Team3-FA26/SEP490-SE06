@@ -14,67 +14,81 @@ export const MedicineReminderService = {
   async init(): Promise<boolean> {
     try {
       // 1. Cấu hình hành vi hiển thị khi app đang mở (Foreground)
-      Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowBanner: true,
-          shouldShowList: true,
-          shouldPlaySound: true,
-          shouldSetBadge: true,
-        }),
-      });
+      try {
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+          }),
+        });
+      } catch (e) {
+        // Ignored on Expo Go
+      }
 
       // 2. Tạo notification channel trên Android với độ ưu tiên cao nhất
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-          name: 'Lịch Nhắc Uống Thuốc',
-          description: 'Thông báo báo thức uống thuốc đúng giờ ngay cả khi khóa màn hình',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 500, 250, 500],
-          lightColor: '#0284C7',
-          sound: 'default',
-          enableVibrate: true,
-          enableLights: true,
-          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-          bypassDnd: true,
-        });
+        try {
+          await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+            name: 'Lịch Nhắc Uống Thuốc',
+            description: 'Thông báo báo thức uống thuốc đúng giờ ngay cả khi khóa màn hình',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 500, 250, 500],
+            lightColor: '#0284C7',
+            sound: 'default',
+            enableVibrate: true,
+            enableLights: true,
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+            bypassDnd: true,
+          });
+        } catch (e) {
+          // Expo Go Android doesn't always provide ChannelsProvider
+        }
       }
 
       // 3. Đăng ký category với các action buttons trực tiếp trên banner thông báo
-      await Notifications.setNotificationCategoryAsync(CATEGORY_ID, [
-        {
-          identifier: 'TAKEN',
-          buttonTitle: '✅ Đã uống',
-          options: {
-            opensAppToForeground: false,
+      try {
+        await Notifications.setNotificationCategoryAsync(CATEGORY_ID, [
+          {
+            identifier: 'TAKEN',
+            buttonTitle: '✅ Đã uống',
+            options: {
+              opensAppToForeground: false,
+            },
           },
-        },
-        {
-          identifier: 'SNOOZE',
-          buttonTitle: '⏰ Nhắc lại sau 10p',
-          options: {
-            opensAppToForeground: false,
+          {
+            identifier: 'SNOOZE',
+            buttonTitle: '⏰ Nhắc lại sau 10p',
+            options: {
+              opensAppToForeground: false,
+            },
           },
-        },
-      ]);
-
-      // 4. Xin quyền thông báo nếu chưa được cấp
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync({
-          ios: {
-            allowAlert: true,
-            allowBadge: true,
-            allowSound: true,
-            allowCriticalAlerts: true,
-          },
-        });
-        finalStatus = status;
+        ]);
+      } catch (e) {
+        // Ignored on Expo Go
       }
 
-      return finalStatus === 'granted';
+      // 4. Xin quyền thông báo nếu chưa được cấp
+      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync({
+            ios: {
+              allowAlert: true,
+              allowBadge: true,
+              allowSound: true,
+              allowCriticalAlerts: true,
+            },
+          });
+          finalStatus = status;
+        }
+        return finalStatus === 'granted';
+      } catch (e) {
+        return false;
+      }
     } catch (e) {
-      console.warn('Init notifications failed:', e);
       return false;
     }
   },

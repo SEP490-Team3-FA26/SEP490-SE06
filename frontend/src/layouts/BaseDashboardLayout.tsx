@@ -23,6 +23,8 @@ export function BaseDashboardLayout({ navItems, userRole }: BaseDashboardLayoutP
   const getRoleLabel = (role: string) => {
     switch (role) {
       case "admin": return "Quản trị hệ thống";
+      case "director":
+      case "head_branch": return "Ban Giám Đốc";
       case "warehouse": return "Quản lý kho";
       case "branch": return "Quản lý chi nhánh";
       case "pharmacist": return "Dược sĩ / Nhân viên";

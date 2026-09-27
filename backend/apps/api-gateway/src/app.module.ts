@@ -28,6 +28,7 @@ import { AdminEmployeeController } from './controllers/admin-employee.controller
 import { ReportController } from './controllers/report.controller';
 import { QuotaController } from './controllers/quota.controller';
 import { FinanceController } from './controllers/finance.controller';
+import { SensorController } from './controllers/sensor.controller';
 import { subscribeToKafkaTopics } from './common/kafka.helper';
 
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -42,6 +43,7 @@ import { AuditLogInterceptor } from './interceptors/audit-log.interceptor';
 import { RedactionService } from './services/redaction.service';
 import { AuditFallbackProcessor } from './processors/audit-fallback.processor';
 import { RedisModule } from './redis/redis.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 import { randomUUID } from 'crypto';
 
@@ -53,6 +55,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
  */
 @Module({
   imports: [
+    MetricsModule,
     // Đọc biến môi trường toàn cục
     ConfigModule.forRoot({ isGlobal: true }),
 
@@ -191,6 +194,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     ReportController,
     QuotaController,
     FinanceController,
+    SensorController,
   ],
   providers: [
     JwtAuthGuard,
@@ -281,6 +285,9 @@ export class AppGatewayModule implements OnModuleInit {
       'inventory.transfer.list',
       'inventory.transfer.get_by_id',
       'inventory.sale.report',
+      'inventory.sensor.get_latest',
+      'inventory.sensor.get_history',
+      'inventory.sensor.get_stations',
       'quota.get.by.id',
       'quota.get.by.branch',
       'quota.get.summary',
@@ -290,7 +297,10 @@ export class AppGatewayModule implements OnModuleInit {
     // 2. SUPPLIER_SERVICE Reply Topics
     const supplierTopics = [
       'supplier.get_all',
+      'supplier.get_by_id',
       'supplier.create',
+      'supplier.update',
+      'supplier.delete',
     ];
 
     // 3. USER_SERVICE Reply Topics

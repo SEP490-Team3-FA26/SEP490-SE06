@@ -21,7 +21,8 @@ function getUserFromToken() {
 function getProfilePath(role: string) {
   switch (role) {
     case 'admin':       return '/admin/profile';
-    case 'head_branch': return '/admin/profile';
+    case 'director':
+    case 'head_branch': return '/director/profile';
     case 'warehouse':   return '/warehouse/profile';
     case 'branch':      return '/branch/profile';
     case 'pharmacist':  return '/pharmacist/profile';
@@ -59,7 +60,7 @@ export function Header({
     <>
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 print:hidden">
-        <Logo />
+        <Logo size="sm" />
         <div className="flex items-center gap-4">
           <NotificationBell />
           <button 

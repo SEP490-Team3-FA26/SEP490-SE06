@@ -25,4 +25,9 @@ export class SupplierServiceController {
   async update(@Payload() payload: { id: string, data: any }) {
     return await this.supplierService.update(payload.id, payload.data);
   }
+
+  @MessagePattern('supplier.delete')
+  async delete(@Payload() payload: { id: string }) {
+    return await this.supplierService.delete(payload.id);
+  }
 }

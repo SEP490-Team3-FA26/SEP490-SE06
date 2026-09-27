@@ -1,6 +1,6 @@
 # Sổ Tay Quản Trị Cloud VPS & Vận Hành Hệ Thống WDP301 (Production VPS Playbook)
 
-> **Tài liệu chuẩn hóa dành cho Kỹ sư Vận hành & Lập trình viên Backend / DevOps**  
+> **Tài liệu chuẩn hóa dành cho Kỹ sư Vận hành & Lập trình viên Backend / DevOps**
 > *Dành cho Cloud VPS iNet (Ubuntu 24.04 LTS — 3 CPU, 6GB RAM, 80GB SSD)*
 
 ---
@@ -8,6 +8,7 @@
 ## 1. Kết Nối & Quản Lý Phiên Làm Việc (SSH Access)
 
 ### 1.1 Lệnh kết nối từ xa
+
 Do nhà cung cấp iNet cấu hình cổng SSH tùy chỉnh để tăng tính bảo mật, bạn luôn phải truyền cờ `-p 24700`:
 
 ```bash
@@ -19,6 +20,7 @@ ssh -i ~/.ssh/id_rsa root@103.75.187.86 -p 24700
 ```
 
 ### 1.2 Quản lý tiến trình nền bằng `tmux` hoặc `screen` (Tránh đứt kết nối)
+
 Khi chạy các lệnh nặng (như `docker build`, `npm build`), nếu mạng chập chờn phiên SSH bị ngắt thì lệnh sẽ bị hủy. Hãy dùng `tmux`:
 
 ```bash
@@ -39,6 +41,7 @@ tmux attach -t deploy
 ## 2. Giám Sát Tài Nguyên Phần Cứng (System Monitoring)
 
 ### 2.1 Kiểm tra Bộ nhớ (RAM & Swap)
+
 ```bash
 # Xem dung lượng RAM và Swap theo đơn vị dễ đọc (MB, GB)
 free -h -w
@@ -48,6 +51,7 @@ watch -n 2 free -m
 ```
 
 ### 2.2 Kiểm tra Ổ cứng (Disk Space & Inode)
+
 ```bash
 # Xem dung lượng ổ đĩa các phân vùng
 df -h /
@@ -60,6 +64,7 @@ df -i /
 ```
 
 ### 2.3 Giám sát CPU & Tiến trình thời gian thực
+
 ```bash
 # Trình quản lý tiến trình trực quan
 htop
@@ -135,6 +140,7 @@ cd /var/www/wdp301
 ```
 
 ### 5.1 Khởi động, dừng và khởi động lại dịch vụ
+
 ```bash
 # Khởi động toàn bộ cụm dịch vụ chạy ngầm (-d)
 docker compose up -d
@@ -153,6 +159,7 @@ docker compose down
 ```
 
 ### 5.2 Build lại Image khi có cập nhật code mới
+
 ```bash
 # Build lại và khởi chạy lại các container mà không làm gián đoạn các service khác
 docker compose up -d --build
@@ -163,6 +170,7 @@ docker compose up -d --no-deps backend
 ```
 
 ### 5.3 Đọc Log để kiểm tra hoạt động & Gỡ lỗi (Debugging)
+
 ```bash
 # Xem log thời gian thực của toàn bộ hệ thống
 docker compose logs -f --tail 100
@@ -178,6 +186,7 @@ docker compose logs -f redis
 ```
 
 ### 5.4 Quản lý bộ nhớ Docker & Dọn rác định kỳ
+
 ```bash
 # Xem lượng RAM/CPU từng container đang ngốn theo thời gian thực
 docker stats --no-stream
@@ -194,6 +203,7 @@ docker system prune -a --volumes -f
 ## 6. Xử Lý Sự Cố Khẩn Cấp (Troubleshooting Playbook)
 
 ### 6.1 Trường hợp 1: Server không phản hồi, nghi tràn RAM
+
 1. Đăng nhập qua Web Console (OneDash) nếu SSH bị treo.
 2. Kiểm tra xem tiến trình nào bị OOM Killer bắn hạ:
    ```bash
@@ -205,6 +215,7 @@ docker system prune -a --volumes -f
    ```
 
 ### 6.2 Trường hợp 2: Ổ cứng báo đầy 100% (No space left on device)
+
 1. Kiểm tra file log Docker bị phình to:
    ```bash
    du -sh /var/lib/docker/containers/*/*-json.log
@@ -222,11 +233,11 @@ docker system prune -a --volumes -f
 
 ## 7. Góc Ôn Luyện Phỏng Vấn: Vận Hành Linux & Production Server
 
-| Câu hỏi phỏng vấn | Bản chất kỹ thuật & Câu trả lời ghi điểm |
-| :--- | :--- |
-| **Khi một Server Production bị chậm đột ngột, quy trình chẩn đoán (Triage) của bạn gồm những bước nào?** | Áp dụng nguyên tắc **USE Method (Utilization, Saturation, Errors)**:<br>1. **CPU:** Gõ `uptime` kiểm tra Load Average (nếu lớn hơn số core CPU là quá tải). Dùng `htop` xem tiến trình nào ngốn CPU.<br>2. **Memory:** Gõ `free -h` xem có đang cạn RAM và bị swap thrashing không.<br>3. **Disk I/O:** Gõ `iostat -xz 1` hoặc `iotop` xem ổ cứng có bị nghẽn thắt cổ chai không.<br>4. **Network:** Gõ `netstat -tulpn` hoặc `ss -s` xem số lượng kết nối TCP đang mở.<br>5. **Logs:** Kiểm tra `journalctl -xe` hoặc `docker logs` để tìm mã lỗi 500. |
-| **Tại sao cần giới hạn kích thước log của Docker Container?** | Mặc định Docker ghi log dạng JSON không giới hạn dung lượng. Với các ứng dụng có nhiều log (Kafka, Gateway nhận hàng ngàn request/s), file log có thể ngốn sạch 80GB ổ cứng sau vài tuần, gây sập server. Cần cấu hình `max-size: "50m"` và `max-file: "3"` trong `daemon.json` hoặc compose file. |
-| **Khác biệt giữa `SIGTERM` và `SIGKILL` khi tắt container là gì?** | `docker stop` gửi tín hiệu `SIGTERM` (Signal 15), cho phép ứng dụng có 10 giây để **Graceful Shutdown**: đóng kết nối DB, hoàn thành nốt các job Kafka đang dở dang, hủy đăng ký service. Nếu sau 10 giây tiến trình chưa dừng, Docker mới gửi `SIGKILL` (Signal 9) ép buộc ngắt ngay lập tức. |
+| Câu hỏi phỏng vấn                                                                                                           | Bản chất kỹ thuật & Câu trả lời ghi điểm                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| :------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Khi một Server Production bị chậm đột ngột, quy trình chẩn đoán (Triage) của bạn gồm những bước nào?** | Áp dụng nguyên tắc**USE Method (Utilization, Saturation, Errors)**:1. **CPU:** Gõ `uptime` kiểm tra Load Average (nếu lớn hơn số core CPU là quá tải). Dùng `htop` xem tiến trình nào ngốn CPU.2. **Memory:** Gõ `free -h` xem có đang cạn RAM và bị swap thrashing không.3. **Disk I/O:** Gõ `iostat -xz 1` hoặc `iotop` xem ổ cứng có bị nghẽn thắt cổ chai không.4. **Network:** Gõ `netstat -tulpn` hoặc `ss -s` xem số lượng kết nối TCP đang mở.5. **Logs:** Kiểm tra `journalctl -xe` hoặc `docker logs` để tìm mã lỗi 500. |
+| **Tại sao cần giới hạn kích thước log của Docker Container?**                                                     | Mặc định Docker ghi log dạng JSON không giới hạn dung lượng. Với các ứng dụng có nhiều log (Kafka, Gateway nhận hàng ngàn request/s), file log có thể ngốn sạch 80GB ổ cứng sau vài tuần, gây sập server. Cần cấu hình`max-size: "50m"` và `max-file: "3"` trong `daemon.json` hoặc compose file.                                                                                                                                                                                                                                                                                                    |
+| **Khác biệt giữa `SIGTERM` và `SIGKILL` khi tắt container là gì?**                                             | `docker stop` gửi tín hiệu `SIGTERM` (Signal 15), cho phép ứng dụng có 10 giây để **Graceful Shutdown**: đóng kết nối DB, hoàn thành nốt các job Kafka đang dở dang, hủy đăng ký service. Nếu sau 10 giây tiến trình chưa dừng, Docker mới gửi `SIGKILL` (Signal 9) ép buộc ngắt ngay lập tức.                                                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -235,6 +246,7 @@ docker system prune -a --volumes -f
 Dưới đây là các câu lệnh "bỏ túi" mà kỹ sư vận hành Linux và DevOps sử dụng hàng ngày:
 
 ### 8.1 Nhóm Quản Trị Mạng & Tường Lửa (Firewall & Network)
+
 * `ufw allow 80/tcp && ufw reload`:
   * `ufw allow 80/tcp`: Mở cổng số 80 (cổng tiêu chuẩn của Web HTTP) với giao thức TCP để cho phép người dùng/Cloudflare kết nối vào web.
   * `&&`: Toán tử logic "VÀ" — chỉ thực hiện lệnh tiếp theo nếu lệnh đầu tiên chạy thành công không có lỗi.
@@ -244,6 +256,7 @@ Dưới đây là các câu lệnh "bỏ túi" mà kỹ sư vận hành Linux v�
 * `curl -I http://localhost:80`: Kiểm tra nhanh xem Web Server cục bộ có phản hồi mã HTTP (200, 301, 404) không.
 
 ### 8.2 Nhóm Quản Trị Docker & Dự Án WDP301
+
 * `docker compose -f docker-compose.prod.yml ps`: Xem trạng thái các container (Up, Healthy hay Exited).
 * `docker compose -f docker-compose.prod.yml logs -f --tail 50 <tên-service>`: Xem 50 dòng log gần nhất và theo dõi log mới theo thời gian thực (ví dụ service: `api-gateway`, `kafka`).
 * `docker compose -f docker-compose.prod.yml restart <tên-service>`: Khởi động lại riêng 1 container khi sửa file cấu hình mà không làm sập các service khác.
@@ -251,14 +264,15 @@ Dưới đây là các câu lệnh "bỏ túi" mà kỹ sư vận hành Linux v�
 * `docker image prune -f`: Dọn sạch các image rác/trung gian để giải phóng ổ cứng sau mỗi lần build.
 
 ### 8.3 Nhóm Kiểm Tra Phần Cứng & Bộ Nhớ (Resource Health)
+
 * `free -h`: Kiểm tra dung lượng RAM thật và Swap đang dùng/trống bao nhiêu GB.
 * `df -h /`: Kiểm tra ổ cứng phân vùng gốc `/` còn trống bao nhiêu phần trăm (cảnh báo nếu > 85%).
 * `htop`: Mở bảng điều khiển CPU/RAM trực quan (bấm phím `F10` hoặc `q` để thoát).
 * `uptime`: Xem thời gian server đã chạy liên tục và chỉ số **Load Average** trong 1, 5, 15 phút.
 
 ### 8.4 Nhóm Thao Tác File & Tiến Trình Hệ Thống
+
 * `nano <đường-dẫn-file>`: Mở trình soạn thảo file nhanh (Lưu: `Ctrl + O` -> `Enter`, Thoát: `Ctrl + X`).
 * `tail -f /var/log/syslog`: Xem log của toàn bộ hệ điều hành Ubuntu theo thời gian thực.
 * `systemctl restart docker`: Khởi động lại dịch vụ Docker khi Docker daemon bị đơ.
 * `history | tail -n 20`: Xem lại 20 câu lệnh gần nhất bạn vừa gõ trên terminal.
-

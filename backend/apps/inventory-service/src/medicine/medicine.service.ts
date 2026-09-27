@@ -362,7 +362,6 @@ export class MedicineService implements OnModuleInit {
     bypassAiSearch?: boolean;
   }) {
     try {
-      console.log('📨 [Inventory MS] Nhận yêu cầu lấy danh sách thuốc:', JSON.stringify(query));
       const page = query.page || 1;
       const limit = query.limit || 10;
       const search = query.search || '';
@@ -824,7 +823,6 @@ export class MedicineService implements OnModuleInit {
 
   async getInventoryStats(branchId?: string) {
     try {
-      console.log(`📨 [Inventory MS] Nhận yêu cầu lấy thống kê tồn kho. Branch: ${branchId}`);
       const today = new Date();
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
@@ -834,12 +832,10 @@ export class MedicineService implements OnModuleInit {
         batchQuery.branchId = branchId;
       }
 
-      console.log('🔍 [Inventory MS] Đang truy vấn database (tối ưu select & lean)...');
       const [medicines, batches] = await Promise.all([
         this.medicineModel.find().select('price').lean().exec(),
         this.batchModel.find(batchQuery).select('medicineId stock expDate status branchId').lean().exec()
       ]);
-      console.log(`✅ [Inventory MS] Truy vấn thành công: ${medicines.length} medicines, ${batches.length} batches`);
 
       const totalMedicines = medicines.length;
 
@@ -898,7 +894,6 @@ export class MedicineService implements OnModuleInit {
 
   async getExpirationReport() {
     try {
-      console.log('📨 [Inventory MS] Nhận yêu cầu lấy báo cáo lô thuốc cận hạn/hết hạn');
       const today = new Date();
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
@@ -941,7 +936,6 @@ export class MedicineService implements OnModuleInit {
         .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE')
         .sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
 
-      console.log(`✅ [Inventory MS] Hoàn tất báo cáo hết hạn: tìm thấy ${report.length} lô.`);
       return report;
     } catch (error) {
       throw new RpcException(error.message || 'Lỗi lấy báo cáo hết hạn');
@@ -1278,7 +1272,6 @@ export class MedicineService implements OnModuleInit {
 
   async getLowStockReport() {
     try {
-      console.log('📨 [Inventory MS] Nhận yêu cầu lấy báo cáo thuốc sắp hết hàng/hết hàng');
       const batches = await this.batchModel.find({ stock: { $gt: 0 }, status: 'ACTIVE' })
         .select('medicineId stock')
         .lean()
@@ -1344,7 +1337,6 @@ export class MedicineService implements OnModuleInit {
         };
       });
 
-      console.log(`✅ [Inventory MS] Hoàn tất báo cáo thấp hơn mức tối thiểu: tìm thấy ${report.length} thuốc.`);
       return report;
     } catch (error) {
       throw new RpcException(error.message || 'Lỗi lấy báo cáo thuốc sắp hết hàng');
@@ -2056,8 +2048,15 @@ export class MedicineService implements OnModuleInit {
       this.logger.log(`[WarehouseSearch] Searching for: "${q}"`);
       const regex = new RegExp(q, 'i');
       const medicines = await this.medicineModel.find(
-        { $or: [{ name: regex }, { sku: regex }] },
-        { name: 1, sku: 1, category: 1 }
+        {
+          $or: [
+            { name: regex },
+            { sku: regex },
+            { barcode: regex },
+            { 'units.barcode': regex }
+          ]
+        },
+        { name: 1, sku: 1, category: 1, barcode: 1 }
       ).limit(20).lean().exec();
 
       if (medicines.length === 0) return [];
@@ -2123,7 +2122,7 @@ export class MedicineService implements OnModuleInit {
     return code12 + checksum;
   }
 
-  async getByBarcode(barcode: string, branchId?: string) {
+  async getByBarcode(barcode: string, branchId?: string): Promise<any> {
     try {
       if (!barcode || barcode.trim() === '') {
         throw new RpcException('Mã vạch không được để trống');
@@ -2132,14 +2131,32 @@ export class MedicineService implements OnModuleInit {
       const cleanBarcode = barcode.trim();
       this.logger.log(`[getByBarcode] Scanning barcode: "${cleanBarcode}", branchId: "${branchId || 'ALL'}"`);
 
-      // 1. Search by primary barcode, sku, or packaging units barcode
-      const medicine = await this.medicineModel.findOne({
+      // 1. Search by primary barcode, sku, or packaging units barcode (including UPC-A / EAN-13 zero-prefix conversions)
+      const searchCodes = [cleanBarcode];
+      if (cleanBarcode.length === 12) {
+        searchCodes.push('0' + cleanBarcode);
+      } else if (cleanBarcode.length === 13 && cleanBarcode.startsWith('0')) {
+        searchCodes.push(cleanBarcode.slice(1));
+      }
+
+      let medicine = await this.medicineModel.findOne({
         $or: [
-          { barcode: cleanBarcode },
-          { sku: cleanBarcode },
-          { 'units.barcode': cleanBarcode }
+          { barcode: { $in: searchCodes } },
+          { sku: { $in: searchCodes } },
+          { 'units.barcode': { $in: searchCodes } }
         ]
       }).lean().exec();
+
+      // Smart Fallback: Nếu ảnh trên mạng hoặc barcode scan lệch Check Digit ở số cuối, khớp theo tiền tố 12 số GS1
+      if (!medicine && cleanBarcode.length === 13) {
+        const prefix12 = cleanBarcode.slice(0, 12);
+        medicine = await this.medicineModel.findOne({
+          $or: [
+            { barcode: new RegExp(`^${prefix12}`) },
+            { 'units.barcode': new RegExp(`^${prefix12}`) }
+          ]
+        }).lean().exec();
+      }
 
       if (!medicine) {
         return {

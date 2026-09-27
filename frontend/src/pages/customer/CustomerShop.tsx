@@ -14,7 +14,7 @@ export function CustomerShop() {
   const [medicines, setMedicines] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "");
   const [selectedClassification, setSelectedClassification] = useState("");
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
 
@@ -130,10 +130,12 @@ export function CustomerShop() {
     }
   };
 
-  // Sync search query from URL search params if it changes
+  // Sync search query and category from URL search params if it changes
   useEffect(() => {
     const q = searchParams.get("search") || "";
+    const cat = searchParams.get("category") || "";
     setSearchQuery(q);
+    setSelectedCategory(cat);
   }, [searchParams]);
 
   // Trigger fetch when pagination or dropdown filters/advanced filters change
@@ -243,6 +245,8 @@ export function CustomerShop() {
         setMedicines((prev) => prev.filter((m) => (m.id || m._id) !== medId));
         return;
       }
+      const msg = err.response?.data?.message || err.message || "Lỗi khi thêm vào giỏ hàng";
+      alert(msg);
       console.error("Error adding to cart:", err);
     }
   };

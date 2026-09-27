@@ -78,3 +78,6 @@ stop-dev.ps1
 **/flutter/ephemeral/
 **/ephemeral/
 
+# Google Cloud Credentials / Service Accounts
+service_account*.json
+*.pem

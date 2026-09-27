@@ -7,6 +7,11 @@
       "skillPath": "skills/engineering/code-review/SKILL.md",
       "computedHash": "caa9a086baaf9e0f7cd71f64edfa83da6821c05e826b083221f3d02e3d6a1905"
     },
+    "google-docx": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/google-docx/SKILL.md"
+    },
     "webapp-testing": {
       "source": "anthropics/skills",
       "sourceType": "github",

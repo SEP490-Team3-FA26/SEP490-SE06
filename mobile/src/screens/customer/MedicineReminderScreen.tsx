@@ -19,6 +19,8 @@ import { GradientButton } from '../../components/ui/GradientButton';
 import { showToast } from '../../components/ui/toastHelper';
 import { ReminderStorageService } from '../../services/reminderStorage.service';
 import { MedicineReminderService } from '../../services/medicineReminder.service';
+import { ApiService } from '../../services/api.service';
+import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 import {
   MedicineReminder,
   MedicineReminderLog,
@@ -53,6 +55,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
   // Modal State
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [editingReminder, setEditingReminder] = useState<MedicineReminder | null>(null);
+  const [showScanner, setShowScanner] = useState<boolean>(false);
 
   // Form Fields
   const [medName, setMedName] = useState<string>('');
@@ -287,6 +290,31 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
     ]);
   };
 
+  // Handle Barcode Scan for Medicine Reminder
+  const handleScanBarcode = async (code: string) => {
+    setShowScanner(false);
+    try {
+      const res = await ApiService.getByBarcode(code);
+      if (res && res.medicine) {
+        const med = res.medicine;
+        setMedName(med.name);
+        setDosage(`1 ${med.unit || 'viên'}`);
+        if (med.cach_dung) {
+          setNote(med.cach_dung);
+        }
+        setModalVisible(true);
+        showToast.success('Quét Barcode Thành Công', `Đã nhận diện: ${med.name}`);
+      } else {
+        setMedName(code);
+        setModalVisible(true);
+        showToast.info('Thông báo', `Không tìm thấy thuốc khớp barcode: ${code}. Đã điền mã vào tên.`);
+      }
+    } catch (e) {
+      console.warn('Lỗi quét barcode nhắc thuốc:', e);
+      showToast.error('Lỗi', 'Không thể kết nối máy chủ tra cứu mã vạch.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* Header Bar */}
@@ -300,8 +328,8 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
           onPress: handleOpenCreate,
         }}
         secondaryRightAction={{
-          icon: 'refresh-outline',
-          onPress: loadData,
+          icon: 'barcode-outline',
+          onPress: () => setShowScanner(true),
         }}
       />
 
@@ -314,19 +342,29 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
           </Text>
         </View>
 
-        <AnimatedTouchable
-          style={[styles.testButton, testingCountDown !== null && styles.testButtonActive]}
-          onPress={handleTestNotification}
-        >
-          <Ionicons
-            name={testingCountDown !== null ? 'hourglass-outline' : 'notifications-outline'}
-            size={16}
-            color="#FFFFFF"
-          />
-          <Text style={styles.testButtonText}>
-            {testingCountDown !== null ? `Chuông sau ${testingCountDown}s...` : 'Bắn Thử 5s 🔔'}
-          </Text>
-        </AnimatedTouchable>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <AnimatedTouchable
+            style={styles.scanQuickBtn}
+            onPress={() => setShowScanner(true)}
+          >
+            <Ionicons name="barcode-outline" size={16} color="#0891B2" />
+            <Text style={styles.scanQuickBtnText}>Quét Hộp</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            style={[styles.testButton, testingCountDown !== null && styles.testButtonActive]}
+            onPress={handleTestNotification}
+          >
+            <Ionicons
+              name={testingCountDown !== null ? 'hourglass-outline' : 'notifications-outline'}
+              size={16}
+              color="#FFFFFF"
+            />
+            <Text style={styles.testButtonText}>
+              {testingCountDown !== null ? `${testingCountDown}s...` : 'Bắn Thử 🔔'}
+            </Text>
+          </AnimatedTouchable>
+        </View>
       </View>
 
       {/* Tabs */}
@@ -587,6 +625,18 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
             </View>
 
             <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+              {/* Scan Barcode Quick Action */}
+              <TouchableOpacity
+                style={styles.scanModalRowBtn}
+                onPress={() => {
+                  setModalVisible(false);
+                  setShowScanner(true);
+                }}
+              >
+                <Ionicons name="barcode-outline" size={20} color="#0891B2" />
+                <Text style={styles.scanModalRowBtnText}>Quét Vỏ Hộp Thuốc Để Điền Tự Động</Text>
+              </TouchableOpacity>
+
               {/* Quick Sample Medicines */}
               {!editingReminder ? (
                 <View style={{ marginBottom: 14 }}>
@@ -782,6 +832,15 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
           </View>
         </View>
       </Modal>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanBarcode}
+        title="Quét Mã Vạch Vỏ Hộp Thuốc"
+        subtitle="Hướng camera vào mã vạch trên vỏ hộp thuốc để tự động trích xuất tên & liều dùng"
+      />
     </SafeAreaView>
   );
 };
@@ -1261,5 +1320,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#64748B',
+  },
+  scanQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    gap: 4,
+    elevation: 1,
+  },
+  scanQuickBtnText: {
+    color: '#0891B2',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  scanModalRowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFEFF',
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 12,
+  },
+  scanModalRowBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0891B2',
   },
 });

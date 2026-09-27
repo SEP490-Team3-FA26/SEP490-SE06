@@ -74,81 +74,44 @@ class EnvServiceClass {
   }
 
   public getApiBaseUrl(): string {
-    if (Platform.OS === 'web') {
-      return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+    const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+
+    // 1. Tự động chuyển đổi nếu env cũ trỏ vào HTTP thô của VPS (tránh Android Cleartext block)
+    if (envUrl && envUrl.includes('103.75.187.86:4000')) {
+      return 'https://abcpharmacy.store';
     }
 
-    // Ưu tiên 1: Nếu là Android Emulator → luôn dùng 10.0.2.2 để kết nối trực tiếp vào host PC
-    if (this.isAndroidEmulator()) {
-      return 'http://10.0.2.2:4000';
-    }
-
-    // Ưu tiên 2: IP tự detect từ Metro (thiết bị thật qua Wi-Fi)
-    const detectedHost = this.getHostIp();
-    if (detectedHost) {
-      return `http://${detectedHost}:4000`;
-    }
-
-    // Ưu tiên 3: đọc từ EXPO_PUBLIC_API_URL trong .env
-    const envUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (envUrl) {
-      if (Platform.OS === 'android' && envUrl.includes('localhost')) {
-        return envUrl.replace('localhost', '10.0.2.2');
-      }
+    // 2. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
       return envUrl;
     }
 
-    // Ưu tiên 4: Android emulator mặc định
-    if (Platform.OS === 'android') {
-      return 'http://10.0.2.2:4000';
+    // 3. Chế độ Web Local
+    if (Platform.OS === 'web') {
+      return envUrl || 'https://abcpharmacy.store';
     }
 
-    return 'http://localhost:4000';
+    // 4. Mặc định Production Cloud Server
+    return 'https://abcpharmacy.store';
   }
 
   public getAiBaseUrl(): string {
-    if (Platform.OS === 'web') {
-      return process.env.EXPO_PUBLIC_AI_URL || 'http://localhost:8000';
+    const envUrl = process.env.EXPO_PUBLIC_AI_URL?.trim();
+
+    if (envUrl && envUrl.includes('103.75.187.86')) {
+      return 'https://abcpharmacy.store';
     }
 
-    // Ưu tiên 1: Android Emulator → 10.0.2.2
-    if (this.isAndroidEmulator()) {
-      return 'http://10.0.2.2:8000';
-    }
-
-    // Ưu tiên 2: Thiết bị thật qua IP Metro
-    const detectedHost = this.getHostIp();
-    if (detectedHost) {
-      return `http://${detectedHost}:8000`;
-    }
-
-    const envUrl = process.env.EXPO_PUBLIC_AI_URL;
-    if (envUrl) {
-      if (Platform.OS === 'android' && envUrl.includes('localhost')) {
-        return envUrl.replace('localhost', '10.0.2.2');
-      }
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
       return envUrl;
     }
 
-    if (Platform.OS === 'android') {
-      return 'http://10.0.2.2:8000';
-    }
-
-    return 'http://localhost:8000';
+    return 'https://abcpharmacy.store';
   }
 
-  // Cung cấp URL dự phòng khi gặp lỗi kết nối mạng (10.0.2.2 <-> LAN IP)
+  // Cung cấp URL dự phòng khi gặp lỗi kết nối mạng (luôn dùng HTTPS an toàn)
   public getAlternateApiUrl(): string {
-    if (Platform.OS === 'android') {
-      const current = this.getApiBaseUrl();
-      if (current.includes('10.0.2.2')) {
-        const host = this.getHostIp();
-        return host ? `http://${host}:4000` : 'http://127.0.0.1:4000';
-      } else {
-        return 'http://10.0.2.2:4000';
-      }
-    }
-    return '';
+    return 'https://abcpharmacy.store';
   }
 
   // Đọc biến env tùy ý (EXPO_PUBLIC_*)
