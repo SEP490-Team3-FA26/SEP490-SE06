@@ -16,6 +16,12 @@ function formatDate(d: Date) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+function formatEmployeeName(fullName: string) {
+  if (!fullName) return "";
+  const clean = fullName.replace(/\s*\([^)]*\)/g, "").trim();
+  return clean || fullName;
+}
+
 function getIsoDateStr(d: any): string {
   if (!d) return "";
   if (typeof d === "string") {
@@ -242,14 +248,16 @@ export function BranchSchedule() {
         <div className="flex justify-center p-12"><div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div></div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-          <table className="w-full border-collapse min-w-[800px]">
+          <table className="w-full border-collapse min-w-[1050px] table-fixed">
             <thead>
-              <tr className="bg-slate-50">
-                <th className="p-4 border-b border-r border-slate-200 text-left text-sm font-bold text-slate-500 w-48">Ca / Ngày</th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="p-3.5 border-r border-slate-200 text-left text-xs font-bold uppercase tracking-wider text-slate-500 w-44">
+                  Ca / Ngày
+                </th>
                 {weekDays.map(d => (
-                  <th key={d.toISOString()} className="p-4 border-b border-slate-200 text-center">
-                    <div className="text-sm font-bold text-slate-800">{d.toLocaleDateString('vi-VN', { weekday: 'short' })}</div>
-                    <div className="text-xs text-slate-500 mt-1">{d.getDate()}/{d.getMonth()+1}</div>
+                  <th key={d.toISOString()} className="p-3 border-r border-slate-200 last:border-r-0 text-center w-[calc((100%-11rem)/7)] min-w-[125px]">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-800">{d.toLocaleDateString('vi-VN', { weekday: 'short' })}</div>
+                    <div className="text-xs font-medium text-slate-500 mt-0.5">{d.getDate()}/{d.getMonth()+1}</div>
                   </th>
                 ))}
               </tr>
@@ -257,10 +265,10 @@ export function BranchSchedule() {
             <tbody>
               {shifts.map(shift => (
                 <tr key={shift._id} className="border-b border-slate-100 last:border-0">
-                  <td className="p-4 border-r border-slate-200">
-                    <div className="flex items-center gap-2 font-bold text-slate-700 mb-1">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: shift.color }}></div>
-                      {shift.name}
+                  <td className="p-3.5 border-r border-slate-200 bg-slate-50/30">
+                    <div className="flex items-center gap-2 font-bold text-slate-800 mb-1 text-sm">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: shift.color }}></div>
+                      <span className="truncate">{shift.name}</span>
                     </div>
                     <div className="text-xs text-slate-500 font-medium">
                       {shift.startTime} - {shift.endTime}
@@ -269,20 +277,26 @@ export function BranchSchedule() {
                   {weekDays.map(d => {
                     const assignment = getAssignment(d, shift._id);
                     return (
-                      <td key={d.toISOString()} className="p-2 border-r border-slate-100 last:border-0 align-top h-24 relative group">
+                      <td key={d.toISOString()} className="p-2 border-r border-slate-100 last:border-r-0 align-top h-24 relative group">
                         {assignment ? (
-                          <div className={`p-2 rounded-xl flex items-center justify-between border ${isPublished ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-200'}`}>
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <div className="w-6 h-6 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
+                          <div className={`p-2 rounded-xl flex items-center justify-between gap-1 border transition-all ${
+                            isPublished ? 'bg-slate-50 border-slate-200' : 'bg-blue-50/70 border-blue-200 hover:border-blue-300 shadow-sm'
+                          }`}>
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0">
                                 <User size={12} />
                               </div>
-                              <span className="text-sm font-semibold text-slate-800 truncate" title={assignment.employeeName}>
-                                {assignment.employeeName.split(' ').pop()}
+                              <span className="text-xs font-semibold text-slate-800 truncate" title={assignment.employeeName}>
+                                {formatEmployeeName(assignment.employeeName)}
                               </span>
                             </div>
                             {!isPublished && (
-                              <button onClick={() => handleRemoveAssignment(d, shift._id)} className="text-rose-400 hover:text-rose-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Trash2 size={14} />
+                              <button 
+                                onClick={() => handleRemoveAssignment(d, shift._id)} 
+                                title="Hủy phân công"
+                                className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-white/80 transition-colors shrink-0"
+                              >
+                                <Trash2 size={13} />
                               </button>
                             )}
                           </div>
@@ -290,7 +304,7 @@ export function BranchSchedule() {
                           !isPublished && (
                             <div className="h-full flex flex-col justify-center">
                               <select 
-                                className="w-full text-xs font-semibold border border-dashed border-slate-300 hover:border-[#0057cd] bg-slate-50 hover:bg-white rounded-lg px-2 py-2 text-slate-600 focus:ring-2 focus:ring-[#0057cd] transition-all cursor-pointer"
+                                className="w-full text-xs font-medium border border-dashed border-slate-300 hover:border-[#0057cd] hover:bg-blue-50/30 bg-slate-50/60 rounded-lg px-2 py-2 text-slate-600 focus:ring-2 focus:ring-[#0057cd] transition-all cursor-pointer text-center truncate"
                                 onChange={async (e) => {
                                   const val = e.target.value;
                                   if (val) {
@@ -302,13 +316,13 @@ export function BranchSchedule() {
                                 }}
                                 defaultValue=""
                               >
-                                <option value="" disabled>+ Gán lịch</option>
+                                <option value="" disabled>+ Gán ca</option>
                                 {employees.length === 0 ? (
                                   <option value="" disabled>Không có nhân viên</option>
                                 ) : (
                                   employees.map(e => (
                                     <option key={e._id} value={e._id}>
-                                      {e.fullName} {e.role === 'pharmacist' ? '(Dược sĩ)' : '(Quản lý)'}
+                                      {formatEmployeeName(e.fullName)} {e.role === 'pharmacist' ? '(Dược sĩ)' : '(Quản lý)'}
                                     </option>
                                   ))
                                 )}
