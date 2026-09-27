@@ -1,0 +1,158 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { hrService, WorkSchedule, WorkShift } from "../../services/hr/hr.service";
+import { Calendar, ChevronLeft, ChevronRight, User, RefreshCw } from "lucide-react";
+
+function getMonday(d: Date) {
+  d = new Date(d);
+  const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.setDate(diff));
+}
+function formatDate(d: Date) {
+  return d.toISOString().split('T')[0];
+}
+
+export function PharmacistSchedule() {
+  const [currentWeekStart, setCurrentWeekStart] = useState<string>(formatDate(getMonday(new Date())));
+  const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
+  const [shifts, setShifts] = useState<WorkShift[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const getUserId = () => {
+    try {
+      return JSON.parse(window.atob(localStorage.getItem("token")!.split(".")[1])).sub;
+    } catch {
+      return "";
+    }
+  };
+  const userId = getUserId();
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [sched, sh] = await Promise.all([
+        hrService.getMyWeekSchedule(currentWeekStart),
+        hrService.listShifts()
+      ]);
+      setSchedule(sched);
+      setShifts(sh.filter(s => s.isActive));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [currentWeekStart]);
+
+  const changeWeek = (offset: number) => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + offset * 7);
+    setCurrentWeekStart(formatDate(d));
+  };
+
+  const getWeekDays = (start: string) => {
+    const days = [];
+    let curr = new Date(start);
+    for (let i = 0; i < 7; i++) {
+      days.push(new Date(curr));
+      curr.setDate(curr.getDate() + 1);
+    }
+    return days;
+  };
+
+  const weekDays = getWeekDays(currentWeekStart);
+  const isPublished = schedule?.status === 'published';
+
+  return (
+    <div className="flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Lịch Làm Việc Cá Nhân</h1>
+          <p className="text-slate-500 mt-1">Xem ca trực và gửi yêu cầu đổi ca</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex justify-between items-center">
+        <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-slate-100 rounded-lg"><ChevronLeft /></button>
+        <div className="flex items-center gap-2 font-bold text-lg text-slate-700">
+          <Calendar className="text-[#0057cd]" />
+          Tuần {formatDate(weekDays[0])} đến {formatDate(weekDays[6])}
+        </div>
+        <button onClick={() => changeWeek(1)} className="p-2 hover:bg-slate-100 rounded-lg"><ChevronRight /></button>
+      </div>
+
+      {!isPublished && !loading && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl flex items-center gap-2 mb-6">
+          <span className="text-sm font-medium">Lịch tuần này chưa được quản lý công bố.</span>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center p-12"><div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div></div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+          <table className="w-full border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="p-4 border-b border-r border-slate-200 text-left text-sm font-bold text-slate-500 w-48">Ca / Ngày</th>
+                {weekDays.map(d => (
+                  <th key={d.toISOString()} className="p-4 border-b border-slate-200 text-center">
+                    <div className="text-sm font-bold text-slate-800">{d.toLocaleDateString('vi-VN', { weekday: 'short' })}</div>
+                    <div className="text-xs text-slate-500 mt-1">{d.getDate()}/{d.getMonth()+1}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shifts.map(shift => (
+                <tr key={shift._id} className="border-b border-slate-100 last:border-0">
+                  <td className="p-4 border-r border-slate-200">
+                    <div className="flex items-center gap-2 font-bold text-slate-700 mb-1">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: shift.color }}></div>
+                      {shift.name}
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {shift.startTime} - {shift.endTime}
+                    </div>
+                  </td>
+                  {weekDays.map(d => {
+                    const assignment = schedule?.assignments.find(a => a.date.startsWith(formatDate(d)) && a.shiftId === shift._id);
+                    if (!assignment) return <td key={d.toISOString()} className="p-2 border-r border-slate-100 h-24"></td>;
+
+                    const isMine = assignment.employeeId === userId;
+                    return (
+                      <td key={d.toISOString()} className={`p-2 border-r border-slate-100 align-top h-24 relative group ${isMine ? 'bg-blue-50/50' : 'opacity-40'}`}>
+                        <div className={`p-2 rounded-xl flex flex-col justify-between h-full border ${isMine ? 'bg-white border-[#0057cd]/30 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isMine ? 'bg-[#0057cd] text-white' : 'bg-slate-200 text-slate-600'}`}>
+                              <User size={12} />
+                            </div>
+                            <span className="text-sm font-semibold text-slate-800 truncate" title={assignment.employeeName}>
+                              {assignment.employeeName.split(' ').pop()}
+                            </span>
+                          </div>
+                          {isMine && isPublished && (
+                            <button 
+                              onClick={() => navigate('/pharmacist/shift-swaps')}
+                              className="mt-2 text-[10px] uppercase font-bold text-blue-600 flex items-center justify-center gap-1 hover:bg-blue-50 py-1 rounded"
+                            >
+                              <RefreshCw size={10} /> Đổi ca
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
