@@ -70,7 +70,7 @@ export function BranchSchedule() {
   const weekDays = getWeekDays(currentWeekStart);
   
   const getAssignment = (date: Date, shiftId: string) => {
-    if (!schedule) return null;
+    if (!schedule || !schedule.assignments) return null;
     return schedule.assignments.find(a => a.date.startsWith(formatDate(date)) && a.shiftId === shiftId);
   };
 
@@ -90,7 +90,7 @@ export function BranchSchedule() {
       note: ""
     };
 
-    const newAssignments = schedule.assignments.filter(a => !(a.date.startsWith(formatDate(date)) && a.shiftId === shift._id));
+    const newAssignments = (schedule.assignments || []).filter(a => !(a.date.startsWith(formatDate(date)) && a.shiftId === shift._id));
     newAssignments.push(newAssignment);
 
     try {
@@ -103,7 +103,7 @@ export function BranchSchedule() {
 
   const handleRemoveAssignment = async (date: Date, shiftId: string) => {
     if (!schedule || schedule.status === 'published') return;
-    const newAssignments = schedule.assignments.filter(a => !(a.date.startsWith(formatDate(date)) && a.shiftId === shiftId));
+    const newAssignments = (schedule.assignments || []).filter(a => !(a.date.startsWith(formatDate(date)) && a.shiftId === shiftId));
     try {
       const updated = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
       setSchedule(updated);
@@ -141,7 +141,7 @@ export function BranchSchedule() {
           )}
           <button
             onClick={handlePublish}
-            disabled={!schedule || isPublished || schedule.assignments.length === 0}
+            disabled={!schedule || isPublished || (schedule.assignments || []).length === 0}
             className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] disabled:opacity-50 transition-colors shadow-sm"
           >
             Đăng Lịch Tuần
