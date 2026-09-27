@@ -27,6 +27,7 @@ const mockModel = {
   sort: jest.fn().mockReturnThis(),
   skip: jest.fn().mockReturnThis(),
   limit: jest.fn().mockReturnThis(),
+  lean: jest.fn().mockReturnThis(),
   exec: jest.fn(),
   countDocuments: jest.fn(),
   create: jest.fn(),
@@ -103,7 +104,9 @@ describe('HrService', () => {
     
     // override exec for this specific test
     (scheduleModel.findOneAndUpdate as jest.Mock).mockReturnValue({
-      exec: jest.fn().mockResolvedValue(expectedSchedule)
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(expectedSchedule)
+      })
     });
 
     const result = await service.upsertSchedule('BR-001', 'manager-1', upsertData);
