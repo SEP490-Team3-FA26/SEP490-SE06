@@ -1052,7 +1052,7 @@ async def scan_prescription_image(
         )
 
     try:
-        # 2. OCR – Vision LLM trích xuất nội dung đơn thuốc
+        # 2. OCR – Vision LLM trích xuất nội dung đơn thuốc bản in
         from services.ocr_service import extract_prescription_from_image
 
         ocr_result = await extract_prescription_from_image(
@@ -1060,6 +1060,11 @@ async def scan_prescription_image(
         )
 
         if ocr_result.get("error"):
+            if ocr_result.get("error") == "HANDWRITTEN_PRESCRIPTION_REJECTED" or ocr_result.get("is_handwritten"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="HANDWRITTEN_PRESCRIPTION_REJECTED: Hệ thống chỉ hỗ trợ quét đơn thuốc bản in điện tử từ phần mềm/bệnh viện, không tiếp nhận đơn viết tay để đảm bảo an toàn dược phẩm."
+                )
             return {
                 "success": False,
                 "error": ocr_result["error"],
@@ -1068,6 +1073,8 @@ async def scan_prescription_image(
 
         return await build_prescription_scan_response(ocr_result, start_time)
 
+    except HTTPException:
+        raise
     except RAGServiceUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -1223,6 +1230,13 @@ async def scan_prescription_v2(
         # 2. Gemini 2.5 Flash Vision Analysis
         gemini_response = await analyze_prescription_images(images_data)
 
+        # 2.1 Thẩm định đơn thuốc bản in – Từ chối nếu là chữ viết tay
+        if gemini_response.get("is_handwritten") is True or gemini_response.get("is_printed") is False:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="HANDWRITTEN_PRESCRIPTION_REJECTED: Hệ thống chỉ hỗ trợ quét đơn thuốc bản in điện tử từ phần mềm/bệnh viện, không tiếp nhận đơn viết tay để đảm bảo an toàn dược phẩm."
+            )
+
         raw_items = gemini_response.get("items", [])
         patient_info = gemini_response.get("patient_info", {})
         doctor_info = gemini_response.get("doctor_info", {})
@@ -1240,7 +1254,7 @@ async def scan_prescription_v2(
         final_payload = {
             "success": True,
             "scan_id": scan_id,
-            "prompt_version": gemini_response.get("prompt_version", "v2.1"),
+            "prompt_version": gemini_response.get("prompt_version", "v2.2-printed-only"),
             "from_cache": False,
             "patient": {
                 "name": patient_info.get("name", {}).get("value"),
@@ -1261,6 +1275,8 @@ async def scan_prescription_v2(
         prescription_cache.set(bytes_list, branch_id, final_payload)
 
         return final_payload
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Lỗi xử lý quét đơn thuốc AI: {str(e)}")

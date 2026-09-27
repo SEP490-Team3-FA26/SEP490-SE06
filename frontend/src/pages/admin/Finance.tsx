@@ -56,7 +56,7 @@ export function Finance() {
       }
    }
 
-   const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch';
+   const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch' || userDetails.role === 'director';
 
    // Lock branch selection for branch managers
    useEffect(() => {

@@ -31,8 +31,7 @@ api.interceptors.response.use(
       const isPublicPath = typeof window !== 'undefined' && (
         window.location.pathname === '/' ||
         window.location.pathname.startsWith('/auth/') ||
-        window.location.pathname.startsWith('/login') ||
-        window.location.pathname.startsWith('/interactions')
+        window.location.pathname.startsWith('/login')
       );
 
       // Only perform auto-logout if it's NOT an auth attempt and NOT on a public page

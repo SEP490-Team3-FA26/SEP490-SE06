@@ -59,12 +59,12 @@ export function DoveFloatingWidget() {
 
           <div className="grid grid-cols-2 gap-2">
             <Link
-              to="/interactions"
+              to="/customer/ai-consult"
               onClick={() => setIsOpen(false)}
               className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 text-white font-bold text-[11px] hover:shadow-md hover:shadow-blue-500/20 transition-all text-center"
             >
               <BrainCircuit size={13} />
-              Tra Tương Tác AI
+              Tư Vấn AI
             </Link>
             <Link
               to="/customer/shop"

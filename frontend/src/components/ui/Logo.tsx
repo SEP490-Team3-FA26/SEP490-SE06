@@ -72,8 +72,10 @@ export function Logo({
 
   if (to) {
     targetPath = to;
-  } else if (role === "admin" || role === "head_branch") {
+  } else if (role === "admin") {
     targetPath = "/admin";
+  } else if (role === "director" || role === "head_branch") {
+    targetPath = "/director";
   } else if (role === "warehouse") {
     targetPath = "/warehouse";
   } else if (role === "branch") {

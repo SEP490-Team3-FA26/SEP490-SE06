@@ -232,7 +232,12 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       setAiScanResult(result);
       showToast("Hệ thống AI đã bóc tách & khớp thuốc thành công!", "success");
     } catch (err: any) {
-      showToast(err.response?.data?.message || err.message || "Lỗi quét ảnh đơn thuốc AI", "error");
+      const msg = err.response?.data?.message || err.message || "Lỗi quét ảnh đơn thuốc AI";
+      if (typeof msg === "string" && (msg.includes("HANDWRITTEN_PRESCRIPTION_REJECTED") || msg.includes("chữ viết tay"))) {
+        showToast("⚠️ Đơn thuốc viết tay không được hỗ trợ! Vui lòng tải lên đơn thuốc bản in điện tử rõ nét.", "warning");
+      } else {
+        showToast(msg, "error");
+      }
     } finally {
       setAiLoading(false);
     }
@@ -1712,6 +1717,14 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-100">
           {/* Left Column: Multi-page Upload & Image Viewer */}
           <div className="w-full md:w-5/12 p-4 border-r border-slate-200 flex flex-col gap-4 bg-white overflow-y-auto">
+            {/* Printed-only Warning Banner */}
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-xl text-xs flex items-start gap-2 shadow-sm">
+              <span className="font-bold bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded text-[10px] shrink-0 mt-0.5">CHỈ BẢN IN</span>
+              <p className="leading-tight text-[11px] text-amber-800">
+                Hệ thống chỉ xử lý đơn thuốc <strong>bản in điện tử</strong> (từ phần mềm/bệnh viện). <strong>Không hỗ trợ chữ viết tay</strong> để đảm bảo an toàn dược phẩm.
+              </p>
+            </div>
+
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
                 <FileText size={16} className="text-indigo-600" /> Tập tin đơn thuốc ({aiFiles.length} trang)

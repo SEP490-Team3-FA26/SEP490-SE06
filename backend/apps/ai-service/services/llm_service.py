@@ -11,7 +11,7 @@ def get_groq_client() -> AsyncGroq:
     return AsyncGroq(api_key=key)
 
 def get_deepseek_api_key() -> str | None:
-    return os.getenv("PHUC_DEEPSEEK_V4_FLASH") or os.getenv("DEEPSEEK_API_KEY")
+    return os.getenv("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK") or os.getenv("PHUC_DEEPSEEK_V4_FLASH")
 
 async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     """
