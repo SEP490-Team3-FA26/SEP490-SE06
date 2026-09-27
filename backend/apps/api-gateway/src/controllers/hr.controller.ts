@@ -43,6 +43,7 @@ export class HrController implements OnModuleInit {
       'hr.notification.list',
       'hr.notification.mark_read',
       'hr.notification.unread_count',
+      'user.admin.employee.list',
     ]);
   }
 
@@ -194,5 +195,12 @@ export class HrController implements OnModuleInit {
   @ApiOperation({ summary: 'Lấy số lượng thông báo chưa đọc' })
   async unreadCount(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.notification.unread_count', { userId: req.user.sub });
+  }
+
+  @Get('colleagues')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Lấy danh sách nhân viên/đồng nghiệp chi nhánh để đổi ca' })
+  async getColleagues(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', { branchId: req.user.branchId });
   }
 }
