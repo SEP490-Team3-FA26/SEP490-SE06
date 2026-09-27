@@ -71,7 +71,15 @@ export function BranchSchedule() {
   
   const getAssignment = (date: Date, shiftId: string) => {
     if (!schedule || !schedule.assignments) return null;
-    return schedule.assignments.find(a => a.date.startsWith(formatDate(date)) && a.shiftId === shiftId);
+    const targetDateStr = formatDate(date);
+    return schedule.assignments.find(a => {
+      try {
+        const aDateStr = typeof a.date === 'string' ? a.date : new Date(a.date).toISOString();
+        return aDateStr.startsWith(targetDateStr) && a.shiftId === shiftId;
+      } catch (e) {
+        return false;
+      }
+    });
   };
 
   const handleAssign = async (date: Date, shift: WorkShift, empId: string) => {
@@ -208,11 +216,16 @@ export function BranchSchedule() {
                           </div>
                         ) : (
                           !isPublished && (
-                            <div className="h-full flex flex-col justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="h-full flex flex-col justify-center">
                               <select 
                                 className="w-full text-sm border-0 bg-slate-100 rounded-lg p-2 text-slate-600 focus:ring-2 focus:ring-[#0057cd]"
-                                onChange={(e) => {
-                                  if (e.target.value) handleAssign(d, shift, e.target.value);
+                                onChange={async (e) => {
+                                  const val = e.target.value;
+                                  if (val) {
+                                    e.target.disabled = true;
+                                    await handleAssign(d, shift, val);
+                                    e.target.disabled = false;
+                                  }
                                   e.target.value = "";
                                 }}
                                 defaultValue=""
