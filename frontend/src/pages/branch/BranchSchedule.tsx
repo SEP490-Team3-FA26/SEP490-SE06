@@ -401,12 +401,12 @@ export function BranchSchedule() {
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[1100px] table-fixed">
-              {/* Column Width Distribution: Cột ca chỉ 112px (w-28), dành tối đa diện tích cho các ngày */}
+            <table className="w-full border-collapse min-w-[1180px] table-fixed">
+              {/* Column Width Distribution: Cột ca 112px, mỗi ngày tối thiểu 145px */}
               <colgroup>
                 <col className="w-28" />
                 {weekDays.map(d => (
-                  <col key={d.toISOString()} className="w-[calc((100%-7rem)/7)] min-w-[130px]" />
+                  <col key={d.toISOString()} className="w-[calc((100%-7rem)/7)] min-w-[145px]" />
                 ))}
               </colgroup>
 
@@ -474,77 +474,82 @@ export function BranchSchedule() {
                       return (
                         <td 
                           key={d.toISOString()} 
-                          className={`p-1.5 border-r border-slate-100 last:border-r-0 align-top min-h-[80px] relative transition-colors ${
+                          className={`p-1.5 border-r border-slate-100 last:border-r-0 align-top transition-colors ${
                             isToday ? 'bg-blue-50/15' : ''
                           }`}
                         >
-                          <div className="flex flex-col gap-1.5 min-h-[72px]">
+                          <div className="flex flex-col justify-between h-full min-h-[96px] gap-1.5">
                             {/* Danh sách thẻ nhân viên trong ca */}
-                            {cellAssignments.map(assignment => {
-                              const roleInfo = getEmployeeRoleInfo(assignment.employeeId);
-                              return (
-                                <div 
-                                  key={assignment.employeeId + '_' + assignment.shiftId}
-                                  className={`p-2 rounded-xl flex items-center justify-between border shadow-2xs transition-all relative overflow-hidden group ${
-                                    isPublished 
-                                      ? 'bg-slate-50 border-slate-200' 
-                                      : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-xs'
-                                  }`}
-                                >
-                                  {/* Left Colored Accent Bar */}
-                                  <div 
-                                    className="absolute left-0 top-0 bottom-0 w-1" 
-                                    style={{ backgroundColor: shift.color || '#0057cd' }}
-                                  ></div>
-
-                                  <div className="pl-1.5 pr-2 min-w-0 flex-1">
-                                    <div 
-                                      className="text-xs font-medium text-slate-700 leading-snug break-words" 
-                                      title={assignment.employeeName}
-                                    >
-                                      {formatEmployeeName(assignment.employeeName)}
-                                    </div>
-                                    <div className="mt-0.5">
-                                      <span className={`inline-block text-[9px] font-medium px-1.5 py-0.2 rounded ${
-                                        roleInfo.isManager 
-                                          ? 'bg-purple-50 text-purple-700 border border-purple-200/80' 
-                                          : 'bg-slate-100 text-slate-600 border border-slate-200/60'
-                                      }`}>
-                                        {roleInfo.label}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Remove Action Button (Chỉ xóa nhân sự này khỏi ca) */}
-                                  {!isPublished && (
-                                    <button 
-                                      onClick={() => handleRemoveAssignment(d, shift._id, assignment.employeeId)} 
-                                      title={`Xóa ${assignment.employeeName} khỏi ca này`}
-                                      className="text-slate-300 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  )}
+                            <div className="flex-1 space-y-1.5">
+                              {cellAssignments.length === 0 ? (
+                                <div className="h-10 flex items-center justify-center">
+                                  <span className="text-[11px] font-medium text-slate-300 select-none">Chưa xếp</span>
                                 </div>
-                              );
-                            })}
+                              ) : (
+                                cellAssignments.map(assignment => {
+                                  const roleInfo = getEmployeeRoleInfo(assignment.employeeId);
+                                  return (
+                                    <div 
+                                      key={assignment.employeeId + '_' + assignment.shiftId}
+                                      className={`p-2 rounded-xl border shadow-2xs transition-all relative overflow-hidden group ${
+                                        isPublished 
+                                          ? 'bg-slate-50 border-slate-200' 
+                                          : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-xs'
+                                      }`}
+                                    >
+                                      {/* Left Colored Accent Bar */}
+                                      <div 
+                                        className="absolute left-0 top-0 bottom-0 w-1" 
+                                        style={{ backgroundColor: shift.color || '#0057cd' }}
+                                      ></div>
 
-                            {/* Nút thêm nhân sự vào ca */}
+                                      {/* Tên nhân viên: 1 dòng duy nhất, không ngắt dòng */}
+                                      <div className="pl-1 pr-4 min-w-0">
+                                        <div 
+                                          className="text-xs font-medium text-slate-700 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" 
+                                          title={assignment.employeeName}
+                                        >
+                                          {formatEmployeeName(assignment.employeeName)}
+                                        </div>
+                                        <div className="mt-1">
+                                          <span className={`inline-block text-[9px] font-medium px-1.5 py-0.2 rounded ${
+                                            roleInfo.isManager 
+                                              ? 'bg-purple-50 text-purple-700 border border-purple-200/80' 
+                                              : 'bg-slate-100 text-slate-600 border border-slate-200/60'
+                                          }`}>
+                                            {roleInfo.label}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Remove Action Button (Absolute góc phải trên, chỉ hiện khi hover, không chiếm chỗ text) */}
+                                      {!isPublished && (
+                                        <button 
+                                          onClick={() => handleRemoveAssignment(d, shift._id, assignment.employeeId)} 
+                                          title={`Xóa ${assignment.employeeName} khỏi ca này`}
+                                          className="absolute top-1.5 right-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Nút thêm nhân sự vào ca: Cố định ở đáy mt-auto, thẳng hàng tăm tắp */}
                             {!isPublished && (
                               <button
                                 onClick={() => {
                                   setSearchEmployeeQuery("");
                                   setAssignModal({ isOpen: true, date: d, shift });
                                 }}
-                                className={`rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/50 text-slate-400 hover:text-[#0057cd] flex items-center justify-center gap-1 transition-all group/btn cursor-pointer ${
-                                  cellAssignments.length === 0 
-                                    ? 'w-full h-full min-h-[62px] flex-col p-1.5' 
-                                    : 'w-full py-1 px-2 text-[11px] font-medium'
-                                }`}
+                                className="mt-auto w-full py-1 px-2 rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/60 text-slate-400 hover:text-[#0057cd] flex items-center justify-center gap-1 transition-all group/btn cursor-pointer"
                               >
-                                <Plus size={13} className="text-slate-400 group-hover/btn:text-[#0057cd] transition-transform" />
+                                <Plus size={12} className="text-slate-400 group-hover/btn:text-[#0057cd] transition-transform" />
                                 <span className="text-[11px] font-medium tracking-tight text-slate-500 group-hover/btn:text-[#0057cd]">
-                                  {cellAssignments.length === 0 ? '+ Gán ca' : '+ Thêm'}
+                                  {cellAssignments.length === 0 ? 'Gán ca' : 'Thêm'}
                                 </span>
                               </button>
                             )}

@@ -250,11 +250,11 @@ export function PharmacistSchedule() {
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[1100px] table-fixed">
+            <table className="w-full border-collapse min-w-[1180px] table-fixed">
               <colgroup>
                 <col className="w-28" />
                 {weekDays.map(d => (
-                  <col key={d.toISOString()} className="w-[calc((100%-7rem)/7)] min-w-[130px]" />
+                  <col key={d.toISOString()} className="w-[calc((100%-7rem)/7)] min-w-[145px]" />
                 ))}
               </colgroup>
 
@@ -359,9 +359,9 @@ export function PharmacistSchedule() {
                                     style={{ backgroundColor: isMine ? '#0057cd' : (shift.color || '#94a3b8') }}
                                   ></div>
 
-                                  <div className="pl-1.5 pr-2">
+                                  <div className="pl-1.5 pr-2 min-w-0">
                                     <div 
-                                      className="text-xs font-medium text-slate-700 leading-snug break-words"
+                                      className="text-xs font-medium text-slate-700 leading-tight whitespace-nowrap overflow-hidden text-ellipsis"
                                       title={assignment.employeeName}
                                     >
                                       {formatEmployeeName(assignment.employeeName)}
