@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { hrService, ShiftSwapRequest, WorkSchedule, WorkShift } from "../../services/hr/hr.service";
 import { employeeService, Employee } from "../../services/admin/employee.service";
+import { authService } from "../../services/auth/auth.service";
 import { ArrowRightLeft, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 
 export function PharmacistShiftSwap() {
@@ -26,18 +27,55 @@ export function PharmacistShiftSwap() {
   });
 
   const getUserId = () => {
-    try {
-      return JSON.parse(window.atob(localStorage.getItem("token")!.split(".")[1])).sub;
-    } catch {
-      return "";
+    const userObj = authService.getCurrentUser();
+    if (userObj?.id) return userObj.id;
+    if (userObj?._id) return userObj._id;
+
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          window.atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        const decoded = JSON.parse(jsonPayload);
+        return decoded.sub || "";
+      } catch {
+        return "";
+      }
     }
+    return "";
   };
+
   const getBranchId = () => {
-    try {
-      return JSON.parse(window.atob(localStorage.getItem("token")!.split(".")[1])).branchId;
-    } catch {
-      return "BR-001";
+    const directBranchId = localStorage.getItem("branchId");
+    if (directBranchId) return directBranchId;
+
+    const userObj = authService.getCurrentUser();
+    if (userObj?.branchId) return userObj.branchId;
+
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          window.atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        const decoded = JSON.parse(jsonPayload);
+        return decoded.branchId || "BR-001";
+      } catch {
+        return "BR-001";
+      }
     }
+    return "BR-001";
   };
   const userId = getUserId();
 

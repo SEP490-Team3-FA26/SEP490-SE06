@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { hrService, WorkSchedule, WorkShift, WorkScheduleAssignment } from "../../services/hr/hr.service";
 import { employeeService, Employee } from "../../services/admin/employee.service";
+import { authService } from "../../services/auth/auth.service";
 import { Calendar, ChevronLeft, ChevronRight, User, Trash2, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 // Utilities
@@ -12,6 +13,20 @@ function getMonday(d: Date) {
 function formatDate(d: Date) {
   return d.toISOString().split('T')[0];
 }
+function getIsoDateStr(d: any): string {
+  if (!d) return "";
+  if (typeof d === "string") {
+    return d.split("T")[0];
+  }
+  if (d instanceof Date) {
+    return d.toISOString().split("T")[0];
+  }
+  try {
+    return new Date(d).toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
+}
 
 export function BranchSchedule() {
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(formatDate(getMonday(new Date())));
@@ -20,28 +35,48 @@ export function BranchSchedule() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Lấy chi nhánh từ JWT Token (để getEmployees)
+  // Lấy chi nhánh an toàn từ localStorage hoặc authService
   const getBranchId = () => {
-    try {
-      return JSON.parse(window.atob(localStorage.getItem("token")!.split(".")[1])).branchId || "BR-001";
-    } catch {
-      return "BR-001";
+    const directBranchId = localStorage.getItem("branchId");
+    if (directBranchId) return directBranchId;
+
+    const userObj = authService.getCurrentUser();
+    if (userObj?.branchId) return userObj.branchId;
+
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          window.atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        const decoded = JSON.parse(jsonPayload);
+        return decoded.branchId || "BR-001";
+      } catch {
+        return "BR-001";
+      }
     }
+    return "BR-001";
   };
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      const branchId = getBranchId();
       const [sched, sh, emps] = await Promise.all([
         hrService.getWeekSchedule(currentWeekStart),
         hrService.listShifts(),
-        employeeService.getEmployees({ branchId: getBranchId() })
+        employeeService.getEmployees({ branchId })
       ]);
       setSchedule(sched);
       setShifts(sh.filter(s => s.isActive));
       setEmployees(emps);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Lỗi tải dữ liệu lịch tuần:", err);
     } finally {
       setLoading(false);
     }
@@ -73,12 +108,8 @@ export function BranchSchedule() {
     if (!schedule || !schedule.assignments) return null;
     const targetDateStr = formatDate(date);
     return schedule.assignments.find(a => {
-      try {
-        const aDateStr = typeof a.date === 'string' ? a.date : new Date(a.date).toISOString();
-        return aDateStr.startsWith(targetDateStr) && a.shiftId === shiftId;
-      } catch (e) {
-        return false;
-      }
+      const aDateStr = getIsoDateStr(a.date);
+      return aDateStr === targetDateStr && a.shiftId === shiftId;
     });
   };
 
@@ -87,6 +118,7 @@ export function BranchSchedule() {
     const emp = employees.find(e => e._id === empId);
     if (!emp) return;
 
+    const targetDateStr = formatDate(date);
     const newAssignment: WorkScheduleAssignment = {
       date: date.toISOString(),
       shiftId: shift._id,
@@ -98,25 +130,32 @@ export function BranchSchedule() {
       note: ""
     };
 
-    const newAssignments = (schedule.assignments || []).filter(a => !(a.date.startsWith(formatDate(date)) && a.shiftId === shift._id));
+    const newAssignments = (schedule.assignments || []).filter(
+      a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id)
+    );
     newAssignments.push(newAssignment);
 
     try {
       const updated = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
       setSchedule(updated);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Lỗi khi gán lịch:", err);
+      alert(err.response?.data?.message || err.message || "Lỗi khi gán lịch nhân viên");
     }
   };
 
   const handleRemoveAssignment = async (date: Date, shiftId: string) => {
     if (!schedule || schedule.status === 'published') return;
-    const newAssignments = (schedule.assignments || []).filter(a => !(a.date.startsWith(formatDate(date)) && a.shiftId === shiftId));
+    const targetDateStr = formatDate(date);
+    const newAssignments = (schedule.assignments || []).filter(
+      a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shiftId)
+    );
     try {
       const updated = await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: newAssignments });
       setSchedule(updated);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Lỗi khi xóa phân công:", err);
+      alert(err.response?.data?.message || err.message || "Lỗi khi xóa phân công");
     }
   };
 
@@ -218,7 +257,7 @@ export function BranchSchedule() {
                           !isPublished && (
                             <div className="h-full flex flex-col justify-center">
                               <select 
-                                className="w-full text-sm border-0 bg-slate-100 rounded-lg p-2 text-slate-600 focus:ring-2 focus:ring-[#0057cd]"
+                                className="w-full text-xs font-semibold border border-dashed border-slate-300 hover:border-[#0057cd] bg-slate-50 hover:bg-white rounded-lg px-2 py-2 text-slate-600 focus:ring-2 focus:ring-[#0057cd] transition-all cursor-pointer"
                                 onChange={async (e) => {
                                   const val = e.target.value;
                                   if (val) {
@@ -230,10 +269,16 @@ export function BranchSchedule() {
                                 }}
                                 defaultValue=""
                               >
-                                <option value="" disabled>+ Gán nhân viên</option>
-                                {employees.map(e => (
-                                  <option key={e._id} value={e._id}>{e.fullName}</option>
-                                ))}
+                                <option value="" disabled>+ Gán lịch</option>
+                                {employees.length === 0 ? (
+                                  <option value="" disabled>Không có nhân viên</option>
+                                ) : (
+                                  employees.map(e => (
+                                    <option key={e._id} value={e._id}>
+                                      {e.fullName} {e.role === 'pharmacist' ? '(Dược sĩ)' : '(Quản lý)'}
+                                    </option>
+                                  ))
+                                )}
                               </select>
                             </div>
                           )

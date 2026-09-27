@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { hrService, WorkSchedule, WorkShift } from "../../services/hr/hr.service";
+import { authService } from "../../services/auth/auth.service";
 import { Calendar, ChevronLeft, ChevronRight, User, RefreshCw } from "lucide-react";
 
 function getMonday(d: Date) {
@@ -11,6 +12,20 @@ function getMonday(d: Date) {
 function formatDate(d: Date) {
   return d.toISOString().split('T')[0];
 }
+function getIsoDateStr(d: any): string {
+  if (!d) return "";
+  if (typeof d === "string") {
+    return d.split("T")[0];
+  }
+  if (d instanceof Date) {
+    return d.toISOString().split("T")[0];
+  }
+  try {
+    return new Date(d).toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
+}
 
 export function PharmacistSchedule() {
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(formatDate(getMonday(new Date())));
@@ -20,11 +35,28 @@ export function PharmacistSchedule() {
   const navigate = useNavigate();
 
   const getUserId = () => {
-    try {
-      return JSON.parse(window.atob(localStorage.getItem("token")!.split(".")[1])).sub;
-    } catch {
-      return "";
+    const userObj = authService.getCurrentUser();
+    if (userObj?.id) return userObj.id;
+    if (userObj?._id) return userObj._id;
+
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          window.atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        const decoded = JSON.parse(jsonPayload);
+        return decoded.sub || "";
+      } catch {
+        return "";
+      }
     }
+    return "";
   };
   const userId = getUserId();
 
@@ -120,7 +152,8 @@ export function PharmacistSchedule() {
                     </div>
                   </td>
                   {weekDays.map(d => {
-                    const assignment = schedule?.assignments.find(a => a.date.startsWith(formatDate(d)) && a.shiftId === shift._id);
+                    const targetDateStr = formatDate(d);
+                    const assignment = schedule?.assignments.find(a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id);
                     if (!assignment) return <td key={d.toISOString()} className="p-2 border-r border-slate-100 h-24"></td>;
 
                     const isMine = assignment.employeeId === userId;
