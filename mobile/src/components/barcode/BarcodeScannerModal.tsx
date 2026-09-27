@@ -28,11 +28,15 @@ interface BarcodeScannerModalProps {
 }
 
 const DEFAULT_DEMO_CODES = [
-  { label: 'Panadol Extra', code: '8930003785326', sub: 'EAN-13 Giảm đau' },
-  { label: 'Amoxicillin', code: '8935001234567', sub: 'EAN-13 Kháng sinh' },
-  { label: 'Decolgen Forte', code: '8936009876543', sub: 'EAN-13 Cảm cúm' },
-  { label: 'Phiếu Chuyển Kho', code: 'ST-20260920-0001', sub: 'QR Điều phối' },
-  { label: 'Lô Thuốc A1', code: 'BATCH-2026-001', sub: 'Truy xuất lô' },
+  { label: 'Panadol Extra Đỏ', code: '8935006530010', sub: 'GS1 VN (15 vỉ x 12v)' },
+  { label: 'Salonpas 140s (Nhật)', code: '4987188100325', sub: 'JAN Hisamitsu Japan' },
+  { label: 'Salonpas 20s (VN)', code: '8935001701118', sub: 'Hisamitsu Chính hãng' },
+  { label: 'Efferalgan 500mg', code: '3400932567577', sub: 'UPSA SAS Pháp (Sủi)' },
+  { label: 'Hapacol 650', code: '8935061600109', sub: 'Dược Hậu Giang DHG' },
+  { label: 'Dầu Gió Con Ó', code: '8888062001010', sub: 'Borden Singapore (24ml)' },
+  { label: 'Natri Clorid 0.9%', code: '8934658002012', sub: 'Pharmedic Lọ 10ml' },
+  { label: 'Berberin 100mg', code: '8934812003039', sub: 'Domesco Lọ 100v' },
+  { label: 'Strepsils Cool', code: '8850360000045', sub: 'Reckitt Thái Lan' },
 ];
 
 export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({

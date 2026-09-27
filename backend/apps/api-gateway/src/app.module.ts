@@ -43,6 +43,7 @@ import { AuditLogInterceptor } from './interceptors/audit-log.interceptor';
 import { RedactionService } from './services/redaction.service';
 import { AuditFallbackProcessor } from './processors/audit-fallback.processor';
 import { RedisModule } from './redis/redis.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 import { randomUUID } from 'crypto';
 
@@ -54,6 +55,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
  */
 @Module({
   imports: [
+    MetricsModule,
     // Đọc biến môi trường toàn cục
     ConfigModule.forRoot({ isGlobal: true }),
 

@@ -171,6 +171,24 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     }
   };
 
+  // Label Modal Handler: ensure full barcode and units details
+  const handleOpenLabelModal = async (med: Medicine) => {
+    setSelectedLabelMed(med);
+    const medId = med.id || (med as any)._id;
+    if (medId && (!med.barcode || !med.units || med.units.length <= 1)) {
+      try {
+        const full = await ApiService.getMedicineById(medId);
+        if (full) {
+          const mapped = ApiService.mapMedicine(full);
+          setSelectedLabelMed(mapped);
+        }
+      } catch (err) {
+        console.log('Fetch full medicine for label modal failed, using current med:', err);
+      }
+    }
+  };
+
+
   // OCR Scan handlers
   const handleTakePhotoPrescription = async () => {
     try {
@@ -513,7 +531,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
                 <View style={styles.actionCol}>
                   <AnimatedTouchable
-                    onPress={() => setSelectedLabelMed(med)}
+                    onPress={() => handleOpenLabelModal(med)}
                     style={styles.labelIconBtn}
                   >
                     <Ionicons name="print-outline" size={16} color="#0284C7" />
@@ -794,7 +812,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               onPress={() => {
                 const med = selectedMedDetail;
                 setSelectedMedDetail(null);
-                if (med) setSelectedLabelMed(med);
+                if (med) handleOpenLabelModal(med);
               }}
               style={styles.labelModalBtn}
             >

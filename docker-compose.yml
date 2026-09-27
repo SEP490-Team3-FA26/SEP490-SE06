@@ -3,7 +3,7 @@
       image: redis:7-alpine
 
       ports:
-        - "6379:6379"
+        - "6380:6379"
       command: redis-server --save 60 1 --loglevel warning
       networks:
         - wdp301-network
@@ -84,7 +84,7 @@
         - type: volume
           target: /app/node_modules
       ports:
-        - "3000:3000"
+        - "3001:3001"
       environment:
         - DOCKER=true
         #hot module reload
