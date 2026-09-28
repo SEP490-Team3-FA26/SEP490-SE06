@@ -36,6 +36,8 @@ import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
 import { AIConsultant } from "./pages/customer/AIConsultant";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
 import { CustomerOrders } from "./pages/customer/CustomerOrders";
+import { FeedbackPage } from "./pages/customer/FeedbackPage";
+import { BranchFeedbackPage } from "./pages/branch/BranchFeedbackPage";
 
 // Master Data
 import { Products } from "./pages/master-data/Products";
@@ -91,6 +93,8 @@ export default function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Landing />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
 
           {/* Auth Routes */}
           <Route path="/auth" element={<AuthLayout />}>
@@ -117,6 +121,8 @@ export default function App() {
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
             <Route path="orders" element={<CustomerOrders />} />
+            <Route path="feedback" element={<FeedbackPage />} />
+            <Route path="feedback/:orderCode" element={<FeedbackPage />} />
           </Route>
 
           {/* --- Director / Ban Giám Đốc Routes --- */}
@@ -133,6 +139,7 @@ export default function App() {
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="price-management" element={<PriceManagement />} />
               <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="feedbacks" element={<BranchFeedbackPage />} />
               <Route path="profile" element={<Profile />} />
               <Route path="settings" element={<Settings />} />
             </Route>
@@ -157,6 +164,7 @@ export default function App() {
               <Route path="ai-insights" element={<AIInsights />} />
               <Route path="ai-forecast" element={<AIForecast />} />
               <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="feedbacks" element={<BranchFeedbackPage />} />
               <Route path="profile" element={<Profile />} />
               <Route path="settings" element={<Settings />} />
 
@@ -219,6 +227,7 @@ export default function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
+              <Route path="feedbacks" element={<BranchFeedbackPage />} />
               <Route path="profile" element={<Profile />} />
             </Route>
           </Route>

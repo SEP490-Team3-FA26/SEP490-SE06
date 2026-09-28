@@ -1,8 +1,34 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, X, CheckCheck, Trash2, FileText, CheckCircle2, XCircle, Package, PackageCheck } from 'lucide-react';
+import { 
+  Bell, 
+  X, 
+  CheckCheck, 
+  Trash2, 
+  FileText, 
+  CheckCircle2, 
+  XCircle, 
+  Package, 
+  PackageCheck,
+  Calendar,
+  ArrowRightLeft
+} from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+
+function getCurrentUserRole(): string {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return '';
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+    return JSON.parse(jsonPayload).role || '';
+  } catch {
+    return '';
+  }
+}
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,6 +57,8 @@ export function NotificationBell() {
     markAsRead(notification.id);
     setIsOpen(false);
 
+    const userRole = getCurrentUserRole();
+
     // Navigate based on notification type
     if (notification.type === 'NEW_PR' && notification.prId) {
       navigate(`/admin/approvals`);
@@ -40,6 +68,18 @@ export function NotificationBell() {
       navigate(`/warehouse/inventory/purchase-orders`);
     } else if (notification.type === 'GRN_COMPLETED') {
       navigate(`/warehouse/inventory/history?type=import`);
+    } else if (notification.type === 'schedule_published') {
+      if (userRole === 'branch') {
+        navigate('/branch/schedule');
+      } else {
+        navigate('/pharmacist/schedule');
+      }
+    } else if (typeof notification.type === 'string' && notification.type.startsWith('shift_swap')) {
+      if (userRole === 'branch') {
+        navigate('/branch/shift-swaps');
+      } else {
+        navigate('/pharmacist/shift-swaps');
+      }
     }
   };
 
@@ -48,13 +88,19 @@ export function NotificationBell() {
       case 'NEW_PR':
         return <FileText size={20} className="text-blue-500" />;
       case 'PR_APPROVED':
+      case 'shift_swap_approved':
         return <CheckCircle2 size={20} className="text-green-500" />;
       case 'PR_REJECTED':
+      case 'shift_swap_rejected':
         return <XCircle size={20} className="text-red-500" />;
       case 'NEW_PO':
         return <Package size={20} className="text-purple-500" />;
       case 'GRN_COMPLETED':
         return <PackageCheck size={20} className="text-teal-500" />;
+      case 'schedule_published':
+        return <Calendar size={20} className="text-blue-500" />;
+      case 'shift_swap_request':
+        return <ArrowRightLeft size={20} className="text-amber-500" />;
       default:
         return <Bell size={20} className="text-gray-500" />;
     }
@@ -180,15 +226,20 @@ export function NotificationBell() {
                           {getNotificationIcon(notification.type)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-800 font-medium mb-1">
+                          {notification.title && (
+                            <h4 className="text-xs font-bold text-slate-900 mb-0.5 truncate">
+                              {notification.title}
+                            </h4>
+                          )}
+                          <p className="text-xs text-slate-700 font-medium mb-1 line-clamp-2">
                             {notification.message}
                           </p>
                           {notification.branchName && (
-                            <p className="text-xs text-slate-500">
+                            <p className="text-[11px] text-slate-500">
                               Chi nhánh: {notification.branchName}
                             </p>
                           )}
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-[10px] text-slate-400 mt-1">
                             {formatTimestamp(notification.timestamp)}
                           </p>
                         </div>

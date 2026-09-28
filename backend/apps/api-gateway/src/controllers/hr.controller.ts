@@ -43,33 +43,34 @@ export class HrController implements OnModuleInit {
       'hr.notification.list',
       'hr.notification.mark_read',
       'hr.notification.unread_count',
+      'user.admin.employee.list',
     ]);
   }
 
   // --- HR: WORK SHIFT ---
   @Get('shifts')
-  @Roles('branch')
+  @Roles('branch', 'pharmacist', 'admin')
   @ApiOperation({ summary: 'Lấy danh sách ca làm việc của chi nhánh' })
   async listShifts(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.shift.list', { branchId: req.user.branchId });
   }
 
   @Post('shifts')
-  @Roles('branch')
+  @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Tạo ca làm việc' })
   async createShift(@Request() req, @Body() data: any) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.shift.create', { branchId: req.user.branchId, ...data });
   }
 
   @Patch('shifts/:id')
-  @Roles('branch')
+  @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Sửa ca làm việc' })
   async updateShift(@Request() req, @Param('id') shiftId: string, @Body() data: any) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.shift.update', { shiftId, branchId: req.user.branchId, ...data });
   }
 
   @Patch('shifts/:id/toggle')
-  @Roles('branch')
+  @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Kích hoạt / vô hiệu hóa ca' })
   async toggleShift(@Request() req, @Param('id') shiftId: string) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.shift.toggle', { shiftId, branchId: req.user.branchId });
@@ -77,14 +78,14 @@ export class HrController implements OnModuleInit {
 
   // --- HR: WORK SCHEDULE ---
   @Get('schedules/week')
-  @Roles('branch')
+  @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Lấy lịch một tuần' })
   async getWeekSchedule(@Request() req, @Query('weekStart') weekStart: string) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.schedule.get_week', { branchId: req.user.branchId, weekStart });
   }
 
   @Post('schedules')
-  @Roles('branch')
+  @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Tạo / cập nhật lịch tuần (draft)' })
   async upsertSchedule(@Request() req, @Body() data: any) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.schedule.upsert', { 
@@ -95,7 +96,7 @@ export class HrController implements OnModuleInit {
   }
 
   @Post('schedules/publish')
-  @Roles('branch')
+  @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Publish lịch tuần' })
   async publishSchedule(@Request() req, @Body() data: { weekStart: string }) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.schedule.publish', { 
@@ -106,7 +107,7 @@ export class HrController implements OnModuleInit {
   }
 
   @Get('schedules/my-week')
-  @Roles('pharmacist')
+  @Roles('pharmacist', 'branch', 'admin')
   @ApiOperation({ summary: 'Xem lịch cá nhân tuần này' })
   async getMyWeekSchedule(@Request() req, @Query('weekStart') weekStart: string) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.schedule.my_week', { 
@@ -169,7 +170,7 @@ export class HrController implements OnModuleInit {
 
   // --- HR: NOTIFICATION ---
   @Get('notifications')
-  @Roles('branch', 'pharmacist')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
   @ApiOperation({ summary: 'Lấy danh sách thông báo' })
   async listNotifications(@Request() req, @Query('limit') limit?: number, @Query('skip') skip?: number) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.notification.list', { 
@@ -180,7 +181,7 @@ export class HrController implements OnModuleInit {
   }
 
   @Patch('notifications/mark-read')
-  @Roles('branch', 'pharmacist')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
   @ApiOperation({ summary: 'Đánh dấu đã đọc' })
   async markRead(@Request() req, @Body() data: { notificationId?: string }) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.notification.mark_read', { 
@@ -190,9 +191,16 @@ export class HrController implements OnModuleInit {
   }
 
   @Get('notifications/unread-count')
-  @Roles('branch', 'pharmacist')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
   @ApiOperation({ summary: 'Lấy số lượng thông báo chưa đọc' })
   async unreadCount(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.notification.unread_count', { userId: req.user.sub });
+  }
+
+  @Get('colleagues')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Lấy danh sách nhân viên/đồng nghiệp chi nhánh để đổi ca' })
+  async getColleagues(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', { branchId: req.user.branchId });
   }
 }

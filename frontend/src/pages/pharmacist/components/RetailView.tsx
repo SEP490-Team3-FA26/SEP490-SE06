@@ -2,12 +2,14 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
   Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap,
-  ShieldCheck, FileCheck2, BadgeCheck, UserCheck
+  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { voucherService } from "../../../services/sales/voucher.service";
+import { reconciliationService } from "../../../services/sales/reconciliation.service";
+import { useCustomerRFM } from "../../../hooks/useCustomerRFM";
 import api from "../../../services/core/api";
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
@@ -112,6 +114,9 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const [alternativesList, setAlternativesList] = useState<any[]>([]);
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
 
+  // RFM Customer Segmentation
+  const { currentCustomerSegment, lookupCustomerSegment, clearCustomerSegment } = useCustomerRFM();
+
   // Loyalty states
   const [customerPhone, setCustomerPhone] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
@@ -120,6 +125,39 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
 
+  // Emergency Manual Override States (POS Fallback)
+  const [showEmergencyOverrideModal, setShowEmergencyOverrideModal] = useState(false);
+  const [bankTransactionId, setBankTransactionId] = useState("");
+  const [overrideReason, setOverrideReason] = useState("Khách đã chuyển khoản thành công, hệ thống ngân hàng đang trễ webhook");
+  const [isOverriding, setIsOverriding] = useState(false);
+
+  const handleConfirmEmergencyOverride = async () => {
+    if (!payosOrderCode) return;
+    try {
+      setIsOverriding(true);
+      const branchInfo = getBranchInfoFromToken();
+      const res = await reconciliationService.manualOverridePayment({
+        orderCode: payosOrderCode,
+        branchId: branchInfo.branchId || "BR-001",
+        actualAmount: total,
+        bankTransactionId: bankTransactionId.trim() || undefined,
+        overrideReason: overrideReason.trim(),
+      });
+      showToast("Đã xác nhận khẩn cấp có đối soát và hoàn tất đơn hàng!", "success");
+      setShowEmergencyOverrideModal(false);
+      setShowPayOSModal(false);
+      setPayosPolling(false);
+      setInvoiceData(normalizeInvoiceResult(res));
+      setShowInvoiceModal(true);
+      setCart([]);
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.response?.data?.message || err.message || "Lỗi khi xác nhận khẩn cấp", "error");
+    } finally {
+      setIsOverriding(false);
+    }
+  };
+
   const handleSearchCustomer = async () => {
     if (!customerPhone) return;
     setIsSearchingCustomer(true);
@@ -127,11 +165,14 @@ export default function RetailView({ showToast }: RetailViewProps) {
     setUsePoints(false);
     setRedeemedPoints(0);
     try {
-      const res = await api.get(`/api/users/loyalty/lookup?phone=${customerPhone}`);
-      if (res.data && !res.data.error) {
-        setLoyaltyInfo(res.data);
-        if (res.data.email) {
-          setPatientEmail(res.data.email);
+      const [loyaltyRes] = await Promise.all([
+        api.get(`/api/users/loyalty/lookup?phone=${customerPhone}`),
+        lookupCustomerSegment(customerPhone),
+      ]);
+      if (loyaltyRes.data && !loyaltyRes.data.error) {
+        setLoyaltyInfo(loyaltyRes.data);
+        if (loyaltyRes.data.email) {
+          setPatientEmail(loyaltyRes.data.email);
         }
         showToast("Đã tìm thấy khách hàng thành viên!", "success");
       } else {
@@ -151,6 +192,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
     setUsePoints(false);
     setRedeemedPoints(0);
     setPatientEmail("");
+    clearCustomerSegment();
   };
 
   const finalizeSalesOrder = async (payload: any) => {
@@ -1879,6 +1921,67 @@ export default function RetailView({ showToast }: RetailViewProps) {
               <div className="text-[12px] text-slate-500 font-bold">
                 SĐT: {loyaltyInfo.phone} | Điểm khả dụng: <span className="text-[#0057cd]">{loyaltyInfo.points.toLocaleString()}đ</span>
               </div>
+
+              {/* Adaptive RFM Badge & Gợi ý Toa Thuốc */}
+              {currentCustomerSegment && (
+                <div className="p-2.5 rounded-xl border border-purple-100 bg-purple-50/50 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Phân khúc RFM:</span>
+                    {currentCustomerSegment.segment === 'CHAMPIONS' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                        <Crown size={11} className="text-amber-600" /> Khách Kim Cương
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'LOYAL_CHRONIC' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                        <HeartPulse size={11} className="text-rose-600" /> Bệnh Mãn Tính (30N)
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'POTENTIAL_LOYALIST' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
+                        <Sparkles size={11} className="text-blue-600" /> Tiềm Năng
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'AT_RISK' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200 animate-pulse">
+                        <AlertTriangle size={11} className="text-orange-600" /> Nguy Cơ Rời Bỏ
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'HIBERNATING' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        Ngủ Đông
+                      </span>
+                    )}
+                  </div>
+
+                  {currentCustomerSegment.predictedRefillDate && (
+                    <div className="text-[11px] text-rose-700 font-semibold flex items-center justify-between">
+                      <span>Dự kiến tái mua toa thuốc:</span>
+                      <span className="font-bold">
+                        {new Date(currentCustomerSegment.predictedRefillDate).toLocaleDateString('vi-VN')}
+                      </span>
+                    </div>
+                  )}
+
+                  {currentCustomerSegment.recommendedVoucher && (
+                    <div className="flex items-center justify-between pt-1 border-t border-purple-100/60">
+                      <span className="text-[11px] text-purple-700 font-medium flex items-center gap-1">
+                        <Gift size={12} /> Ưu đãi giữ chân:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoucherCode(currentCustomerSegment.recommendedVoucher || '');
+                          showToast(`Đã tự động điền mã ưu đãi ${currentCustomerSegment.recommendedVoucher}`, 'success');
+                        }}
+                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-sm transition-colors"
+                      >
+                        Áp dụng {currentCustomerSegment.recommendedVoucher}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email nhận hóa đơn</label>
                 <input
@@ -2197,6 +2300,26 @@ export default function RetailView({ showToast }: RetailViewProps) {
                     </div>
                   )}
                 </div>
+
+                {/* QR Code Đánh giá Dịch vụ & Nhận Điểm Thưởng */}
+                <div className="mt-2 pt-3 border-t border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-2 bg-gradient-to-b from-blue-50/40 to-white p-3 rounded-xl border border-blue-100 print:border-black print:bg-white">
+                  <div className="text-[12px] font-bold text-[#0057cd] print:text-black uppercase tracking-wide">
+                    ⭐ ĐÁNH GIÁ DỊCH VỤ - NHẬN QUÀ NGAY ⭐
+                  </div>
+                  <div className="bg-white p-1 rounded-lg border border-slate-200 print:border-black shadow-sm">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                        `${window.location.origin}/feedback/${invoiceData.data?.orderCode || invoiceData.data?._id || payosOrderCode || ""}`
+                      )}`}
+                      alt="QR Đánh giá dịch vụ" 
+                      className="w-[100px] h-[100px] object-contain"
+                    />
+                  </div>
+                  <div className="text-[11px] text-slate-600 print:text-black font-medium leading-tight">
+                    Quét mã nhận ngay <span className="font-bold text-emerald-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br/>
+                    và Voucher giảm giá cho lần mua sau!
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -2252,18 +2375,121 @@ export default function RetailView({ showToast }: RetailViewProps) {
               </div>
             </div>
 
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex flex-col gap-2.5">
+              <div className="flex gap-2.5 w-full">
+                <button
+                  onClick={checkManualPayment}
+                  className="flex-1 py-3 bg-[#0057cd] hover:bg-[#00419e] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow"
+                >
+                  Kiểm tra thanh toán
+                </button>
+                <button
+                  onClick={() => { setShowPayOSModal(false); setPayosPolling(false); }}
+                  className="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Đóng
+                </button>
+              </div>
+
+              {/* Nút Fallback Xác Nhận Khẩn Cấp Khi Ngân Hàng Chậm */}
+              <button
+                type="button"
+                onClick={() => setShowEmergencyOverrideModal(true)}
+                className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs uppercase tracking-wide rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5"
+              >
+                <Zap size={14} className="fill-white" />
+                Xác nhận khẩn cấp có đối soát (POS Fallback)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================
+       * ⚡ MODAL XÁC NHẬN KHẨN CẤP CÓ ĐỐI SOÁT (POS FALLBACK)
+       * ======================================= */}
+      {showEmergencyOverrideModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-amber-200 shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-amber-100 flex items-center justify-between bg-amber-50">
+              <h3 className="font-bold text-amber-900 text-sm flex items-center gap-2">
+                <Zap className="text-amber-600 fill-amber-500" size={18} />
+                Xác Nhận Khẩn Cấp & Xuất Thuốc Ngay
+              </h3>
+              <button
+                onClick={() => setShowEmergencyOverrideModal(false)}
+                className="text-amber-400 hover:text-amber-700 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 flex flex-col gap-4 text-xs">
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-amber-900 leading-relaxed">
+                <p className="font-bold mb-1">⚠️ Cơ chế đối soát ngoại lệ (Audit Trail):</p>
+                Dược sĩ chỉ sử dụng tính năng này khi khách hàng đã hiển thị màn hình trừ tiền thành công trên ứng dụng ngân hàng, nhưng hệ thống Webhook ngân hàng chưa ghi nhận kịp. Hệ thống sẽ tự động ghi nhận biên bản đối soát cho Kế toán kiểm tra cuối ngày.
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Mã đơn hàng POS:</label>
+                <input
+                  type="text"
+                  disabled
+                  value={`#${payosOrderCode}`}
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Số tiền xác nhận:</label>
+                <input
+                  type="text"
+                  disabled
+                  value={`${total.toLocaleString('vi-VN')} đ`}
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-bold text-emerald-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">
+                  Mã giao dịch ngân hàng / Ref ID (từ màn hình app khách):
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: FT2427..., 123456789..."
+                  value={bankTransactionId}
+                  onChange={(e) => setBankTransactionId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Lý do xác nhận khẩn cấp:</label>
+                <textarea
+                  rows={2}
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex gap-3">
               <button
-                onClick={checkManualPayment}
-                className="flex-1 py-3 bg-[#0057cd] hover:bg-[#00419e] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow"
+                type="button"
+                onClick={() => setShowEmergencyOverrideModal(false)}
+                className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all"
               >
-                Kiểm tra thanh toán
+                Hủy bỏ
               </button>
               <button
-                onClick={() => { setShowPayOSModal(false); setPayosPolling(false); }}
-                className="px-4 py-3 bg-slate-150 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+                type="button"
+                disabled={isOverriding}
+                onClick={handleConfirmEmergencyOverride}
+                className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                Đóng
+                {isOverriding && <Loader2 size={14} className="animate-spin" />}
+                Xác Nhận & Xuất Thuốc
               </button>
             </div>
           </div>

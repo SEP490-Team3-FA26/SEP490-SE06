@@ -338,14 +338,41 @@ export function CustomerCheckout() {
 
 
     return (
-      <div className="flex flex-col gap-6 flex-1 relative">
-        <div className="flex items-center gap-3 border-b border-slate-150 pb-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-[#0d6efd]">
-            <ClipboardList size={22} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Xác Nhận Đặt Hàng</h1>
-            <p className="text-xs text-slate-500 font-medium">Nhập thông tin giao nhận và hoàn tất quá trình mua sắm.</p>
+      <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in relative">
+        {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
+        <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
+          <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+          <div className="relative z-10 max-w-3xl flex flex-col gap-4">
+            <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
+              <ClipboardList size={14} className="text-blue-400" />
+              Thanh Toán & Bảo Đảm Dược Phẩm GSP ABC Pharma
+            </span>
+
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+              Xác Nhận Đơn Hàng <br className="hidden sm:block" />
+              Thanh Toán & Giao Nhận
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-semibold max-w-2xl">
+              Nhập địa chỉ giao hàng chi tiết, sử dụng điểm thưởng Loyalty hoặc mã Voucher ưu đãi và chọn phương thức thanh toán an toàn.
+            </p>
+
+            {/* Quick Stats Pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Số Thuốc Chọn</span>
+                <span className="text-lg sm:text-xl font-black text-white mt-0.5">{cartItems.length} Sản phẩm</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
+                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Điểm Loyalty Có Sẵn</span>
+                <span className="text-lg sm:text-xl font-black text-amber-300 mt-0.5">{userPoints.toLocaleString()}đ</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tổng Thanh Toán</span>
+                <span className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">{total.toLocaleString()}đ</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -729,19 +756,42 @@ export function CustomerCheckout() {
                       <span className="text-[#0d6efd] text-sm">{total.toLocaleString()}₫</span>
                     </div>
                   </div>
+
+                  {/* QR Đánh giá nhận điểm thưởng */}
+                  <div className="mt-2 pt-2 border-t border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-1.5 bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 print:bg-white print:border-black">
+                    <div className="text-[11px] font-bold text-[#0d6efd] print:text-black uppercase">
+                      ⭐ ĐÁNH GIÁ DỊCH VỤ - NHẬN ĐIỂM THƯỞNG ⭐
+                    </div>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(
+                        `${window.location.origin}/feedback/${orderId || ""}`
+                      )}`}
+                      alt="QR Feedback" 
+                      className="w-[85px] h-[85px] object-contain bg-white p-1 rounded border border-slate-200"
+                    />
+                    <div className="text-[10px] text-slate-600 print:text-black">
+                      Nhận ngay <span className="font-bold text-emerald-600">+1.000đ - 2.000đ</span> và voucher giảm giá!
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="px-6 py-5 border-t border-slate-100 flex gap-3">
+              <div className="px-6 py-5 border-t border-slate-100 flex gap-2">
+                <button
+                  onClick={() => { setShowSuccessModal(false); navigate(`/feedback/${orderId || ""}`); }}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 shadow"
+                >
+                  ⭐ Đánh giá nhận thưởng
+                </button>
                 <button
                   onClick={() => window.print()}
-                  className="flex-1 py-3 bg-[#0d6efd] hover:bg-[#0a58ca] text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 shadow"
+                  className="px-4 py-3 bg-[#0d6efd] hover:bg-[#0a58ca] text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 shadow"
                 >
                   <Printer size={15} /> In hóa đơn
                 </button>
                 <button
                   onClick={() => { setShowSuccessModal(false); navigate("/customer/shop"); }}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl"
+                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl"
                 >
                   Về Cửa Hàng
                 </button>

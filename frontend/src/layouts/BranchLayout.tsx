@@ -1,10 +1,11 @@
 import { BaseDashboardLayout } from "./BaseDashboardLayout";
-import { LayoutDashboard, ShoppingCart, Banknote, BarChart3, ClipboardList, Tag, CreditCard, Package, ArrowRightLeft, PackageCheck, Users, Clock, CalendarDays, UserCheck } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Banknote, BarChart3, ClipboardList, Tag, CreditCard, Package, ArrowRightLeft, PackageCheck, Users, HeartHandshake, Clock, CalendarDays, UserCheck } from "lucide-react";
 
 export function BranchLayout() {
   const branchNavItems = [
     { name: "Tổng quan Chi nhánh", href: "/branch", icon: <LayoutDashboard size={20} /> },
     // { name: "Bán hàng (POS)", href: "/branch/sales", icon: <ShoppingCart size={20} /> },
+    { name: "Trải nghiệm & CSKH", href: "/branch/feedbacks", icon: <HeartHandshake size={20} /> },
     { name: "Quản lý nhân sự", href: "/branch/employees", icon: <Users size={20} /> },
     { name: "Quản lý Ca Làm Việc", href: "/branch/shifts", icon: <Clock size={20} /> },
     { name: "Phân Công Lịch", href: "/branch/schedule", icon: <CalendarDays size={20} /> },

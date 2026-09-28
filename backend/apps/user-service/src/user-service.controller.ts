@@ -153,8 +153,57 @@ export class UserServiceController {
   }
 
   @MessagePattern('user.audit.export_status')
-  async handleExportAuditLogsStatus(@Payload() data: { jobId: string }): Promise < ExportJobStatusDto > {
+  async handleExportAuditLogsStatus(@Payload() data: { jobId: string }): Promise<ExportJobStatusDto> {
     return this.userService.getExportJobStatus(data.jobId);
+  }
+
+  // --- BRANCH FEEDBACK & CSKH LOYALTY ---
+
+  @MessagePattern('user.feedback.create')
+  handleCreateFeedback(@Payload() data: any) {
+    return this.userService.createFeedback(data);
+  }
+
+  @MessagePattern('user.feedback.get_by_branch')
+  handleGetFeedbacksByBranch(@Payload() data: any) {
+    return this.userService.getFeedbacksByBranch(data);
+  }
+
+  @MessagePattern('user.feedback.resolve')
+  handleResolveFeedback(@Payload() data: { id: string; resolution: any }) {
+    return this.userService.resolveFeedback(data.id, data.resolution);
+  }
+
+  @MessagePattern('user.feedback.chain_summary')
+  handleGetChainFeedbackSummary() {
+    return this.userService.getChainFeedbackSummary();
+  }
+
+  @MessagePattern('user.feedback.get_by_customer')
+  handleGetFeedbacksByCustomer(@Payload() data: { customerPhone: string }) {
+    return this.userService.getFeedbacksByCustomerPhone(data.customerPhone);
+  }
+
+  // --- RFM CUSTOMER SEGMENTATION ---
+
+  @MessagePattern('user.rfm.get_by_phone')
+  handleGetCustomerRFM(@Payload() data: { phone: string }) {
+    return this.userService.getCustomerSegmentByPhone(data.phone);
+  }
+
+  @MessagePattern('user.rfm.overview')
+  handleGetRFMOverview(@Payload() data: { branchId?: string }) {
+    return this.userService.getRFMOverview(data?.branchId);
+  }
+
+  @MessagePattern('user.rfm.recalculate')
+  handleRecalculateRFM() {
+    return this.userService.calculateRFMSegments();
+  }
+
+  @MessagePattern('user.rfm.at_risk_list')
+  handleGetAtRiskCustomers(@Payload() data: { branchId?: string; limit?: number }) {
+    return this.userService.getAtRiskCustomers(data);
   }
 
   // --- HR: WORK SHIFT ---

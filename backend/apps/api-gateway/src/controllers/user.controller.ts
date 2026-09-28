@@ -24,6 +24,8 @@ import {
 } from "../common/kafka.helper";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import * as path from "path";
 import * as fs from "fs";
 import { Subject, Observable } from "rxjs";
@@ -38,6 +40,7 @@ export class UserController implements OnModuleInit {
 
   constructor(
     @Inject("USER_SERVICE") private readonly kafkaClient: ClientKafka,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   async onModuleInit() {
@@ -55,6 +58,10 @@ export class UserController implements OnModuleInit {
       "user.audit.list",
       "user.audit.export",
       "user.audit.export_status",
+      "user.rfm.get_by_phone",
+      "user.rfm.overview",
+      "user.rfm.recalculate",
+      "user.rfm.at_risk_list",
     ]);
   }
 
@@ -340,5 +347,55 @@ export class UserController implements OnModuleInit {
     } else if (logs) {
       this.auditSubject.next(logs);
     }
+  }
+
+  // =========================================================================
+  // RFM CUSTOMER SEGMENTATION
+  // =========================================================================
+
+  @Get("rfm/customer/:phone")
+  @ApiOperation({ summary: "Tra cứu phân khúc RFM & đề xuất voucher của khách hàng" })
+  async getCustomerRFM(@Param("phone") phone: string) {
+    const cacheKey = `rfm:customer:${phone}`;
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) return cached;
+
+    const data = await sendKafkaMessage(this.kafkaClient, "user.rfm.get_by_phone", { phone });
+    if (data) {
+      await this.cacheManager.set(cacheKey, data, 86400 * 1000); // 24h
+    }
+    return data;
+  }
+
+  @Get("rfm/overview")
+  @ApiOperation({ summary: "Báo cáo ma trận phân nhóm RFM toàn chuỗi / chi nhánh" })
+  async getRFMOverview(@Query("branchId") branchId?: string) {
+    const cacheKey = `rfm:overview:${branchId || 'chain'}`;
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) return cached;
+
+    const data = await sendKafkaMessage(this.kafkaClient, "user.rfm.overview", { branchId });
+    if (data) {
+      await this.cacheManager.set(cacheKey, data, 3600 * 1000); // 1h
+    }
+    return data;
+  }
+
+  @Post("rfm/recalculate")
+  @ApiOperation({ summary: "Kích hoạt tính toán lại phân cụm RFM khách hàng" })
+  async recalculateRFM() {
+    return await sendKafkaMessage(this.kafkaClient, "user.rfm.recalculate", {});
+  }
+
+  @Get("rfm/at-risk")
+  @ApiOperation({ summary: "Danh sách khách hàng có nguy cơ rời bỏ cần chăm sóc" })
+  async getAtRiskCustomers(
+    @Query("branchId") branchId?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, "user.rfm.at_risk_list", {
+      branchId,
+      limit: limit ? Number(limit) : 50,
+    });
   }
 }

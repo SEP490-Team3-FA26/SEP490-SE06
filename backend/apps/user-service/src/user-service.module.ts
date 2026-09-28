@@ -9,6 +9,7 @@ import { Branch, BranchSchema } from './schemas/branch.schema';
 import { BranchService } from './branch.service';
 import { Cart, CartSchema } from './schemas/cart.schema';
 import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
+import { BranchFeedback, BranchFeedbackSchema } from './schemas/branch-feedback.schema';
 
 import { MedicineBatch, MedicineBatchSchema } from '../../inventory-service/src/medicine/schemas/medicine-batch.schema';
 import { Medicine, MedicineSchema } from '../../inventory-service/src/medicine/schemas/medicine.schema';
@@ -17,6 +18,8 @@ import { WorkSchedule, WorkScheduleSchema } from './schemas/work-schedule.schema
 import { ShiftSwapRequest, ShiftSwapRequestSchema } from './schemas/shift-swap-request.schema';
 import { StaffNotification, StaffNotificationSchema } from './schemas/staff-notification.schema';
 import { HrService } from './hr.service';
+
+import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segment.schema';
 
 @Module({
   imports: [
@@ -33,12 +36,14 @@ import { HrService } from './hr.service';
       { name: Branch.name, schema: BranchSchema },
       { name: Cart.name, schema: CartSchema },
       { name: AuditLog.name, schema: AuditLogSchema },
+      { name: BranchFeedback.name, schema: BranchFeedbackSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
       { name: Medicine.name, schema: MedicineSchema },
       { name: WorkShift.name, schema: WorkShiftSchema },
       { name: WorkSchedule.name, schema: WorkScheduleSchema },
       { name: ShiftSwapRequest.name, schema: ShiftSwapRequestSchema },
       { name: StaffNotification.name, schema: StaffNotificationSchema },
+      { name: CustomerSegment.name, schema: CustomerSegmentSchema },
     ]),
     ClientsModule.registerAsync([
       {
