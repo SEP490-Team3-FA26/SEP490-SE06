@@ -337,7 +337,9 @@ export class MedicineService implements OnModuleInit {
       }
       
       query.medicineIds = medicineIds;
-      query.bypassAiSearch = true; // Bỏ qua AI search khi chỉ lấy tồn kho chi nhánh để kết quả chính xác tuyệt đối
+      if (!query.search) {
+        query.bypassAiSearch = true; // Chỉ bypass AI search khi không có từ khoá tìm kiếm
+      }
     }
 
     return this.listMedicines(query);
@@ -499,7 +501,11 @@ export class MedicineService implements OnModuleInit {
               const existingMedMap = new Map(existingMeds.map(m => [m._id.toString(), m]));
 
               aiData = aiData.filter((med: any) => existingMedIds.has((med._id || med.id || '').toString()));
-              const aiMedIds = Array.from(existingMedIds);
+              if (query.medicineIds && query.medicineIds.length > 0) {
+                const allowedSet = new Set(query.medicineIds.map(id => id.toString()));
+                aiData = aiData.filter((med: any) => allowedSet.has((med._id || med.id || '').toString()));
+              }
+              const aiMedIds = aiData.map((med: any) => (med._id || med.id || '').toString());
 
               // Truy vấn lô hàng cho các kết quả từ AI Service
               const batchFilter: any = { medicineId: { $in: aiMedIds } };
@@ -677,10 +683,22 @@ export class MedicineService implements OnModuleInit {
           },
         };
       } else {
-        // MONGOOSE SCROLL (Default View)
+        // MONGOOSE SCROLL (Default View / Fallback)
         const filterQuery: any = {};
-        if (conditions.length > 0) {
-          filterQuery.$and = conditions;
+        const conditionsCopy = [...conditions];
+        if (search) {
+          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          conditionsCopy.push({
+            $or: [
+              { name: { $regex: safeSearch, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+              { sku: { $regex: safeSearch, $options: 'i' } },
+              { barcode: { $regex: safeSearch, $options: 'i' } }
+            ]
+          });
+        }
+        if (conditionsCopy.length > 0) {
+          filterQuery.$and = conditionsCopy;
         }
 
         const [data, total] = await Promise.all([

@@ -695,13 +695,13 @@ export function Landing() {
 
             {/* Live Search Auto-Complete Mega Dropdown (Long Châu & Pharmacity standard) */}
             {showSearchDropdown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[760px] lg:w-[860px] xl:w-[940px] max-w-[94vw] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden text-left">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[760px] lg:w-[860px] xl:w-[940px] max-w-[94vw] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-y-auto max-h-[min(540px,calc(100vh-100px))] overscroll-contain text-left custom-scrollbar">
                 
                 {/* 2-Column Split Grid */}
-                <div className="grid grid-cols-12 max-h-[550px]">
+                <div className="grid grid-cols-12 min-h-full">
                   
                   {/* Left Column (4/12 cols): Trending keywords, Popular categories, Hotline */}
-                  <div className="col-span-4 bg-slate-50/80 border-r border-slate-100 p-4 flex flex-col justify-between overflow-y-auto">
+                  <div className="col-span-4 bg-slate-50/80 border-r border-slate-100 p-4 flex flex-col justify-between">
                     <div className="space-y-4">
                       {/* Trending Keywords */}
                       <div>
@@ -782,7 +782,7 @@ export function Landing() {
                   </div>
 
                   {/* Right Column (8/12 cols): Search Results / Product Cards */}
-                  <div className="col-span-8 p-4 flex flex-col justify-between overflow-y-auto bg-white">
+                  <div className="col-span-8 p-4 flex flex-col justify-between bg-white">
                     <div>
                       {/* Top bar info */}
                       <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">

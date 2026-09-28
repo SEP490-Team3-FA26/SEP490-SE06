@@ -174,8 +174,12 @@ export const prescriptionService = {
     };
   },
 
-  async textConsult(symptoms: string) {
-    const response = await api.post('/api/prescriptions/symptom-consult', { symptoms });
+  async textConsult(symptoms: string, branchId?: string) {
+    const response = await api.post('/api/prescriptions/symptom-consult', {
+      symptoms,
+      branch_id: branchId,
+    });
     return response.data;
   },
 };
+
