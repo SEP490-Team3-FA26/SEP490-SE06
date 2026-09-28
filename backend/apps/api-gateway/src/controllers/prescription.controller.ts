@@ -12,6 +12,7 @@ import {
   HttpException,
   HttpStatus,
   UseGuards,
+  Req,
 } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
@@ -288,6 +289,8 @@ export class PrescriptionController implements OnModuleInit {
   async recommendPrescription(
     @UploadedFile() file: Express.Multer.File,
     @Body("patient_id") patientId?: string,
+    @Body("branch_id") branchId?: string,
+    @Req() req?: any,
   ) {
     if (!file) {
       throw new HttpException(
@@ -307,6 +310,12 @@ export class PrescriptionController implements OnModuleInit {
 
       if (patientId) {
         formData.append("patient_id", patientId);
+      }
+
+      const resolvedBranchId =
+        branchId || req?.user?.branchId || req?.user?.branch_id;
+      if (resolvedBranchId) {
+        formData.append("branch_id", resolvedBranchId);
       }
 
       const controller = new AbortController();
@@ -360,12 +369,22 @@ export class PrescriptionController implements OnModuleInit {
 
   @Post("symptom-consult")
   @UseGuards(OptionalJwtAuthGuard)
-  async textConsult(@Body("symptoms") symptoms: string) {
+  async textConsult(
+    @Body("symptoms") symptoms: string,
+    @Body("branch_id") branchId?: string,
+    @Req() req?: any,
+  ) {
     if (!symptoms) {
       throw new HttpException(
         "Vui lòng cung cấp triệu chứng",
         HttpStatus.BAD_REQUEST,
       );
+    }
+    const resolvedBranchId =
+      branchId || req?.user?.branchId || req?.user?.branch_id;
+    const payload: any = { symptoms };
+    if (resolvedBranchId) {
+      payload.branch_id = resolvedBranchId;
     }
     try {
       const aiServiceHost = this.getAiServiceHost();
@@ -374,7 +393,7 @@ export class PrescriptionController implements OnModuleInit {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ symptoms }),
+        body: JSON.stringify(payload),
       }).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/ai/symptom-consult`, {
@@ -382,7 +401,7 @@ export class PrescriptionController implements OnModuleInit {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ symptoms }),
+          body: JSON.stringify(payload),
         });
       });
 
