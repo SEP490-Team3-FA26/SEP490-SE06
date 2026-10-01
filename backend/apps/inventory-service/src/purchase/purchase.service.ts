@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { ClientKafka, RpcException } from "@nestjs/microservices";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { Model, ClientSession } from "mongoose";
 import { PurchaseRequisition } from "./schemas/purchase-requisition.schema";
 import { PurchaseOrder } from "./schemas/purchase-order.schema";
 import { GoodsReceiptNote } from "./schemas/goods-receipt-note.schema";
@@ -46,6 +46,63 @@ export class PurchaseService {
       })}`,
       error?.stack,
     );
+  }
+
+  /**
+   * Tự động dời các lô hàng cũ của cùng loại thuốc trong cùng thùng sang Khu Dự Trữ (zone=RESERVE, slotType=RESERVE).
+   * Giúp đảm bảo nguyên tắc FEFO và giải phóng ô thùng chính (MAIN) cho lô mới nhập.
+   */
+  private async relocateBatchesToReserve(
+    medicineId: string,
+    location: { zone: string; rack: string; shelf: number; bin: number; slotType?: string },
+    session?: ClientSession | null,
+    contextTag: string = 'GRN',
+  ): Promise<number> {
+    if (location.slotType && location.slotType !== 'MAIN') {
+      return 0;
+    }
+
+    const query = {
+      medicineId,
+      branchId: 'CENTRAL_WH',
+      'location.zone': location.zone,
+      'location.rack': location.rack,
+      'location.shelf': location.shelf,
+      'location.bin': location.bin,
+      'location.slotType': 'MAIN',
+      stock: { $gt: 0 },
+    };
+
+    let findQuery = this.batchModel.find(query);
+    if (session) {
+      findQuery = findQuery.session(session);
+    }
+    const oldMainBatches = await findQuery.exec();
+
+    if (oldMainBatches.length > 0) {
+      const updateQuery = this.batchModel.updateMany(
+        { _id: { $in: oldMainBatches.map(b => b._id) } },
+        {
+          $set: {
+            'location.zone': 'RESERVE',
+            'location.rack': 'RESERVE',
+            'location.slotType': 'RESERVE',
+            // Giữ nguyên shelf và bin để trace lịch sử vị trí cũ
+          },
+        },
+      );
+      if (session) {
+        updateQuery.session(session);
+      }
+      await updateQuery.exec();
+
+      this.logger.log(
+        `[${contextTag}] Đã dời ${oldMainBatches.length} lô cũ của thuốc ${medicineId} sang Khu Dự Trữ (zone=RESERVE)`,
+      );
+      return oldMainBatches.length;
+    }
+
+    return 0;
   }
 
   constructor(
@@ -1051,35 +1108,12 @@ export class PurchaseService {
       // === TASK 4: Auto-move lô cũ sang Khu Dự Trữ khi lô mới được xếp vào thùng ===
       // Chỉ thực hiện khi GRN item có shelvedLocation (thủ kho đã chọn vị trí thùng cụ thể)
       if (item.shelvedLocation) {
-        const { zone, rack, shelf, bin } = item.shelvedLocation;
-        const oldMainBatches = await this.batchModel.find({
-          medicineId: item.medicineId,
-          branchId: 'CENTRAL_WH',
-          'location.zone': zone,
-          'location.rack': rack,
-          'location.shelf': shelf,
-          'location.bin': bin,
-          'location.slotType': 'MAIN',
-          stock: { $gt: 0 },
-        }).exec();
-
-        if (oldMainBatches.length > 0) {
-          // Dời tất cả lô cũ còn tồn sang Khu Dự Trữ (FEFO: xuất lô này trước)
-          await this.batchModel.updateMany(
-            { _id: { $in: oldMainBatches.map(b => b._id) } },
-            {
-              $set: {
-                'location.zone': 'RESERVE',
-                'location.rack': 'RESERVE',
-                'location.slotType': 'RESERVE',
-                // Giữ nguyên shelf và bin để trace lịch sử vị trí cũ
-              }
-            }
-          ).exec();
-          this.logger.log(
-            `[GRN Approve] Đã dời ${oldMainBatches.length} lô cũ của thuốc ${item.medicineId} sang Khu Dự Trữ (zone=RESERVE)`
-          );
-        }
+        await this.relocateBatchesToReserve(
+          item.medicineId,
+          item.shelvedLocation,
+          null,
+          'GRN Approve',
+        );
       }
 
       const stockBefore = batch ? batch.stock : 0;
@@ -2795,32 +2829,12 @@ export class PurchaseService {
 
 
           // Auto-move lô cũ của thuốc này trong cùng thùng sang Khu Dự Trữ
-          if (newLocation.slotType === 'MAIN') {
-            const oldMainBatches = await this.batchModel.find({
-              medicineId: item.medicineId,
-              branchId: 'CENTRAL_WH',
-              'location.zone': newLocation.zone,
-              'location.rack': newLocation.rack,
-              'location.shelf': newLocation.shelf,
-              'location.bin': newLocation.bin,
-              'location.slotType': 'MAIN',
-              stock: { $gt: 0 },
-            }).session(session).exec();
-
-            if (oldMainBatches.length > 0) {
-              await this.batchModel.updateMany(
-                { _id: { $in: oldMainBatches.map(b => b._id) } },
-                {
-                  $set: {
-                    'location.zone': 'RESERVE',
-                    'location.rack': 'RESERVE',
-                    'location.slotType': 'RESERVE',
-                  }
-                }
-              ).session(session).exec();
-              this.logger.log(`[Inspection Approve] Đã dời ${oldMainBatches.length} lô cũ sang Khu Dự Trữ`);
-            }
-          }
+          await this.relocateBatchesToReserve(
+            item.medicineId,
+            newLocation,
+            session,
+            'Inspection Approve',
+          );
 
           let batch = await this.batchModel.findOne({
             medicineId: item.medicineId,
