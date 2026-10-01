@@ -294,13 +294,13 @@ export function AIConsultant() {
               onClick={() => { setInputMode("voice"); setError(""); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${inputMode === "voice" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"}`}
             >
-              🎙️ Ghi Âm
+              Ghi Âm
             </button>
             <button
               onClick={() => { setInputMode("text"); setError(""); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${inputMode === "text" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"}`}
             >
-              ⌨️ Nhập Chữ
+              Nhập Chữ
             </button>
           </div>
 

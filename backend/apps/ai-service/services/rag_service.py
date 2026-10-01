@@ -258,7 +258,7 @@ async def retrieve_medical_context(query: str, top_k: int = 5, branch_id: str = 
                     f"- Tương tác thuốc: {inter}"
                 )
         except Exception as exc:
-            print(f"⚠️ [RAG] Mongo fallback note: {exc}")
+            print(f"[Warning] [RAG] Mongo fallback note: {exc}")
 
     return "\n\n".join(context_parts)
 

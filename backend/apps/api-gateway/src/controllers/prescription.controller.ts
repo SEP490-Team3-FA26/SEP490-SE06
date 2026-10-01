@@ -422,6 +422,70 @@ export class PrescriptionController implements OnModuleInit {
     }
   }
 
+  @Post("chat")
+  @UseGuards(OptionalJwtAuthGuard)
+  async chatConsult(
+    @Body()
+    body: {
+      message: string;
+      history?: Array<{ role: string; content: string }>;
+      age_group?: string;
+      gender?: string;
+      allergies?: string[];
+    },
+  ) {
+    if (!body || !body.message || !body.message.trim()) {
+      throw new HttpException(
+        "Vui lòng cung cấp nội dung tin nhắn tư vấn",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      // Data minimization: Không gửi PII (họ tên, email, sđt) sang AI service
+      const sanitizedPayload = {
+        message: body.message.trim(),
+        history: Array.isArray(body.history) ? body.history.slice(-10) : [],
+        age_group: body.age_group || null,
+        gender: body.gender || null,
+        allergies: Array.isArray(body.allergies) ? body.allergies : [],
+      };
+
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(sanitizedPayload),
+      }).catch(async () => {
+        const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
+        return await fetch(`${aiUrl}/api/ai/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(sanitizedPayload),
+        });
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new HttpException(
+          `Lỗi từ AI Service: ${errorText}`,
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw new HttpException(
+        error.message || "Lỗi kết nối hoặc xử lý từ AI Chat Service",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
   async listPrescriptions() {

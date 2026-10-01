@@ -181,5 +181,16 @@ export const prescriptionService = {
     });
     return response.data;
   },
+
+  async chatConsult(payload: {
+    message: string;
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    age_group?: string;
+    gender?: string;
+    allergies?: string[];
+  }) {
+    const response = await api.post('/api/prescriptions/chat', payload);
+    return response.data;
+  },
 };
 

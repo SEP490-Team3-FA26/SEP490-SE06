@@ -11,13 +11,17 @@ def get_groq_client() -> AsyncGroq:
     return AsyncGroq(api_key=key)
 
 def get_deepseek_api_key() -> str | None:
-    return os.getenv("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK") or os.getenv("PHUC_DEEPSEEK_V4_FLASH")
+    return (
+        os.getenv("PHUC_DEEPSEEK_V4_FLASH")
+        or os.getenv("DEEPSEEK_API_KEY")
+        or os.getenv("DEEPSEEK")
+    )
 
 async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     """
     Gọi LLM với cơ chế Multi-Tier Fallback tự động:
-    1. Ưu tiên DeepSeek API (deepseek-chat / deepseek-v4-flash)
-    2. Fallback sang Groq API (qwen/qwen3.8-27b hoặc openai/gpt-oss-120b)
+    1. Ưu tiên DeepSeek API (deepseek-flash, fallback deepseek-chat)
+    2. Fallback sang Groq API (llama-3.3-70b-versatile, llama-3.1-8b-instant, qwen/qwen3.8-27b)
     3. Fallback sang OpenRouter (nếu có OPEN_ROUTER_API)
     """
     errors = []
@@ -25,38 +29,51 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     # 1. Thử DeepSeek API
     deepseek_key = get_deepseek_api_key()
     if deepseek_key:
-        try:
-            print("🤖 [AI Service] Đang gọi DeepSeek API (model: deepseek-chat)...")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.post(
-                    "https://api.deepseek.com/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {deepseek_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": "deepseek-chat",
-                        "messages": messages,
-                        "temperature": temperature,
-                        "response_format": {"type": "json_object"}
-                    }
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    content = data["choices"][0]["message"]["content"]
-                    print("✅ [AI Service] DeepSeek API phản hồi thành công!")
-                    return content
-                else:
-                    errors.append(f"DeepSeek HTTP {res.status_code}: {res.text}")
-        except Exception as exc:
-            errors.append(f"DeepSeek exception: {exc}")
+        preferred_model = os.getenv("DEEPSEEK_MODEL") or "deepseek-flash"
+        models_to_try = [preferred_model]
+        if preferred_model != "deepseek-chat":
+            models_to_try.append("deepseek-chat")
 
-    # 2. Thử Groq API (với model qwen/qwen3.8-27b hoặc openai/gpt-oss-120b)
+        for model in models_to_try:
+            try:
+                print(f"[AI Service] Đang gọi DeepSeek API (model: {model})...")
+                async with httpx.AsyncClient(timeout=35.0) as client:
+                    res = await client.post(
+                        "https://api.deepseek.com/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {deepseek_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": model,
+                            "messages": messages,
+                            "temperature": temperature,
+                            "response_format": {"type": "json_object"}
+                        }
+                    )
+                    if res.status_code == 200:
+                        data = res.json()
+                        content = data["choices"][0]["message"]["content"]
+                        print(f"[AI Service] DeepSeek API ({model}) phản hồi thành công!")
+                        return content
+                    else:
+                        errors.append(f"DeepSeek ({model}) HTTP {res.status_code}: {res.text}")
+            except Exception as exc:
+                errors.append(f"DeepSeek ({model}) exception: {exc}")
+
+    # 2. Thử Groq API (với model versatile hoặc qwen/gpt-oss)
     groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
     if groq_key:
-        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+        groq_models = [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b"
+        ]
+        for model in groq_models:
             try:
-                print(f"🤖 [AI Service] Thử Groq API (model: {model})...")
+                print(f"[AI Service] Thử Groq API (model: {model})...")
                 groq_client = get_groq_client()
                 response = await groq_client.chat.completions.create(
                     model=model,
@@ -66,7 +83,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
                 )
                 content = response.choices[0].message.content
                 if content:
-                    print(f"✅ [AI Service] Groq ({model}) phản hồi thành công!")
+                    print(f"[AI Service] Groq ({model}) phản hồi thành công!")
                     return content
             except Exception as exc:
                 errors.append(f"Groq ({model}) exception: {exc}")
@@ -75,7 +92,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
     if openrouter_key:
         try:
-            print("🤖 [AI Service] Thử OpenRouter API...")
+            print("[AI Service] Thử OpenRouter API...")
             async with httpx.AsyncClient(timeout=30.0) as client:
                 res = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
@@ -93,7 +110,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
                 if res.status_code == 200:
                     data = res.json()
                     content = data["choices"][0]["message"]["content"]
-                    print("✅ [AI Service] OpenRouter phản hồi thành công!")
+                    print("[AI Service] OpenRouter phản hồi thành công!")
                     return content
                 else:
                     errors.append(f"OpenRouter HTTP {res.status_code}: {res.text}")
@@ -215,6 +232,127 @@ async def generate_prescription(transcript: str, context: str) -> dict:
     except json.JSONDecodeError:
         return {"error": "Lỗi phân tích JSON từ LLM", "raw_content": content}
 
+CHATBOT_SYSTEM_PROMPT = """Bạn là Trợ lý Dược sĩ AI chuyên nghiệp, tận tâm của Hệ thống Nhà thuốc VINAPharmacy tại Việt Nam.
+Nhiệm vụ của bạn là lắng nghe triệu chứng của khách hàng trong cuộc hội thoại (chat), phân tích tình trạng sức khỏe một cách dễ hiểu, đồng cảm và đưa ra giải pháp chăm sóc hoặc đề xuất các thuốc/sản phẩm phù hợp từ CƠ SỞ DỮ LIỆU THUỐC ĐƯỢC CUNG CẤP.
+
+--- CƠ SỞ DỮ LIỆU THUỐC TRONG KHO (CONTEXT) ---
+{rag_context}
+-----------------------------------------------
+
+--- THÔNG TIN KHÁCH HÀNG THAM KHẢO ---
+- Nhóm tuổi: {age_group}
+- Giới tính: {gender}
+- Tiền sử dị ứng: {allergies}
+--------------------------------------
+
+NGUYÊN TẮC BẮT BUỘC:
+1. Xưng hô lịch sự, thân thiện, ân cần (Dược sĩ - bạn/anh/chị). Trả lời bằng tiếng Việt chuẩn mực y khoa nhưng dễ hiểu với người dân.
+2. NGUYÊN TẮC AN TOÀN DỊ ỨNG & CHỐNG CHỈ ĐỊNH:
+   - Nếu khách hàng có tiền sử dị ứng với hoạt chất hoặc nhóm thuốc nào, TUYỆT ĐỐI KHÔNG kê/đề xuất bất kỳ sản phẩm nào chứa hoạt chất đó, đồng thời đưa ra cảnh báo an toàn rõ ràng.
+   - Nếu đối tượng là trẻ em (child) hoặc người cao tuổi (elderly): Thận trọng tối đa về dạng dùng và liều lượng.
+3. NGUYÊN TẮC ĐỀ XUẤT THUỐC:
+   - CHỈ đề xuất 1 - 3 loại thuốc hoặc thực phẩm chức năng CÓ THỰC TẾ TRONG CƠ SỞ DỮ LIỆU bên trên.
+   - Tên thuốc trong trường 'name' PHẢI KHỚP HOẶC GẦN KHỚP NHẤT với tên sản phẩm trong CƠ SỞ DỮ LIỆU.
+   - Nếu CƠ SỞ DỮ LIỆU trống hoặc không có thuốc phù hợp với bệnh: TUYỆT ĐỐI KHÔNG TỰ BỊA RA TÊN THUỐC! Hãy để 'recommended_drugs' là mảng rỗng [] và hướng dẫn khách hàng thăm khám y tế.
+4. Lời khuyên lối sống: Luôn dặn dò chế độ sinh hoạt (uống đủ nước, ăn đồ dễ tiêu, nghỉ ngơi...).
+5. Dấu hiệu cảnh báo: Nêu rõ các dấu hiệu trở nặng cần đến ngay cơ sở y tế (sốt cao liên tục không hạ, khó thở, nôn ói nhiều...).
+6. Gợi ý hỏi thêm: Đặt câu hỏi theo dõi ngắn gọn trong 'follow_up_question' nếu cần thêm thông tin chẩn đoán (ví dụ: đã bị mấy ngày, có kèm theo triệu chứng nào khác không).
+
+BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON HỢP LỆ VỚI CẤU TRÚC SAU (KHÔNG KÈM TEXT NGOÀI JSON):
+{
+  "message": "Lời tư vấn, đồng cảm, giải thích cơ chế, dặn dò sinh hoạt và liều dùng chi tiết",
+  "recommended_drugs": [
+    {
+      "name": "Tên thuốc chính xác theo database",
+      "active_ingredient": "Hoạt chất",
+      "dosage": "Liều dùng cụ thể (VD: 1-2 viên/lần, 2-3 lần/ngày)",
+      "usage": "Cách dùng (VD: Uống sau bữa ăn, uống nhiều nước ấm)"
+    }
+  ],
+  "warnings": "Cảnh báo an toàn, chống chỉ định hoặc lưu ý quan trọng",
+  "follow_up_question": "Câu hỏi ngắn để khách hàng trả lời tiếp (hoặc để trống nếu đã đủ thông tin)",
+  "disclaimer": "Lưu ý: Thông tin tư vấn chỉ mang tính tham khảo y tế, không thay thế chẩn đoán và chỉ định trực tiếp từ bác sĩ chuyên khoa hoặc dược sĩ điều trị."
+}"""
+
+async def generate_chat_consultation(
+    message: str,
+    history: list[dict] | None = None,
+    context: str = "",
+    age_group: str | None = None,
+    gender: str | None = None,
+    allergies: list[str] | None = None
+) -> dict:
+    """
+    Tạo phản hồi tư vấn hội thoại đa lượt (multi-turn chat) cho khách hàng nhà thuốc.
+    Ưu tiên DeepSeek Flash (PHUC_DEEPSEEK_V4_FLASH) với fallback sang Groq.
+    """
+    allergies_str = ", ".join(allergies) if allergies else "Không có hoặc chưa cung cấp"
+    age_str = age_group if age_group else "Chưa rõ"
+    gender_str = gender if gender else "Chưa rõ"
+
+    system_prompt = (
+        CHATBOT_SYSTEM_PROMPT
+        .replace("{rag_context}", context or "Không tìm thấy dữ liệu thuốc phù hợp trong kho.")
+        .replace("{age_group}", age_str)
+        .replace("{gender}", gender_str)
+        .replace("{allergies}", allergies_str)
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # Multi-turn history: Lấy tối đa 6 message gần nhất để đảm bảo token limit
+    if history:
+        recent_history = history[-6:]
+        for h in recent_history:
+            role = "user" if h.get("role") == "user" else "assistant"
+            content = str(h.get("content") or "").strip()
+            if content:
+                messages.append({"role": role, "content": content})
+
+    # Message hiện tại của khách hàng
+    messages.append({"role": "user", "content": message})
+
+    content = await call_llm_json(messages, temperature=0.2)
+    try:
+        data = json.loads(content)
+        
+        # Làm sạch và ánh xạ tên thuốc với context nếu có
+        context_names = re.findall(r"\*\*(.+?)\*\*\s*\(", context or "")
+        canonical_drugs = []
+        for drug in data.get("recommended_drugs", []):
+            if not isinstance(drug, dict):
+                continue
+            proposed_name = str(drug.get("name") or "").strip()
+            if not proposed_name:
+                continue
+            
+            proposed_folded = proposed_name.casefold()
+            exact_name = next(
+                (
+                    name for name in context_names
+                    if name.casefold() == proposed_folded
+                    or name.casefold().startswith(proposed_folded)
+                    or proposed_folded.startswith(name.casefold())
+                ),
+                None,
+            )
+            if exact_name:
+                drug["name"] = exact_name
+            canonical_drugs.append(drug)
+
+        data["recommended_drugs"] = canonical_drugs
+        if not data.get("disclaimer"):
+            data["disclaimer"] = "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo, không thay thế chẩn đoán trực tiếp của bác sĩ."
+        return data
+    except json.JSONDecodeError:
+        return {
+            "message": content or "Dược sĩ AI đã tiếp nhận thông tin, bạn vui lòng mô tả chi tiết hơn nhé.",
+            "recommended_drugs": [],
+            "warnings": "Đang cập nhật phân tích y tế.",
+            "follow_up_question": "Bạn có thể cho tôi biết rõ hơn các triệu chứng xuất hiện từ khi nào không?",
+            "disclaimer": "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo."
+        }
+
 INTERACTION_SYSTEM_PROMPT = """Bạn là Dược sĩ lâm sàng AI chuyên nghiệp tại Việt Nam.
 Nhiệm vụ của bạn là phân tích tương tác giữa các loại thuốc dựa trên CƠ SỞ DỮ LIỆU ĐÃ ĐƯỢC XÁC THỰC được cung cấp dưới đây.
 
@@ -272,7 +410,7 @@ async def check_drug_interactions(medicines_list: list[str], context: str) -> di
     except json.JSONDecodeError:
         return {"error": "Lỗi phân tích JSON từ DeepSeek LLM", "raw_content": content}
     except Exception as exc:
-        print(f"❌ DeepSeek V4 Flash API call failed: {exc}")
+        print(f"[Error] DeepSeek V4 Flash API call failed: {exc}")
         raise exc
 
 FORECAST_SYSTEM_PROMPT = """Bạn là Chuyên gia Kế hoạch & Phân tích Chuỗi cung ứng Dược phẩm bằng AI tại Việt Nam.
@@ -747,15 +885,15 @@ def generate_prescription_markdown(
     warnings = match_result.get("interaction_warnings", [])
 
     lines = []
-    lines.append("# 📋 KẾT QUẢ PHÂN TÍCH ĐƠN THUỐC AI")
+    lines.append("# KẾT QUẢ PHÂN TÍCH ĐƠN THUỐC AI")
     lines.append("")
     lines.append(f"> Phân tích bởi AI Dược sĩ lúc **{now}**")
     lines.append("")
     lines.append("---")
     lines.append("")
 
-    # ── Thông tin phòng khám ──
-    lines.append("## 🏥 Thông Tin Phòng Khám")
+    # -- Thông tin phòng khám --
+    lines.append("## Thông Tin Phòng Khám")
     lines.append("")
     lines.append(f"| Mục | Chi Tiết |")
     lines.append(f"|---|---|")
@@ -768,8 +906,8 @@ def generate_prescription_markdown(
         lines.append(f"| **SĐT** | {clinic['phone']} |")
     lines.append("")
 
-    # ── Thông tin bệnh nhân ──
-    lines.append("## 👤 Thông Tin Bệnh Nhân")
+    # -- Thông tin bệnh nhân --
+    lines.append("## Thông Tin Bệnh Nhân")
     lines.append("")
     lines.append(f"| Mục | Chi Tiết |")
     lines.append(f"|---|---|")
@@ -786,14 +924,14 @@ def generate_prescription_markdown(
         lines.append(f"| **Mã BHYT** | {patient['insurance_id']} |")
     lines.append("")
 
-    # ── Chẩn đoán ──
-    lines.append("## 🔍 Chẩn Đoán")
+    # -- Chẩn đoán --
+    lines.append("## Chẩn Đoán")
     lines.append("")
     lines.append(f"> **{diagnosis}**")
     lines.append("")
 
-    # ── Danh sách thuốc OCR ──
-    lines.append("## 💊 Danh Sách Thuốc Trong Đơn")
+    # -- Danh sách thuốc OCR --
+    lines.append("## Danh Sách Thuốc Trong Đơn")
     lines.append("")
     if medications:
         lines.append("| STT | Tên Thuốc | Hàm Lượng | SL | Đơn Vị | Liều Dùng |")
@@ -810,8 +948,8 @@ def generate_prescription_markdown(
         lines.append("*Không trích xuất được thuốc từ đơn.*")
     lines.append("")
 
-    # ── Kết quả đối chiếu kho ──
-    lines.append("## ✅ Kết Quả Đối Chiếu Với Kho Thuốc")
+    # -- Kết quả đối chiếu kho --
+    lines.append("## Kết Quả Đối Chiếu Với Kho Thuốc")
     lines.append("")
 
     if matched:
@@ -833,19 +971,19 @@ def generate_prescription_markdown(
         lines.append("")
 
     if unmatched:
-        lines.append("### ❌ Thuốc Không Tìm Thấy Trong Kho")
+        lines.append("### Thuốc Không Tìm Thấy Trong Kho")
         lines.append("")
         for drug in unmatched:
             lines.append(f"- **{drug.get('prescription_name', 'N/A')}**: {drug.get('reason', '')}")
             if drug.get("suggestion"):
-                lines.append(f"  - 💡 Gợi ý: {drug['suggestion']}")
+                lines.append(f"  - Gợi ý: {drug['suggestion']}")
         lines.append("")
 
-    # ── Tồn kho ──
+    # -- Tồn kho --
     if inventory_status:
         available = inventory_status.get("available", [])
         if available:
-            lines.append("### 📦 Thông Tin Tồn Kho")
+            lines.append("### Thông Tin Tồn Kho")
             lines.append("")
             lines.append("| Tên Thuốc | Tồn Kho | Giá | Danh Mục |")
             lines.append("|---|:---:|---:|---|")
@@ -859,26 +997,26 @@ def generate_prescription_markdown(
                 )
             lines.append("")
 
-    # ── Cảnh báo tương tác thuốc ──
+    # -- Cảnh báo tương tác thuốc --
     if warnings:
-        lines.append("## ⚠️ Cảnh Báo Tương Tác Thuốc")
+        lines.append("## Cảnh Báo Tương Tác Thuốc")
         lines.append("")
         for w in warnings:
             severity = w.get("severity", "")
-            icon = "🔴" if severity == "Cao" else "🟡" if severity == "Trung bình" else "🟢"
-            lines.append(f"### {icon} {w.get('drug_a', '')} × {w.get('drug_b', '')}")
+            severity_tag = f"[{severity.upper()}]" if severity else "[CẢNH BÁO]"
+            lines.append(f"### {severity_tag} {w.get('drug_a', '')} × {w.get('drug_b', '')}")
             lines.append(f"- **Mức độ:** {severity}")
             lines.append(f"- **Mô tả:** {w.get('description', '')}")
             lines.append(f"- **Khuyến nghị:** {w.get('recommendation', '')}")
             lines.append("")
 
-    # ── Ghi chú ──
+    # -- Ghi chú --
     notes = match_result.get("general_notes", "")
     doctor_notes = ocr_result.get("doctor_notes", "")
     follow_up = ocr_result.get("follow_up_date", "")
 
     if notes or doctor_notes or follow_up:
-        lines.append("## 📝 Ghi Chú")
+        lines.append("## Ghi Chú")
         lines.append("")
         if doctor_notes:
             lines.append(f"- **Lời dặn bác sĩ:** {doctor_notes}")
