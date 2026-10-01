@@ -62,6 +62,27 @@ export class PurchaseService {
       return 0;
     }
 
+    // ⛔ CRITICAL GUARD: "1 Thùng = 1 Loại Thuốc"
+    // Kiểm tra xem thùng đích đã có thuốc KHÁC loại chưa
+    const conflictQuery = this.batchModel.findOne({
+      medicineId: { $ne: medicineId },
+      branchId: 'CENTRAL_WH',
+      'location.zone': location.zone,
+      'location.rack': location.rack,
+      'location.shelf': location.shelf,
+      'location.bin': location.bin,
+      'location.slotType': 'MAIN',
+      stock: { $gt: 0 },
+    });
+    if (session) conflictQuery.session(session);
+    const conflictBatch = await conflictQuery.exec();
+
+    if (conflictBatch) {
+      throw new RpcException({
+        message: `[${contextTag}] Vi phạm nguyên tắc "1 Thùng = 1 Loại Thuốc": Thùng ${location.zone}-${location.rack}-T${location.shelf}-B${location.bin} đang chứa thuốc khác (${conflictBatch.medicineId}). Vui lòng chọn thùng trống hoặc đúng loại thuốc.`,
+      });
+    }
+
     const query = {
       medicineId,
       branchId: 'CENTRAL_WH',
@@ -2839,10 +2860,9 @@ export class PurchaseService {
           let batch = await this.batchModel.findOne({
             medicineId: item.medicineId,
             batchNo: item.batchNo,
-            'location.zone': newLocation.zone,
-            'location.rack': newLocation.rack,
-            'location.shelf': newLocation.shelf,
-            'location.bin': newLocation.bin,
+            branchId: 'CENTRAL_WH',
+            // Không lọc theo location: batch vừa bị relocate sang RESERVE
+            // nên location.zone đã đổi. Cần tìm theo batchNo + medicineId.
           }).session(session).exec();
 
           let stockBefore = 0;
@@ -2851,7 +2871,9 @@ export class PurchaseService {
             batch.stock += item.actualQty;
             batch.importPrice = item.unitPrice; // Cập nhật giá nhập
             batch.expDate = item.expDate;
+            // Cập nhật lại location về MAIN (lô này vừa được nhập bù)
             batch.location = newLocation;
+            batch.status = 'ACTIVE';
             await batch.save({ session });
           } else {
             batch = new this.batchModel({
