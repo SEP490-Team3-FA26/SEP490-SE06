@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
+import { Model, Connection } from 'mongoose';
 import { ClientKafka } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { User } from '../../auth-service/src/auth/user.schema';
@@ -9,6 +9,7 @@ import { Cart } from './schemas/cart.schema';
 import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema';
 import { Branch, BranchDocument } from './schemas/branch.schema';
 import { BranchFeedback, BranchFeedbackDocument } from './schemas/branch-feedback.schema';
+import { CustomerSegment, CustomerSegmentDocument } from './schemas/customer-segment.schema';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as zlib from 'zlib';
@@ -47,6 +48,10 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly branchModel: Model<BranchDocument>,
     @InjectModel(BranchFeedback.name)
     private readonly feedbackModel: Model<BranchFeedbackDocument>,
+    @InjectModel(CustomerSegment.name)
+    private readonly segmentModel: Model<CustomerSegmentDocument>,
+    @InjectConnection()
+    private readonly connection: Connection,
     @Inject('INVENTORY_SERVICE')
     private readonly inventoryClient: ClientKafka,
   ) { }
@@ -1170,6 +1175,202 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       .find({ customerPhone }, { orderCode: 1, rating: 1, comment: 1, createdAt: 1 })
       .lean()
       .exec();
+  }
+
+  // =========================================================================
+  // RFM CUSTOMER SEGMENTATION ENGINE
+  // =========================================================================
+
+  async calculateRFMSegments() {
+    this.logger.log('Starting Adaptive Pharmacy RFM segmentation calculation...');
+    const ordersCollection = this.connection.collection('orders');
+
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    const pipeline = [
+      {
+        $match: {
+          patientPhone: { $exists: true, $ne: '', $nin: ['0900000000', 'GUEST_RETAIL'] },
+          paymentStatus: 'PAID',
+          createdAt: { $gte: oneYearAgo },
+        },
+      },
+      {
+        $group: {
+          _id: '$patientPhone',
+          fullName: { $last: '$patientName' },
+          primaryBranchId: { $last: '$branchId' },
+          lastOrderDate: { $max: '$createdAt' },
+          totalOrders: { $sum: 1 },
+          totalSpent: { $sum: '$totalAmount' },
+          itemNames: { $push: '$items.name' },
+        },
+      },
+    ];
+
+    const aggregated = await ordersCollection.aggregate(pipeline).toArray();
+    this.logger.log(`Aggregated ${aggregated.length} customers with valid phone numbers.`);
+
+    const now = new Date();
+    const chronicKeywords = ['tiểu đường', 'huyết áp', 'tim mạch', 'mỡ máu', 'gout', 'khớp', 'metformin', 'amlodipine', 'losartan', 'atorvastatin'];
+
+    for (const item of aggregated) {
+      const phone = item._id;
+      const lastDate = new Date(item.lastOrderDate);
+      const recencyDays = Math.max(0, Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const totalOrders12M = item.totalOrders || 1;
+      const totalSpent12M = item.totalSpent || 0;
+      const avgOrderValue = Math.round(totalSpent12M / totalOrders12M);
+
+      const flattenedNames = (item.itemNames || []).flat().join(' ').toLowerCase();
+      const isChronic = chronicKeywords.some((kw) => flattenedNames.includes(kw));
+      const customerType = isChronic ? 'CHRONIC_PATIENT' : 'GENERAL_RETAIL';
+
+      let rScore = 1;
+      if (isChronic) {
+        if (recencyDays <= 25) rScore = 5;
+        else if (recencyDays <= 35) rScore = 4;
+        else if (recencyDays <= 45) rScore = 3;
+        else if (recencyDays <= 60) rScore = 2;
+        else rScore = 1;
+      } else {
+        if (recencyDays <= 15) rScore = 5;
+        else if (recencyDays <= 30) rScore = 4;
+        else if (recencyDays <= 60) rScore = 3;
+        else if (recencyDays <= 90) rScore = 2;
+        else rScore = 1;
+      }
+
+      let fScore = 1;
+      if (totalOrders12M >= 12) fScore = 5;
+      else if (totalOrders12M >= 6) fScore = 4;
+      else if (totalOrders12M >= 3) fScore = 3;
+      else if (totalOrders12M >= 2) fScore = 2;
+      else fScore = 1;
+
+      let mScore = 1;
+      if (totalSpent12M >= 8000000) mScore = 5;
+      else if (totalSpent12M >= 4000000) mScore = 4;
+      else if (totalSpent12M >= 1500000) mScore = 3;
+      else if (totalSpent12M >= 500000) mScore = 2;
+      else mScore = 1;
+
+      const rfmScoreStr = `${rScore}${fScore}${mScore}`;
+
+      let segment = 'POTENTIAL_LOYALIST';
+      let recommendedVoucher = 'VOUCHER_NEW_5K';
+      let predictedRefillDate: Date | undefined = undefined;
+
+      if (rScore >= 4 && fScore >= 4 && mScore >= 4) {
+        segment = 'CHAMPIONS';
+        recommendedVoucher = 'VOUCHER_VIP_DIAMOND';
+      } else if (isChronic && rScore >= 3 && fScore >= 3) {
+        segment = 'LOYAL_CHRONIC';
+        recommendedVoucher = 'VOUCHER_REFILL_FREESHIP';
+        predictedRefillDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      } else if (rScore <= 2 && (fScore >= 3 || mScore >= 3)) {
+        segment = 'AT_RISK';
+        recommendedVoucher = 'VOUCHER_WINBACK_15PCT';
+      } else if (rScore === 1 && fScore <= 2) {
+        segment = 'HIBERNATING';
+        recommendedVoucher = 'VOUCHER_COMEBACK_10K';
+      } else if (rScore >= 4 && fScore <= 2) {
+        segment = 'POTENTIAL_LOYALIST';
+        recommendedVoucher = 'VOUCHER_WELCOME_2ND';
+      }
+
+      await this.segmentModel.findOneAndUpdate(
+        { phone },
+        {
+          $set: {
+            fullName: item.fullName || 'Khách hàng',
+            primaryBranchId: item.primaryBranchId || 'BR-001',
+            customerType,
+            lastOrderDate: lastDate,
+            recencyDays,
+            totalOrders12M,
+            totalSpent12M,
+            avgOrderValue,
+            rScore,
+            fScore,
+            mScore,
+            rfmScoreStr,
+            segment,
+            predictedRefillDate,
+            recommendedVoucher,
+            lastEvaluatedAt: new Date(),
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+
+    this.logger.log('Adaptive Pharmacy RFM segmentation completed successfully.');
+    return { success: true, totalProcessed: aggregated.length };
+  }
+
+  async getCustomerSegmentByPhone(phone: string) {
+    if (!phone) return null;
+    const seg = await this.segmentModel.findOne({ phone }).lean();
+    if (seg) return seg;
+
+    return {
+      phone,
+      segment: 'POTENTIAL_LOYALIST',
+      customerType: 'GENERAL_RETAIL',
+      rScore: 5,
+      fScore: 1,
+      mScore: 1,
+      rfmScoreStr: '511',
+      recommendedVoucher: 'VOUCHER_WELCOME',
+    };
+  }
+
+  async getRFMOverview(branchId?: string) {
+    const filter: any = {};
+    if (branchId) filter.primaryBranchId = branchId;
+
+    const segments = await this.segmentModel.find(filter).lean();
+    const summary: Record<string, { count: number; totalRevenue: number; avgSpent: number }> = {
+      CHAMPIONS: { count: 0, totalRevenue: 0, avgSpent: 0 },
+      LOYAL_CHRONIC: { count: 0, totalRevenue: 0, avgSpent: 0 },
+      POTENTIAL_LOYALIST: { count: 0, totalRevenue: 0, avgSpent: 0 },
+      AT_RISK: { count: 0, totalRevenue: 0, avgSpent: 0 },
+      HIBERNATING: { count: 0, totalRevenue: 0, avgSpent: 0 },
+    };
+
+    segments.forEach((s: any) => {
+      const segName = s.segment || 'POTENTIAL_LOYALIST';
+      if (!summary[segName]) {
+        summary[segName] = { count: 0, totalRevenue: 0, avgSpent: 0 };
+      }
+      summary[segName].count++;
+      summary[segName].totalRevenue += s.totalSpent12M || 0;
+    });
+
+    Object.keys(summary).forEach((k) => {
+      if (summary[k].count > 0) {
+        summary[k].avgSpent = Math.round(summary[k].totalRevenue / summary[k].count);
+      }
+    });
+
+    return {
+      totalCustomers: segments.length,
+      segments: summary,
+    };
+  }
+
+  async getAtRiskCustomers(query?: { branchId?: string; limit?: number }) {
+    const filter: any = { segment: 'AT_RISK' };
+    if (query?.branchId) filter.primaryBranchId = query.branchId;
+
+    const limit = query?.limit || 50;
+    return await this.segmentModel
+      .find(filter)
+      .sort({ totalSpent12M: -1 })
+      .limit(limit)
+      .lean();
   }
 }
 

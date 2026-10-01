@@ -259,7 +259,8 @@ async def build_prescription_scan_response(ocr_result: dict, start_time: float):
 @router.post("/api/prescription")
 async def recommend_prescription(
     audio: UploadFile = File(...),
-    patient_id: str = Form(None)
+    patient_id: str = Form(None),
+    branch_id: str = Form(None)
 ):
     start_time = time.time()
     try:
@@ -269,15 +270,15 @@ async def recommend_prescription(
         # Step 2: Chuẩn hóa lỗi STT trước khi truy vấn vector DB.
         rag_query = await normalize_transcript_for_retrieval(transcribed_text)
 
-        # Step 3: RAG - Lấy context y tế từ Qdrant Vector DB
-        context = await retrieve_medical_context(rag_query)
+        # Step 3: RAG - Lấy context y tế từ Qdrant Vector DB & MongoDB (Branch Inventory-Aware)
+        context = await retrieve_medical_context(rag_query, branch_id=branch_id)
         
         # Step 4: LLM - Kê đơn
         prescription = await generate_prescription(rag_query, context)
         
-        # Step 5: DB Validation - Kiểm tra tồn kho
+        # Step 5: DB Validation - Kiểm tra tồn kho vật lý tại chi nhánh & tìm thuốc thay thế
         drug_names = [drug.get("name") for drug in prescription.get("recommended_drugs", []) if drug.get("name")]
-        inventory_status = await validate_drugs_in_inventory(drug_names)
+        inventory_status = await validate_drugs_in_inventory(drug_names, branch_id=branch_id)
         
         # Output kết quả
         return {
@@ -286,6 +287,7 @@ async def recommend_prescription(
             "rag_query": rag_query,
             "prescription": prescription,
             "inventory_status": inventory_status,
+            "branch_id": branch_id,
             "rag_context_used": bool(context),
             "processing_time_sec": round(time.time() - start_time, 2)
         }
@@ -299,25 +301,27 @@ from pydantic import BaseModel
 
 class SymptomRequest(BaseModel):
     symptoms: str
+    branch_id: str | None = None
 
 @router.post("/api/ai/symptom-consult")
 async def symptom_consult(req: SymptomRequest):
     start_time = time.time()
     try:
-        # Step 1: RAG - Lấy context y tế từ Qdrant Vector DB
-        context = await retrieve_medical_context(req.symptoms)
+        # Step 1: RAG - Lấy context y tế từ Qdrant / MongoDB ưu tiên kho chi nhánh
+        context = await retrieve_medical_context(req.symptoms, branch_id=req.branch_id)
         
         # Step 2: LLM - Kê đơn
         prescription = await generate_prescription(req.symptoms, context)
         
-        # Step 3: DB Validation - Kiểm tra tồn kho
+        # Step 3: DB Validation - Kiểm tra tồn kho vật lý tại chi nhánh & tìm thuốc thay thế
         drug_names = [drug.get("name") for drug in prescription.get("recommended_drugs", []) if drug.get("name")]
-        inventory_status = await validate_drugs_in_inventory(drug_names)
+        inventory_status = await validate_drugs_in_inventory(drug_names, branch_id=req.branch_id)
         
         return {
             "success": True,
             "prescription": prescription,
             "inventory_status": inventory_status,
+            "branch_id": req.branch_id,
             "rag_context_used": bool(context),
             "processing_time_sec": round(time.time() - start_time, 2)
         }

@@ -3,7 +3,9 @@ import re
 import unicodedata
 import httpx
 import pymongo
+from bson import ObjectId
 from qdrant_client import QdrantClient
+from services.db_service import get_branch_stock_map
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "medical_knowledge")
@@ -210,12 +212,16 @@ def extract_search_intent(query: str):
     }
 
 
-async def retrieve_medical_context(query: str, top_k: int = 8) -> str:
+async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | None = None) -> str:
     """
     Tim kiem ngu canh y te & danh sach thuoc thuc te tu MongoDB/Qdrant
-    Ket hop tim kiem theo y dinh lam sang va cham diem do phu hop (Relevance Scoring).
+    Ket hop tim kiem theo y dinh lam sang, tinh diem do phu hop (Relevance Scoring)
+    va ho tro danh sach ton kho theo chi nhanh (Branch Inventory Awareness).
     """
     context_parts = []
+    seen_names = set()
+
+    branch_stock_map = get_branch_stock_map(branch_id) if branch_id else {}
 
     # 1. Thu tim Vector DB qua Qdrant neu collection ton tai va co du lieu
     if qdrant is not None:
@@ -231,16 +237,31 @@ async def retrieve_medical_context(query: str, top_k: int = 8) -> str:
                 )
                 for hit in results:
                     drug = hit.payload or {}
+                    name = drug.get("name", "N/A")
+                    if name in seen_names:
+                        continue
+                    seen_names.add(name)
+
+                    med_id = str(drug.get("medicine_id") or drug.get("id") or "")
+                    if branch_id and branch_stock_map:
+                        branch_stock = branch_stock_map.get(med_id, 0)
+                        if branch_stock > 0:
+                            stock_label = f"[CÒN HÀNG TẠI CHI NHÁNH {branch_id}] - Tồn: {branch_stock}"
+                        else:
+                            stock_label = f"[HẾT HÀNG TẠI CHI NHÁNH {branch_id} - TỒN: 0] (Chỉ dùng nếu không có thuốc thay thế)"
+                    else:
+                        stock_label = f"Tồn kho: {drug.get('stock_quantity', 'N/A')}"
+
                     context_parts.append(
-                        f"**{drug.get('name', 'N/A')}** ({drug.get('active_ingredient', 'N/A')})\n"
+                        f"**{name}** ({drug.get('active_ingredient', 'N/A')})\n"
                         f"- Do tuong dong vector: {hit.score:.4f}\n"
-                        f"- Ton kho: {drug.get('stock_quantity', 'N/A')}\n"
-                        f"- Chi dinh: {drug.get('indications', 'N/A')}\n"
-                        f"- Lieu dung: {drug.get('default_dosage', 'N/A')}\n"
-                        f"- Chong chi dinh: {drug.get('contraindications', 'N/A')}\n"
-                        f"- Tuong tac thuoc: {drug.get('drug_interactions', 'N/A')}"
+                        f"- TÌNH TRẠNG KHO: {stock_label}\n"
+                        f"- Chỉ định: {drug.get('indications', 'N/A')}\n"
+                        f"- Liều dùng: {drug.get('default_dosage', 'N/A')}\n"
+                        f"- Chống chỉ định: {drug.get('contraindications', 'N/A')}\n"
+                        f"- Tương tác thuốc: {drug.get('drug_interactions', 'N/A')}"
                     )
-        except Exception as exc:
+        except Exception:
             pass
 
     # 2. Truy van thong minh truc tiep tu MongoDB (Single Source of Truth)
@@ -268,14 +289,18 @@ async def retrieve_medical_context(query: str, top_k: int = 8) -> str:
 
             scored_drugs = []
             for doc in candidates:
-                details = doc.get("thong_tin_chi_tiet") or {}
+                mid = str(doc.get("_id"))
                 name = str(doc.get("name") or "")
+                if name in seen_names:
+                    continue
+
+                details = doc.get("thong_tin_chi_tiet") or {}
                 name_lower = name.lower()
                 active = str(doc.get("active_ingredient") or details.get("Thành phần") or "").lower()
                 category = str(doc.get("category") or details.get("Danh mục") or "").lower()
                 indications = str(details.get("Chỉ định") or doc.get("indications") or "").lower()
                 form = str(details.get("Dạng bào chế") or "").lower()
-                stock = doc.get("stock") or doc.get("stock_quantity") or 0
+                unit = str(doc.get("unit") or "Hộp")
 
                 score = 0
 
@@ -301,11 +326,23 @@ async def retrieve_medical_context(query: str, top_k: int = 8) -> str:
                     if kw_lower in indications:
                         score += 5
 
-                # 3. Uu tien san pham con ton kho
-                if stock > 0:
-                    score += 10
+                # 3. Kiem tra ton kho (theo chi nhanh neu co, hoac kho tong)
+                if branch_id and branch_stock_map:
+                    branch_stock = branch_stock_map.get(mid, 0)
+                    if branch_stock > 0:
+                        score += 30  # Uu tien rat cao thuoc dang co san tai chi nhanh
+                        stock_label = f"[CÒN HÀNG TẠI CHI NHÁNH {branch_id}] - Tồn: {branch_stock} {unit}"
+                    else:
+                        score -= 10
+                        stock_label = f"[HẾT HÀNG TẠI CHI NHÁNH {branch_id} - TỒN: 0] (Chỉ dùng nếu không có thuốc thay thế)"
                 else:
-                    score -= 5
+                    stock = doc.get("stock") or doc.get("stock_quantity") or 0
+                    if stock > 0:
+                        score += 10
+                        stock_label = f"Còn {stock} sản phẩm"
+                    else:
+                        score -= 5
+                        stock_label = "Tạm hết hàng"
 
                 # 4. Uu tien dang thuoc uong cho benh noi khoa (dau dau, sot, da day, tieu chay...)
                 is_oral = any(w in form or w in name_lower for w in ["viên", "nén", "sủi", "gói", "uống", "siro", "capsule", "tablet"])
@@ -315,12 +352,11 @@ async def retrieve_medical_context(query: str, top_k: int = 8) -> str:
                     if is_oral:
                         score += 20
                     if penalize_external and is_external:
-                        score -= 50  # Tru nang neu dang bi dau dau/sot ma dua cao dan cơ
+                        score -= 50  # Tru nang neu dang bi dau dau/sot ma dua cao dan co
 
                 scored_drugs.append({
                     "doc": doc,
                     "score": score,
-                    "stock": stock,
                     "name": name,
                     "active": active,
                     "category": category,
@@ -328,6 +364,7 @@ async def retrieve_medical_context(query: str, top_k: int = 8) -> str:
                     "dosage": details.get("Liều dùng") or doc.get("default_dosage") or "Theo huong dan nha san xuat",
                     "contra": details.get("Chống chỉ định") or doc.get("contraindications") or "Khong ro",
                     "form": form or "Thuoc",
+                    "stock_label": stock_label,
                 })
 
             # Sap xep theo diem so giam dan
@@ -338,11 +375,10 @@ async def retrieve_medical_context(query: str, top_k: int = 8) -> str:
 
             mongo_parts = []
             for item in top_medicines:
-                d = item["doc"]
                 mongo_parts.append(
                     f"**{item['name']}** (Hoạt chất: {item['active'] or 'Theo nhan hang'})\n"
                     f"- Danh mục & Dạng bào chế: {item['category']} | {item['form']}\n"
-                    f"- TÌNH TRẠNG KHO: Còn {item['stock']} sản phẩm\n"
+                    f"- TÌNH TRẠNG KHO: {item['stock_label']}\n"
                     f"- Chỉ định điều trị: {item['indications'] or 'Chi tiet tren bao bi san pham'}\n"
                     f"- Liều dùng khuyến nghị: {item['dosage']}\n"
                     f"- Chống chỉ định: {item['contra']}"

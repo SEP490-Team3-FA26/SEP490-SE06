@@ -184,6 +184,28 @@ export class UserServiceController {
     return this.userService.getFeedbacksByCustomerPhone(data.customerPhone);
   }
 
+  // --- RFM CUSTOMER SEGMENTATION ---
+
+  @MessagePattern('user.rfm.get_by_phone')
+  handleGetCustomerRFM(@Payload() data: { phone: string }) {
+    return this.userService.getCustomerSegmentByPhone(data.phone);
+  }
+
+  @MessagePattern('user.rfm.overview')
+  handleGetRFMOverview(@Payload() data: { branchId?: string }) {
+    return this.userService.getRFMOverview(data?.branchId);
+  }
+
+  @MessagePattern('user.rfm.recalculate')
+  handleRecalculateRFM() {
+    return this.userService.calculateRFMSegments();
+  }
+
+  @MessagePattern('user.rfm.at_risk_list')
+  handleGetAtRiskCustomers(@Payload() data: { branchId?: string; limit?: number }) {
+    return this.userService.getAtRiskCustomers(data);
+  }
+
   // --- HR: WORK SHIFT ---
   @MessagePattern('hr.shift.list')
   handleListShifts(@Payload() data: { branchId: string }) {

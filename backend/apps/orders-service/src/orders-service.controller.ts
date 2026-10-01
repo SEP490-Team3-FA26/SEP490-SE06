@@ -126,4 +126,54 @@ export class OrdersServiceController {
       throw new RpcException(error.message || 'Lỗi hệ thống khi tổng hợp dòng tiền');
     }
   }
+
+  @MessagePattern('orders.payment.webhook_received')
+  async handlePaymentWebhook(@Payload() payload: any) {
+    try {
+      return await this.ordersServiceService.handlePaymentWebhook(payload);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi xử lý webhook thanh toán');
+    }
+  }
+
+  @MessagePattern('orders.reconciliation.manual_override')
+  async handleManualOverride(@Payload() data: any) {
+    try {
+      return await this.ordersServiceService.handleManualOverride(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi xác nhận thanh toán khẩn cấp');
+    }
+  }
+
+  @MessagePattern('orders.reconciliation.get_discrepancies')
+  async getReconciliationDiscrepancies(@Payload() query: any) {
+    try {
+      return await this.ordersServiceService.getReconciliationDiscrepancies(query);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách chênh lệch đối soát');
+    }
+  }
+
+  @MessagePattern('orders.reconciliation.summary')
+  async getReconciliationSummary(@Payload() query: any) {
+    try {
+      return await this.ordersServiceService.getReconciliationSummary(query);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi tổng hợp báo cáo đối soát');
+    }
+  }
+
+  @MessagePattern('orders.reconciliation.resolve')
+  async resolveDiscrepancy(@Payload() payload: any) {
+    try {
+      return await this.ordersServiceService.resolveDiscrepancy(payload);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi xử lý biên bản đối soát');
+    }
+  }
 }
