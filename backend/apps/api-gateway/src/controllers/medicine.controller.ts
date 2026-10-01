@@ -715,43 +715,4 @@ export class MedicineController implements OnModuleInit {
       };
     }
   }
-
-
-
-
-  @Post('check-interaction')
-  @ApiOperation({ summary: 'Kiểm tra tương tác giữa các loại thuốc (AI-driven)' })
-  async checkInteraction(@Body('medicines') medicines: string[]) {
-    if (!medicines || medicines.length < 2) {
-      throw new HttpException('Cần ít nhất 2 loại thuốc để kiểm tra tương tác', HttpStatus.BAD_REQUEST);
-    }
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
-
-      const aiUrl = process.env.AI_SERVICE_URL || 'http://ai-service:8000';
-      const response = await fetch(`${aiUrl}/api/ai/interactions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Internal-Token': process.env.JWT_SECRET || 'wdp301-super-secret-key-change-in-production',
-        },
-        body: JSON.stringify({ medicines }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new HttpException('Failed to check interactions from AI Service', HttpStatus.BAD_GATEWAY);
-      }
-
-      return await response.json();
-    } catch (error) {
-      throw new HttpException(error.message || 'Lỗi khi gọi AI Service', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-
 }
