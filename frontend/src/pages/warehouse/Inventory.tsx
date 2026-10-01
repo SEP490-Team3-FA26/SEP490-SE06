@@ -216,8 +216,11 @@ export function Inventory() {
       setQuarantiningId(batchId);
       await inventoryMapService.quarantineBatch(batchId, "Khóa cách ly từ tab Cần xử lý");
       alert("Đã gửi yêu cầu cách ly lô thuốc.");
-      fetchExpirationReport();
-      fetchStats();
+      // Delay 800ms để Kafka consumer ghi nhận cập nhật DB trước khi re-fetch
+      setTimeout(() => {
+        fetchExpirationReport();
+        fetchStats();
+      }, 800);
     } catch (e: any) {
       alert("Lỗi khi khóa lô: " + (e.message || "Lỗi không xác định"));
     } finally {
