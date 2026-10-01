@@ -2354,8 +2354,9 @@ export class MedicineService implements OnModuleInit {
         locationMap.set(`${loc.shelf}-${loc.bin}`, loc);
       }
 
-      // Lấy tồn kho thực (batch MAIN còn stock > 0) cho kệ này
+      // Lấy tồn kho thực (batch MAIN còn stock > 0) cho kệ này - CHỈ Kho Tổng
       const activeBatches = await this.batchModel.find({
+        branchId: 'CENTRAL_WH',
         'location.zone': zone,
         'location.rack': rack,
         'location.slotType': 'MAIN',
@@ -2395,8 +2396,9 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
-      // Kiểm tra lô RESERVE (lô cũ chờ xuất) theo medicineId
+      // Kiểm tra lô RESERVE (lô cũ chờ xuất) theo medicineId - CHỈ Kho Tổng
       const reserveBatches = await this.batchModel.find({
+        branchId: 'CENTRAL_WH',
         'location.slotType': 'RESERVE',
         stock: { $gt: 0 },
       }, { medicineId: 1 }).lean().exec();
