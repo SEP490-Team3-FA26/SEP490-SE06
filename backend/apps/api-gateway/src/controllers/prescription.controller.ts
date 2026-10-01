@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Inject,
   OnModuleInit,
@@ -483,6 +484,80 @@ export class PrescriptionController implements OnModuleInit {
         error.message || "Lỗi kết nối hoặc xử lý từ AI Chat Service",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @Get("chat/sessions")
+  @UseGuards(JwtAuthGuard)
+  async getChatSessions(@Req() req: any) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        return { success: true, sessions: [] };
+      }
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions?user_id=${userId}`);
+      if (!response.ok) {
+        return { success: true, sessions: [] };
+      }
+      return await response.json();
+    } catch (error) {
+      return { success: true, sessions: [] };
+    }
+  }
+
+  @Post("chat/sessions")
+  @UseGuards(JwtAuthGuard)
+  async saveChatSession(@Req() req: any, @Body() body: any) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        return { success: false, message: "Yêu cầu đăng nhập" };
+      }
+      const aiServiceHost = this.getAiServiceHost();
+      const payload = {
+        user_id: userId,
+        session_id: body.session_id || body.id,
+        title: body.title || "Cuộc trò chuyện",
+        messages: body.messages || [],
+        created_at: body.created_at || body.createdAt,
+        updated_at: body.updated_at || body.updatedAt,
+      };
+
+      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new HttpException(`Lỗi lưu session: ${errorText}`, HttpStatus.BAD_GATEWAY);
+      }
+      return await response.json();
+    } catch (error) {
+      throw new HttpException(error.message || "Lỗi lưu phiên trò chuyện", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Delete("chat/sessions/:sessionId")
+  @UseGuards(JwtAuthGuard)
+  async deleteChatSession(@Req() req: any, @Param("sessionId") sessionId: string) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        return { success: false };
+      }
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions/${sessionId}?user_id=${userId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        return { success: false };
+      }
+      return await response.json();
+    } catch (error) {
+      return { success: false };
     }
   }
 

@@ -192,5 +192,32 @@ export const prescriptionService = {
     const response = await api.post('/api/prescriptions/chat', payload);
     return response.data;
   },
+
+  async getChatSessions() {
+    try {
+      const response = await api.get('/api/prescriptions/chat/sessions');
+      return response.data;
+    } catch {
+      return { success: false, sessions: [] };
+    }
+  },
+
+  async saveChatSession(session: any) {
+    try {
+      const response = await api.post('/api/prescriptions/chat/sessions', session);
+      return response.data;
+    } catch {
+      return { success: false };
+    }
+  },
+
+  async deleteChatSession(sessionId: string) {
+    try {
+      const response = await api.delete(`/api/prescriptions/chat/sessions/${sessionId}`);
+      return response.data;
+    } catch {
+      return { success: false };
+    }
+  },
 };
 

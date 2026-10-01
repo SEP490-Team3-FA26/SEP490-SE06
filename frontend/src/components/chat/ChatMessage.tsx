@@ -70,9 +70,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         {/* Header bot */}
         <div className="flex items-center gap-1.5 px-0.5">
           <span className="text-xs font-bold text-slate-800">Dược sĩ AI</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-blue-100 text-blue-700">
-            DeepSeek Flash
-          </span>
           <span className="text-[10px] text-slate-400 ml-auto">{message.timestamp}</span>
         </div>
 
@@ -141,20 +138,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         {message.follow_up_question && (
           <div className="bg-sky-50/70 border border-sky-200/70 rounded-xl p-2.5 flex items-start gap-2">
             <CornerDownRight size={14} className="text-sky-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-xs text-sky-900 font-semibold mb-1.5">
-                {message.follow_up_question}
-              </p>
-              {onQuickReplySelect && (
-                <button
-                  type="button"
-                  onClick={() => onQuickReplySelect(message.follow_up_question || "")}
-                  className="text-[11px] font-bold text-sky-700 bg-white hover:bg-sky-100/80 px-2 py-0.5 rounded-md border border-sky-200 transition-colors cursor-pointer"
-                >
-                  Trả lời câu hỏi này
-                </button>
-              )}
-            </div>
+            <p className="text-xs text-sky-900 font-semibold leading-relaxed">
+              {message.follow_up_question}
+            </p>
           </div>
         )}
 

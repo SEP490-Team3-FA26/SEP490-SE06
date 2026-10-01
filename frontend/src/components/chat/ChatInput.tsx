@@ -47,7 +47,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className="w-full bg-white border-t border-slate-100 p-3 flex flex-col gap-1.5">
+    <div className="w-full bg-white border-t border-slate-100 p-3">
       <div className="relative flex items-end gap-2 bg-slate-50 border border-slate-200/90 rounded-2xl p-1.5 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
         <textarea
           ref={textareaRef}
@@ -69,15 +69,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow active:scale-95"
               : "bg-slate-200 text-slate-400 cursor-not-allowed"
           }`}
-          title="Gửi tin nhắn (Enter)"
+          title="Gửi tin nhắn"
         >
           <Send size={16} className={text.trim() ? "translate-x-0.5" : ""} />
         </button>
-      </div>
-
-      <div className="flex items-center justify-between px-1 text-[10px] text-slate-400">
-        <span>Nhấn <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Enter</kbd> để gửi, <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Shift+Enter</kbd> xuống dòng</span>
-        <span className="font-semibold text-blue-600/70">DeepSeek Flash AI</span>
       </div>
     </div>
   );

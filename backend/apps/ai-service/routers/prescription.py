@@ -43,6 +43,19 @@ def get_mongo_collection():
     return client[db_name]["medicines"]
 
 
+def get_chat_sessions_collection():
+    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
+    if not uri:
+        raise Exception("MongoDB URI not set")
+    client = pymongo.MongoClient(uri)
+    db_name = "WDP201"
+    if "net/" in uri:
+        parts = uri.split("net/")
+        if len(parts) > 1:
+            db_name = parts[1].split("?")[0]
+    return client[db_name]["chat_sessions"]
+
+
 def _normalize_medicine_text(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", (value or "").lower())).strip()
 
@@ -447,6 +460,81 @@ async def chat_consult(req: ChatRequest):
             "rag_context_used": bool(context),
             "processing_time_sec": round(time.time() - start_time, 2)
         }
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SaveSessionRequest(BaseModel):
+    user_id: str
+    session_id: str
+    title: str
+    messages: list[dict]
+    created_at: int | None = None
+    updated_at: int | None = None
+
+@router.get("/api/ai/chat/sessions")
+async def get_chat_sessions(user_id: str):
+    """
+    Lấy danh sách các phiên trò chuyện của user từ MongoDB
+    """
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Thiếu user_id")
+    try:
+        col = get_chat_sessions_collection()
+        docs = list(col.find({"user_id": user_id}).sort("updated_at", -1).limit(50))
+        sessions = []
+        for doc in docs:
+            sessions.append({
+                "id": doc.get("session_id"),
+                "title": doc.get("title") or "Cuộc trò chuyện",
+                "createdAt": doc.get("created_at") or int(time.time() * 1000),
+                "updatedAt": doc.get("updated_at") or int(time.time() * 1000),
+                "messages": doc.get("messages", [])
+            })
+        return {"success": True, "sessions": sessions}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/ai/chat/sessions")
+async def save_chat_session(req: SaveSessionRequest):
+    """
+    Lưu hoặc cập nhật phiên trò chuyện vào MongoDB
+    """
+    if not req.user_id or not req.session_id:
+        raise HTTPException(status_code=400, detail="Thiếu user_id hoặc session_id")
+    try:
+        col = get_chat_sessions_collection()
+        now = int(time.time() * 1000)
+        data = {
+            "user_id": req.user_id,
+            "session_id": req.session_id,
+            "title": req.title,
+            "messages": req.messages,
+            "created_at": req.created_at or now,
+            "updated_at": req.updated_at or now
+        }
+        col.update_one(
+            {"user_id": req.user_id, "session_id": req.session_id},
+            {"$set": data},
+            upsert=True
+        )
+        return {"success": True, "session_id": req.session_id}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/api/ai/chat/sessions/{session_id}")
+async def delete_chat_session(session_id: str, user_id: str):
+    """
+    Xóa phiên trò chuyện khỏi MongoDB
+    """
+    if not user_id or not session_id:
+        raise HTTPException(status_code=400, detail="Thiếu user_id hoặc session_id")
+    try:
+        col = get_chat_sessions_collection()
+        col.delete_one({"user_id": user_id, "session_id": session_id})
+        return {"success": True}
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
