@@ -941,13 +941,68 @@ export class PurchaseService {
         branchId: 'CENTRAL_WH',
       }).exec();
 
+      // === TASK 4: Auto-move lô cũ sang Khu Dự Trữ khi lô mới được xếp vào thùng ===
+      // Chỉ thực hiện khi GRN item có shelvedLocation (thủ kho đã chọn vị trí thùng cụ thể)
+      if (item.shelvedLocation) {
+        const { zone, rack, shelf, bin } = item.shelvedLocation;
+        const oldMainBatches = await this.batchModel.find({
+          medicineId: item.medicineId,
+          branchId: 'CENTRAL_WH',
+          'location.zone': zone,
+          'location.rack': rack,
+          'location.shelf': shelf,
+          'location.bin': bin,
+          'location.slotType': 'MAIN',
+          stock: { $gt: 0 },
+        }).exec();
+
+        if (oldMainBatches.length > 0) {
+          // Dời tất cả lô cũ còn tồn sang Khu Dự Trữ (FEFO: xuất lô này trước)
+          await this.batchModel.updateMany(
+            { _id: { $in: oldMainBatches.map(b => b._id) } },
+            {
+              $set: {
+                'location.zone': 'RESERVE',
+                'location.rack': 'RESERVE',
+                'location.slotType': 'RESERVE',
+                // Giữ nguyên shelf và bin để trace lịch sử vị trí cũ
+              }
+            }
+          ).exec();
+          this.logger.log(
+            `[GRN Approve] Đã dời ${oldMainBatches.length} lô cũ của thuốc ${item.medicineId} sang Khu Dự Trữ (zone=RESERVE)`
+          );
+        }
+      }
+
       const stockBefore = batch ? batch.stock : 0;
       if (batch) {
         batch.stock += (item.actualQty ?? 0);
         batch.importPrice = item.unitPrice; // Cập nhật giá nhập mới nhất
         batch.status = batch.expDate < new Date() ? 'EXPIRED' : 'ACTIVE';
+        // === TASK 3: Copy shelvedLocation → batch.location ===
+        if (item.shelvedLocation) {
+          batch.location = {
+            zone:     item.shelvedLocation.zone,
+            rack:     item.shelvedLocation.rack,
+            shelf:    item.shelvedLocation.shelf,
+            bin:      item.shelvedLocation.bin,
+            slotType: item.shelvedLocation.slotType ?? 'MAIN',
+          };
+        }
         await batch.save();
       } else {
+        // Xác định location cho batch mới
+        const batchLocation = item.shelvedLocation
+          ? {
+              zone:     item.shelvedLocation.zone,
+              rack:     item.shelvedLocation.rack,
+              shelf:    item.shelvedLocation.shelf,
+              bin:      item.shelvedLocation.bin,
+              slotType: item.shelvedLocation.slotType ?? 'MAIN',
+            }
+          : { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const };
+
         batch = new this.batchModel({
           medicineId: item.medicineId,
           branchId: 'CENTRAL_WH',
@@ -956,6 +1011,7 @@ export class PurchaseService {
           stock: (item.actualQty ?? 0),
           importPrice: item.unitPrice,
           status: new Date(item.expDate) < new Date() ? 'EXPIRED' : 'ACTIVE',
+          location: batchLocation,
         });
         await batch.save();
       }
@@ -2315,22 +2371,51 @@ export class PurchaseService {
       for (const item of grn.items) {
         if (item.actualQty > 0) {
           // Lưu vào MedicineBatch - tìm theo batchNo + location để tránh gộp nhầm lô khác vị trí
-          const newLocation = (item as any).location || null;
-          let batch = null;
+          const locSource = (item as any).shelvedLocation || (item as any).location || null;
+          const newLocation = locSource ? {
+            zone: locSource.zone || 'A',
+            rack: locSource.rack || 'A1',
+            shelf: Number(locSource.shelf || 1),
+            bin: Number(locSource.bin || 1),
+            slotType: (locSource.slotType || 'MAIN') as 'MAIN' | 'RESERVE',
+          } : { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const };
 
-          if (newLocation) {
-            // Tìm batch trùng cả batchNo lẫn location
-            batch = await this.batchModel.findOne({
+          // Auto-move lô cũ của thuốc này trong cùng thùng sang Khu Dự Trữ
+          if (newLocation.slotType === 'MAIN') {
+            const oldMainBatches = await this.batchModel.find({
               medicineId: item.medicineId,
-              batchNo: item.batchNo,
+              branchId: 'CENTRAL_WH',
               'location.zone': newLocation.zone,
               'location.rack': newLocation.rack,
               'location.shelf': newLocation.shelf,
+              'location.bin': newLocation.bin,
+              'location.slotType': 'MAIN',
+              stock: { $gt: 0 },
             }).session(session).exec();
-          } else {
-            // Fallback: tìm theo batchNo như cũ (khi không có location)
-            batch = await this.batchModel.findOne({ medicineId: item.medicineId, batchNo: item.batchNo }).session(session).exec();
+
+            if (oldMainBatches.length > 0) {
+              await this.batchModel.updateMany(
+                { _id: { $in: oldMainBatches.map(b => b._id) } },
+                {
+                  $set: {
+                    'location.zone': 'RESERVE',
+                    'location.rack': 'RESERVE',
+                    'location.slotType': 'RESERVE',
+                  }
+                }
+              ).session(session).exec();
+              this.logger.log(`[Inspection Approve] Đã dời ${oldMainBatches.length} lô cũ sang Khu Dự Trữ`);
+            }
           }
+
+          let batch = await this.batchModel.findOne({
+            medicineId: item.medicineId,
+            batchNo: item.batchNo,
+            'location.zone': newLocation.zone,
+            'location.rack': newLocation.rack,
+            'location.shelf': newLocation.shelf,
+            'location.bin': newLocation.bin,
+          }).session(session).exec();
 
           let stockBefore = 0;
           if (batch) {
@@ -2338,7 +2423,7 @@ export class PurchaseService {
             batch.stock += item.actualQty;
             batch.importPrice = item.unitPrice; // Cập nhật giá nhập
             batch.expDate = item.expDate;
-            if (newLocation) (batch as any).location = newLocation;
+            batch.location = newLocation;
             await batch.save({ session });
           } else {
             batch = new this.batchModel({
