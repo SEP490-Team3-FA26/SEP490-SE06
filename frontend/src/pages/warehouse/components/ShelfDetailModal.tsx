@@ -58,8 +58,11 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
       setQuarantining(batchId);
       await inventoryMapService.quarantineBatch(batchId, "Khóa thủ công từ sơ đồ kho (cận date / hết hạn)");
       alert("Đã gửi yêu cầu cách ly lô thuốc.");
-      loadData();
-      if (onRefresh) onRefresh();
+      // Delay 800ms để Kafka consumer ghi DB xong trước khi re-fetch
+      setTimeout(() => {
+        loadData();
+        if (onRefresh) onRefresh();
+      }, 800);
     } catch (err: any) {
       alert(err.message || "Lỗi khi khóa lô");
     } finally {

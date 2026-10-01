@@ -24,7 +24,7 @@ const SHELF_OPTIONS = [1, 2, 3, 4];
 const BIN_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 const getRackOptions = (zone: string) => {
-  const counts: Record<string, number> = { A: 4, B: 4, C: 3, D: 4, E: 4, F: 4 };
+  const counts: Record<string, number> = { A: 4, B: 4, C: 4, D: 4, E: 4, F: 4 };
   const n = counts[zone] || 4;
   return Array.from({ length: n }, (_, i) => `${zone}${i + 1}`);
 };
