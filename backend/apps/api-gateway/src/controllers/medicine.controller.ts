@@ -10,6 +10,7 @@ import {
   Patch,
   Inject,
   OnModuleInit,
+  HttpCode,
   HttpException,
   HttpStatus,
   UseGuards,
@@ -417,6 +418,7 @@ export class MedicineController implements OnModuleInit {
 
   // POST /api/medicines/assign-location
   @Post('assign-location')
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
   @ApiBearerAuth()
@@ -424,12 +426,13 @@ export class MedicineController implements OnModuleInit {
   async assignMedicineLocation(@Body() dto: {
     medicineId: string; zone: string; rack: string; shelf: number; bin: number; maxCapacity?: number;
   }) {
-    this.inventoryClient.emit('inventory.medicine.location.assign', JSON.stringify(dto));
+    this.inventoryClient.emit('inventory.medicine.event.location_assign', JSON.stringify(dto));
     return { status: 'Accepted', message: 'Da gan thuoc vao vi tri thung trong kho.' };
   }
 
   // PATCH /api/medicines/batches/:batchId/quarantine
   @Patch('batches/:batchId/quarantine')
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
   @ApiBearerAuth()
@@ -438,7 +441,7 @@ export class MedicineController implements OnModuleInit {
     @Param('batchId') batchId: string,
     @Body() body?: { reason?: string },
   ) {
-    this.inventoryClient.emit('inventory.medicine.batch.quarantine', JSON.stringify({ batchId, reason: body?.reason }));
+    this.inventoryClient.emit('inventory.medicine.event.quarantine', JSON.stringify({ batchId, reason: body?.reason }));
     return { status: 'Accepted', message: 'Lo thuoc da duoc gui yeu cau cach ly (QUARANTINED).' };
   }
 

@@ -327,24 +327,24 @@ export class MedicineController {
   }
 
   // POST /api/medicines/assign-location (async event)
-  @EventPattern('inventory.medicine.location.assign')
+  @EventPattern('inventory.medicine.event.location_assign')
   async assignMedicineLocation(@Payload() data: string) {
     try {
       const payload = typeof data === 'string' ? JSON.parse(data) : data;
       await this.medicineService.assignMedicineLocation(payload);
     } catch (error) {
-      console.error('[inventory.medicine.location.assign] Error:', error.message);
+      console.error('[inventory.medicine.event.location_assign] Error:', error.message);
     }
   }
 
   // PATCH /api/medicines/batches/:batchId/quarantine (async event)
-  @EventPattern('inventory.medicine.batch.quarantine')
+  @EventPattern('inventory.medicine.event.quarantine')
   async quarantineBatch(@Payload() data: string) {
     try {
       const payload = typeof data === 'string' ? JSON.parse(data) : data;
       await this.medicineService.quarantineBatch(payload);
     } catch (error) {
-      console.error('[inventory.medicine.batch.quarantine] Error:', error.message);
+      console.error('[inventory.medicine.event.quarantine] Error:', error.message);
     }
   }
 }
