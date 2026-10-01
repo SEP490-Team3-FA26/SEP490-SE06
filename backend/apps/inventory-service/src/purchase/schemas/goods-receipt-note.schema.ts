@@ -23,6 +23,29 @@ export class GoodsReceiptNoteItem {
 
   @Prop({ type: Number, required: true, min: 0 })
   unitPrice: number;
+
+  /**
+   * Vị trí thùng được thủ kho chọn khi nghiệm thu (4 cấp: Khu → Kệ → Tầng → Thùng).
+   * Sau khi GRN được duyệt, giá trị này được copy sang MedicineBatch.location.
+   * Nếu null: Batch sẽ dùng location mặc định (A/A1/1/1 MAIN).
+   */
+  @Prop({
+    type: {
+      zone:     { type: String },
+      rack:     { type: String },
+      shelf:    { type: Number },
+      bin:      { type: Number },
+      slotType: { type: String, default: 'MAIN', enum: ['MAIN', 'RESERVE'] },
+    },
+    default: null,
+  })
+  shelvedLocation?: {
+    zone: string;
+    rack: string;
+    shelf: number;
+    bin: number;
+    slotType: 'MAIN' | 'RESERVE';
+  } | null;
 }
 export const GoodsReceiptNoteItemSchema = SchemaFactory.createForClass(GoodsReceiptNoteItem);
 

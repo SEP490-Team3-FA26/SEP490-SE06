@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { MessagePattern, EventPattern, Payload, RpcException } from '@nestjs/microservices';
 import { MedicineService } from './medicine.service';
 
 @Controller()
@@ -286,6 +286,65 @@ export class MedicineController {
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi sinh mã vạch');
+    }
+  }
+
+  // ============================================================
+  // WAREHOUSE MAP - So do kho 4 cap: Khu -> Ke -> Tang -> Thung
+  // ============================================================
+
+  // GET /api/medicines/shelf-layout?zone=A&rack=A1
+  @MessagePattern('inventory.medicine.shelf.layout')
+  async getShelfLayout(@Payload() data: { zone: string; rack: string }) {
+    try {
+      return await this.medicineService.getShelfLayout(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Loi lay layout ke');
+    }
+  }
+
+  // GET /api/medicines/reserve-batches?branchId=CENTRAL_WH
+  @MessagePattern('inventory.medicine.reserve.list')
+  async getReserveBatches(@Payload() data: { branchId?: string }) {
+    try {
+      return await this.medicineService.getReserveBatches(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Loi lay Khu Du Tru');
+    }
+  }
+
+  // GET /api/medicines/bin-detail?zone=A&rack=A1&shelf=3&bin=2
+  @MessagePattern('inventory.medicine.bin.detail')
+  async getBinDetail(@Payload() data: { zone: string; rack: string; shelf: number; bin: number }) {
+    try {
+      return await this.medicineService.getBinDetail(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Loi lay chi tiet thung');
+    }
+  }
+
+  // POST /api/medicines/assign-location (async event)
+  @EventPattern('inventory.medicine.event.location_assign')
+  async assignMedicineLocation(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      await this.medicineService.assignMedicineLocation(payload);
+    } catch (error) {
+      console.error('[inventory.medicine.event.location_assign] Error:', error.message);
+    }
+  }
+
+  // PATCH /api/medicines/batches/:batchId/quarantine (async event)
+  @EventPattern('inventory.medicine.event.quarantine')
+  async quarantineBatch(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      await this.medicineService.quarantineBatch(payload);
+    } catch (error) {
+      console.error('[inventory.medicine.event.quarantine] Error:', error.message);
     }
   }
 }
