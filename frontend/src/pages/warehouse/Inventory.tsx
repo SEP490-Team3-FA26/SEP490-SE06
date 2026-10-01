@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, MoreHorizontal, AlertCircle, CheckCircle2, Loader2, Eye, X, Package, TrendingUp, Calendar, Truck, Tag, TrendingDown, Trash2, RotateCcw, Edit2 } from "lucide-react";
+import { Plus, Search, Filter, MoreHorizontal, AlertCircle, CheckCircle2, Loader2, Eye, X, Package, TrendingUp, Calendar, Truck, Tag, TrendingDown, Trash2, RotateCcw, Edit2, ShieldAlert } from "lucide-react";
 import { medicineService } from "../../services/inventory/medicine.service";
+import { inventoryMapService } from "../../services/inventory/inventoryMap.service";
 import { CreateMedicineModal } from "../../components/CreateMedicineModal";
 import { EditMedicineModal } from "../../components/EditMedicineModal";
 
@@ -204,6 +205,23 @@ export function Inventory() {
       alert("Lỗi khi xử lý đề xuất: " + (err.response?.data?.message || err.message));
     } finally {
       setExpirationProcessing(false);
+    }
+  };
+
+  const [quarantiningId, setQuarantiningId] = useState<string | null>(null);
+
+  const handleQuarantineBatch = async (batchId: string) => {
+    if (!window.confirm("Khóa lô này và chuyển sang trạng thái cách ly? Lô sẽ không được phép xuất bán.")) return;
+    try {
+      setQuarantiningId(batchId);
+      await inventoryMapService.quarantineBatch(batchId, "Khóa cách ly từ tab Cần xử lý");
+      alert("Đã gửi yêu cầu cách ly lô thuốc.");
+      fetchExpirationReport();
+      fetchStats();
+    } catch (e: any) {
+      alert("Lỗi khi khóa lô: " + (e.message || "Lỗi không xác định"));
+    } finally {
+      setQuarantiningId(null);
     }
   };
 
@@ -416,12 +434,12 @@ export function Inventory() {
         <button
           onClick={() => setActiveTab("expiration")}
           className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-extrabold text-xs transition-all duration-200 relative ${activeTab === "expiration"
-            ? "bg-white text-[#0057cd] shadow-md shadow-slate-200/50"
+            ? "bg-white text-rose-600 shadow-md shadow-slate-200/50"
             : "text-slate-500 hover:text-slate-800 hover:bg-white/30"
             }`}
         >
           <Calendar size={13} />
-          Báo Cáo Hết Hạn
+          ⚠️ Cần Xử Lý (Cận/Hết Hạn)
           {stats?.expiredCount > 0 && (
             <span className="bg-rose-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.5 shadow-sm shadow-rose-500/20">
               {stats.expiredCount}
@@ -758,49 +776,75 @@ export function Inventory() {
             <table className="w-full text-sm text-left border-collapse">
               <thead className="text-[11px] text-slate-400 uppercase bg-slate-50/60 border-b border-slate-100/80 tracking-wider font-extrabold">
                 <tr>
-                  <th scope="col" className="px-6 py-4 font-bold">Tên Thuốc & Mã</th>
-                  <th scope="col" className="px-6 py-4 font-bold">Số Lô</th>
-                  <th scope="col" className="px-6 py-4 font-bold">Danh Mục</th>
-                  <th scope="col" className="px-6 py-4 font-bold text-center">Tồn Lô</th>
-                  <th scope="col" className="px-6 py-4 font-bold">Hạn Sử Dụng</th>
-                  <th scope="col" className="px-6 py-4 font-bold text-center">Trạng Thái</th>
-                  <th scope="col" className="px-6 py-4 font-bold text-center">Đề xuất xử lý</th>
+                  <th scope="col" className="px-5 py-4 font-bold">Tên Thuốc & Mã</th>
+                  <th scope="col" className="px-4 py-4 font-bold">Số Lô</th>
+                  <th scope="col" className="px-4 py-4 font-bold">Danh Mục</th>
+                  <th scope="col" className="px-4 py-4 font-bold text-center">Tồn Lô</th>
+                  <th scope="col" className="px-4 py-4 font-bold">Hạn Sử Dụng</th>
+                  <th scope="col" className="px-4 py-4 font-bold">Vị Trí Kho</th>
+                  <th scope="col" className="px-4 py-4 font-bold text-center">Trạng Thái</th>
+                  <th scope="col" className="px-5 py-4 font-bold text-center">Thao tác xử lý</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {!expirationLoading && expirationReport.map((batch) => (
                   <tr key={batch.id} className="group bg-white hover:bg-slate-50/50 hover:shadow-[inset_4px_0_0_0_#ef4444] transition-all duration-150">
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4">
                       <div className="font-semibold text-slate-900 text-xs sm:text-sm">{batch.medicineName}</div>
                       <div className="mt-1 font-mono text-[9px] text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md w-fit">{batch.medicineId}</div>
                     </td>
-                    <td className="px-6 py-4 font-mono font-bold text-slate-600 text-xs">{batch.batchNo}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 font-mono font-bold text-slate-600 text-xs">{batch.batchNo}</td>
+                    <td className="px-4 py-4">
                       <span className="truncate font-semibold text-slate-600 text-xs sm:text-sm" title={batch.category}>{batch.category}</span>
                     </td>
-                    <td className="px-6 py-4 text-center font-extrabold text-slate-800 text-xs sm:text-sm">
+                    <td className="px-4 py-4 text-center font-extrabold text-slate-800 text-xs sm:text-sm">
                       {batch.stock} <span className="text-slate-400 text-[10px] font-normal">/ {batch.unit}</span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 font-bold text-xs sm:text-sm">
+                    <td className="px-4 py-4 text-slate-600 font-bold text-xs sm:text-sm">
                       {new Date(batch.expDate).toLocaleDateString("vi-VN")}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-4 text-xs">
+                      {batch.location?.zone === 'RESERVE' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          📦 Khu Dự Trữ
+                        </span>
+                      ) : batch.location?.zone ? (
+                        <div className="font-mono text-slate-700 text-[11px]">
+                          <span className="font-bold text-sky-700">Khu {batch.location.zone}</span>·{batch.location.rack}·T{batch.location.shelf}·<span className="font-bold text-indigo-700">B{batch.location.bin || 1}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-center">
                       <span className={`px-3 py-1.5 rounded-full text-xs font-bold inline-block border shadow-sm whitespace-nowrap
-                        ${batch.status === 'EXPIRED'
+                        ${batch.status === 'QUARANTINED'
+                          ? 'bg-purple-100 text-purple-800 border-purple-300'
+                          : batch.status === 'EXPIRED'
                           ? 'bg-rose-50 text-rose-700 border-rose-100'
                           : 'bg-amber-50 text-amber-700 border-amber-100'
                         }
                       `}>
-                        {batch.status === 'EXPIRED' ? 'Đã hết hạn' : 'Sắp hết hạn'}
+                        {batch.status === 'QUARANTINED' ? 'Đã cách ly' : batch.status === 'EXPIRED' ? 'Đã hết hạn' : 'Sắp hết hạn'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => openExpirationActionModal(batch)}
-                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1.5 mx-auto"
-                      >
-                        Đề xuất xử lý
-                      </button>
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => openExpirationActionModal(batch)}
+                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1"
+                        >
+                          Đề xuất
+                        </button>
+                        <button
+                          onClick={() => handleQuarantineBatch(batch.id || batch._id)}
+                          disabled={quarantiningId === (batch.id || batch._id) || batch.status === 'QUARANTINED'}
+                          className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-black px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1 disabled:opacity-50"
+                          title="Khóa lô (Cách ly không xuất bán)"
+                        >
+                          {quarantiningId === (batch.id || batch._id) ? "..." : batch.status === 'QUARANTINED' ? "Đã khóa" : "Khóa Lô"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

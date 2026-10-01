@@ -1,21 +1,42 @@
 import React, { useState, useEffect } from "react";
 import {
   Loader2, Boxes, Database, RefreshCw, X,
-  Package, AlertTriangle, Layers,
+  Package, AlertTriangle, Layers, Archive,
 } from "lucide-react";
-import { inventoryMapService } from "../../services/inventory/inventoryMap.service";
+import { inventoryMapService, ReserveBatch } from "../../services/inventory/inventoryMap.service";
 import { WarehouseMap2D } from "./components/WarehouseMap2D";
 import { ShelfDetailModal } from "./components/ShelfDetailModal";
 import { WarehouseSearchBar } from "./components/WarehouseSearchBar";
+import { ReserveBatchesPanel } from "./components/ReserveBatchesPanel";
 
 export function WarehouseMapPage() {
   const [loading, setLoading] = useState(true);
   const [zones, setZones] = useState<any[]>([]);
-  const [selectedShelf, setSelectedShelf] = useState<{ zone: string; rack: string; shelf: number } | null>(null);
+  const [selectedShelf, setSelectedShelf] = useState<{ zone: string; rack: string; shelf: number; bin?: number | null } | null>(null);
   const [drawerZone, setDrawerZone] = useState<any | null>(null);
   const [highlightTarget, setHighlightTarget] = useState<string>("");
 
-  useEffect(() => { fetchMapData(); }, []);
+  // Reserve Batches state
+  const [reserveBatches, setReserveBatches] = useState<ReserveBatch[]>([]);
+  const [loadingReserve, setLoadingReserve] = useState(false);
+  const [showReservePanel, setShowReservePanel] = useState(true);
+
+  useEffect(() => { 
+    fetchMapData(); 
+    fetchReserveBatches();
+  }, []);
+
+  const fetchReserveBatches = async () => {
+    setLoadingReserve(true);
+    try {
+      const data = await inventoryMapService.getReserveBatches();
+      setReserveBatches(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Failed to fetch reserve batches", e);
+    } finally {
+      setLoadingReserve(false);
+    }
+  };
 
   const fetchMapData = async () => {
     setLoading(true);
@@ -100,9 +121,26 @@ export function WarehouseMapPage() {
 
         {/* Controls */}
         <div className="flex items-center gap-2">
+          {/* Nút bật/tắt Khu Kệ Dự Trữ FEFO */}
+          <button
+            onClick={() => setShowReservePanel(!showReservePanel)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
+              showReservePanel 
+                ? "bg-amber-500 text-white border-amber-600 shadow-sm" 
+                : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300"
+            }`}
+            title="Mở bảng Lô Dự Trữ cũ (FEFO)"
+          >
+            <Archive size={14} />
+            <span>Khu Kệ Dự Trữ</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${showReservePanel ? "bg-amber-600 text-white" : "bg-amber-200 text-amber-900"}`}>
+              {reserveBatches.length}
+            </span>
+          </button>
+
           <WarehouseSearchBar onSelect={(target) => setHighlightTarget(target)} />
           <button
-            onClick={fetchMapData}
+            onClick={() => { fetchMapData(); fetchReserveBatches(); }}
             disabled={loading}
             className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all border border-slate-200 bg-white"
             title="Làm mới dữ liệu"
@@ -117,6 +155,7 @@ export function WarehouseMapPage() {
         <WarehouseMap2D
           zones={zones}
           onShelfSelect={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
+          onBinSelect={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
           onZoneClick={(zoneData) => setDrawerZone(zoneData)}
           highlightTarget={highlightTarget}
         />
@@ -197,6 +236,29 @@ export function WarehouseMapPage() {
         )}
       </main>
 
+      {/* Reserve Batches Panel (Bottom drawer/section) */}
+      {showReservePanel && (
+        <ReserveBatchesPanel
+          batches={reserveBatches}
+          loading={loadingReserve}
+          onRefresh={fetchReserveBatches}
+          onSelectBatch={(batch) => {
+            if (batch.location?.zone && batch.location.zone !== 'RESERVE') {
+              setSelectedShelf({
+                zone: batch.location.zone,
+                rack: batch.location.rack,
+                shelf: batch.location.shelf,
+                bin: batch.location.bin,
+              });
+            } else {
+              // Highlight target or notify
+              setHighlightTarget(batch.medicineName);
+            }
+          }}
+          onClose={() => setShowReservePanel(false)}
+        />
+      )}
+
       {/* Legend bar */}
       <div className="shrink-0 h-10 bg-white border-t border-slate-200 flex items-center justify-center gap-6 px-4 text-[11px] text-slate-500">
         {[
@@ -213,13 +275,18 @@ export function WarehouseMapPage() {
         ))}
       </div>
 
-      {/* Shelf Detail Modal */}
+      {/* Shelf Detail Modal (Supports Bin Mode + Shelf Mode) */}
       {selectedShelf && (
         <ShelfDetailModal
           zone={selectedShelf.zone}
           rack={selectedShelf.rack}
           shelf={selectedShelf.shelf}
+          bin={selectedShelf.bin}
           onClose={() => setSelectedShelf(null)}
+          onRefresh={() => {
+            fetchMapData();
+            fetchReserveBatches();
+          }}
         />
       )}
     </div>
