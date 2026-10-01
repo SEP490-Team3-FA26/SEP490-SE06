@@ -49,7 +49,7 @@ export function SeasonalAnalysisDashboard() {
     }
   }
 
-  const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch';
+  const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch' || userDetails.role === 'director';
 
   useEffect(() => {
     if (isAdmin) {

@@ -110,11 +110,6 @@ export const medicineService = {
     }
   },
 
-  async checkInteraction(medicines: string[]) {
-    const response = await api.post('/api/medicines/check-interaction', { medicines });
-    return response.data;
-  },
-
   async updatePriceTiers(id: string, priceTiers: { minQuantity: number; price: number }[]) {
     const response = await api.patch(`/api/medicines/${id}/price-tiers`, { priceTiers });
     return response.data;

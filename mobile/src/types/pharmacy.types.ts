@@ -142,6 +142,8 @@ export interface CartItem {
   batchNo?: string;
   expDate?: string;
   selectedUnit?: string;
+  unitPrice?: number;
+  unitOptions?: Array<{ unitName: string; exchangeValue: number; price: number; isBaseUnit?: boolean }>;
   fefoAllocated?: boolean;
 }
 

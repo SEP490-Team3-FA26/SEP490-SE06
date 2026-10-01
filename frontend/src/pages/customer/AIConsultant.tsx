@@ -261,21 +261,25 @@ export function AIConsultant() {
   };
 
   return (
-    <div className="flex flex-col gap-6 flex-1 max-w-5xl mx-auto w-full px-4 py-2 animate-fade-in">
-      {/* Premium Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-5">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
-            <Brain size={24} className="animate-pulse" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              Trợ Lý Dược Sĩ AI <span className="px-2 py-0.5 text-[10px] bg-blue-100 text-blue-800 font-black rounded-full uppercase tracking-wider">PRO</span>
-            </h1>
-            <p className="text-xs text-slate-500 font-semibold mt-0.5">
-              Nói triệu chứng bằng giọng nói, AI tự động chẩn đoán triệu chứng, kê đơn và đối chiếu kho thực tế.
-            </p>
-          </div>
+    <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
+      {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
+      <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-3xl flex flex-col gap-4">
+          <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
+            <Brain size={14} className="text-blue-400" />
+            Trợ Lý Dược Sĩ AI ABC Pharma (Voice & Text)
+          </span>
+
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+            Tư Vấn Triệu Chứng <br className="hidden sm:block" />
+            Kê Đơn & Đối Chiếu Kho AI
+          </h1>
+
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-semibold max-w-2xl">
+            Nói triệu chứng bệnh bằng giọng nói hoặc nhập chữ, hệ thống AI tự động chẩn đoán sơ bộ, phân tích tương tác thuốc và kiểm tra tình trạng tồn kho thực tế.
+          </p>
         </div>
       </div>
 
@@ -290,13 +294,13 @@ export function AIConsultant() {
               onClick={() => { setInputMode("voice"); setError(""); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${inputMode === "voice" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"}`}
             >
-              🎙️ Ghi Âm
+              Ghi Âm
             </button>
             <button
               onClick={() => { setInputMode("text"); setError(""); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${inputMode === "text" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"}`}
             >
-              ⌨️ Nhập Chữ
+              Nhập Chữ
             </button>
           </div>
 

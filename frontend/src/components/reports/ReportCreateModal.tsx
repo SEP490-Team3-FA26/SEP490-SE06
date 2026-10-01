@@ -18,7 +18,7 @@ export function ReportCreateModal({ isOpen, onClose, onSuccess, userDetails }: R
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch';
+  const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch' || userDetails.role === 'director';
 
   // Set default branch value based on user context
   useEffect(() => {

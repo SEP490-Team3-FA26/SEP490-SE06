@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Medicine } from './schemas/medicine.schema';
 import { MedicineBatch } from './schemas/medicine-batch.schema';
+import { MedicineLocation } from './schemas/medicine-location.schema';
 import { BranchInventory } from './schemas/branch-inventory.schema';
 import { BranchStockBalance } from './schemas/branch-stock-balance.schema';
 import { InventoryCheck } from './schemas/inventory-check.schema';
@@ -16,6 +17,7 @@ export class MedicineService implements OnModuleInit {
   constructor(
     @InjectModel(Medicine.name) private readonly medicineModel: Model<Medicine>,
     @InjectModel(MedicineBatch.name) private readonly batchModel: Model<MedicineBatch>,
+    @InjectModel(MedicineLocation.name) private readonly locationModel: Model<MedicineLocation>,
     @InjectModel(BranchInventory.name) private readonly branchInvModel: Model<BranchInventory>,
     @InjectModel(BranchStockBalance.name) private readonly balanceModel: Model<BranchStockBalance>,
     @InjectModel(InventoryCheck.name) private readonly checkModel: Model<InventoryCheck>,
@@ -337,7 +339,9 @@ export class MedicineService implements OnModuleInit {
       }
       
       query.medicineIds = medicineIds;
-      query.bypassAiSearch = true; // Bỏ qua AI search khi chỉ lấy tồn kho chi nhánh để kết quả chính xác tuyệt đối
+      if (!query.search) {
+        query.bypassAiSearch = true; // Chỉ bypass AI search khi không có từ khoá tìm kiếm
+      }
     }
 
     return this.listMedicines(query);
@@ -494,12 +498,16 @@ export class MedicineService implements OnModuleInit {
             } else {
               // Filter AI results against actual database to prevent returning non-existent medicines
               const rawAiMedIds = aiData.map((med: any) => (med._id || med.id || '').toString()).filter(id => id);
-              const existingMeds = await this.medicineModel.find({ _id: { $in: rawAiMedIds } }).select('_id stock price').lean().exec();
+              const existingMeds = await this.medicineModel.find({ _id: { $in: rawAiMedIds } }).select('_id stock price barcode sku units').lean().exec();
               const existingMedIds = new Set(existingMeds.map(m => m._id.toString()));
               const existingMedMap = new Map(existingMeds.map(m => [m._id.toString(), m]));
 
               aiData = aiData.filter((med: any) => existingMedIds.has((med._id || med.id || '').toString()));
-              const aiMedIds = Array.from(existingMedIds);
+              if (query.medicineIds && query.medicineIds.length > 0) {
+                const allowedSet = new Set(query.medicineIds.map(id => id.toString()));
+                aiData = aiData.filter((med: any) => allowedSet.has((med._id || med.id || '').toString()));
+              }
+              const aiMedIds = aiData.map((med: any) => (med._id || med.id || '').toString());
 
               // Truy vấn lô hàng cho các kết quả từ AI Service
               const batchFilter: any = { medicineId: { $in: aiMedIds } };
@@ -533,17 +541,19 @@ export class MedicineService implements OnModuleInit {
                 return {
                   id: medId,
                   name: med.name,
+                  barcode: dbMed?.barcode || med.barcode || (dbMed?.units && dbMed.units[0]?.barcode) || '',
+                  sku: dbMed?.sku || med.sku || '',
                   category: med.category || 'Chưa phân loại',
                   drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
                   price: actualPrice,
                   stock: totalStock,
                   unopenedBoxes: Math.max(0, Math.floor(totalStock / 100)),
                   openedBoxUnits: med.openedBoxUnits !== undefined ? med.openedBoxUnits : (totalStock % 100),
-                  units: med.units && med.units.length > 0 ? med.units : [
+                  units: (dbMed?.units && dbMed.units.length > 0) ? dbMed.units : (med.units && med.units.length > 0 ? med.units : [
                     { unitName: med.unit || 'Hộp', exchangeValue: 100, price: actualPrice, isBaseUnit: true },
                     { unitName: 'Vỉ', exchangeValue: 10, price: Math.round(actualPrice / 10 * 1.05) },
                     { unitName: 'Viên', exchangeValue: 1, price: Math.round(actualPrice / 100 * 1.1) }
-                  ],
+                  ]),
                   minStock: 50,
                   status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
                   expiry: earliestExpiryStr,
@@ -620,6 +630,8 @@ export class MedicineService implements OnModuleInit {
             return {
               id: medId,
               name: med.name,
+              barcode: med.barcode || (med.units && med.units[0]?.barcode) || '',
+              sku: med.sku || '',
               category: med.category || 'Chưa phân loại',
               drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
               price: med.price || 50000,
@@ -677,10 +689,22 @@ export class MedicineService implements OnModuleInit {
           },
         };
       } else {
-        // MONGOOSE SCROLL (Default View)
+        // MONGOOSE SCROLL (Default View / Fallback)
         const filterQuery: any = {};
-        if (conditions.length > 0) {
-          filterQuery.$and = conditions;
+        const conditionsCopy = [...conditions];
+        if (search) {
+          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          conditionsCopy.push({
+            $or: [
+              { name: { $regex: safeSearch, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+              { sku: { $regex: safeSearch, $options: 'i' } },
+              { barcode: { $regex: safeSearch, $options: 'i' } }
+            ]
+          });
+        }
+        if (conditionsCopy.length > 0) {
+          filterQuery.$and = conditionsCopy;
         }
 
         const [data, total] = await Promise.all([
@@ -902,7 +926,7 @@ export class MedicineService implements OnModuleInit {
       const batches = await this.batchModel.find({
         stock: { $gt: 0 },
         expDate: { $lte: ninetyDaysFromNow }
-      }).select('medicineId batchNo expDate stock status branchId').lean().exec();
+      }).select('medicineId batchNo expDate stock status branchId location').lean().exec();
       const medIds = [...new Set(batches.map(b => b.medicineId))];
       const medicines = await this.medicineModel.find({ _id: { $in: medIds } }).select('name category unit price').lean().exec();
       const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
@@ -913,7 +937,9 @@ export class MedicineService implements OnModuleInit {
           const expDate = new Date(b.expDate);
 
           let status = 'ACTIVE';
-          if (expDate < today) {
+          if (b.status === 'QUARANTINED') {
+            status = 'QUARANTINED';
+          } else if (expDate < today) {
             status = 'EXPIRED';
           } else if (expDate <= ninetyDaysFromNow) {
             status = 'SOON_TO_EXPIRE';
@@ -930,10 +956,11 @@ export class MedicineService implements OnModuleInit {
             stock: b.stock,
             status: status,
             price: med ? med.price : 0,
-            branchId: b.branchId || 'CENTRAL_WH'
+            branchId: b.branchId || 'CENTRAL_WH',
+            location: b.location || null,
           };
         })
-        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE')
+        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE' || item.status === 'QUARANTINED')
         .sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
 
       return report;
@@ -1931,13 +1958,14 @@ export class MedicineService implements OnModuleInit {
   async getShelfDetail(zone: string, rack: string, shelf: number) {
     try {
       this.logger.log(`Fetching shelf detail: Zone=${zone}, Rack=${rack}, Shelf=${shelf}`);
-      
+
       const batches = await this.batchModel.find({
-        branchId: 'CENTRAL_WH',
         'location.zone': zone,
         'location.rack': rack,
         'location.shelf': Number(shelf),
-        status: 'ACTIVE'
+        'location.slotType': 'MAIN',
+        stock: { $gt: 0 },
+        status: { $nin: ['REMOVED', 'DELETED'] },
       }).lean().exec();
 
       if (batches.length === 0) return [];
@@ -1946,48 +1974,101 @@ export class MedicineService implements OnModuleInit {
       const medicines = await this.medicineModel.find({ _id: { $in: medicineIds } })
         .select('name category unit price')
         .lean().exec();
-      
+
       const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
       const today = new Date();
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
 
-      return batches.map(b => {
-        const med = medMap.get(b.medicineId);
+      // GROUP BY BIN: moi thung (bin) chi xuat ra 1 hang duy nhat.
+      // Neu 1 thung co nhieu lo ACTIVE, ta gop stock lai va dung lo gan date
+      // nhat (FEFO) de xac dinh trang thai va hien thi batchNo dai dien.
+      const binMap = new Map<number, {
+        bin: number;
+        medicineId: string;
+        medicineName: string;
+        category: string;
+        unit: string;
+        price: number;
+        totalStock: number;
+        nearestExpDate: Date;
+        representativeBatchId: string;
+        representativeBatchNo: string;
+        batchCount: number;
+      }>();
+
+      for (const b of batches) {
+        const binNo: number = b.location?.bin || 1;
+        const med = medMap.get(b.medicineId?.toString());
         const expDate = new Date(b.expDate);
+        const existing = binMap.get(binNo);
+        if (!existing) {
+          binMap.set(binNo, {
+            bin: binNo,
+            medicineId: b.medicineId?.toString() || '',
+            medicineName: med?.name || 'Unknown',
+            category: med?.category || '',
+            unit: med?.unit || 'Hop',
+            price: (med as any)?.price || 0,
+            totalStock: b.stock,
+            nearestExpDate: expDate,
+            representativeBatchId: b._id.toString(),
+            representativeBatchNo: b.batchNo,
+            batchCount: 1,
+          });
+        } else {
+          existing.totalStock += b.stock;
+          existing.batchCount += 1;
+          if (expDate < existing.nearestExpDate) {
+            existing.nearestExpDate = expDate;
+            existing.representativeBatchId = b._id.toString();
+            existing.representativeBatchNo = b.batchNo;
+          }
+        }
+      }
+
+      const result = Array.from(binMap.values()).map(binInfo => {
+        const expDate = binInfo.nearestExpDate;
+        const timeDiff = expDate.getTime() - today.getTime();
+        const daysUntilExpiry = Math.ceil(timeDiff / (1000 * 3600 * 24));
         let status = 'ACTIVE';
-        if (b.stock === 0) {
+        if (binInfo.totalStock === 0) {
           status = 'OUT_OF_STOCK';
         } else if (expDate < today) {
           status = 'EXPIRED';
         } else if (expDate <= ninetyDaysFromNow) {
           status = 'NEAR_EXPIRY';
-        } else if (b.stock < 20) { // Ngưỡng an toàn cho 1 lô
+        } else if (binInfo.totalStock < 20) {
           status = 'LOW_STOCK';
         }
-
-        const timeDiff = expDate.getTime() - today.getTime();
-        const daysUntilExpiry = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
         return {
-          id: b._id.toString(),
-          batchId: b._id.toString(),
-          batchNo: b.batchNo,
-          medicineId: b.medicineId,
-          medicineName: med ? med.name : 'Unknown',
-          category: med ? med.category : '',
-          stock: b.stock,
-          unit: med ? med.unit : 'Hộp',
+          _id: binInfo.representativeBatchId,
+          id: binInfo.representativeBatchId,
+          batchId: binInfo.representativeBatchId,
+          batchNo: binInfo.batchCount > 1
+            ? `${binInfo.representativeBatchNo} (+${binInfo.batchCount - 1} lo)`
+            : binInfo.representativeBatchNo,
+          medicineId: binInfo.medicineId,
+          medicineName: binInfo.medicineName,
+          category: binInfo.category,
+          stock: binInfo.totalStock,
+          unit: binInfo.unit,
           expDate: expDate.toISOString().split('T')[0],
           daysUntilExpiry,
           status,
-          price: med ? med.price : 0
+          price: binInfo.price,
+          bin: binInfo.bin,
+          batchCount: binInfo.batchCount,
         };
-      }).sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
+      });
+
+      result.sort((a, b) => a.bin - b.bin);
+      this.logger.log(`[getShelfDetail] ${zone}/${rack}/T${shelf}: ${result.length} thung co hang (max 10)`);
+      return result;
 
     } catch (error) {
       this.logger.error('Failed to get shelf detail:', error);
-      throw new RpcException(error.message || 'Lỗi lấy chi tiết kệ hàng');
+      throw new RpcException(error.message || 'Loi lay chi tiet ke hang');
     }
   }
 
@@ -2023,7 +2104,7 @@ export class MedicineService implements OnModuleInit {
         const rackStr = `${zone}${counters[zone].rack}`;
         const shelfNum = counters[zone].shelf;
 
-        batch.location = { zone, rack: rackStr, shelf: shelfNum };
+        batch.location = { zone, rack: rackStr, shelf: shelfNum, bin: 1, slotType: 'MAIN' as const };
         await batch.save();
         updatedCount++;
 
@@ -2248,6 +2329,315 @@ export class MedicineService implements OnModuleInit {
     } catch (error) {
       this.logger.error(`[generateBarcode] Error:`, error);
       throw new RpcException(error.message || 'Lỗi sinh mã vạch');
+    }
+  }
+
+  // ============================================================
+  // 🏭 WAREHOUSE MAP — Sơ đồ kho 4 cấp: Khu → Kệ → Tầng → Thùng
+  // ============================================================
+
+  /**
+   * Lấy layout kệ: 4 Tầng × 10 Thùng, kèm thông tin thuốc và tồn kho
+   * Kafka topic: inventory.medicine.shelf.layout
+   */
+  async getShelfLayout(payload: { zone: string; rack: string }) {
+    try {
+      const { zone, rack } = payload;
+      this.logger.log(`[getShelfLayout] zone=${zone}, rack=${rack}`);
+
+      // Lấy tất cả MedicineLocation của kệ này
+      const locations = await this.locationModel.find({ zone, rack }).lean().exec();
+
+      // Build map: shelf → bin → location
+      const locationMap = new Map<string, any>();
+      for (const loc of locations) {
+        locationMap.set(`${loc.shelf}-${loc.bin}`, loc);
+      }
+
+      // Lấy tồn kho thực (batch MAIN còn stock > 0) cho kệ này - CHỈ Kho Tổng
+      const activeBatches = await this.batchModel.find({
+        branchId: 'CENTRAL_WH',
+        'location.zone': zone,
+        'location.rack': rack,
+        'location.slotType': 'MAIN',
+        stock: { $gt: 0 },
+        status: { $nin: ['REMOVED', 'DELETED'] },
+      }).lean().exec();
+
+      // Tính tổng stock và status theo từng bin
+      const binStockMap = new Map<string, { stock: number; nearestExpDate: Date | null; hasReserveBatch: boolean; medicineId?: string }>();
+      const medicineIdsToFetch = new Set<string>();
+
+      for (const batch of activeBatches) {
+        const key = `${batch.location.shelf}-${batch.location.bin}`;
+        const current = binStockMap.get(key) || { stock: 0, nearestExpDate: null, hasReserveBatch: false, medicineId: batch.medicineId };
+        current.stock += batch.stock;
+        if (!current.medicineId && batch.medicineId) {
+          current.medicineId = batch.medicineId;
+        }
+        if (batch.medicineId) {
+          medicineIdsToFetch.add(batch.medicineId.toString());
+        }
+        if (!current.nearestExpDate || batch.expDate < current.nearestExpDate) {
+          current.nearestExpDate = batch.expDate;
+        }
+        binStockMap.set(key, current);
+      }
+
+      // Query thông tin các thuốc nếu chưa có trong location
+      const fallbackMedMap = new Map<string, { name: string; unit: string }>();
+      if (medicineIdsToFetch.size > 0) {
+        const fetchedMeds = await this.medicineModel.find(
+          { _id: { $in: Array.from(medicineIdsToFetch) } },
+          { name: 1, unit: 1 }
+        ).lean().exec();
+        for (const m of fetchedMeds) {
+          fallbackMedMap.set(m._id.toString(), { name: m.name, unit: m.unit || 'Hộp' });
+        }
+      }
+
+      // Kiểm tra lô RESERVE (lô cũ chờ xuất) theo medicineId - CHỈ Kho Tổng
+      const reserveBatches = await this.batchModel.find({
+        branchId: 'CENTRAL_WH',
+        'location.slotType': 'RESERVE',
+        stock: { $gt: 0 },
+      }, { medicineId: 1 }).lean().exec();
+      const reserveMedSet = new Set(reserveBatches.map(b => b.medicineId?.toString()));
+
+      // Helper: tính status từ stock và expDate
+      const now = new Date();
+      const getStatus = (stock: number, expDate: Date | null, maxCapacity: number): string => {
+        if (!stock || stock === 0) return 'EMPTY';
+        if (expDate && expDate < now) return 'EXPIRED';
+        if (expDate) {
+          const daysToExp = Math.floor((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysToExp <= 90) return 'NEAR_EXPIRY';
+        }
+        if (maxCapacity > 0 && stock / maxCapacity < 0.2) return 'LOW_STOCK';
+        return 'NORMAL';
+      };
+
+      // Build kết quả: 4 tầng, mỗi tầng 10 thùng
+      const result = [];
+      for (let shelf = 4; shelf >= 1; shelf--) {
+        const bins = [];
+        for (let bin = 1; bin <= 10; bin++) {
+          const key = `${shelf}-${bin}`;
+          const loc = locationMap.get(key);
+          const stockInfo = binStockMap.get(key);
+          const maxCap = loc?.maxCapacity || 200;
+          const currentStock = stockInfo?.stock || 0;
+          const nearestExpDate = stockInfo?.nearestExpDate || null;
+          const fallbackMed = stockInfo?.medicineId ? fallbackMedMap.get(stockInfo.medicineId.toString()) : null;
+          const medId = stockInfo?.medicineId || loc?.medicineId || null;
+          const medName = fallbackMed?.name || loc?.medicineName || null;
+          const unit = fallbackMed?.unit || loc?.unit || null;
+          const hasReserveBatch = medId ? reserveMedSet.has(medId.toString()) : false;
+
+          bins.push({
+            binNo: bin,
+            medicineId: medId,
+            medicineName: medName,
+            unit: unit,
+            currentStock,
+            maxCapacity: maxCap,
+            status: (loc || currentStock > 0) ? getStatus(currentStock, nearestExpDate, maxCap) : 'EMPTY',
+            nearestExpDate,
+            hasReserveBatch,
+          });
+        }
+        result.push({ shelfNo: shelf, bins });
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('[getShelfLayout] Error:', error);
+      throw new RpcException(error.message || 'Lỗi lấy layout kệ');
+    }
+  }
+
+  /**
+   * Lấy danh sách lô đang ở Khu Dự Trữ (slotType = 'RESERVE')
+   * Kafka topic: inventory.medicine.reserve.list
+   */
+  async getReserveBatches(payload: { branchId?: string }) {
+    try {
+      const branchId = payload?.branchId || 'CENTRAL_WH';
+      this.logger.log(`[getReserveBatches] branchId=${branchId}`);
+
+      const batches = await this.batchModel.find({
+        branchId,
+        'location.slotType': 'RESERVE',
+        stock: { $gt: 0 },
+        status: { $in: ['ACTIVE', 'EXPIRED'] },
+      }).sort({ expDate: 1 }).lean().exec();
+
+      // Enrich với tên thuốc
+      const medicineIds = [...new Set(batches.map(b => b.medicineId))];
+      const medicines = await this.medicineModel.find(
+        { _id: { $in: medicineIds } },
+        { name: 1, unit: 1 }
+      ).lean().exec();
+      const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
+
+      const now = new Date();
+      return batches.map(b => {
+        const med = medMap.get(b.medicineId?.toString());
+        const daysToExp = b.expDate
+          ? Math.floor((new Date(b.expDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        let status = 'NORMAL';
+        if (b.expDate && new Date(b.expDate) < now) status = 'EXPIRED';
+        else if (daysToExp !== null && daysToExp <= 90) status = 'NEAR_EXPIRY';
+        return {
+          ...b,
+          medicineName: med?.name || b.medicineId,
+          unit: med?.unit || 'Hộp',
+          status,
+          daysToExpiry: daysToExp,
+        };
+      });
+    } catch (error) {
+      this.logger.error('[getReserveBatches] Error:', error);
+      throw new RpcException(error.message || 'Lỗi lấy danh sách Khu Dự Trữ');
+    }
+  }
+
+  /**
+   * Lấy chi tiết thùng: lô MAIN + lô RESERVE của cùng thuốc đó
+   * Kafka topic: inventory.medicine.bin.detail
+   */
+  async getBinDetail(payload: { zone: string; rack: string; shelf: number; bin: number }) {
+    try {
+      const { zone, rack, shelf, bin } = payload;
+      this.logger.log(`[getBinDetail] ${zone}/${rack}/tang${shelf}/thung${bin}`);
+
+      // Lấy thông tin vị trí cố định của thùng này
+      const locationInfo = await this.locationModel.findOne({ zone, rack, shelf, bin }).lean().exec();
+
+      // Lấy lô MAIN trong thùng này
+      const mainBatches = await this.batchModel.find({
+        'location.zone': zone,
+        'location.rack': rack,
+        'location.shelf': shelf,
+        'location.bin': bin,
+        'location.slotType': 'MAIN',
+        stock: { $gt: 0 },
+      }).sort({ expDate: 1 }).lean().exec();
+
+      // Lấy lô RESERVE của thuốc trong thùng này (nếu có medicineId)
+      let reserveBatches = [];
+      if (locationInfo?.medicineId) {
+        reserveBatches = await this.batchModel.find({
+          medicineId: locationInfo.medicineId,
+          'location.slotType': 'RESERVE',
+          stock: { $gt: 0 },
+        }).sort({ expDate: 1 }).lean().exec();
+      }
+
+      // Lấy thông tin thuốc
+      let medicineInfo = null;
+      if (locationInfo?.medicineId) {
+        medicineInfo = await this.medicineModel.findById(locationInfo.medicineId, { name: 1, unit: 1, barcode: 1 }).lean().exec();
+      }
+
+      const now = new Date();
+      const enrichBatch = (b: any) => {
+        const daysToExp = b.expDate
+          ? Math.floor((new Date(b.expDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        let status = 'NORMAL';
+        if (b.expDate && new Date(b.expDate) < now) status = 'EXPIRED';
+        else if (daysToExp !== null && daysToExp <= 90) status = 'NEAR_EXPIRY';
+        return { ...b, status, daysToExpiry: daysToExp };
+      };
+
+      const totalMainStock = mainBatches.reduce((s, b) => s + b.stock, 0);
+
+      return {
+        location: locationInfo,
+        medicine: medicineInfo,
+        mainBatches: mainBatches.map(enrichBatch),
+        reserveBatches: reserveBatches.map(enrichBatch),
+        totalMainStock,
+        totalReserveStock: reserveBatches.reduce((s, b) => s + b.stock, 0),
+        hasAlert: reserveBatches.length > 0,
+      };
+    } catch (error) {
+      this.logger.error('[getBinDetail] Error:', error);
+      throw new RpcException(error.message || 'Lỗi lấy chi tiết thùng');
+    }
+  }
+
+  /**
+   * Gán thuốc vào vị trí thùng cố định (upsert MedicineLocation)
+   * Kafka topic: inventory.medicine.location.assign (emit)
+   */
+  async assignMedicineLocation(payload: {
+    medicineId: string;
+    zone: string;
+    rack: string;
+    shelf: number;
+    bin: number;
+    maxCapacity?: number;
+  }) {
+    try {
+      const { medicineId, zone, rack, shelf, bin, maxCapacity } = payload;
+      this.logger.log(`[assignMedicineLocation] med=${medicineId} → ${zone}/${rack}/tang${shelf}/thung${bin}`);
+
+      // Kiểm tra thuốc tồn tại
+      const medicine = await this.medicineModel.findById(medicineId, { name: 1, unit: 1 }).lean().exec();
+      if (!medicine) throw new RpcException(`Không tìm thấy thuốc với ID ${medicineId}`);
+
+      // Upsert: nếu đã có vị trí cho thuốc này → cập nhật, chưa có → tạo mới
+      const updated = await this.locationModel.findOneAndUpdate(
+        { medicineId },
+        {
+          $set: {
+            medicineId,
+            medicineName: medicine.name,
+            unit: medicine.unit || 'Hộp',
+            zone, rack, shelf, bin,
+            ...(maxCapacity ? { maxCapacity } : {}),
+          }
+        },
+        { upsert: true, new: true }
+      ).exec();
+
+      this.logger.log(`[assignMedicineLocation] Đã gán thuốc ${medicine.name} vào ${zone}/${rack}/T${shelf}/B${bin}`);
+      return { success: true, location: updated };
+    } catch (error) {
+      this.logger.error('[assignMedicineLocation] Error:', error);
+      // Lỗi duplicate key = vị trí đó đã có thuốc khác
+      if (error.code === 11000) {
+        throw new RpcException('Vị trí thùng này đã được gán cho thuốc khác. Vui lòng chọn thùng trống khác.');
+      }
+      throw new RpcException(error.message || 'Lỗi gán vị trí thùng');
+    }
+  }
+
+  /**
+   * Khóa lô thuốc (QUARANTINED) — không cho xuất bán
+   * Kafka topic: inventory.medicine.batch.quarantine (emit)
+   */
+  async quarantineBatch(payload: { batchId: string; reason?: string }) {
+    try {
+      const { batchId, reason } = payload;
+      this.logger.log(`[quarantineBatch] Khóa lô batchId=${batchId}, reason=${reason}`);
+
+      const batch = await this.batchModel.findByIdAndUpdate(
+        batchId,
+        { $set: { status: 'QUARANTINED' } },
+        { new: true }
+      ).exec();
+
+      if (!batch) throw new RpcException(`Không tìm thấy lô ${batchId}`);
+
+      this.logger.log(`[quarantineBatch] Đã khóa lô ${batch.batchNo} thành công`);
+      return { success: true, batch };
+    } catch (error) {
+      this.logger.error('[quarantineBatch] Error:', error);
+      throw new RpcException(error.message || 'Lỗi khóa lô thuốc');
     }
   }
 }

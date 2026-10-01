@@ -3,12 +3,14 @@ import { MessagePattern, EventPattern, Payload } from '@nestjs/microservices';
 import { UserService } from './user-service.service';
 import { BranchService } from './branch.service';
 import { ExportJobStatusDto } from './dto/export-job-status.dto';
+import { HrService } from './hr.service';
 
 @Controller()
 export class UserServiceController {
   constructor(
     private readonly userService: UserService,
     private readonly branchService: BranchService,
+    private readonly hrService: HrService,
   ) { }
 
   @MessagePattern('user.edit_profile')
@@ -151,7 +153,141 @@ export class UserServiceController {
   }
 
   @MessagePattern('user.audit.export_status')
-  async handleExportAuditLogsStatus(@Payload() data: { jobId: string }): Promise < ExportJobStatusDto > {
+  async handleExportAuditLogsStatus(@Payload() data: { jobId: string }): Promise<ExportJobStatusDto> {
     return this.userService.getExportJobStatus(data.jobId);
+  }
+
+  // --- BRANCH FEEDBACK & CSKH LOYALTY ---
+
+  @MessagePattern('user.feedback.create')
+  handleCreateFeedback(@Payload() data: any) {
+    return this.userService.createFeedback(data);
+  }
+
+  @MessagePattern('user.feedback.get_by_branch')
+  handleGetFeedbacksByBranch(@Payload() data: any) {
+    return this.userService.getFeedbacksByBranch(data);
+  }
+
+  @MessagePattern('user.feedback.resolve')
+  handleResolveFeedback(@Payload() data: { id: string; resolution: any }) {
+    return this.userService.resolveFeedback(data.id, data.resolution);
+  }
+
+  @MessagePattern('user.feedback.chain_summary')
+  handleGetChainFeedbackSummary() {
+    return this.userService.getChainFeedbackSummary();
+  }
+
+  @MessagePattern('user.feedback.get_by_customer')
+  handleGetFeedbacksByCustomer(@Payload() data: { customerPhone: string }) {
+    return this.userService.getFeedbacksByCustomerPhone(data.customerPhone);
+  }
+
+  // --- RFM CUSTOMER SEGMENTATION ---
+
+  @MessagePattern('user.rfm.get_by_phone')
+  handleGetCustomerRFM(@Payload() data: { phone: string }) {
+    return this.userService.getCustomerSegmentByPhone(data.phone);
+  }
+
+  @MessagePattern('user.rfm.overview')
+  handleGetRFMOverview(@Payload() data: { branchId?: string }) {
+    return this.userService.getRFMOverview(data?.branchId);
+  }
+
+  @MessagePattern('user.rfm.recalculate')
+  handleRecalculateRFM() {
+    return this.userService.calculateRFMSegments();
+  }
+
+  @MessagePattern('user.rfm.at_risk_list')
+  handleGetAtRiskCustomers(@Payload() data: { branchId?: string; limit?: number }) {
+    return this.userService.getAtRiskCustomers(data);
+  }
+
+  // --- HR: WORK SHIFT ---
+  @MessagePattern('hr.shift.list')
+  handleListShifts(@Payload() data: { branchId: string }) {
+    return this.hrService.listShifts(data.branchId);
+  }
+
+  @MessagePattern('hr.shift.create')
+  handleCreateShift(@Payload() data: { branchId: string; name: string; startTime: string; endTime: string; color: string }) {
+    return this.hrService.createShift(data.branchId, data);
+  }
+
+  @MessagePattern('hr.shift.update')
+  handleUpdateShift(@Payload() data: { shiftId: string; branchId: string; [key: string]: any }) {
+    const { shiftId, branchId, ...updateData } = data;
+    return this.hrService.updateShift(shiftId, branchId, updateData);
+  }
+
+  @MessagePattern('hr.shift.toggle')
+  handleToggleShift(@Payload() data: { shiftId: string; branchId: string }) {
+    return this.hrService.toggleShift(data.shiftId, data.branchId);
+  }
+
+  // --- HR: WORK SCHEDULE ---
+  @MessagePattern('hr.schedule.get_week')
+  handleGetWeekSchedule(@Payload() data: { branchId: string; weekStart: string }) {
+    return this.hrService.getWeekSchedule(data.branchId, data.weekStart);
+  }
+
+  @MessagePattern('hr.schedule.upsert')
+  handleUpsertSchedule(@Payload() data: { branchId: string; managerId: string; weekStart: string; assignments: any[] }) {
+    return this.hrService.upsertSchedule(data.branchId, data.managerId, data);
+  }
+
+  @MessagePattern('hr.schedule.publish')
+  handlePublishSchedule(@Payload() data: { branchId: string; managerId: string; weekStart: string }) {
+    return this.hrService.publishSchedule(data.branchId, data.managerId, data.weekStart);
+  }
+
+  @MessagePattern('hr.schedule.my_week')
+  handleGetMyWeek(@Payload() data: { employeeId: string; branchId: string; weekStart: string }) {
+    return this.hrService.getMyWeekSchedule(data.employeeId, data.branchId, data.weekStart);
+  }
+
+  // --- HR: SHIFT SWAP ---
+  @MessagePattern('hr.swap.list')
+  handleListSwaps(@Payload() data: { branchId: string; status?: string }) {
+    return this.hrService.listSwapRequests(data.branchId, data.status);
+  }
+
+  @MessagePattern('hr.swap.my_list')
+  handleListMySwaps(@Payload() data: { userId: string }) {
+    return this.hrService.listMySwapRequests(data.userId);
+  }
+
+  @MessagePattern('hr.swap.create')
+  handleCreateSwap(@Payload() data: any) {
+    return this.hrService.createSwapRequest(data);
+  }
+
+  @MessagePattern('hr.swap.target_respond')
+  handleTargetRespond(@Payload() data: { swapId: string; targetId: string; response: any; rejectReason?: string }) {
+    return this.hrService.targetRespond(data.swapId, data.targetId, data.response, data.rejectReason);
+  }
+
+  @MessagePattern('hr.swap.manager_respond')
+  handleManagerRespond(@Payload() data: { swapId: string; managerId: string; response: any; rejectReason?: string }) {
+    return this.hrService.managerRespond(data.swapId, data.managerId, data.response, data.rejectReason);
+  }
+
+  // --- HR: NOTIFICATION ---
+  @MessagePattern('hr.notification.list')
+  handleListNotifications(@Payload() data: { userId: string; limit?: number; skip?: number }) {
+    return this.hrService.listNotifications(data.userId, data.limit, data.skip);
+  }
+
+  @MessagePattern('hr.notification.mark_read')
+  handleMarkRead(@Payload() data: { userId: string; notificationId?: string }) {
+    return this.hrService.markRead(data.userId, data.notificationId);
+  }
+
+  @MessagePattern('hr.notification.unread_count')
+  handleUnreadCount(@Payload() data: { userId: string }) {
+    return this.hrService.getUnreadCount(data.userId);
   }
 }

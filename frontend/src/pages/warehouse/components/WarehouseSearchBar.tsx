@@ -72,23 +72,23 @@ export function WarehouseSearchBar({ onSelect }: WarehouseSearchBarProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Tìm thuốc (Tên, SKU)..."
-          className="w-72 bg-slate-800/80 border border-slate-700 text-slate-200 text-sm rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-500 shadow-inner"
+          className="w-72 bg-slate-50/80 hover:bg-white focus:bg-white border border-slate-200 text-slate-800 text-sm rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all placeholder:text-slate-400 shadow-sm"
         />
         {loading && (
-          <Loader2 className="absolute right-3 animate-spin text-sky-400" size={14} />
+          <Loader2 className="absolute right-3 animate-spin text-sky-500" size={14} />
         )}
         {!loading && query && (
-          <button onClick={clearSearch} className="absolute right-3 text-slate-400 hover:text-white">
+          <button onClick={clearSearch} className="absolute right-3 text-slate-400 hover:text-slate-600">
             &times;
           </button>
         )}
       </div>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-full max-w-sm bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50">
+        <div className="absolute top-full left-0 mt-2 w-full max-w-sm bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
           <div className="max-h-64 overflow-y-auto custom-scrollbar">
             {results.length === 0 ? (
-              <div className="p-4 text-center text-sm text-slate-400">
+              <div className="p-4 text-center text-sm text-slate-500">
                 Không tìm thấy thuốc hoặc thuốc chưa có vị trí kệ.
               </div>
             ) : (
@@ -97,16 +97,16 @@ export function WarehouseSearchBar({ onSelect }: WarehouseSearchBarProps) {
                   <li
                     key={`${item.medicineId}-${item.targetId}-${idx}`}
                     onClick={() => handleSelect(item)}
-                    className="p-3 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors"
+                    className="p-3 hover:bg-sky-50/60 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-semibold text-sm text-slate-200">{item.name}</div>
+                        <div className="font-semibold text-sm text-slate-800">{item.name}</div>
                         <div className="text-[11px] text-slate-400 mt-0.5">SKU: {item.sku}</div>
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-sky-400 bg-sky-950/30 w-fit px-2 py-1 rounded-md border border-sky-900/50">
-                      <MapPin size={12} />
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 w-fit px-2.5 py-1 rounded-lg border border-sky-200/70 font-medium">
+                      <MapPin size={12} className="text-sky-500" />
                       <span>
                         Khu {item.location.zone} &middot; Kệ {item.location.rack} &middot; Tầng {item.location.shelf}
                       </span>

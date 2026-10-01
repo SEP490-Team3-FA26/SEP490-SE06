@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ShoppingCart, BrainCircuit, HeartPulse, Menu, X, LogOut, ShieldAlert, User, MapPin, ClipboardList, ChevronDown } from "lucide-react";
+import { ShoppingCart, BrainCircuit, HeartPulse, Menu, X, LogOut, ShieldAlert, User, MapPin, ClipboardList, ChevronDown, Star } from "lucide-react";
 import api from "../services/core/api";
 import { notifyAuthTokenChanged } from "../utils/authEvents";
 import { authService } from "../services/auth/auth.service";
 import { MascotLogoIcon } from "../components/ui/Logo";
+import { ChatWidget } from "../components/chat";
 
 export function CustomerLayout() {
   const location = useLocation();
@@ -75,7 +76,7 @@ export function CustomerLayout() {
   const navItems = [
     { name: "Cửa Hàng Dược Phẩm", href: "/customer/shop", icon: <ShoppingCart size={18} /> },
     { name: "Tư Vấn AI (Giọng Nói)", href: "/customer/ai-consult", icon: <BrainCircuit size={18} /> },
-    { name: "Tương Tác Thuốc AI", href: "/customer/interactions", icon: <ShieldAlert size={18} /> },
+    { name: "Đánh Giá Dịch Vụ", href: "/feedback", icon: <Star size={18} /> },
   ].filter(Boolean) as any[];
 
   return (
@@ -94,20 +95,20 @@ export function CustomerLayout() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1.5">
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 shrink-0">
             {navItems.map((item) => {
               const isActive = location.pathname === item.href;
               return (
                 <Link
                   key={item.href}
                   to={item.href}
-                  className={`px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${isActive
-                    ? "bg-[#f2f3ff] text-[#0d6efd] font-black"
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${isActive
+                    ? "bg-[#f2f3ff] text-[#0d6efd] font-black shadow-sm"
                     : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                     }`}
                 >
                   {item.icon}
-                  {item.name}
+                  <span>{item.name}</span>
                 </Link>
               );
             })}
@@ -186,6 +187,14 @@ export function CustomerLayout() {
                       >
                         <ClipboardList size={15} />
                         <span>Đơn hàng & Toa thuốc</span>
+                      </Link>
+                      <Link
+                        to="/feedback"
+                        onClick={() => setShowProfileDropdown(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all"
+                      >
+                        <Star size={15} className="fill-amber-500 text-amber-500" />
+                        <span>Đánh giá & Nhận thưởng (+2kđ)</span>
                       </Link>
                       <div className="border-t border-slate-50 mt-1.5 pt-1.5">
                         <button
@@ -291,6 +300,9 @@ export function CustomerLayout() {
           </div>
         </div>
       </footer>
+
+      {/* Floating AI Pharmacist Chatbot */}
+      <ChatWidget />
     </div>
   );
 }

@@ -39,6 +39,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { StatusBadge, GRN_STATUS, PO_STATUS } from "./WarehouseConstants";
 import { purchaseOrderService } from "../../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../../services/purchase/goodsReceipt.service";
+import { BinLocationPicker } from "./BinLocationPicker";
 
 interface ShipmentLogisticsInfo {
   carrierName: string;
@@ -136,7 +137,7 @@ export function IncomingOrdersTab({
     return Array.from({ length: n }, (_, i) => `${zone}${i + 1}`);
   };
 
-  const [inspectionData, setInspectionData] = useState<Record<string, { batchNo: string, expDate: string, actualQty: number | string, location: { zone: string, rack: string, shelf: number } }>>({});
+  const [inspectionData, setInspectionData] = useState<Record<string, { batchNo: string, expDate: string, actualQty: number | string, location: { zone: string, rack: string, shelf: number, bin: number, slotType?: 'MAIN' | 'RESERVE' } }>>({});
   const [inspectionErrors, setInspectionErrors] = useState<Record<string, { batchNo?: string; expDate?: string; actualQty?: string; location?: string }>>({});
   const [modalError, setModalError] = useState("");
   const [aiScanning, setAiScanning] = useState<string | null>(null);
@@ -254,7 +255,7 @@ export function IncomingOrdersTab({
           batchNo: "",
           expDate: "",
           actualQty: "", // Empty so they have to input
-          location: { zone: 'A', rack: 'A1', shelf: 1 } // Default
+          location: { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' } // Default
         };
       });
       setInspectionData(initData);
@@ -359,8 +360,8 @@ export function IncomingOrdersTab({
         }
       }
 
-      if (!data?.location?.zone || !data?.location?.rack || !data?.location?.shelf) {
-        errors.location = "Vui lòng chọn vị trí xếp hàng (Khu, Kệ, Tầng).";
+      if (!data?.location?.zone || !data?.location?.rack || !data?.location?.shelf || !data?.location?.bin) {
+        errors.location = "Vui lòng chọn vị trí xếp hàng (Khu, Kệ, Tầng, Thùng).";
       }
 
       if (Object.keys(errors).length > 0) fieldErrors[mId] = errors;
@@ -388,6 +389,14 @@ export function IncomingOrdersTab({
         if (!Number.isFinite(unitPrice) || unitPrice < 0) {
           throw new Error(`Đơn giá của sản phẩm ${it.medicineName || mId} phải là số không âm.`);
         }
+        const loc = data.location ? {
+          zone: data.location.zone,
+          rack: data.location.rack,
+          shelf: Number(data.location.shelf),
+          bin: Number(data.location.bin || 1),
+          slotType: (data.location.slotType || 'MAIN') as 'MAIN' | 'RESERVE',
+        } : null;
+
         return {
           medicineId: mId,
           quantity,
@@ -395,7 +404,8 @@ export function IncomingOrdersTab({
           batchNo: data.batchNo.trim(),
           expDate: new Date(data.expDate).toISOString(),
           actualQty,
-          location: data.location || null,
+          location: loc,
+          shelvedLocation: loc,
         };
       });
 
@@ -1060,66 +1070,27 @@ export function IncomingOrdersTab({
                         </div>
                         {/* Location Picker */}
                         {!isLockedGrn && (
-                          <div className="mt-2 pt-2 border-t border-slate-200">
-                            <label className="text-[10px] font-bold text-emerald-700 mb-2 flex items-center gap-1 uppercase tracking-wide">
-                              <span>📍</span> Vị trí xếp hàng trong kho
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <label className="text-[10px] text-slate-500 font-bold mb-1 block">KHU</label>
-                                <select
-                                  value={inspectionData[mId]?.location?.zone || 'A'}
-                                  onChange={e => {
-                                    const newZone = e.target.value;
-                                    const firstRack = `${newZone}1`;
-                                    setInspectionData(prev => ({ ...prev, [mId]: { ...prev[mId], location: { zone: newZone, rack: firstRack, shelf: 1 } } }));
-                                    setInspectionErrors(prev => ({ ...prev, [mId]: { ...prev[mId], location: undefined } }));
-                                  }}
-                                  className={`w-full px-2 py-1.5 bg-white border rounded text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${inspectionErrors[mId]?.location ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"}`}
-                                >
-                                  {ZONE_OPTIONS.map(z => (
-                                    <option key={z.value} value={z.value}>{z.label}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-slate-500 font-bold mb-1 block">KỆ</label>
-                                <select
-                                  value={inspectionData[mId]?.location?.rack || 'A1'}
-                                  onChange={e => {
-                                    setInspectionData(prev => ({ ...prev, [mId]: { ...prev[mId], location: { ...prev[mId].location, rack: e.target.value } } }));
-                                    setInspectionErrors(prev => ({ ...prev, [mId]: { ...prev[mId], location: undefined } }));
-                                  }}
-                                  className={`w-full px-2 py-1.5 bg-white border rounded text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${inspectionErrors[mId]?.location ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"}`}
-                                >
-                                  {getRackOptions(inspectionData[mId]?.location?.zone || 'A').map(r => (
-                                    <option key={r} value={r}>{r}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-slate-500 font-bold mb-1 block">TẦNG</label>
-                                <select
-                                  value={inspectionData[mId]?.location?.shelf || 1}
-                                  onChange={e => {
-                                    setInspectionData(prev => ({ ...prev, [mId]: { ...prev[mId], location: { ...prev[mId].location, shelf: Number(e.target.value) } } }));
-                                    setInspectionErrors(prev => ({ ...prev, [mId]: { ...prev[mId], location: undefined } }));
-                                  }}
-                                  className={`w-full px-2 py-1.5 bg-white border rounded text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${inspectionErrors[mId]?.location ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"}`}
-                                >
-                                  {SHELF_OPTIONS.map(s => (
-                                    <option key={s} value={s}>Tầng {s}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                            {inspectionErrors[mId]?.location && <p className="mt-1 text-[10px] font-semibold text-rose-600">{inspectionErrors[mId].location}</p>}
-                          </div>
+                          <BinLocationPicker
+                            medicineId={mId}
+                            medicineName={it.medicineName}
+                            unit={it.unit || "Hộp"}
+                            value={inspectionData[mId]?.location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' }}
+                            onChange={(loc) => {
+                              setInspectionData(prev => ({
+                                ...prev,
+                                [mId]: { ...prev[mId], location: loc }
+                              }));
+                              setInspectionErrors(prev => ({ ...prev, [mId]: { ...prev[mId], location: undefined } }));
+                            }}
+                            error={inspectionErrors[mId]?.location}
+                          />
                         )}
                         {isLockedGrn && (it as any).location && (
                           <div className="mt-2 pt-2 border-t border-slate-200 flex items-center gap-2 text-xs text-slate-500">
                             <span>📍</span>
-                            <span className="font-semibold text-emerald-700">Khu {(it as any).location.zone} — Kệ {(it as any).location.rack} — Tầng {(it as any).location.shelf}</span>
+                            <span className="font-semibold text-emerald-700">
+                              Khu {(it as any).location.zone} — Kệ {(it as any).location.rack} — Tầng {(it as any).location.shelf} — Thùng B{(it as any).location.bin || 1}
+                            </span>
                           </div>
                         )}
                       </div>
