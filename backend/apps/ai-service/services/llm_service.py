@@ -36,7 +36,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
 
         for model in models_to_try:
             try:
-                print(f"[AI Service] Đang gọi DeepSeek API (model: {model})...")
+                print(f"[AI Service] Goi DeepSeek API (model: {model})...", flush=True)
                 async with httpx.AsyncClient(timeout=35.0) as client:
                     res = await client.post(
                         "https://api.deepseek.com/chat/completions",
@@ -54,7 +54,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
                     if res.status_code == 200:
                         data = res.json()
                         content = data["choices"][0]["message"]["content"]
-                        print(f"[AI Service] DeepSeek API ({model}) phản hồi thành công!")
+                        print(f"[AI Service] DeepSeek API ({model}) phan hoi thanh cong!", flush=True)
                         return content
                     else:
                         errors.append(f"DeepSeek ({model}) HTTP {res.status_code}: {res.text}")
@@ -73,7 +73,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
         ]
         for model in groq_models:
             try:
-                print(f"[AI Service] Thử Groq API (model: {model})...")
+                print(f"[AI Service] Thu Groq API (model: {model})...", flush=True)
                 groq_client = get_groq_client()
                 response = await groq_client.chat.completions.create(
                     model=model,
@@ -83,7 +83,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
                 )
                 content = response.choices[0].message.content
                 if content:
-                    print(f"[AI Service] Groq ({model}) phản hồi thành công!")
+                    print(f"[AI Service] Groq ({model}) phan hoi thanh cong!", flush=True)
                     return content
             except Exception as exc:
                 errors.append(f"Groq ({model}) exception: {exc}")
@@ -92,7 +92,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
     if openrouter_key:
         try:
-            print("[AI Service] Thử OpenRouter API...")
+            print("[AI Service] Thu OpenRouter API...", flush=True)
             async with httpx.AsyncClient(timeout=30.0) as client:
                 res = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
@@ -110,14 +110,14 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
                 if res.status_code == 200:
                     data = res.json()
                     content = data["choices"][0]["message"]["content"]
-                    print("[AI Service] OpenRouter phản hồi thành công!")
+                    print("[AI Service] OpenRouter phan hoi thanh cong!", flush=True)
                     return content
                 else:
                     errors.append(f"OpenRouter HTTP {res.status_code}: {res.text}")
         except Exception as exc:
             errors.append(f"OpenRouter exception: {exc}")
 
-    raise RuntimeError(f"Tất cả các dịch vụ LLM đều thất bại: {'; '.join(errors)}")
+    raise RuntimeError(f"Tat ca cac dich vu LLM deu that bai: {'; '.join(errors)}")
 
 async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
     return await call_llm_json(messages, temperature=0.1)
@@ -246,7 +246,7 @@ Nhiệm vụ của bạn là lắng nghe triệu chứng của khách hàng tron
 --------------------------------------
 
 NGUYÊN TẮC BẮT BUỘC:
-1. Xưng hô lịch sự, thân thiện, ân cần (Dược sĩ - bạn/anh/chị). Trả lời bằng tiếng Việt chuẩn mực y khoa nhưng dễ hiểu với người dân.
+1. Xưng hô lịch sự, thân thiện, ân cần (Dược sĩ - bạn/anh/chị). Trả lời bằng tiếng Việt chuẩn mực y khoa nhưng gần gũi, súc tích, dễ hiểu.
 2. NGUYÊN TẮC AN TOÀN DỊ ỨNG & CHỐNG CHỈ ĐỊNH:
    - Nếu khách hàng có tiền sử dị ứng với hoạt chất hoặc nhóm thuốc nào, TUYỆT ĐỐI KHÔNG kê/đề xuất bất kỳ sản phẩm nào chứa hoạt chất đó, đồng thời đưa ra cảnh báo an toàn rõ ràng.
    - Nếu đối tượng là trẻ em (child) hoặc người cao tuổi (elderly): Thận trọng tối đa về dạng dùng và liều lượng.
@@ -254,24 +254,30 @@ NGUYÊN TẮC BẮT BUỘC:
    - CHỈ đề xuất 1 - 3 loại thuốc hoặc thực phẩm chức năng CÓ THỰC TẾ TRONG CƠ SỞ DỮ LIỆU bên trên.
    - Tên thuốc trong trường 'name' PHẢI KHỚP HOẶC GẦN KHỚP NHẤT với tên sản phẩm trong CƠ SỞ DỮ LIỆU.
    - Nếu CƠ SỞ DỮ LIỆU trống hoặc không có thuốc phù hợp với bệnh: TUYỆT ĐỐI KHÔNG TỰ BỊA RA TÊN THUỐC! Hãy để 'recommended_drugs' là mảng rỗng [] và hướng dẫn khách hàng thăm khám y tế.
-4. Lời khuyên lối sống: Luôn dặn dò chế độ sinh hoạt (uống đủ nước, ăn đồ dễ tiêu, nghỉ ngơi...).
-5. Dấu hiệu cảnh báo: Nêu rõ các dấu hiệu trở nặng cần đến ngay cơ sở y tế (sốt cao liên tục không hạ, khó thở, nôn ói nhiều...).
+4. Lời khuyên lối sống & chăm sóc: Viết tự nhiên, súc tích ngay trong phần 'message' (ví dụ: uống đủ nước, nghỉ ngơi, chườm ấm...).
+5. NGUYÊN TẮC VỀ CẢNH BÁO AN TOÀN (WARNINGS):
+   - Trường 'warnings' CHỈ ĐƯỢC PHÉP ĐIỀN khi có nguy cơ y tế nghiêm trọng:
+     + Chống chỉ định đặc biệt nguy hiểm hoặc dị ứng thuốc đã ghi nhận.
+     + Tương tác thuốc bất lợi giữa các thuốc khách hàng đang sử dụng cùng lúc.
+     + Triệu chứng cấp cứu khẩn cấp (ví dụ: đau ngực lan ra tay khó thở, đột quỵ méo miệng yếu liệt, nôn ra máu, sốt cao co giật ở trẻ em, đau đầu dữ dội đột ngột như sét đánh).
+   - ĐỐI VỚI CÁC TRƯỜNG HỢP TƯ VẤN BỆNH THÔNG THƯỜNG (cảm sốt, đau đầu nhẹ, đau họng, sổ mũi, hỏi mua thuốc, tư vấn dùng thuốc):
+     BẮT BUỘC ĐỂ 'warnings' LÀ RỖNG "" HOẶC null! TUYỆT ĐỐI KHÔNG TỰ BỊA RA CÁC CÂU LƯU Ý CHUNG CHUNG ĐỂ ĐIỀN VÀO ĐÂY!
 6. Gợi ý hỏi thêm: Đặt câu hỏi theo dõi ngắn gọn trong 'follow_up_question' nếu cần thêm thông tin chẩn đoán (ví dụ: đã bị mấy ngày, có kèm theo triệu chứng nào khác không).
 
 BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON HỢP LỆ VỚI CẤU TRÚC SAU (KHÔNG KÈM TEXT NGOÀI JSON):
 {
-  "message": "Lời tư vấn, đồng cảm, giải thích cơ chế, dặn dò sinh hoạt và liều dùng chi tiết",
+  "message": "Lời tư vấn ngắn gọn, đồng cảm, giải thích tác dụng thuốc và dặn dò cách dùng",
   "recommended_drugs": [
     {
       "name": "Tên thuốc chính xác theo database",
       "active_ingredient": "Hoạt chất",
-      "dosage": "Liều dùng cụ thể (VD: 1-2 viên/lần, 2-3 lần/ngày)",
-      "usage": "Cách dùng (VD: Uống sau bữa ăn, uống nhiều nước ấm)"
+      "dosage": "Liều dùng cụ thể (VD: 1 viên/lần, 2-3 lần/ngày cách nhau 4-6 giờ)",
+      "usage": "Cách dùng (VD: Uống sau bữa ăn với một ly nước đầy)"
     }
   ],
-  "warnings": "Cảnh báo an toàn, chống chỉ định hoặc lưu ý quan trọng",
-  "follow_up_question": "Câu hỏi ngắn để khách hàng trả lời tiếp (hoặc để trống nếu đã đủ thông tin)",
-  "disclaimer": "Lưu ý: Thông tin tư vấn chỉ mang tính tham khảo y tế, không thay thế chẩn đoán và chỉ định trực tiếp từ bác sĩ chuyên khoa hoặc dược sĩ điều trị."
+  "warnings": "Chỉ điền khi có nguy cơ nghiêm trọng hoặc chống chỉ định, nếu thông thường bắt buộc để rỗng \"\"",
+  "follow_up_question": "Câu hỏi ngắn gọn nếu cần thêm thông tin (hoặc để trống nếu đã đủ)",
+  "disclaimer": "Lưu ý: Thông tin tư vấn chỉ mang tính tham khảo y tế, không thay thế chẩn đoán của bác sĩ."
 }"""
 
 async def generate_chat_consultation(
@@ -341,6 +347,18 @@ async def generate_chat_consultation(
             canonical_drugs.append(drug)
 
         data["recommended_drugs"] = canonical_drugs
+
+        # Loc bo warnings sao rong / khong thuc su nghiem trong
+        raw_warning = str(data.get("warnings") or "").strip()
+        generic_warning_phrases = [
+            "không có cảnh báo", "không có", "không", "none", "n/a",
+            "tham khảo ý kiến", "uống nhiều nước", "nghỉ ngơi", "ăn uống điều độ"
+        ]
+        if not raw_warning or any(raw_warning.lower() == phrase for phrase in generic_warning_phrases):
+            data["warnings"] = None
+        else:
+            data["warnings"] = raw_warning
+
         if not data.get("disclaimer"):
             data["disclaimer"] = "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo, không thay thế chẩn đoán trực tiếp của bác sĩ."
         return data
@@ -348,7 +366,7 @@ async def generate_chat_consultation(
         return {
             "message": content or "Dược sĩ AI đã tiếp nhận thông tin, bạn vui lòng mô tả chi tiết hơn nhé.",
             "recommended_drugs": [],
-            "warnings": "Đang cập nhật phân tích y tế.",
+            "warnings": None,
             "follow_up_question": "Bạn có thể cho tôi biết rõ hơn các triệu chứng xuất hiện từ khi nào không?",
             "disclaimer": "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo."
         }
