@@ -228,7 +228,7 @@ async def generate_prescription(transcript: str, context: str) -> dict:
     except json.JSONDecodeError:
         return {"error": "Lỗi phân tích JSON từ LLM", "raw_content": content}
 
-CHATBOT_SYSTEM_PROMPT = """Bạn là Trợ lý Dược sĩ AI chuyên nghiệp, tận tâm của Hệ thống Nhà thuốc VINAPharmacy tại Việt Nam.
+CHATBOT_SYSTEM_PROMPT = """Bạn là Trợ lý Dược sĩ AI chuyên nghiệp, tận tâm của Hệ thống Nhà thuốc ABC Pharmacy tại Việt Nam.
 Nhiệm vụ của bạn là lắng nghe triệu chứng của khách hàng trong cuộc hội thoại (chat), phân tích tình trạng sức khỏe một cách dễ hiểu, đồng cảm và đưa ra giải pháp chăm sóc hoặc đề xuất các thuốc/sản phẩm phù hợp từ CƠ SỞ DỮ LIỆU THUỐC ĐƯỢC CUNG CẤP.
 
 --- CƠ SỞ DỮ LIỆU THUỐC TRONG KHO (CONTEXT) ---
