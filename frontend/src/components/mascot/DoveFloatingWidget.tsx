@@ -25,7 +25,7 @@ export function DoveFloatingWidget() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-auto">
+    <div className="fixed bottom-6 left-6 z-40 flex flex-col items-start pointer-events-auto">
       {/* Speech / Action Popup */}
       {isOpen && (
         <div className="mb-3 w-80 bg-white/95 backdrop-blur-md border border-blue-100 rounded-3xl p-5 shadow-2xl shadow-blue-900/15 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -53,18 +53,18 @@ export function DoveFloatingWidget() {
               "{TIPS[tipIndex]}"
             </p>
             <span className="text-[10px] font-bold text-blue-600 block mt-1.5">
-              👉 Bấm để xem lời khuyên khác
+              Bấm để xem lời khuyên khác
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <Link
-              to="/interactions"
+              to="/customer/ai-consult"
               onClick={() => setIsOpen(false)}
               className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 text-white font-bold text-[11px] hover:shadow-md hover:shadow-blue-500/20 transition-all text-center"
             >
               <BrainCircuit size={13} />
-              Tra Tương Tác AI
+              Tư Vấn AI
             </Link>
             <Link
               to="/customer/shop"
@@ -81,8 +81,8 @@ export function DoveFloatingWidget() {
       {/* Floating Mascot Trigger Button */}
       <div className="relative group">
         {!isOpen && (
-          <div className="absolute -top-10 right-0 bg-slate-900/90 text-white text-[11px] font-bold py-1 px-3 rounded-full shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            Gặp Bồ Câu Y Tế nè! 👋
+          <div className="absolute -top-10 left-0 bg-slate-900/90 text-white text-[11px] font-bold py-1 px-3 rounded-full shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            Gặp Bồ Câu Y Tế nè!
           </div>
         )}
 

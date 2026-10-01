@@ -174,8 +174,50 @@ export const prescriptionService = {
     };
   },
 
-  async textConsult(symptoms: string) {
-    const response = await api.post('/api/prescriptions/symptom-consult', { symptoms });
+  async textConsult(symptoms: string, branchId?: string) {
+    const response = await api.post('/api/prescriptions/symptom-consult', {
+      symptoms,
+      branch_id: branchId,
+    });
     return response.data;
   },
+
+  async chatConsult(payload: {
+    message: string;
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    age_group?: string;
+    gender?: string;
+    allergies?: string[];
+  }) {
+    const response = await api.post('/api/prescriptions/chat', payload);
+    return response.data;
+  },
+
+  async getChatSessions() {
+    try {
+      const response = await api.get('/api/prescriptions/chat/sessions');
+      return response.data;
+    } catch {
+      return { success: false, sessions: [] };
+    }
+  },
+
+  async saveChatSession(session: any) {
+    try {
+      const response = await api.post('/api/prescriptions/chat/sessions', session);
+      return response.data;
+    } catch {
+      return { success: false };
+    }
+  },
+
+  async deleteChatSession(sessionId: string) {
+    try {
+      const response = await api.delete(`/api/prescriptions/chat/sessions/${sessionId}`);
+      return response.data;
+    } catch {
+      return { success: false };
+    }
+  },
 };
+

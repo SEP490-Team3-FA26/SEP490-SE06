@@ -1,10 +1,11 @@
 import { BaseDashboardLayout } from "./BaseDashboardLayout";
-import { LayoutDashboard, Settings, Building2, PackageSearch, ShieldCheck, Tag, Users, Database } from "lucide-react";
+import { LayoutDashboard, Settings, Building2, PackageSearch, ShieldCheck, Tag, Users, Database, HeartHandshake } from "lucide-react";
 
 export function AdminLayout() {
   const adminNavItems = [
     { name: "Tổng quan Hệ thống", href: "/admin", icon: <LayoutDashboard size={20} /> },
     { name: "Quản lý chi nhánh", href: "/admin/branches", icon: <Building2 size={20} /> },
+    { name: "Đánh giá & CSKH Chi nhánh", href: "/admin/feedbacks", icon: <HeartHandshake size={20} /> },
     { name: "Quản lý nhân viên & Phân quyền", href: "/admin/employees", icon: <Users size={20} /> },
     { name: "Quản lý Voucher", href: "/admin/vouchers", icon: <Tag size={20} /> },
     {

@@ -50,7 +50,7 @@ export function DashboardHome() {
   }, []);
 
   const fetchRealData = async () => {
-    if (role === "warehouse" || role === "admin" || role === "head_branch" || role === "branch") {
+    if (role === "warehouse" || role === "admin" || role === "head_branch" || role === "director" || role === "branch") {
       setLoading(true);
       try {
         const [statsData, lowStockData, expiringData] = await Promise.all([
@@ -279,13 +279,13 @@ export function DashboardHome() {
               color: "from-amber-600 to-orange-600"
             },
             {
-              title: "Hạn Mức Ngân Sách Đã Dùng",
-              value: "72.4% / Quota",
-              icon: <TrendingUp size={22} />,
-              trend: "8 / 8 Chi nhánh trong ngưỡng",
+              title: "Hiệu Suất Vận Hành Chuỗi",
+              value: "96.8% Đạt chuẩn",
+              icon: <Building2 size={22} />,
+              trend: "8 / 8 Chi nhánh hoạt động tốt",
               trendUp: true,
-              subtitle: "An toàn dòng vốn lưu động",
-              progress: 72.4,
+              subtitle: "An toàn vận hành toàn chuỗi",
+              progress: 96.8,
               color: "from-emerald-600 to-teal-600"
             },
             {
@@ -309,16 +309,6 @@ export function DashboardHome() {
               badge: "Cần phê duyệt",
               badgeColor: "bg-indigo-100 text-indigo-700 border-indigo-200",
               link: "/director/approvals"
-            },
-            {
-              id: "quota-management",
-              name: "Hạn mức Ngân sách Chi nhánh",
-              desc: "Phân bổ và giám sát trần hạn mức nhập hàng của từng cơ sở theo tháng",
-              icon: <TrendingUp size={24} />,
-              color: "bg-gradient-to-br from-emerald-500 to-teal-600 text-white",
-              badge: "Hạn mức",
-              badgeColor: "bg-emerald-100 text-emerald-700 border-emerald-200",
-              link: "/director/quotas"
             },
             {
               id: "director-finance",

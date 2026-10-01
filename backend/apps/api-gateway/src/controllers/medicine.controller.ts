@@ -1,30 +1,58 @@
-import { Controller, Get, Post, Put, Query, UseInterceptors, Param, Body, Patch, Inject, OnModuleInit, HttpException, HttpStatus, UseGuards, Optional } from '@nestjs/common';
-import { ClientKafka } from '@nestjs/microservices';
-import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
-import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { RolesGuard } from '../guards/roles.guard';
-import { Roles } from '../decorators/roles.decorator';
-import { CACHE_MANAGER, CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
-import { AuditLogAction } from '../decorators/audit-log.decorator';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Query,
+  UseInterceptors,
+  Param,
+  Body,
+  Patch,
+  Inject,
+  OnModuleInit,
+  HttpException,
+  HttpStatus,
+  UseGuards,
+  Optional,
+} from "@nestjs/common";
+import { ClientKafka } from "@nestjs/microservices";
+import {
+  sendKafkaMessage,
+  subscribeToKafkaTopics,
+} from "../common/kafka.helper";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiQuery,
+  ApiBearerAuth,
+} from "@nestjs/swagger";
+import { JwtAuthGuard } from "../guards/jwt-auth.guard";
+import { RolesGuard } from "../guards/roles.guard";
+import { Roles } from "../decorators/roles.decorator";
+import {
+  CACHE_MANAGER,
+  CacheInterceptor,
+  CacheTTL,
+} from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { AuditLogAction } from "../decorators/audit-log.decorator";
 
-@ApiTags('💊 Medicines')
-@Controller('api/medicines')
+@ApiTags("💊 Medicines")
+@Controller("api/medicines")
 export class MedicineController implements OnModuleInit {
   constructor(
-    @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
+    @Inject("INVENTORY_SERVICE") private readonly inventoryClient: ClientKafka,
     @Optional() @Inject(CACHE_MANAGER) private readonly cacheManager?: Cache,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     // Topics are already subscribed globally in AppGatewayModule
   }
 
-  @Get('filters')
-  @ApiOperation({ summary: 'Lấy danh sách các bộ lọc có sẵn' })
+  @Get("filters")
+  @ApiOperation({ summary: "Lấy danh sách các bộ lọc có sẵn" })
   async getFilters() {
-    const cacheKey = 'medicines:filters:all';
+    const cacheKey = "medicines:filters:all";
     if (this.cacheManager) {
       try {
         const cached = await this.cacheManager.get(cacheKey);
@@ -33,7 +61,11 @@ export class MedicineController implements OnModuleInit {
     }
 
     try {
-      const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_filters', {});
+      const result = await sendKafkaMessage(
+        this.inventoryClient,
+        "inventory.medicine.get_filters",
+        {},
+      );
       if (this.cacheManager && result) {
         try {
           await this.cacheManager.set(cacheKey, result, 3600000); // Cache 1 giờ
@@ -42,230 +74,303 @@ export class MedicineController implements OnModuleInit {
       return result;
     } catch (error) {
       return {
-        categories: ['Kháng sinh', 'Hạ sốt & Giảm đau', 'Tim mạch', 'Tiêu hóa', 'Thực phẩm chức năng', 'Vật tư y tế'],
-        classifications: ['PRESCRIPTION', 'NON_PRESCRIPTION', 'SUPPLEMENT']
+        categories: [
+          "Kháng sinh",
+          "Hạ sốt & Giảm đau",
+          "Tim mạch",
+          "Tiêu hóa",
+          "Thực phẩm chức năng",
+          "Vật tư y tế",
+        ],
+        classifications: ["PRESCRIPTION", "NON_PRESCRIPTION", "SUPPLEMENT"],
       };
     }
   }
 
-  @Get('stats')
+  @Get("stats")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy thống kê tồn kho' })
+  @ApiOperation({ summary: "Lấy thống kê tồn kho" })
   async getStats() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.stats', {});
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.stats",
+      {},
+    );
   }
 
-  @Get('expiration-report')
+  @Get("expiration-report")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy báo cáo hết hạn của các lô hàng' })
+  @ApiOperation({ summary: "Lấy báo cáo hết hạn của các lô hàng" })
   async getExpirationReport() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.expiration_report', {});
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.expiration_report",
+      {},
+    );
   }
 
-  @Post('expiration-action')
+  @Post("expiration-action")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Xử lý đề xuất xử lý thuốc sắp hết hạn (Xuất hủy, Trả NCC, Giảm giá)' })
-  async handleExpirationAction(@Body() body: {
-    batchId: string;
-    action: 'DISPOSE' | 'RETURN_SUPPLIER' | 'DISCOUNT';
-    quantity: number;
-    notes?: string;
-    discountPrice?: number;
-    performedBy?: string;
-  }) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.handle_expiration_action', body);
+  @ApiOperation({
+    summary:
+      "Xử lý đề xuất xử lý thuốc sắp hết hạn (Xuất hủy, Trả NCC, Giảm giá)",
+  })
+  async handleExpirationAction(
+    @Body()
+    body: {
+      batchId: string;
+      action: "DISPOSE" | "RETURN_SUPPLIER" | "DISCOUNT";
+      quantity: number;
+      notes?: string;
+      discountPrice?: number;
+      performedBy?: string;
+    },
+  ) {
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.handle_expiration_action",
+      body,
+    );
   }
 
-  @Get('low-stock-report')
+  @Get("low-stock-report")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy báo cáo các loại thuốc sắp hết hàng hoặc hết hàng' })
+  @ApiOperation({
+    summary: "Lấy báo cáo các loại thuốc sắp hết hàng hoặc hết hàng",
+  })
   async getLowStockReport() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.low_stock_report', {});
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.low_stock_report",
+      {},
+    );
   }
 
-  @Get('dropdown')
+  @Get("dropdown")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy danh sách tối giản của các loại thuốc phục vụ cho dropdown' })
+  @ApiOperation({
+    summary: "Lấy danh sách tối giản của các loại thuốc phục vụ cho dropdown",
+  })
   async getMedicinesDropdown() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.dropdown_list', {});
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.dropdown_list",
+      {},
+    );
   }
 
-  @Get('warehouse-map')
+  @Get("warehouse-map")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @UseInterceptors(CacheInterceptor)
   @CacheTTL(60000) // Cache 60s
-  @ApiOperation({ summary: 'Lấy sơ đồ kho tổng quan 2D/3D' })
+  @ApiOperation({ summary: "Lấy sơ đồ kho tổng quan 2D/3D" })
   async getWarehouseMap() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.warehouse_map', {});
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.warehouse_map",
+      {},
+    );
   }
 
-  @Get('shelf-detail')
+  @Get("shelf-detail")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy chi tiết danh sách thuốc trong một tầng kệ' })
-  @ApiQuery({ name: 'zone', required: true, type: String })
-  @ApiQuery({ name: 'rack', required: true, type: String })
-  @ApiQuery({ name: 'shelf', required: true, type: Number })
+  @ApiOperation({ summary: "Lấy chi tiết danh sách thuốc trong một tầng kệ" })
+  @ApiQuery({ name: "zone", required: true, type: String })
+  @ApiQuery({ name: "rack", required: true, type: String })
+  @ApiQuery({ name: "shelf", required: true, type: Number })
   async getShelfDetail(
-    @Query('zone') zone: string,
-    @Query('rack') rack: string,
-    @Query('shelf') shelf: number,
+    @Query("zone") zone: string,
+    @Query("rack") rack: string,
+    @Query("shelf") shelf: number,
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.shelf_detail', { zone, rack, shelf: Number(shelf) });
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.shelf_detail",
+      { zone, rack, shelf: Number(shelf) },
+    );
   }
 
-  @Get('warehouse-search')
+  @Get("warehouse-search")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Tìm kiếm nhanh thuốc và lấy vị trí trong kho tổng' })
-  @ApiQuery({ name: 'q', required: true, type: String })
-  async warehouseSearch(@Query('q') q: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.warehouse_search', { q });
+  @ApiOperation({
+    summary: "Tìm kiếm nhanh thuốc và lấy vị trí trong kho tổng",
+  })
+  @ApiQuery({ name: "q", required: true, type: String })
+  async warehouseSearch(@Query("q") q: string) {
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.warehouse_search",
+      { q },
+    );
   }
 
-  @Post('sync-locations')
+  @Post("sync-locations")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'PHARMACIST')
+  @Roles("ADMIN", "PHARMACIST")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Đồng bộ vị trí cho các lô thuốc cũ chưa có vị trí' })
+  @ApiOperation({
+    summary: "Đồng bộ vị trí cho các lô thuốc cũ chưa có vị trí",
+  })
   async syncLocations() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.sync_locations', {});
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.sync_locations",
+      {},
+    );
   }
-
 
   // Tồn kho thời gian thực toàn chuỗi + Thuật toán tồn kho an toàn
-  @Get('safe-stock-chain')
+  @Get("safe-stock-chain")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Xem tồn kho thời gian thực toàn chuỗi + phân tích an toàn' })
-  @ApiQuery({ name: 'serviceLevel', required: false, type: Number, description: 'Mức phục vụ: 0.90/0.95/0.98/0.99', example: 0.95 })
-  @ApiQuery({ name: 'periodDays', required: false, type: Number, description: 'Kỳ phân tích (ngày)', example: 30 })
-  @ApiQuery({ name: 'branchId', required: false, type: String, description: 'Lọc theo chi nhánh' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOperation({
+    summary: "Xem tồn kho thời gian thực toàn chuỗi + phân tích an toàn",
+  })
+  @ApiQuery({
+    name: "serviceLevel",
+    required: false,
+    type: Number,
+    description: "Mức phục vụ: 0.90/0.95/0.98/0.99",
+    example: 0.95,
+  })
+  @ApiQuery({
+    name: "periodDays",
+    required: false,
+    type: Number,
+    description: "Kỳ phân tích (ngày)",
+    example: 30,
+  })
+  @ApiQuery({
+    name: "branchId",
+    required: false,
+    type: String,
+    description: "Lọc theo chi nhánh",
+  })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
   async getSafeStockChain(
-    @Query('serviceLevel') serviceLevel?: number,
-    @Query('periodDays') periodDays?: number,
-    @Query('branchId') branchId?: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query("serviceLevel") serviceLevel?: number,
+    @Query("periodDays") periodDays?: number,
+    @Query("branchId") branchId?: string,
+    @Query("page") page = 1,
+    @Query("limit") limit = 20,
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.safe_stock_chain', {
-      serviceLevel: serviceLevel ? Number(serviceLevel) : 0.95,
-      periodDays: periodDays ? Number(periodDays) : 30,
-      branchId: branchId || undefined,
-      page: Number(page),
-      limit: Number(limit),
-    });
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.safe_stock_chain",
+      {
+        serviceLevel: serviceLevel ? Number(serviceLevel) : 0.95,
+        periodDays: periodDays ? Number(periodDays) : 30,
+        branchId: branchId || undefined,
+        page: Number(page),
+        limit: Number(limit),
+      },
+    );
   }
 
   // Phát hiện bất thường tồn kho (Z-Score / 3-Sigma Thống Kê Thuần Túy)
-  @Get('anomaly-detection')
+  @Get("anomaly-detection")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Phát hiện bất thường tồn kho bằng Z-Score / 3-Sigma' })
-  @ApiQuery({ name: 'periodDays', required: false, type: Number, description: 'Kỳ phân tích (ngày)', example: 60 })
-  @ApiQuery({ name: 'zScoreThreshold', required: false, type: Number, description: 'Ngưỡng Z-Score (mặc định: 3)', example: 3 })
+  @ApiOperation({
+    summary: "Phát hiện bất thường tồn kho bằng Z-Score / 3-Sigma",
+  })
+  @ApiQuery({
+    name: "periodDays",
+    required: false,
+    type: Number,
+    description: "Kỳ phân tích (ngày)",
+    example: 60,
+  })
+  @ApiQuery({
+    name: "zScoreThreshold",
+    required: false,
+    type: Number,
+    description: "Ngưỡng Z-Score (mặc định: 3)",
+    example: 3,
+  })
   async getAnomalyDetection(
-    @Query('periodDays') periodDays?: number,
-    @Query('zScoreThreshold') zScoreThreshold?: number,
+    @Query("periodDays") periodDays?: number,
+    @Query("zScoreThreshold") zScoreThreshold?: number,
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.detect_anomalies', {
-      periodDays: periodDays ? Number(periodDays) : 60,
-      zScoreThreshold: zScoreThreshold ? Number(zScoreThreshold) : 3,
-    });
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.detect_anomalies",
+      {
+        periodDays: periodDays ? Number(periodDays) : 60,
+        zScoreThreshold: zScoreThreshold ? Number(zScoreThreshold) : 3,
+      },
+    );
   }
 
-  @Get('branch/:branchId')
+  @Get("branch/:branchId")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy danh sách thuốc và tồn kho riêng của chi nhánh' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'category', required: false, type: String })
-  @ApiQuery({ name: 'classification', required: false, type: String })
-  @ApiQuery({ name: 'targetGroup', required: false, type: String })
-  @ApiQuery({ name: 'minPrice', required: false, type: Number })
-  @ApiQuery({ name: 'maxPrice', required: false, type: Number })
-  @ApiQuery({ name: 'flavour', required: false, type: String })
-  @ApiQuery({ name: 'country', required: false, type: String })
-  @ApiQuery({ name: 'brand', required: false, type: String })
-  @ApiQuery({ name: 'indication', required: false, type: String })
-  @ApiQuery({ name: 'brandOrigin', required: false, type: String })
-  @ApiQuery({ name: 'branchStockOnly', required: false, type: Boolean })
+  @ApiOperation({
+    summary: "Lấy danh sách thuốc và tồn kho riêng của chi nhánh",
+  })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "category", required: false, type: String })
+  @ApiQuery({ name: "classification", required: false, type: String })
+  @ApiQuery({ name: "targetGroup", required: false, type: String })
+  @ApiQuery({ name: "minPrice", required: false, type: Number })
+  @ApiQuery({ name: "maxPrice", required: false, type: Number })
+  @ApiQuery({ name: "flavour", required: false, type: String })
+  @ApiQuery({ name: "country", required: false, type: String })
+  @ApiQuery({ name: "brand", required: false, type: String })
+  @ApiQuery({ name: "indication", required: false, type: String })
+  @ApiQuery({ name: "brandOrigin", required: false, type: String })
+  @ApiQuery({ name: "branchStockOnly", required: false, type: Boolean })
   async getBranchMedicines(
-    @Param('branchId') branchId: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
-    @Query('search') search = '',
-    @Query('category') category = '',
-    @Query('classification') classification = '',
-    @Query('targetGroup') targetGroup = '',
-    @Query('minPrice') minPrice?: number,
-    @Query('maxPrice') maxPrice?: number,
-    @Query('flavour') flavour = '',
-    @Query('country') country = '',
-    @Query('brand') brand = '',
-    @Query('indication') indication = '',
-    @Query('brandOrigin') brandOrigin = '',
-    @Query('branchStockOnly') branchStockOnly?: boolean,
+    @Param("branchId") branchId: string,
+    @Query("page") page = 1,
+    @Query("limit") limit = 10,
+    @Query("search") search = "",
+    @Query("category") category = "",
+    @Query("classification") classification = "",
+    @Query("targetGroup") targetGroup = "",
+    @Query("minPrice") minPrice?: number,
+    @Query("maxPrice") maxPrice?: number,
+    @Query("flavour") flavour = "",
+    @Query("country") country = "",
+    @Query("brand") brand = "",
+    @Query("indication") indication = "",
+    @Query("brandOrigin") brandOrigin = "",
+    @Query("branchStockOnly") branchStockOnly?: boolean,
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.branch_list', {
-      branchId,
-      branchStockOnly,
-      page: Number(page),
-      limit: Number(limit),
-      search,
-      category,
-      classification,
-      targetGroup,
-      minPrice: minPrice ? Number(minPrice) : undefined,
-      maxPrice: maxPrice ? Number(maxPrice) : undefined,
-      flavour,
-      country,
-      brand,
-      indication,
-      brandOrigin,
-    });
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.branch_list",
+      {
+        branchId,
+        branchStockOnly,
+        page: Number(page),
+        limit: Number(limit),
+        search,
+        category,
+        classification,
+        targetGroup,
+        minPrice: minPrice ? Number(minPrice) : undefined,
+        maxPrice: maxPrice ? Number(maxPrice) : undefined,
+        flavour,
+        country,
+        brand,
+        indication,
+        brandOrigin,
+      },
+    );
   }
 
-  @Get('barcode/:barcode')
-  @ApiOperation({ summary: 'Tra cứu thuốc siêu tốc bằng Barcode/Mã vạch và lấy Lô FEFO của chi nhánh' })
-  @ApiQuery({ name: 'branchId', required: false, type: String })
-  async getMedicineByBarcode(
-    @Param('barcode') barcode: string,
-    @Query('branchId') branchId?: string,
-  ) {
-    const cacheKey = `medicine:barcode:${barcode}:${branchId || 'ALL'}`;
-    if (this.cacheManager) {
-      try {
-        const cached = await this.cacheManager.get(cacheKey);
-        if (cached) {
-          return cached;
-        }
-      } catch (e) {}
-    }
-
-    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_by_barcode', {
-      barcode,
-      branchId,
-    });
-
-    if (result && result.found && this.cacheManager) {
-      try {
-        await this.cacheManager.set(cacheKey, result, 1800000); // 30 phút TTL
-      } catch (e) {}
-    }
-
-    return result;
-  }
 
   // ============================================================
   // WAREHOUSE MAP - So do kho 4 cap: Khu -> Ke -> Tang -> Thung
@@ -337,12 +442,56 @@ export class MedicineController implements OnModuleInit {
     return { status: 'Accepted', message: 'Lo thuoc da duoc gui yeu cau cach ly (QUARANTINED).' };
   }
 
-  @Post(':id/generate-barcode')
+  @Get("barcode/:barcode")
+  @ApiOperation({
+    summary:
+      "Tra cứu thuốc siêu tốc bằng Barcode/Mã vạch và lấy Lô FEFO của chi nhánh",
+  })
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getMedicineByBarcode(
+    @Param("barcode") barcode: string,
+    @Query("branchId") branchId?: string,
+  ) {
+    const cacheKey = `medicine:barcode:${barcode}:${branchId || "ALL"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.get_by_barcode",
+      {
+        barcode,
+        branchId,
+      },
+    );
+
+    if (result && result.found && this.cacheManager) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 1800000); // 30 phút TTL
+      } catch (e) {}
+    }
+
+    return result;
+  }
+
+  @Post(":id/generate-barcode")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Tự động sinh mã EAN-13 chuẩn Việt Nam và cập nhật cho thuốc' })
-  async generateBarcode(@Param('id') id: string) {
-    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.generate_barcode', { id });
+  @ApiOperation({
+    summary: "Tự động sinh mã EAN-13 chuẩn Việt Nam và cập nhật cho thuốc",
+  })
+  async generateBarcode(@Param("id") id: string) {
+    const result = await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.generate_barcode",
+      { id },
+    );
     if (result && result.barcode && this.cacheManager) {
       try {
         await this.cacheManager.del(`medicine:barcode:${result.barcode}:ALL`);
@@ -351,133 +500,166 @@ export class MedicineController implements OnModuleInit {
     return result;
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Lấy chi tiết 1 loại thuốc' })
-  async getMedicineById(@Param('id') id: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_by_id', { id });
+  @Get(":id")
+  @ApiOperation({ summary: "Lấy chi tiết 1 loại thuốc" })
+  async getMedicineById(@Param("id") id: string) {
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.get_by_id",
+      { id },
+    );
   }
 
-  @Get(':id/alternatives')
-  @ApiOperation({ summary: 'Tìm các loại thuốc thay thế' })
-  @ApiQuery({ name: 'branchId', required: true, type: String })
-  async getAlternatives(@Param('id') id: string, @Query('branchId') branchId: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.get_alternatives', { medicineId: id, branchId });
+  @Get(":id/alternatives")
+  @ApiOperation({ summary: "Tìm các loại thuốc thay thế" })
+  @ApiQuery({ name: "branchId", required: true, type: String })
+  async getAlternatives(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+  ) {
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.get_alternatives",
+      { medicineId: id, branchId },
+    );
   }
 
-  @Patch(':id/status')
+  @Patch(":id/status")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Cập nhật trạng thái / tồn kho của thuốc' })
+  @ApiOperation({ summary: "Cập nhật trạng thái / tồn kho của thuốc" })
   @AuditLogAction({
-    actionCode: 'MEDICINE_STATUS_UPDATE',
-    actionName: 'Cập nhật trạng thái thuốc',
-    module: 'Inventory',
-    eventType: 'UPDATE',
-    entityType: 'Medicine',
+    actionCode: "MEDICINE_STATUS_UPDATE",
+    actionName: "Cập nhật trạng thái thuốc",
+    module: "Inventory",
+    eventType: "UPDATE",
+    entityType: "Medicine",
   })
   async updateMedicineStatus(
-    @Param('id') id: string,
-    @Body('status') status: string,
-    @Body('stock') stock?: number
+    @Param("id") id: string,
+    @Body("status") status: string,
+    @Body("stock") stock?: number,
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.update_status', { id, status, stock });
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.update_status",
+      { id, status, stock },
+    );
   }
 
-  @Patch(':id/price-tiers')
+  @Patch(":id/price-tiers")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Cập nhật bảng giá sỉ bậc thang của thuốc' })
+  @ApiOperation({ summary: "Cập nhật bảng giá sỉ bậc thang của thuốc" })
   @AuditLogAction({
-    actionCode: 'MEDICINE_PRICE_TIERS_UPDATE',
-    actionName: 'Cập nhật giá sỉ thuốc',
-    module: 'Inventory',
-    eventType: 'UPDATE',
-    entityType: 'Medicine',
+    actionCode: "MEDICINE_PRICE_TIERS_UPDATE",
+    actionName: "Cập nhật giá sỉ thuốc",
+    module: "Inventory",
+    eventType: "UPDATE",
+    entityType: "Medicine",
   })
   async updateMedicinePriceTiers(
-    @Param('id') id: string,
-    @Body('priceTiers') priceTiers: { minQuantity: number; price: number }[]
+    @Param("id") id: string,
+    @Body("priceTiers") priceTiers: { minQuantity: number; price: number }[],
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.update_price_tiers', { id, priceTiers });
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.update_price_tiers",
+      { id, priceTiers },
+    );
   }
 
-  @Patch(':id/price')
+  @Patch(":id/price")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Cập nhật giá bán chung của thuốc' })
+  @ApiOperation({ summary: "Cập nhật giá bán chung của thuốc" })
   async updateMedicinePrice(
-    @Param('id') id: string,
-    @Body('price') price: number
+    @Param("id") id: string,
+    @Body("price") price: number,
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.update_price', { id, price });
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.update_price",
+      { id, price },
+    );
   }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'head_branch', 'warehouse')
+  @Roles("admin", "head_branch", "warehouse")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Tạo mới dược phẩm (SKU)' })
+  @ApiOperation({ summary: "Tạo mới dược phẩm (SKU)" })
   @AuditLogAction({
-    actionCode: 'MEDICINE_CREATE',
-    actionName: 'Tạo mới dược phẩm',
-    module: 'Inventory',
-    eventType: 'CREATE',
-    entityType: 'Medicine',
+    actionCode: "MEDICINE_CREATE",
+    actionName: "Tạo mới dược phẩm",
+    module: "Inventory",
+    eventType: "CREATE",
+    entityType: "Medicine",
   })
   async createMedicine(@Body() body: any) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.create', body);
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.create",
+      body,
+    );
   }
 
-  @Put(':id')
+  @Put(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'head_branch', 'warehouse')
+  @Roles("admin", "head_branch", "warehouse")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Cập nhật thông tin dược phẩm (SKU)' })
+  @ApiOperation({ summary: "Cập nhật thông tin dược phẩm (SKU)" })
   @AuditLogAction({
-    actionCode: 'MEDICINE_UPDATE',
-    actionName: 'Cập nhật thông tin dược phẩm',
-    module: 'Inventory',
-    eventType: 'UPDATE',
-    entityType: 'Medicine',
+    actionCode: "MEDICINE_UPDATE",
+    actionName: "Cập nhật thông tin dược phẩm",
+    module: "Inventory",
+    eventType: "UPDATE",
+    entityType: "Medicine",
   })
-  async updateMedicine(@Param('id') id: string, @Body() body: any) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.update', { id, updateData: body });
+  async updateMedicine(@Param("id") id: string, @Body() body: any) {
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.update",
+      { id, updateData: body },
+    );
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách thuốc (kết nối Mongoose & Vector DB)' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'category', required: false, type: String })
-  @ApiQuery({ name: 'classification', required: false, type: String })
-  @ApiQuery({ name: 'targetGroup', required: false, type: String })
-  @ApiQuery({ name: 'minPrice', required: false, type: Number })
-  @ApiQuery({ name: 'maxPrice', required: false, type: Number })
-  @ApiQuery({ name: 'flavour', required: false, type: String })
-  @ApiQuery({ name: 'country', required: false, type: String })
-  @ApiQuery({ name: 'brand', required: false, type: String })
-  @ApiQuery({ name: 'indication', required: false, type: String })
-  @ApiQuery({ name: 'brandOrigin', required: false, type: String })
-  @ApiQuery({ name: 'branchId', required: false, type: String })
+  @ApiOperation({
+    summary: "Lấy danh sách thuốc (kết nối Mongoose & Vector DB)",
+  })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "category", required: false, type: String })
+  @ApiQuery({ name: "classification", required: false, type: String })
+  @ApiQuery({ name: "targetGroup", required: false, type: String })
+  @ApiQuery({ name: "minPrice", required: false, type: Number })
+  @ApiQuery({ name: "maxPrice", required: false, type: Number })
+  @ApiQuery({ name: "flavour", required: false, type: String })
+  @ApiQuery({ name: "country", required: false, type: String })
+  @ApiQuery({ name: "brand", required: false, type: String })
+  @ApiQuery({ name: "indication", required: false, type: String })
+  @ApiQuery({ name: "brandOrigin", required: false, type: String })
+  @ApiQuery({ name: "branchId", required: false, type: String })
   async getMedicines(
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
-    @Query('search') search = '',
-    @Query('category') category = '',
-    @Query('classification') classification = '',
-    @Query('targetGroup') targetGroup = '',
-    @Query('minPrice') minPrice?: number,
-    @Query('maxPrice') maxPrice?: number,
-    @Query('flavour') flavour = '',
-    @Query('country') country = '',
-    @Query('brand') brand = '',
-    @Query('indication') indication = '',
-    @Query('brandOrigin') brandOrigin = '',
-    @Query('branchId') branchId = '',
+    @Query("page") page = 1,
+    @Query("limit") limit = 10,
+    @Query("search") search = "",
+    @Query("category") category = "",
+    @Query("classification") classification = "",
+    @Query("targetGroup") targetGroup = "",
+    @Query("minPrice") minPrice?: number,
+    @Query("maxPrice") maxPrice?: number,
+    @Query("flavour") flavour = "",
+    @Query("country") country = "",
+    @Query("brand") brand = "",
+    @Query("indication") indication = "",
+    @Query("brandOrigin") brandOrigin = "",
+    @Query("branchId") branchId = "",
   ) {
-    const cacheKey = `medicines:list:${page}:${limit}:${search}:${category}:${classification}:${targetGroup}:${minPrice || ''}:${maxPrice || ''}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}`;
+    const cacheKey = `medicines:list:${page}:${limit}:${search}:${category}:${classification}:${targetGroup}:${minPrice || ""}:${maxPrice || ""}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}`;
 
     // 1. Kiểm tra cache Redis (Cache Hit)
     if (this.cacheManager) {
@@ -491,22 +673,26 @@ export class MedicineController implements OnModuleInit {
 
     // 2. Cache Miss: Gọi sang Microservice qua Kafka
     try {
-      const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.list', {
-        page: Number(page),
-        limit: Number(limit),
-        search,
-        category,
-        classification,
-        targetGroup,
-        minPrice: minPrice ? Number(minPrice) : undefined,
-        maxPrice: maxPrice ? Number(maxPrice) : undefined,
-        flavour,
-        country,
-        brand,
-        indication,
-        brandOrigin,
-        branchId,
-      });
+      const result = await sendKafkaMessage(
+        this.inventoryClient,
+        "inventory.medicine.list",
+        {
+          page: Number(page),
+          limit: Number(limit),
+          search,
+          category,
+          classification,
+          targetGroup,
+          minPrice: minPrice ? Number(minPrice) : undefined,
+          maxPrice: maxPrice ? Number(maxPrice) : undefined,
+          flavour,
+          country,
+          brand,
+          indication,
+          brandOrigin,
+          branchId,
+        },
+      );
 
       // 3. Ghi kết quả vào Redis Cache (TTL: 2 phút = 120,000 ms)
       if (this.cacheManager && result) {
@@ -517,9 +703,16 @@ export class MedicineController implements OnModuleInit {
 
       return result;
     } catch (error) {
-      return { data: [], total: 0, page: Number(page), limit: Number(limit), totalPages: 0 };
+      return {
+        data: [],
+        total: 0,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: 0,
+      };
     }
   }
+
 
 
 
@@ -559,4 +752,3 @@ export class MedicineController implements OnModuleInit {
 
 
 }
-

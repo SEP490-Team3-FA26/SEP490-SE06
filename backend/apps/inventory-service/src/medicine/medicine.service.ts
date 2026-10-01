@@ -339,7 +339,9 @@ export class MedicineService implements OnModuleInit {
       }
       
       query.medicineIds = medicineIds;
-      query.bypassAiSearch = true; // Bỏ qua AI search khi chỉ lấy tồn kho chi nhánh để kết quả chính xác tuyệt đối
+      if (!query.search) {
+        query.bypassAiSearch = true; // Chỉ bypass AI search khi không có từ khoá tìm kiếm
+      }
     }
 
     return this.listMedicines(query);
@@ -496,12 +498,16 @@ export class MedicineService implements OnModuleInit {
             } else {
               // Filter AI results against actual database to prevent returning non-existent medicines
               const rawAiMedIds = aiData.map((med: any) => (med._id || med.id || '').toString()).filter(id => id);
-              const existingMeds = await this.medicineModel.find({ _id: { $in: rawAiMedIds } }).select('_id stock price').lean().exec();
+              const existingMeds = await this.medicineModel.find({ _id: { $in: rawAiMedIds } }).select('_id stock price barcode sku units').lean().exec();
               const existingMedIds = new Set(existingMeds.map(m => m._id.toString()));
               const existingMedMap = new Map(existingMeds.map(m => [m._id.toString(), m]));
 
               aiData = aiData.filter((med: any) => existingMedIds.has((med._id || med.id || '').toString()));
-              const aiMedIds = Array.from(existingMedIds);
+              if (query.medicineIds && query.medicineIds.length > 0) {
+                const allowedSet = new Set(query.medicineIds.map(id => id.toString()));
+                aiData = aiData.filter((med: any) => allowedSet.has((med._id || med.id || '').toString()));
+              }
+              const aiMedIds = aiData.map((med: any) => (med._id || med.id || '').toString());
 
               // Truy vấn lô hàng cho các kết quả từ AI Service
               const batchFilter: any = { medicineId: { $in: aiMedIds } };
@@ -535,17 +541,19 @@ export class MedicineService implements OnModuleInit {
                 return {
                   id: medId,
                   name: med.name,
+                  barcode: dbMed?.barcode || med.barcode || (dbMed?.units && dbMed.units[0]?.barcode) || '',
+                  sku: dbMed?.sku || med.sku || '',
                   category: med.category || 'Chưa phân loại',
                   drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
                   price: actualPrice,
                   stock: totalStock,
                   unopenedBoxes: Math.max(0, Math.floor(totalStock / 100)),
                   openedBoxUnits: med.openedBoxUnits !== undefined ? med.openedBoxUnits : (totalStock % 100),
-                  units: med.units && med.units.length > 0 ? med.units : [
+                  units: (dbMed?.units && dbMed.units.length > 0) ? dbMed.units : (med.units && med.units.length > 0 ? med.units : [
                     { unitName: med.unit || 'Hộp', exchangeValue: 100, price: actualPrice, isBaseUnit: true },
                     { unitName: 'Vỉ', exchangeValue: 10, price: Math.round(actualPrice / 10 * 1.05) },
                     { unitName: 'Viên', exchangeValue: 1, price: Math.round(actualPrice / 100 * 1.1) }
-                  ],
+                  ]),
                   minStock: 50,
                   status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
                   expiry: earliestExpiryStr,
@@ -622,6 +630,8 @@ export class MedicineService implements OnModuleInit {
             return {
               id: medId,
               name: med.name,
+              barcode: med.barcode || (med.units && med.units[0]?.barcode) || '',
+              sku: med.sku || '',
               category: med.category || 'Chưa phân loại',
               drug_classification: med.drug_classification || 'COMMON_SUPPLEMENT',
               price: med.price || 50000,
@@ -679,10 +689,22 @@ export class MedicineService implements OnModuleInit {
           },
         };
       } else {
-        // MONGOOSE SCROLL (Default View)
+        // MONGOOSE SCROLL (Default View / Fallback)
         const filterQuery: any = {};
-        if (conditions.length > 0) {
-          filterQuery.$and = conditions;
+        const conditionsCopy = [...conditions];
+        if (search) {
+          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          conditionsCopy.push({
+            $or: [
+              { name: { $regex: safeSearch, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+              { sku: { $regex: safeSearch, $options: 'i' } },
+              { barcode: { $regex: safeSearch, $options: 'i' } }
+            ]
+          });
+        }
+        if (conditionsCopy.length > 0) {
+          filterQuery.$and = conditionsCopy;
         }
 
         const [data, total] = await Promise.all([

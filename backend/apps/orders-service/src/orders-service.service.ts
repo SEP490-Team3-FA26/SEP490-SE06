@@ -10,6 +10,8 @@ import { Order } from './schemas/order.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Voucher } from './schemas/voucher.schema';
 import { Expense } from './schemas/expense.schema';
+import { PaymentWebhookLog, PaymentWebhookLogDocument } from './schemas/payment-webhook-log.schema';
+import { PaymentReconciliation, PaymentReconciliationDocument } from './schemas/payment-reconciliation.schema';
 import { subscribeToKafkaTopics, sendKafkaMessage } from '../../api-gateway/src/common/kafka.helper';
 
 const DEFAULT_PHONE_NUMBER = '0900000000';
@@ -23,6 +25,8 @@ export class OrdersServiceService implements OnModuleInit {
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
     @InjectModel(Voucher.name) private readonly voucherModel: Model<Voucher>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
+    @InjectModel(PaymentWebhookLog.name) private readonly webhookLogModel: Model<PaymentWebhookLogDocument>,
+    @InjectModel(PaymentReconciliation.name) private readonly reconciliationModel: Model<PaymentReconciliationDocument>,
     private readonly configService: ConfigService,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
     @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
@@ -903,5 +907,245 @@ export class OrdersServiceService implements OnModuleInit {
     } catch (error) {
       throw new RpcException(error.message || 'Lỗi khi tính toán báo cáo dòng tiền');
     }
+  }
+
+  // =========================================================================
+  // RECONCILIATION & WEBHOOK ENGINE
+  // =========================================================================
+
+  async handlePaymentWebhook(payload: any) {
+    const data = payload?.data || payload;
+    const orderCode = Number(data.orderCode);
+    const amount = Number(data.amount);
+    const reference = String(data.reference || data.paymentLinkId || Date.now());
+
+    // 1. Lưu log raw webhook
+    try {
+      await this.webhookLogModel.create({
+        gatewayProvider: 'PAYOS',
+        transactionId: reference,
+        orderCode,
+        amount,
+        accountNumber: data.accountNumber,
+        counterAccountBankId: data.counterAccountBankId,
+        description: data.description,
+        paymentTime: data.transactionDateTime ? new Date(data.transactionDateTime) : new Date(),
+        rawPayload: payload,
+        signatureVerified: true,
+        processingStatus: 'PROCESSED',
+      });
+    } catch (logErr: any) {
+      this.logger.warn(`Webhook log already exists or error: ${logErr.message}`);
+    }
+
+    // 2. Tìm đơn hàng tương ứng
+    const order = await this.orderModel.findOne({ orderCode });
+    if (!order) {
+      this.logger.warn(`[Reconciliation] Orphan payment received: orderCode=${orderCode}, amount=${amount}`);
+      const orphan = await this.reconciliationModel.create({
+        orderCode,
+        expectedAmount: 0,
+        actualAmount: amount,
+        differenceAmount: -amount,
+        status: 'ORPHAN_PAYMENT',
+        bankTransactionId: reference,
+        reconciledAt: new Date(),
+      });
+      return { status: 'ORPHAN_PAYMENT', message: 'Không tìm thấy đơn hàng, ghi nhận thanh toán mồ côi', reconciliationId: orphan._id };
+    }
+
+    const expectedAmount = order.totalAmount;
+    const differenceAmount = expectedAmount - amount;
+
+    let reconciliationStatus = 'MATCHED';
+    let toleranceApplied = false;
+
+    if (differenceAmount === 0) {
+      reconciliationStatus = 'MATCHED';
+      order.paymentStatus = 'PAID';
+    } else if (differenceAmount > 0 && differenceAmount <= 5000) {
+      // Dung sai thông minh <= 5.000 VNĐ: Cho phép xuất thuốc ngay tại quầy
+      reconciliationStatus = 'UNDERPAID_TOLERANCE';
+      toleranceApplied = true;
+      order.paymentStatus = 'PAID';
+      this.logger.log(`[Reconciliation] Smart tolerance applied for order #${orderCode}: missing ${differenceAmount}đ`);
+    } else if (differenceAmount > 5000) {
+      // Chuyển thiếu nhiều hơn 5k: Chặn đơn
+      reconciliationStatus = 'UNDERPAID_BLOCKED';
+      order.paymentStatus = 'PARTIAL_PAID';
+      this.logger.warn(`[Reconciliation] Order #${orderCode} underpaid: missing ${differenceAmount}đ`);
+    } else {
+      // Chuyển thừa tiền (differenceAmount < 0)
+      reconciliationStatus = 'OVERPAID_CREDITED';
+      order.paymentStatus = 'PAID';
+      const excessAmount = Math.abs(differenceAmount);
+      this.logger.log(`[Reconciliation] Order #${orderCode} overpaid: excess ${excessAmount}đ credited to customer`);
+      // Cộng điểm thưởng bù trừ nếu có SĐT khách
+      if (order.patientPhone && order.patientPhone !== DEFAULT_PHONE_NUMBER) {
+        try {
+          this.userClient.emit('user.loyalty.update_points', {
+            phone: order.patientPhone,
+            points: Math.floor(excessAmount),
+            reason: `Hoàn tiền chuyển thừa đơn #${orderCode}`,
+          });
+        } catch (e: any) {
+          this.logger.warn(`Failed to credit loyalty points for excess payment: ${e.message}`);
+        }
+      }
+    }
+
+    await order.save();
+
+    // 3. Lưu bản ghi đối soát
+    const rec = await this.reconciliationModel.create({
+      orderId: order._id,
+      orderCode,
+      branchId: order.branchId || 'BR-001',
+      expectedAmount,
+      actualAmount: amount,
+      differenceAmount,
+      toleranceApplied,
+      status: reconciliationStatus,
+      bankTransactionId: reference,
+      reconciledAt: new Date(),
+    });
+
+    return {
+      status: reconciliationStatus,
+      toleranceApplied,
+      orderCode,
+      paymentStatus: order.paymentStatus,
+      reconciliationId: rec._id,
+    };
+  }
+
+  async handleManualOverride(data: { orderCode: number; bankTransactionId: string; cashierId?: string; actualAmount?: number; notes?: string }) {
+    const order = await this.orderModel.findOne({ orderCode: Number(data.orderCode) });
+    if (!order) {
+      throw new RpcException(`Không tìm thấy đơn hàng #${data.orderCode}`);
+    }
+
+    const expectedAmount = order.totalAmount;
+    const actualAmount = data.actualAmount || expectedAmount;
+    const differenceAmount = expectedAmount - actualAmount;
+
+    order.paymentStatus = 'PAID';
+    await order.save();
+
+    const rec = await this.reconciliationModel.create({
+      orderId: order._id,
+      orderCode: order.orderCode,
+      branchId: order.branchId || 'BR-001',
+      cashierId: data.cashierId || 'POS-CASHIER',
+      expectedAmount,
+      actualAmount,
+      differenceAmount,
+      toleranceApplied: true,
+      status: 'MANUAL_OVERRIDE',
+      bankTransactionId: data.bankTransactionId,
+      resolutionNotes: data.notes || 'Dược sĩ xác nhận khẩn cấp có đối soát tại quầy',
+      resolvedBy: data.cashierId || 'POS-CASHIER',
+      resolvedAt: new Date(),
+      reconciledAt: new Date(),
+    });
+
+    return {
+      success: true,
+      message: `Đã xác nhận thanh toán khẩn cấp cho đơn #${order.orderCode}`,
+      orderCode: order.orderCode,
+      reconciliationId: rec._id,
+    };
+  }
+
+  async getReconciliationDiscrepancies(query: { branchId?: string; status?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) {
+    const filter: any = {};
+    if (query.branchId) filter.branchId = query.branchId;
+    if (query.status) {
+      filter.status = query.status;
+    } else {
+      filter.status = { $ne: 'MATCHED' };
+    }
+    if (query.startDate || query.endDate) {
+      filter.reconciledAt = {};
+      if (query.startDate) filter.reconciledAt.$gte = new Date(query.startDate);
+      if (query.endDate) filter.reconciledAt.$lte = new Date(query.endDate + 'T23:59:59.999Z');
+    }
+
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.reconciliationModel.find(filter).sort({ reconciledAt: -1 }).skip(skip).limit(limit).lean(),
+      this.reconciliationModel.countDocuments(filter),
+    ]);
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getReconciliationSummary(query: { branchId?: string; startDate?: string; endDate?: string }) {
+    const filter: any = {};
+    if (query.branchId) filter.branchId = query.branchId;
+    if (query.startDate || query.endDate) {
+      filter.reconciledAt = {};
+      if (query.startDate) filter.reconciledAt.$gte = new Date(query.startDate);
+      if (query.endDate) filter.reconciledAt.$lte = new Date(query.endDate + 'T23:59:59.999Z');
+    }
+
+    const records = await this.reconciliationModel.find(filter).lean();
+
+    let totalExpected = 0;
+    let totalActual = 0;
+    let totalMatched = 0;
+    let totalUnderpaidTolerance = 0;
+    let totalUnderpaidBlocked = 0;
+    let totalOverpaid = 0;
+    let totalManualOverride = 0;
+    let totalOrphan = 0;
+
+    records.forEach((r: any) => {
+      totalExpected += r.expectedAmount || 0;
+      totalActual += r.actualAmount || 0;
+      if (r.status === 'MATCHED') totalMatched++;
+      else if (r.status === 'UNDERPAID_TOLERANCE') totalUnderpaidTolerance++;
+      else if (r.status === 'UNDERPAID_BLOCKED') totalUnderpaidBlocked++;
+      else if (r.status === 'OVERPAID_CREDITED') totalOverpaid++;
+      else if (r.status === 'MANUAL_OVERRIDE') totalManualOverride++;
+      else if (r.status === 'ORPHAN_PAYMENT') totalOrphan++;
+    });
+
+    const totalRecords = records.length;
+    const matchRate = totalRecords > 0 ? Number(((totalMatched / totalRecords) * 100).toFixed(1)) : 100;
+
+    return {
+      totalRecords,
+      totalExpected,
+      totalActual,
+      difference: totalExpected - totalActual,
+      matchRate,
+      breakdown: {
+        matched: totalMatched,
+        underpaidTolerance: totalUnderpaidTolerance,
+        underpaidBlocked: totalUnderpaidBlocked,
+        overpaidCredited: totalOverpaid,
+        manualOverride: totalManualOverride,
+        orphan: totalOrphan,
+      },
+    };
+  }
+
+  async resolveDiscrepancy(payload: { id: string; resolutionNotes: string; resolvedBy: string }) {
+    const rec = await this.reconciliationModel.findById(payload.id);
+    if (!rec) {
+      throw new RpcException('Không tìm thấy bản ghi đối soát cần xử lý');
+    }
+
+    rec.status = 'MANUALLY_RESOLVED';
+    rec.resolutionNotes = payload.resolutionNotes;
+    rec.resolvedBy = payload.resolvedBy;
+    rec.resolvedAt = new Date();
+    await rec.save();
+
+    return { success: true, message: 'Đã hoàn tất xử lý giải trình đối soát', record: rec };
   }
 }

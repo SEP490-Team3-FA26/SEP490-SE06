@@ -28,8 +28,12 @@ import {
 import api from "../../services/core/api";
 import { financeService, ExpenseItem, CashFlowSummary } from "../../services/finance.service";
 import { CreateExpenseModal } from "../../components/CreateExpenseModal";
+import { PaymentReconciliationTab } from "../../components/finance/PaymentReconciliationTab";
+import { CustomerRFMTab } from "../../components/finance/CustomerRFMTab";
+import { ShieldCheck, UserCheck } from "lucide-react";
 
 export function Finance() {
+   const [activeTab, setActiveTab] = useState<'cashflow' | 'reconciliation' | 'rfm'>('cashflow');
    const [selectedBranch, setSelectedBranch] = useState("all");
    const [selectedYear, setSelectedYear] = useState("2026");
    const [timeRange, setTimeRange] = useState("year");
@@ -56,7 +60,7 @@ export function Finance() {
       }
    }
 
-   const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch';
+   const isAdmin = userDetails.role === 'admin' || userDetails.role === 'head_branch' || userDetails.role === 'director';
 
    // Lock branch selection for branch managers
    useEffect(() => {
@@ -356,7 +360,63 @@ export function Finance() {
             </div>
          </div>
 
-         {/* Filters - Hidden in Print */}
+         {/* Navigation Tabs - Hidden in Print */}
+         <div className="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-fit print:hidden border border-slate-200/80">
+            <button
+               onClick={() => setActiveTab('cashflow')}
+               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'cashflow'
+                     ? 'bg-white text-slate-900 shadow-sm'
+                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+               }`}
+            >
+               <Banknote size={15} />
+               <span>Sổ Quỹ & Dòng Tiền</span>
+            </button>
+            <button
+               onClick={() => setActiveTab('reconciliation')}
+               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'reconciliation'
+                     ? 'bg-white text-blue-700 shadow-sm'
+                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+               }`}
+            >
+               <ShieldCheck size={15} />
+               <span>Đối Soát Thanh Toán (Webhook)</span>
+               <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-800 rounded-full font-black">
+                  Auto
+               </span>
+            </button>
+            <button
+               onClick={() => setActiveTab('rfm')}
+               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'rfm'
+                     ? 'bg-white text-purple-700 shadow-sm'
+                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+               }`}
+            >
+               <UserCheck size={15} />
+               <span>Phân Khúc Khách Hàng (RFM)</span>
+               <span className="px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-800 rounded-full font-black">
+                  Dược
+               </span>
+            </button>
+         </div>
+
+         {/* Tab 2: Đối Soát Thanh Toán */}
+         {activeTab === 'reconciliation' && (
+            <PaymentReconciliationTab selectedBranch={selectedBranch} />
+         )}
+
+         {/* Tab 3: Phân Khúc Khách Hàng RFM */}
+         {activeTab === 'rfm' && (
+            <CustomerRFMTab selectedBranch={selectedBranch} />
+         )}
+
+         {/* Tab 1: Sổ Quỹ & Dòng Tiền */}
+         {activeTab === 'cashflow' && (
+            <>
+               {/* Filters - Hidden in Print */}
          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-4 print:hidden">
             <div className="flex-1 w-full flex items-center gap-3">
                <Building2 className="text-slate-400 shrink-0" size={20} />
@@ -580,6 +640,8 @@ export function Finance() {
                   </div>
                </div>
             </>
+         )}
+         </>
          )}
 
          {/* Expense Creation Modal */}
