@@ -267,6 +267,76 @@ export class MedicineController implements OnModuleInit {
     return result;
   }
 
+  // ============================================================
+  // WAREHOUSE MAP - So do kho 4 cap: Khu -> Ke -> Tang -> Thung
+  // ============================================================
+
+  // GET /api/medicines/shelf-layout?zone=A&rack=A1
+  @Get('shelf-layout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lay layout ke kho (4 Tang x 10 Thung) voi thong tin thuoc va ton kho' })
+  async getShelfLayout(
+    @Query('zone') zone: string,
+    @Query('rack') rack: string,
+  ) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.shelf.layout', { zone, rack });
+  }
+
+  // GET /api/medicines/reserve-batches?branchId=CENTRAL_WH
+  @Get('reserve-batches')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lay danh sach lo dang o Khu Du Tru (FEFO sorted)' })
+  async getReserveBatches(@Query('branchId') branchId: string = 'CENTRAL_WH') {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.reserve.list', { branchId });
+  }
+
+  // GET /api/medicines/bin-detail?zone=A&rack=A1&shelf=3&bin=2
+  @Get('bin-detail')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Chi tiet thung thuoc: lo MAIN + lo RESERVE (xuat truoc theo FEFO)' })
+  async getBinDetail(
+    @Query('zone') zone: string,
+    @Query('rack') rack: string,
+    @Query('shelf') shelf: number,
+    @Query('bin') bin: number,
+  ) {
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      'inventory.medicine.bin.detail',
+      { zone, rack, shelf: Number(shelf), bin: Number(bin) }
+    );
+  }
+
+  // POST /api/medicines/assign-location
+  @Post('assign-location')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Gan thuoc vao vi tri thung co dinh trong kho (async)' })
+  async assignMedicineLocation(@Body() dto: {
+    medicineId: string; zone: string; rack: string; shelf: number; bin: number; maxCapacity?: number;
+  }) {
+    this.inventoryClient.emit('inventory.medicine.location.assign', JSON.stringify(dto));
+    return { status: 'Accepted', message: 'Da gan thuoc vao vi tri thung trong kho.' };
+  }
+
+  // PATCH /api/medicines/batches/:batchId/quarantine
+  @Patch('batches/:batchId/quarantine')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Khoa lo thuoc (QUARANTINED) - khong duoc xuat ban' })
+  async quarantineBatch(
+    @Param('batchId') batchId: string,
+    @Body() body?: { reason?: string },
+  ) {
+    this.inventoryClient.emit('inventory.medicine.batch.quarantine', JSON.stringify({ batchId, reason: body?.reason }));
+    return { status: 'Accepted', message: 'Lo thuoc da duoc gui yeu cau cach ly (QUARANTINED).' };
+  }
+
   @Post(':id/generate-barcode')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -486,6 +556,7 @@ export class MedicineController implements OnModuleInit {
       throw new HttpException(error.message || 'Lỗi khi gọi AI Service', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
 
 }
 
