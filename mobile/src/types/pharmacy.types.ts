@@ -172,6 +172,10 @@ export interface OrderItem {
   price: number;
   unit: string;
   batchNo?: string;
+  cach_dung?: string; // Hướng dẫn sử dụng: vd "Sáng 1 viên, Tối 1 viên sau ăn - Dùng trong 7 ngày"
+  so_ngay_dung?: number; // Số ngày dùng ước tính
+  so_vien_hop?: number; // Tổng số viên hoặc liều trong 1 đơn vị đóng gói
+  dosage_form?: string; // Dạng bào chế: viên nén, gói, siro, chai...
 }
 
 export interface Order {

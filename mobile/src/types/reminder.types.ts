@@ -15,6 +15,18 @@ export interface MedicineReminder {
   isEnabled: boolean; // Trạng thái bật/tắt nhắc nhở
   createdAt: string;
   updatedAt: string;
+
+  // Medicine Reminder v2.0 - Refill & Dosing specifications
+  totalDoses?: number; // Tổng số lượng viên/gói ban đầu (vd: 20 viên)
+  timesPerDay?: number; // Số lần uống trong ngày (mặc định lấy theo times.length)
+  dosagePerTime?: number; // Số lượng viên uống mỗi lần (vd: 1 viên)
+  totalDays?: number; // Tổng số ngày điều trị dự kiến
+  refillEnabled?: boolean; // Bật/tắt nhắc nhở mua lại
+  refillThresholdPct?: number; // Ngưỡng kích hoạt nhắc mua lại (% còn lại, mặc định 20)
+  refillScheduled?: boolean; // Cờ đánh dấu đã lên lịch chuông nhắc mua lại hay chưa
+  orderId?: string; // Mã đơn hàng xuất phát (nếu tạo từ đơn mua)
+  orderItemId?: string; // Mã thuốc trong đơn hàng
+  sourceType?: 'MANUAL' | 'FROM_ORDER'; // Nguồn gốc nhắc nhở
 }
 
 export type ReminderActionStatus = 'TAKEN' | 'SKIPPED' | 'SNOOZED' | 'MISSED';
@@ -28,4 +40,14 @@ export interface MedicineReminderLog {
   status: ReminderActionStatus;
   recordedAt: string; // ISO string lúc người dùng bấm nút
   synced: boolean;
+}
+
+export interface RefillLog {
+  id: string;
+  reminderId: string;
+  medicineName: string;
+  scheduledTime: string; // ISO string 09:00 hàng ngày
+  triggerDay: number; // Ngày thứ mấy trong chuỗi 7 ngày nhắc
+  notifiedAt?: string;
+  acknowledged: boolean;
 }

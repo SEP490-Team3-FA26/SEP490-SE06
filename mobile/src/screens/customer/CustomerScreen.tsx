@@ -22,6 +22,7 @@ import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, Order, Voucher } from '../../types/pharmacy.types';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
+import { parseOrderToReminder } from '../../services/reminderStorage.service';
 
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
@@ -867,9 +868,27 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
                   <View style={styles.orderItemsBox}>
                     {ord.items.map((it, idx) => (
-                      <Text key={idx} style={styles.orderItemRow}>
-                        • {it.name} x {it.quantity} {it.unit} ({it.price.toLocaleString('vi-VN')} ₫)
-                      </Text>
+                      <View key={idx} style={styles.orderItemCardRow}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={styles.orderItemTitle}>
+                            • {it.name} x {it.quantity} {it.unit}
+                          </Text>
+                          <Text style={styles.orderItemSub}>
+                            {it.price.toLocaleString('vi-VN')} ₫
+                            {it.cach_dung ? ` • ${it.cach_dung}` : ''}
+                          </Text>
+                        </View>
+                        <AnimatedTouchable
+                          style={styles.setReminderBtn}
+                          onPress={() => {
+                            const parsed = parseOrderToReminder(it, ord.id || ord._id);
+                            navigation.navigate('MedicineReminderScreen', { autoFill: parsed });
+                          }}
+                        >
+                          <Ionicons name="alarm" size={13} color="#0891B2" />
+                          <Text style={styles.setReminderBtnText}>Nhắc Uống</Text>
+                        </AnimatedTouchable>
+                      </View>
                     ))}
                   </View>
 
@@ -1771,6 +1790,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#475569',
     marginVertical: 2,
+  },
+  orderItemCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  orderItemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  orderItemSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  setReminderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFEFF',
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  setReminderBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0891B2',
   },
   orderFooter: {
     flexDirection: 'row',

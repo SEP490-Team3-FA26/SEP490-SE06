@@ -94,6 +94,32 @@ export const MedicineReminderService = {
   },
 
   /**
+   * Tính ngày kết thúc của liệu trình thuốc (tránh trường hợp nhắc vô tận khi thiếu endDate)
+   */
+  computeEndDate(reminder: MedicineReminder): Date {
+    if (reminder.endDate) {
+      const d = new Date(reminder.endDate);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    }
+
+    const start = new Date(reminder.startDate || new Date());
+    let days = 30; // Mặc định tối đa 30 ngày nếu không có thông tin
+
+    if (reminder.totalDays && reminder.totalDays > 0) {
+      days = reminder.totalDays;
+    } else if (reminder.totalDoses && reminder.totalDoses > 0) {
+      const daily = (reminder.times?.length || 1) * (reminder.dosagePerTime || 1);
+      days = Math.max(1, Math.floor(reminder.totalDoses / daily));
+    }
+
+    const end = new Date(start);
+    end.setDate(end.getDate() + days - 1);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  },
+
+  /**
    * Chuyển đổi enum thời điểm ăn thành mô tả tiếng Việt
    */
   getMealDescription(timing: MealTiming): string {
@@ -110,7 +136,107 @@ export const MedicineReminderService = {
   },
 
   /**
-   * Hủy tất cả các thông báo đã lên lịch của một reminder cụ thể
+   * Tạo tiêu đề và nội dung thông báo mang tính ấm áp, đồng hành (Emotional Notification)
+   */
+  getEmotionalNotificationContent(
+    triggerDate: Date,
+    reminder: MedicineReminder,
+    dayIndex: number,
+    totalDays?: number
+  ): { title: string; body: string } {
+    const hour = triggerDate.getHours();
+    const name = reminder.medicineName;
+    const mealDesc = this.getMealDescription(reminder.mealTiming);
+
+    let title = `💊 Nhắc uống thuốc: ${name}`;
+    let intro = '';
+
+    // 4 slot giờ trong ngày: Sáng (05-11), Trưa (11-14), Chiều (14-18), Tối (18-24)
+    if (hour >= 5 && hour < 11) {
+      const pool = [
+        `🌅 Chào buổi sáng! Đã đến giờ uống ${name} rồi bạn nhé 😊`,
+        `☀️ Khởi đầu ngày mới tràn đầy năng lượng cùng ${name} nào bạn!`,
+        `☕ Đừng quên uống ${name} sau bữa sáng bạn nhé!`,
+      ];
+      intro = pool[dayIndex % pool.length];
+      title = `🌅 Nhắc sáng: ${name}`;
+    } else if (hour >= 11 && hour < 14) {
+      const pool = [
+        `☀️ Nghỉ trưa và uống ${name} đúng giờ bạn nhé!`,
+        `🥗 Sau bữa trưa ngon miệng, bạn nhớ uống ${name} nha!`,
+        `🍱 Đã đến giờ uống ${name} giữa ngày rồi bạn ơi!`,
+      ];
+      intro = pool[dayIndex % pool.length];
+      title = `☀️ Nhắc trưa: ${name}`;
+    } else if (hour >= 14 && hour < 18) {
+      const pool = [
+        `🌤️ Chiều rồi, tiếp thêm năng lượng và nhớ uống ${name} nhé bạn!`,
+        `🍃 Uống ${name} buổi chiều đúng lịch trình để giữ sức khỏe tốt nào bạn!`,
+      ];
+      intro = pool[dayIndex % pool.length];
+      title = `🌤️ Nhắc chiều: ${name}`;
+    } else {
+      const pool = [
+        `🌙 Buổi tối an lành! Bạn nhớ uống ${name} trước khi nghỉ ngơi nhé!`,
+        `⭐ Đã đến giờ uống ${name} buổi tối rồi bạn ơi, giữ gìn sức khỏe nhé!`,
+        `🌃 Uống ${name} để cơ thể phục hồi thật tốt trong giấc ngủ bạn nhé!`,
+      ];
+      intro = pool[dayIndex % pool.length];
+      title = `🌙 Nhắc tối: ${name}`;
+    }
+
+    const bodyParts: string[] = [intro, `Liều: ${reminder.dosage}`];
+    if (mealDesc) bodyParts.push(mealDesc);
+
+    // Suffix động theo tiến trình điều trị
+    if (totalDays && totalDays > 0) {
+      if (dayIndex === 1) {
+        bodyParts.push('🎯 Ngày đầu tiên của liệu trình, cùng cố gắng nhé!');
+      } else if (dayIndex === totalDays) {
+        bodyParts.push('🏆 Ngày cuối cùng của liệu trình! Bạn tuyệt vời lắm!');
+      } else {
+        const daysLeft = totalDays - dayIndex;
+        if (daysLeft > 0 && daysLeft <= 3) {
+          bodyParts.push(`⏳ Chỉ còn ${daysLeft} ngày nữa là hoàn thành liệu trình!`);
+        }
+      }
+    }
+
+    if (reminder.note) {
+      bodyParts.push(`Lưu ý: ${reminder.note}`);
+    }
+
+    return {
+      title,
+      body: bodyParts.join(' • '),
+    };
+  },
+
+  /**
+   * Hủy các thông báo nhắc nhở mua lại thuốc (Refill)
+   */
+  async cancelRefillNotifications(reminderId: string): Promise<void> {
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      const toCancel = scheduled.filter(
+        (n) =>
+          n.identifier.startsWith(`refill_${reminderId}_`) ||
+          (n.content.data && n.content.data.refillReminderId === reminderId)
+      );
+
+      await Promise.all(
+        toCancel.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
+      );
+      if (toCancel.length > 0) {
+        console.log(`[Reminder] Đã hủy ${toCancel.length} thông báo refill của thuốc: ${reminderId}`);
+      }
+    } catch (e) {
+      console.warn('Failed to cancel refill notifications:', reminderId, e);
+    }
+  },
+
+  /**
+   * Hủy tất cả các thông báo đã lên lịch của một reminder cụ thể (bao gồm cả uống và refill)
    */
   async cancelReminderNotifications(reminderId: string): Promise<void> {
     try {
@@ -118,7 +244,9 @@ export const MedicineReminderService = {
       const toCancel = scheduled.filter(
         (n) =>
           n.identifier.startsWith(`${reminderId}_`) ||
-          (n.content.data && n.content.data.reminderId === reminderId)
+          n.identifier.startsWith(`refill_${reminderId}_`) ||
+          (n.content.data && n.content.data.reminderId === reminderId) ||
+          (n.content.data && n.content.data.refillReminderId === reminderId)
       );
 
       await Promise.all(
@@ -132,6 +260,7 @@ export const MedicineReminderService = {
 
   /**
    * Lên lịch theo cửa sổ trượt (Sliding Window) 7 ngày tới
+   * Đã sửa lỗi: Bắt buộc tuân thủ endDate để không bị lặp vô tận
    */
   async scheduleReminderSlidingWindow(
     reminder: MedicineReminder,
@@ -146,16 +275,14 @@ export const MedicineReminderService = {
 
     const now = new Date();
     let scheduledCount = 0;
-    const mealDesc = this.getMealDescription(reminder.mealTiming);
 
-    // Chuẩn hóa ngày bắt đầu và kết thúc
+    // Chuẩn hóa ngày bắt đầu và kết thúc bắt buộc
     const startBoundary = new Date(reminder.startDate);
     startBoundary.setHours(0, 0, 0, 0);
 
-    const endBoundary = reminder.endDate ? new Date(reminder.endDate) : null;
-    if (endBoundary) {
-      endBoundary.setHours(23, 59, 59, 999);
-    }
+    const endBoundary = this.computeEndDate(reminder);
+
+    const totalDays = reminder.totalDays || Math.max(1, Math.round((endBoundary.getTime() - startBoundary.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
     for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
       const targetDate = new Date();
@@ -172,7 +299,10 @@ export const MedicineReminderService = {
       targetDayStart.setHours(0, 0, 0, 0);
 
       if (targetDayStart < startBoundary) continue;
-      if (endBoundary && targetDayStart > endBoundary) continue;
+      // Khóa cứng: Không bao giờ lên lịch vượt quá ngày kết thúc đã tính
+      if (targetDayStart > endBoundary) continue;
+
+      const dayIndex = Math.max(1, Math.round((targetDayStart.getTime() - startBoundary.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
       for (const timeStr of reminder.times) {
         const [hStr, mStr] = timeStr.split(':');
@@ -197,15 +327,14 @@ export const MedicineReminderService = {
         const min = String(minute).padStart(2, '0');
         const identifier = `${reminder.id}_${yyyy}${mm}${dd}_${hh}${min}`;
 
-        const bodyParts = [`Liều: ${reminder.dosage}`];
-        if (mealDesc) bodyParts.push(mealDesc);
-        if (reminder.note) bodyParts.push(`Lưu ý: ${reminder.note}`);
+        // Lấy thông điệp cảm xúc theo buổi trong ngày và tiến trình
+        const content = this.getEmotionalNotificationContent(triggerDate, reminder, dayIndex, totalDays);
 
         await Notifications.scheduleNotificationAsync({
           identifier,
           content: {
-            title: `💊 Nhắc uống thuốc: ${reminder.medicineName}`,
-            body: bodyParts.join(' • '),
+            title: content.title,
+            body: content.body,
             data: {
               reminderId: reminder.id,
               medicineName: reminder.medicineName,
@@ -232,6 +361,99 @@ export const MedicineReminderService = {
   },
 
   /**
+   * Lên lịch chuỗi 7 ngày liên tiếp nhắc mua lại thuốc vào 09:00 sáng
+   * khi số lượng thuốc chạm ngưỡng 20% còn lại
+   */
+  async scheduleRefillNotifications(reminder: MedicineReminder): Promise<number> {
+    await this.cancelRefillNotifications(reminder.id);
+
+    if (
+      !reminder.isEnabled ||
+      !reminder.refillEnabled ||
+      !reminder.totalDoses ||
+      reminder.totalDoses <= 0
+    ) {
+      return 0;
+    }
+
+    const dailyConsumption =
+      (reminder.times?.length || 1) * (reminder.dosagePerTime || 1);
+    if (dailyConsumption <= 0) return 0;
+
+    const thresholdPct = reminder.refillThresholdPct || 20;
+    const thresholdDoses = Math.floor(reminder.totalDoses * (thresholdPct / 100));
+
+    // Số ngày dùng trước khi số thuốc chạm mốc 20% còn lại
+    const dosesConsumedBeforeThreshold = reminder.totalDoses - thresholdDoses;
+    const daysUntilThreshold = Math.max(0, Math.floor(dosesConsumedBeforeThreshold / dailyConsumption));
+
+    const startDate = new Date(reminder.startDate || new Date());
+    startDate.setHours(9, 0, 0, 0); // 09:00 sáng
+
+    const refillStartDate = new Date(startDate);
+    refillStartDate.setDate(refillStartDate.getDate() + daysUntilThreshold);
+
+    const endBoundary = this.computeEndDate(reminder);
+    const now = new Date();
+    let scheduledCount = 0;
+
+    // Lên lịch 7 ngày liên tiếp vào lúc 09:00 sáng
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const triggerDate = new Date(refillStartDate);
+      triggerDate.setDate(triggerDate.getDate() + dayOffset);
+      triggerDate.setHours(9, 0, 0, 0);
+
+      // Nếu mốc 09:00 của ngày đó đã trôi qua so với hiện tại thì bỏ qua
+      if (triggerDate.getTime() <= now.getTime()) {
+        continue;
+      }
+
+      // Không lên lịch quá 2 ngày sau khi hết thuốc
+      const maxDate = new Date(endBoundary);
+      maxDate.setDate(maxDate.getDate() + 2);
+      if (triggerDate > maxDate) {
+        break;
+      }
+
+      const identifier = `refill_${reminder.id}_day${dayOffset}`;
+      const dayRemaining = Math.max(1, 7 - dayOffset);
+
+      const refillMessages = [
+        `Thuốc ${reminder.medicineName} chỉ còn khoảng 20% liều dùng. Bạn nhớ đặt mua bổ sung để duy trì điều trị liên tục nhé 💙`,
+        `Sắp hết ${reminder.medicineName} rồi bạn ơi! Đặt mua ngay hôm nay để nhận thuốc kịp thời nhé 😊`,
+        `Duy trì phác đồ uống ${reminder.medicineName} không bị gián đoạn bằng cách đặt mua thuốc mới bạn nhé!`,
+      ];
+      const selectedMsg = refillMessages[dayOffset % refillMessages.length];
+
+      await Notifications.scheduleNotificationAsync({
+        identifier,
+        content: {
+          title: `🔔 Nhắc mua lại: ${reminder.medicineName}`,
+          body: `${selectedMsg} (Còn khoảng ${dayRemaining} ngày nữa là hết)`,
+          data: {
+            refillReminderId: reminder.id,
+            medicineName: reminder.medicineName,
+            isRefillReminder: true,
+            dayIndex: dayOffset,
+          },
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: triggerDate,
+          channelId: CHANNEL_ID,
+        },
+      });
+
+      scheduledCount++;
+    }
+
+    console.log(`[Refill] Đã lên lịch ${scheduledCount} thông báo nhắc mua lại thuốc ${reminder.medicineName} lúc 09:00 sáng`);
+    return scheduledCount;
+  },
+
+  /**
    * Làm mới và gia hạn cửa sổ trượt cho toàn bộ các nhắc nhở đang bật
    * Được gọi khi mở app, chuyển từ nền lên foreground (AppState.active)
    */
@@ -243,6 +465,7 @@ export const MedicineReminderService = {
 
       for (const r of activeList) {
         await this.scheduleReminderSlidingWindow(r, 7);
+        await this.scheduleRefillNotifications(r);
       }
     } catch (e) {
       console.warn('Failed to reschedule active reminders:', e);
