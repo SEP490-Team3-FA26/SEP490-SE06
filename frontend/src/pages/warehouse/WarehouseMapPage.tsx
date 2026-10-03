@@ -6,7 +6,7 @@ import {
 import { inventoryMapService, ReserveBatch } from "../../services/inventory/inventoryMap.service";
 import { WarehouseMap2D } from "./components/WarehouseMap2D";
 import { ShelfDetailModal } from "./components/ShelfDetailModal";
-import { WarehouseSearchBar } from "./components/WarehouseSearchBar";
+import { WarehouseFilterBar } from "./components/WarehouseFilterBar";
 import { ReserveBatchesPanel } from "./components/ReserveBatchesPanel";
 
 export function WarehouseMapPage() {
@@ -14,7 +14,9 @@ export function WarehouseMapPage() {
   const [zones, setZones] = useState<any[]>([]);
   const [selectedShelf, setSelectedShelf] = useState<{ zone: string; rack: string; shelf: number; bin?: number | null } | null>(null);
   const [drawerZone, setDrawerZone] = useState<any | null>(null);
+  const [highlightTargets, setHighlightTargets] = useState<Set<string>>(new Set());
   const [highlightTarget, setHighlightTarget] = useState<string>("");
+  const [filterDesc, setFilterDesc] = useState<string>("");
 
   // Reserve Batches state
   const [reserveBatches, setReserveBatches] = useState<ReserveBatch[]>([]);
@@ -138,7 +140,19 @@ export function WarehouseMapPage() {
             </span>
           </button>
 
-          <WarehouseSearchBar onSelect={(target) => setHighlightTarget(target)} />
+          <WarehouseFilterBar
+            zones={zones}
+            onSearchSelect={(target) => {
+              setHighlightTarget(target);
+              setHighlightTargets(new Set([target]));
+              setFilterDesc("");
+            }}
+            onFilterChange={(targets, desc) => {
+              setHighlightTargets(targets);
+              setHighlightTarget("");
+              setFilterDesc(desc || "");
+            }}
+          />
           <button
             onClick={() => { fetchMapData(); fetchReserveBatches(); }}
             disabled={loading}
@@ -150,6 +164,29 @@ export function WarehouseMapPage() {
         </div>
       </header>
 
+      {/* Filter status indicator khi đang có bộ lọc active */}
+      {filterDesc && (
+        <div className="bg-sky-50/90 border-b border-sky-200/80 px-5 py-1.5 flex items-center justify-between text-xs text-sky-800 shrink-0 z-10 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+            <span className="font-semibold">{filterDesc}</span>
+            <span className="text-[11px] text-sky-600 hidden md:inline">
+              (Các vị trí tương ứng trên sơ đồ đang được làm sáng viền xanh)
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setHighlightTargets(new Set());
+              setHighlightTarget("");
+              setFilterDesc("");
+            }}
+            className="text-[11px] text-sky-600 hover:text-sky-800 underline font-medium cursor-pointer"
+          >
+            Tắt highlight
+          </button>
+        </div>
+      )}
+
       {/* Main */}
       <main className="flex-1 relative flex overflow-hidden">
         <WarehouseMap2D
@@ -157,6 +194,7 @@ export function WarehouseMapPage() {
           onShelfSelect={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
           onBinSelect={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
           onZoneClick={(zoneData) => setDrawerZone(zoneData)}
+          highlightTargets={highlightTargets}
           highlightTarget={highlightTarget}
         />
 

@@ -15,6 +15,32 @@ export interface BinData {
   hasReserveBatch: boolean;
 }
 
+export interface ShelfSummary {
+  shelf: number;
+  status: 'NORMAL' | 'LOW_STOCK' | 'NEAR_EXPIRY' | 'EXPIRED' | 'EMPTY';
+  totalStock: number;
+  batchCount: number;
+  categories?: string[];
+  minExpDate?: string;
+}
+
+export interface RackSummary {
+  rack: string;
+  shelves: ShelfSummary[];
+}
+
+export interface ZoneSummary {
+  zone: string;
+  label: string;
+  racks: RackSummary[];
+  icon?: string;
+  description?: string;
+}
+
+export interface WarehouseMapResponse {
+  zones: ZoneSummary[];
+}
+
 export interface ShelfLayout {
   shelfNo: number; // 4 (top) → 1 (bottom)
   bins: BinData[];
@@ -68,7 +94,7 @@ export interface BinDetailResponse {
 // ============================================================
 export const inventoryMapService = {
   /** Lấy toàn bộ sơ đồ kho (danh sách zone + rack) */
-  getWarehouseMap: async () => {
+  getWarehouseMap: async (): Promise<WarehouseMapResponse> => {
     const response = await api.get('/api/medicines/warehouse-map');
     return response.data;
   },

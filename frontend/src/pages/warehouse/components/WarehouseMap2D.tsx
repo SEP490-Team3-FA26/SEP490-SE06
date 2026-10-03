@@ -7,6 +7,7 @@ interface WarehouseMap2DProps {
   onShelfSelect: (zone: string, rack: string, shelf: number) => void;
   onBinSelect?: (zone: string, rack: string, shelf: number, bin: number) => void;
   onZoneClick?: (zoneData: any) => void;
+  highlightTargets?: Set<string>;
   highlightTarget?: string;
 }
 
@@ -126,9 +127,9 @@ function BinCell({
 // RackBinGrid — Kệ với 4 Tầng × 10 Thùng
 // ============================================================
 function RackBinGrid({
-  zone, rack, highlightTarget, onBinSelect,
+  zone, rack, highlightTargets, highlightTarget, onBinSelect,
 }: {
-  zone: string; rack: string; highlightTarget?: string;
+  zone: string; rack: string; highlightTargets?: Set<string>; highlightTarget?: string;
   onBinSelect?: (zone: string, rack: string, shelf: number, bin: number) => void;
 }) {
   const [layout, setLayout] = useState<ShelfLayout[] | null>(null);
@@ -183,6 +184,13 @@ function RackBinGrid({
           <div className="grid gap-1 p-1.5" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
             {shelfData.bins.map(bin => {
               const highlightId = `bin-${zone}-${rack}-${shelfData.shelfNo}-${bin.binNo}`;
+              const shelfTargetId = `${zone}-${rack}-${shelfData.shelfNo}`;
+              const isHighlighted =
+                (highlightTargets?.has(highlightId) ?? false) ||
+                (highlightTargets?.has(shelfTargetId) ?? false) ||
+                highlightTarget === highlightId ||
+                highlightTarget === shelfTargetId;
+
               return (
                 <BinCell
                   key={bin.binNo}
@@ -190,7 +198,7 @@ function RackBinGrid({
                   zone={zone}
                   rack={rack}
                   shelf={shelfData.shelfNo}
-                  isHighlighted={highlightTarget === highlightId}
+                  isHighlighted={isHighlighted}
                   onBinSelect={onBinSelect}
                 />
               );
@@ -205,7 +213,14 @@ function RackBinGrid({
 // ============================================================
 // Main WarehouseMap2D Component
 // ============================================================
-export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick, highlightTarget }: WarehouseMap2DProps) {
+export function WarehouseMap2D({
+  zones,
+  onShelfSelect,
+  onBinSelect,
+  onZoneClick,
+  highlightTargets,
+  highlightTarget,
+}: WarehouseMap2DProps) {
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
   // Track which rack is expanded (showing bin grid)
   const [expandedRack, setExpandedRack] = useState<string | null>(null);
@@ -215,12 +230,19 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
   }, []);
 
   React.useEffect(() => {
+    let targetId: string | null = null;
     if (highlightTarget) {
+      targetId = highlightTarget;
+    } else if (highlightTargets && highlightTargets.size > 0) {
+      targetId = highlightTargets.values().next().value || null;
+    }
+
+    if (targetId) {
       // Highlight có thể là bin hoặc shelf
-      const element = document.getElementById(highlightTarget);
+      const element = document.getElementById(targetId);
       if (element) element.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [highlightTarget]);
+  }, [highlightTarget, highlightTargets]);
 
   return (
     <div className="flex-1 h-full overflow-auto p-5 flex flex-col bg-slate-100">
@@ -348,7 +370,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
                           {rackData.shelves.map((shelfData: any) => {
                             const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
                             const targetId = `${zoneData.zone}-${rackData.rack}-${shelfData.shelf}`;
-                            const isHighlighted = highlightTarget === targetId;
+                            const isHighlighted = (highlightTargets?.has(targetId) ?? false) || highlightTarget === targetId;
 
                             return (
                               <button
@@ -382,6 +404,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
                           <RackBinGrid
                             zone={zoneData.zone}
                             rack={rackData.rack}
+                            highlightTargets={highlightTargets}
                             highlightTarget={highlightTarget}
                             onBinSelect={onBinSelect}
                           />
