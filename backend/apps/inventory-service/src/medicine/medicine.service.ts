@@ -1864,7 +1864,8 @@ export class MedicineService implements OnModuleInit {
             },
             totalStock: { $sum: '$stock' },
             batchCount: { $sum: 1 },
-            minExpDate: { $min: '$expDate' }
+            minExpDate: { $min: '$expDate' },
+            medicineIds: { $addToSet: '$medicineId' }
           }
         },
         {
@@ -1878,7 +1879,8 @@ export class MedicineService implements OnModuleInit {
                 shelf: '$_id.shelf',
                 totalStock: '$totalStock',
                 batchCount: '$batchCount',
-                minExpDate: '$minExpDate'
+                minExpDate: '$minExpDate',
+                medicineIds: '$medicineIds'
               }
             }
           }
@@ -1905,6 +1907,36 @@ export class MedicineService implements OnModuleInit {
       ];
 
       const rawZones = await this.batchModel.aggregate(pipeline as any).exec();
+
+      // Thu thập tất cả medicineId duy nhất để lấy danh mục (category)
+      const allMedIds = new Set<string>();
+      rawZones.forEach((z: any) => {
+        z.racks?.forEach((r: any) => {
+          r.shelves?.forEach((s: any) => {
+            if (Array.isArray(s.medicineIds)) {
+              s.medicineIds.forEach((id: any) => {
+                if (id) allMedIds.add(String(id));
+              });
+            }
+          });
+        });
+      });
+
+      const medDocs = allMedIds.size > 0
+        ? await this.medicineModel
+            .find({ _id: { $in: Array.from(allMedIds) } })
+            .select('_id category')
+            .lean()
+            .exec()
+        : [];
+
+      const medCategoryMap = new Map<string, string>();
+      medDocs.forEach((m: any) => {
+        if (m._id && m.category) {
+          medCategoryMap.set(String(m._id), m.category);
+        }
+      });
+
       const today = new Date();
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
@@ -1919,7 +1951,7 @@ export class MedicineService implements OnModuleInit {
         'F': 'Khu F - Vật tư y tế'
       };
 
-      // Xử lý status cho từng shelf và sắp xếp
+      // Xử lý status và categories cho từng shelf và sắp xếp
       const zones = rawZones.map((z: any) => {
         // Sort racks
         z.racks.sort((a: any, b: any) => String(a.rack).localeCompare(String(b.rack)));
@@ -1938,6 +1970,17 @@ export class MedicineService implements OnModuleInit {
             } else {
               s.status = 'NORMAL';
             }
+
+            // Gán danh mục cho shelf
+            const shelfCats = new Set<string>();
+            if (Array.isArray(s.medicineIds)) {
+              s.medicineIds.forEach((id: any) => {
+                const cat = medCategoryMap.get(String(id));
+                if (cat) shelfCats.add(cat);
+              });
+            }
+            s.categories = Array.from(shelfCats);
+            delete s.medicineIds;
           });
         });
 
