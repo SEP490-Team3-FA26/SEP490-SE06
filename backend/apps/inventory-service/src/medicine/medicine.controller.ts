@@ -1,10 +1,14 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { MessagePattern, EventPattern, Payload, RpcException } from '@nestjs/microservices';
 import { MedicineService } from './medicine.service';
+import { RecommendationService } from './recommendation.service';
 
 @Controller()
 export class MedicineController {
-  constructor(private readonly medicineService: MedicineService) { }
+  constructor(
+    private readonly medicineService: MedicineService,
+    private readonly recommendationService: RecommendationService,
+  ) { }
 
   @MessagePattern('inventory.medicine.list')
   async listMedicines(@Payload() query: any) {
@@ -288,5 +292,52 @@ export class MedicineController {
       throw new RpcException(error.message || 'Lỗi hệ thống khi sinh mã vạch');
     }
   }
+
+  // =========================================================================
+  // PHARMA-SMART RECOMMENDATION & SEARCH HISTORY HANDLERS
+  // =========================================================================
+  @EventPattern('recommendation.event.search_log')
+  async handleSearchLog(@Payload() data: any) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      await this.recommendationService.logSearch(payload);
+    } catch (error: any) {
+      // Event pattern: do not throw to avoid crashing event loop
+      console.warn('⚠️ [Inventory MS] Error in handleSearchLog:', error.message);
+    }
+  }
+
+  @EventPattern('recommendation.event.clear_searches')
+  async handleClearSearches(@Payload() data: any) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      await this.recommendationService.clearRecentSearches(payload);
+    } catch (error: any) {
+      console.warn('⚠️ [Inventory MS] Error in handleClearSearches:', error.message);
+    }
+  }
+
+  @MessagePattern('inventory.recommendation.for_you')
+  async getRecommendationsForYou(@Payload() data: any) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : (data || {});
+      return await this.recommendationService.getPersonalizedRecommendations(payload);
+    } catch (error: any) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi sinh gợi ý cá nhân hóa');
+    }
+  }
+
+  @MessagePattern('inventory.recommendation.recent_searches')
+  async getRecentSearches(@Payload() data: any) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : (data || {});
+      return await this.recommendationService.getRecentSearches(payload);
+    } catch (error: any) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi lấy lịch sử tìm kiếm');
+    }
+  }
 }
+
 

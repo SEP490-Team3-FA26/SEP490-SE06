@@ -33,6 +33,7 @@
     "db:clean-medicines": "ts-node --transpile-only scripts/clean-medicines.ts",
     "db:seed-prescriptions": "ts-node --transpile-only scripts/seed-prescriptions.ts",
     "db:seed-rfq-marketing": "node seed-standard-rfq-labels-roi.js",
+    "db:seed-rfm-search": "node scripts/calculate-rfm-and-search-seed.js",
     "// --- INFRASTRUCTURE ---": "",
     "infra:up": "docker-compose up -d",
     "infra:down": "docker-compose down",

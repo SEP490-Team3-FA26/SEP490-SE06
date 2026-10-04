@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MedicineController } from './medicine.controller';
 import { MedicineService } from './medicine.service';
+import { RecommendationService } from './recommendation.service';
 import { Medicine, MedicineSchema } from './schemas/medicine.schema';
 import { MedicineBatch, MedicineBatchSchema } from './schemas/medicine-batch.schema';
 import { BranchInventory, BranchInventorySchema } from './schemas/branch-inventory.schema';
 import { BranchStockBalance, BranchStockBalanceSchema } from './schemas/branch-stock-balance.schema';
 import { InventoryCheck, InventoryCheckSchema } from './schemas/inventory-check.schema';
 import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/schemas/inventory-transaction.schema';
+import { SearchHistory, SearchHistorySchema } from './schemas/search-history.schema';
 
 @Module({
   imports: [
@@ -18,10 +20,12 @@ import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/sc
       { name: BranchStockBalance.name, schema: BranchStockBalanceSchema },
       { name: InventoryCheck.name, schema: InventoryCheckSchema },
       { name: InventoryTransaction.name, schema: InventoryTransactionSchema },
+      { name: SearchHistory.name, schema: SearchHistorySchema },
     ]),
   ],
   controllers: [MedicineController],
-  providers: [MedicineService],
-  exports: [MongooseModule], // Export MongooseModule so other modules can use Medicine/BranchInventory models
+  providers: [MedicineService, RecommendationService],
+  exports: [MongooseModule, RecommendationService], // Export MongooseModule & RecommendationService so other modules can use them
 })
 export class MedicineModule {}
+

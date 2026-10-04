@@ -31,6 +31,7 @@ import { HrController } from "./controllers/hr.controller";
 import { RfqController } from "./controllers/rfq.controller";
 import { RfqPortalController } from "./controllers/rfq-portal.controller";
 import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
+import { RecommendationController } from "./controllers/recommendation.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
 import { FeedbackController } from "./controllers/feedback.controller";
@@ -206,6 +207,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     RfqController,
     RfqPortalController,
     MarketingCampaignController,
+    RecommendationController,
   ],
   providers: [
     JwtAuthGuard,
@@ -307,6 +309,8 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.sensor.get_latest",
       "inventory.sensor.get_history",
       "inventory.sensor.get_stations",
+      "inventory.recommendation.for_you",
+      "inventory.recommendation.recent_searches",
     ];
 
     // 2. SUPPLIER_SERVICE Reply Topics
