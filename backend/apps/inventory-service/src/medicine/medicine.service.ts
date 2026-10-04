@@ -2683,5 +2683,109 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi khóa lô thuốc');
     }
   }
+
+  /**
+   * Chuyển ô / Dồn kho thuốc giữa các thùng trong kho
+   * Kafka topic: inventory.medicine.event.relocate_bin (emit)
+   */
+  async relocateBin(payload: {
+    fromLocation: { zone: string; rack: string; shelf: number; bin: number };
+    toLocation: { zone: string; rack: string; shelf: number; bin: number };
+    batchId?: string;
+    reason?: string;
+  }) {
+    try {
+      const { fromLocation, toLocation, batchId, reason } = payload;
+      this.logger.log(`[relocateBin] Chuyển ô từ ${fromLocation.zone}/${fromLocation.rack}/T${fromLocation.shelf}/B${fromLocation.bin} sang ${toLocation.zone}/${toLocation.rack}/T${toLocation.shelf}/B${toLocation.bin}`);
+
+      // 1. Tìm các lô nguồn
+      const query: any = {
+        'location.zone': fromLocation.zone,
+        'location.rack': fromLocation.rack,
+        'location.shelf': Number(fromLocation.shelf),
+        'location.bin': Number(fromLocation.bin),
+        status: { $nin: ['REMOVED', 'DELETED'] },
+        stock: { $gt: 0 },
+      };
+      if (batchId) {
+        query._id = batchId;
+      }
+
+      const sourceBatches = await this.batchModel.find(query).exec();
+      if (!sourceBatches || sourceBatches.length === 0) {
+        this.logger.warn(`[relocateBin] Không tìm thấy lô thuốc nào hợp lệ tại vị trí nguồn`);
+        return { success: false, message: 'Không tìm thấy lô thuốc tại vị trí nguồn' };
+      }
+
+      const sourceMedId = sourceBatches[0].medicineId?.toString();
+
+      // 2. Kiểm tra thùng đích
+      const targetBatches = await this.batchModel.find({
+        'location.zone': toLocation.zone,
+        'location.rack': toLocation.rack,
+        'location.shelf': Number(toLocation.shelf),
+        'location.bin': Number(toLocation.bin),
+        'location.slotType': 'MAIN',
+        status: { $nin: ['REMOVED', 'DELETED'] },
+        stock: { $gt: 0 },
+      }).exec();
+
+      if (targetBatches.length > 0) {
+        const targetMedId = targetBatches[0].medicineId?.toString();
+        if (targetMedId && targetMedId !== sourceMedId) {
+          this.logger.error(`[relocateBin] Thùng đích đã chứa thuốc khác (${targetMedId} != ${sourceMedId}). Huỷ thao tác để tuân thủ 1 thùng 1 loại thuốc.`);
+          throw new RpcException('Thùng đích đang chứa thuốc khác. Chuẩn GSP quy định mỗi thùng chỉ chứa 1 loại thuốc!');
+        }
+      }
+
+      // 3. Cập nhật vị trí các batch được chuyển
+      const targetBatchIds = sourceBatches.map(b => b._id);
+      await this.batchModel.updateMany(
+        { _id: { $in: targetBatchIds } },
+        {
+          $set: {
+            'location.zone': toLocation.zone,
+            'location.rack': toLocation.rack,
+            'location.shelf': Number(toLocation.shelf),
+            'location.bin': Number(toLocation.bin),
+            'location.slotType': 'MAIN',
+          }
+        }
+      ).exec();
+
+      // 4. Nếu chuyển toàn bộ thùng nguồn, kiểm tra xem vị trí nguồn còn lô nào không
+      if (sourceMedId) {
+        const remainingAtSource = await this.batchModel.countDocuments({
+          medicineId: sourceMedId,
+          'location.zone': fromLocation.zone,
+          'location.rack': fromLocation.rack,
+          'location.shelf': Number(fromLocation.shelf),
+          'location.bin': Number(fromLocation.bin),
+          stock: { $gt: 0 },
+          status: { $nin: ['REMOVED', 'DELETED'] },
+        }).exec();
+
+        if (remainingAtSource === 0) {
+          await this.locationModel.findOneAndUpdate(
+            { medicineId: sourceMedId },
+            {
+              $set: {
+                zone: toLocation.zone,
+                rack: toLocation.rack,
+                shelf: Number(toLocation.shelf),
+                bin: Number(toLocation.bin),
+              }
+            }
+          ).exec();
+        }
+      }
+
+      this.logger.log(`[relocateBin] Chuyển thành công ${targetBatchIds.length} lô thuốc sang ô mới (${reason || 'Dồn kho'})`);
+      return { success: true, count: targetBatchIds.length };
+    } catch (error) {
+      this.logger.error('[relocateBin] Error:', error);
+      throw new RpcException(error.message || 'Lỗi chuyển ô / dồn kho');
+    }
+  }
 }
 
