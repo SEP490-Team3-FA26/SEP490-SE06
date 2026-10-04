@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Inject,
   OnModuleInit,
@@ -12,6 +13,7 @@ import {
   HttpException,
   HttpStatus,
   UseGuards,
+  Req,
 } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
@@ -288,6 +290,8 @@ export class PrescriptionController implements OnModuleInit {
   async recommendPrescription(
     @UploadedFile() file: Express.Multer.File,
     @Body("patient_id") patientId?: string,
+    @Body("branch_id") branchId?: string,
+    @Req() req?: any,
   ) {
     if (!file) {
       throw new HttpException(
@@ -307,6 +311,12 @@ export class PrescriptionController implements OnModuleInit {
 
       if (patientId) {
         formData.append("patient_id", patientId);
+      }
+
+      const resolvedBranchId =
+        branchId || req?.user?.branchId || req?.user?.branch_id;
+      if (resolvedBranchId) {
+        formData.append("branch_id", resolvedBranchId);
       }
 
       const controller = new AbortController();
@@ -360,12 +370,22 @@ export class PrescriptionController implements OnModuleInit {
 
   @Post("symptom-consult")
   @UseGuards(OptionalJwtAuthGuard)
-  async textConsult(@Body("symptoms") symptoms: string) {
+  async textConsult(
+    @Body("symptoms") symptoms: string,
+    @Body("branch_id") branchId?: string,
+    @Req() req?: any,
+  ) {
     if (!symptoms) {
       throw new HttpException(
         "Vui lòng cung cấp triệu chứng",
         HttpStatus.BAD_REQUEST,
       );
+    }
+    const resolvedBranchId =
+      branchId || req?.user?.branchId || req?.user?.branch_id;
+    const payload: any = { symptoms };
+    if (resolvedBranchId) {
+      payload.branch_id = resolvedBranchId;
     }
     try {
       const aiServiceHost = this.getAiServiceHost();
@@ -374,7 +394,7 @@ export class PrescriptionController implements OnModuleInit {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ symptoms }),
+        body: JSON.stringify(payload),
       }).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/ai/symptom-consult`, {
@@ -382,7 +402,7 @@ export class PrescriptionController implements OnModuleInit {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ symptoms }),
+          body: JSON.stringify(payload),
         });
       });
 
@@ -400,6 +420,144 @@ export class PrescriptionController implements OnModuleInit {
         error.message || "Lỗi kết nối hoặc xử lý từ AI Service",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @Post("chat")
+  @UseGuards(OptionalJwtAuthGuard)
+  async chatConsult(
+    @Body()
+    body: {
+      message: string;
+      history?: Array<{ role: string; content: string }>;
+      age_group?: string;
+      gender?: string;
+      allergies?: string[];
+    },
+  ) {
+    if (!body || !body.message || !body.message.trim()) {
+      throw new HttpException(
+        "Vui lòng cung cấp nội dung tin nhắn tư vấn",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      // Data minimization: Không gửi PII (họ tên, email, sđt) sang AI service
+      const sanitizedPayload = {
+        message: body.message.trim(),
+        history: Array.isArray(body.history) ? body.history.slice(-10) : [],
+        age_group: body.age_group || null,
+        gender: body.gender || null,
+        allergies: Array.isArray(body.allergies) ? body.allergies : [],
+      };
+
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(sanitizedPayload),
+      }).catch(async () => {
+        const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
+        return await fetch(`${aiUrl}/api/ai/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(sanitizedPayload),
+        });
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new HttpException(
+          `Lỗi từ AI Service: ${errorText}`,
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw new HttpException(
+        error.message || "Lỗi kết nối hoặc xử lý từ AI Chat Service",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get("chat/sessions")
+  @UseGuards(JwtAuthGuard)
+  async getChatSessions(@Req() req: any) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        return { success: true, sessions: [] };
+      }
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions?user_id=${userId}`);
+      if (!response.ok) {
+        return { success: true, sessions: [] };
+      }
+      return await response.json();
+    } catch (error) {
+      return { success: true, sessions: [] };
+    }
+  }
+
+  @Post("chat/sessions")
+  @UseGuards(JwtAuthGuard)
+  async saveChatSession(@Req() req: any, @Body() body: any) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        return { success: false, message: "Yêu cầu đăng nhập" };
+      }
+      const aiServiceHost = this.getAiServiceHost();
+      const payload = {
+        user_id: userId,
+        session_id: body.session_id || body.id,
+        title: body.title || "Cuộc trò chuyện",
+        messages: body.messages || [],
+        created_at: body.created_at || body.createdAt,
+        updated_at: body.updated_at || body.updatedAt,
+      };
+
+      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new HttpException(`Lỗi lưu session: ${errorText}`, HttpStatus.BAD_GATEWAY);
+      }
+      return await response.json();
+    } catch (error) {
+      throw new HttpException(error.message || "Lỗi lưu phiên trò chuyện", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Delete("chat/sessions/:sessionId")
+  @UseGuards(JwtAuthGuard)
+  async deleteChatSession(@Req() req: any, @Param("sessionId") sessionId: string) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        return { success: false };
+      }
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions/${sessionId}?user_id=${userId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        return { success: false };
+      }
+      return await response.json();
+    } catch (error) {
+      return { success: false };
     }
   }
 

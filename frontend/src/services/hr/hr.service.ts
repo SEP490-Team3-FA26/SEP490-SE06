@@ -137,5 +137,11 @@ export const hrService = {
   getUnreadCount: async () => {
     const response = await api.get('/api/hr/notifications/unread-count');
     return response.data as number;
+  },
+
+  // --- COLLEAGUES ---
+  getColleagues: async () => {
+    const response = await api.get('/api/hr/colleagues');
+    return response.data;
   }
 };

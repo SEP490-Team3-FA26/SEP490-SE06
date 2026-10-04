@@ -208,6 +208,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     RfqPortalController,
     MarketingCampaignController,
     RecommendationController,
+    SensorController,
   ],
   providers: [
     JwtAuthGuard,
@@ -230,7 +231,7 @@ export class AppGatewayModule implements OnModuleInit {
     @Inject("USER_SERVICE") private readonly userClient: ClientKafka,
     @Inject("ORDER_SERVICE") private readonly orderClient: ClientKafka,
     @Inject("KAFKA_SERVICE") private readonly kafkaClient: ClientKafka,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     // 1. INVENTORY_SERVICE Reply Topics
@@ -255,6 +256,9 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.medicine.warehouse_map",
       "inventory.medicine.warehouse_search",
       "inventory.medicine.shelf_detail",
+      "inventory.medicine.shelf.layout",
+      "inventory.medicine.reserve.list",
+      "inventory.medicine.bin.detail",
       "inventory.medicine.sync_locations",
       "inventory.medicine.get_by_barcode",
       "inventory.medicine.generate_barcode",

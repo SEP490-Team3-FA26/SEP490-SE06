@@ -1,10 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import notificationService from '../services/notification.service';
+import { hrService } from '../services/hr/hr.service';
 
 interface Notification {
   id: string;
-  type: 'NEW_PR' | 'PR_APPROVED' | 'PR_REJECTED' | 'NEW_PO' | 'GRN_COMPLETED' | 'INFO' | 'SUCCESS' | 'ERROR';
+  type: string;
+  title?: string;
   prId?: string;
   prCode?: string;
   poId?: string;
@@ -21,6 +23,7 @@ interface Notification {
   timestamp: string;
   read: boolean;
   createdBy?: string;
+  isHr?: boolean;
 }
 
 interface NotificationContextType {
@@ -267,7 +270,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
     try {
-      await notificationService.markAsRead(id);
+      await Promise.allSettled([
+        notificationService.markAsRead(id),
+        hrService.markRead(id),
+      ]);
     } catch (e) {
       console.error('Failed to mark notification as read in DB', e);
     }
@@ -276,7 +282,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const markAllAsRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     try {
-      await notificationService.markAllAsRead();
+      await Promise.allSettled([
+        notificationService.markAllAsRead(),
+        hrService.markRead(),
+      ]);
     } catch (e) {
       console.error('Failed to mark all notifications as read in DB', e);
     }
@@ -301,34 +310,72 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const refreshNotifications = useCallback(async () => {
     try {
-      console.log('🔄 Refreshing notifications from server...');
-      const response = await notificationService.getMyNotifications({ limit: 50 });
-      
-      if (response.success && response.data) {
-        // Merge with existing notifications (avoid duplicates)
-        const serverNotifications = response.data.map((notif: any) => ({
-          id: notif._id,
-          type: notif.type,
-          message: notif.message,
-          timestamp: notif.createdAt,
-          read: notif.read,
-          prId: notif.prId,
-          prCode: notif.prCode,
-          poId: notif.poId,
-          grnId: notif.grnId,
-          branchName: notif.branchName,
-          branchId: notif.branchId,
-          itemsCount: notif.itemsCount,
-          totalAmount: notif.totalAmount,
-          supplierName: notif.supplierName,
-          rejectionReason: notif.rejectionReason,
-          approvedBy: notif.approvedBy,
-          receivedBy: notif.receivedBy,
-        }));
-        
-        setNotifications(serverNotifications);
-        console.log(`✅ Loaded ${serverNotifications.length} notifications from server`);
+      const mergedList: Notification[] = [];
+
+      // 1. Fetch system notifications
+      try {
+        const response = await notificationService.getMyNotifications({ limit: 50 });
+        if (response?.success && Array.isArray(response?.data)) {
+          const sysNotifs = response.data.map((notif: any) => ({
+            id: notif._id,
+            type: notif.type,
+            title: notif.title,
+            message: notif.message,
+            timestamp: notif.createdAt || notif.timestamp || new Date().toISOString(),
+            read: !!notif.read,
+            prId: notif.prId,
+            prCode: notif.prCode,
+            poId: notif.poId,
+            grnId: notif.grnId,
+            branchName: notif.branchName,
+            branchId: notif.branchId,
+            itemsCount: notif.itemsCount,
+            totalAmount: notif.totalAmount,
+            supplierName: notif.supplierName,
+            rejectionReason: notif.rejectionReason,
+            approvedBy: notif.approvedBy,
+            receivedBy: notif.receivedBy,
+            isHr: false,
+          }));
+          mergedList.push(...sysNotifs);
+        }
+      } catch (err) {
+        // Silent error for system notifications
       }
+
+      // 2. Fetch HR notifications
+      try {
+        const hrList = await hrService.listNotifications(50, 0);
+        if (Array.isArray(hrList)) {
+          const hrNotifs: Notification[] = hrList.map((h: any) => ({
+            id: h._id,
+            type: h.type,
+            title: h.title,
+            message: h.message,
+            timestamp: h.createdAt || new Date().toISOString(),
+            read: !!h.isRead,
+            branchId: h.branchId,
+            isHr: true,
+          }));
+          mergedList.push(...hrNotifs);
+        }
+      } catch (err) {
+        // User may not have HR role or HR service unavailable
+      }
+
+      // 3. Deduplicate by id and sort descending by timestamp
+      const uniqueMap = new Map<string, Notification>();
+      mergedList.forEach((item) => {
+        if (!uniqueMap.has(item.id)) {
+          uniqueMap.set(item.id, item);
+        }
+      });
+
+      const sorted = Array.from(uniqueMap.values()).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      setNotifications(sorted);
     } catch (error) {
       console.error('❌ Failed to refresh notifications:', error);
     }
@@ -342,7 +389,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  // Load notifications from server on mount and when token changes
+  // Load notifications from server on mount, when token changes, and periodically
   useEffect(() => {
     const checkAndRefresh = () => {
       const token = localStorage.getItem('token');
@@ -356,12 +403,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Initial check
     checkAndRefresh();
 
+    // Periodic refresh every 30 seconds to keep all notification types fresh
+    const pollTimer = setInterval(() => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        refreshNotifications();
+      }
+    }, POLLING_INTERVAL);
+
     // Listen to token changes
     import('../utils/authEvents').then(({ AUTH_TOKEN_CHANGED_EVENT }) => {
       window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, checkAndRefresh);
     });
 
     return () => {
+      clearInterval(pollTimer);
       import('../utils/authEvents').then(({ AUTH_TOKEN_CHANGED_EVENT }) => {
         window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, checkAndRefresh);
       });

@@ -19,18 +19,19 @@ import api from "../../services/core/api";
 import { authService } from "../../services/auth/auth.service";
 import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
 import { MascotLogoIcon } from "../ui/Logo";
+import { ChatWidget } from "../chat";
 
 gsap.registerPlugin(ScrollTrigger);
 
 const categories = [
-  { value: "", label: "Tất cả dược phẩm", icon: "💊" },
-  { value: "Thuốc kháng sinh", label: "Kháng sinh (Rx)", icon: "🧬" },
-  { value: "Thuốc giảm đau hạ sốt", label: "Giảm đau - Hạ sốt", icon: "🌡️" },
-  { value: "Thuốc trị ho cảm", label: "Đường hô hấp", icon: "🫁" },
-  { value: "Thuốc dạ dày", label: "Hỗ trợ tiêu hóa", icon: "🧪" },
-  { value: "Thuốc tim mạch huyết áp", label: "Tim mạch - Huyết áp", icon: "❤️" },
-  { value: "Thuốc bổ", label: "Vitamin & TPCN", icon: "🌿" },
-  { value: "Thiết bị y tế", label: "Thiết bị y tế", icon: "🩺" }
+  { value: "", label: "Tất cả dược phẩm" },
+  { value: "Thuốc kháng sinh", label: "Kháng sinh (Rx)" },
+  { value: "Thuốc giảm đau hạ sốt", label: "Giảm đau - Hạ sốt" },
+  { value: "Thuốc trị ho cảm", label: "Đường hô hấp" },
+  { value: "Thuốc dạ dày", label: "Hỗ trợ tiêu hóa" },
+  { value: "Thuốc tim mạch huyết áp", label: "Tim mạch - Huyết áp" },
+  { value: "Thuốc bổ", label: "Vitamin & TPCN" },
+  { value: "Thiết bị y tế", label: "Thiết bị y tế" }
 ];
 
 const trendingTags = [
@@ -446,7 +447,7 @@ export function Landing() {
         top: `${centerY - 12}px`,
         boxShadow: "0 4px 14px rgba(13, 110, 253, 0.5)",
       });
-      flyer.innerHTML = `<span style="font-size: 13px;">💊</span>`;
+      flyer.innerHTML = `<span style="font-size: 11px; font-weight: 800;">+1</span>`;
       document.body.appendChild(flyer);
 
       gsap.to(flyer, {
@@ -695,13 +696,13 @@ export function Landing() {
 
             {/* Live Search Auto-Complete Mega Dropdown (Long Châu & Pharmacity standard) */}
             {showSearchDropdown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[760px] lg:w-[860px] xl:w-[940px] max-w-[94vw] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden text-left">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[760px] lg:w-[860px] xl:w-[940px] max-w-[94vw] bg-white rounded-3xl shadow-2xl border border-slate-200/90 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-y-auto max-h-[min(540px,calc(100vh-100px))] overscroll-contain text-left custom-scrollbar">
                 
                 {/* 2-Column Split Grid */}
-                <div className="grid grid-cols-12 max-h-[550px]">
+                <div className="grid grid-cols-12 min-h-full">
                   
                   {/* Left Column (4/12 cols): Trending keywords, Popular categories, Hotline */}
-                  <div className="col-span-4 bg-slate-50/80 border-r border-slate-100 p-4 flex flex-col justify-between overflow-y-auto">
+                  <div className="col-span-4 bg-slate-50/80 border-r border-slate-100 p-4 flex flex-col justify-between">
                     <div className="space-y-4">
                       {/* Trending Keywords */}
                       <div>
@@ -735,12 +736,12 @@ export function Landing() {
                         </div>
                         <div className="space-y-1">
                           {[
-                            { name: "Thuốc Kháng Sinh (Rx)", icon: "🧬", val: "Thuốc kháng sinh" },
-                            { name: "Giảm Đau & Hạ Sốt", icon: "🌡️", val: "Thuốc giảm đau hạ sốt" },
-                            { name: "Đường Hô Hấp & Cảm Cúm", icon: "🫁", val: "Thuốc trị ho cảm" },
-                            { name: "Dạ Dày & Tiêu Hóa", icon: "🧪", val: "Thuốc dạ dày" },
-                            { name: "Vitamin & TPCN", icon: "🌿", val: "Thuốc bổ" },
-                            { name: "Thiết Bị Y Tế Chuẩn", icon: "🩺", val: "Thiết bị y tế" },
+                            { name: "Thuốc Kháng Sinh (Rx)", val: "Thuốc kháng sinh" },
+                            { name: "Giảm Đau & Hạ Sốt", val: "Thuốc giảm đau hạ sốt" },
+                            { name: "Đường Hô Hấp & Cảm Cúm", val: "Thuốc trị ho cảm" },
+                            { name: "Dạ Dày & Tiêu Hóa", val: "Thuốc dạ dày" },
+                            { name: "Vitamin & TPCN", val: "Thuốc bổ" },
+                            { name: "Thiết Bị Y Tế Chuẩn", val: "Thiết bị y tế" },
                           ].map((cat, idx) => (
                             <button
                               key={idx}
@@ -753,7 +754,6 @@ export function Landing() {
                               className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-[#0057cd] transition-colors text-left cursor-pointer"
                             >
                               <span className="flex items-center gap-2">
-                                <span>{cat.icon}</span>
                                 <span className="truncate">{cat.name}</span>
                               </span>
                               <ChevronRight size={12} className="text-slate-400" />
@@ -782,7 +782,7 @@ export function Landing() {
                   </div>
 
                   {/* Right Column (8/12 cols): Search Results / Product Cards */}
-                  <div className="col-span-8 p-4 flex flex-col justify-between overflow-y-auto bg-white">
+                  <div className="col-span-8 p-4 flex flex-col justify-between bg-white">
                     <div>
                       {/* Top bar info */}
                       <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
@@ -1426,7 +1426,7 @@ export function Landing() {
                       style={{ width: `${deal.soldPercent}%` }}
                     ></div>
                     <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white leading-none">
-                      🔥 ĐÃ BÁN {deal.soldPercent}%
+                      ĐÃ BÁN {deal.soldPercent}%
                     </span>
                   </div>
 
@@ -1492,7 +1492,7 @@ export function Landing() {
             {/* Filter 1: Mức giá */}
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                🏷️ Mức giá
+                Mức giá
               </label>
               <select
                 value={selectedPrice}
@@ -1508,7 +1508,7 @@ export function Landing() {
             {/* Filter 2: Đối tượng sử dụng */}
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                👥 Đối tượng sử dụng
+                Đối tượng sử dụng
               </label>
               <select
                 value={selectedTargetGroup}
@@ -1524,7 +1524,7 @@ export function Landing() {
             {/* Filter 3: Phân loại Rx / OTC */}
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                🧬 Phân loại thuốc
+                Phân loại thuốc
               </label>
               <select
                 value={selectedClassification}
@@ -1540,7 +1540,7 @@ export function Landing() {
             {/* Filter 4: Dạng bào chế */}
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                🧪 Dạng bào chế
+                Dạng bào chế
               </label>
               <select
                 value={selectedDosageForm}
@@ -1565,7 +1565,6 @@ export function Landing() {
                   : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
                   }`}
               >
-                <span className="mr-1.5">{cat.icon}</span>
                 {cat.label}
               </button>
             ))}
@@ -1862,9 +1861,9 @@ export function Landing() {
               Hệ thống Chuỗi Nhà thuốc Chuẩn GPP 3.0. Tiên phong ứng dụng Trí tuệ nhân tạo (AI) trong kiểm tra tương tác thuốc, nhận diện đơn thuốc và tối ưu chuỗi cung ứng dược phẩm.
             </p>
             <div className="text-[11px] text-slate-400 space-y-1 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-              <p>🏛️ <strong>GPKD:</strong> 0316889988 do Sở Kế Hoạch & Đầu Tư cấp</p>
-              <p>⚕️ <strong>GCN Đủ Điều Kiện KD Dược:</strong> 1234/ĐKKDD-SYT do Sở Y Tế cấp</p>
-              <p>👨‍⚕️ <strong>Người chịu trách nhiệm chuyên môn:</strong> Dược sĩ CKI. Nguyễn Văn Nam</p>
+              <p><strong>GPKD:</strong> 0316889988 do Sở Kế Hoạch & Đầu Tư cấp</p>
+              <p><strong>GCN Đủ Điều Kiện KD Dược:</strong> 1234/ĐKKDD-SYT do Sở Y Tế cấp</p>
+              <p><strong>Người chịu trách nhiệm chuyên môn:</strong> Dược sĩ CKI. Nguyễn Văn Nam</p>
             </div>
           </div>
 
@@ -2185,6 +2184,9 @@ export function Landing() {
 
       {/* Floating Mascot Companion */}
       <DoveFloatingWidget />
+
+      {/* Floating AI Pharmacist Chatbot */}
+      <ChatWidget />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import api from "../services/core/api";
 import { notifyAuthTokenChanged } from "../utils/authEvents";
 import { authService } from "../services/auth/auth.service";
 import { MascotLogoIcon } from "../components/ui/Logo";
+import { ChatWidget } from "../components/chat";
 
 export function CustomerLayout() {
   const location = useLocation();
@@ -299,6 +300,9 @@ export function CustomerLayout() {
           </div>
         </div>
       </footer>
+
+      {/* Floating AI Pharmacist Chatbot */}
+      <ChatWidget />
     </div>
   );
 }

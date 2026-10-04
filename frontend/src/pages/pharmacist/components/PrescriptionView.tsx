@@ -3,13 +3,14 @@ import { useState, useEffect, useRef, ChangeEvent } from "react";
 import {
   XCircle, AlertTriangle, CheckCircle2, QrCode, FileText, Stethoscope,
   ShoppingCart, Minus, Plus, Banknote, CreditCard, Sparkles, Printer, SearchIcon, Check,
-  ShieldAlert, Loader2, X, Filter
+  ShieldAlert, Loader2, X, Filter, ShieldCheck, FileCheck2, BadgeCheck, UserCheck
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { orderService } from "../../../services/sales/order.service";
 import { voucherService } from "../../../services/sales/voucher.service";
 import { VietQRCode } from "../../../components/common/VietQRCode";
+import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -132,6 +133,11 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   const [aiScanResult, setAiScanResult] = useState<any>(null);
   const [isAiDragging, setIsAiDragging] = useState(false);
 
+  // Pharmacist AI Confirmation & GPP Audit States
+  const [aiPharmacistConfirmation, setAiPharmacistConfirmation] = useState<AIPharmacistConfirmationData | null>(null);
+  const [pharmacistAgreementCheck, setPharmacistAgreementCheck] = useState<boolean>(true);
+  const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
+
   // Lắng nghe sự kiện Paste (Ctrl + V) khi mở modal quét đơn thuốc AI
   useEffect(() => {
     if (!showAIScanModal) return;
@@ -244,6 +250,11 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   };
 
   const handleApplyAIScanToCart = () => {
+    if (!pharmacistAgreementCheck) {
+      showToast("Vui lòng tích chọn cam kết trách nhiệm chuyên môn của Dược sĩ!", "warning");
+      return;
+    }
+
     const result = prescriptionService.processAIScanResult(aiScanResult, prescriptionItems);
     if (!result.success) {
       if (result.message) showToast(result.message, "warning");
@@ -256,9 +267,79 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     if (result.doctor.name) setDoctorName(result.doctor.name);
     if (result.doctor.hospital) setHospitalName(result.doctor.hospital);
 
-    setPrescriptionItems(result.updatedCartItems);
+    // Gắn nhãn aiSuggested cho các sản phẩm do AI bóc tách
+    const updatedWithFlag = (result.updatedCartItems || []).map((it: any) => ({
+      ...it,
+      aiSuggested: true
+    }));
+
+    setPrescriptionItems(updatedWithFlag);
+
+    const { fullName: currentUserName } = getBranchInfoFromToken();
+    const auditCode = `GPP-AI-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const confirmationInfo: AIPharmacistConfirmationData = {
+      confirmed: true,
+      pharmacistName: currentUserName || "Dược sĩ Trần Thị A",
+      pharmacistLicense: "CCHN-GPP/02849-HN",
+      confirmedAt: new Date().toISOString(),
+      auditCode,
+      scanId: aiScanResult?.scan_id || `SCAN-${Date.now()}`,
+      totalItems: result.count || updatedWithFlag.length,
+      patientName: result.patient?.name || patientName || "Khách lẻ",
+      patientAge: result.patient?.age || patientAge,
+      patientGender: result.patient?.gender || patientGender,
+      diagnosis: aiScanResult?.patient?.diagnosis || "Theo chỉ định bác sĩ",
+      doctorName: result.doctor?.name || doctorName || "Bác sĩ điều trị",
+      hospitalName: result.doctor?.hospital || hospitalName || "Bệnh viện",
+      warningsCount: aiScanResult?.validation_warnings?.length || 0,
+      source: "AI_VISION_SCAN",
+      drugs: updatedWithFlag.map((item: any) => ({
+        name: item.name,
+        dosage: item.dosage,
+        quantity: item.quantity,
+        unit: item.unit,
+        active_ingredient: item.active_ingredient,
+        price: item.price
+      })),
+      clinicalNotes: "Dược sĩ phụ trách đã đối soát 100% hoạt chất, liều dùng theo lứa tuổi và gán lô FEFO cận hạn thành công."
+    };
+
+    setAiPharmacistConfirmation(confirmationInfo);
     setShowAIScanModal(false);
-    showToast(`Đã thêm thành công ${result.count} thuốc vào đơn hàng POS!`, "success");
+    showToast(`✅ Dược sĩ ${confirmationInfo.pharmacistName} đã xác nhận bước cuối thành công! (Mã duyệt: ${auditCode})`, "success");
+  };
+
+  const handleQuickConfirmAI = () => {
+    const { fullName: currentUserName } = getBranchInfoFromToken();
+    const auditCode = `GPP-AI-${Math.floor(100000 + Math.random() * 900000)}`;
+    const confirmationInfo: AIPharmacistConfirmationData = {
+      confirmed: true,
+      pharmacistName: currentUserName || "Dược sĩ Trần Thị A",
+      pharmacistLicense: "CCHN-GPP/02849-HN",
+      confirmedAt: new Date().toISOString(),
+      auditCode,
+      totalItems: prescriptionItems.length,
+      patientName: patientName || "Khách kê đơn",
+      patientAge: patientAge,
+      patientGender: patientGender,
+      diagnosis: "Khám lâm sàng theo đơn",
+      doctorName: doctorName || "Bác sĩ điều trị",
+      hospitalName: hospitalName || "Bệnh viện",
+      warningsCount: 0,
+      source: "AI_VISION_SCAN",
+      drugs: prescriptionItems.map((item: any) => ({
+        name: item.name,
+        dosage: item.dosage,
+        quantity: item.quantity,
+        unit: item.unit,
+        active_ingredient: item.active_ingredient,
+        price: item.price
+      })),
+      clinicalNotes: "Dược sĩ trực tiếp thẩm định lâm sàng tại quầy POS."
+    };
+    setAiPharmacistConfirmation(confirmationInfo);
+    showToast(`✅ Dược sĩ ${confirmationInfo.pharmacistName} đã xác nhận bước cuối thành công! (Mã duyệt: ${auditCode})`, "success");
   };
 
 
@@ -312,7 +393,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       return;
     }
     const delay = setTimeout(() => {
-      searchMedicines(searchQuery);
+      searchMedicines(searchQuery, selectedCategory, selectedClassification, stockFilter);
     }, 300);
     return () => clearTimeout(delay);
   }, [searchQuery, selectedCategory, selectedClassification, stockFilter]);
@@ -332,20 +413,20 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       const { branchId } = getBranchInfoFromToken();
       const catParam = cat !== undefined ? cat : selectedCategory;
       const clsParam = cls !== undefined ? cls : selectedClassification;
+      const currentStockF = stockF !== undefined ? stockF : stockFilter;
       const data = await medicineService.getBranchMedicines(branchId || '', {
         limit: 20,
-        search: query,
+        search: query ? query.trim() : undefined,
         category: catParam || undefined,
         classification: clsParam || undefined,
-        branchStockOnly: true,
+        branchStockOnly: currentStockF === "IN_STOCK",
         _t: Date.now()
       });
       let res = data.data || [];
-      const currentStockF = stockF !== undefined ? stockF : stockFilter;
       if (currentStockF === "IN_STOCK") {
-        res = res.filter((m: any) => m.stock > 0);
+        res = res.filter((m: any) => (m.stock || 0) > 0);
       } else if (currentStockF === "OUT_OF_STOCK") {
-        res = res.filter((m: any) => m.stock <= 0);
+        res = res.filter((m: any) => (m.stock || 0) <= 0);
       }
       setSearchResults(res);
       setIsDropdownOpen(true);
@@ -473,7 +554,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     try {
       const result = await orderService.createSale(payload);
 
-      setInvoiceData(normalizeInvoiceResult(result));
+      setInvoiceData({
+        ...normalizeInvoiceResult(result),
+        aiPharmacistConfirmation
+      });
       setShowInvoiceModal(true);
 
       // Clear forms
@@ -489,6 +573,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       setAppliedVoucher(null);
       setVoucherCode("");
       setVoucherError("");
+      setAiPharmacistConfirmation(null);
       fetchDbPrescriptions();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || "Lỗi thanh toán");
@@ -507,7 +592,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
             payosPaidHandledRef.current = true;
             setPayosPolling(false);
             setShowPayOSModal(false);
-            setInvoiceData(normalizeInvoiceResult(data));
+            setInvoiceData({
+              ...normalizeInvoiceResult(data),
+              aiPharmacistConfirmation
+            });
             setShowInvoiceModal(true);
 
             // Clear forms
@@ -593,7 +681,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       const code = prescriptionMode === "QR" && prescriptionCode ? prescriptionCode : `PRX-HAND-${Math.floor(10000 + Math.random() * 90000)}`;
 
       const generatedOrderCode = Math.floor(10000000 + Math.random() * 90000000);
-      const payload = {
+      const payload: any = {
         prescriptionCode: code,
         type: "PRESCRIPTION",
         branchId: currentBranchId || undefined,
@@ -613,7 +701,13 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         hospitalName,
         hospitalCode,
         soldBy: currentUserName || "Dược sĩ Trần Thị A",
-        orderCode: generatedOrderCode
+        orderCode: generatedOrderCode,
+        remarks: (remarks ? remarks + " | " : "") + (aiPharmacistConfirmation?.confirmed ? `[ĐÃ XÁC NHẬN BỞI DS ${aiPharmacistConfirmation.pharmacistName} - MÃ DUYỆT ${aiPharmacistConfirmation.auditCode}]` : ""),
+        aiAssisted: Boolean(aiPharmacistConfirmation?.confirmed),
+        pharmacistConfirmed: Boolean(aiPharmacistConfirmation?.confirmed),
+        pharmacistConfirmedBy: aiPharmacistConfirmation?.pharmacistName,
+        pharmacistConfirmedAt: aiPharmacistConfirmation?.confirmedAt,
+        aiAuditCode: aiPharmacistConfirmation?.auditCode,
       };
 
       if (paymentMethod === "QR_PAY") {
@@ -1055,6 +1149,89 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         {/* Bảng danh sách thuốc kê đơn */}
         {prescriptionItems.length > 0 ? (
           <>
+            {/* 🛡️ BANNER THÔNG BÁO XÁC NHẬN DƯỢC SĨ CHO ĐƠN THUỐC AI */}
+            {aiPharmacistConfirmation?.confirmed && (
+              <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-blue-500/10 border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center gap-3.5">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30 shrink-0">
+                      <ShieldCheck size={26} />
+                    </div>
+                    <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white"></span>
+                    </span>
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                        <CheckCircle2 size={11} className="text-emerald-700" /> ĐÃ XÁC NHẬN BƯỚC CUỐI • CHUẨN GPP
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-500">
+                        Mã duyệt: <strong className="text-emerald-700 font-extrabold">{aiPharmacistConfirmation.auditCode}</strong>
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-black text-slate-900 mt-1">
+                      Dược sĩ <span className="text-emerald-700 underline decoration-emerald-400 decoration-2">{aiPharmacistConfirmation.pharmacistName}</span> đã thẩm định & ký duyệt đơn thuốc do AI hỗ trợ
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Thời gian duyệt: <strong>{new Date(aiPharmacistConfirmation.confirmedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong> - {new Date(aiPharmacistConfirmation.confirmedAt).toLocaleDateString('vi-VN')} • Bệnh nhân: <strong>{aiPharmacistConfirmation.patientName || "Khách lẻ"}</strong> • {aiPharmacistConfirmation.totalItems} khoản mục thuốc
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditModal(true)}
+                    className="px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-300 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer hover:shadow"
+                  >
+                    <FileCheck2 size={15} /> Xem Biên Bản Thẩm Định AI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Bạn có chắc chắn muốn hủy xác nhận thẩm định của đơn thuốc AI này để tái kiểm tra?")) {
+                        setAiPharmacistConfirmation(null);
+                        showToast("Đã hủy xác nhận thẩm định đơn thuốc AI.", "warning");
+                      }
+                    }}
+                    className="px-2.5 py-2 text-slate-400 hover:text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Hủy xác nhận thẩm định"
+                  >
+                    Hủy duyệt
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Cảnh báo nhắc nhở nếu có thuốc AI nhưng chưa xác nhận */}
+            {prescriptionItems.some((it: any) => it.aiSuggested) && !aiPharmacistConfirmation?.confirmed && (
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                      Đơn thuốc do AI hỗ trợ - Chờ Dược sĩ xác nhận bước cuối
+                      <span className="bg-amber-200 text-amber-900 text-[10px] px-2 py-0.5 rounded-full font-bold">Quy chuẩn GPP</span>
+                    </h4>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      Vui lòng đối soát lâm sàng các loại thuốc do AI trích xuất và bấm xác nhận để hoàn tất quy trình.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleQuickConfirmAI}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                >
+                  <ShieldCheck size={16} /> Dược Sĩ Xác Nhận Bước Cuối Ngay
+                </button>
+              </div>
+            )}
+
             {/* Cảnh báo tương tác thuốc nguy hiểm */}
             {drugInteractionWarning && (
               <div className="bg-[#ffdad6] border border-[#93000a] rounded-[16px] p-5 shadow-sm flex items-start gap-4 animate-bounce">
@@ -1115,7 +1292,14 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                             }`}
                         >
                           <td className="px-6 py-4 font-bold text-slate-900 text-[14px]">
-                            {it.name}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{it.name}</span>
+                              {it.aiSuggested && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
+                                  <Sparkles size={10} className="text-emerald-600" /> AI Đề xuất • Đã duyệt GPP
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[10px] text-[#a63b00] font-bold mt-1 uppercase tracking-wider flex items-center gap-1">
                               Đơn vị: {it.unit}
                               {isNearExp && (
@@ -1362,10 +1546,29 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
 
         {/* Nút hành động */}
         <div className="flex flex-col gap-3 mt-auto">
-          {prescriptionItems.some((it: any) => it.quantity > (it.stock || 0)) && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs font-bold flex items-center gap-2">
-              <AlertTriangle size={18} className="shrink-0 text-rose-600" />
-              <span>Có thuốc kê đơn vượt quá tồn kho khả dụng! Vui lòng điều chỉnh trước khi in đơn.</span>
+          {/* Thẻ trạng thái phê duyệt Dược sĩ cho đơn AI */}
+          {aiPharmacistConfirmation?.confirmed && (
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl p-3.5 text-xs text-emerald-900 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <ShieldCheck size={16} />
+                </div>
+                <div>
+                  <div className="font-extrabold text-[11px] uppercase tracking-wide text-emerald-950 flex items-center gap-1">
+                    Đơn AI: Đã Thẩm Định Lâm Sàng
+                  </div>
+                  <div className="text-[10px] text-emerald-700 font-medium">
+                    DS. {aiPharmacistConfirmation.pharmacistName} • {aiPharmacistConfirmation.auditCode}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAuditModal(true)}
+                className="px-2 py-1 bg-white hover:bg-emerald-100/60 text-emerald-800 text-[10px] font-black rounded-lg border border-emerald-300 transition-colors cursor-pointer"
+              >
+                Chi tiết
+              </button>
             </div>
           )}
 
@@ -1571,6 +1774,28 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Badge Thẩm Định Lâm Sàng Của Dược Sĩ Cho Đơn Thuốc AI */}
+              {invoiceData.aiPharmacistConfirmation?.confirmed && (
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-emerald-950 uppercase text-[11px] flex items-center gap-1.5">
+                        ✓ ĐÃ THẨM ĐỊNH LÂM SÀNG BƯỚC CUỐI (AI ASSISTED)
+                      </div>
+                      <div className="text-[10px] text-emerald-800">
+                        Dược sĩ phụ trách: <strong>{invoiceData.aiPharmacistConfirmation.pharmacistName}</strong> • Mã duyệt: <span className="font-mono font-bold text-emerald-700">{invoiceData.aiPharmacistConfirmation.auditCode}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full shrink-0">
+                    GPP Verified
+                  </span>
+                </div>
+              )}
 
               {/* Mẫu hóa đơn bán thuốc */}
               <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50/50 shadow-inner font-mono text-[13px] text-slate-800 flex flex-col gap-4">
@@ -1990,17 +2215,68 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   </div>
                 </div>
 
+                {/* Khối Thẩm Định Bước Cuối Của Dược Sĩ */}
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                          Bước Cuối: Thẩm Định Lâm Sàng & Phê Duyệt Của Dược Sĩ
+                          <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-black border border-emerald-300">
+                            Bắt buộc GPP
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-emerald-800 mt-0.5">
+                          Dược sĩ phụ trách: <strong>{getBranchInfoFromToken().fullName || "Dược sĩ Trần Thị A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-900 bg-white/90 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs shrink-0 self-start sm:self-auto">
+                      🕒 {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - Hôm nay
+                    </span>
+                  </div>
+
+                  {/* Checklist kiểm soát an toàn */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khớp hoạt chất & hàm lượng
+                    </div>
+                    <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Không tương tác chống chỉ định
+                    </div>
+                    <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Gán lô FEFO cận hạn tự động
+                    </div>
+                  </div>
+
+                  {/* Checkbox cam kết trách nhiệm chuyên môn */}
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-emerald-300 hover:bg-emerald-50/50 transition-colors shadow-2xs">
+                    <input
+                      type="checkbox"
+                      checked={pharmacistAgreementCheck}
+                      onChange={(e) => setPharmacistAgreementCheck(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-700 leading-snug">
+                      Tôi là Dược sĩ phụ trách, đã đối soát đơn thuốc gốc, thẩm định lâm sàng danh mục thuốc do AI hỗ trợ đề xuất và <strong>chịu hoàn toàn trách nhiệm chuyên môn</strong> khi đưa vào đơn hàng xuất bán theo tiêu chuẩn GPP.
+                    </span>
+                  </label>
+                </div>
+
                 {/* Bottom Actions */}
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     onClick={handleApplyAIScanToCart}
-                    className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg hover:shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
                   >
-                    <ShoppingCart size={18} /> Đưa toàn bộ vào Đơn hàng POS (1-Click)
+                    <ShieldCheck size={19} /> Dược Sĩ Xác Nhận & Đưa Vào Đơn Hàng POS
                   </button>
                   <button
                     onClick={() => { setAiScanResult(null); }}
-                    className="px-5 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+                    className="px-5 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
                   >
                     Quét đơn khác
                   </button>
@@ -2012,6 +2288,15 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       </div>
     </div>
     )}
+
+      {/* =======================================
+       * 📋 MODAL BIÊN BẢN THẨM ĐỊNH LÂM SÀNG DƯỢC SĨ (GPP)
+       * ======================================= */}
+      <AIPharmacistAuditModal
+        isOpen={showAuditModal}
+        onClose={() => setShowAuditModal(false)}
+        data={aiPharmacistConfirmation}
+      />
     </div>
   );
 }

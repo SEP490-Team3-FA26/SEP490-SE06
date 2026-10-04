@@ -39,6 +39,7 @@ export class AdminEmployeeController implements OnModuleInit {
   }
 
   @Get()
+  @Roles('admin', 'branch', 'pharmacist')
   @ApiOperation({ summary: 'Lấy danh sách nhân viên' })
   async listEmployees(@Query() query: any) {
     return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', query || {});

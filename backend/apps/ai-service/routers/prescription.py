@@ -5,6 +5,7 @@ from services.stt_service import transcribe_audio
 from services.llm_service import (
     check_drug_interactions,
     generate_prescription,
+    generate_chat_consultation,
     normalize_transcript_for_retrieval,
 )
 from services.rag_service import (
@@ -40,6 +41,19 @@ def get_mongo_collection():
         if len(parts) > 1:
             db_name = parts[1].split("?")[0]
     return client[db_name]["medicines"]
+
+
+def get_chat_sessions_collection():
+    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
+    if not uri:
+        raise Exception("MongoDB URI not set")
+    client = pymongo.MongoClient(uri)
+    db_name = "WDP201"
+    if "net/" in uri:
+        parts = uri.split("net/")
+        if len(parts) > 1:
+            db_name = parts[1].split("?")[0]
+    return client[db_name]["chat_sessions"]
 
 
 def _normalize_medicine_text(value: str) -> str:
@@ -245,7 +259,8 @@ async def build_prescription_scan_response(ocr_result: dict, start_time: float):
 @router.post("/api/prescription")
 async def recommend_prescription(
     audio: UploadFile = File(...),
-    patient_id: str = Form(None)
+    patient_id: str = Form(None),
+    branch_id: str = Form(None)
 ):
     start_time = time.time()
     try:
@@ -255,15 +270,15 @@ async def recommend_prescription(
         # Step 2: Chuẩn hóa lỗi STT trước khi truy vấn vector DB.
         rag_query = await normalize_transcript_for_retrieval(transcribed_text)
 
-        # Step 3: RAG - Lấy context y tế từ Qdrant Vector DB
-        context = await retrieve_medical_context(rag_query)
+        # Step 3: RAG - Lấy context y tế từ Qdrant Vector DB & MongoDB (Branch Inventory-Aware)
+        context = await retrieve_medical_context(rag_query, branch_id=branch_id)
         
         # Step 4: LLM - Kê đơn
         prescription = await generate_prescription(rag_query, context)
         
-        # Step 5: DB Validation - Kiểm tra tồn kho
+        # Step 5: DB Validation - Kiểm tra tồn kho vật lý tại chi nhánh & tìm thuốc thay thế
         drug_names = [drug.get("name") for drug in prescription.get("recommended_drugs", []) if drug.get("name")]
-        inventory_status = await validate_drugs_in_inventory(drug_names)
+        inventory_status = await validate_drugs_in_inventory(drug_names, branch_id=branch_id)
         
         # Output kết quả
         return {
@@ -272,6 +287,7 @@ async def recommend_prescription(
             "rag_query": rag_query,
             "prescription": prescription,
             "inventory_status": inventory_status,
+            "branch_id": branch_id,
             "rag_context_used": bool(context),
             "processing_time_sec": round(time.time() - start_time, 2)
         }
@@ -285,28 +301,240 @@ from pydantic import BaseModel
 
 class SymptomRequest(BaseModel):
     symptoms: str
+    branch_id: str | None = None
 
 @router.post("/api/ai/symptom-consult")
 async def symptom_consult(req: SymptomRequest):
     start_time = time.time()
     try:
-        # Step 1: RAG - Lấy context y tế từ Qdrant Vector DB
-        context = await retrieve_medical_context(req.symptoms)
+        # Step 1: RAG - Lấy context y tế từ Qdrant / MongoDB ưu tiên kho chi nhánh
+        context = await retrieve_medical_context(req.symptoms, branch_id=req.branch_id)
         
         # Step 2: LLM - Kê đơn
         prescription = await generate_prescription(req.symptoms, context)
         
-        # Step 3: DB Validation - Kiểm tra tồn kho
+        # Step 3: DB Validation - Kiểm tra tồn kho vật lý tại chi nhánh & tìm thuốc thay thế
         drug_names = [drug.get("name") for drug in prescription.get("recommended_drugs", []) if drug.get("name")]
-        inventory_status = await validate_drugs_in_inventory(drug_names)
+        inventory_status = await validate_drugs_in_inventory(drug_names, branch_id=req.branch_id)
         
         return {
             "success": True,
             "prescription": prescription,
             "inventory_status": inventory_status,
+            "branch_id": req.branch_id,
             "rag_context_used": bool(context),
             "processing_time_sec": round(time.time() - start_time, 2)
         }
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+def enrich_drugs_with_inventory(recommended_drugs: list[dict]) -> list[dict]:
+    """
+    Ánh xạ thuốc đề xuất từ LLM với tồn kho thực tế trong MongoDB:
+    Lấy ID, giá, đơn vị, phân loại (TPCN vs Kê đơn), ảnh và số lượng tồn kho.
+    """
+    enriched = []
+    collection = None
+    try:
+        collection = get_mongo_collection()
+    except Exception as exc:
+        print(f"Không thể kết nối MongoDB để kiểm tra tồn kho thuốc: {exc}")
+
+    for item in recommended_drugs:
+        if not isinstance(item, dict):
+            continue
+        drug_name = str(item.get("name") or "").strip()
+        if not drug_name:
+            continue
+
+        medicine_doc = None
+        if collection is not None:
+            try:
+                # 1. Tìm chính xác theo tên
+                medicine_doc = collection.find_one({"name": drug_name})
+                # 2. Tìm không phân biệt hoa thường / regex
+                if not medicine_doc:
+                    medicine_doc = collection.find_one({"name": {"$regex": re.escape(drug_name), "$options": "i"}})
+                # 3. Tìm theo hoạt chất nếu có
+                active = item.get("active_ingredient")
+                if not medicine_doc and active and active != "Không rõ":
+                    medicine_doc = collection.find_one({"active_ingredient": {"$regex": re.escape(str(active)), "$options": "i"}})
+            except Exception as e:
+                print(f"Lỗi tìm kiếm MongoDB cho '{drug_name}': {e}")
+
+        if medicine_doc:
+            stock = int(medicine_doc.get("stock") or medicine_doc.get("stock_quantity") or 0)
+            details = medicine_doc.get("thong_tin_chi_tiet") or {}
+            price_raw = details.get("Giá bán") or details.get("price") or medicine_doc.get("price")
+            try:
+                price = int(float(re.sub(r'[^0-9.]', '', str(price_raw)))) if price_raw else 50000
+            except Exception:
+                price = 50000
+
+            classification = (
+                medicine_doc.get("drug_classification")
+                or medicine_doc.get("classification")
+                or "NON_PRESCRIPTION"
+            )
+            is_supp = str(classification).upper() in ["SUPPLEMENT", "COMMON_SUPPLEMENT", "THỰC PHẨM CHỨC NĂNG"]
+
+            enriched.append({
+                "medicine_id": str(medicine_doc.get("_id")),
+                "name": medicine_doc.get("name") or drug_name,
+                "active_ingredient": item.get("active_ingredient") or medicine_doc.get("active_ingredient") or "",
+                "dosage": item.get("dosage") or "Theo hướng dẫn của bác sĩ/dược sĩ",
+                "usage": item.get("usage") or "Uống sau ăn",
+                "price": price,
+                "stock": stock,
+                "unit": medicine_doc.get("unit") or "Hộp",
+                "category": medicine_doc.get("category") or details.get("Danh mục") or "Dược phẩm",
+                "image": medicine_doc.get("image") or medicine_doc.get("image_url") or "",
+                "drug_classification": classification,
+                "is_supplement": is_supp,
+                "in_stock": stock > 0
+            })
+        else:
+            enriched.append({
+                "medicine_id": None,
+                "name": drug_name,
+                "active_ingredient": item.get("active_ingredient") or "",
+                "dosage": item.get("dosage") or "Tham khảo ý kiến chuyên môn",
+                "usage": item.get("usage") or "Theo chỉ định",
+                "price": 0,
+                "stock": 0,
+                "unit": "Hộp",
+                "category": "Dược phẩm",
+                "image": "",
+                "drug_classification": "NON_PRESCRIPTION",
+                "is_supplement": False,
+                "in_stock": False
+            })
+
+    return enriched
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = []
+    age_group: str | None = None
+    gender: str | None = None
+    allergies: list[str] = []
+
+@router.post("/api/ai/chat")
+async def chat_consult(req: ChatRequest):
+    """
+    Endpoint tư vấn sức khỏe & đề xuất sản phẩm hội thoại đa lượt (Chatbot Giai đoạn 1)
+    Hỗ trợ DeepSeek Flash với fallback an toàn.
+    """
+    start_time = time.time()
+    try:
+        # Bước 1: RAG context retrieval
+        context = await retrieve_medical_context(req.message)
+
+        # Bước 2: Gọi LLM Chatbot
+        history_dicts = [{"role": h.role, "content": h.content} for h in req.history]
+        chat_res = await generate_chat_consultation(
+            message=req.message,
+            history=history_dicts,
+            context=context,
+            age_group=req.age_group,
+            gender=req.gender,
+            allergies=req.allergies
+        )
+
+        # Bước 3: Enrich thông tin tồn kho và giá bán thuốc thực tế
+        raw_recommended = chat_res.get("recommended_drugs", [])
+        enriched_drugs = enrich_drugs_with_inventory(raw_recommended)
+
+        return {
+            "success": True,
+            "message": chat_res.get("message") or "Dược sĩ AI đã tiếp nhận thông tin từ bạn.",
+            "drugs": enriched_drugs,
+            "warnings": chat_res.get("warnings") or "",
+            "follow_up_question": chat_res.get("follow_up_question") or "",
+            "disclaimer": chat_res.get("disclaimer") or "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo y khoa.",
+            "rag_context_used": bool(context),
+            "processing_time_sec": round(time.time() - start_time, 2)
+        }
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SaveSessionRequest(BaseModel):
+    user_id: str
+    session_id: str
+    title: str
+    messages: list[dict]
+    created_at: int | None = None
+    updated_at: int | None = None
+
+@router.get("/api/ai/chat/sessions")
+async def get_chat_sessions(user_id: str):
+    """
+    Lấy danh sách các phiên trò chuyện của user từ MongoDB
+    """
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Thiếu user_id")
+    try:
+        col = get_chat_sessions_collection()
+        docs = list(col.find({"user_id": user_id}).sort("updated_at", -1).limit(50))
+        sessions = []
+        for doc in docs:
+            sessions.append({
+                "id": doc.get("session_id"),
+                "title": doc.get("title") or "Cuộc trò chuyện",
+                "createdAt": doc.get("created_at") or int(time.time() * 1000),
+                "updatedAt": doc.get("updated_at") or int(time.time() * 1000),
+                "messages": doc.get("messages", [])
+            })
+        return {"success": True, "sessions": sessions}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/ai/chat/sessions")
+async def save_chat_session(req: SaveSessionRequest):
+    """
+    Lưu hoặc cập nhật phiên trò chuyện vào MongoDB
+    """
+    if not req.user_id or not req.session_id:
+        raise HTTPException(status_code=400, detail="Thiếu user_id hoặc session_id")
+    try:
+        col = get_chat_sessions_collection()
+        now = int(time.time() * 1000)
+        data = {
+            "user_id": req.user_id,
+            "session_id": req.session_id,
+            "title": req.title,
+            "messages": req.messages,
+            "created_at": req.created_at or now,
+            "updated_at": req.updated_at or now
+        }
+        col.update_one(
+            {"user_id": req.user_id, "session_id": req.session_id},
+            {"$set": data},
+            upsert=True
+        )
+        return {"success": True, "session_id": req.session_id}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/api/ai/chat/sessions/{session_id}")
+async def delete_chat_session(session_id: str, user_id: str):
+    """
+    Xóa phiên trò chuyện khỏi MongoDB
+    """
+    if not user_id or not session_id:
+        raise HTTPException(status_code=400, detail="Thiếu user_id hoặc session_id")
+    try:
+        col = get_chat_sessions_collection()
+        col.delete_one({"user_id": user_id, "session_id": session_id})
+        return {"success": True}
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -318,12 +546,12 @@ async def sync_database_to_ai(background_tasks: BackgroundTasks):
     """
     def run_sync():
         try:
-            print("🔄 [AI Service] Đang đồng bộ hóa dữ liệu thuốc mới từ MongoDB sang Qdrant...", flush=True)
+            print("[AI Service] Đang đồng bộ hóa dữ liệu thuốc mới từ MongoDB sang Qdrant...", flush=True)
             from scripts.index_from_mongo import main as index_db
             index_db()
-            print("✅ [AI Service] Đã hoàn tất đồng bộ hóa dữ liệu vào AI Knowledge Base!", flush=True)
+            print("[AI Service] Đã hoàn tất đồng bộ hóa dữ liệu vào AI Knowledge Base!", flush=True)
         except Exception as e:
-            print(f"❌ [AI Service] Lỗi đồng bộ dữ liệu: {e}", flush=True)
+            print(f"[Error] [AI Service] Lỗi đồng bộ dữ liệu: {e}", flush=True)
 
     background_tasks.add_task(run_sync)
     return {
