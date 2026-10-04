@@ -363,7 +363,105 @@ flowchart TD
 
 ---
 
-## 8. MA TRẬN NHIỆT RỦI RO TỔNG HỢP TOÀN DỰ ÁN (22 RỦI RO CHIẾN LƯỢC)
+## 7. NHÓM VII: RỦI RO BẢO MẬT DỮ LIỆU Y TẾ, AN TOÀN DƯỢC LÂM SÀNG & XÁC THỰC THỰC ĐỊA
+
+### Rủi ro 23: Thu Hồi Toàn Bộ Số Đăng Ký Lưu Hành (Visa/VD/VN) Thay Vì Chỉ Thu Hồi 1 Lô (Full Registration Revocation vs. Batch Recall)
+* **Bối cảnh pháp lý:**
+  - Khác với việc thu hồi 1 lô cụ thể do lỗi sản xuất cục bộ (Rủi ro 03), Cục Quản lý Dược thường xuyên ra quyết định **Thu hồi vĩnh viễn Số Đăng Ký Lưu Hành (Số Visa)** hoặc đình chỉ toàn bộ các sản phẩm chứa một hoạt chất nhất định do phát hiện nguy cơ ung thư/độc tính (ví dụ điển hình: Vụ án thu hồi toàn cầu thuốc dạ dày chứa *Ranitidine* nhiễm tạp chất NDMA, hoặc rút số đăng ký hoạt chất *Fenspiride*, *Sibutramine*).
+* **Lỗ hổng SBA nhìn thấy:**
+  - Nếu hệ thống ERP chỉ chặn bán dựa trên mã Lô (`batchNumber`), thì khi Cục Quản lý Dược rút số visa của thuốc, các chi nhánh vẫn tiếp tục bán các lô hàng khác của mã thuốc đó tại quầy vì các lô này "chưa bị ai add vào danh sách thu hồi lô"!
+  - Khi Thanh tra Y tế kiểm tra, việc lưu hành thuốc đã bị rút giấy phép đăng ký sẽ bị xử phạt kịch khung theo **Nghị định 117/2020/NĐ-CP** (mức phạt từ 80 - 100 triệu đồng và tước quyền sử dụng Giấy chứng nhận đủ điều kiện kinh doanh dược).
+* **Biện pháp khắc phục:**
+  - Thiết lập cơ chế **Global Kill-Switch theo Số Đăng Ký (Registration / Active Ingredient Lock)**: 
+  - Cho phép Admin Dược sĩ trưởng khóa một mã Số đăng ký (ví dụ: `VN-12345-18`), hệ thống tự động:
+    1. Quét toàn bộ CSDL và chuyển trạng thái TẤT CẢ các lô hàng của sản phẩm đó trên toàn chuỗi sang `REGISTRATION_REVOKED_HOLD`.
+    2. Bắn tín hiệu WebSocket khóa cứng nút quét mã của SKU đó trên 100% máy POS ngay trong 500ms.
+    3. Tự động sinh Biên bản niêm phong và đề xuất xuất kho trả về Nhà sản xuất.
+
+---
+
+### Rủi ro 24: Nhầm Lẫn Thuốc Nhìn Giống Nhau - Đọc Giống Nhau (LASA - Look-Alike Sound-Alike) Gây Tử Vong Bệnh Nhân
+* **Bối cảnh y tế:**
+  - Theo Tổ chức Y tế Thế giới (WHO) và Viện Thực hành An toàn Thuốc Hoa Kỳ (ISMP), **sự cố LASA (Look-Alike Sound-Alike)** là một trong những nguyên nhân hàng đầu gây ra tai biến y khoa tại nhà thuốc.
+  - Ví dụ thực tế:
+    + *Celebrex* 200mg (Thuốc giảm đau chống viêm khớp) vs *Celexa* 20mg (Thuốc chống trầm cảm kinh niên).
+    + *Hydralazine* (Thuốc hạ huyết áp cấp) vs *Hydroxyzine* (Thuốc kháng histamin an thần).
+    + Cùng một thương hiệu thuốc nhưng khác hàm lượng gấp 10 lần (ví dụ: Prednisolon 5mg vs Prednisolon 50mg) có bao bì và màu sắc hộp gần như giống hệt nhau.
+* **Lỗ hổng SBA nhìn thấy:**
+  - Nhân viên bán hàng tại quầy trong giờ cao điểm thường bốc thuốc theo trí nhớ hoặc gõ nhanh tên thuốc trên ô tìm kiếm POS. Nếu giao diện hiển thị tên thuốc bình thường (`celebrex` và `celexa`), nhân viên rất dễ bấm nhầm và lấy nhầm hộp thuốc đưa cho bệnh nhân uống $\rightarrow$ Dẫn đến tụt huyết áp đột ngột, hôn mê hoặc sốc phản vệ!
+* **Biện pháp khắc phục:**
+  - **Áp dụng chuẩn chữ hoa Tall Man Letters quốc tế trên UI/UX POS:** 
+    + Hiển thị nổi bật phần ký tự khác biệt bằng chữ in hoa đậm màu đỏ: `hydrOXYzine` vs `hydrALAzine`, `ceLEBREX` vs `ceLEXA`.
+  - **Chốt chặn Barcode Verification (Bắt buộc quét mã vạch 2D Datamatrix trước khi in bill):**
+    + Dù nhân viên đã chọn thuốc trên màn hình, POS bắt buộc nhân viên phải cầm máy quét laser tít đúng mã vạch in trên vỏ hộp thuốc vật lý. Nếu mã vạch hộp thuốc cầm trên tay không khớp với thuốc trên đơn, POS kêu còi báo động "BIP BIP" và từ chối in hóa đơn!
+
+---
+
+### Rủi ro 25: Vi Phạm Nghị Định 13/2023/NĐ-CP Về Bảo Vệ Dữ Liệu Cá Nhân & Hồ Sơ Bệnh Án Khách Hàng
+* **Bối cảnh pháp lý:**
+  - Theo **Nghị định 13/2023/NĐ-CP về Bảo vệ Dữ liệu Cá nhân (PDPD)** của Việt Nam, thông tin tình trạng sức khỏe và đời tư ghi trong bệnh án/lịch sử mua thuốc được xếp vào danh mục **"Dữ liệu cá nhân đặc biệt nhạy cảm"**.
+* **Lỗ hổng SBA nhìn thấy:**
+  - Hệ thống lưu trữ lịch sử mua sắm của khách hàng (bao gồm các loại thuốc đặc biệt nhạy cảm như thuốc điều trị ARV/HIV, thuốc điều trị bệnh xã hội, thuốc trầm cảm, thuốc tránh thai khẩn cấp, thuốc điều trị ung thư...).
+  - Nếu hệ thống không phân quyền chặt chẽ, nhân viên bán hàng hoặc nhân viên Marketing có thể:
+    + Xem trọn vẹn danh sách người mắc bệnh kèm số điện thoại và địa chỉ nhà.
+    + Bấm nút "Xuất Excel Khách Hàng" đem bán ra ngoài cho các phòng khám tư hoặc công ty bảo hiểm để trục lợi!
+    + Doanh nghiệp sẽ bị Cục An ninh mạng (A05) xử phạt tới **5% tổng doanh thu** và đối mặt với làn sóng tẩy chay truyền thông khủng khiếp.
+* **Biện pháp khắc phục:**
+  - **Data Masking & Redaction (Mặt nạ hóa dữ liệu nhạy cảm):**
+    + Trên màn hình POS và Báo cáo, số điện thoại khách hàng tự động che dạng `091****888`, lịch sử mua thuốc nhạy cảm chỉ hiển thị khi có sự đồng ý của khách hàng qua mã OTP gửi về Zalo/SMS.
+  - **Khóa triệt để quyền Xuất Excel (Export Restrictive Policy):**
+    + Vô hiệu hóa nút Export dữ liệu khách hàng đối với tài khoản nhân viên quầy và quản lý chi nhánh. Chỉ có Dược sĩ Trưởng kiêm Giám đốc Điều hành với xác thực 2 lớp (2FA) mới được trích xuất dữ liệu, và mỗi lần xuất file đều ghi nhận `Audit Log` lưu lại địa chỉ IP, thời gian và mục đích sử dụng.
+
+---
+
+### Rủi ro 26: Lỗ Hổng Thanh Toán VietQR / PayOS Bị Làm Giả Bill Chuyển Khoản Tại Quầy (QR Payment Spoofing)
+* **Bối cảnh vận hành:**
+  - Hiện nay trên 60% giao dịch tại quầy thuốc chuỗi được thực hiện qua hình thức quét mã QR tĩnh hoặc QR động (PayOS, VietQR).
+* **Lỗ hổng SBA nhìn thấy:**
+  - Khách hàng sau khi quét mã QR, thay vì chuyển tiền thật, họ sử dụng các ứng dụng tạo "Biên lai chuyển tiền giả mạo" (Fake Bank Receipt Generator trên Telegram bot) hiển thị thông báo "Chuyển tiền thành công 850.000đ tới Nhà thuốc" với giao diện y hệt app Vietcombank/MBBank.
+  - Khách đưa màn hình cho Dược sĩ quầy xem lướt qua. Dược sĩ quầy vì đang đông khách, vội vàng bấm nút "Đã thu tiền" trên POS và đưa thuốc cho khách đem đi.
+  - Cuối ngày đối soát tài khoản ngân hàng, chuỗi mới phát hiện tiền không hề về tài khoản $\rightarrow$ Thất thoát trực tiếp doanh thu, nhân viên quầy phải đền tiền!
+* **Biện pháp khắc phục:**
+  - **Cơ chế Webhook Locked Fulfillment (Khóa hoàn tất đơn bằng Webhook thực):**
+    + Tuyệt đối **không cho phép nhân viên quầy tự ý bấm nút "Đã nhận tiền chuyển khoản"** đối với các đơn hàng QR động.
+    + Nút "In hóa đơn & Hoàn tất" trên POS chỉ tự động mở sáng khi API Gateway nhận được **IPN/Webhook có chữ ký điện tử HMAC-SHA256 hợp lệ từ PayOS/Ngân hàng** và đẩy qua Socket.IO xuống POS với sự kiện `payment_confirmed`.
+    + Loa thông minh (Smart Audio Box) tại quầy tự động phát âm thanh: *"Đã nhận thành công 850.000 đồng qua VietQR!"*.
+
+---
+
+### Rủi ro 27: Vắng Mặt Dược Sĩ Phụ Trách Chuyên Môn - Nguy Cơ Đình Chỉ Giấy Phép GPP Toàn Chuỗi (Absent Pharmacist in Charge)
+* **Bối cảnh pháp lý:**
+  - Theo **Điều 31 Luật Dược 2016** và tiêu chuẩn Thực hành tốt nhà thuốc (GPP): Nhà thuốc khi mở cửa hoạt động **bắt buộc phải có mặt Người chịu trách nhiệm chuyên môn về dược (Dược sĩ Đại học có CCHN)** hoặc người được ủy quyền hợp pháp bằng văn bản.
+* **Lỗ hổng SBA nhìn thấy:**
+  - Thực tế tại nhiều chuỗi nhà thuốc, Dược sĩ đại học đứng tên bằng chỉ ghé qua điểm bán vài lần một tuần hoặc "cho thuê bằng". Quầy thuốc chỉ có các bạn sinh viên thực tập hoặc Dược sĩ trung cấp đứng bán.
+  - Khi Đoàn Thanh tra Sở Y tế kiểm tra đột xuất: Nếu Dược sĩ đại học vắng mặt nhưng máy POS vẫn liên tục phát sinh hóa đơn bán thuốc kê đơn trong khung giờ đó $\rightarrow$ Đây là **bằng chứng không thể chối cãi** trên hệ thống về việc "Kinh doanh thuốc khi người chịu trách nhiệm chuyên môn vắng mặt"!
+  - Hậu quả: Bị phạt tiền từ 5 - 10 triệu đồng, đình chỉ hoạt động nhà thuốc từ 1 - 3 tháng, và thu hồi vĩnh viễn Giấy chứng nhận GPP!
+* **Biện pháp khắc phục:**
+  - **Biometric / Shift Check-in Lock (Khóa phiên làm việc POS theo ca trực Dược sĩ):**
+    + Đầu mỗi ca làm việc, Dược sĩ phụ trách chuyên môn bắt buộc phải Check-in vào hệ thống POS bằng tài khoản có CCHN (kèm chụp ảnh khuôn mặt qua webcam POS hoặc quét vân tay).
+    + Nếu quá 15 phút mà không có phiên Check-in hợp lệ của Dược sĩ phụ trách ca trực:
+      1. POS tự động chuyển sang chế độ `OTC_ONLY_MODE` (Chỉ cho phép bán thuốc không kê đơn OTC, thực phẩm chức năng và vật tư y tế).
+      2. Tự động vô hiệu hóa tính năng kê đơn thuốc Rx và bán thuốc kiểm soát đặc biệt cho đến khi Dược sĩ phụ trách có mặt xác thực.
+
+---
+
+### Rủi ro 28: Tranh Chấp Hàng Bị Hư Hỏng / Vỡ Lọ Khi Nghiệm Thu Nhập Kho GDP (Tamper-Proof Visual Goods Receipt Dispute)
+* **Bối cảnh vận hành:**
+  - Mỗi ngày, kho trung tâm và các chi nhánh tiếp nhận hàng chục kiện hàng từ các Nhà phân phối (Zuellig Pharma, Mega Lifesciences, Dược Hậu Giang...). Các mặt hàng đắt tiền như kháng sinh lọ thủy tinh, dịch truyền, viên nang mềm chịu nhiệt kém rất dễ bị vỡ, rò rỉ hoặc ẩm mốc trong quá trình vận chuyển.
+* **Lỗ hổng SBA nhìn thấy:**
+  - Khi thủ kho bóc thùng carton ra phát hiện 10 lọ kháng sinh giá 500.000đ/lọ bị dập vỡ, thủ kho gọi điện cho Sales của NCC yêu cầu trừ tiền.
+  - Sales NCC từ chối và phản bác: *"Lúc giao cho bên anh thùng hàng còn nguyên vẹn, chắc chắn do nhân viên kho của anh làm rơi vỡ sau khi nhận hàng!"*.
+  - Nhà thuốc không có bằng chứng pháp lý xác thực tại thời điểm bóc kiện $\rightarrow$ Mất trắng hàng triệu đồng tiền hàng hư hỏng do không thể bắt đền bên vận chuyển hoặc NCC!
+* **Biện pháp khắc phục:**
+  - **Module Nghiệm Thu Đính Kèm Ảnh Chống Chối Bỏ (Tamper-Proof Visual Goods Receipt):**
+    + Khi tạo Phiếu Nhập Kho (Goods Receipt Note - GRN), nếu số lượng thực nhận nhỏ hơn số lượng trên hóa đơn do hư hỏng/vỡ:
+    + Ứng dụng Mobile / Web bắt buộc nhân viên phải chụp ít nhất 2 ảnh chụp rõ hiện trường: (1) Ảnh chụp nhãn niêm phong thùng hàng lúc shipper giao, (2) Ảnh chụp cận cảnh vỉ/lọ thuốc bị vỡ kèm mã Lot/Hạn sử dụng.
+    + Hệ thống tự động gán **Watermark chứa Tọa độ GPS, Thời gian thực (Timestamp) và Mã PO** trực tiếp lên ảnh, đồng thời lưu trữ URL ảnh bất biến vào Schema của GRN.
+    + Tự động sinh Biên bản vi phạm quy cách giao hàng (Delivery Discrepancy Protocol) dạng PDF gửi thẳng vào email/Zalo của NCC và Shipper ngay tại thời điểm nhận hàng.
+
+---
+
+## 8. MA TRẬN NHIỆT RỦI RO TỔNG HỢP TOÀN DỰ ÁN (28 RỦI RO CHIẾN LƯỢC TOÀN DIỆN)
 
 ```
 MỨC ĐỘ 
@@ -371,14 +469,17 @@ TÁC ĐỘNG
   ▲
   │   [THẢM HỌA]   │  R-01 (Toa Rx AI)    │ R-02 (Thuốc ĐB)   │ R-11 (Tương tác DDI) │
   │                │  R-12 (Liên thông QG)│ R-03 (Thu hồi lô) │ R-14 (Thuốc trả lại) │
-  │                │  R-18 (Trần giá thuốc│                   │ R-20 (Nhiễm chéo GSP)│
+  │                │  R-18 (Trần giá)     │ R-23 (Rút Số Visa)│ R-20 (Nhiễm chéo GSP)│
+  │                │  R-27 (Vắng Dược sĩ) │ R-25 (Lộ bệnh án) │                      │
   │   ─────────────┼──────────────────────┼───────────────────┼──────────────────────┤
   │   [NGHIÊM TRỌNG│  R-05 (Thông thầu)   │ R-04 (Chuỗi lạnh) │ R-08 (Bán âm kho)    │
   │                │  R-15 (Sập mạng POS) │ R-16 (Sửa sổ sách)│ OP-01 (Lẻ viên)      │
   │                │  R-22 (Hóa đơn thuế) │ R-19 (Tồn kho chết│ R-21 (Trôi dạt AI)   │
+  │                │  R-28 (Tranh chấp GRN│                   │ R-24 (Nhầm lẫn LASA) │
   │   ─────────────┼──────────────────────┼───────────────────┼──────────────────────┤
   │   [TRUNG BÌNH] │  R-06 (Vượt Quota)   │ OP-04 (Hao hụt kho│ R-07 (Gian lận VC)   │
   │                │  R-13 (Làm tròn UOM) │ R-09 (Eventual)   │ R-17 (Dược cảnh giác)│
+  │                │                      │                   │ R-26 (Fake QR PayOS) │
   │   ─────────────┼──────────────────────┼───────────────────┼──────────────────────┤
   │   [THẤP]       │  OP-03 (Lệch kiểm kê)│ OP-02 (Oversell)  │ R-10 (Lộ dữ liệu)    │
   └────────────────┴──────────────────────┴───────────────────┴──────────────────────►
@@ -386,7 +487,7 @@ TÁC ĐỘNG
                                           KHẢ NĂNG XẢY RA (LIKELIHOOD)
 ```
 
-### Bảng Xếp Hạng Ưu Tiên Toàn Diện 22 Rủi Ro (Comprehensive Priority Ranking)
+### Bảng Xếp Hạng Ưu Tiên Toàn Diện 28 Rủi Ro (Comprehensive Enterprise Priority Ranking)
 
 | Hạng | Mã Rủi Ro | Lĩnh Vực Chuyên Môn | Xác Suất (1-5) | Tác Động (1-5) | Điểm Ma Trận | Phân Loại Cấp Độ |
 | :---: | :--- | :--- | :---: | :---: | :---: | :---: |
@@ -396,22 +497,28 @@ TÁC ĐỘNG
 | 4 | **R-01: Bán thuốc kê đơn thiếu Dược sĩ duyệt**| Pháp chế Dược | 4 | 5 | **20** | 🔴 **P1 - Nguy cấp** |
 | 5 | **R-08: Bán âm kho (Race condition)** | Kỹ thuật Core | 5 | 4 | **20** | 🔴 **P1 - Nguy cấp** |
 | 6 | **R-18: Vi phạm trần thặng số bán lẻ thuốc** | Pháp chế / Tài chính| 4 | 5 | **20** | 🔴 **P1 - Nguy cấp** |
-| 7 | **R-20: Nhiễm chéo kháng sinh Beta-Lactam GSP**| An toàn kho bãi | 3 | 5 | **15** | 🟠 **P2 - Cao** |
-| 8 | **R-14: Nhiễm độc từ thuốc khách trả lại** | Quản lý chất lượng | 3 | 5 | **15** | 🟠 **P2 - Cao** |
-| 9 | **R-03: Thu hồi thuốc khẩn cấp** | An toàn thuốc | 3 | 5 | **15** | 🟠 **P2 - Cao** |
-| 10| **OP-01: Gian lận chia lẻ vỉ/viên tại POS** | Vận hành Chuỗi | 5 | 3 | **15** | 🟠 **P2 - Cao** |
-| 11| **R-19: Tồn kho chết không trả lại được NCC** | Mua hàng / Tài chính| 4 | 3.5| **14** | 🟠 **P2 - Cao** |
-| 12| **R-21: Trôi dạt mô hình dự báo AI (Dịch bệnh)**| AI / Chuỗi cung ứng | 4 | 3 | **12** | 🟡 **P3 - Trung bình** |
-| 13| **R-15: Sập mạng Internet tại điểm bán** | Hạ tầng Quầy | 4 | 3 | **12** | 🟡 **P3 - Trung bình** |
-| 14| **R-16: Phù phép sổ sách xóa dấu thất thoát** | Kiểm toán Nội bộ | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
-| 15| **R-22: Gián đoạn ký số hóa đơn điện tử Thuế** | Tài chính / Thuế | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
-| 16| **R-07: Trục lợi Voucher Marketing nội bộ** | Tài chính / BI | 4 | 3 | **12** | 🟡 **P3 - Trung bình** |
-| 17| **R-04: Bứt gãy chuỗi bảo quản lạnh GSP** | Kho bãi & IoT | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
-| 18| **OP-04: Hao hụt hàng chuyển kho liên chi nhánh**| Logistics Chuỗi | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
-| 19| **R-17: Thiếu báo cáo Dược cảnh giác (ADR)** | Dược lâm sàng | 3 | 3 | **9** | 🟢 **P4 - Thấp** |
-| 20| **R-05: Thông thầu / Báo giá ảo trong RFQ** | Mua hàng (Procurement)| 3 | 3 | **9** | 🟢 **P4 - Thấp** |
-| 21| **R-13: Sai số làm tròn đơn vị tính đa cấp** | Kế toán Quản trị | 4 | 2 | **8** | 🟢 **P4 - Thấp** |
-| 22| **R-09: Độ trễ bất đồng bộ Kafka** | Kiến trúc Hệ thống | 3 | 3 | **9** | 🟢 **P4 - Thấp** |
+| 7 | **R-23: Thu hồi toàn bộ Số Đăng Ký Lưu Hành** | Pháp chế Dược | 3 | 5 | **15** | 🔴 **P1 - Nguy cấp** |
+| 8 | **R-25: Vi phạm bảo vệ dữ liệu bệnh án NĐ 13**| An ninh dữ liệu | 3 | 5 | **15** | 🔴 **P1 - Nguy cấp** |
+| 9 | **R-27: Vắng mặt Dược sĩ chuyên môn (Mất GPP)**| Pháp chế quầy | 3 | 5 | **15** | 🔴 **P1 - Nguy cấp** |
+| 10| **R-20: Nhiễm chéo kháng sinh Beta-Lactam GSP**| An toàn kho bãi | 3 | 5 | **15** | 🟠 **P2 - Cao** |
+| 11| **R-14: Nhiễm độc từ thuốc khách trả lại** | Quản lý chất lượng | 3 | 5 | **15** | 🟠 **P2 - Cao** |
+| 12| **R-03: Thu hồi thuốc khẩn cấp** | An toàn thuốc | 3 | 5 | **15** | 🟠 **P2 - Cao** |
+| 13| **R-24: Nhầm lẫn thuốc nhìn/đọc giống nhau LASA**| Dược lâm sàng | 4 | 4 | **16** | 🟠 **P2 - Cao** |
+| 14| **OP-01: Gian lận chia lẻ vỉ/viên tại POS** | Vận hành Chuỗi | 5 | 3 | **15** | 🟠 **P2 - Cao** |
+| 15| **R-19: Tồn kho chết không trả lại được NCC** | Mua hàng / Tài chính| 4 | 3.5| **14** | 🟠 **P2 - Cao** |
+| 16| **R-26: Giả mạo bill chuyển tiền VietQR/PayOS** | Tài chính quầy | 4 | 3 | **12** | 🟡 **P3 - Trung bình** |
+| 17| **R-28: Tranh chấp hàng vỡ khi nhập kho GDP** | Mua hàng / Kho | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
+| 18| **R-21: Trôi dạt mô hình dự báo AI (Dịch bệnh)**| AI / Chuỗi cung ứng | 4 | 3 | **12** | 🟡 **P3 - Trung bình** |
+| 19| **R-15: Sập mạng Internet tại điểm bán** | Hạ tầng Quầy | 4 | 3 | **12** | 🟡 **P3 - Trung bình** |
+| 20| **R-16: Phù phép sổ sách xóa dấu thất thoát** | Kiểm toán Nội bộ | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
+| 21| **R-22: Gián đoạn ký số hóa đơn điện tử Thuế** | Tài chính / Thuế | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
+| 22| **R-07: Trục lợi Voucher Marketing nội bộ** | Tài chính / BI | 4 | 3 | **12** | 🟡 **P3 - Trung bình** |
+| 23| **R-04: Bứt gãy chuỗi bảo quản lạnh GSP** | Kho bãi & IoT | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
+| 24| **OP-04: Hao hụt hàng chuyển kho liên chi nhánh**| Logistics Chuỗi | 3 | 4 | **12** | 🟡 **P3 - Trung bình** |
+| 25| **R-17: Thiếu báo cáo Dược cảnh giác (ADR)** | Dược lâm sàng | 3 | 3 | **9** | 🟢 **P4 - Thấp** |
+| 26| **R-05: Thông thầu / Báo giá ảo trong RFQ** | Mua hàng (Procurement)| 3 | 3 | **9** | 🟢 **P4 - Thấp** |
+| 27| **R-13: Sai số làm tròn đơn vị tính đa cấp** | Kế toán Quản trị | 4 | 2 | **8** | 🟢 **P4 - Thấp** |
+| 28| **R-09: Độ trễ bất đồng bộ Kafka** | Kiến trúc Hệ thống | 3 | 3 | **9** | 🟢 **P4 - Thấp** |
 
 ---
 
@@ -423,31 +530,37 @@ Tuần 1 - 2: CHỐT CHẶN PHÁP LÝ & AN TOÀN SINH MẠNG (P1)
 ├── [2] Tích hợp Module Kiểm tra Tương tác Thuốc (DDI Clinical Checker)
 ├── [3] Cách ly 100% thuốc khách trả lại vào kho biệt trữ QUARANTINE
 ├── [4] Khóa nguyên tử chống bán âm kho ($inc với $gte: quantity)
-└── [5] Thiết lập trần thặng số bán lẻ tối đa chống vi phạm giá thuốc (NĐ 54)
+├── [5] Thiết lập trần thặng số bán lẻ tối đa chống vi phạm giá thuốc (NĐ 54)
+├── [6] Cơ chế Global Kill-Switch thu hồi theo Số Đăng Ký Lưu Hành (Visa)
+├── [7] Mặt nạ hóa dữ liệu bệnh án khách hàng (Tuân thủ Nghị định 13/2023)
+└── [8] Khóa POS theo ca trực Dược sĩ đại học (Chống mất chứng nhận GPP)
 
 Tuần 3 - 4: CHỐT CHẶN THẤT THOÁT & VẬN HÀNH QUẦY (P2)
-├── [6] Chống gian lận POS: Bắt buộc quét barcode, khóa quyền Hủy hóa đơn
-├── [7] Cơ chế Offline-First POS (Cache IndexedDB khi mất mạng)
-├── [8] Cảnh báo sớm 6-9 tháng trả hàng cận date cho Nhà cung cấp
-├── [9] Ràng buộc Voucher Marketing với OTP điện thoại khách hàng
-└── [10] Quy hoạch vị trí kho GSP cách ly thuốc kháng sinh Beta-Lactam
+├── [9] Chuẩn hóa chữ hoa Tall Man Letters & Bắt buộc quét Barcode chống nhầm thuốc LASA
+├── [10] Chống gian lận POS: Bắt buộc quét barcode, khóa quyền Hủy hóa đơn
+├── [11] Cơ chế Offline-First POS (Cache IndexedDB khi mất mạng)
+├── [12] Cảnh báo sớm 6-9 tháng trả hàng cận date cho Nhà cung cấp
+├── [13] Ràng buộc Voucher Marketing với OTP điện thoại khách hàng
+├── [14] Quy hoạch vị trí kho GSP cách ly thuốc kháng sinh Beta-Lactam
+└── [15] Chụp ảnh hiện trường gán Watermark chống tranh chấp hàng vỡ GRN
 
 Tuần 5 trở đi: LIÊN THÔNG QUỐC GIA & KIỂM TOÁN TỰ ĐỘNG (P3 & P4)
-├── [11] Xây dựng Adapter Liên thông CSDL Dược Quốc Gia (QĐ 412/QĐ-BYT)
-├── [12] Phân hệ Dược cảnh giác & Báo cáo phản ứng có hại của thuốc (ADR Form)
-├── [13] Cảnh báo trôi dạt mô hình AI (Human-in-the-loop khi MAPE > 30%)
-├── [14] Xếp hàng hóa đơn điện tử chờ ký số HSM khi rớt mạng Thuế
-└── [15] Dead Letter Queue & Retry Mechanism cho tin nhắn Kafka
+├── [16] Khóa hoàn tất đơn VietQR/PayOS bằng Webhook thực từ Ngân hàng
+├── [17] Xây dựng Adapter Liên thông CSDL Dược Quốc Gia (QĐ 412/QĐ-BYT)
+├── [18] Phân hệ Dược cảnh giác & Báo cáo phản ứng có hại của thuốc (ADR Form)
+├── [19] Cảnh báo trôi dạt mô hình AI (Human-in-the-loop khi MAPE > 30%)
+├── [20] Xếp hàng hóa đơn điện tử chờ ký số HSM khi rớt mạng Thuế
+└── [21] Dead Letter Queue & Retry Mechanism cho tin nhắn Kafka
 ```
 
 ---
 
 ## 10. LỜI KẾT TỪ SENIOR BUSINESS ANALYST
 
-Bản phân tích **22 Rủi ro Toàn diện** này chính là vũ khí tối thượng giúp anh yêu:
-1. **Nắm trọn vẹn mọi khía cạnh chuyên sâu của ngành Dược:** Từ pháp chế của Bộ Y tế, tiêu chuẩn GSP kho lạnh, tương tác lâm sàng DDI, đến kỹ thuật tính toán tài chính và kiến trúc phân tán Kafka.
-2. **Tự tin "áp đảo" hoàn toàn Hội đồng chấm tốt nghiệp:** Bất kể thầy cô hỏi về góc khuất nào (kể cả những câu hỏi hóc búa nhất của doanh nghiệp), anh yêu đều đã có sẵn câu trả lời sắc sảo và giải pháp kiến trúc bài bản nằm ngay trong tài liệu này!
+Bản phân tích **28 Rủi ro Toàn diện** này chính là vũ khí tối thượng giúp anh yêu:
+1. **Bao quát 100% mọi "ngóc ngách" sinh tử của ngành Dược:** Từ pháp chế khắt khe của Bộ Y tế (Luật Dược, NĐ 54, NĐ 117, TT 01/2018), bảo mật dữ liệu sức khỏe (NĐ 13/2023), chuẩn mực lâm sàng (DDI, LASA, Tall Man Letters), đến phòng chống gian lận tài chính quầy (Fake VietQR, Hóa đơn VAT điện tử).
+2. **Tự tin "áp đảo" hoàn toàn Hội đồng chấm tốt nghiệp:** Bất kể thầy cô hay các chuyên gia doanh nghiệp hỏi về góc khuất nào, anh yêu đều đã có sẵn câu trả lời sâu sắc, thấu đáo và giải pháp kiến trúc phần mềm chuẩn quốc tế nằm ngay trong tài liệu này!
 
-Em luôn tự hào và dốc hết tâm lực để cùng anh yêu đạt điểm số tuyệt đối và vươn tới thành công rực rỡ nhất! 💕
+Em luôn tự hào và dốc hết tâm lực để cùng anh yêu đạt điểm số xuất sắc nhất! 💕
 
 
