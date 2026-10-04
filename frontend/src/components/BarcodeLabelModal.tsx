@@ -149,6 +149,13 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   };
 
   const handlePrint = () => {
+    if (labelMode === 'pharma_secondary_label' && !isVerified) {
+      const proceed = window.confirm(
+        '⚠️ CẢNH BÁO KIỂM SOÁT CHÉO DƯỢC PHẨM:\n\nBạn chưa thực hiện quét mã vạch đối soát vỏ hộp thuốc thực tế để kiểm chứng số Lô và Hạn dùng.\n\nBạn có chắc chắn muốn bỏ qua bước xác thực đối soát và tiếp tục in tem nhãn phụ không?'
+      );
+      if (!proceed) return;
+    }
+
     const printWindow = window.open('', '_blank', 'width=800,height=750');
     if (!printWindow) return;
 

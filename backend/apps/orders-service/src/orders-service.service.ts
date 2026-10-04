@@ -1227,8 +1227,15 @@ export class OrdersServiceService implements OnModuleInit {
 
   async getMarketingRoiAnalytics() {
     try {
+      const DEFAULT_PHARMA_COGS_RATIO = 0.65; // Chuẩn định mức giá vốn trung bình ngành Dược phẩm bán lẻ Việt Nam (65% COGS)
       const campaigns = await this.campaignModel.find().lean().exec();
-      const allOrders = await this.orderModel.find({ paymentStatus: 'PAID' }).lean().exec();
+
+      // Tối ưu hóa bộ nhớ: chỉ nạp các trường cần thiết phục vụ tính ROI & Attribution thay vì load toàn bộ document
+      const allOrders = await this.orderModel
+        .find({ paymentStatus: 'PAID' })
+        .select('patientPhone totalAmount voucherCode voucherDiscount createdAt')
+        .lean()
+        .exec();
 
       // Bản đồ số điện thoại khách hàng và đơn hàng đầu tiên (để đo lường New Customers vs Cannibalization)
       const customerFirstOrderDate = new Map<string, Date>();
@@ -1262,8 +1269,8 @@ export class OrdersServiceService implements OnModuleInit {
         const totalOrders = matchedOrders.length;
         const totalRevenue = matchedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         
-        // Biên lợi nhuận gộp thực chất (Doanh thu - Giá vốn COGS trung bình 65%)
-        const estimatedCogs = totalRevenue * 0.65;
+        // Biên lợi nhuận gộp thực chất (Doanh thu - Giá vốn COGS định mức)
+        const estimatedCogs = totalRevenue * DEFAULT_PHARMA_COGS_RATIO;
         const grossProfit = totalRevenue - estimatedCogs;
         const totalCost = c.totalCost || c.budget || 1; // Tránh chia cho 0
         const netProfit = grossProfit - totalCost;

@@ -2965,8 +2965,10 @@ export class PurchaseService {
   }
 
   async awardRfq(id: string, awardDto: { quotationId: string; supplierId: string; reason?: string; createdBy?: string }) {
+    const session = await this.rfqModel.db.startSession();
+    session.startTransaction();
     try {
-      const rfq = await this.rfqModel.findById(id).exec();
+      const rfq = await this.rfqModel.findById(id).session(session).exec();
       if (!rfq) {
         throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
       }
@@ -3006,9 +3008,11 @@ export class PurchaseService {
         linkedPrCodes: [rfq.rfqCode],
       });
 
-      const savedPo = await newPo.save();
+      const savedPo = await newPo.save({ session });
       rfq.awardedPoId = String(savedPo._id);
-      await rfq.save();
+      await rfq.save({ session });
+
+      await session.commitTransaction();
 
       this.logger.log(`RFQ ${rfq.rfqCode} awarded to ${quotation.supplierName}, generated PO: ${savedPo.poCode}`);
       return {
@@ -3018,7 +3022,10 @@ export class PurchaseService {
         po: savedPo,
       };
     } catch (error) {
+      await session.abortTransaction();
       throw new RpcException({ message: error.message || 'Lỗi khi chọn thầu RFQ' });
+    } finally {
+      session.endSession();
     }
   }
 }
