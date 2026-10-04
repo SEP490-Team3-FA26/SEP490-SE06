@@ -1941,14 +1941,14 @@ export class MedicineService implements OnModuleInit {
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
 
-      // Định nghĩa tên khu theo category
+      // Định nghĩa tên khu theo chuẩn GSP
       const zoneLabels: Record<string, string> = {
-        'A': 'Khu A - Kháng sinh',
-        'B': 'Khu B - Hạ sốt & Giảm đau',
-        'C': 'Khu C - Tim mạch',
-        'D': 'Khu D - Tiêu hóa',
-        'E': 'Khu E - TPCN',
-        'F': 'Khu F - Vật tư y tế'
+        'A': 'Khu A',
+        'B': 'Khu B',
+        'C': 'Khu C',
+        'D': 'Khu D',
+        'E': 'Khu E',
+        'F': 'Khu F'
       };
 
       // Xử lý status và categories cho từng shelf và sắp xếp
