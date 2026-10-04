@@ -4,6 +4,18 @@ import { Model, Connection } from 'mongoose';
 import { Medicine } from './schemas/medicine.schema';
 import { SearchHistory, SearchHistoryDocument } from './schemas/search-history.schema';
 
+export interface UserClientIdentifier {
+  phone?: string;
+  userId?: string;
+  deviceId?: string;
+}
+
+export interface LogSearchPayload extends UserClientIdentifier {
+  keyword: string;
+  category?: string;
+  resultsCount?: number;
+}
+
 export interface RecommendationResponse {
   rfmSegment?: string;
   chronicReminder?: {
@@ -33,14 +45,7 @@ export class RecommendationService {
   // =========================================================================
   // 1. LOG TỪ KHÓA TÌM KIẾM CỦA NGƯỜI DÙNG (Search Logging)
   // =========================================================================
-  async logSearch(payload: {
-    keyword: string;
-    category?: string;
-    phone?: string;
-    userId?: string;
-    deviceId?: string;
-    resultsCount?: number;
-  }) {
+  async logSearch(payload: LogSearchPayload) {
     try {
       const trimmed = (payload.keyword || '').trim().toLowerCase();
       if (!trimmed || trimmed.length < 2) return { success: false, reason: 'Keyword too short' };
@@ -67,7 +72,7 @@ export class RecommendationService {
   // =========================================================================
   // 2. LẤY TỪ KHÓA TÌM KIẾM GẦN ĐÂY
   // =========================================================================
-  async getRecentSearches(filter: { phone?: string; userId?: string; deviceId?: string }) {
+  async getRecentSearches(filter: UserClientIdentifier) {
     try {
       const orConditions: any[] = [];
       if (filter.phone) orConditions.push({ phone: filter.phone });
@@ -94,7 +99,7 @@ export class RecommendationService {
   // =========================================================================
   // 3. XÓA LỊCH SỬ TÌM KIẾM (BẢO MẬT QUYỀN RIÊNG TƯ THEO NĐ 13/2023)
   // =========================================================================
-  async clearRecentSearches(filter: { phone?: string; userId?: string; deviceId?: string }) {
+  async clearRecentSearches(filter: UserClientIdentifier) {
     try {
       const orConditions: any[] = [];
       if (filter.phone) orConditions.push({ phone: filter.phone });
@@ -114,12 +119,9 @@ export class RecommendationService {
   // =========================================================================
   // 4. THUẬT TOÁN GỢI Ý CÁ NHÂN HÓA PHARMA-SMART (RFM + SEARCH INTENT)
   // =========================================================================
-  async getPersonalizedRecommendations(params: {
-    phone?: string;
-    userId?: string;
-    deviceId?: string;
-    branchId?: string;
-  }): Promise<RecommendationResponse> {
+  async getPersonalizedRecommendations(
+    params: UserClientIdentifier & { branchId?: string },
+  ): Promise<RecommendationResponse> {
     try {
       let rfmSegment: string | undefined = undefined;
       let chronicReminder: RecommendationResponse['chronicReminder'] = null;
