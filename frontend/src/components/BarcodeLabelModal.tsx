@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Printer,
@@ -37,36 +37,49 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   const [printQuantity, setPrintQuantity] = useState<number>(1);
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedUnit, setSelectedUnit] = useState<string>(medicine?.unit || 'Hộp');
+  const [selectedUnit, setSelectedUnit] = useState<string>(medicine?.unit || '');
   const [isScreenScanMode, setIsScreenScanMode] = useState<boolean>(true);
 
-  // Secondary Label Detailed Regulatory Fields (Nghị định 43/2017 & TT 01/2018/TT-BYT)
-  const [batchNo, setBatchNo] = useState<string>(
-    medicine?.batchNo || medicine?.batches?.[0]?.batchNo || 'LOT-' + new Date().getFullYear() + 'X9'
-  );
-  const [mfdDate, setMfdDate] = useState<string>(new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0]);
-  const [expDate, setExpDate] = useState<string>(
-    medicine?.expiry_date || medicine?.batches?.[0]?.expDate ? new Date(medicine?.batches?.[0]?.expDate).toISOString().split('T')[0] : '2028-06-30'
-  );
-  const [regNumber, setRegNumber] = useState<string>(medicine?.registration_number || 'VN-21980-23');
-  const [importerName, setImporterName] = useState<string>(
-    medicine?.importer_name || 'CÔNG TY CỔ PHẦN DƯỢC PHẨM PHARMACHAIN VIỆT NAM'
-  );
-  const [importerAddress, setImporterAddress] = useState<string>(
-    'Tầng 6, Tòa nhà Pharma Plaza, Q. Cầu Giấy, TP. Hà Nội'
-  );
-  const [manufacturer, setManufacturer] = useState<string>(
-    medicine?.manufacturer || 'Novartis Pharma AG / Sandoz International GmbH'
-  );
-  const [originCountry, setOriginCountry] = useState<string>(
-    medicine?.country_of_origin || 'Thụy Sĩ (Switzerland)'
-  );
-  const [activeIngredient, setActiveIngredient] = useState<string>(
-    medicine?.active_ingredient || medicine?.cong_dung || 'Paracetamol 500mg'
-  );
-  const [storageCondition, setStorageCondition] = useState<string>(
-    medicine?.storage_condition || 'Bảo quản nơi khô ráo, tránh ánh sáng trực tiếp, nhiệt độ dưới 30°C'
-  );
+  // Secondary Label Detailed Regulatory Fields (Nghị định 43/2017 & TT 01/2018/TT-BYT) - 100% từ DB
+  const [batchNo, setBatchNo] = useState<string>('');
+  const [mfdDate, setMfdDate] = useState<string>('');
+  const [expDate, setExpDate] = useState<string>('');
+  const [regNumber, setRegNumber] = useState<string>('');
+  const [importerName, setImporterName] = useState<string>('');
+  const [importerAddress, setImporterAddress] = useState<string>('');
+  const [manufacturer, setManufacturer] = useState<string>('');
+  const [originCountry, setOriginCountry] = useState<string>('');
+  const [activeIngredient, setActiveIngredient] = useState<string>('');
+  const [storageCondition, setStorageCondition] = useState<string>('');
+
+  // Đồng bộ 100% dữ liệu thực từ MongoDB mỗi khi mở modal hoặc thay đổi thuốc
+  useEffect(() => {
+    if (!medicine) return;
+    setSelectedUnit(medicine.unit || (medicine.units?.[0]?.unitName) || '');
+    setBatchNo(medicine.batchNo || medicine.batches?.[0]?.batchNo || '');
+    setMfdDate(
+      medicine.batches?.[0]?.mfdDate
+        ? new Date(medicine.batches[0].mfdDate).toISOString().split('T')[0]
+        : ''
+    );
+    setExpDate(
+      medicine.expiry_date
+        ? new Date(medicine.expiry_date).toISOString().split('T')[0]
+        : medicine.batches?.[0]?.expDate
+        ? new Date(medicine.batches[0].expDate).toISOString().split('T')[0]
+        : ''
+    );
+    setRegNumber(medicine.registration_number || medicine.sdk || '');
+    setImporterName(medicine.importer_name || '');
+    setImporterAddress(medicine.importer_address || '');
+    setManufacturer(medicine.manufacturer || medicine.nha_san_xuat || '');
+    setOriginCountry(medicine.country_of_origin || medicine.nuoc_san_xuat || '');
+    setActiveIngredient(medicine.active_ingredient || medicine.cong_dung || medicine.description || '');
+    setStorageCondition(medicine.storage_condition || '');
+    setIsVerified(false);
+    setVerifyBarcodeScan('');
+    setVerifyError(null);
+  }, [medicine, isOpen]);
 
   // Anti-Risk Double Check Verification (Giảm thiểu rủi ro lệch Lô/Hạn dùng)
   const [verifyBarcodeScan, setVerifyBarcodeScan] = useState<string>('');
@@ -84,7 +97,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
     if (medicine?.sku && /^\d{12,13}$/.test(medicine.sku)) {
       return medicine.sku.trim();
     }
-    return '8936012345678';
+    return '';
   }, [medicine, selectedUnit]);
 
   const currentPrice = useMemo(() => {
@@ -97,14 +110,18 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
   const svgBarcode = useMemo(() => {
     if (!barcodeValue) return '';
-    return generateEAN13SVG(barcodeValue, {
-      width: isScreenScanMode ? 260 : 200,
-      height: isScreenScanMode ? 70 : 50,
-      fontSize: 11,
-      showText: true,
-      barColor: '#000000',
-      bgColor: '#FFFFFF'
-    });
+    try {
+      return generateEAN13SVG(barcodeValue, {
+        width: isScreenScanMode ? 260 : 200,
+        height: isScreenScanMode ? 70 : 50,
+        fontSize: 11,
+        showText: true,
+        barColor: '#000000',
+        bgColor: '#FFFFFF'
+      });
+    } catch {
+      return '';
+    }
   }, [barcodeValue, isScreenScanMode]);
 
   const handleVerifyScan = (val: string) => {

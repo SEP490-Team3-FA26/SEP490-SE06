@@ -125,13 +125,13 @@ export function RFQManagement() {
 
   // Open Create Modal
   const openCreateModal = () => {
-    setFormTitle(`Yêu cầu chào giá dược phẩm định kỳ Tháng ${new Date().getMonth() + 1}`);
-    setFormDeadline(new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0]);
-    setFormMinShelfLife(18);
+    setFormTitle('');
+    setFormDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+    setFormMinShelfLife(12);
     setFormPaymentTerms(30);
-    setFormNotes('Ưu tiên nhà cung cấp có sẵn chứng nhận GDP và cam kết giao hàng trong 48h.');
+    setFormNotes('');
     setSelectedMedicineIds([]);
-    setSelectedSupplierIds(suppliers.slice(0, 3).map((s) => s._id || s.id || ''));
+    setSelectedSupplierIds([]);
     setShowCreateModal(true);
   };
 
@@ -145,10 +145,10 @@ export function RFQManagement() {
       {
         medicineId: medId,
         medicineName: med.name,
-        sku: med.sku || med.barcode || 'SKU-MED',
-        unit: med.unit || 'Hộp',
-        quantityRequested: 100,
-        targetPrice: med.price || 50000,
+        sku: med.sku || med.barcode || '',
+        unit: med.unit || (med.units?.[0]?.unitName) || 'Hộp',
+        quantityRequested: 1,
+        targetPrice: med.price || 0,
       },
     ]);
   };
