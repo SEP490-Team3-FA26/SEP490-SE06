@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="1_Authentication_User">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="820" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- BOUNDARY -->
+        <mxCell id="boundary" value="Pharmacy Chain - Authentication and Account Management Module" style="shape=rectangle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;strokeWidth=1.5;verticalAlign=top;fontStyle=1;fontSize=14;fontColor=#000000;container=0;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="25" y="20" width="1150" height="740" as="geometry" />
+        </mxCell>
+
+        <!-- ACTORS LEFT (Aligned vertically to match their target use cases) -->
+        <mxCell id="act_branch" value="Branch Manager" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="45" y="100" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="act_admin" value="Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="45" y="360" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ACTORS RIGHT -->
+        <mxCell id="act_cust" value="Customer" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="180" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="act_pharm" value="Pharmacist" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="420" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- LEFT COLUMN: Staff Management & System Governance -->
+        <mxCell id="uc_create_staff" value="Create Staff Account" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="50" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_update_role" value="Manage &amp; Update RBAC Roles" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="130" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_view_staff" value="View Staff List" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="210" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_ban_account" value="Ban / Approve Employee Account" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="290" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_audit_logs" value="View Audit Logs" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="370" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_backup_db" value="Backup Database Manually" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="450" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_restore_db" value="Restore Database from Backup" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="530" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_sys_config" value="Configure System Settings&#xa;(AI / Alerts / Thresholds)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="610" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- RIGHT COLUMN: Customer & Pharmacist UCs -->
+        <mxCell id="uc_register" value="Register Account (Customer)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="520" y="50" width="260" height="52" as="geometry" />
+        </mxCell>
+        <!-- Extended by Verify OTP (placed horizontally right beside it) -->
+        <mxCell id="uc_verify_otp" value="Verify OTP / Email" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="830" y="53" width="180" height="46" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_signin" value="Sign In" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="520" y="140" width="260" height="52" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_signin_google" value="Sign In with Google OAuth" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="520" y="230" width="260" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_reset_pwd" value="Reset Password via OTP/Email" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="520" y="320" width="260" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_view_profile" value="View &amp; Update Profile" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="520" y="410" width="260" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_signout" value="Sign Out" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="520" y="500" width="260" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- EDGES: Branch Manager -->
+        <mxCell id="e_bm_1" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_create_staff"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_bm_2" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_view_staff"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- EDGES: Admin (Symmetric fan-out from center y=360) -->
+        <mxCell id="e_ad_1" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_create_staff"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ad_2" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_update_role"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ad_3" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_view_staff"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ad_4" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_ban_account"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ad_5" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_audit_logs"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ad_6" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_backup_db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ad_7" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_restore_db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ad_8" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_sys_config"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- EDGES: Customer -->
+        <mxCell id="e_cu_1" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_register"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cu_2" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_signin"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cu_3" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_signin_google"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cu_4" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_reset_pwd"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cu_5" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_view_profile"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cu_6" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_signout"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- EDGES: Pharmacist -->
+        <mxCell id="e_ph_1" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_signin"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ph_2" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_reset_pwd"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ph_3" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_signout"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+
+        <!-- Register extends: verify OTP email (horizontal right beside pointing left) -->
+        <mxCell id="ext_register_otp" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_verify_otp" target="uc_register">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Caption -->
+        <mxCell id="caption" value="Figure 1 - Use Case Diagram For Authentication and Account Management Module" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=13;fontColor=#004c99;" vertex="1" parent="1">
+          <mxGeometry x="25" y="775" width="1150" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

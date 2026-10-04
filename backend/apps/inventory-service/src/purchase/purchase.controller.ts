@@ -376,4 +376,61 @@ export class PurchaseController {
       throw new RpcException(error.message || 'Lỗi lấy danh sách kiểm đếm');
     }
   }
+
+  // ==========================================
+  // RFQ (Yêu cầu báo giá NCC hàng loạt)
+  // ==========================================
+  @MessagePattern('inventory.rfq.create')
+  async createRfq(@Payload() payload: any) {
+    try {
+      return await this.purchaseService.createRfq(payload);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi tạo RFQ');
+    }
+  }
+
+  @MessagePattern('inventory.rfq.list')
+  async listRfqs(@Payload() query: any) {
+    try {
+      return await this.purchaseService.listRfqs(query);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi lấy danh sách RFQ');
+    }
+  }
+
+  @MessagePattern('inventory.rfq.get_by_id')
+  async getRfqById(@Payload() id: string) {
+    try {
+      return await this.purchaseService.getRfqById(id);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi lấy chi tiết RFQ');
+    }
+  }
+
+  @MessagePattern('inventory.rfq.send')
+  async sendRfq(@Payload() id: string) {
+    try {
+      return await this.purchaseService.sendRfq(id);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi gửi RFQ hàng loạt');
+    }
+  }
+
+  @MessagePattern('inventory.rfq.submit_quote')
+  async submitQuotation(@Payload() payload: { id: string; quotation: any }) {
+    try {
+      return await this.purchaseService.submitSupplierQuotation(payload.id, payload.quotation);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi nộp báo giá NCC');
+    }
+  }
+
+  @MessagePattern('inventory.rfq.award')
+  async awardRfq(@Payload() payload: { id: string; award: any }) {
+    try {
+      return await this.purchaseService.awardRfq(payload.id, payload.award);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi chọn thầu RFQ');
+    }
+  }
 }

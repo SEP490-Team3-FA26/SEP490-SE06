@@ -17,6 +17,7 @@ import {
   sendKafkaMessage,
 } from "../../../api-gateway/src/common/kafka.helper";
 import { InspectionRecord } from "./schemas/inspection-record.schema";
+import { RequestForQuotation } from "./schemas/request-for-quotation.schema";
 
 @Injectable()
 export class PurchaseService {
@@ -69,6 +70,8 @@ export class PurchaseService {
     private readonly balanceModel: Model<BranchStockBalance>,
     @InjectModel(InspectionRecord.name)
     private readonly inspectionModel: Model<InspectionRecord>,
+    @InjectModel(RequestForQuotation.name)
+    private readonly rfqModel: Model<RequestForQuotation>,
   ) {}
 
   async onModuleInit() {
@@ -2828,5 +2831,194 @@ export class PurchaseService {
 
   async listInspectionRecords() {
     return await this.inspectionModel.find().sort({ createdAt: -1 }).exec();
+  }
+
+  // ==========================================
+  // RFQ (Yêu cầu báo giá hàng loạt cho NCC)
+  // ==========================================
+  async createRfq(payload: any) {
+    try {
+      const now = new Date();
+      const count = await this.rfqModel.countDocuments();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const rfqCode = `RFQ-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+
+      const rfq = new this.rfqModel({
+        ...payload,
+        rfqCode,
+        status: 'DRAFT',
+      });
+      const saved = await rfq.save();
+      this.logger.log(`Created new RFQ: ${rfqCode}`);
+      return saved;
+    } catch (error) {
+      this.logger.error('Error creating RFQ:', error);
+      throw new RpcException({ message: error.message || 'Lỗi khi tạo RFQ' });
+    }
+  }
+
+  async listRfqs(query: any = {}) {
+    try {
+      const filter: any = {};
+      if (query.status && query.status !== 'all') {
+        filter.status = query.status;
+      }
+      if (query.branchId && query.branchId !== 'all') {
+        filter.branchId = query.branchId;
+      }
+      return await this.rfqModel.find(filter).sort({ createdAt: -1 }).exec();
+    } catch (error) {
+      throw new RpcException({ message: error.message || 'Lỗi lấy danh sách RFQ' });
+    }
+  }
+
+  async getRfqById(id: string) {
+    try {
+      const rfq = await this.rfqModel.findById(id).exec();
+      if (!rfq) {
+        throw new RpcException({ message: `Không tìm thấy RFQ với ID: ${id}` });
+      }
+      return rfq;
+    } catch (error) {
+      throw new RpcException({ message: error.message || 'Lỗi tìm RFQ' });
+    }
+  }
+
+  async sendRfq(id: string) {
+    try {
+      const rfq = await this.rfqModel.findById(id).exec();
+      if (!rfq) {
+        throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
+      }
+      rfq.status = 'SENT';
+      if (Array.isArray(rfq.targetSuppliers)) {
+        rfq.targetSuppliers.forEach((s) => {
+          s.status = 'INVITED';
+          s.sentAt = new Date();
+        });
+      }
+      await rfq.save();
+      this.logger.log(`RFQ ${rfq.rfqCode} sent to ${rfq.targetSuppliers?.length || 0} suppliers`);
+      return {
+        success: true,
+        message: `Đã gửi RFQ ${rfq.rfqCode} hàng loạt thành công đến ${rfq.targetSuppliers?.length || 0} nhà cung cấp!`,
+        data: rfq,
+      };
+    } catch (error) {
+      throw new RpcException({ message: error.message || 'Lỗi khi gửi RFQ' });
+    }
+  }
+
+  async submitSupplierQuotation(id: string, quotationDto: any) {
+    try {
+      const rfq = await this.rfqModel.findById(id).exec();
+      if (!rfq) {
+        throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
+      }
+
+      const quotationId = `QUOTE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const minShelfLife = rfq.minShelfLifeMonths || 18;
+
+      // Kiểm tra và đánh cờ tuân thủ HSD (Chống bẫy hàng cận date từ Bước 3)
+      const formattedItems = (quotationDto.items || []).map((item: any) => {
+        const offeredShelfLife = Number(item.offeredShelfLifeMonths || 24);
+        const isCompliant = offeredShelfLife >= minShelfLife;
+        return {
+          ...item,
+          offeredShelfLifeMonths: offeredShelfLife,
+          isCompliantShelfLife: isCompliant,
+        };
+      });
+
+      const newQuotation = {
+        quotationId,
+        supplierId: quotationDto.supplierId,
+        supplierName: quotationDto.supplierName,
+        submittedAt: new Date(),
+        paymentTermsDays: Number(quotationDto.paymentTermsDays || 30),
+        deliveryDays: Number(quotationDto.deliveryDays || 2),
+        items: formattedItems,
+        totalAmount: Number(quotationDto.totalAmount || 0),
+        notes: quotationDto.notes,
+        isSelected: false,
+      };
+
+      rfq.quotations.push(newQuotation as any);
+      rfq.status = 'IN_REVIEW';
+
+      // Cập nhật trạng thái targetSupplier tương ứng
+      const target = rfq.targetSuppliers.find((s) => s.supplierId === quotationDto.supplierId);
+      if (target) {
+        target.status = 'SUBMITTED';
+      }
+
+      await rfq.save();
+      this.logger.log(`Quotation submitted for RFQ ${rfq.rfqCode} by supplier ${quotationDto.supplierName}`);
+      return {
+        success: true,
+        message: 'Báo giá của nhà cung cấp đã được ghi nhận vào hệ thống!',
+        data: rfq,
+      };
+    } catch (error) {
+      throw new RpcException({ message: error.message || 'Lỗi khi nộp báo giá' });
+    }
+  }
+
+  async awardRfq(id: string, awardDto: { quotationId: string; supplierId: string; reason?: string; createdBy?: string }) {
+    try {
+      const rfq = await this.rfqModel.findById(id).exec();
+      if (!rfq) {
+        throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
+      }
+
+      const quotation = rfq.quotations.find((q) => q.quotationId === awardDto.quotationId);
+      if (!quotation) {
+        throw new RpcException({ message: 'Không tìm thấy bảng báo giá tương ứng' });
+      }
+
+      // Đánh dấu trúng thầu
+      rfq.quotations.forEach((q) => {
+        q.isSelected = q.quotationId === awardDto.quotationId;
+        if (q.isSelected) {
+          q.selectedReason = awardDto.reason || 'Giá tốt nhất và đáp ứng điều kiện hạn dùng GSP';
+        }
+      });
+      rfq.status = 'AWARDED';
+      rfq.awardedSupplierId = quotation.supplierId;
+
+      // Tự động sinh PurchaseOrder (PO) từ báo giá trúng thầu
+      const poItems = quotation.items.map((item) => ({
+        medicineId: item.medicineId,
+        medicineName: item.medicineName,
+        quantity: item.availableQuantity || 100,
+        unitPrice: item.quotedPrice,
+        receivedQuantity: 0,
+      }));
+
+      const newPo = new this.poModel({
+        poCode: `PO-RFQ-${rfq.rfqCode.replace('RFQ-', '')}`,
+        supplierId: quotation.supplierId,
+        items: poItems,
+        totalAmount: quotation.totalAmount,
+        status: 'PENDING_APPROVAL',
+        createdBy: awardDto.createdBy || rfq.createdBy || 'ADMIN',
+        paymentType: quotation.paymentTermsDays > 0 ? 'CREDIT' : 'PAID',
+        linkedPrCodes: [rfq.rfqCode],
+      });
+
+      const savedPo = await newPo.save();
+      rfq.awardedPoId = String(savedPo._id);
+      await rfq.save();
+
+      this.logger.log(`RFQ ${rfq.rfqCode} awarded to ${quotation.supplierName}, generated PO: ${savedPo.poCode}`);
+      return {
+        success: true,
+        message: `Đã chọn thầu thành công cho ${quotation.supplierName} và tự động phát hành đơn PO: ${savedPo.poCode}!`,
+        rfq,
+        po: savedPo,
+      };
+    } catch (error) {
+      throw new RpcException({ message: error.message || 'Lỗi khi chọn thầu RFQ' });
+    }
   }
 }

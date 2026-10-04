@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="11_Finance_Management_Reporting">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1050" pageHeight="660" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- BOUNDARY -->
+        <mxCell id="boundary" value="Pharmacy Chain - Finance Management and Reporting Module" style="shape=rectangle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;strokeWidth=1.5;verticalAlign=top;fontStyle=1;fontSize=14;fontColor=#000000;container=0;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="25" y="20" width="1000" height="570" as="geometry" />
+        </mxCell>
+        <!-- ACTORS -->
+        <mxCell id="act_admin" value="Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="245" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="act_branch" value="Branch Manager" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="930" y="245" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ADMIN REVENUE CLUSTER -->
+        <!-- Export financial reports (extends directly above) -->
+        <mxCell id="uc_export_finance" value="Export Financial Reports (Excel / PDF)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="180" y="55" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Revenue chain dashboard (Base UC) -->
+        <mxCell id="uc_revenue_dash" value="Chain Revenue Dashboard (Admin)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="180" y="130" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Compare branch growth (included by directly below) -->
+        <mxCell id="uc_compare_growth" value="Compare Branch Growth / Performance" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="180" y="205" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ADMIN OTHER UCs -->
+        <!-- Cash flow management -->
+        <mxCell id="uc_cash_flow" value="Manage Cash Flow Reports" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="180" y="295" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Supplier/agency debt report -->
+        <mxCell id="uc_debt_report_finance" value="Supplier / Agency Debt Summary" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="180" y="375" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- IoT environment monitoring -->
+        <mxCell id="uc_iot_monitor" value="IoT Environment Monitoring (Temp / Humidity)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="180" y="455" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- BRANCH MANAGER UCs -->
+        <!-- Branch revenue report -->
+        <mxCell id="uc_branch_rev_dash" value="View Branch Revenue Report" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="550" y="55" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Staff KPI -->
+        <mxCell id="uc_staff_kpi" value="View Staff Sales KPI &amp; Performance" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="550" y="130" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- BRANCH MANAGER DAILY SALES & CASH CLUSTER -->
+        <!-- Shift closing (includes directly below) -->
+        <mxCell id="uc_shift_close_fin" value="Close Shift &amp; Reconcile Daily Cash" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="550" y="215" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Daily sales summary (Base UC) -->
+        <mxCell id="uc_daily_sales" value="View Daily Sales Summary" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="550" y="295" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Branch cash management (included by directly below) -->
+        <mxCell id="uc_branch_cash_fin" value="Manage Branch Cash Transactions" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="550" y="375" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- E-invoice archive (extends directly below) -->
+        <mxCell id="uc_einvoice_archive" value="View &amp; Archive E-Invoices" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="550" y="455" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- EDGES: Admin -->
+        <mxCell id="e_1" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_revenue_dash"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_admin_compare" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_compare_growth"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_2" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_cash_flow"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_5" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_debt_report_finance"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_6" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_admin" target="uc_iot_monitor"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- EDGES: Branch Manager -->
+        <mxCell id="e_7" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_branch_rev_dash"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_8" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_staff_kpi"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_9" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_shift_close_fin"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_10" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_daily_sales"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_11" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_branch_cash_fin"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_12" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_einvoice_archive"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- INCLUDE / EXTEND (ADJACENT) -->
+        <!-- Export Finance extends: Revenue Dashboard (adjacent vertical downward) -->
+        <mxCell id="ext_1" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_export_finance" target="uc_revenue_dash">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Caption -->
+        <mxCell id="caption" value="Figure 11 - Use Case Diagram For Finance Management and Reporting Module" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=13;fontColor=#004c99;" vertex="1" parent="1">
+          <mxGeometry x="25" y="605" width="1000" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
