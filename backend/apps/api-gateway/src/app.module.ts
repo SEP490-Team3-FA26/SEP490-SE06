@@ -29,6 +29,7 @@ import { FinanceController } from "./controllers/finance.controller";
 import { SensorController } from "./controllers/sensor.controller";
 import { HrController } from "./controllers/hr.controller";
 import { RfqController } from "./controllers/rfq.controller";
+import { RfqPortalController } from "./controllers/rfq-portal.controller";
 import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
@@ -203,6 +204,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     FeedbackController,
     HrController,
     RfqController,
+    RfqPortalController,
     MarketingCampaignController,
   ],
   providers: [
@@ -268,6 +270,8 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.rfq.send",
       "inventory.rfq.submit_quote",
       "inventory.rfq.award",
+      "inventory.rfq.get_by_token",
+      "inventory.rfq.submit_by_token",
       "inventory.po.approve_pay",
       "inventory.po.auto_route",
       "inventory.po.list",

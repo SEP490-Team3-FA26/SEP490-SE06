@@ -18,6 +18,7 @@ import {
 } from "../../../api-gateway/src/common/kafka.helper";
 import { InspectionRecord } from "./schemas/inspection-record.schema";
 import { RequestForQuotation } from "./schemas/request-for-quotation.schema";
+import * as crypto from "crypto";
 
 @Injectable()
 export class PurchaseService {
@@ -2843,9 +2844,19 @@ export class PurchaseService {
       const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
       const rfqCode = `RFQ-${dateStr}-${String(count + 1).padStart(4, '0')}`;
 
+      // Tự động sinh One-time Token định danh bí mật riêng cho từng Sales / NCC
+      const targetSuppliers = (payload.targetSuppliers || []).map((s: any) => ({
+        ...s,
+        token: s.token || crypto.randomBytes(16).toString('hex'),
+        linkExpiresAt: s.linkExpiresAt || payload.deadline || new Date(Date.now() + 7 * 86400000),
+        status: s.status || 'INVITED',
+        sentAt: new Date(),
+      }));
+
       const rfq = new this.rfqModel({
         ...payload,
         rfqCode,
+        targetSuppliers,
         status: 'DRAFT',
       });
       const saved = await rfq.save();
@@ -2893,7 +2904,11 @@ export class PurchaseService {
       rfq.status = 'SENT';
       if (Array.isArray(rfq.targetSuppliers)) {
         rfq.targetSuppliers.forEach((s) => {
-          s.status = 'INVITED';
+          if (!s.token) {
+            s.token = crypto.randomBytes(16).toString('hex');
+          }
+          s.linkExpiresAt = rfq.deadline || new Date(Date.now() + 7 * 86400000);
+          s.status = s.status === 'SUBMITTED' ? 'SUBMITTED' : 'INVITED';
           s.sentAt = new Date();
         });
       }
@@ -2909,6 +2924,71 @@ export class PurchaseService {
     }
   }
 
+  // =========================================================================
+  // GUEST MAGIC LINK: LẤY THÔNG TIN & NỘP BÁO GIÁ KHÔNG CẦN TÀI KHOẢN
+  // =========================================================================
+  async getRfqBySupplierToken(token: string) {
+    try {
+      const rfq = await this.rfqModel.findOne({ 'targetSuppliers.token': token }).exec();
+      if (!rfq) {
+        throw new RpcException({ message: 'Đường link báo giá không hợp lệ hoặc đã hết hạn.' });
+      }
+      const targetSupplier = rfq.targetSuppliers.find((s) => s.token === token);
+      if (!targetSupplier) {
+        throw new RpcException({ message: 'Không tìm thấy thông tin Nhà cung cấp tương ứng với mã truy cập.' });
+      }
+      const isExpired = new Date() > new Date(rfq.deadline);
+      return {
+        _id: rfq._id,
+        rfqCode: rfq.rfqCode,
+        title: rfq.title,
+        deadline: rfq.deadline,
+        isExpired,
+        minShelfLifeMonths: rfq.minShelfLifeMonths || 18,
+        requiredPaymentTermDays: rfq.requiredPaymentTermDays || 30,
+        notes: rfq.notes,
+        items: rfq.items,
+        supplier: {
+          supplierId: targetSupplier.supplierId,
+          supplierName: targetSupplier.supplierName,
+          email: targetSupplier.email,
+          phone: targetSupplier.phone,
+          salesRepName: targetSupplier.salesRepName,
+          salesRepPhone: targetSupplier.salesRepPhone,
+          status: targetSupplier.status,
+        },
+        hasSubmitted: targetSupplier.status === 'SUBMITTED',
+        existingQuotation: rfq.quotations?.find((q) => q.supplierId === targetSupplier.supplierId),
+      };
+    } catch (error) {
+      throw new RpcException({ message: error.message || 'Lỗi truy cập Cổng báo giá' });
+    }
+  }
+
+  async submitQuotationByToken(token: string, quotationDto: any) {
+    try {
+      const rfq = await this.rfqModel.findOne({ 'targetSuppliers.token': token }).exec();
+      if (!rfq) {
+        throw new RpcException({ message: 'Liên kết báo giá không hợp lệ hoặc không tồn tại.' });
+      }
+      if (new Date() > new Date(rfq.deadline)) {
+        throw new RpcException({ message: 'Thời hạn nhận báo giá của RFQ này đã kết thúc.' });
+      }
+      const targetSupplier = rfq.targetSuppliers.find((s) => s.token === token);
+      if (!targetSupplier) {
+        throw new RpcException({ message: 'Không tìm thấy thông tin Nhà cung cấp.' });
+      }
+
+      return await this.submitSupplierQuotation(rfq._id.toString(), {
+        ...quotationDto,
+        supplierId: targetSupplier.supplierId,
+        supplierName: targetSupplier.supplierName,
+      });
+    } catch (error) {
+      throw new RpcException({ message: error.message || 'Lỗi khi gửi báo giá' });
+    }
+  }
+
   async submitSupplierQuotation(id: string, quotationDto: any) {
     try {
       const rfq = await this.rfqModel.findById(id).exec();
@@ -2921,10 +3001,11 @@ export class PurchaseService {
 
       // Kiểm tra và đánh cờ tuân thủ HSD (Chống bẫy hàng cận date từ Bước 3)
       const formattedItems = (quotationDto.items || []).map((item: any) => {
-        const offeredShelfLife = Number(item.offeredShelfLifeMonths || 24);
+        const offeredShelfLife = Number(item.committedShelfLifeMonths || item.offeredShelfLifeMonths || 24);
         const isCompliant = offeredShelfLife >= minShelfLife;
         return {
           ...item,
+          committedShelfLifeMonths: offeredShelfLife,
           offeredShelfLifeMonths: offeredShelfLife,
           isCompliantShelfLife: isCompliant,
         };
@@ -2943,6 +3024,8 @@ export class PurchaseService {
         isSelected: false,
       };
 
+      // Xóa quotation cũ nếu NCC nộp lại/sửa đổi trước deadline
+      rfq.quotations = (rfq.quotations || []).filter((q) => q.supplierId !== quotationDto.supplierId) as any;
       rfq.quotations.push(newQuotation as any);
       rfq.status = 'IN_REVIEW';
 

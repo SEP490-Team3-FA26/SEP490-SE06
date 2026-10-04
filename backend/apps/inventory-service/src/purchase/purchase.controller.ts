@@ -433,4 +433,22 @@ export class PurchaseController {
       throw new RpcException(error.message || 'Lỗi chọn thầu RFQ');
     }
   }
+
+  @MessagePattern('inventory.rfq.get_by_token')
+  async getRfqByToken(@Payload() payload: { token: string }) {
+    try {
+      return await this.purchaseService.getRfqBySupplierToken(payload.token);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi truy cập RFQ bằng Token');
+    }
+  }
+
+  @MessagePattern('inventory.rfq.submit_by_token')
+  async submitQuotationByToken(@Payload() payload: { token: string; quotation: any }) {
+    try {
+      return await this.purchaseService.submitQuotationByToken(payload.token, payload.quotation);
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi gửi báo giá qua Token');
+    }
+  }
 }

@@ -66,6 +66,7 @@ import { AuditLogs } from "./pages/admin/AuditLogs";
 import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
 import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
 import { RFQManagement } from "./pages/admin/RFQManagement";
+import { SupplierQuotePortal } from "./pages/public/SupplierQuotePortal";
 
 // Branch Pages
 import { BranchRequisition } from "./pages/branch/BranchRequisition";
@@ -96,6 +97,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
+          <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
 
           {/* Auth Routes */}
           <Route path="/auth" element={<AuthLayout />}>

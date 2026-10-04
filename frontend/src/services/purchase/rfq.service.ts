@@ -15,6 +15,10 @@ export interface RfqTargetSupplier {
   supplierName: string;
   email: string;
   phone?: string;
+  salesRepName?: string;
+  salesRepPhone?: string;
+  token?: string;
+  linkExpiresAt?: string;
   status: 'INVITED' | 'SUBMITTED' | 'DECLINED';
   sentAt?: string;
 }
@@ -130,6 +134,17 @@ export const rfqService = {
   // Chọn thầu và tự động sinh PO
   async awardRfq(id: string, awardPayload: { quotationId: string; supplierId: string; reason?: string }) {
     const response = await api.post(`/api/rfqs/${id}/award`, awardPayload);
+    return response.data;
+  },
+
+  // CỔNG BÁO GIÁ NCC (MAGIC LINK KHÔNG CẦN TÀI KHOẢN)
+  async getRfqByToken(token: string) {
+    const response = await api.get(`/api/rfq-portal/${token}`);
+    return response.data;
+  },
+
+  async submitQuoteByToken(token: string, payload: any) {
+    const response = await api.post(`/api/rfq-portal/${token}/quote`, payload);
     return response.data;
   },
 };

@@ -162,6 +162,22 @@ async function seedStandardData() {
   const realSuppliers = await suppliersCol.find({}).limit(4).toArray();
   const sampleMeds = await medicinesCol.find({}).limit(3).toArray();
 
+  // Cập nhật Sales Rep và SĐT Zalo cho các NCC thực tế
+  const salesReps = [
+    { fullName: 'Anh Nguyễn Văn Tuấn (Trình dược viên DHG)', phone: '0988123456' },
+    { fullName: 'Chị Lê Thị Mai (Đại diện Pharbaco)', phone: '0912345678' },
+    { fullName: 'Anh Trần Quốc Dũng (Sales Sanofi-Aventis)', phone: '0903998877' },
+    { fullName: 'Chị Phạm Thu Trang (Kinh doanh Hataphar)', phone: '0977665544' },
+  ];
+  for (let i = 0; i < realSuppliers.length; i++) {
+    const s = realSuppliers[i];
+    const rep = salesReps[i % salesReps.length];
+    await suppliersCol.updateOne(
+      { _id: s._id },
+      { $set: { salesRep: rep, contactPerson: rep.fullName, phone: rep.phone } }
+    );
+  }
+
   if (realSuppliers.length >= 2 && sampleMeds.length >= 1) {
     const s1 = realSuppliers[0];
     const s2 = realSuppliers[1];
@@ -202,6 +218,10 @@ async function seedStandardData() {
           supplierId: s1._id.toString(),
           supplierName: s1.name,
           email: s1.email || 'kinhdoanh@pharma1.vn',
+          phone: salesReps[0].phone,
+          salesRepName: salesReps[0].fullName,
+          salesRepPhone: salesReps[0].phone,
+          token: 'token-pharma-s1-2026',
           status: 'SUBMITTED',
           sentAt: new Date(Date.now() - 2 * 86400000),
         },
@@ -209,6 +229,10 @@ async function seedStandardData() {
           supplierId: s2._id.toString(),
           supplierName: s2.name,
           email: s2.email || 'dauthau@pharma2.vn',
+          phone: salesReps[1].phone,
+          salesRepName: salesReps[1].fullName,
+          salesRepPhone: salesReps[1].phone,
+          token: 'token-pharma-s2-2026',
           status: 'SUBMITTED',
           sentAt: new Date(Date.now() - 2 * 86400000),
         },
@@ -216,8 +240,12 @@ async function seedStandardData() {
           supplierId: s3._id.toString(),
           supplierName: s3.name,
           email: s3.email || 'sales@pharma3.vn',
-          status: 'SUBMITTED',
-          sentAt: new Date(Date.now() - 2 * 86400000),
+          phone: salesReps[2].phone,
+          salesRepName: salesReps[2].fullName,
+          salesRepPhone: salesReps[2].phone,
+          token: 'token-pharma-s3-demo-open', // Token mở để test gửi báo giá trực tiếp
+          status: 'INVITED', // Đang chờ báo giá
+          sentAt: new Date(Date.now() - 1 * 86400000),
         },
       ],
       quotations: [

@@ -40,6 +40,18 @@ export class RfqTargetSupplier {
   @Prop({ type: String })
   phone?: string;
 
+  @Prop({ type: String })
+  salesRepName?: string;
+
+  @Prop({ type: String })
+  salesRepPhone?: string;
+
+  @Prop({ type: String, index: true })
+  token?: string; // Token định danh Magic Link gửi qua Zalo/Email cho Sales
+
+  @Prop({ type: Date })
+  linkExpiresAt?: Date;
+
   @Prop({ type: String, default: 'INVITED', enum: ['INVITED', 'SUBMITTED', 'DECLINED'] })
   status: string;
 

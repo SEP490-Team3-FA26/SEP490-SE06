@@ -19,7 +19,10 @@ import {
   Award,
   ExternalLink,
   Users,
-  Package
+  Package,
+  Copy,
+  Link,
+  Share2
 } from 'lucide-react';
 import {
   rfqService,
@@ -161,11 +164,13 @@ export function RFQManagement() {
 
     const targetSuppliers = suppliers
       .filter((s) => selectedSupplierIds.includes(s._id || s.id || ''))
-      .map((s) => ({
+      .map((s: any) => ({
         supplierId: s._id || s.id || '',
         supplierName: s.name,
-        email: s.contact_info || `${s.name.toLowerCase().replace(/\s+/g, '')}@pharma-supplier.vn`,
-        phone: '0901234567',
+        email: s.contact_info || s.email || `${s._id}@pharma-supplier.vn`,
+        phone: s.phone || s.salesRep?.phone || '0901234567',
+        salesRepName: s.salesRep?.fullName || s.contactPerson || 'Trình dược viên',
+        salesRepPhone: s.salesRep?.phone || s.phone || '',
       }));
 
     const payload: CreateRfqPayload = {
@@ -189,6 +194,18 @@ export function RFQManagement() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Copy Magic Link to clipboard for Sales (Zalo)
+  const handleCopyMagicLink = (target: any, rfq: RequestForQuotationData) => {
+    if (!target.token) {
+      return alert('Chưa có mã Token liên kết cho NCC này.');
+    }
+    const origin = window.location.origin;
+    const link = `${origin}/supplier-quote/${target.token}`;
+    const message = `Kính gửi anh/chị ${target.salesRepName || 'đại diện'} (${target.supplierName}),\nChuỗi Nhà thuốc Pharmachain trân trọng gửi lời mời tham gia chào giá cho đợt mua hàng [${rfq.rfqCode} - ${rfq.title}].\n👉 Vui lòng truy cập đường link sau để nhập báo giá trực tiếp (Không cần đăng nhập):\n${link}\n⏰ Hạn chót nhận báo giá: ${new Date(rfq.deadline).toLocaleDateString('vi-VN')}\nTrân trọng!`;
+    navigator.clipboard.writeText(message);
+    alert(`✅ Đã sao chép link báo giá Zalo cho [${target.supplierName}]!\nBạn có thể dán (Ctrl+V) vào tin nhắn Zalo gửi cho Sales.`);
   };
 
   // Open Matrix Comparison
@@ -708,12 +725,87 @@ export function RFQManagement() {
             </div>
 
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* DANH SÁCH NCC & LINK BÁO GIÁ ZALO (MAGIC LINK) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <Users size={15} className="text-indigo-600" />
+                    Danh Sách Nhà Cung Cấp & Link Gửi Zalo Cho Sales ({selectedRfq.targetSuppliers?.length || 0} NCC)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Sales click link là nhập báo giá được ngay (Không cần tài khoản)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {selectedRfq.targetSuppliers?.map((target) => {
+                    const hasSubmitted = selectedRfq.quotations?.some(
+                      (q) => q.supplierId === target.supplierId
+                    );
+                    return (
+                      <div
+                        key={target.supplierId}
+                        className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between gap-2"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-xs text-slate-900 truncate" title={target.supplierName}>
+                              {target.supplierName}
+                            </span>
+                            {hasSubmitted ? (
+                              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded shrink-0">
+                                Đã báo giá
+                              </span>
+                            ) : (
+                              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded shrink-0">
+                                Đang chờ
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-1">
+                            Sales: <strong className="text-slate-700">{target.salesRepName || 'Trình dược viên'}</strong>
+                            {target.salesRepPhone && (
+                              <span className="font-mono text-indigo-600 block text-[10px]">
+                                SĐT: {target.salesRepPhone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyMagicLink(target, selectedRfq)}
+                            className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
+                            title="Sao chép lời nhắn và link Zalo gửi cho Sales"
+                          >
+                            <Copy size={12} />
+                            Copy Link Zalo
+                          </button>
+                          {target.token && (
+                            <a
+                              href={`/supplier-quote/${target.token}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition-colors"
+                              title="Mở cổng báo giá của NCC này"
+                            >
+                              <ExternalLink size={13} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {(!selectedRfq.quotations || selectedRfq.quotations.length === 0) ? (
                 <div className="p-10 text-center text-slate-400">
                   <Clock size={36} className="mx-auto text-slate-300 mb-2" />
                   <p className="text-sm font-bold text-slate-600">Chưa có NCC nào nộp bảng chào giá</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    Hãy bấm "+ Báo giá" ở danh sách ngoài để nhập thông tin báo giá gửi từ NCC.
+                    Gửi link Zalo ở trên cho Sales hoặc bấm "+ Báo giá" ở danh sách ngoài để nhập báo giá.
                   </p>
                 </div>
               ) : (
