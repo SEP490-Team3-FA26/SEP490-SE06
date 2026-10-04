@@ -150,5 +150,16 @@ export const inventoryMapService = {
   syncLocations: async () => {
     const response = await api.post('/api/medicines/sync-locations');
     return response.data;
+  },
+
+  /** MỚI — Chuyển ô / Dồn kho thuốc giữa các thùng */
+  relocateBin: async (dto: {
+    fromLocation: { zone: string; rack: string; shelf: number; bin: number };
+    toLocation: { zone: string; rack: string; shelf: number; bin: number };
+    batchId?: string;
+    reason?: string;
+  }) => {
+    const response = await api.post('/api/medicines/relocate-bin', dto);
+    return response.data;
   }
 };
