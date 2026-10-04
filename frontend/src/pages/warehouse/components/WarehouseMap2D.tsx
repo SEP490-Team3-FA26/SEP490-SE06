@@ -14,14 +14,13 @@ interface WarehouseMap2DProps {
 const ZONE_CONFIG: Record<string, {
   label: string; bgColor: string; headerBg: string; borderColor: string;
   textColor: string; badgeBg: string; badgeText: string; accentColor: string;
-  icon: string; description: string;
 }> = {
-  A: { label: "Khu A — Kháng Sinh", bgColor: "#eff6ff", headerBg: "#dbeafe", borderColor: "#93c5fd", textColor: "#1d4ed8", badgeBg: "#bfdbfe", badgeText: "#1e40af", accentColor: "#3b82f6", icon: "💊", description: "Penicillin · Cephalosporin · Macrolide · Quinolone" },
-  B: { label: "Khu B — Hạ Sốt & Giảm Đau", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#fcd34d", textColor: "#b45309", badgeBg: "#fde68a", badgeText: "#92400e", accentColor: "#f59e0b", icon: "🌡️", description: "Paracetamol · Ibuprofen · Diclofenac · Aspirin" },
-  C: { label: "Khu C — Tim Mạch", bgColor: "#fff1f2", headerBg: "#ffe4e6", borderColor: "#fda4af", textColor: "#be123c", badgeBg: "#fecdd3", badgeText: "#9f1239", accentColor: "#f43f5e", icon: "❤️", description: "Amlodipine · Metoprolol · Atorvastatin · Warfarin" },
-  D: { label: "Khu D — Tiêu Hóa", bgColor: "#f0fdf4", headerBg: "#dcfce7", borderColor: "#86efac", textColor: "#15803d", badgeBg: "#bbf7d0", badgeText: "#166534", accentColor: "#22c55e", icon: "🫁", description: "Omeprazole · Metoclopramide · Smecta · Loperamide" },
-  E: { label: "Khu E — TPCN", bgColor: "#faf5ff", headerBg: "#f3e8ff", borderColor: "#d8b4fe", textColor: "#7e22ce", badgeBg: "#e9d5ff", badgeText: "#6b21a8", accentColor: "#a855f7", icon: "🌿", description: "Vitamin · Khoáng chất · Omega-3 · Collagen" },
-  F: { label: "Khu F — Vật Tư Y Tế", bgColor: "#f8fafc", headerBg: "#f1f5f9", borderColor: "#cbd5e1", textColor: "#475569", badgeBg: "#e2e8f0", badgeText: "#334155", accentColor: "#64748b", icon: "🩺", description: "Băng · Gạc · Kim tiêm · Bơm tiêm · Dụng cụ y tế" },
+  A: { label: "Khu A", bgColor: "#eff6ff", headerBg: "#dbeafe", borderColor: "#93c5fd", textColor: "#1d4ed8", badgeBg: "#bfdbfe", badgeText: "#1e40af", accentColor: "#3b82f6" },
+  B: { label: "Khu B", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#fcd34d", textColor: "#b45309", badgeBg: "#fde68a", badgeText: "#92400e", accentColor: "#f59e0b" },
+  C: { label: "Khu C", bgColor: "#fff1f2", headerBg: "#ffe4e6", borderColor: "#fda4af", textColor: "#be123c", badgeBg: "#fecdd3", badgeText: "#9f1239", accentColor: "#f43f5e" },
+  D: { label: "Khu D", bgColor: "#f0fdf4", headerBg: "#dcfce7", borderColor: "#86efac", textColor: "#15803d", badgeBg: "#bbf7d0", badgeText: "#166534", accentColor: "#22c55e" },
+  E: { label: "Khu E", bgColor: "#faf5ff", headerBg: "#f3e8ff", borderColor: "#d8b4fe", textColor: "#7e22ce", badgeBg: "#e9d5ff", badgeText: "#6b21a8", accentColor: "#a855f7" },
+  F: { label: "Khu F", bgColor: "#f8fafc", headerBg: "#f1f5f9", borderColor: "#cbd5e1", textColor: "#475569", badgeBg: "#e2e8f0", badgeText: "#334155", accentColor: "#64748b" },
 };
 
 const BIN_STATUS: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
@@ -303,12 +302,19 @@ export function WarehouseMap2D({
                 style={{ backgroundColor: cfg.headerBg, borderBottom: `1px solid ${cfg.borderColor}` }}
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl">{cfg.icon}</span>
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shadow-xs"
+                    style={{ backgroundColor: cfg.badgeBg, color: cfg.textColor }}
+                  >
+                    {zoneData.zone}
+                  </div>
                   <div>
                     <div className="text-xs font-bold tracking-wide" style={{ color: cfg.textColor }}>
-                      {cfg.label}
+                      Khu {zoneData.zone}
                     </div>
-                    <div className="text-[10px] mt-0.5 text-slate-500">{cfg.description}</div>
+                    <div className="text-[10px] mt-0.5 text-slate-500">
+                      {zoneData.racks?.length || 0} dãy kệ &middot; {zoneData.racks?.reduce((a: number, r: any) => a + r.shelves.length, 0)} tầng
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">

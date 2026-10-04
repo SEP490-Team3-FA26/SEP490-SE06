@@ -12,12 +12,12 @@ interface BinLocationPickerProps {
 }
 
 const ZONE_OPTIONS = [
-  { value: 'A', label: 'Khu A — Kháng sinh' },
-  { value: 'B', label: 'Khu B — Hạ sốt & Giảm đau' },
-  { value: 'C', label: 'Khu C — Tim mạch' },
-  { value: 'D', label: 'Khu D — Tiêu hóa' },
-  { value: 'E', label: 'Khu E — TPCN' },
-  { value: 'F', label: 'Khu F — Vật tư y tế' },
+  { value: 'A', label: 'Khu A' },
+  { value: 'B', label: 'Khu B' },
+  { value: 'C', label: 'Khu C' },
+  { value: 'D', label: 'Khu D' },
+  { value: 'E', label: 'Khu E' },
+  { value: 'F', label: 'Khu F' },
 ];
 
 const SHELF_OPTIONS = [1, 2, 3, 4];
