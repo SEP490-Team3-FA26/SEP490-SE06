@@ -87,9 +87,9 @@ export function WarehouseMapPage() {
       `}</style>
 
       {/* Header */}
-      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-5 shrink-0 z-20 shadow-sm">
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-5 shrink-0 z-20 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-sky-500 shadow text-white">
+          <div className="p-2 rounded-xl bg-sky-500 shadow text-white shrink-0">
             <Boxes size={18} />
           </div>
           <div>
@@ -103,26 +103,25 @@ export function WarehouseMapPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="hidden xl:flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-sky-50 border border-sky-200 text-sky-700">
-            <Database size={13} className="text-sky-500" />
-            <span><b>{totalStock.toLocaleString("vi-VN")}</b> tổng tồn</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-teal-50 border border-teal-200 text-teal-700">
-            <Package size={13} className="text-teal-500" />
-            <span><b>{totalBatches}</b> lô hàng</span>
-          </div>
-          {alertCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-amber-50 border border-amber-200 text-amber-700">
-              <AlertTriangle size={13} className="text-amber-500" />
-              <span><b>{alertCount}</b> cảnh báo</span>
+        {/* Stats & Actions */}
+        <div className="flex items-center gap-2.5">
+          <div className="hidden lg:flex items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-sky-50 border border-sky-200 text-sky-700">
+              <Database size={13} className="text-sky-500" />
+              <span><b>{totalStock.toLocaleString("vi-VN")}</b> tổng tồn</span>
             </div>
-          )}
-        </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-teal-50 border border-teal-200 text-teal-700">
+              <Package size={13} className="text-teal-500" />
+              <span><b>{totalBatches}</b> lô hàng</span>
+            </div>
+            {alertCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-amber-50 border border-amber-200 text-amber-700">
+                <AlertTriangle size={13} className="text-amber-500" />
+                <span><b>{alertCount}</b> cảnh báo</span>
+              </div>
+            )}
+          </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-2">
           {/* Nút bật/tắt Khu Kệ Dự Trữ FEFO */}
           <button
             onClick={() => setShowReservePanel(!showReservePanel)}
@@ -140,19 +139,6 @@ export function WarehouseMapPage() {
             </span>
           </button>
 
-          <WarehouseFilterBar
-            zones={zones}
-            onSearchSelect={(target) => {
-              setHighlightTarget(target);
-              setHighlightTargets(new Set([target]));
-              setFilterDesc("");
-            }}
-            onFilterChange={(targets, desc) => {
-              setHighlightTargets(targets);
-              setHighlightTarget("");
-              setFilterDesc(desc || "");
-            }}
-          />
           <button
             onClick={() => { fetchMapData(); fetchReserveBatches(); }}
             disabled={loading}
@@ -163,6 +149,23 @@ export function WarehouseMapPage() {
           </button>
         </div>
       </header>
+
+      {/* Toolbar: Bộ lọc & Tìm kiếm trực quan */}
+      <div className="bg-white border-b border-slate-200 px-5 py-2.5 shrink-0 z-10 shadow-xs">
+        <WarehouseFilterBar
+          zones={zones}
+          onSearchSelect={(target) => {
+            setHighlightTarget(target);
+            setHighlightTargets(new Set([target]));
+            setFilterDesc("");
+          }}
+          onFilterChange={(targets, desc) => {
+            setHighlightTargets(targets);
+            setHighlightTarget("");
+            setFilterDesc(desc || "");
+          }}
+        />
+      </div>
 
       {/* Filter status indicator khi đang có bộ lọc active */}
       {filterDesc && (

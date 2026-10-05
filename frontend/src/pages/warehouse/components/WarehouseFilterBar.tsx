@@ -226,9 +226,11 @@ export function WarehouseFilterBar({
   const isFiltered = Boolean(selectedCategory || activeChips.size > 0 || query);
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {/* 1. Ô tìm kiếm thuốc */}
-      <div className="relative" ref={searchDropdownRef}>
+    <div className="flex items-center justify-between gap-3 flex-wrap w-full">
+      {/* 1. Nhóm Tìm kiếm & Danh mục */}
+      <div className="flex items-center gap-2.5 flex-wrap">
+        {/* 1. Ô tìm kiếm thuốc */}
+        <div className="relative" ref={searchDropdownRef}>
         <div className="relative flex items-center">
           <Search className="absolute left-3 text-slate-400" size={15} />
           <input
@@ -391,9 +393,12 @@ export function WarehouseFilterBar({
           </div>
         )}
       </div>
+    </div>
 
-      {/* 3. Quick Filter Chips */}
-      <div className="flex items-center gap-1.5">
+      {/* 2. Nhóm Quick Filter Chips & Reset */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* 3. Quick Filter Chips */}
+        <div className="flex items-center gap-1.5 flex-wrap">
         {/* Chip 1: ⚠️ Cần xử lý */}
         <button
           onClick={() => handleToggleChip("WARN")}
@@ -473,17 +478,18 @@ export function WarehouseFilterBar({
         </button>
       </div>
 
-      {/* 4. Nút Reset / Clear filters */}
-      {isFiltered && (
-        <button
-          onClick={handleResetAll}
-          className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition border border-dashed border-slate-200 hover:border-rose-200"
-          title="Xóa tất cả bộ lọc và tìm kiếm"
-        >
-          <RotateCcw size={12} />
-          <span className="hidden sm:inline">Xóa lọc</span>
-        </button>
-      )}
+        {/* 4. Nút Reset / Clear filters */}
+        {isFiltered && (
+          <button
+            onClick={handleResetAll}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition border border-dashed border-slate-300 hover:border-rose-300 shadow-2xs"
+            title="Xóa tất cả bộ lọc và tìm kiếm"
+          >
+            <RotateCcw size={12} />
+            <span className="hidden sm:inline">Xóa bộ lọc</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
