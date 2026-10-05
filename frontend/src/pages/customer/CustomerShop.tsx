@@ -7,6 +7,8 @@ import { MedicineCard } from "../../components/MedicineCard";
 import { ShopFilterSidebar } from "../../components/ShopFilterSidebar";
 import { Pagination } from "../../components/Pagination";
 import { MedicineDetailModal } from "../../components/MedicineDetailModal";
+import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRecommender";
+import { recommendationService } from "../../services/recommendation/recommendation.service";
 import api from "../../services/core/api";
 
 export function CustomerShop() {
@@ -171,11 +173,28 @@ export function CustomerShop() {
     selectedIngredient
   ]);
 
-  // Debounce search and reset to page 1
+  // Debounce search and reset to page 1 + Auto log search for recommendation
   useEffect(() => {
     const delay = setTimeout(() => {
       setCurrentPage(1);
       fetchMedicines();
+
+      if (searchQuery.trim().length >= 2) {
+        let phone: string | undefined;
+        let userId: string | undefined;
+        try {
+          const u = JSON.parse(localStorage.getItem("user") || "{}");
+          phone = u.phone;
+          userId = u.id || u._id;
+        } catch (e) {}
+
+        recommendationService.logSearch({
+          keyword: searchQuery.trim(),
+          category: selectedCategory || undefined,
+          phone,
+          userId,
+        });
+      }
     }, 450);
     return () => clearTimeout(delay);
   }, [searchQuery]);
@@ -428,6 +447,16 @@ export function CustomerShop() {
           </div>
         )}
       </div>
+
+      {/* Pharma-Smart Recommender & RFM Chronic Refill Component */}
+      <PharmaSmartRecommender
+        onSelectKeyword={(kw) => {
+          setSearchQuery(kw);
+        }}
+        onAddToCart={(med) => {
+          handleAddToCart(med);
+        }}
+      />
 
       {/* Main Layout Body */}
       <div className="flex flex-col lg:flex-row gap-8 flex-1 items-start w-full">

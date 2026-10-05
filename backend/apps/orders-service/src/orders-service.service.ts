@@ -12,6 +12,7 @@ import { Voucher } from './schemas/voucher.schema';
 import { Expense } from './schemas/expense.schema';
 import { PaymentWebhookLog, PaymentWebhookLogDocument } from './schemas/payment-webhook-log.schema';
 import { PaymentReconciliation, PaymentReconciliationDocument } from './schemas/payment-reconciliation.schema';
+import { MarketingCampaign } from './schemas/marketing-campaign.schema';
 import { subscribeToKafkaTopics, sendKafkaMessage } from '../../api-gateway/src/common/kafka.helper';
 
 const DEFAULT_PHONE_NUMBER = '0900000000';
@@ -27,6 +28,7 @@ export class OrdersServiceService implements OnModuleInit {
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
     @InjectModel(PaymentWebhookLog.name) private readonly webhookLogModel: Model<PaymentWebhookLogDocument>,
     @InjectModel(PaymentReconciliation.name) private readonly reconciliationModel: Model<PaymentReconciliationDocument>,
+    @InjectModel(MarketingCampaign.name) private readonly campaignModel: Model<MarketingCampaign>,
     private readonly configService: ConfigService,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
     @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
@@ -1147,5 +1149,204 @@ export class OrdersServiceService implements OnModuleInit {
     await rec.save();
 
     return { success: true, message: 'Đã hoàn tất xử lý giải trình đối soát', record: rec };
+  }
+
+  // ==========================================
+  // MARKETING CAMPAIGNS & ROI ANALYTICS
+  // ==========================================
+  async createMarketingCampaign(payload: any) {
+    try {
+      const now = new Date();
+      const count = await this.campaignModel.countDocuments();
+      const code = payload.code || `MKT-${now.getFullYear()}-${String(count + 1).padStart(3, '0')}`;
+
+      const costs = payload.costs || [];
+      const totalCost = costs.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+
+      const campaign = new this.campaignModel({
+        ...payload,
+        code,
+        costs,
+        totalCost,
+      });
+
+      const saved = await campaign.save();
+      this.logger.log(`Created marketing campaign: ${code}`);
+      return saved;
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi tạo chiến dịch Marketing');
+    }
+  }
+
+  async listMarketingCampaigns(query: any = {}) {
+    try {
+      const filter: any = {};
+      if (query.status && query.status !== 'all') {
+        filter.status = query.status;
+      }
+      return await this.campaignModel.find(filter).sort({ createdAt: -1 }).exec();
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi lấy danh sách chiến dịch');
+    }
+  }
+
+  async getMarketingCampaignById(id: string) {
+    try {
+      const campaign = await this.campaignModel.findById(id).exec();
+      if (!campaign) {
+        throw new RpcException(`Không tìm thấy chiến dịch ${id}`);
+      }
+      return campaign;
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi tìm chiến dịch');
+    }
+  }
+
+  async addCampaignCost(id: string, costItem: { type: string; amount: number; note?: string; date?: Date }) {
+    try {
+      const campaign = await this.campaignModel.findById(id).exec();
+      if (!campaign) {
+        throw new RpcException(`Không tìm thấy chiến dịch ${id}`);
+      }
+
+      campaign.costs.push({
+        type: costItem.type,
+        amount: Number(costItem.amount),
+        note: costItem.note,
+        date: costItem.date ? new Date(costItem.date) : new Date(),
+      } as any);
+
+      campaign.totalCost = campaign.costs.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+      await campaign.save();
+
+      return { success: true, message: 'Đã hạch toán chi phí marketing thành công!', campaign };
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi hạch toán chi phí chiến dịch');
+    }
+  }
+
+  async getMarketingRoiAnalytics() {
+    try {
+      const DEFAULT_PHARMA_COGS_RATIO = 0.65; // Chuẩn định mức giá vốn trung bình ngành Dược phẩm bán lẻ Việt Nam (65% COGS)
+      const campaigns = await this.campaignModel.find().lean().exec();
+
+      // Tối ưu hóa bộ nhớ: chỉ nạp các trường cần thiết phục vụ tính ROI & Attribution thay vì load toàn bộ document
+      const allOrders = await this.orderModel
+        .find({ paymentStatus: 'PAID' })
+        .select('patientPhone totalAmount voucherCode voucherDiscount createdAt')
+        .lean()
+        .exec();
+
+      // Bản đồ số điện thoại khách hàng và đơn hàng đầu tiên (để đo lường New Customers vs Cannibalization)
+      const customerFirstOrderDate = new Map<string, Date>();
+      allOrders.forEach((o) => {
+        const phone = o.patientPhone || DEFAULT_PHONE_NUMBER;
+        const oDate = new Date((o as any).createdAt || Date.now());
+        if (!customerFirstOrderDate.has(phone) || oDate < customerFirstOrderDate.get(phone)!) {
+          customerFirstOrderDate.set(phone, oDate);
+        }
+      });
+
+      let chainTotalSpend = 0;
+      let chainAttributedRevenue = 0;
+      let chainGrossProfit = 0;
+      let chainTotalAttributedOrders = 0;
+
+      const campaignReports = campaigns.map((c) => {
+        const vCodes = (c.voucherCodes || []).map((v) => v.toUpperCase().trim());
+        const startDate = new Date(c.startDate);
+        const endDate = new Date(c.endDate);
+
+        // Gán các đơn hàng có áp dụng Voucher của chiến dịch hoặc trong khung thời gian
+        const matchedOrders = allOrders.filter((o) => {
+          const oVoucher = (o.voucherCode || '').toUpperCase().trim();
+          const hasVoucher = oVoucher && vCodes.includes(oVoucher);
+          const orderDate = new Date((o as any).createdAt || Date.now());
+          const inTime = orderDate >= startDate && orderDate <= endDate;
+          return hasVoucher && inTime;
+        });
+
+        const totalOrders = matchedOrders.length;
+        const totalRevenue = matchedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        
+        // Biên lợi nhuận gộp thực chất (Doanh thu - Giá vốn COGS định mức)
+        const estimatedCogs = totalRevenue * DEFAULT_PHARMA_COGS_RATIO;
+        const grossProfit = totalRevenue - estimatedCogs;
+        const totalCost = c.totalCost || c.budget || 1; // Tránh chia cho 0
+        const netProfit = grossProfit - totalCost;
+
+        // Chỉ số ROI thực tế dựa trên Gross Margin: ((Gross Profit - Total Cost) / Total Cost) * 100
+        const roi = totalCost > 0 ? Number(((netProfit / totalCost) * 100).toFixed(1)) : 0;
+        const roas = totalCost > 0 ? Number((totalRevenue / totalCost).toFixed(2)) : 0;
+
+        // Phân tích tệp khách mới vs Khách quen cũ (Giải quyết rủi ro Cannibalization từ Bước 3)
+        let newCustomerOrders = 0;
+        let returningCustomerOrders = 0;
+        const uniquePhones = new Set<string>();
+
+        matchedOrders.forEach((o) => {
+          const phone = o.patientPhone || DEFAULT_PHONE_NUMBER;
+          uniquePhones.add(phone);
+          const firstDate = customerFirstOrderDate.get(phone);
+          if (firstDate && firstDate >= startDate) {
+            newCustomerOrders++;
+          } else {
+            returningCustomerOrders++;
+          }
+        });
+
+        // Tỷ lệ Cannibalization: Tỷ lệ đơn hàng từ khách cũ quen thuộc vốn đã mua không cần marketing
+        const cannibalizationRatio = totalOrders > 0 ? Number(((returningCustomerOrders / totalOrders) * 100).toFixed(1)) : 0;
+
+        chainTotalSpend += totalCost;
+        chainAttributedRevenue += totalRevenue;
+        chainGrossProfit += grossProfit;
+        chainTotalAttributedOrders += totalOrders;
+
+        return {
+          _id: c._id,
+          code: c.code,
+          name: c.name,
+          channel: c.channel,
+          budget: c.budget,
+          totalCost,
+          status: c.status,
+          startDate: c.startDate,
+          endDate: c.endDate,
+          voucherCodes: c.voucherCodes,
+          totalOrders,
+          totalRevenue,
+          grossProfit,
+          netProfit,
+          roi,
+          roas,
+          uniqueCustomers: uniquePhones.size,
+          newCustomerOrders,
+          returningCustomerOrders,
+          cannibalizationRatio,
+        };
+      });
+
+      const chainNetProfit = chainGrossProfit - chainTotalSpend;
+      const chainRoi = chainTotalSpend > 0 ? Number(((chainNetProfit / chainTotalSpend) * 100).toFixed(1)) : 0;
+      const chainRoas = chainTotalSpend > 0 ? Number((chainAttributedRevenue / chainTotalSpend).toFixed(2)) : 0;
+
+      return {
+        summary: {
+          totalCampaigns: campaigns.length,
+          activeCampaigns: campaigns.filter((c) => c.status === 'ACTIVE').length,
+          totalSpend: chainTotalSpend,
+          totalRevenue: chainAttributedRevenue,
+          totalGrossProfit: chainGrossProfit,
+          totalNetProfit: chainNetProfit,
+          averageRoi: chainRoi,
+          averageRoas: chainRoas,
+          totalOrders: chainTotalAttributedOrders,
+        },
+        campaigns: campaignReports,
+      };
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi phân tích Marketing ROI');
+    }
   }
 }
