@@ -137,7 +137,7 @@ export default function WholesaleView() {
         active_ingredient: med.active_ingredient || '',
         price: med.price || 50000,
         priceTiers: med.priceTiers || [],
-        quantity: 10, // Sỉ tối thiểu 10 đơn vị
+        quantity: 10, // Si toi thieu 10 don vi
         unit: med.unit || 'Hộp',
         stock: med.stock,
         expiry: med.expiry
@@ -168,7 +168,7 @@ export default function WholesaleView() {
     setCart(cart.filter(it => it.medicineId !== medId));
   };
 
-  // Helper tính giá theo cấp bậc sỉ
+  // Helper tinh gia theo cap bac si
   const getTieredPrice = (item: any) => {
     const quantity = item.quantity;
     if (item.priceTiers && item.priceTiers.length > 0) {
@@ -179,7 +179,7 @@ export default function WholesaleView() {
         }
       }
     }
-    // Mặc định nếu không cấu hình riêng
+    // Mac dinh neu khong cau hinh rieng
     const basePrice = item.price;
     if (quantity >= 100) return Math.round(basePrice * 0.85);
     if (quantity >= 50) return Math.round(basePrice * 0.90);
@@ -187,7 +187,7 @@ export default function WholesaleView() {
     return basePrice;
   };
 
-  // Tính chiết khấu so với giá bán lẻ thông thường
+  // Tinh chiet khau so voi gia ban le thong thuong
   const getSavings = (item: any) => {
     const retail = item.price * item.quantity;
     const tiered = getTieredPrice(item) * item.quantity;
@@ -257,7 +257,7 @@ export default function WholesaleView() {
     setError("");
     try {
       const result = await orderService.createSale(payload);
-      // Kết quả lưu từ inventory-service
+      // Ket qua luu tu inventory-service
       setInvoiceData(result.data || result);
       setShowInvoiceModal(true);
       setCart([]);
@@ -335,10 +335,10 @@ export default function WholesaleView() {
 
   return (
     <div className="h-full flex flex-col xl:flex-row gap-6 overflow-hidden">
-      {/* CỘT TRÁI: Tìm kiếm và Giỏ hàng sỉ */}
+      {/* COT TRAI: Tim kiem va Gio hang si */}
       <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-6 pb-6">
 
-        {/* Tìm kiếm thuốc */}
+        {/* Tim kiem thuoc */}
         <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm flex flex-col gap-3 shrink-0">
           <label className="block text-xs font-black text-slate-700 uppercase tracking-wide">
             Tìm sản phẩm bán sỉ từ kho hàng
@@ -390,7 +390,7 @@ export default function WholesaleView() {
             )}
           </div>
 
-          {/* Thanh Bộ Lọc Bán Sỉ */}
+          {/* Thanh Bo Loc Ban Si */}
           <div className="flex flex-wrap items-center gap-2.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 mt-1">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 mr-1">
               <Filter size={14} className="text-[#0057cd]" /> Bộ lọc sỉ:
@@ -465,7 +465,7 @@ export default function WholesaleView() {
           </div>
         )}
 
-        {/* Giỏ hàng sỉ */}
+        {/* Gio hang si */}
         <div className="bg-white rounded-[16px] border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[400px]">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
             <h2 className="text-[15px] font-black text-slate-800 tracking-tight flex items-center gap-2">
@@ -561,7 +561,7 @@ export default function WholesaleView() {
         </div>
       </div>
 
-      {/* CỘT PHẢI: Thông tin đại lý & Thanh toán */}
+      {/* COT PHAI: Thong tin dai ly & Thanh toan */}
       <div className="w-full xl:w-[380px] bg-white border border-slate-200 rounded-[16px] p-5 shadow-sm shrink-0 flex flex-col gap-6 justify-between overflow-y-auto">
         <div className="space-y-6">
           <div>
@@ -648,7 +648,7 @@ export default function WholesaleView() {
           </div>
         </div>
 
-        {/* Tổng tiền & Xuất hóa đơn */}
+        {/* Tong tien & Xuat hoa don */}
         <div className="border-t border-slate-100 pt-5 space-y-4">
           <div className="space-y-2.5 text-xs text-slate-500 font-bold">
             <div className="flex justify-between">
@@ -679,7 +679,7 @@ export default function WholesaleView() {
         </div>
       </div>
 
-      {/* MODAL THANH TOÁN QR PAYOS */}
+      {/* MODAL THANH TOAN QR PAYOS */}
       {showPayOSModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => {
@@ -728,7 +728,7 @@ export default function WholesaleView() {
         </div>
       )}
 
-      {/* MODAL HÓA ĐƠN THÀNH CÔNG */}
+      {/* MODAL HOA DON THANH CONG */}
       {showInvoiceModal && invoiceData && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowInvoiceModal(false)} />

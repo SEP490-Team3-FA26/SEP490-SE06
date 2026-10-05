@@ -79,6 +79,11 @@ import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 import { Sales } from "./pages/pharmacist/Sales";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
 import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
+import PrescriptionManagement from "./pages/pharmacist/PrescriptionManagement";
+import OcrHistoryPage from "./pages/pharmacist/OcrHistoryPage";
+import VoiceConsultHistoryPage from "./pages/pharmacist/VoiceConsultHistoryPage";
+import GppSyncPage from "./pages/pharmacist/GppSyncPage";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
 // Helper component to preserve query parameters on redirect
 function RedirectWithSearch({ to }: { to: string }) {
@@ -90,7 +95,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <NotificationProvider>
-        <Routes>
+        <ErrorBoundary>
+          <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Landing />} />
           <Route path="/feedback" element={<FeedbackPage />} />
@@ -237,6 +243,10 @@ export default function App() {
             <Route path="/pharmacist" element={<PharmacistLayout />}>
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
+              <Route path="prescriptions" element={<PrescriptionManagement />} />
+              <Route path="ocr-history" element={<OcrHistoryPage />} />
+              <Route path="ai-consultation" element={<VoiceConsultHistoryPage />} />
+              <Route path="gpp-sync" element={<GppSyncPage />} />
               <Route path="reports" element={<Reports />} />
               <Route path="schedule" element={<PharmacistSchedule />} />
               <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
@@ -253,6 +263,7 @@ export default function App() {
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </NotificationProvider>
     </BrowserRouter>
   );

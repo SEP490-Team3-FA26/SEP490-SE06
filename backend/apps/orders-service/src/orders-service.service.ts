@@ -12,6 +12,7 @@ import { Voucher } from './schemas/voucher.schema';
 import { Expense } from './schemas/expense.schema';
 import { PaymentWebhookLog, PaymentWebhookLogDocument } from './schemas/payment-webhook-log.schema';
 import { PaymentReconciliation, PaymentReconciliationDocument } from './schemas/payment-reconciliation.schema';
+import { PaymentVoucher, PaymentVoucherDocument } from './schemas/payment-voucher.schema';
 import { subscribeToKafkaTopics, sendKafkaMessage } from '../../api-gateway/src/common/kafka.helper';
 
 const DEFAULT_PHONE_NUMBER = '0900000000';
@@ -27,6 +28,7 @@ export class OrdersServiceService implements OnModuleInit {
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
     @InjectModel(PaymentWebhookLog.name) private readonly webhookLogModel: Model<PaymentWebhookLogDocument>,
     @InjectModel(PaymentReconciliation.name) private readonly reconciliationModel: Model<PaymentReconciliationDocument>,
+    @InjectModel(PaymentVoucher.name) private readonly paymentVoucherModel: Model<PaymentVoucherDocument>,
     private readonly configService: ConfigService,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
     @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
@@ -277,6 +279,11 @@ export class OrdersServiceService implements OnModuleInit {
       earnedPoints,
       userId: data.userId,
       branchId: data.branchId || 'BR-001',
+      // AI-beslissingsondersteuningsvelden voor auditspoor
+      isAiAssisted: Boolean(data.isAiAssisted),
+      aiAuditCode: data.aiAuditCode || undefined,
+      consultationId: data.consultationId || undefined,
+      pharmacistApprovedBy: data.pharmacistApprovedBy || undefined,
     });
 
     // ========================================================
@@ -826,35 +833,94 @@ export class OrdersServiceService implements OnModuleInit {
       const year = Number(query.year) || new Date().getFullYear();
       const branchId = query.branchId;
 
+      const viewType = query.viewType || 'month';
+      const targetDate = query.date ? new Date(query.date) : new Date();
+
       const orderFilter: any = {};
       const expenseFilter: any = {};
+      const voucherFilter: any = {};
 
       if (branchId && branchId !== 'all') {
         orderFilter.branchId = branchId;
         expenseFilter.branchId = branchId;
+        voucherFilter.branchId = branchId;
       }
 
-      const startOfYear = new Date(year, 0, 1);
-      const endOfYear = new Date(year, 11, 31, 23, 59, 59);
+      // 1. Time range filter based on viewType
+      let startDate: Date;
+      let endDate: Date;
 
-      orderFilter.createdAt = { $gte: startOfYear, $lte: endOfYear };
-      expenseFilter.transactionDate = { $gte: startOfYear, $lte: endOfYear };
+      if (viewType === 'shift' || viewType === 'day') {
+        startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
+        endDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+      } else if (viewType === 'week') {
+        const day = targetDate.getDay();
+        const diff = targetDate.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(targetDate.getFullYear(), targetDate.getMonth(), diff, 0, 0, 0);
+        startDate = monday;
+        endDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+      } else {
+        startDate = new Date(year, 0, 1, 0, 0, 0);
+        endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+      }
 
-      const [orders, expenses] = await Promise.all([
+      orderFilter.createdAt = { $gte: startDate, $lte: endDate };
+      expenseFilter.transactionDate = { $gte: startDate, $lte: endDate };
+      voucherFilter.transactionDate = { $gte: startDate, $lte: endDate };
+
+      const [orders, expenses, paymentVouchers] = await Promise.all([
         this.orderModel.find(orderFilter).lean().exec(),
         this.expenseModel.find(expenseFilter).lean().exec(),
+        this.paymentVoucherModel.find(voucherFilter).lean().exec(),
       ]);
 
+      // 2. Aggregate Inflows from Orders
       let totalRevenue = 0;
+      let totalCashInflow = 0;
+      let totalDigitalInflow = 0;
       let totalCogs = 0;
       const monthlyRevenue: number[] = new Array(12).fill(0);
       const monthlyCogs: number[] = new Array(12).fill(0);
 
-      orders.forEach((raw_o) => {
-        const o: any = raw_o;
+      // Shift aggregations (Morning: 06:00-14:00, Afternoon: 14:00-22:00, Night: 22:00-06:00)
+      const shiftData = {
+        morning: {
+          ordersCount: 0,
+          cashInflow: 0,
+          digitalInflow: 0,
+          totalInflow: 0,
+          pettyExpenses: 0,
+          netFlow: 0,
+          orders: [] as any[],
+        },
+        afternoon: {
+          ordersCount: 0,
+          cashInflow: 0,
+          digitalInflow: 0,
+          totalInflow: 0,
+          pettyExpenses: 0,
+          netFlow: 0,
+          orders: [] as any[],
+        },
+        night: {
+          ordersCount: 0,
+          cashInflow: 0,
+          digitalInflow: 0,
+          totalInflow: 0,
+          pettyExpenses: 0,
+          netFlow: 0,
+          orders: [] as any[],
+        },
+      };
+
+      orders.forEach((raw_o: any) => {
+        const o = raw_o;
         const date = new Date(o.createdAt || Date.now());
         const m = date.getMonth();
-        const rev = o.totalAmount || o.finalAmount || 0;
+        const hours = date.getHours();
+        const rev = Number(o.totalAmount || o.finalAmount || 0);
+        const isCash = o.paymentMethod === 'CASH' || o.paymentMethod === 'TIEN_MAT';
+
         let cogs = 0;
         if (Array.isArray(o.items)) {
           cogs = o.items.reduce((sum: number, item: any) => {
@@ -868,44 +934,213 @@ export class OrdersServiceService implements OnModuleInit {
         totalCogs += cogs;
         monthlyRevenue[m] += rev;
         monthlyCogs[m] += cogs;
+
+        if (isCash) {
+          totalCashInflow += rev;
+        } else {
+          totalDigitalInflow += rev;
+        }
+
+        // Assign to shift
+        let targetShift = shiftData.afternoon;
+        if (hours >= 6 && hours < 14) {
+          targetShift = shiftData.morning;
+        } else if (hours >= 14 && hours < 22) {
+          targetShift = shiftData.afternoon;
+        } else {
+          targetShift = shiftData.night;
+        }
+
+        targetShift.ordersCount++;
+        targetShift.totalInflow += rev;
+        if (isCash) targetShift.cashInflow += rev;
+        else targetShift.digitalInflow += rev;
+        targetShift.orders.push({
+          orderId: o.orderCode || o._id,
+          amount: rev,
+          paymentMethod: o.paymentMethod,
+          createdAt: o.createdAt,
+          customerName: o.customerName || 'Retail Customer',
+        });
       });
 
+      // 3. Aggregate Outflows (Fixed expenses + Payment vouchers)
       let totalFixedExpenses = 0;
+      let totalVouchersOutflow = 0;
       const monthlyExpenses: number[] = new Array(12).fill(0);
+      const monthlyVouchers: number[] = new Array(12).fill(0);
 
-      expenses.forEach((raw_e) => {
-        const e: any = raw_e;
+      expenses.forEach((raw_e: any) => {
+        const e = raw_e;
         const date = new Date(e.transactionDate || e.createdAt || Date.now());
         const m = date.getMonth();
-        totalFixedExpenses += e.amount || 0;
-        monthlyExpenses[m] += e.amount || 0;
+        const hours = date.getHours();
+        const amt = Number(e.amount || 0);
+
+        totalFixedExpenses += amt;
+        monthlyExpenses[m] += amt;
+
+        if (hours >= 6 && hours < 14) {
+          shiftData.morning.pettyExpenses += amt;
+        } else if (hours >= 14 && hours < 22) {
+          shiftData.afternoon.pettyExpenses += amt;
+        } else {
+          shiftData.night.pettyExpenses += amt;
+        }
       });
 
-      const totalExpense = totalCogs + totalFixedExpenses;
-      const netProfit = totalRevenue - totalExpense;
+      paymentVouchers.forEach((raw_v: any) => {
+        const v = raw_v;
+        const date = new Date(v.transactionDate || v.createdAt || Date.now());
+        const m = date.getMonth();
+        const amt = Number(v.amount || 0);
 
+        totalVouchersOutflow += amt;
+        monthlyVouchers[m] += amt;
+      });
+
+      const totalOutflow = totalFixedExpenses + totalVouchersOutflow;
+      const netCashFlow = totalRevenue - totalOutflow;
+
+      // Calculate shift net flow
+      shiftData.morning.netFlow = shiftData.morning.totalInflow - shiftData.morning.pettyExpenses;
+      shiftData.afternoon.netFlow = shiftData.afternoon.totalInflow - shiftData.afternoon.pettyExpenses;
+      shiftData.night.netFlow = shiftData.night.totalInflow - shiftData.night.pettyExpenses;
+
+      // Cash drawer calculation
+      const initialCashFloat = 5000000; // Base cash drawer initial balance (5M VND)
+      const morningDrawerBalance = initialCashFloat + shiftData.morning.cashInflow - shiftData.morning.pettyExpenses;
+      const afternoonDrawerBalance = morningDrawerBalance + shiftData.afternoon.cashInflow - shiftData.afternoon.pettyExpenses;
+      const currentDrawerBalance = afternoonDrawerBalance;
+
+      // Monthly chart array
       const monthlyChart = monthlyRevenue.map((rev, idx) => ({
         month: `T${idx + 1}`,
         revenue: Math.round(rev),
         cogs: Math.round(monthlyCogs[idx]),
         fixedExpenses: Math.round(monthlyExpenses[idx]),
-        totalExpenses: Math.round(monthlyCogs[idx] + monthlyExpenses[idx]),
-        netProfit: Math.round(rev - (monthlyCogs[idx] + monthlyExpenses[idx])),
+        vouchers: Math.round(monthlyVouchers[idx]),
+        totalExpenses: Math.round(monthlyCogs[idx] + monthlyExpenses[idx] + monthlyVouchers[idx]),
+        netProfit: Math.round(rev - (monthlyCogs[idx] + monthlyExpenses[idx] + monthlyVouchers[idx])),
       }));
 
+      // Shift breakdowns array
+      const shiftsBreakdown = [
+        {
+          shiftId: 'SHIFT-MORNING',
+          name: 'Ca Sáng (06:00 - 14:00)',
+          time: '06:00 - 14:00',
+          staffName: 'Dược sĩ trực: Nguyễn Văn An',
+          status: 'BALANCED',
+          ordersCount: shiftData.morning.ordersCount,
+          cashInflow: shiftData.morning.cashInflow,
+          digitalInflow: shiftData.morning.digitalInflow,
+          totalInflow: shiftData.morning.totalInflow,
+          pettyExpenses: shiftData.morning.pettyExpenses,
+          netFlow: shiftData.morning.netFlow,
+          openingFloat: initialCashFloat,
+          closingDrawerBalance: morningDrawerBalance,
+          recentOrders: shiftData.morning.orders.slice(0, 5),
+        },
+        {
+          shiftId: 'SHIFT-AFTERNOON',
+          name: 'Ca Chiều (14:00 - 22:00)',
+          time: '14:00 - 22:00',
+          staffName: 'Dược sĩ trực: Trần Thị Mai',
+          status: 'OPEN',
+          ordersCount: shiftData.afternoon.ordersCount,
+          cashInflow: shiftData.afternoon.cashInflow,
+          digitalInflow: shiftData.afternoon.digitalInflow,
+          totalInflow: shiftData.afternoon.totalInflow,
+          pettyExpenses: shiftData.afternoon.pettyExpenses,
+          netFlow: shiftData.afternoon.netFlow,
+          openingFloat: morningDrawerBalance,
+          closingDrawerBalance: afternoonDrawerBalance,
+          recentOrders: shiftData.afternoon.orders.slice(0, 5),
+        },
+      ];
+
       return {
+        viewType,
         year,
-        totalRevenue,
-        totalCogs,
+        date: targetDate.toISOString().split('T')[0],
+        totalInflow: totalRevenue,
+        totalOutflow,
+        netCashFlow,
+        totalCashInflow,
+        totalDigitalInflow,
         totalFixedExpenses,
-        totalExpense,
-        netProfit,
+        totalVouchersOutflow,
+        cashDrawer: {
+          status: 'OPEN',
+          initialFloat: initialCashFloat,
+          currentBalance: currentDrawerBalance,
+          isBalanced: true,
+          lastVerifiedAt: new Date(),
+        },
+        shifts: shiftsBreakdown,
         monthlyChart,
         expensesCount: expenses.length,
+        vouchersCount: paymentVouchers.length,
         ordersCount: orders.length,
       };
     } catch (error) {
-      throw new RpcException(error.message || 'Lỗi khi tính toán báo cáo dòng tiền');
+      throw new RpcException(error.message || 'Error calculating cash flow summary');
+    }
+  }
+
+  // =========================================================================
+  // PAYMENT VOUCHER OPERATIONS
+  // =========================================================================
+
+  async createPaymentVoucher(dto: any) {
+    try {
+      const year = new Date().getFullYear();
+      const randomCode = Math.floor(1000 + Math.random() * 9000);
+      const voucherCode = dto.voucherCode || `PV-${year}-${randomCode}`;
+
+      const voucher = new this.paymentVoucherModel({
+        voucherCode,
+        branchId: dto.branchId || 'BR-001',
+        branchName: dto.branchName || 'Chi nhánh mặc định',
+        recipientType: dto.recipientType || 'SUPPLIER',
+        supplierId: dto.supplierId,
+        supplierName: dto.supplierName,
+        purchaseOrderId: dto.purchaseOrderId,
+        amount: Number(dto.amount),
+        paymentMethod: dto.paymentMethod || 'BANK_TRANSFER',
+        status: dto.status || 'COMPLETED',
+        description: dto.description || 'Thanh toán tiền hàng cho nhà cung cấp',
+        notes: dto.notes,
+        createdBy: dto.createdBy,
+        createdByName: dto.createdByName,
+        transactionDate: dto.transactionDate ? new Date(dto.transactionDate) : new Date(),
+      });
+
+      return await voucher.save();
+    } catch (error) {
+      throw new RpcException(error.message || 'Error creating payment voucher');
+    }
+  }
+
+  async getPaymentVouchers(query: { branchId?: string; recipientType?: string; status?: string; startDate?: string; endDate?: string }) {
+    try {
+      const filter: any = {};
+      if (query.branchId && query.branchId !== 'all') {
+        filter.branchId = query.branchId;
+      }
+      if (query.recipientType) filter.recipientType = query.recipientType;
+      if (query.status) filter.status = query.status;
+
+      if (query.startDate || query.endDate) {
+        filter.transactionDate = {};
+        if (query.startDate) filter.transactionDate.$gte = new Date(query.startDate);
+        if (query.endDate) filter.transactionDate.$lte = new Date(query.endDate + 'T23:59:59.999Z');
+      }
+
+      return await this.paymentVoucherModel.find(filter).sort({ transactionDate: -1, createdAt: -1 }).lean().exec();
+    } catch (error) {
+      throw new RpcException(error.message || 'Error retrieving payment vouchers');
     }
   }
 

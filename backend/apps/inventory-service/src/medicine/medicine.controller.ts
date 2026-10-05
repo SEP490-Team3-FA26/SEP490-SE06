@@ -8,13 +8,17 @@ export class MedicineController {
 
   @MessagePattern('inventory.medicine.list')
   async listMedicines(@Payload() query: any) {
+    const start = Date.now();
     try {
-      return await this.medicineService.listMedicines(query);
+      const res = await this.medicineService.listMedicines(query);
+      console.log(`[Inventory] inventory.medicine.list query: page=${query?.page || 1}, limit=${query?.limit || 10}, search="${query?.search || ''}" -> ${res?.data?.length || 0}/${res?.total || 0} items (${Date.now() - start}ms)`);
+      return res;
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách thuốc');
     }
   }
+
 
   @MessagePattern('inventory.medicine.create')
   async createMedicine(@Payload() data: any) {
@@ -102,12 +106,15 @@ export class MedicineController {
   @MessagePattern('inventory.medicine.stats')
   async getInventoryStats(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getInventoryStats(data?.branchId);
+      const stats = await this.medicineService.getInventoryStats(data?.branchId);
+      console.log(`[Inventory] inventory.medicine.stats -> ${stats?.totalMedicines || 0} meds, totalStock: ${stats?.totalStock || 0}`);
+      return stats;
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy thống kê tồn kho');
     }
   }
+
 
   @MessagePattern('inventory.medicine.expiration_report')
   async getExpirationReport(@Payload() data?: any) {

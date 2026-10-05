@@ -57,11 +57,11 @@ export function ShopFilterSidebar({
         )}
       </div>
 
-      {/* Section: Price Range */}
+      {/* Section: Price Range (Nút bấm chọn nhanh giống Long Châu) */}
       <div className="border-b border-slate-100 pb-4">
         <button
           onClick={() => toggleSection("price")}
-          className="flex items-center justify-between w-full font-extrabold text-[11px] text-slate-650 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer"
+          className="flex items-center justify-between w-full font-extrabold text-[11px] text-slate-700 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer"
         >
           <span>Giá bán</span>
           {expandedSections.price ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -69,25 +69,25 @@ export function ShopFilterSidebar({
         {expandedSections.price && (
           <div className="flex flex-col gap-1.5 mt-2.5">
             {[
-              { value: "", label: "Tất cả" },
-              { value: "under-50", label: "Dưới 50.000đ" },
-              { value: "50-100", label: "50.000đ - 100.000đ" },
-              { value: "100-200", label: "100.000đ - 200.000đ" },
-              { value: "over-200", label: "Trên 200.000đ" }
+              { value: "", label: "Tất cả mức giá" },
+              { value: "under-100", label: "Dưới 100.000đ" },
+              { value: "100-300", label: "100.000đ đến 300.000đ" },
+              { value: "300-500", label: "300.000đ đến 500.000đ" },
+              { value: "over-500", label: "Trên 500.000đ" }
             ].map(item => (
-              <label key={item.value} className={`flex items-center justify-between py-1.5 px-2.5 rounded-xl cursor-pointer text-xs font-bold transition-all ${selectedPriceRange === item.value ? 'bg-blue-50/70 text-blue-700 border border-blue-100' : 'text-slate-500 hover:bg-slate-50 border border-transparent'}`}>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="priceRange"
-                    checked={selectedPriceRange === item.value}
-                    onChange={() => setSelectedPriceRange(item.value)}
-                    className="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500 border-slate-350 rounded cursor-pointer"
-                  />
-                  <span>{item.label}</span>
-                </div>
-                {selectedPriceRange === item.value && <Check size={12} className="text-blue-650" />}
-              </label>
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setSelectedPriceRange(selectedPriceRange === item.value ? "" : item.value)}
+                className={`w-full py-2 px-3 rounded-xl text-xs font-bold text-left transition-all flex items-center justify-between cursor-pointer border ${
+                  selectedPriceRange === item.value
+                    ? 'bg-blue-50 text-[#0057cd] border-[#0057cd] shadow-2xs font-black'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                }`}
+              >
+                <span>{item.label}</span>
+                {selectedPriceRange === item.value && <Check size={13} className="text-[#0057cd]" />}
+              </button>
             ))}
           </div>
         )}
@@ -97,7 +97,7 @@ export function ShopFilterSidebar({
       <div className="border-b border-slate-100 pb-4">
         <button
           onClick={() => toggleSection("classification")}
-          className="flex items-center justify-between w-full font-extrabold text-[11px] text-slate-650 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer"
+          className="flex items-center justify-between w-full font-extrabold text-[11px] text-slate-700 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer"
         >
           <span>Loại thuốc</span>
           {expandedSections.classification ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -131,33 +131,32 @@ export function ShopFilterSidebar({
       <div className="border-b border-slate-100 pb-4">
         <button
           onClick={() => toggleSection("targetGroup")}
-          className="flex items-center justify-between w-full font-extrabold text-[11px] text-slate-655 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer"
+          className="flex items-center justify-between w-full font-extrabold text-[11px] text-slate-700 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer"
         >
           <span>Đối tượng sử dụng</span>
           {expandedSections.targetGroup ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
         {expandedSections.targetGroup && (
-          <div className="flex flex-col gap-1.5 mt-2.5">
+          <div className="flex flex-col gap-2 mt-2.5">
             {[
               { value: "", label: "Tất cả" },
               { value: "Người lớn", label: "Người lớn" },
               { value: "Trẻ em", label: "Trẻ em" },
-              { value: "Người cao tuổi", label: "Người cao tuổi" },
-              { value: "Phụ nữ có thai", label: "Phụ nữ có thai" },
-              { value: "Phụ nữ cho con bú", label: "Phụ nữ cho con bú" }
+              { value: "Trẻ nhỏ", label: "Trẻ nhỏ" },
+              { value: "Trẻ sơ sinh", label: "Trẻ sơ sinh" },
+              { value: "Người cao tuổi", label: "Người cao tuổi" }
             ].map(item => (
-              <label key={item.value} className={`flex items-center justify-between py-1.5 px-2.5 rounded-xl cursor-pointer text-xs font-bold transition-all ${selectedTargetGroup === item.value ? 'bg-blue-50/70 text-blue-700 border border-blue-100' : 'text-slate-500 hover:bg-slate-50 border border-transparent'}`}>
-                <div className="flex items-center gap-2">
+              <label key={item.value} className={`flex items-center justify-between py-1.5 px-2.5 rounded-xl cursor-pointer text-xs font-bold transition-all ${selectedTargetGroup === item.value ? 'bg-blue-50/70 text-blue-700 border border-blue-100' : 'text-slate-600 hover:bg-slate-50 border border-transparent'}`}>
+                <div className="flex items-center gap-2.5">
                   <input
-                    type="radio"
-                    name="targetGroup"
+                    type="checkbox"
                     checked={selectedTargetGroup === item.value}
-                    onChange={() => setSelectedTargetGroup(item.value)}
-                    className="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500 border-slate-350 rounded cursor-pointer"
+                    onChange={() => setSelectedTargetGroup(selectedTargetGroup === item.value ? "" : item.value)}
+                    className="w-4 h-4 text-[#0057cd] focus:ring-blue-500 border-slate-300 rounded cursor-pointer"
                   />
                   <span>{item.label}</span>
                 </div>
-                {selectedTargetGroup === item.value && <Check size={12} className="text-blue-650" />}
+                {selectedTargetGroup === item.value && <Check size={12} className="text-[#0057cd]" />}
               </label>
             ))}
           </div>

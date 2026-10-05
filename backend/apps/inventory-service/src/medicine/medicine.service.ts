@@ -619,7 +619,7 @@ export class MedicineService implements OnModuleInit {
             const activeBatches = medBatches.filter(b => 
               (!b.status || String(b.status).toUpperCase() === 'ACTIVE') && Number(b.stock) > 0
             );
-            const totalStock = query.branchId ? activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0) : (med.stock || 0);
+            const totalStock = query.branchId ? (activeBatches.length > 0 ? activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0) : (med.stock || 0)) : (med.stock || 0);
 
             let earliestExpiryStr = '2026-12-31';
             if (activeBatches.length > 0) {
@@ -783,8 +783,10 @@ export class MedicineService implements OnModuleInit {
               totalStock = branchBalancesMap.get(medId) || 0;
             } else if (specificBranchInvs.length > 0) {
               totalStock = specificBranchInvs.reduce((sum, b) => sum + Number(b.stock || 0), 0);
-            } else {
+            } else if (activeBatches.length > 0) {
               totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+            } else {
+              totalStock = med.stock || 0;
             }
 
             if (specificBranchInvs.length > 0) {

@@ -95,6 +95,11 @@ export class UserServiceController {
     return this.userService.updatePoints(data);
   }
 
+  @MessagePattern('user.get_by_phone')
+  handleGetUserByPhone(@Payload() data: { phone: string }) {
+    return this.userService.getUserByPhone(data.phone);
+  }
+
   // --- ADMIN EMPLOYEE MANAGEMENT ---
 
   @MessagePattern('user.admin.employee.create')

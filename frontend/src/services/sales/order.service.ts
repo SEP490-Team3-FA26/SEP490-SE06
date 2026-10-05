@@ -19,6 +19,11 @@ export interface OrderPayload {
   notes?: string;
   voucherCode?: string;
   userId?: string;
+  // AI-beslissingsondersteuning en auditspoor
+  isAiAssisted?: boolean;
+  aiAuditCode?: string;
+  consultationId?: string;
+  pharmacistApprovedBy?: string;
 }
 
 export interface SalePayload {
@@ -57,6 +62,11 @@ export interface PayOSLinkPayload {
     unit: string;
   }[];
   userId?: string;
+  // AI-beslissingsondersteuning en auditspoor
+  isAiAssisted?: boolean;
+  aiAuditCode?: string;
+  consultationId?: string;
+  pharmacistApprovedBy?: string;
 }
 
 export const orderService = {

@@ -1,6 +1,16 @@
 {
   "version": 1,
   "skills": {
+    "abc-drawio": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/abc-drawio/SKILL.md"
+    },
+    "abc-frontend-skill": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/abc-frontend-skill/SKILL.md"
+    },
     "code-review": {
       "source": "mattpocock/skills",
       "sourceType": "github",
