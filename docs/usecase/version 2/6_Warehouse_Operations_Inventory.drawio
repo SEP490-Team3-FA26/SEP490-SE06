@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="6_Warehouse_Operations_Inventory">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1150" pageHeight="960" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- BOUNDARY -->
+        <mxCell id="boundary" value="Pharmacy Chain - Warehouse Operations and Inventory Control Module" style="shape=rectangle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;strokeWidth=1.5;verticalAlign=top;fontStyle=1;fontSize=14;fontColor=#000000;container=0;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="25" y="20" width="1100" height="890" as="geometry" />
+        </mxCell>
+
+        <!-- ACTORS -->
+        <mxCell id="act_wh" value="Warehouse Staff" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="45" y="420" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="act_branch" value="Branch Manager" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="420" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- === LEFT COLUMN: WAREHOUSE STAFF OPERATIONS === -->
+        <!-- GRN & Batch Import Cluster -->
+        <mxCell id="uc_create_grn" value="Create Goods Receipt Note (GRN from PO)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="55" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_scan_import" value="Scan Barcode - Import from Supplier" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="135" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_stock_by_batch" value="View Inventory by Batch (Lô / HSD)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="215" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Export & FIFO Cluster -->
+        <mxCell id="uc_scan_export" value="Scan Barcode - Export (Sales / Transfer)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="300" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_issue_fifo" value="Issue Stock by FIFO Rule" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="380" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Included by FIFO issue (automated system alert) -->
+        <mxCell id="uc_alert_expiry" value="Alert Near-expiry Batches (Red/Yellow/Green)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="460" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Extends Near-expiry Alert (optional proposed action) -->
+        <mxCell id="uc_handle_expiry" value="Propose Near-expiry Handling Action" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="540" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Lot Tracking & Warehouse Map Cluster -->
+        <mxCell id="uc_track_lot" value="Trace Medicine Batch History (Lot Tracking)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="630" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_warehouse_map" value="2D Warehouse Storage Map" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="710" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Included by Warehouse Map (mandatory layout definition) -->
+        <mxCell id="uc_shelf_loc" value="Manage Shelf Locations (Vị trí kho)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="790" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- === RIGHT COLUMN: BRANCH MANAGER AUDIT & COUNT === -->
+        <mxCell id="uc_view_branch_stock" value="View Branch Inventory Balance" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="55" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_realtime_stock" value="View Real-time Chain-wide Inventory" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="135" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Stock Safety Alert Cluster -->
+        <mxCell id="uc_min_stock_alert" value="Alert When Stock Below Safety Level" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="225" width="280" height="55" as="geometry" />
+        </mxCell>
+        <!-- Extends Min Stock Alert (optional anomaly trigger) -->
+        <mxCell id="uc_anomaly_stock" value="Alert Negative / Abnormal Stock Variance" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="305" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_confirm_transfer_rcpt" value="Confirm Transfer Receipt (QR Scan)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="390" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Stock Counting & Reconciliation Cluster -->
+        <mxCell id="uc_stock_count" value="Create Stock Count Session" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="480" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_barcode_stockcount" value="Stock Count with Barcode Scanner (Mobile)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="560" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_stock_adjust" value="Save Report &amp; Adjust Stock Variances" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="640" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_internal_export" value="Create Internal Stock Issuance (Non-sale)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="580" y="730" width="280" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- EDGES: Warehouse Staff -->
+        <mxCell id="e_1" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_create_grn"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_2" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_scan_import"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_wh_batch" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_stock_by_batch"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_3" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_scan_export"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_4" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_issue_fifo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_wh_monitor" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_alert_expiry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_7" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_track_lot"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_8" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_warehouse_map"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_wh_scan_count" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_wh" target="uc_barcode_stockcount"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- EDGES: Branch Manager -->
+        <mxCell id="e_9" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_view_branch_stock"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_10" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_realtime_stock"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_11" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_min_stock_alert"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_13" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_confirm_transfer_rcpt"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_14" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_stock_count"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_15" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_stock_adjust"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_16" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_branch" target="uc_internal_export"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- LOCAL SHORT INCLUDE / EXTEND -->
+        <!-- Propose Action extends Expiry Alert (optional handling) -->
+        <mxCell id="ext_expiry_act" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_handle_expiry" target="uc_alert_expiry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Warehouse Map includes Shelf Locations (mandatory structural mapping) -->
+        <mxCell id="inc_map_shelf" value="&amp;laquo;include&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_warehouse_map" target="uc_shelf_loc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Anomaly extends Min Stock Alert (optional anomaly trigger) -->
+        <mxCell id="ext_stock_anomaly" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_anomaly_stock" target="uc_min_stock_alert">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Caption -->
+        <mxCell id="caption" value="Figure 6 - Use Case Diagram For Warehouse Operations and Inventory Control Module" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=13;fontColor=#004c99;" vertex="1" parent="1">
+          <mxGeometry x="25" y="920" width="1100" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

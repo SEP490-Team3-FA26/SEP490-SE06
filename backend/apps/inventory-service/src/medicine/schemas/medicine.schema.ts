@@ -99,6 +99,15 @@ export class Medicine extends Document {
 
   @Prop({ type: [{ minQuantity: Number, price: Number }], default: [] })
   priceTiers?: { minQuantity: number; price: number }[];
+
+  @Prop()
+  importer_name?: string; // Tên doanh nghiệp nhập khẩu (cho tem nhãn phụ)
+
+  @Prop()
+  country_of_origin?: string; // Nước xuất xứ
+
+  @Prop({ default: 'Bảo quản nơi khô ráo, tránh ánh sáng, nhiệt độ dưới 30°C' })
+  storage_condition?: string; // Điều kiện bảo quản GSP
 }
 
 export const MedicineSchema = SchemaFactory.createForClass(Medicine);

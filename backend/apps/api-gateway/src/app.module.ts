@@ -28,6 +28,10 @@ import { ReportController } from "./controllers/report.controller";
 import { FinanceController } from "./controllers/finance.controller";
 import { SensorController } from "./controllers/sensor.controller";
 import { HrController } from "./controllers/hr.controller";
+import { RfqController } from "./controllers/rfq.controller";
+import { RfqPortalController } from "./controllers/rfq-portal.controller";
+import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
+import { RecommendationController } from "./controllers/recommendation.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
 import { FeedbackController } from "./controllers/feedback.controller";
@@ -202,6 +206,10 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     FinanceController,
     FeedbackController,
     HrController,
+    RfqController,
+    RfqPortalController,
+    MarketingCampaignController,
+    RecommendationController,
     SensorController,
   ],
   providers: [
@@ -225,7 +233,7 @@ export class AppGatewayModule implements OnModuleInit {
     @Inject("USER_SERVICE") private readonly userClient: ClientKafka,
     @Inject("ORDER_SERVICE") private readonly orderClient: ClientKafka,
     @Inject("KAFKA_SERVICE") private readonly kafkaClient: ClientKafka,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     // 1. INVENTORY_SERVICE Reply Topics
@@ -264,6 +272,14 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.pr.list",
       "inventory.pr.get_by_id",
       "inventory.pr.process_urgent",
+      "inventory.rfq.create",
+      "inventory.rfq.list",
+      "inventory.rfq.get_by_id",
+      "inventory.rfq.send",
+      "inventory.rfq.submit_quote",
+      "inventory.rfq.award",
+      "inventory.rfq.get_by_token",
+      "inventory.rfq.submit_by_token",
       "inventory.po.approve_pay",
       "inventory.po.auto_route",
       "inventory.po.list",
@@ -299,6 +315,8 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.sensor.get_latest",
       "inventory.sensor.get_history",
       "inventory.sensor.get_stations",
+      "inventory.recommendation.for_you",
+      "inventory.recommendation.recent_searches",
     ];
 
     // 2. SUPPLIER_SERVICE Reply Topics
@@ -379,6 +397,11 @@ export class AppGatewayModule implements OnModuleInit {
       "orders.reconciliation.get_discrepancies",
       "orders.reconciliation.summary",
       "orders.reconciliation.resolve",
+      "orders.campaign.create",
+      "orders.campaign.list",
+      "orders.campaign.get_by_id",
+      "orders.campaign.add_cost",
+      "orders.campaign.analytics",
     ];
 
     // 5. KAFKA_SERVICE Reply Topics

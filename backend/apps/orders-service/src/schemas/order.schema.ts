@@ -88,5 +88,8 @@ export class Order extends Document {
 
   @Prop({ type: String })
   pharmacistApprovedBy?: string;
+
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 export const OrderSchema = SchemaFactory.createForClass(Order);

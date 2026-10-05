@@ -21,7 +21,8 @@ import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
 import { MascotLogoIcon } from "../ui/Logo";
 import { ChatWidget } from "../chat";
 import { CustomerHeader } from "./CustomerHeader";
-
+import { PharmaSmartRecommender } from "../customer/PharmaSmartRecommender";
+import { recommendationService } from "../../services/recommendation/recommendation.service";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -489,6 +490,20 @@ export function Landing() {
     e.preventDefault();
     setShowSearchDropdown(false);
     if (searchQuery.trim()) {
+      let phone: string | undefined;
+      let userId: string | undefined;
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        phone = u.phone;
+        userId = u.id || u._id;
+      } catch (e) {}
+
+      recommendationService.logSearch({
+        keyword: searchQuery.trim(),
+        phone,
+        userId,
+      });
+
       navigate(`/customer/shop?search=${encodeURIComponent(searchQuery.trim())}`);
     } else {
       navigate("/customer/shop");
@@ -813,6 +828,20 @@ export function Landing() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 4.5 PHARMA-SMART PERSONALIZED RECOMMENDER (RFM REFILL + SEARCH INTENT) */}
+      {/* ========================================================================= */}
+      <section className="py-2 px-4 max-w-7xl mx-auto w-full">
+        <PharmaSmartRecommender
+          onSelectKeyword={(kw) => {
+            navigate(`/customer/shop?search=${encodeURIComponent(kw)}`);
+          }}
+          onAddToCart={(med) => {
+            handleAddToCart(med);
+          }}
+        />
       </section>
 
       {/* ========================================================================= */}
