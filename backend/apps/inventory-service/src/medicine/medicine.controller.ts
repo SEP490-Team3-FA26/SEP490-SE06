@@ -121,9 +121,9 @@ export class MedicineController {
 
 
   @MessagePattern('inventory.medicine.expiration_report')
-  async getExpirationReport(@Payload() data?: any) {
+  async getExpirationReport(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getExpirationReport();
+      return await this.medicineService.getExpirationReport(data?.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy báo cáo hết hạn');
@@ -191,9 +191,9 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.medicine.low_stock_report')
-  async getLowStockReport(@Payload() data?: any) {
+  async getLowStockReport(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getLowStockReport();
+      return await this.medicineService.getLowStockReport(data?.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy báo cáo thuốc sắp hết hàng');
@@ -201,9 +201,9 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.medicine.dropdown_list')
-  async getMedicinesDropdown(@Payload() data?: any) {
+  async getMedicinesDropdown(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getMedicinesDropdown();
+      return await this.medicineService.getMedicinesDropdown(data?.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách chọn thuốc');
@@ -317,7 +317,7 @@ export class MedicineController {
 
   // GET /api/medicines/reserve-batches?branchId=CENTRAL_WH
   @MessagePattern('inventory.medicine.reserve.list')
-  async getReserveBatches(@Payload() data: { branchId?: string }) {
+  async getReserveBatches(@Payload() data: { branchId?: string }): Promise<any> {
     try {
       return await this.medicineService.getReserveBatches(data);
     } catch (error) {

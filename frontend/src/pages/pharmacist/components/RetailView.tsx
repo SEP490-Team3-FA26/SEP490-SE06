@@ -14,6 +14,8 @@ import { VietQRCode } from "../../../components/common/VietQRCode";
 // Goedkeuring en auditcomponenten voor AI-gegenereerde medicijnen
 import { AIPharmacistApprovalModal } from "./AIPharmacistApprovalModal";
 import { AIPharmacistAuditModal, AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import { CustomerActionBar } from "./CustomerActionBar";
+import { useCustomerLookup } from "../../../hooks/useCustomerLookup";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -113,46 +115,61 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const [alternativesList, setAlternativesList] = useState<any[]>([]);
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
 
-  // Loyalty states
+  // Loyalty and Customer states
   const [customerPhone, setCustomerPhone] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
   const [loyaltyInfo, setLoyaltyInfo] = useState<any>(null);
   const [usePoints, setUsePoints] = useState(false);
   const [redeemedPoints, setRedeemedPoints] = useState(0);
-  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+
+  // Customer Lookup Hook for daily pharmacist SOP
+  const {
+    customer,
+    isWalkIn,
+    searchQuery: customerQuery,
+    setSearchQuery: setCustomerQuery,
+    isSearching: isSearchingCustomer,
+    searchError: custSearchError,
+    isNotFound: isCustNotFound,
+    recentCustomers,
+    inputRef: customerInputRef,
+    searchCustomer: executeSearchCustomer,
+    quickRegister: executeQuickRegister,
+    selectRecent: executeSelectRecent,
+    setWalkInMode: executeWalkInMode,
+    clearCustomer: executeClearCustomer,
+  } = useCustomerLookup({
+    onCustomerSelected: (selectedProfile) => {
+      if (selectedProfile) {
+        setLoyaltyInfo(selectedProfile.loyalty);
+        setCustomerPhone(selectedProfile.loyalty.phone);
+        if (selectedProfile.loyalty.email) {
+          setPatientEmail(selectedProfile.loyalty.email);
+        }
+      } else {
+        setLoyaltyInfo(null);
+        setCustomerPhone("");
+        setUsePoints(false);
+        setRedeemedPoints(0);
+      }
+    },
+    showToast,
+  });
 
   const handleSearchCustomer = async () => {
     if (!customerPhone) return;
-    setIsSearchingCustomer(true);
-    setLoyaltyInfo(null);
-    setUsePoints(false);
-    setRedeemedPoints(0);
-    try {
-      const res = await api.get(`/api/users/loyalty/lookup?phone=${customerPhone}`);
-      if (res.data && !res.data.error) {
-        setLoyaltyInfo(res.data);
-        if (res.data.email) {
-          setPatientEmail(res.data.email);
-        }
-        showToast("Đã tìm thấy khách hàng thành viên!", "success");
-      } else {
-        showToast("Không tìm thấy thông tin thành viên.", "warning");
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Không tìm thấy thông tin thành viên.", "warning");
-    } finally {
-      setIsSearchingCustomer(false);
-    }
+    executeSearchCustomer(customerPhone);
   };
 
   const handleClearCustomer = () => {
+    executeClearCustomer();
     setLoyaltyInfo(null);
     setCustomerPhone("");
     setUsePoints(false);
     setRedeemedPoints(0);
     setPatientEmail("");
   };
+
 
   const finalizeSalesOrder = async (payload: any) => {
     setLoading(true);
@@ -939,13 +956,15 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const { branchId: currentBranchId, fullName: currentUserName } = getBranchInfoFromToken();
 
       const generatedOrderCode = Math.floor(10000000 + Math.random() * 90000000);
+      const isGuestCustomer = isWalkIn || !loyaltyInfo;
+      const assignedRole = isGuestCustomer ? 'guest' : (loyaltyInfo?.role || 'customer');
       const patientName = loyaltyInfo ? loyaltyInfo.fullName : "Khách lẻ vãng lai";
       const patientPhone = loyaltyInfo ? loyaltyInfo.phone : "0900000000";
 
       // Controleert of medicijnen afkomstig zijn van AI-aanbevelingen
       const hasAiItems = cart.some(it => it.aiApproved || it.auditCode) || Boolean(auditData);
       const aiAuditCode = auditData?.auditCode || cart.find(it => it.auditCode)?.auditCode;
-      const consultationId = auditData?.consultationId || undefined;
+      const consultationId = (auditData as any)?.consultationId || undefined;
       const pharmacistApprovedBy = auditData?.pharmacistName || currentUserName || "Dược sĩ trực quầy";
 
       const payload = {
@@ -971,6 +990,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
         patientPhone,
         patientEmail: patientEmail || undefined,
         redeemedPoints: usePoints ? redeemedPoints : 0,
+        role: assignedRole,
+        customerRole: assignedRole,
+        patientRole: assignedRole,
+        isGuest: isGuestCustomer,
         // AI-auditspoorvelden
         isAiAssisted: hasAiItems,
         aiAuditCode: hasAiItems ? aiAuditCode : undefined,
@@ -987,6 +1010,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
           paymentMethod: "QR_PAY",
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
           redeemedPoints: usePoints ? redeemedPoints : 0,
+          role: assignedRole,
+          customerRole: assignedRole,
+          patientRole: assignedRole,
+          isGuest: isGuestCustomer,
           items: cart.map(it => ({
             medicineId: it.id || it._id,
             name: it.name,
@@ -1036,6 +1063,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const hasCiprofloxacin = cart.some(it => it.name?.toLowerCase().includes("ciprofloxacin") || it.active_ingredient?.toLowerCase().includes("ciprofloxacin"));
   const hasWarfarin = cart.some(it => it.name?.toLowerCase().includes("warfarin") || it.active_ingredient?.toLowerCase().includes("warfarin"));
   const hasInteraction = hasCiprofloxacin && hasWarfarin;
+
+  // Clinical Drug Allergy Check against customer's medical safety record
+  const customerAllergyAlerts = useMemo(() => {
+    if (!customer?.clinical?.allergies || customer.clinical.allergies.length === 0) return [];
+    const allergies = customer.clinical.allergies.map((a: string) => a.toLowerCase().trim());
+    const conflicts: { medicineName: string; allergy: string }[] = [];
+
+    cart.forEach((item) => {
+      const medText = `${item.name || ''} ${item.active_ingredient || ''}`.toLowerCase();
+      allergies.forEach((allergy: string) => {
+        if (allergy && medText.includes(allergy)) {
+          conflicts.push({ medicineName: item.name, allergy });
+        }
+      });
+    });
+    return conflicts;
+  }, [cart, customer]);
 
   // 🧠 AI Gợi ý Thực Phẩm Chức Năng Bổ Trợ Bệnh Mãn Tính (Dựa trên Phác đồ GPP)
   const chronicCareSuggestions = useMemo(() => {
@@ -1140,9 +1184,9 @@ export default function RetailView({ showToast }: RetailViewProps) {
   }, [cart]);
 
   return (
-    <div className="h-full flex flex-col xl:flex-row gap-6 overflow-hidden">
-      {/* Cột trái: Tìm kiếm & Giỏ hàng */}
-      <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-6 pb-6">
+    <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-5 overflow-hidden">
+      {/* Cột trái (8/12): Tìm kiếm & Giỏ hàng */}
+      <div className="lg:col-span-8 overflow-y-auto pr-1 flex flex-col gap-4 pb-6 min-w-0">
 
         {/* Tìm kiếm & Tư vấn bằng giọng nói AI */}
         <div className="relative shrink-0 flex flex-col gap-3">
@@ -1357,6 +1401,40 @@ export default function RetailView({ showToast }: RetailViewProps) {
             </div>
           </div>
         )}
+
+        {/* Cảnh báo dị ứng thuốc theo hồ sơ bệnh nhân */}
+        {customerAllergyAlerts.length > 0 && (
+          <div className="bg-rose-50 border-2 border-rose-500 rounded-2xl p-4 shadow-sm flex items-start gap-3.5 animate-pulse">
+            <div className="w-10 h-10 rounded-xl bg-rose-600 flex items-center justify-center shrink-0 shadow-sm text-white">
+              <ShieldAlert size={22} />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-rose-900 font-extrabold text-sm uppercase tracking-wide">
+                  CẢNH BÁO NGUY HIỂM: DỊ ỨNG THUỐC CỦA BỆNH NHÂN!
+                </h3>
+                <span className="text-[10px] bg-rose-600 text-white font-black px-2 py-0.5 rounded uppercase">
+                  An Toàn Dược Lâm Sàng
+                </span>
+              </div>
+              <p className="text-xs text-rose-800 font-semibold mt-1">
+                Thuốc trong giỏ hàng có chứa thành phần trùng với tiền sử dị ứng đã lưu của <strong>{customer?.loyalty.fullName}</strong>:
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {customerAllergyAlerts.map((ca, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-300 text-rose-700 rounded-lg text-xs font-bold shadow-2xs"
+                  >
+                    <span>💊 {ca.medicineName}</span>
+                    <span className="text-rose-500 font-mono">({ca.allergy})</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* 🧠 AI CLINICAL & SUPPLEMENT ASSISTANT (GỢI Ý TPCN BỔ TRỢ THEO BỆNH MÃN TÍNH) */}
         {chronicCareSuggestions.length > 0 && (
@@ -1683,129 +1761,37 @@ export default function RetailView({ showToast }: RetailViewProps) {
         </div>
       </div>
 
-      {/* Cột phải: Thanh toán */}
-      <div className="w-full xl:w-[380px] flex flex-col gap-6 shrink-0 pb-6 pl-1 overflow-y-auto custom-scrollbar">
+      {/* Cột phải (4/12): Khách hàng & Thanh toán */}
+      <div className="lg:col-span-4 flex flex-col gap-4 shrink-0 pb-6 pl-1 overflow-y-auto custom-scrollbar min-w-0">
 
-        {/* Tóm tắt khách sỉ/ VIP */}
-        <div className="bg-white border border-slate-200 rounded-[16px] p-5 shadow-sm">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">KHÁCH HÀNG THÂN THIẾT</h3>
-            {loyaltyInfo ? (
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">
-                {loyaltyInfo.tier} VIP
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
-                Khách Lẻ
-              </span>
-            )}
-          </div>
-
-          {!loyaltyInfo ? (
-            <div className="flex flex-col gap-2.5">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="SĐT khách hàng..."
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={handleSearchCustomer}
-                  disabled={isSearchingCustomer}
-                  className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
-                >
-                  Tìm kiếm
-                </button>
-              </div>
-              <input
-                type="email"
-                placeholder="Email nhận HDĐT (tùy chọn)..."
-                value={patientEmail}
-                onChange={(e) => setPatientEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
-              />
-              <div className="text-[11px] text-slate-400 font-bold text-left italic">
-                * Nhập số điện thoại để tích điểm & quy đổi ưu đãi thành viên.
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 text-left">
-              <div className="flex justify-between items-center">
-                <span className="font-extrabold text-slate-800 text-[14px]">{loyaltyInfo.fullName}</span>
-                <button
-                  type="button"
-                  onClick={handleClearCustomer}
-                  className="text-xs text-rose-500 hover:text-rose-700 font-bold"
-                >
-                  Hủy chọn
-                </button>
-              </div>
-              <div className="text-[12px] text-slate-500 font-bold">
-                SĐT: {loyaltyInfo.phone} | Điểm khả dụng: <span className="text-[#0057cd]">{loyaltyInfo.points.toLocaleString()}đ</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email nhận hóa đơn</label>
-                <input
-                  type="email"
-                  placeholder="Nhập email khách hàng..."
-                  value={patientEmail}
-                  onChange={(e) => setPatientEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
-                />
-              </div>
-
-              {loyaltyInfo.points > 0 && (
-                <div className="pt-2.5 border-t border-slate-100 flex flex-col gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={usePoints}
-                      onChange={(e) => {
-                        setUsePoints(e.target.checked);
-                        if (e.target.checked) {
-                          const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
-                          setRedeemedPoints(Math.min(loyaltyInfo.points, maxRedeem));
-                        } else {
-                          setRedeemedPoints(0);
-                        }
-                      }}
-                      className="rounded border-slate-350 text-[#0057cd] focus:ring-[#0057cd] w-4 h-4 cursor-pointer"
-                    />
-                    <span className="text-xs font-bold text-slate-700">Tiêu điểm giảm giá</span>
-                  </label>
-
-                  {usePoints && (
-                    <div className="flex flex-col gap-1 pl-6">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={0}
-                          max={Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5)}
-                          value={redeemedPoints}
-                          onChange={(e) => {
-                            const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
-                            const pts = Math.min(loyaltyInfo.points, maxRedeem, Number(e.target.value));
-                            setRedeemedPoints(pts);
-                          }}
-                          className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
-                        />
-                        <span className="text-xs font-bold text-slate-500">
-                          điểm (Giảm {redeemedPoints.toLocaleString()}₫)
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-bold">
-                        * Tối đa 50% đơn (tối đa {Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5).toLocaleString()} điểm)
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Khách hàng thân thiết / Tra cứu tài khoản */}
+        <CustomerActionBar
+          customer={customer}
+          isWalkIn={isWalkIn}
+          searchQuery={customerQuery}
+          setSearchQuery={setCustomerQuery}
+          isSearching={isSearchingCustomer}
+          searchError={custSearchError}
+          isNotFound={isCustNotFound}
+          recentCustomers={recentCustomers}
+          inputRef={customerInputRef}
+          onSearch={(phone) => executeSearchCustomer(phone)}
+          onQuickRegister={executeQuickRegister}
+          onSelectRecent={executeSelectRecent}
+          onWalkIn={executeWalkInMode}
+          onClear={handleClearCustomer}
+          usePoints={usePoints}
+          onToggleUsePoints={(use) => {
+            setUsePoints(use);
+            if (use && loyaltyInfo) {
+              const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
+              setRedeemedPoints(Math.min(loyaltyInfo.points, maxRedeem));
+            } else {
+              setRedeemedPoints(0);
+            }
+          }}
+          redeemedPoints={redeemedPoints}
+        />
 
         {/* Voucher Box */}
         <div className="bg-white border border-slate-200 rounded-[16px] p-5 shadow-sm flex flex-col gap-2">

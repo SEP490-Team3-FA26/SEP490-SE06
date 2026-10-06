@@ -128,75 +128,13 @@ export function Sales() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50 font-sans relative">
-      {/* 1. Clinical POS Top Bar */}
-      <div
-        className={`bg-white border-b border-slate-200/90 shrink-0 shadow-xs transition-all ${
-          activeTab === "retail"
-            ? "px-4 py-2 flex items-center justify-between gap-3"
-            : "px-6 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-        }`}
-      >
-        {/* Left: Title & Compliance Badges */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/20 shrink-0">
-            <ShoppingCart size={17} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Điểm Bán & Kê Đơn Thuốc (GPP POS)
-              </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                GPP Clinical Shield
-              </span>
-            </div>
-            {activeTab !== "retail" && (
-              <p className="text-xs text-slate-500 mt-0.5">
-                Xuất bán dược phẩm theo chuẩn GPP • Quét mã vạch GS1 • Liên thông Dược Quốc Gia
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Duty Pharmacist & Shortcuts */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Branch badge */}
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700">
-            <Building2 size={13} className="text-blue-600 shrink-0" />
-            <span className="font-semibold">{branchInfo.branchId}</span>
-            <span className="text-slate-400">|</span>
-            <span className="text-slate-500 truncate max-w-[120px]">Kho Trung Tâm</span>
-          </div>
-
-          {/* Duty Pharmacist */}
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50/70 border border-blue-200/80 text-xs text-blue-900">
-            <Stethoscope size={13} className="text-blue-600 shrink-0" />
-            <span className="font-semibold">{branchInfo.fullName}</span>
-            <span className="text-[10px] font-bold text-blue-700 bg-white/80 px-1 py-0.2 rounded border border-blue-200">
-              Trực ca
-            </span>
-          </div>
-
-          {/* Hotkey Hint */}
-          <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-[11px] font-medium text-slate-600 border border-slate-200/80">
-            <Keyboard size={13} className="text-slate-400" />
-            <span className="font-mono font-bold text-slate-700">F2</span> Tìm
-            <span className="text-slate-300">•</span>
-            <span className="font-mono font-bold text-slate-700">F4</span> Khách
-            <span className="text-slate-300">•</span>
-            <span className="font-mono font-bold text-slate-700">F9</span> Thanh toán
-          </div>
-        </div>
-      </div>
 
       {/* 2. Sleek Clinical Tab Navigation */}
       <div
-        className={`bg-white border-b border-slate-200/90 shrink-0 shadow-2xs transition-all ${
-          activeTab === "retail"
-            ? "px-4 py-1.5 flex items-center justify-between gap-3"
-            : "px-6 py-2.5 flex items-center justify-between gap-4"
-        }`}
+        className={`bg-white border-b border-slate-200/90 shrink-0 shadow-2xs transition-all ${activeTab === "retail"
+          ? "px-4 py-1.5 flex items-center justify-between gap-3"
+          : "px-6 py-2.5 flex items-center justify-between gap-4"
+          }`}
       >
         <div className="flex items-center gap-1 p-0.5 bg-slate-100/90 rounded-xl border border-slate-200/70 overflow-x-auto max-w-full scrollbar-none">
           {TABS.map((tab) => {
@@ -206,26 +144,23 @@ export function Sales() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer select-none ${
-                  isActive
-                    ? "bg-white text-emerald-800 shadow-xs border border-emerald-200/70 ring-1 ring-emerald-500/20"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer select-none ${isActive
+                  ? "bg-white text-emerald-800 shadow-xs border border-emerald-200/70 ring-1 ring-emerald-500/20"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
               >
                 <Icon
                   size={14}
-                  className={`transition-colors ${
-                    isActive ? "text-emerald-600" : "text-slate-400"
-                  }`}
+                  className={`transition-colors ${isActive ? "text-emerald-600" : "text-slate-400"
+                    }`}
                 />
                 <span>{tab.label}</span>
                 {tab.badge && (
                   <span
-                    className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border transition-all ${
-                      isActive
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                        : tab.badgeColor || "bg-slate-200/70 text-slate-600 border-slate-300"
-                    }`}
+                    className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border transition-all ${isActive
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      : tab.badgeColor || "bg-slate-200/70 text-slate-600 border-slate-300"
+                      }`}
                   >
                     {tab.badge}
                   </span>
@@ -261,17 +196,16 @@ export function Sales() {
           return (
             <div
               key={toast.id}
-              className={`pointer-events-auto flex items-center justify-between gap-3 px-4.5 py-3.5 rounded-2xl shadow-2xl border text-xs font-bold tracking-wide transition-all duration-300 animate-slide-in-right ${
-                toast.type === "error"
-                  ? "bg-rose-50 text-rose-800 border-rose-200 shadow-rose-100/50"
-                  : toast.type === "warning"
+              className={`pointer-events-auto flex items-center justify-between gap-3 px-4.5 py-3.5 rounded-2xl shadow-2xl border text-xs font-bold tracking-wide transition-all duration-300 animate-slide-in-right ${toast.type === "error"
+                ? "bg-rose-50 text-rose-800 border-rose-200 shadow-rose-100/50"
+                : toast.type === "warning"
                   ? "bg-amber-50 text-amber-800 border-amber-200 shadow-amber-100/50"
                   : isPharmacistConfirm
-                  ? "bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 text-emerald-950 border-emerald-300 shadow-emerald-200/60 ring-1 ring-emerald-400/40"
-                  : toast.type === "info"
-                  ? "bg-indigo-50 text-indigo-900 border-indigo-200 shadow-indigo-100/50"
-                  : "bg-emerald-50 text-emerald-800 border-emerald-200 shadow-emerald-100/50"
-              }`}
+                    ? "bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 text-emerald-950 border-emerald-300 shadow-emerald-200/60 ring-1 ring-emerald-400/40"
+                    : toast.type === "info"
+                      ? "bg-indigo-50 text-indigo-900 border-indigo-200 shadow-indigo-100/50"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-200 shadow-emerald-100/50"
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 {toast.type === "error" ? (

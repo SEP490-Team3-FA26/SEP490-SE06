@@ -512,7 +512,11 @@ export class MedicineService implements OnModuleInit {
               // Truy vấn lô hàng cho các kết quả từ AI Service
               const batchFilter: any = { medicineId: { $in: aiMedIds } };
               if (query.branchId) {
-                batchFilter.branchId = query.branchId;
+                if (query.branchId === 'CENTRAL_WH') {
+                  batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+                } else {
+                  batchFilter.branchId = query.branchId;
+                }
               }
               const aiBatches = await this.batchModel.find(batchFilter).lean().exec();
               const aiBatchesByMedId = new Map<string, any[]>();
@@ -600,7 +604,11 @@ export class MedicineService implements OnModuleInit {
           const medIds = data.map(med => med._id.toString());
           const batchFilter: any = { medicineId: { $in: medIds } };
           if (query.branchId) {
-            batchFilter.branchId = query.branchId;
+            if (query.branchId === 'CENTRAL_WH') {
+              batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+            } else {
+              batchFilter.branchId = query.branchId;
+            }
           }
           const allBatches = await this.batchModel.find(batchFilter).lean().exec();
 
@@ -717,13 +725,17 @@ export class MedicineService implements OnModuleInit {
         const batchFilter: any = { medicineId: { $in: medIds } };
         if (query.branchId) {
           const bId = String(query.branchId).trim();
-          const regexStr = bId.replace(/^BR-0*/i, ''); // e.g. BR-001 -> 1
-          batchFilter.$or = [
-            { branchId: bId },
-            { branchId: new RegExp(bId, 'i') },
-            { branchId: new RegExp(`CN-?0*${regexStr}$`, 'i') },
-            { branchId: new RegExp(`Quận\\s*${regexStr}`, 'i') },
-          ];
+          if (bId === 'CENTRAL_WH') {
+            batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+          } else {
+            const regexStr = bId.replace(/^BR-0*/i, ''); // e.g. BR-001 -> 1
+            batchFilter.$or = [
+              { branchId: bId },
+              { branchId: new RegExp(bId, 'i') },
+              { branchId: new RegExp(`CN-?0*${regexStr}$`, 'i') },
+              { branchId: new RegExp(`Quận\\s*${regexStr}`, 'i') },
+            ];
+          }
         }
         const allBatches = await this.batchModel.find(batchFilter).lean().exec();
 
@@ -796,6 +808,12 @@ export class MedicineService implements OnModuleInit {
               const earliestBatch = activeBatches.reduce((min, b) => new Date(b.expDate) < new Date(min.expDate) ? b : min, activeBatches[0]);
               earliestExpiryStr = new Date(earliestBatch.expDate).toISOString().split('T')[0];
             }
+          } else if (query.branchId === 'CENTRAL_WH') {
+            totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+            if (activeBatches.length > 0) {
+              const earliestBatch = activeBatches.reduce((min, b) => new Date(b.expDate) < new Date(min.expDate) ? b : min, activeBatches[0]);
+              earliestExpiryStr = new Date(earliestBatch.expDate).toISOString().split('T')[0];
+            }
           } else {
             totalStock = med.stock || 0;
             if (activeBatches.length > 0) {
@@ -855,7 +873,11 @@ export class MedicineService implements OnModuleInit {
 
       const batchQuery: any = { stock: { $gt: 0 } };
       if (branchId && branchId !== 'all') {
-        batchQuery.branchId = branchId;
+        if (branchId === 'CENTRAL_WH') {
+          batchQuery.branchId = { $in: ['CENTRAL_WH', null, ''] };
+        } else {
+          batchQuery.branchId = branchId;
+        }
       }
 
       const [medicines, batches] = await Promise.all([
@@ -918,17 +940,26 @@ export class MedicineService implements OnModuleInit {
     }
   }
 
-  async getExpirationReport() {
+  async getExpirationReport(branchId?: string) {
     try {
       const today = new Date();
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
 
-      // Tối ưu hóa: chỉ select các field cần thiết, sử dụng lean() và lọc trực tiếp theo ngày hết hạn (trong vòng 90 ngày)
-      const batches = await this.batchModel.find({
+      const batchFilter: any = {
         stock: { $gt: 0 },
         expDate: { $lte: ninetyDaysFromNow }
-      }).select('medicineId batchNo expDate stock status branchId location').lean().exec();
+      };
+      if (branchId && branchId !== 'all') {
+        if (branchId === 'CENTRAL_WH') {
+          batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+        } else {
+          batchFilter.branchId = branchId;
+        }
+      }
+
+      // Tối ưu hóa: chỉ select các field cần thiết, sử dụng lean() và lọc trực tiếp theo ngày hết hạn (trong vòng 90 ngày)
+      const batches = await this.batchModel.find(batchFilter).select('medicineId batchNo expDate stock status branchId location').lean().exec();
       const medIds = [...new Set(batches.map(b => b.medicineId))];
       const medicines = await this.medicineModel.find({ _id: { $in: medIds } }).select('name category unit price').lean().exec();
       const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
@@ -1299,9 +1330,18 @@ export class MedicineService implements OnModuleInit {
     }
   }
 
-  async getLowStockReport() {
+  async getLowStockReport(branchId?: string) {
     try {
-      const batches = await this.batchModel.find({ stock: { $gt: 0 }, status: 'ACTIVE' })
+      const batchFilter: any = { stock: { $gt: 0 }, status: 'ACTIVE' };
+      if (branchId && branchId !== 'all') {
+        if (branchId === 'CENTRAL_WH') {
+          batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+        } else {
+          batchFilter.branchId = branchId;
+        }
+      }
+
+      const batches = await this.batchModel.find(batchFilter)
         .select('medicineId stock')
         .lean()
         .exec();
@@ -1330,8 +1370,17 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
+      const medBatchesFilter: any = { medicineId: { $in: lowStockMedIds } };
+      if (branchId && branchId !== 'all') {
+        if (branchId === 'CENTRAL_WH') {
+          medBatchesFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+        } else {
+          medBatchesFilter.branchId = branchId;
+        }
+      }
+
       // Query all batches for low stock medicines in one go to prevent N+1 query timeouts
-      const allMedBatches = await this.batchModel.find({ medicineId: { $in: lowStockMedIds } })
+      const allMedBatches = await this.batchModel.find(medBatchesFilter)
         .select('medicineId batchNo expDate stock status')
         .lean()
         .exec();
@@ -1372,11 +1421,20 @@ export class MedicineService implements OnModuleInit {
     }
   }
 
-  async getMedicinesDropdown() {
+  async getMedicinesDropdown(branchId?: string) {
     try {
+      const batchFilter: any = { stock: { $gt: 0 }, status: 'ACTIVE' };
+      if (branchId && branchId !== 'all') {
+        if (branchId === 'CENTRAL_WH') {
+          batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+        } else {
+          batchFilter.branchId = branchId;
+        }
+      }
+
       const [medicines, batches] = await Promise.all([
         this.medicineModel.find().select('name unit price supplierId').lean().exec(),
-        this.batchModel.find({ stock: { $gt: 0 }, status: 'ACTIVE' }).select('medicineId batchNo stock').lean().exec()
+        this.batchModel.find(batchFilter).select('medicineId batchNo stock').lean().exec()
       ]);
 
       const batchesByMedId = new Map<string, any[]>();
@@ -2462,7 +2520,7 @@ export class MedicineService implements OnModuleInit {
    * Lấy danh sách lô đang ở Khu Dự Trữ (slotType = 'RESERVE')
    * Kafka topic: inventory.medicine.reserve.list
    */
-  async getReserveBatches(payload: { branchId?: string }) {
+  async getReserveBatches(payload: { branchId?: string }): Promise<any> {
     try {
       const branchId = payload?.branchId || 'CENTRAL_WH';
       this.logger.log(`[getReserveBatches] branchId=${branchId}`);

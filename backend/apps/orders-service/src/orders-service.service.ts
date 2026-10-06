@@ -281,6 +281,9 @@ export class OrdersServiceService implements OnModuleInit {
       earnedPoints,
       userId: data.userId,
       branchId: data.branchId || 'BR-001',
+      customerRole: data.customerRole || data.role || (data.isGuest ? 'guest' : 'customer'),
+      role: data.role || data.customerRole || (data.isGuest ? 'guest' : 'customer'),
+      isGuest: data.isGuest !== undefined ? Boolean(data.isGuest) : (data.role === 'guest' || !data.patientPhone || data.patientPhone === '0900000000'),
       // AI-beslissingsondersteuningsvelden voor auditspoor
       isAiAssisted: Boolean(data.isAiAssisted),
       aiAuditCode: data.aiAuditCode || undefined,

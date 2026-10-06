@@ -242,7 +242,6 @@ export function Login() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-sm font-bold text-slate-700">Email hoặc Số điện thoại</label>
-                <span className="text-[11px] text-slate-400 font-medium">Hỗ trợ SĐT (09x...)</span>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
