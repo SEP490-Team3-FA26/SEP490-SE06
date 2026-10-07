@@ -97,7 +97,7 @@ export function DashboardHome() {
           stats: [
             { title: "Doanh thu ca hiện tại", value: "8,500,000đ", icon: <ShoppingCart size={20} />, trend: "+2.5M so với ca trước", trendUp: true, subtitle: "Mục tiêu ca: 12.0M (71%)" },
             { title: "Đơn hàng đã thanh toán", value: "32 đơn", icon: <Package size={20} />, trend: "2 hoàn trả", trendUp: false, subtitle: "Giá trị TB: 265,000đ/đơn" },
-            { title: "Khách hàng thân thiết", value: "18 khách", icon: <Users size={20} />, trend: "+5 tích điểm mới", trendUp: true, subtitle: "Tỷ lệ quay lại: 68%" },
+            { title: "Tìm kiếm khách hàng", value: "18 khách", icon: <Users size={20} />, trend: "+5 tích điểm mới", trendUp: true, subtitle: "Tỷ lệ quay lại: 68%" },
             { title: "Cảnh báo tương tác thuốc", value: "0 rủi ro", icon: <ShieldCheck size={20} />, trend: "Đã kiểm tra 100%", trendUp: true, subtitle: "AI Safety Shield Active" },
           ],
           actions: [

@@ -414,6 +414,9 @@ export class SalesService implements OnModuleInit {
       branchId: data.branchId || null,
       redeemedPoints: data.redeemedPoints || 0,
       earnedPoints: data.earnedPoints || Math.round(totalAmount / 100),
+      customerRole: data.customerRole || data.role || (data.isGuest ? 'guest' : 'customer'),
+      role: data.role || data.customerRole || (data.isGuest ? 'guest' : 'customer'),
+      isGuest: data.isGuest !== undefined ? Boolean(data.isGuest) : (data.role === 'guest' || !data.patientPhone || data.patientPhone === '0900000000'),
     });
 
     // Tự động liên thông CSDL Dược Quốc gia (GPP Sandbox)

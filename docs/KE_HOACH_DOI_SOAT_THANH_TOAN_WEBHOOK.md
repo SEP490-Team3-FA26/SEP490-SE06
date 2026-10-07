@@ -1,8 +1,8 @@
 # KẾ HOẠCH TRIỂN KHAI THỰC TẾ: ĐỐI SOÁT THANH TOÁN TỰ ĐỘNG QUA VÍ ĐIỆN TỬ & NGÂN HÀNG (WEBHOOK RECONCILIATION)
 
-> **Dự án**: WDP301 - Hệ Thống Chuỗi Bán Lẻ Dược Phẩm GSP/GDP  
-> **Module**: Tài Chính & Thanh Toán (Finance & Payment Reconciliation)  
-> **Kiến trúc**: Microservices (API Gateway + Kafka + Redis + MongoDB + PayOS/VietQR)  
+> **Dự án**: WDP301 - Hệ Thống Chuỗi Bán Lẻ Dược Phẩm GSP/GDP
+> **Module**: Tài Chính & Thanh Toán (Finance & Payment Reconciliation)
+> **Kiến trúc**: Microservices (API Gateway + Kafka + Redis + MongoDB + PayOS/VietQR)
 > **Phương châm thiết kế**: **Trải nghiệm quầy thuốc là ưu tiên số 1 + Dung sai thông minh + Kiểm soát thất thoát dòng tiền theo ngoại lệ (Exception-Based Accounting)**.
 
 ---
@@ -33,7 +33,9 @@ Trong môi trường nhà thuốc thực tế, **khách hàng đang ốm đau, m
 ## 2. LUỒNG XỬ LÝ DUNG SAI THÔNG MINH TẠI QUẦY (REAL-TIME SMART TOLERANCE)
 
 ### 2.1. Quy tắc phân xử số tiền chênh lệch (Amount Tolerance Rules)
+
 Khi nhận Webhook từ ngân hàng/cổng thanh toán (PayOS, VietQR):
+
 1. **Khớp 100% số tiền**: Đơn chuyển ngay sang `PAID`, máy POS in hóa đơn và đẩy dữ liệu trừ tồn kho thời gian thực.
 2. **Khách chuyển thiếu $\le$ 5.000 VNĐ** *(VD: Tiền thuốc 103.000đ khách chuyển 100.000đ hoặc gõ nhầm tiền lẻ)*:
    - **Xử lý tại quầy**: Hệ thống tự động chuyển đơn sang `PAID` (cho phép xuất thuốc ngay).
@@ -46,20 +48,25 @@ Khi nhận Webhook từ ngân hàng/cổng thanh toán (PayOS, VietQR):
    - Phần tiền thừa tự động chuyển thành **Điểm thưởng ví thành viên (Loyalty Points)** cộng vào SĐT khách hàng để trừ tiền lần sau, hoặc tự động tạo phiếu đề xuất hoàn tiền (Refund Requisition) nếu khách yêu cầu nhận lại tiền mặt.
 
 ### 2.2. Xử lý sự cố mạng & Webhook về trễ (POS Emergency Fallback)
+
 Nếu khách đã thấy app ngân hàng trừ tiền nhưng máy POS chưa nhảy trạng thái:
+
 - **Nút "Kiểm Tra Ngay" (Active Polling)**: Dược sĩ bấm nút trên POS để API Gateway gọi thẳng sang PayOS kiểm tra trạng thái tức thì thay vì thụ động đợi Webhook.
-- **Xác nhận khẩn cấp có đối soát (Emergency Override)**: Nếu cổng thanh toán đối tác bị sập mạng toàn diện, Dược sĩ bấm *"Xác nhận đã xem biên lai ngân hàng"* -> Nhập 6 số cuối mã giao dịch (`FT...`). Đơn hàng được mở khóa để phát thuốc, hệ thống gắn cờ `MANUAL_OVERRIDE_PENDING_AUDIT` để Kế toán đối chiếu lại vào sáng hôm sau.
+- **Xác nhận khẩn cấp có đối soát (Emergency Override)**: Nếu cổng thanh toán đối tác bị sập mạng toàn diện, Dược sĩ bấm *"Xác nhận đã xem biên lai ngân hàng"* -> Nhập 6 số cuối mã giao dịch (`FT...`). Đơn hàng được mở khóa để phát thuốc, hệ thống gắn cờ `MANUAL_OVERRIDE_PENDING_AUDIT` để Kế toán đối chiếu lại vào sáng hôm 
 
 ---
 
 ## 3. THIẾT KẾ CƠ SỞ DỮ LIỆU & SCHEMA CHI TIẾT
 
 ### 3.1. Bảng Khóa Idempotency Webhook (`webhook_idempotency_locks`)
+
 *Lưu trên Redis với TTL 24h hoặc MongoDB Unique Index*:
+
 - `key`: `webhook:lock:{gatewayProvider}:{transactionId}`
 - Đảm bảo khi ngân hàng retry gửi lại 3-5 lần, hệ thống chỉ xử lý đúng 1 lần duy nhất, tránh tình trạng cộng tiền hoặc xuất kho đúp.
 
 ### 3.2. Bảng Đối Soát Chênh Lệch Dòng Tiền (`payment_reconciliations`)
+
 ```typescript
 {
   _id: ObjectId,

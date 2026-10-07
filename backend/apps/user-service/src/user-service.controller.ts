@@ -95,6 +95,21 @@ export class UserServiceController {
     return this.userService.updatePoints(data);
   }
 
+  @MessagePattern('user.get_by_phone')
+  handleGetUserByPhone(@Payload() data: { phone: string }) {
+    return this.userService.getUserByPhone(data.phone);
+  }
+
+  @MessagePattern('user.clinical_profile.get')
+  handleGetClinicalProfile(@Payload() data: { phone: string }) {
+    return this.userService.lookupLoyaltyByPhone(data.phone);
+  }
+
+  @MessagePattern('user.clinical_profile.update')
+  handleUpdateClinicalProfile(@Payload() data: { phone?: string; userId?: string; allergies?: string[]; chronicConditions?: string[] }) {
+    return this.userService.updateClinicalProfile(data);
+  }
+
   // --- ADMIN EMPLOYEE MANAGEMENT ---
 
   @MessagePattern('user.admin.employee.create')
