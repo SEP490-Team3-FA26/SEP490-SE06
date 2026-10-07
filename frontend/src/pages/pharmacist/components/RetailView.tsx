@@ -434,7 +434,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
       branchStock: alternative.stock,
       is_in_stock: true,
       unit: alternative.unit || "Hộp",
-      price: alternative.price || 50000,
+      price: alternative.price ?? 0,
     };
 
     if (existingIdx >= 0) {
@@ -484,7 +484,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
           }
         } else {
           const unitOptions = buildUnitOptions(match);
-          const defaultUnit = unitOptions[0] || { unitName: match.unit || "Hộp", exchangeValue: 1, price: match.price || 50000 };
+          const defaultUnit = unitOptions[0] || { unitName: match.unit || "Hộp", exchangeValue: 1, price: match.price ?? 0 };
           const newItem = {
             ...match,
             id: medId,
@@ -776,40 +776,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
     if (med.unitOptions && Array.isArray(med.unitOptions) && med.unitOptions.length > 0) {
       return med.unitOptions;
     }
-    const basePrice = med.price || 50000;
-    const nameLower = (med.name || '').toLowerCase();
+    const basePrice = med.price ?? 0;
     const mainUnit = med.unit || 'Hộp';
-
-    if (mainUnit === 'Hộp' && (nameLower.includes('gói') || nameLower.includes('ống') || nameLower.includes('chai') || nameLower.includes('lọ'))) {
-      const isGoi = nameLower.includes('gói');
-      const isOng = nameLower.includes('ống');
-      const subUnitName = isGoi ? 'Gói' : (isOng ? 'Ống' : 'Lọ/Chai');
-      const matchSubCount = nameLower.match(/(\d+)\s*(gói|ống|chai|lọ)/);
-      const subCount = matchSubCount ? parseInt(matchSubCount[1], 10) : 10;
-      return [
-        { unitName: 'Hộp', exchangeValue: subCount, price: basePrice, isBaseUnit: true },
-        { unitName: subUnitName, exchangeValue: 1, price: Math.round(basePrice / subCount * 1.05) },
-      ];
-    }
-
-    if (mainUnit === 'Hộp') {
-      return [
-        { unitName: 'Hộp', exchangeValue: 100, price: basePrice, isBaseUnit: true },
-        { unitName: 'Vỉ', exchangeValue: 10, price: Math.round(basePrice / 10 * 1.05) },
-        { unitName: 'Viên', exchangeValue: 1, price: Math.round(basePrice / 100 * 1.1) },
-      ];
-    } else if (mainUnit === 'Vỉ') {
-      return [
-        { unitName: 'Vỉ', exchangeValue: 10, price: basePrice, isBaseUnit: true },
-        { unitName: 'Viên', exchangeValue: 1, price: Math.round(basePrice / 10 * 1.1) },
-      ];
-    } else if (mainUnit === 'Gói' || mainUnit === 'Chai' || mainUnit === 'Ống' || mainUnit === 'Tuýp' || mainUnit === 'Lọ') {
-      return [
-        { unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }
-      ];
-    }
     return [
-      { unitName: mainUnit || 'Hộp', exchangeValue: 1, price: basePrice, isBaseUnit: true }
+      { unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }
     ];
   };
 

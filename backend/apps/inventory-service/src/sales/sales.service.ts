@@ -57,17 +57,19 @@ export class SalesService implements OnModuleInit {
 
         const totalStock = batches.reduce((sum, b) => sum + b.stock, 0);
 
-        let earliestExpiryStr = '2026-12-31';
+        let earliestExpiryStr: string | null = null;
         if (batches.length > 0) {
           const earliestBatch = batches.reduce((min, b) => new Date(b.expDate) < new Date(min.expDate) ? b : min, batches[0]);
           earliestExpiryStr = new Date(earliestBatch.expDate).toISOString().split('T')[0];
+        } else if (medicine.expiry_date) {
+          earliestExpiryStr = medicine.expiry_date;
         }
 
         itemsWithDetails.push({
           medicineId: item.medicineId,
           name: medicine.name,
           active_ingredient: medicine.active_ingredient || '',
-          price: medicine.price || 50000,
+          price: medicine.price ?? 0,
           quantity: item.quantity,
           dosage: item.dosage,
           unit: medicine.unit || 'Hộp',
@@ -85,7 +87,7 @@ export class SalesService implements OnModuleInit {
           dosage: item.dosage,
           unit: 'Hộp',
           stock: 0,
-          expiry: '2026-12-31',
+          expiry: null,
           status: 'Out of Stock'
         });
       }
@@ -143,7 +145,7 @@ export class SalesService implements OnModuleInit {
       }
     }
     // Giá bậc thang mặc định nếu không cấu hình riêng cho thuốc này
-    const basePrice = medicine.price || 50000;
+    const basePrice = medicine.price ?? 0;
     if (quantity >= 100) return Math.round(basePrice * 0.85); // Giảm 15%
     if (quantity >= 50) return Math.round(basePrice * 0.90);  // Giảm 10%
     if (quantity >= 10) return Math.round(basePrice * 0.95);  // Giảm 5%
@@ -379,7 +381,7 @@ export class SalesService implements OnModuleInit {
       ).exec();
 
       // Resolve giá theo chi nhánh và đơn vị đã chọn
-      const resolvedPrice = Number(item.price) || (medicine.price ? Math.round(medicine.price * exchangeValue / 100) : 50000);
+      const resolvedPrice = Number(item.price) || (medicine.price ? Math.round(medicine.price * exchangeValue / 100) : (medicine.price ?? 0));
       totalAmount += resolvedPrice * (Number(item.quantity) || 1);
 
       orderItems.push({
@@ -771,7 +773,7 @@ export class SalesService implements OnModuleInit {
       // Cập nhật tồn kho tổng của thuốc mới đổi
       await this.medicineModel.updateOne({ _id: medicineId }, { $inc: { stock: -quantity } }).exec();
 
-      const itemPrice = medicine.price || 50000;
+      const itemPrice = medicine.price ?? 0;
       exchangeTotalAmount += itemPrice * quantity;
 
       exchangeItems.push({
