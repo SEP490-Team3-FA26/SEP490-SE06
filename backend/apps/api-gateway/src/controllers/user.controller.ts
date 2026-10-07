@@ -62,6 +62,8 @@ export class UserController implements OnModuleInit {
       "user.rfm.overview",
       "user.rfm.recalculate",
       "user.rfm.at_risk_list",
+      "user.clinical_profile.get",
+      "user.clinical_profile.update",
     ]);
   }
 
@@ -166,6 +168,31 @@ export class UserController implements OnModuleInit {
     const phone = req.query.phone || bodyPhone || paramPhone;
     return await sendKafkaMessage(this.kafkaClient, "user.loyalty.lookup", {
       phone,
+    });
+  }
+
+  @Get("clinical-safety/:phone")
+  @ApiOperation({
+    summary: "Lấy thông tin dị ứng và bệnh mãn tính của khách hàng (MongoDB)",
+  })
+  async getClinicalSafety(@Param("phone") phone: string) {
+    return await sendKafkaMessage(this.kafkaClient, "user.clinical_profile.get", {
+      phone: phone?.trim(),
+    });
+  }
+
+  @Put("clinical-safety/:phone")
+  @ApiOperation({
+    summary: "Cập nhật thông tin dị ứng và bệnh mãn tính của khách hàng (MongoDB)",
+  })
+  async updateClinicalSafety(
+    @Param("phone") phone: string,
+    @Body() body: { allergies?: string[]; chronicConditions?: string[] },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, "user.clinical_profile.update", {
+      phone: phone?.trim(),
+      allergies: body.allergies,
+      chronicConditions: body.chronicConditions,
     });
   }
 

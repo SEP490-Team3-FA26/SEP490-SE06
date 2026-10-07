@@ -4,6 +4,7 @@ import { PrescriptionOcrLog, PrescriptionOcrLogSchema } from './schemas/prescrip
 import { ConsultationAudioRecord, ConsultationAudioRecordSchema } from './schemas/consultation-audio-record.schema';
 import { AiClinicalController } from './ai-clinical.controller';
 import { AiClinicalService } from './ai-clinical.service';
+import { S3StorageService } from '../storage/s3-storage.service';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { AiClinicalService } from './ai-clinical.service';
     ]),
   ],
   controllers: [AiClinicalController],
-  providers: [AiClinicalService],
+  providers: [AiClinicalService, S3StorageService],
   exports: [AiClinicalService],
 })
 export class AiClinicalModule {}

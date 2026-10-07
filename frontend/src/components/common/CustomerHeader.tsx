@@ -21,6 +21,9 @@ const headerTrendingTags = [
   "Thuốc nhỏ mắt", "Sữa rửa mặt", "Men vi sinh", "Dung dịch vệ sinh", "Vitamin C"
 ];
 
+// S3 Public CDN for Mega Menu assets from environment variable
+const MEGA_MENU_CDN = import.meta.env.VITE_MEGA_MENU_CDN_URL;
+
 // Type definitions for Long Chau style Mega Menu
 export interface QuickSubCard {
   title: string;
@@ -92,11 +95,11 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         iconName: "Pill",
         subCategoryParam: "Vitamin & Khoáng chất",
         quickCards: [
-          { title: "Dầu cá - Omega 3", image: "/images/mega-menu/card_omega3.jpg", search: "Omega 3" },
-          { title: "Kẽm - Magie", image: "/images/mega-menu/card_zinc.jpg", search: "Kẽm" },
-          { title: "Vitamin tổng hợp", image: "/images/mega-menu/card_multivit.jpg", search: "Vitamin tổng hợp" },
-          { title: "Canxi & Vitamin D", image: "/images/mega-menu/card_calcium.jpg", search: "Canxi" },
-          { title: "Vitamin C", image: "/images/mega-menu/card_vitc.jpg", search: "Vitamin C" },
+          { title: "Dầu cá - Omega 3", image: `${MEGA_MENU_CDN}/card_omega3.jpg`, search: "Omega 3" },
+          { title: "Kẽm - Magie", image: `${MEGA_MENU_CDN}/card_zinc.jpg`, search: "Kẽm" },
+          { title: "Vitamin tổng hợp", image: `${MEGA_MENU_CDN}/card_multivit.jpg`, search: "Vitamin tổng hợp" },
+          { title: "Canxi & Vitamin D", image: `${MEGA_MENU_CDN}/card_calcium.jpg`, search: "Canxi" },
+          { title: "Vitamin C", image: `${MEGA_MENU_CDN}/card_vitc.jpg`, search: "Vitamin C" },
           { title: "Xem thêm", isMore: true }
         ],
         bestSellers: [
@@ -104,7 +107,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
             id: "tpcn-bs-1",
             name: "Viên uống hỗ trợ cải thiện sức đề kháng cho cơ thể ZINCELITE Vitamins For...",
             price: 295000,
-            image: "/images/mega-menu/bs_zincelite.jpg",
+            image: `${MEGA_MENU_CDN}/bs_zincelite.jpg`,
             unit: "Hộp",
             packSpec: "Hộp 30 Viên"
           },
@@ -112,7 +115,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
             id: "tpcn-bs-2",
             name: "Viên uống bổ sung Vitamin và khoáng chất, giúp tăng đề kháng Nature's Way...",
             price: 540000,
-            image: "/images/mega-menu/bs_multivitamin.jpg",
+            image: `${MEGA_MENU_CDN}/bs_multivitamin.jpg`,
             unit: "Hộp",
             packSpec: "Hộp 200 Viên"
           },
@@ -122,7 +125,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
             price: 360000,
             originalPrice: 400000,
             discountPercent: 10,
-            image: "/images/mega-menu/bs_kids_drops.jpg",
+            image: `${MEGA_MENU_CDN}/bs_kids_drops.jpg`,
             unit: "Hộp",
             packSpec: "Hộp x 11ml"
           },
@@ -130,7 +133,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
             id: "tpcn-bs-4",
             name: "Viên uống hỗ trợ giảm mệt mỏi New Nordic Active Liver...",
             price: 468000,
-            image: "/images/mega-menu/bs_herbal_liver.jpg",
+            image: `${MEGA_MENU_CDN}/bs_herbal_liver.jpg`,
             unit: "Hộp",
             packSpec: "Hộp 30 Viên"
           },
@@ -140,7 +143,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
             price: 355500,
             originalPrice: 395000,
             discountPercent: 10,
-            image: "/images/mega-menu/bs_kids_zinc.jpg",
+            image: `${MEGA_MENU_CDN}/bs_kids_zinc.jpg`,
             unit: "Hộp",
             packSpec: "Chai 120ml"
           }
@@ -151,19 +154,19 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         iconName: "ShieldCheck",
         subCategoryParam: "Miễn dịch",
         quickCards: [
-          { title: "Tăng đề kháng hô hấp", image: "/images/mega-menu/lungcare.png", search: "Đề kháng" },
-          { title: "Đông trùng hạ thảo", image: "/images/mega-menu/sub_cordyceps.png", search: "Đông trùng" },
-          { title: "Keo ong xanh", image: "/images/mega-menu/sub_herbal.png", search: "Keo ong" },
-          { title: "Hồng sâm linh chi", image: "/images/mega-menu/echina.png", search: "Hồng sâm" },
-          { title: "Siro tăng đề kháng", image: "/images/mega-menu/sub_siro.png", search: "Siro đề kháng" },
+          { title: "Tăng đề kháng hô hấp", image: `${MEGA_MENU_CDN}/lungcare.png`, search: "Đề kháng" },
+          { title: "Đông trùng hạ thảo", image: `${MEGA_MENU_CDN}/sub_cordyceps.png`, search: "Đông trùng" },
+          { title: "Keo ong xanh", image: `${MEGA_MENU_CDN}/sub_herbal.png`, search: "Keo ong" },
+          { title: "Hồng sâm linh chi", image: `${MEGA_MENU_CDN}/echina.png`, search: "Hồng sâm" },
+          { title: "Siro tăng đề kháng", image: `${MEGA_MENU_CDN}/sub_siro.png`, search: "Siro đề kháng" },
           { title: "Xem thêm", isMore: true }
         ],
         bestSellers: [
-          { id: "md-1", name: "Viên uống tăng cường miễn dịch Thymomodulin 80mg...", price: 185000, image: "/images/mega-menu/thymoglucan.png", unit: "Hộp" },
-          { id: "md-2", name: "Tinh chất keo ong xanh Kotimogin tăng đề kháng...", price: 340000, image: "/images/mega-menu/kotimogin.png", unit: "Lọ" },
-          { id: "md-3", name: "Siro tăng đề kháng Echina Immuno 120ml...", price: 320000, originalPrice: 350000, discountPercent: 8, image: "/images/mega-menu/echina.png", unit: "Chai" },
-          { id: "md-4", name: "Đông trùng hạ thảo Cordyceps Pure Nutrition...", price: 680000, image: "/images/mega-menu/cordyceps.png", unit: "Hộp" },
-          { id: "md-5", name: "Viên uống bổ phổi Lung Care tăng đề kháng thở...", price: 490000, image: "/images/mega-menu/lungcare.png", unit: "Lọ" }
+          { id: "md-1", name: "Viên uống tăng cường miễn dịch Thymomodulin 80mg...", price: 185000, image: `${MEGA_MENU_CDN}/thymoglucan.png`, unit: "Hộp" },
+          { id: "md-2", name: "Tinh chất keo ong xanh Kotimogin tăng đề kháng...", price: 340000, image: `${MEGA_MENU_CDN}/kotimogin.png`, unit: "Lọ" },
+          { id: "md-3", name: "Siro tăng đề kháng Echina Immuno 120ml...", price: 320000, originalPrice: 350000, discountPercent: 8, image: `${MEGA_MENU_CDN}/echina.png`, unit: "Chai" },
+          { id: "md-4", name: "Đông trùng hạ thảo Cordyceps Pure Nutrition...", price: 680000, image: `${MEGA_MENU_CDN}/cordyceps.png`, unit: "Hộp" },
+          { id: "md-5", name: "Viên uống bổ phổi Lung Care tăng đề kháng thở...", price: 490000, image: `${MEGA_MENU_CDN}/lungcare.png`, unit: "Lọ" }
         ]
       },
       {
@@ -435,9 +438,9 @@ export const navigationCategoryGroups: CategoryGroup[] = [
           { title: "Xem thêm", isMore: true }
         ],
         bestSellers: [
-          { id: "otc-1", name: "Panadol Extra giảm đau hạ sốt đỏ hộp 15 vỉ x 12 viên...", price: 185000, image: "/images/mega-menu/bs_panadol.jpg", unit: "Hộp" },
-          { id: "otc-2", name: "Efferalgan 500mg viên sủi hạ sốt nhanh vị chanh...", price: 68000, image: "/images/mega-menu/bs_efferalgan.jpg", unit: "Hộp" },
-          { id: "otc-3", name: "Thuốc ho thảo dược Eugica đỏ viên nang mềm...", price: 65000, image: "/images/mega-menu/bs_eugica.jpg", unit: "Hộp" },
+          { id: "otc-1", name: "Panadol Extra giảm đau hạ sốt đỏ hộp 15 vỉ x 12 viên...", price: 185000, image: `${MEGA_MENU_CDN}/bs_panadol.jpg`, unit: "Hộp" },
+          { id: "otc-2", name: "Efferalgan 500mg viên sủi hạ sốt nhanh vị chanh...", price: 68000, image: `${MEGA_MENU_CDN}/bs_efferalgan.jpg`, unit: "Hộp" },
+          { id: "otc-3", name: "Thuốc ho thảo dược Eugica đỏ viên nang mềm...", price: 65000, image: `${MEGA_MENU_CDN}/bs_eugica.jpg`, unit: "Hộp" },
           { id: "otc-4", name: "Gói hỗ trợ trào ngược dạ dày Gaviscon Dual Action...", price: 165000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "otc-5", name: "Smecta gói pha hỗn dịch điều trị tiêu chảy cấp...", price: 110000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Hộp" }
         ]

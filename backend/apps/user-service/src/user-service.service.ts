@@ -471,6 +471,35 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       tier: tierInfo.name,
       multiplier: tierInfo.multiplier,
       conversionRate: 1,
+      allergies: user.allergies || [],
+      chronicConditions: user.chronicConditions || [],
+    };
+  }
+
+  async updateClinicalProfile(data: { phone?: string; userId?: string; allergies?: string[]; chronicConditions?: string[] }) {
+    this.logger.log(`Updating clinical profile: phone=${data.phone}, userId=${data.userId}`);
+    let user;
+    if (data.userId) {
+      user = await this.userModel.findById(data.userId).exec();
+    } else if (data.phone) {
+      user = await this.userModel.findOne({ phone: data.phone.trim() }).exec();
+    }
+
+    if (!user) {
+      return { error: true, message: 'Không tìm thấy hồ sơ người dùng để cập nhật bệnh án', statusCode: 404 };
+    }
+
+    if (data.allergies !== undefined) user.allergies = data.allergies;
+    if (data.chronicConditions !== undefined) user.chronicConditions = data.chronicConditions;
+    await user.save();
+
+    return {
+      success: true,
+      userId: user._id.toString(),
+      fullName: user.fullName,
+      phone: user.phone,
+      allergies: user.allergies || [],
+      chronicConditions: user.chronicConditions || [],
     };
   }
 

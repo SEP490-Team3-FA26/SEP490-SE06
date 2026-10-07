@@ -85,10 +85,10 @@ export const customerService = {
         conversionRate: loyaltyRes.data.conversionRate || 1,
       };
 
-      // 2. Fetch RFM segment & chronic refill prediction in parallel
+      // 2. Fetch RFM segment & chronic refill prediction in parallel (allergies & chronic conditions from MongoDB)
       let clinical: CustomerClinicalSafety = {
-        allergies: this.getStoredAllergies(cleanPhone),
-        chronicConditions: this.getStoredChronicConditions(cleanPhone),
+        allergies: loyaltyRes.data.allergies || [],
+        chronicConditions: loyaltyRes.data.chronicConditions || [],
         refillReminder: null,
       };
 
@@ -191,14 +191,6 @@ export const customerService = {
     const cleanEmail = dto.email?.trim() || `${cleanPhone}@khachhang.wdp301.local`;
     const defaultPassword = 'abccamon';
 
-    // Store medical allergies & chronic notes locally for immediate counter safety
-    if (dto.allergies && dto.allergies.length > 0) {
-      this.saveStoredAllergies(cleanPhone, dto.allergies);
-    }
-    if (dto.chronicConditions && dto.chronicConditions.length > 0) {
-      this.saveStoredChronicConditions(cleanPhone, dto.chronicConditions);
-    }
-
     try {
       // Register account in system
       await api.post('/api/auth/register', {
@@ -209,15 +201,25 @@ export const customerService = {
         role: 'user',
       });
     } catch (regErr: any) {
-      // If user already exists, ignore and continue to fetch loyalty info
+      // If user already exists, ignore and continue
       console.warn('Registration notice:', regErr.response?.data?.message || regErr.message);
     }
 
-    // Attempt to lookup fresh loyalty profile
+    // Persist medical allergies & chronic notes to MongoDB for clinical safety
+    if ((dto.allergies && dto.allergies.length > 0) || (dto.chronicConditions && dto.chronicConditions.length > 0)) {
+      try {
+        await api.put(`/api/users/clinical-safety/${encodeURIComponent(cleanPhone)}`, {
+          allergies: dto.allergies || [],
+          chronicConditions: dto.chronicConditions || [],
+        });
+      } catch (clinicalErr: any) {
+        console.warn('Persist clinical flags warning:', clinicalErr);
+      }
+    }
+
+    // Attempt to lookup fresh loyalty profile with persisted clinical data
     const existing = await this.lookupCustomer(cleanPhone);
     if (existing) {
-      if (dto.allergies) existing.clinical.allergies = dto.allergies;
-      if (dto.chronicConditions) existing.clinical.chronicConditions = dto.chronicConditions;
       return existing;
     }
 
@@ -279,39 +281,27 @@ export const customerService = {
   },
 
   /**
-   * Storage helpers for clinical flags (allergies & chronic conditions)
+   * Update clinical flags (allergies & chronic conditions) directly in MongoDB via API Gateway
    */
-  getStoredAllergies(phone: string): string[] {
+  async updateClinicalSafety(phone: string, data: { allergies?: string[]; chronicConditions?: string[] }): Promise<any> {
+    const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
+    const res = await api.put(`/api/users/clinical-safety/${encodeURIComponent(cleanPhone)}`, data);
+    return res.data;
+  },
+
+  /**
+   * Get clinical flags (allergies & chronic conditions) directly from MongoDB
+   */
+  async getClinicalSafety(phone: string): Promise<{ allergies: string[]; chronicConditions: string[] }> {
+    const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
     try {
-      const raw = localStorage.getItem(`pharma_allergies_${phone}`);
-      return raw ? JSON.parse(raw) : [];
+      const res = await api.get(`/api/users/clinical-safety/${encodeURIComponent(cleanPhone)}`);
+      return {
+        allergies: res.data?.allergies || [],
+        chronicConditions: res.data?.chronicConditions || [],
+      };
     } catch {
-      return [];
-    }
-  },
-
-  saveStoredAllergies(phone: string, allergies: string[]): void {
-    try {
-      localStorage.setItem(`pharma_allergies_${phone}`, JSON.stringify(allergies));
-    } catch (e) {
-      console.warn('Failed to save allergies:', e);
-    }
-  },
-
-  getStoredChronicConditions(phone: string): string[] {
-    try {
-      const raw = localStorage.getItem(`pharma_chronic_${phone}`);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  },
-
-  saveStoredChronicConditions(phone: string, conditions: string[]): void {
-    try {
-      localStorage.setItem(`pharma_chronic_${phone}`, JSON.stringify(conditions));
-    } catch (e) {
-      console.warn('Failed to save chronic conditions:', e);
+      return { allergies: [], chronicConditions: [] };
     }
   },
 };

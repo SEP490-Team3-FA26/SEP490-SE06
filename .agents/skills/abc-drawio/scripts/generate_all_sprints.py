@@ -11,10 +11,6 @@ sys.path.append(os.path.abspath('.'))
 sys.path.append(os.path.abspath('.agents/skills/google-docx/scripts'))
 
 from scripts.generate_sprint_diagrams import generate_sequence_drawio, generate_class_drawio
-from scripts.sprint5_data import SPRINT_5_UCS
-from scripts.sprint6_data import SPRINT_6_UCS
-from scripts.sprint7_data import SPRINT_7_UCS
-from scripts.sprint8_data import SPRINT_8_UCS
 from direct_gdrive_sync import sync_to_google_drive
 
 SA_PATH = '/Users/tranhongphuoc/.config/gcloud/legacy_credentials/sep490@stone-climate-507417-k4.iam.gserviceaccount.com/adc.json'
@@ -29,15 +25,11 @@ def sanitize_slug(name):
 
 def main():
     print("="*70)
-    print("🚀 PHARMA ERP WDP301 - SPRINT 5-8 DIAGRAM GENERATOR & CLOUD SYNC")
+    print("🚀 PHARMA ERP WDP301 - SPRINT DIAGRAM GENERATOR & CLOUD SYNC")
     print("="*70)
 
-    all_sprints = [
-        {"num": 5, "sec": "3.8", "title": "Customer Care, Loyalty & Operational Governance", "ucs": SPRINT_5_UCS},
-        {"num": 6, "sec": "3.9", "title": "Marketing Campaigns, AI Consultation & Warehouse IoT", "ucs": SPRINT_6_UCS},
-        {"num": 7, "sec": "3.10", "title": "POS Advanced Operations, Barcode & GSP Inventory", "ucs": SPRINT_7_UCS},
-        {"num": 8, "sec": "3.11", "title": "Omnichannel, Advanced AI Diagnostics & Enterprise Governance", "ucs": SPRINT_8_UCS},
-    ]
+    # Active sprints configured for diagram generation (Past Sprints 5-8 archived)
+    all_sprints = []
 
     total_ucs = sum(len(s["ucs"]) for s in all_sprints)
     total_diagrams = total_ucs * 2
