@@ -102,6 +102,15 @@ export class SalesOrder extends Document {
   @Prop({ type: Number, default: 0 })
   earnedPoints?: number;
 
+  @Prop({ type: String, default: 'guest' })
+  customerRole?: string;
+
+  @Prop({ type: String, default: 'guest' })
+  role?: string;
+
+  @Prop({ type: Boolean, default: true })
+  isGuest?: boolean;
+
   // --- Liên thông Cơ sở Dữ liệu Dược Quốc gia (GPP) ---
   @Prop({ type: String, default: '79-001234' })
   nationalFacilityCode?: string;

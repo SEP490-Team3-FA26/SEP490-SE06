@@ -5,7 +5,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 
 @Controller()
 export class OrdersServiceController {
-  constructor(private readonly ordersServiceService: OrdersServiceService) {}
+  constructor(private readonly ordersServiceService: OrdersServiceService) { }
 
   @MessagePattern('orders.create')
   async createOrder(@Payload() data: CreateOrderDto) {
@@ -123,7 +123,27 @@ export class OrdersServiceController {
       return await this.ordersServiceService.getCashFlowSummary(query);
     } catch (error) {
       if (error instanceof RpcException) throw error;
-      throw new RpcException(error.message || 'Lỗi hệ thống khi tổng hợp dòng tiền');
+      throw new RpcException(error.message || 'Error aggregating cash flow');
+    }
+  }
+
+  @MessagePattern('finance.payment_voucher.create')
+  async createPaymentVoucher(@Payload() dto: any) {
+    try {
+      return await this.ordersServiceService.createPaymentVoucher(dto);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Error creating payment voucher');
+    }
+  }
+
+  @MessagePattern('finance.payment_voucher.list')
+  async getPaymentVouchers(@Payload() query: any) {
+    try {
+      return await this.ordersServiceService.getPaymentVouchers(query);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Error fetching payment vouchers');
     }
   }
 
@@ -174,6 +194,59 @@ export class OrdersServiceController {
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi xử lý biên bản đối soát');
+    }
+  }
+
+  // ==========================================
+  // MARKETING CAMPAIGNS & ROI ANALYTICS
+  // ==========================================
+  @MessagePattern('orders.campaign.create')
+  async createMarketingCampaign(@Payload() payload: any) {
+    try {
+      return await this.ordersServiceService.createMarketingCampaign(payload);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi tạo chiến dịch Marketing');
+    }
+  }
+
+  @MessagePattern('orders.campaign.list')
+  async listMarketingCampaigns(@Payload() query: any) {
+    try {
+      return await this.ordersServiceService.listMarketingCampaigns(query);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi lấy danh sách chiến dịch');
+    }
+  }
+
+  @MessagePattern('orders.campaign.get_by_id')
+  async getMarketingCampaignById(@Payload() id: string) {
+    try {
+      return await this.ordersServiceService.getMarketingCampaignById(id);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi lấy chi tiết chiến dịch');
+    }
+  }
+
+  @MessagePattern('orders.campaign.add_cost')
+  async addCampaignCost(@Payload() payload: { id: string; cost: any }) {
+    try {
+      return await this.ordersServiceService.addCampaignCost(payload.id, payload.cost);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hạch toán chi phí');
+    }
+  }
+
+  @MessagePattern('orders.campaign.analytics')
+  async getMarketingRoiAnalytics() {
+    try {
+      return await this.ordersServiceService.getMarketingRoiAnalytics();
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi phân tích hiệu quả ROI');
     }
   }
 }

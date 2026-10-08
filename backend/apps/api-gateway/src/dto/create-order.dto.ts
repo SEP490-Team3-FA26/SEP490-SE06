@@ -6,7 +6,8 @@ import {
   IsArray, 
   ValidateNested, 
   IsNotEmpty, 
-  IsIn 
+  IsIn,
+  IsBoolean 
 } from 'class-validator';
 
 export class OrderItemDto {
@@ -86,6 +87,23 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   cancelUrl?: string;
+
+  // AI-beslissingsondersteuning en auditspoor
+  @IsBoolean()
+  @IsOptional()
+  isAiAssisted?: boolean;
+
+  @IsString()
+  @IsOptional()
+  aiAuditCode?: string;
+
+  @IsString()
+  @IsOptional()
+  consultationId?: string;
+
+  @IsString()
+  @IsOptional()
+  pharmacistApprovedBy?: string;
 }
 
 export class CreatePayOSLinkDto {
@@ -146,4 +164,21 @@ export class CreatePayOSLinkDto {
   @IsString()
   @IsOptional()
   cancelUrl?: string;
+
+  // AI-beslissingsondersteuning en auditspoor
+  @IsBoolean()
+  @IsOptional()
+  isAiAssisted?: boolean;
+
+  @IsString()
+  @IsOptional()
+  aiAuditCode?: string;
+
+  @IsString()
+  @IsOptional()
+  consultationId?: string;
+
+  @IsString()
+  @IsOptional()
+  pharmacistApprovedBy?: string;
 }

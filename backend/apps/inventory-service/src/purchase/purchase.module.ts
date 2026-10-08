@@ -27,6 +27,10 @@ import {
   InspectionRecord,
   InspectionRecordSchema,
 } from "./schemas/inspection-record.schema";
+import {
+  RequestForQuotation,
+  RequestForQuotationSchema,
+} from "./schemas/request-for-quotation.schema";
 import { MedicineModule } from "../medicine/medicine.module";
 
 @Module({
@@ -38,6 +42,7 @@ import { MedicineModule } from "../medicine/medicine.module";
       { name: InventoryTransaction.name, schema: InventoryTransactionSchema },
       { name: StockTransfer.name, schema: StockTransferSchema },
       { name: InspectionRecord.name, schema: InspectionRecordSchema },
+      { name: RequestForQuotation.name, schema: RequestForQuotationSchema },
     ]),
     MedicineModule, // To access Medicine and MedicineBatch schemas
     ClientsModule.register([

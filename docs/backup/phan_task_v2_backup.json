@@ -1,0 +1,918 @@
+{
+  "range": "phan_task_v2!A1:Z500",
+  "majorDimension": "ROWS",
+  "values": [
+    [
+      " Sprint 1",
+      "",
+      "",
+      "",
+      "",
+      "Dashboard Giám Sát API & RAM"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process",
+      "http://103.75.187.86:3001"
+    ],
+    [
+      "UC-01",
+      "Tìm kiếm & thêm thuốc vào giỏ hàng",
+      "",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-02",
+      "Áp dụng khuyến mãi / mã giảm giá",
+      "admin xử lý quản lý voucher",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-03",
+      "Xác nhận thanh toán & in hóa đơn",
+      "Tích hợp Payos ; chú ý luồng nghiệp vụ khi huỷ vé",
+      "Nam",
+      "Hoàn thành",
+      "Xem Log Trực Tiếp Microservices"
+    ],
+    [
+      "UC-04",
+      "Bán theo đơn thuốc – quét QR điện tử",
+      "Dựng Flutter cho các actor admin tổng        Branch        Dược sĩ        Thủ kho        Khách hàng",
+      "Nam",
+      "Hoàn thành",
+      "http://103.75.187.86:8888/"
+    ],
+    [
+      "UC-05",
+      "Kiểm tra tương tác thuốc",
+      "dùng AI API - Customer",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-13",
+      "Tạo phiếu nhập & chọn nhà cung cấp",
+      "Đã dựng mockup data ; chưa thực thi nghiệp vụ, quản lí nhánh báo cáo thuốc cần nhập lên HEAD\nqli tổng gửi thuốc cần nhập cho kho, kho tự xử lý đơn",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-14",
+      "Scan QR/Barcode bằng Mobile khi nhập kho",
+      "",
+      "Phúc",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-15",
+      "Nhập thông tin lô / HSD / số lô",
+      "Đã có, là chức năng nhận đơn đặt hàng (PO) -> phiếu nhập kho (GRN)",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-16",
+      "Xuất theo FIFO & cảnh báo gần HSD",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-40",
+      "Quản lý danh mục thuốc – thêm/sửa/xóa SKU",
+      "18/06/2026 . Hiện tại pending những vấn đề liên quan đến SKU và Barcode",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-41",
+      "Nhóm thuốc & hoạt chất",
+      "",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-42",
+      "Liên kết mã QR/Barcode với SKU",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-49",
+      "Tra cứu thông tin thuốc (hướng dẫn, tương tác)",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-58",
+      "Quản lý tài khoản người dùng & phân quyền RBAC",
+      "",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [],
+    [],
+    [
+      "Sprint 2"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process"
+    ],
+    [
+      "UC-06",
+      "Bán sỉ – lập hóa đơn & giá bậc thang",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-07",
+      "Quản lý hạn mức công nợ đại lý",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-08",
+      "Xử lý đổi / trả hàng",
+      "Chờ UC 1 -> 3",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-09",
+      "Hoàn tiền & cập nhật tồn kho",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-10",
+      "Tích điểm & quy đổi khách hàng thân thiết",
+      "Chờ UC 1 -> 3",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-17",
+      "Tạo phiếu xuất nội bộ (không bán) ",
+      "chưa  có kho chi nhánh - nam làm  kho nhánh  trước đã",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-18",
+      "Tạo phiên kiểm kê theo khu vực / toàn bộ",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-19",
+      "Scan & đối chiếu số lượng thực tế",
+      "",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-20",
+      "Lưu biên bản & điều chỉnh tồn kho",
+      "chờ 2 thèn trên ",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-43",
+      "Quản lý hồ sơ khách hàng & lịch sử mua",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-46",
+      "Quản lý nhà cung cấp – thêm/sửa/đánh giá",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-47",
+      "Quản lý chương trình khuyến mãi & giá nhóm",
+      "",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-48",
+      "Quản lý bảng giá bán lẻ / sỉ theo chi nhánh",
+      "",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-50",
+      "Báo cáo doanh thu theo ngày/tuần/tháng/quý",
+      "Chờ Test uce case công nợ - Dựng test",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-52",
+      "Báo cáo tồn kho – nhập/xuất/tồn hiện tại",
+      "Ai là thằng dùng role này ?Trloi được rồi mần task ni nghe",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      "Sprint 3"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process"
+    ],
+    [
+      "UC-24",
+      "Quản lý chi nhánh – thêm/sửa/xóa",
+      "",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-25",
+      "Dashboard tổng – doanh thu & tồn kho toàn chuỗi",
+      "",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-27",
+      "Phân bổ hạn mức nhập hàng theo chi nhánh",
+      "",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-28",
+      "Đồng bộ danh mục & giá bán toàn chuỗi",
+      "check coi",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-30",
+      "Xem tồn kho thời gian thực toàn chuỗi",
+      "admin ",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-21",
+      "Tạo phiếu điều chuyển giữa chi nhánh",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-22",
+      "Xác nhận xuất/nhận hàng bằng QR",
+      "Mobile",
+      "Thành",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-32",
+      "Cảnh báo thuốc sắp hết hạn (đỏ/vàng/xanh)",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-33",
+      "Đề xuất xử lý thuốc sắp hết hạn",
+      "Từ UC-32, thêm giao diện cho phép Quản lý chọn các hành động: \"Xuất hủy\", \n\"Gửi trả NCC\", hoặc \"Khuyến mãi giảm giá\"",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-36",
+      "Gợi ý thuốc thay thế khi hết hàng",
+      "dành cho role dược sĩ",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-38",
+      "Cảnh báo tồn kho dưới mức tối thiểu an toàn",
+      "Ai là người đưa ra quyết định từ cảnh báo tồn kho  của hệ thống  ? -> Giám đốc | Kho \nPhúc: đã có từ trước, minStock",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-44",
+      "Khách hàng tự tra cứu lịch sử đơn hàng",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-45",
+      "Tạo account nhân viên",
+      "admin tạo cho tất cả các role ",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-12",
+      "Gửi hóa đơn điện tử qua email / Zalo OA",
+      "Zalo không gửi được vì muốn tích hợp zalo phải có account doanh nghiệp mới được gửi",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-51",
+      "Báo cáo doanh thu theo chi nhánh & nhân viên",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-54",
+      "Báo cáo hàng bán chạy & chậm luân chuyển",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-55",
+      "Báo cáo công nợ đại lý / nhà cung cấp",
+      "",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+      "Sprint 4"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process"
+    ],
+    [
+      "UC-34",
+      "Dự báo nhu cầu nhập hàng theo kỳ (AI Forecast)",
+      "  cái ni a Nam free style thoải mái nhe",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-35",
+      "Tự động tạo đơn đặt hàng từ kết quả dự báo",
+      "AI Dự báo ->  Hệ thống Auto-mapping(map thuốc vs ncc) ->Sinh Đơn Nháp (Draft PO)->approval. VIết doc chỗ ni rồi làm",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-37",
+      "Phát hiện bất thường tồn kho",
+      "a dùng cách gì để làm ? Kế thừa api  của UC-30 rồi làm  ",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-39",
+      "Phân tích xu hướng bán hàng theo mùa/dịch bệnh",
+      "a dùng cách gì để làm ",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-26",
+      "So sánh hiệu suất kinh doanh giữa các chi nhánh",
+      "analyst dashboard của role admin",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-29",
+      "Gợi ý điều phối hàng tự động giữa chi nhánh",
+      "a dùng cách gì để làm ",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-31",
+      "Thông báo realtime sự kiện quan trọng toàn chuỗi",
+      "",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-23",
+      "Truy xuất nguồn gốc lô thuốc (Lot Tracking)",
+      "cái ni có cần hân ",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-53",
+      "Báo cáo lợi nhuận",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-56",
+      "Xuất báo cáo ra Excel / PDF",
+      "",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-57",
+      "Lập lịch gửi báo cáo tự động qua email",
+      "cái ni có cần hân ",
+      "Phúc",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-59",
+      "Ghi nhận Audit Log – ai làm gì, lúc nào",
+      "xem tất cả các role làm gì luôn nha chứ ko phải mỗi kho",
+      "Thành",
+      "Hoàn thành"
+    ],
+    [
+      "UC-60",
+      "Cấu hình hệ thống: AI, thông báo, backup, ngưỡng",
+      "",
+      "Thành",
+      "Chờ xử lý"
+    ],
+    [
+      "//////////",
+      "",
+      "",
+      "None"
+    ],
+    [],
+    [],
+    [
+      "Sprint 5"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process"
+    ],
+    [
+      "UC-61",
+      "Cổng tiếp nhận và xử lý khiếu nại khách hàng",
+      "trường hợp hủy trả hàng + đánh giá. Nằm ở landing page && QA . Hệ thống nhận email",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-62",
+      "Quản lý hạng thẻ thành viên (Đồng, Bạc, Vàng)",
+      "tích điểm. Thiếu data mockup",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-63",
+      "Đối soát thanh toán qua Ví điện tử / Ngân hàng (Webhook)",
+      "-> Trong lịch sử thanh toán có mục phân loại hình thức thanh toán đơn hàng",
+      "Nam",
+      "Đang làm"
+    ],
+    [
+      "UC-64",
+      "Phân công tài xế giao hàng nội bộ (Shipper nhà thuốc)",
+      "module quản lý nhân sự . Làm song song với tracking lô hàng . Hàng tới địa điểm nào thì cập nhật trạng thái ở địa điểm nớ liên tục . Tương tự như logic của shop pi",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-65",
+      "Sơ đồ 2D kho tổng",
+      "",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-66",
+      "Phân nhóm khách hàng theo hành vi mua sắm (RFM)",
+      "Customer , cơ chế giống Shop pi . Ví dụ người dùng tìm kiếm sản phẩm chi thì lần đăng nhập system sau sẽ đề xuất những sản phẩm tương tự",
+      "Nam",
+      "Đang làm"
+    ],
+    [
+      "UC-67",
+      "Quản lý tiền tại từng chi nhánh",
+      "",
+      "Phước",
+      "Đang làm"
+    ],
+    [
+      "UC-68",
+      "Dược sĩ xác nhận OCR",
+      "Dược sĩ xem và xác nhận đơn thuốc hợp lệ thủ công; Phục vụ chức năng quét OCR .",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-69",
+      "Lưu lịch sử OCR",
+      "ai quét ra thông tin thì lưu lại - lưu cả hình ảnh hóa đơn dược upload lên. Dược sĩ chirhnh sửa chi thì upload lên",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-70",
+      "Quản lý lịch sử ghi âm tư vấn",
+      "Hỗ trợ khách hàng offfline -> Truy vết xem AI đưa ra gợi ý đơn thuốc chi -> Dược sĩ ra quyết định chi (lưu thông tin dược sĩ nữa ra quyết định). Có đồng bộ với đơn hàng - check box confirm dược sĩ ra quyết định.",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-71",
+      "Lập phiếu thu tiền mặt / chuyển khoản tự động",
+      "bỏ =)))",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-72",
+      "Báo cáo dòng tiền (Cash flow) chi nhánh & tổng",
+      "Dòng tiền theo ca / ngày / tháng . Uri : https://abcpharmacy.store/branch/finance",
+      "Phước",
+      "Hoàn thành"
+    ],
+    [
+      "UC-73",
+      "Báo cáo tỷ lệ giao hàng đúng hạn & phản hồi",
+      "optional(thích thì làm)",
+      "None",
+      "Chờ xử lý"
+    ],
+    [],
+    [],
+    [
+      "Sprint 6"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process"
+    ],
+    [
+      "UC-74",
+      "Thiết lập chương trình Flash Sale theo khung giờ",
+      "Lụm || cron job function",
+      "Phước",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-75",
+      "Tạo mã giảm giá theo điều kiện (Mua X tặng Y, Combo)",
+      "",
+      "Đạt",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-76",
+      "Tạo và gửi Email Marketing tự động (Newsletter)",
+      "Branch. || social media function",
+      "Đạt",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-77",
+      "Khách hàng đánh giá & review sản phẩm trên App",
+      "render lên product detail ; cuộn xuống dưới -> người dùng comment chia sẻ hình ảnh - trải nghiệm khi sài sản phẩm. Build trên web / mobile",
+      "Đạt",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-78",
+      "In mã vạch / tem nhãn phụ cho thuốc nhập khẩu",
+      "barcode",
+      "Nam",
+      "Hoàn thành"
+    ],
+    [
+      "UC-79",
+      "Gửi Yêu cầu báo giá (RFQ) hàng loạt cho NCC",
+      "module NCC",
+      "Nam",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-80",
+      "Chatbot AI tư vấn triệu chứng bệnh cơ bản",
+      "trùng voice",
+      "Phúc",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-81",
+      "Tính năng tìm kiếm thuốc bằng Giọng nói (Voice Search)",
+      "",
+      "Phước",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-82",
+      "IOT: Cảnh báo nhiệt độ và độ ẩm",
+      "Ai sài ? -> Kho tống sài",
+      "Phúc",
+      "Hoàn thành"
+    ],
+    [
+      "UC-83",
+      "Phân tích hiệu quả các chiến dịch Marketing (ROI)",
+      "Trang tổng hợp số liệu - Món hàng nào có nhiều tương tác nhất || phục vụ role nào ? -> Branch manager",
+      "Nam",
+      "Chờ xử lý"
+    ],
+    [],
+    [],
+    [
+      "Sprint 7"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process"
+    ],
+    [
+      "UC-84",
+      "Kết ca & đối soát tiền mặt cuối ca",
+      "Dược sĩ sài . Kết ca thì sài ; nhập số tiền có trong két theo ca (sáng / chiều / tối) . Customer thanh mục tiền mặt + chuyển khoản thì cộng vô -> phân loại được tiền mặt bao nhiêu và tiền chuyển khaorn bao nhiêu",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-85",
+      "Hủy đơn hàng / hủy giao dịch đã tạo",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-86",
+      "Tự động tính phí giao hàng theo khoảng cách",
+      "tính thụ động . Xuất phiếu chi 500k giao vận -> trừ tiền tổng doanh thu",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-87",
+      "Quét Barcode nhập kho (nhập hàng từ NCC)",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-88",
+      "Quét Barcode xuất kho (bán hàng / chuyển kho)",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-89",
+      "Kiểm kê kho bằng máy quét Barcode",
+      "Mobile app -> link document: https://docs.google.com/document/d/129HGcujGVv7AfSR3c3GcEkVlLjwIWoO98kNDwqGjU1s/edit?tab=t.0",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-90",
+      "Quản lý vị trí kho",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-91",
+      "Thiết lập mã SKU & sinh Barcode cho sản phẩm",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-92",
+      "Quản lý quy đổi đơn vị tính (viên - vỉ - hộp)",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-93",
+      "Cấu hình chính sách giá / khuyến mãi riêng theo chi nhánh",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-94",
+      "Cảnh báo tồn kho âm / sai lệch bất thường",
+      "Nếu làm task ni -> log SRS mô tả nghiệp vụ",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-95",
+      "Gợi ý bán kèm / combo (Cross-sell)",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [],
+    [],
+    [
+      "Sprint 8"
+    ],
+    [
+      "Mã UC",
+      "Tên Chức Năng",
+      "Comment",
+      "Member",
+      "Process"
+    ],
+    [
+      "UC-96",
+      "Danh sách sản phẩm yêu thích (Wishlist)",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-97",
+      "Pre-order quản lý đặt hàng trước thuốc khan hiếm",
+      "Đặt hàng với ai ?",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-98",
+      "Khảo sát mức độ hài lòng khách hàng sau mua",
+      "Tự động gửi mail khảo sát sau khi mua hàng || hình thức mua trực tiếp thì sao ? -> khỏi gửi ||",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-99",
+      "Gamification – nhiệm vụ sức khỏe đổi điểm",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-100",
+      "Quét mã QR xác nhận bàn giao hàng cho khách",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-101",
+      "Link với facebook",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-102",
+      "Quản lý thuốc kiểm soát đặc biệt (gây nghiện, hướng thần)",
+      "Quản lý kiểu chi ? ai quản lý ? -> thủ kho thì k đủ chuyên môn để quản lý || dược sĩ thì làm việc nơi chi nhánh rồi",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-103",
+      "Quản lý hợp đồng & điều khoản với nhà cung cấp",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-104",
+      "Lập phiếu chi trả nhà cung cấp / đối tác",
+      "module quản lý nhà cung cấp",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-105",
+      "AI cảnh báo rủi ro chuỗi cung ứng",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-106",
+      "Hồ sơ sức khỏe số đa nhà thuốc (Digital Health Passport)",
+      "Trường hợp: customer -> render thông tin + hồ sơ bệnh án => Làm rõ chữ đa nhà thuốc || Mobile app || Khách trực tiếp -> bác si tạo tạo quầy || Web / app -> lần đăng nhập đầu tiên -> bắt phải điền form ||",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-107",
+      "Gợi ý thuốc theo tiền sử dị ứng || bệnh nền || thuốc dị ứng || dị ứng vớithành phần thuốc",
+      "-> cho 1 field có trường bệnh nền -> AI model (gemini - groq) đọc lấy ngữ cảnh y khoa -> đưa ra output cho client",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-108",
+      "Quản lý tuân thủ điều trị & báo cáo bác sĩ",
+      "Mobile app -> gửi thông báo nhắc nhở uống thuốc ||",
+      "Đạt",
+      "Hoàn thành"
+    ],
+    [
+      "UC-109",
+      "Voice Commerce đa ngôn ngữ",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-110",
+      "Đề xuất nhà cung cấp có giá nhập tốt nhất bằng AI",
+      "",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-111",
+      "Báo cáo hiệu suất nhân viên bán hàng (KPI)",
+      "Ai báo cáo ?? -> branch manager",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-112",
+      "Nhật ký sao lưu & khôi phục dữ liệu thủ công",
+      "ADMIN || GPP quốc gia - data thuốc || Nhật ký sao lưu -> 3 tháng 1 lần hay sao => Ai làm task ni thì log srs",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-113",
+      "Đăng nhập App Khách hàng bằng Sinh trắc học (FaceID/Vân tay)",
+      "thích thì làm",
+      "None",
+      "Chờ xử lý"
+    ],
+    [
+      "UC-114",
+      "IOT Plan Chi tiết",
+      "Phúc điền plan IOT vô đây",
+      "None",
+      "Chờ xử lý"
+    ]
+  ]
+}

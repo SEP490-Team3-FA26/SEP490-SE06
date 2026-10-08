@@ -92,11 +92,12 @@ export class MedicineController implements OnModuleInit {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Lấy thống kê tồn kho" })
-  async getStats() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getStats(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.stats",
-      {},
+      { branchId },
     );
   }
 
@@ -104,11 +105,12 @@ export class MedicineController implements OnModuleInit {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Lấy báo cáo hết hạn của các lô hàng" })
-  async getExpirationReport() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getExpirationReport(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.expiration_report",
-      {},
+      { branchId },
     );
   }
 
@@ -143,11 +145,12 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({
     summary: "Lấy báo cáo các loại thuốc sắp hết hàng hoặc hết hàng",
   })
-  async getLowStockReport() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getLowStockReport(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.low_stock_report",
-      {},
+      { branchId },
     );
   }
 
@@ -157,11 +160,12 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({
     summary: "Lấy danh sách tối giản của các loại thuốc phục vụ cho dropdown",
   })
-  async getMedicinesDropdown() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getMedicinesDropdown(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.dropdown_list",
-      {},
+      { branchId },
     );
   }
 
