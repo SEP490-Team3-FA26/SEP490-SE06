@@ -91,7 +91,7 @@ export class UserServiceController {
   }
 
   @MessagePattern('user.loyalty.update_points')
-  handleUpdatePoints(@Payload() data: { phone?: string; userId?: string; pointsDelta: number; accumulatedDelta?: number }) {
+  handleUpdatePoints(@Payload() data: { phone?: string; userId?: string; pointsDelta: number; accumulatedDelta?: number; operationKey?: string }) {
     return this.userService.updatePoints(data);
   }
 

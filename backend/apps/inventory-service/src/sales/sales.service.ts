@@ -11,6 +11,14 @@ import { BranchStockBalance } from '../medicine/schemas/branch-stock-balance.sch
 import { PricingService } from '../pricing/pricing.service';
 import { NationalPharmaService } from './national-pharma.service';
 import { InventoryTransaction } from '../purchase/schemas/inventory-transaction.schema';
+import {
+  buildRetailDosageInstruction,
+  getSelectedUnit,
+  getUnitFactor,
+  getUnitOptions,
+  isPackageOnlyUnit,
+  resolveUnitPrice,
+} from './unit-pricing';
 
 @Injectable()
 export class SalesService implements OnModuleInit {
@@ -170,6 +178,9 @@ export class SalesService implements OnModuleInit {
 
     let prescription = null;
     if (data.type === 'PRESCRIPTION') {
+      if (!data.approvedBy || !data.approvedAt) {
+        throw new RpcException({ message: 'Đơn kê đơn chưa có thông tin phê duyệt của dược sĩ', statusCode: 403 });
+      }
       if (!data.prescriptionCode) {
         throw new RpcException({ message: 'Yêu cầu mã đơn thuốc để bán theo đơn' });
       }
@@ -232,6 +243,10 @@ export class SalesService implements OnModuleInit {
       }
 
       const medIdStr = medicine._id.toString();
+      const selectedUnit = getSelectedUnit(medicine, item.unit);
+      const unitOptions = getUnitOptions(medicine);
+      const baseUnit = [...unitOptions].sort((a, b) => getUnitFactor(a) - getUnitFactor(b))[0] || selectedUnit;
+      const exchangeValue = getUnitFactor(selectedUnit);
 
       // Truy cập các lô hoạt động sắp xếp tăng dần hạn sử dụng expDate ASC -> FIFO/FEFO
       const batchQuery: any = {
@@ -285,9 +300,12 @@ export class SalesService implements OnModuleInit {
 
       let totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
 
-      // Tính toán quy đổi đơn vị và số lượng trừ kho thực tế
-      const exchangeValue = Number(item.exchangeValue) || 1;
-      const baseDeductQty = Math.max(1, Math.round((Number(item.quantity) || 1) * exchangeValue));
+      // Tính toán quy đổi đơn vị từ danh mục thuốc, không tin hệ số client gửi lên.
+      const requestedQuantity = Number(item.quantity);
+      if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+        throw new RpcException({ message: `Số lượng bán của thuốc "${medicine.name}" phải là số nguyên dương` });
+      }
+      const baseDeductQty = Math.max(1, requestedQuantity * exchangeValue);
 
       if (totalAvailable < baseDeductQty) {
         throw new RpcException({
@@ -319,7 +337,17 @@ export class SalesService implements OnModuleInit {
 
         const deductQty = Math.min(batch.stock, remainingQty);
         const stockBefore = batch.stock;
-        batch.stock -= deductQty;
+        // Conditional atomic decrement prevents two concurrent sales from
+        // both consuming the same last units of a batch.
+        const inventoryModel: any = isBranchInventoryUsed ? this.branchInvModel : this.batchModel;
+        const updatedBatch = await inventoryModel.findOneAndUpdate(
+          { _id: batch._id, status: 'ACTIVE', stock: { $gte: deductQty } },
+          { $inc: { stock: -deductQty } },
+          { new: true },
+        ).exec();
+        if (!updatedBatch) {
+          throw new RpcException({ message: `Tồn kho lô ${batch.batchNo} vừa thay đổi, vui lòng thử lại` });
+        }
         remainingQty -= deductQty;
 
         allocatedBatches.push({
@@ -361,14 +389,17 @@ export class SalesService implements OnModuleInit {
         ).exec();
       }
 
-      // Cập nhật tồn kho tổng và hộp lẻ của thuốc
+      // Cập nhật số lẻ đang mở chỉ cho thuốc có thể tách theo đơn vị cơ sở.
+      // Tuýp/chai/lọ là bao gói nguyên chiếc; không được biến một lần bán
+      // thành 99 đơn vị "đang mở" chỉ vì exchangeValue của chúng bằng 1.
       let currentOpened = Number(medicine.openedBoxUnits) || 0;
-      if (exchangeValue < 100) { // Bán đơn vị lẻ (Viên / Vỉ)
+      const largestPackFactor = Math.max(...unitOptions.map(unit => getUnitFactor(unit)), 1);
+      if (!isPackageOnlyUnit(selectedUnit.unitName) && exchangeValue < largestPackFactor) {
         if (baseDeductQty <= currentOpened) {
           currentOpened -= baseDeductQty;
         } else {
           const needed = baseDeductQty - currentOpened;
-          const boxSize = 100;
+          const boxSize = largestPackFactor;
           const boxesOpened = Math.ceil(needed / boxSize);
           currentOpened = (boxesOpened * boxSize) - needed;
         }
@@ -381,22 +412,40 @@ export class SalesService implements OnModuleInit {
       ).exec();
 
       // Resolve giá theo chi nhánh và đơn vị đã chọn
-      const resolvedPrice = Number(item.price) || (medicine.price ? Math.round(medicine.price * exchangeValue / 100) : (medicine.price ?? 0));
-      totalAmount += resolvedPrice * (Number(item.quantity) || 1);
+      const branchReferencePrice = await this.pricingService.resolvePrice(
+        data.branchId,
+        medIdStr,
+        data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
+        requestedQuantity,
+      );
+      const resolvedPrice = resolveUnitPrice(medicine, selectedUnit, branchReferencePrice);
+      totalAmount += resolvedPrice * requestedQuantity;
+
+      const dosePerTime = Number(item.dosePerTime) > 0 ? Number(item.dosePerTime) : 1;
+      const timesPerDay = Number(item.timesPerDay) > 0 ? Number(item.timesPerDay) : 2;
+      const durationDays = Number(item.durationDays) > 0 ? Number(item.durationDays) : 1;
+      const dailyDose = Number(item.dailyDose) > 0 ? Number(item.dailyDose) : dosePerTime * timesPerDay;
 
       orderItems.push({
         medicineId: item.medicineId,
         name: medicine.name,
-        quantity: Number(item.quantity) || 1,
+        quantity: requestedQuantity,
         price: resolvedPrice,
-        unit: item.unit || medicine.unit || 'Hộp',
+        unit: selectedUnit.unitName || medicine.unit || 'Hộp',
         exchangeValue: exchangeValue,
         baseQuantity: baseDeductQty,
-        dosePerTime: item.dosePerTime || 1,
-        timesPerDay: item.timesPerDay || 2,
-        dailyDose: item.dailyDose || (item.dosePerTime ? item.dosePerTime * (item.timesPerDay || 2) : 2),
-        durationDays: item.durationDays || 1,
-        dosageInstructions: item.dosageInstructions || (item.dosage ? item.dosage : `Uống ${item.dailyDose || 2} ${item.unit || 'viên'}/ngày trong ${item.durationDays || 1} ngày`),
+        dosePerTime,
+        timesPerDay,
+        dailyDose,
+        durationDays,
+        dosageInstructions: item.dosageInstructions || buildRetailDosageInstruction({
+          medicine,
+          selectedUnit,
+          dosePerTime,
+          timesPerDay,
+          durationDays,
+          baseUnitName: baseUnit.unitName,
+        }),
         batches: allocatedBatches
       });
     }
@@ -470,11 +519,16 @@ export class SalesService implements OnModuleInit {
     }
 
     const txns = await this.txnModel.find({ referenceId: order._id.toString(), type: 'SALE_EXPORT' }).exec();
+    const stockModel: any = order.branchId && order.branchId !== 'CENTRAL_WH'
+      ? this.branchInvModel
+      : this.batchModel;
     for (const txn of txns) {
       const quantityToRevert = Math.abs(txn.quantityChange);
 
       // Revert batch stock
-      const batch = await this.batchModel.findOne({ batchNo: txn.batchNo, medicineId: txn.medicineId }).exec();
+      const batchFilter: any = { batchNo: txn.batchNo, medicineId: txn.medicineId };
+      if (stockModel === this.branchInvModel) batchFilter.branchId = order.branchId;
+      const batch = await stockModel.findOne(batchFilter).exec();
       if (batch) {
         const stockBefore = batch.stock;
         batch.stock += quantityToRevert;
@@ -564,50 +618,64 @@ export class SalesService implements OnModuleInit {
       }
 
       const currentReturned = orderItem.returnedQuantity || 0;
-      if (currentReturned + quantity > orderItem.quantity) {
+      const returnQuantity = Number(quantity);
+      if (!Number.isInteger(returnQuantity) || returnQuantity <= 0) {
+        throw new RpcException({ message: 'Số lượng trả phải là số nguyên dương' });
+      }
+      if (currentReturned + returnQuantity > orderItem.quantity) {
         throw new RpcException({
-          message: `Số lượng trả vượt quá số lượng đã mua (Đã trả: ${currentReturned}, Yêu cầu trả thêm: ${quantity}, Đã mua: ${orderItem.quantity})`
+          message: `Số lượng trả vượt quá số lượng đã mua (Đã trả: ${currentReturned}, Yêu cầu trả thêm: ${returnQuantity}, Đã mua: ${orderItem.quantity})`
         });
       }
 
-      orderItem.returnedQuantity = currentReturned + quantity;
+      orderItem.returnedQuantity = currentReturned + returnQuantity;
 
       if (reason === 'CHANGE_OF_MIND') {
-        let remainingToReturn = quantity;
+        // Batch allocations are stored in the base unit. Convert the sold
+        // package quantity back before restoring stock (e.g. 1 vỉ = 10 viên).
+        let remainingToReturn = returnQuantity * (Number(orderItem.exchangeValue) || 1);
+        const stockModel: any = salesOrder.branchId && salesOrder.branchId !== 'CENTRAL_WH'
+          ? this.branchInvModel
+          : this.batchModel;
         for (const batchAlloc of orderItem.batches) {
           if (remainingToReturn <= 0) break;
-          const dbBatch = await this.batchModel.findOne({
+          const batchFilter: any = {
             medicineId: orderItem.medicineId,
             batchNo: batchAlloc.batchNo
-          }).exec();
+          };
+          if (stockModel === this.branchInvModel) batchFilter.branchId = salesOrder.branchId;
+          const dbBatch = await stockModel.findOne(batchFilter).exec();
 
           if (dbBatch) {
-            dbBatch.stock += Math.min(batchAlloc.quantity, remainingToReturn);
+            const restored = Math.min(batchAlloc.quantity, remainingToReturn);
+            dbBatch.stock += restored;
             if (dbBatch.status === 'EXPIRED' && dbBatch.expDate >= new Date()) {
               dbBatch.status = 'ACTIVE';
             }
             await dbBatch.save();
-            remainingToReturn -= Math.min(batchAlloc.quantity, remainingToReturn);
+            remainingToReturn -= restored;
           }
         }
         if (remainingToReturn > 0) {
-          const activeBatches = await this.batchModel.find({
+          const activeBatchFilter: any = {
             medicineId: orderItem.medicineId,
             status: 'ACTIVE'
-          }).sort({ expDate: 1 }).exec();
+          };
+          if (stockModel === this.branchInvModel) activeBatchFilter.branchId = salesOrder.branchId;
+          const activeBatches = await stockModel.find(activeBatchFilter).sort({ expDate: 1 }).exec();
           if (activeBatches.length > 0) {
             activeBatches[0].stock += remainingToReturn;
             await activeBatches[0].save();
           }
         }
         // Cập nhật tồn kho tổng của thuốc
-        await this.medicineModel.updateOne({ _id: orderItem.medicineId }, { $inc: { stock: quantity } }).exec();
+        await this.medicineModel.updateOne({ _id: orderItem.medicineId }, { $inc: { stock: returnQuantity * (Number(orderItem.exchangeValue) || 1) } }).exec();
       }
 
       returnLogItems.push({
         medicineId,
         name: orderItem.name,
-        quantity,
+        quantity: returnQuantity,
         reason,
         unit: orderItem.unit,
         price: orderItem.price
@@ -662,50 +730,62 @@ export class SalesService implements OnModuleInit {
       }
 
       const currentReturned = orderItem.returnedQuantity || 0;
-      if (currentReturned + quantity > orderItem.quantity) {
+      const returnQuantity = Number(quantity);
+      if (!Number.isInteger(returnQuantity) || returnQuantity <= 0) {
+        throw new RpcException({ message: 'Số lượng đổi trả phải là số nguyên dương' });
+      }
+      if (currentReturned + returnQuantity > orderItem.quantity) {
         throw new RpcException({
-          message: `Số lượng trả vượt quá số lượng đã mua (Đã trả: ${currentReturned}, Yêu cầu trả thêm: ${quantity}, Đã mua: ${orderItem.quantity})`
+          message: `Số lượng trả vượt quá số lượng đã mua (Đã trả: ${currentReturned}, Yêu cầu trả thêm: ${returnQuantity}, Đã mua: ${orderItem.quantity})`
         });
       }
 
-      orderItem.returnedQuantity = currentReturned + quantity;
+      orderItem.returnedQuantity = currentReturned + returnQuantity;
 
       if (reason === 'CHANGE_OF_MIND') {
-        let remainingToReturn = quantity;
+        let remainingToReturn = returnQuantity * (Number(orderItem.exchangeValue) || 1);
+        const stockModel: any = salesOrder.branchId && salesOrder.branchId !== 'CENTRAL_WH'
+          ? this.branchInvModel
+          : this.batchModel;
         for (const batchAlloc of orderItem.batches) {
           if (remainingToReturn <= 0) break;
-          const dbBatch = await this.batchModel.findOne({
+          const batchFilter: any = {
             medicineId: orderItem.medicineId,
             batchNo: batchAlloc.batchNo
-          }).exec();
+          };
+          if (stockModel === this.branchInvModel) batchFilter.branchId = salesOrder.branchId;
+          const dbBatch = await stockModel.findOne(batchFilter).exec();
 
           if (dbBatch) {
-            dbBatch.stock += Math.min(batchAlloc.quantity, remainingToReturn);
+            const restored = Math.min(batchAlloc.quantity, remainingToReturn);
+            dbBatch.stock += restored;
             if (dbBatch.status === 'EXPIRED' && dbBatch.expDate >= new Date()) {
               dbBatch.status = 'ACTIVE';
             }
             await dbBatch.save();
-            remainingToReturn -= Math.min(batchAlloc.quantity, remainingToReturn);
+            remainingToReturn -= restored;
           }
         }
         if (remainingToReturn > 0) {
-          const activeBatches = await this.batchModel.find({
+          const activeBatchFilter: any = {
             medicineId: orderItem.medicineId,
             status: 'ACTIVE'
-          }).sort({ expDate: 1 }).exec();
+          };
+          if (stockModel === this.branchInvModel) activeBatchFilter.branchId = salesOrder.branchId;
+          const activeBatches = await stockModel.find(activeBatchFilter).sort({ expDate: 1 }).exec();
           if (activeBatches.length > 0) {
             activeBatches[0].stock += remainingToReturn;
             await activeBatches[0].save();
           }
         }
         // Cập nhật tồn kho tổng của thuốc trả
-        await this.medicineModel.updateOne({ _id: orderItem.medicineId }, { $inc: { stock: quantity } }).exec();
+        await this.medicineModel.updateOne({ _id: orderItem.medicineId }, { $inc: { stock: returnQuantity * (Number(orderItem.exchangeValue) || 1) } }).exec();
       }
 
       returnLogItems.push({
         medicineId,
         name: orderItem.name,
-        quantity,
+        quantity: returnQuantity,
         reason,
         unit: orderItem.unit,
         price: orderItem.price
@@ -717,26 +797,38 @@ export class SalesService implements OnModuleInit {
     const allWarnings = [];
 
     for (const newItem of newItems) {
-      const { medicineId, quantity } = newItem;
+      const { medicineId } = newItem;
       const medicine = await this.medicineModel.findById(medicineId).exec();
       if (!medicine) {
         throw new RpcException({ message: `Không tìm thấy thuốc có ID: ${medicineId}` });
       }
 
-      const batches = await this.batchModel.find({
+      const selectedUnit = getSelectedUnit(medicine, newItem.unit);
+      const exchangeValue = getUnitFactor(selectedUnit);
+      const requestedQuantity = Number(newItem.quantity);
+      if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+        throw new RpcException({ message: `Số lượng đổi của thuốc "${medicine.name}" phải là số nguyên dương` });
+      }
+      const requiredBaseQuantity = requestedQuantity * exchangeValue;
+      const stockModel: any = salesOrder.branchId && salesOrder.branchId !== 'CENTRAL_WH'
+        ? this.branchInvModel
+        : this.batchModel;
+      const batchFilter: any = {
         medicineId,
         status: 'ACTIVE',
         stock: { $gt: 0 }
-      }).sort({ expDate: 1 }).exec();
+      };
+      if (stockModel === this.branchInvModel) batchFilter.branchId = salesOrder.branchId;
+      const batches = await stockModel.find(batchFilter).sort({ expDate: 1 }).exec();
 
       const totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
-      if (totalAvailable < quantity) {
+      if (totalAvailable < requiredBaseQuantity) {
         throw new RpcException({
-          message: `Thuốc "${medicine.name}" không đủ tồn kho khả dụng để đổi (Yêu cầu: ${quantity}, Khả dụng: ${totalAvailable})`
+          message: `Thuốc "${medicine.name}" không đủ tồn kho khả dụng để đổi (Yêu cầu: ${requiredBaseQuantity}, Khả dụng: ${totalAvailable})`
         });
       }
 
-      let remainingQty = quantity;
+      let remainingQty = requiredBaseQuantity;
       const allocatedBatches = [];
 
       for (const batch of batches) {
@@ -761,7 +853,6 @@ export class SalesService implements OnModuleInit {
         remainingQty -= deductQty;
 
         allocatedBatches.push({ batchNo: batch.batchNo, quantity: deductQty });
-        await batch.save();
       }
 
       if (remainingQty > 0) {
@@ -771,18 +862,31 @@ export class SalesService implements OnModuleInit {
       }
 
       // Cập nhật tồn kho tổng của thuốc mới đổi
-      await this.medicineModel.updateOne({ _id: medicineId }, { $inc: { stock: -quantity } }).exec();
+      await this.medicineModel.updateOne({ _id: medicineId }, { $inc: { stock: -requiredBaseQuantity } }).exec();
 
-      const itemPrice = medicine.price ?? 0;
-      exchangeTotalAmount += itemPrice * quantity;
+      const branchReferencePrice = await this.pricingService.resolvePrice(
+        salesOrder.branchId,
+        medicineId,
+        'RETAIL',
+        requestedQuantity,
+      );
+      const itemPrice = resolveUnitPrice(medicine, selectedUnit, branchReferencePrice);
+      exchangeTotalAmount += itemPrice * requestedQuantity;
 
       exchangeItems.push({
         medicineId,
         name: medicine.name,
-        quantity,
+        quantity: requestedQuantity,
         price: itemPrice,
-        unit: medicine.unit || 'Hộp',
-        batches: allocatedBatches
+        unit: selectedUnit.unitName || medicine.unit || 'Hộp',
+        exchangeValue,
+        baseQuantity: requiredBaseQuantity,
+        batches: allocatedBatches,
+        dosageInstructions: buildRetailDosageInstruction({
+          medicine,
+          selectedUnit,
+          baseUnitName: getUnitOptions(medicine).sort((a, b) => getUnitFactor(a) - getUnitFactor(b))[0]?.unitName,
+        })
       });
     }
 

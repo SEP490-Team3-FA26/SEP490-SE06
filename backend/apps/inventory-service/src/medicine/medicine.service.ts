@@ -1243,17 +1243,18 @@ export class MedicineService implements OnModuleInit {
   }
 
   async completeInventoryCheck(id: string) {
-    const check = await this.checkModel.findById(id).exec();
+    const check = await this.checkModel.findOneAndUpdate(
+      { _id: id, status: { $ne: 'COMPLETED' } },
+      { $set: { status: 'COMPLETED' } },
+      { new: true },
+    ).exec();
     if (!check) {
-      throw new RpcException({ message: `Không tìm thấy biên bản kiểm kê: ${id}` });
-    }
-
-    if (check.status === 'COMPLETED') {
+      const existing = await this.checkModel.findById(id).select('status').lean().exec();
+      if (!existing) {
+        throw new RpcException({ message: `Không tìm thấy biên bản kiểm kê: ${id}` });
+      }
       throw new RpcException({ message: 'Biên bản kiểm kê này đã được hoàn tất trước đó' });
     }
-
-    check.status = 'COMPLETED';
-    await check.save();
 
     await this.applyStockAdjustments(check);
 

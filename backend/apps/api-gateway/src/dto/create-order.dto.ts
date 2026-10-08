@@ -27,6 +27,30 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   unit?: string;
+
+  @IsNumber()
+  @IsOptional()
+  exchangeValue?: number;
+
+  @IsNumber()
+  @IsOptional()
+  dosePerTime?: number;
+
+  @IsNumber()
+  @IsOptional()
+  timesPerDay?: number;
+
+  @IsNumber()
+  @IsOptional()
+  dailyDose?: number;
+
+  @IsNumber()
+  @IsOptional()
+  durationDays?: number;
+
+  @IsString()
+  @IsOptional()
+  dosageInstructions?: string;
 }
 
 export class CreateOrderDto {
@@ -86,6 +110,14 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   cancelUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedBy?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedAt?: string;
 }
 
 export class CreatePayOSLinkDto {
@@ -146,4 +178,12 @@ export class CreatePayOSLinkDto {
   @IsString()
   @IsOptional()
   cancelUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedBy?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedAt?: string;
 }

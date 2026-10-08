@@ -14,6 +14,16 @@ import api from "../../../services/core/api";
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import {
+  buildRetailDosageInstruction,
+  buildUnitOptions,
+  calculateRetailQuantity,
+  getBaseUnitOption,
+  getDefaultUnitOption,
+  getUnitFactor,
+  getUnitPrice,
+  isPackageOnlyUnit,
+} from "../../../utils/medicineUnits";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -476,7 +486,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
         const medId = match.id || match._id;
         const existing = newCart.find(it => (it.id || it._id) === medId);
         if (existing) {
-          if (existing.quantity < match.stock) {
+          const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
+            unitName: existing.selectedUnit || existing.unit,
+            exchangeValue: existing.exchangeValue,
+          });
+          if (nextBaseQty <= (match.stock || 0)) {
             existing.quantity += 1;
             existing.aiSuggested = true;
             count++;
@@ -484,23 +498,28 @@ export default function RetailView({ showToast }: RetailViewProps) {
           }
         } else {
           const unitOptions = buildUnitOptions(match);
-          const defaultUnit = unitOptions[0] || { unitName: match.unit || "Hộp", exchangeValue: 1, price: match.price ?? 0 };
+          const defaultUnit = getDefaultUnitOption(match);
+          const baseUnit = getBaseUnitOption(unitOptions);
           const newItem = {
             ...match,
             id: medId,
-            baseUnit: match.baseUnit || defaultUnit.unitName || 'Hộp',
+            baseUnit: match.baseUnit || baseUnit.unitName || 'đơn vị',
             unitOptions,
             selectedUnit: defaultUnit.unitName,
             unit: defaultUnit.unitName,
-            exchangeValue: defaultUnit.exchangeValue,
-            price: defaultUnit.price,
+            exchangeValue: getUnitFactor(defaultUnit),
+            price: getUnitPrice(match, defaultUnit),
             stock: match.stock, // Đảm bảo gán đúng tồn kho chi nhánh
             quantity: 1,
             dosePerTime: 1,
             timesPerDay: 2,
             durationDays: 7,
             dailyDose: 2,
-            dosageInstructions: drug.usage || `Uống 1 ${defaultUnit.unitName}/lần, ngày 2 lần`,
+            dosageInstructions: drug.usage || buildRetailDosageInstruction({
+              unitName: defaultUnit.unitName,
+              dosageForm: match.dosage_form,
+              baseUnitName: baseUnit.unitName,
+            }),
             active_ingredient: drug.active_ingredient || match.active_ingredient,
             aiSuggested: true
           };
@@ -641,7 +660,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const existing = cart.find(it => (it.id || it._id) === medId);
 
       if (existing) {
-        if (existing.quantity >= totalStock) {
+        const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
+          unitName: existing.selectedUnit || existing.unit,
+          exchangeValue: existing.exchangeValue,
+        });
+        if (nextBaseQty > totalStock) {
           showToast(`⚠️ Đã đạt số lượng tồn khả dụng tối đa (${totalStock}) của chi nhánh!`, "warning");
           return;
         }
@@ -649,8 +672,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
         showToast(`⚡ Quét mã: Đã tăng số lượng "${med.name}" (+1)!`, "success");
       } else {
         const unitOptions = buildUnitOptions(med);
-        const selectedUnitObj = res.matchedUnit || unitOptions[0] || { unitName: med.unit || 'Hộp', exchangeValue: 1, price: med.price || 0 };
-        const baseUnit = med.baseUnit || selectedUnitObj.unitName || 'viên';
+        const selectedUnitObj = res.matchedUnit || getDefaultUnitOption(med);
+        const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
 
         setCart(prev => [
           ...prev,
@@ -661,8 +684,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
             unitOptions,
             selectedUnit: selectedUnitObj.unitName,
             unit: selectedUnitObj.unitName,
-            exchangeValue: selectedUnitObj.exchangeValue || 1,
-            price: selectedUnitObj.price || med.price || 0,
+            exchangeValue: getUnitFactor(selectedUnitObj),
+            price: getUnitPrice(med, selectedUnitObj),
             quantity: 1,
             fefoBatchNo: fefoBatch ? fefoBatch.batchNo : undefined,
             fefoExpDate: fefoBatch ? fefoBatch.expDate : undefined,
@@ -670,7 +693,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
             timesPerDay: 2,
             durationDays: 7,
             dailyDose: 2,
-            dosageInstructions: `Uống 1 ${selectedUnitObj.unitName}/lần, 2 lần/ngày sau ăn - Dùng 7 ngày`
+            dosageInstructions: buildRetailDosageInstruction({
+              unitName: selectedUnitObj.unitName,
+              dosageForm: med.dosage_form,
+              baseUnitName: baseUnit,
+            })
           }
         ]);
 
@@ -769,42 +796,40 @@ export default function RetailView({ showToast }: RetailViewProps) {
     }
   };
 
-  const buildUnitOptions = (med: any) => {
-    if (med.units && Array.isArray(med.units) && med.units.length > 0) {
-      return med.units;
-    }
-    if (med.unitOptions && Array.isArray(med.unitOptions) && med.unitOptions.length > 0) {
-      return med.unitOptions;
-    }
-    const basePrice = med.price ?? 0;
-    const mainUnit = med.unit || 'Hộp';
-    return [
-      { unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }
-    ];
-  };
-
   const addToCart = (med: any) => {
     const medId = med.id || med._id;
     const existing = cart.find(it => (it.id || it._id) === medId);
     if (existing) {
-      setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
-      if (existing.quantity + 1 > (med.stock || 0)) {
+      const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
+        unitName: existing.selectedUnit || existing.unit,
+        exchangeValue: existing.exchangeValue,
+      });
+      if (nextBaseQty > (med.stock || 0)) {
         showToast(`Cảnh báo: Số lượng thuốc "${med.name}" vượt quá tồn kho (${med.stock || 0} ${med.unit || 'viên'})!`, "warning");
+        return;
       }
+      setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
     } else {
       const unitOptions = buildUnitOptions(med);
-      const isViProduct = (med.name || '').toLowerCase().includes('ngậm') || (med.name || '').toLowerCase().includes('sủi');
-      // Ưu tiên Vỉ cho viên ngậm/sủi, hoặc đơn vị lẻ cho thuốc kê đơn theo ngày
-      const defaultUnit = (isViProduct && unitOptions.length > 2)
-        ? unitOptions[1]
-        : (unitOptions.length > 1 ? unitOptions[unitOptions.length - 1] : unitOptions[0]);
-      const baseUnit = med.baseUnit || defaultUnit.unitName || 'viên';
+      const defaultUnit = getDefaultUnitOption(med);
+      const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
       const dosePerTime = 1;
       const timesPerDay = 2;
       const durationDays = 7;
       const dailyDose = dosePerTime * timesPerDay;
-      const qty = defaultUnit.exchangeValue === 1 ? (dailyDose * durationDays) : 1;
-      const dosageInstructions = `Sáng 1 ${baseUnit}, Tối 1 ${baseUnit} sau ăn - Dùng trong ${durationDays} ngày`;
+      const qty = calculateRetailQuantity({
+        unit: defaultUnit,
+        dailyDose,
+        durationDays,
+      });
+      const dosageInstructions = buildRetailDosageInstruction({
+        unitName: defaultUnit.unitName,
+        dosageForm: med.dosage_form,
+        dosePerTime,
+        timesPerDay,
+        durationDays,
+        baseUnitName: baseUnit,
+      });
 
       setCart([
         ...cart,
@@ -815,8 +840,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
           unitOptions,
           selectedUnit: defaultUnit.unitName,
           unit: defaultUnit.unitName,
-          exchangeValue: defaultUnit.exchangeValue,
-          price: defaultUnit.price,
+          exchangeValue: getUnitFactor(defaultUnit),
+          price: getUnitPrice(med, defaultUnit),
           quantity: qty,
           dosePerTime,
           timesPerDay,
@@ -839,19 +864,30 @@ export default function RetailView({ showToast }: RetailViewProps) {
     setCart(cart.map(it => {
       if ((it.id || it._id) !== medId) return it;
       const opt = it.unitOptions?.find((u: any) => u.unitName === unitName) || { unitName, exchangeValue: 1, price: it.price };
-      let newQty = it.quantity;
-      if (opt.exchangeValue === 1) {
-        newQty = (it.dailyDose || 2) * (it.durationDays || 7);
-      } else {
-        newQty = Math.max(1, Math.ceil(((it.dailyDose || 2) * (it.durationDays || 7)) / (opt.exchangeValue || 1)));
-      }
+      const newQty = isPackageOnlyUnit(opt.unitName)
+        ? 1
+        : calculateRetailQuantity({
+            unit: opt,
+            dailyDose: it.dailyDose || 2,
+            durationDays: it.durationDays || 7,
+          });
+      const baseUnit = getBaseUnitOption(it.unitOptions || [opt]);
       return {
         ...it,
         selectedUnit: opt.unitName,
         unit: opt.unitName,
-        exchangeValue: opt.exchangeValue,
-        price: opt.price,
-        quantity: newQty
+        exchangeValue: getUnitFactor(opt),
+        price: getUnitPrice(it, opt),
+        baseUnit: it.baseUnit || baseUnit.unitName,
+        quantity: newQty,
+        dosageInstructions: buildRetailDosageInstruction({
+          unitName: opt.unitName,
+          dosageForm: it.dosage_form,
+          dosePerTime: it.dosePerTime || 1,
+          timesPerDay: it.timesPerDay || 2,
+          durationDays: it.durationDays || 7,
+          baseUnitName: it.baseUnit || baseUnit.unitName,
+        }),
       };
     }));
   };
@@ -865,16 +901,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const dDays = Number(field === 'durationDays' ? val : updated.durationDays) || 1;
       const dailyD = dPerTime * tPerDay;
       updated.dailyDose = dailyD;
-      const bUnit = updated.baseUnit || updated.selectedUnit || 'viên';
+      const bUnit = updated.baseUnit || updated.selectedUnit || 'đơn vị';
 
       if (field === 'durationDays' || field === 'dosePerTime' || field === 'timesPerDay') {
-        if (updated.exchangeValue === 1) {
-          updated.quantity = Math.max(1, dailyD * dDays);
-        } else {
-          const factor = updated.exchangeValue || 100;
-          updated.quantity = Math.max(1, Math.ceil((dailyD * dDays) / factor));
-        }
-        updated.dosageInstructions = `Uống ${dPerTime} ${bUnit}/lần, ${tPerDay} lần/ngày sau ăn - Dùng trong ${dDays} ngày`;
+        updated.quantity = calculateRetailQuantity({
+          unit: { unitName: updated.selectedUnit || updated.unit, exchangeValue: updated.exchangeValue },
+          dailyDose: dailyD,
+          durationDays: dDays,
+          currentQuantity: updated.quantity,
+        });
+        updated.dosageInstructions = buildRetailDosageInstruction({
+          unitName: updated.selectedUnit || updated.unit,
+          dosageForm: updated.dosage_form,
+          dosePerTime: dPerTime,
+          timesPerDay: tPerDay,
+          durationDays: dDays,
+          baseUnitName: bUnit,
+        });
       }
       return updated;
     }));
@@ -886,15 +929,25 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const dPerTime = Number(it.dosePerTime) || 1;
       const tPerDay = Number(it.timesPerDay) || 2;
       const dailyD = dPerTime * tPerDay;
-      const bUnit = it.baseUnit || it.selectedUnit || 'viên';
-      const newQty = it.exchangeValue === 1
-        ? Math.max(1, dailyD * days)
-        : Math.max(1, Math.ceil((dailyD * days) / (it.exchangeValue || 100)));
+      const bUnit = it.baseUnit || it.selectedUnit || 'đơn vị';
+      const newQty = calculateRetailQuantity({
+        unit: { unitName: it.selectedUnit || it.unit, exchangeValue: it.exchangeValue },
+        dailyDose: dailyD,
+        durationDays: days,
+        currentQuantity: it.quantity,
+      });
       return {
         ...it,
         durationDays: days,
         quantity: newQty,
-        dosageInstructions: presetText || `Uống ${dPerTime} ${bUnit}/lần, ${tPerDay} lần/ngày sau ăn - Dùng trong ${days} ngày`
+        dosageInstructions: presetText || buildRetailDosageInstruction({
+          unitName: it.selectedUnit || it.unit,
+          dosageForm: it.dosage_form,
+          dosePerTime: dPerTime,
+          timesPerDay: tPerDay,
+          durationDays: days,
+          baseUnitName: bUnit,
+        })
       };
     }));
   };
@@ -969,14 +1022,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
 
       const maxUnits = Math.max(1, Math.floor(availableStock / factor));
       const dailyDose = it.dailyDose || ((it.dosePerTime || 1) * (it.timesPerDay || 2));
-      const newDays = Math.max(1, Math.floor((maxUnits * factor) / dailyDose));
-      const bUnit = it.baseUnit || it.selectedUnit || 'viên';
+      const newDays = isPackageOnlyUnit(it.selectedUnit || it.unit)
+        ? (it.durationDays || 7)
+        : Math.max(1, Math.floor((maxUnits * factor) / dailyDose));
+      const bUnit = it.baseUnit || it.selectedUnit || 'đơn vị';
 
       return {
         ...it,
         quantity: maxUnits,
         durationDays: newDays,
-        dosageInstructions: `Uống ${it.dosePerTime || 1} ${bUnit}/lần, ${it.timesPerDay || 2} lần/ngày sau ăn - Dùng trong ${newDays} ngày`
+        dosageInstructions: buildRetailDosageInstruction({
+          unitName: it.selectedUnit || it.unit,
+          dosageForm: it.dosage_form,
+          dosePerTime: it.dosePerTime || 1,
+          timesPerDay: it.timesPerDay || 2,
+          durationDays: newDays,
+          baseUnitName: bUnit,
+        })
       };
     }));
     showToast("Đã tự động điều chỉnh số lượng theo tồn kho thực tế!", "info");
@@ -994,6 +1056,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const availableStock = item.stock || 0;
       if (requiredBase > availableStock) {
         showToast(`Đã vượt quá tồn kho khả dụng (${availableStock} ${item.baseUnit || 'đơn vị'})!`, "warning");
+        return;
       }
       setCart(cart.map(it => (it.id || it._id) === id ? { ...it, quantity: newQty } : it));
     }
@@ -1069,6 +1132,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
           patientEmail: patientEmail || undefined,
           totalAmount: total,
           paymentMethod: "QR_PAY",
+          type: "RETAIL",
+          branchId: currentBranchId || undefined,
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
           redeemedPoints: usePoints ? redeemedPoints : 0,
           items: cart.map(it => ({
@@ -1076,7 +1141,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
             name: it.name,
             quantity: it.quantity,
             price: it.price,
-            unit: it.unit
+            unit: it.selectedUnit || it.unit,
+            exchangeValue: getUnitFactor({ unitName: it.selectedUnit || it.unit, exchangeValue: it.exchangeValue }),
+            dosePerTime: it.dosePerTime,
+            timesPerDay: it.timesPerDay,
+            dailyDose: it.dailyDose,
+            durationDays: it.durationDays,
+            dosageInstructions: it.dosageInstructions,
           }))
         });
 
@@ -1372,10 +1443,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
               </div>
               {searchResults.map((med) => {
                 const totalStock = med.stock || 0;
-                const boxCap = med.boxCapacity || (med.units && med.units[0]?.exchangeValue) || (med.unit === 'Hộp' ? 100 : 1);
+                const unitOptions = buildUnitOptions(med);
+                const boxCap = med.boxCapacity || Math.max(...unitOptions.map((u: any) => getUnitFactor(u)), 1);
                 const unopenedBoxes = boxCap > 1 ? Math.max(0, Math.floor(totalStock / boxCap)) : totalStock;
                 const openedUnits = med.openedBoxUnits !== undefined ? med.openedBoxUnits : (boxCap > 1 ? (totalStock % boxCap) : 0);
-                const baseUnitName = med.baseUnit || (med.units && med.units.length > 1 ? med.units[med.units.length - 1].unitName : med.unit) || 'viên';
+                const baseUnitName = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
 
                 return (
                   <button
@@ -1603,14 +1675,16 @@ export default function RetailView({ showToast }: RetailViewProps) {
             ) : (
               cart.map((it) => {
                 const totalStock = it.stock || 0;
-                const boxCap = it.boxCapacity || (it.unitOptions?.find((u: any) => u.isBaseUnit)?.exchangeValue) || (it.unit === 'Hộp' ? 100 : 1);
+                const unitOptions = it.unitOptions || buildUnitOptions(it);
+                const boxCap = it.boxCapacity || Math.max(...unitOptions.map((u: any) => getUnitFactor(u)), 1);
                 const unopenedBoxes = boxCap > 1 ? Math.max(0, Math.floor(totalStock / boxCap)) : totalStock;
                 const openedUnits = it.openedBoxUnits !== undefined ? it.openedBoxUnits : (boxCap > 1 ? (totalStock % boxCap) : 0);
-                const baseUnitName = it.baseUnit || (it.unitOptions && it.unitOptions.length > 1 ? it.unitOptions[it.unitOptions.length - 1].unitName : it.unit) || 'viên';
+                const baseUnitName = it.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
 
-                const factor = it.exchangeValue || 1;
+                const factor = getUnitFactor({ unitName: it.selectedUnit || it.unit, exchangeValue: it.exchangeValue });
                 const requiredBaseQty = it.quantity * factor;
                 const isOverStock = requiredBaseQty > totalStock;
+                const packageOnlyUnit = isPackageOnlyUnit(it.selectedUnit || it.unit);
 
                 return (
                   <div
@@ -1731,15 +1805,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
                       <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-700">
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-500">Liều mỗi lần:</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="10"
-                            value={it.dosePerTime || 1}
-                            onChange={(e) => handleDosageChange(it.id, 'dosePerTime', e.target.value)}
-                            className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-[#0057cd]"
-                          />
-                          <span className="text-[11px] text-slate-500 font-bold">{baseUnitName}</span>
+                          {packageOnlyUnit ? (
+                            <span className="px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 font-black">
+                              Lượng vừa đủ
+                            </span>
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={it.dosePerTime || 1}
+                                onChange={(e) => handleDosageChange(it.id, 'dosePerTime', e.target.value)}
+                                className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-[#0057cd]"
+                              />
+                              <span className="text-[11px] text-slate-500 font-bold">{baseUnitName}</span>
+                            </>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1.5">
@@ -1794,20 +1876,29 @@ export default function RetailView({ showToast }: RetailViewProps) {
                             type="text"
                             value={it.dosageInstructions || ""}
                             onChange={(e) => handleDosageChange(it.id, 'dosageInstructions', e.target.value)}
-                            placeholder={`Nhập hướng dẫn liều dùng (${baseUnitName})...`}
+                            placeholder={packageOnlyUnit
+                              ? "Ví dụ: Bôi một lượng vừa đủ theo hướng dẫn trên nhãn..."
+                             : `Nhập hướng dẫn liều dùng (${baseUnitName})...`}
                             className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-[#0057cd] focus:bg-white"
                           />
                         </div>
 
                         {/* Tag gợi ý liều dùng nhanh 1-Click */}
                         <div className="flex flex-wrap items-center gap-1.5 pl-16">
-                          {[
-                            `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
-                            `Ngày 2 lần sau ăn`,
-                            `Dùng khi đau, cách 4-6h`,
-                            `Trước ăn 30 phút`,
-                            `Dùng với nhiều nước`,
-                          ].map((tag, idx) => (
+                          {(packageOnlyUnit
+                            ? [
+                                "Bôi một lượng vừa đủ theo hướng dẫn trên nhãn",
+                                "Dùng theo hướng dẫn trên nhãn/đơn thuốc",
+                                "Không bôi lên vùng da trầy xước",
+                              ]
+                            : [
+                                `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
+                                `Ngày 2 lần sau ăn`,
+                                `Dùng khi đau, cách 4-6h`,
+                                `Trước ăn 30 phút`,
+                                `Dùng với nhiều nước`,
+                              ]
+                          ).map((tag, idx) => (
                             <button
                               key={idx}
                               type="button"

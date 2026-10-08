@@ -65,6 +65,9 @@ export class User extends Document {
 
   @Prop({ default: 'Bronze' })
   tier?: string;
+
+  @Prop({ type: [String], default: [], select: false })
+  loyaltyOperationKeys?: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

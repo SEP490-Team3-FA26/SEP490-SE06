@@ -474,7 +474,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     };
   }
 
-  async updatePoints(data: { phone?: string; userId?: string; pointsDelta: number; accumulatedDelta?: number }) {
+  async updatePoints(data: { phone?: string; userId?: string; pointsDelta: number; accumulatedDelta?: number; operationKey?: string }) {
     this.logger.log(`Updating points: phone=${data.phone}, userId=${data.userId}, delta=${data.pointsDelta}`);
     let user;
     if (data.userId) {
@@ -487,14 +487,33 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       return { error: true, message: 'User not found', statusCode: 404 };
     }
 
-    user.points = Math.max(0, (user.points || 0) + data.pointsDelta);
-    if (data.accumulatedDelta && data.accumulatedDelta > 0) {
-      user.accumulatedPoints = (user.accumulatedPoints || 0) + data.accumulatedDelta;
+    const delta = Number(data.pointsDelta);
+    if (!Number.isFinite(delta)) {
+      throw new RpcException({ message: 'Biến động điểm phải là số hợp lệ', statusCode: 400 });
     }
-
-    const tierInfo = this.getMemberTier(user.accumulatedPoints);
-    user.tier = tierInfo.name;
-    await user.save();
+    const filter: any = { _id: user._id };
+    if (delta < 0) filter.points = { $gte: -delta };
+    if (data.operationKey) filter.loyaltyOperationKeys = { $ne: data.operationKey };
+    const increments: any = { points: delta };
+    if (Number(data.accumulatedDelta) > 0) increments.accumulatedPoints = Number(data.accumulatedDelta);
+    const update: any = { $inc: increments };
+    if (data.operationKey) update.$addToSet = { loyaltyOperationKeys: data.operationKey };
+    const originalUser = user;
+    user = await this.userModel.findOneAndUpdate(filter, update, { new: true }).exec();
+    if (!user) {
+      if (data.operationKey) {
+        const alreadyApplied = await this.userModel.findOne({
+          _id: originalUser._id,
+          loyaltyOperationKeys: data.operationKey,
+        }).exec();
+        if (alreadyApplied) {
+          return { success: true, duplicate: true, points: alreadyApplied.points, accumulatedPoints: alreadyApplied.accumulatedPoints, tier: alreadyApplied.tier };
+        }
+      }
+      throw new RpcException({ message: 'Không đủ điểm tích lũy để thực hiện giao dịch', statusCode: 409 });
+    }
+    const tierInfo = this.getMemberTier(user.accumulatedPoints || 0);
+    await this.userModel.updateOne({ _id: user._id }, { $set: { tier: tierInfo.name } }).exec();
     return {
       success: true,
       points: user.points,
