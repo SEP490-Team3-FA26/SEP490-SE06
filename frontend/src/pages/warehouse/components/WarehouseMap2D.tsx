@@ -81,7 +81,7 @@ function BinCell({
       }}
       title={isEmpty ? `Thùng ${bin.binNo} — Trống (Click để gán thuốc)` : `${bin.medicineName} · ${bin.currentStock} ${bin.unit || ""} · ${s.label}`}
     >
-      {/* Bin number */}
+      {/* Số thứ tự Thùng */}
       <div className="text-[9px] font-bold opacity-50 leading-none">B{bin.binNo}</div>
 
       {isEmpty ? (
@@ -91,17 +91,17 @@ function BinCell({
         </div>
       ) : (
         <>
-          {/* Medicine name */}
+          {/* Tên thuốc */}
           <div className="text-[10px] font-semibold leading-tight line-clamp-2 mt-0.5 w-full">
             {bin.medicineName?.split(" ").slice(0, 3).join(" ")}
           </div>
-          {/* Stock */}
+          {/* Tồn kho */}
           <div className="flex items-center justify-between w-full mt-1">
             <span className="text-[10px] font-mono font-bold">
               {bin.currentStock?.toLocaleString("vi-VN")}
               <span className="font-normal text-[8px] ml-0.5">{bin.unit}</span>
             </span>
-            {/* Dot + Reserve indicator */}
+            {/* Chấm trạng thái + Ký hiệu hàng Dự Trữ */}
             <div className="flex items-center gap-0.5">
               {bin.hasReserveBatch && (
                 <span title="Có lô cũ ở Khu Dự Trữ">
@@ -114,7 +114,7 @@ function BinCell({
         </>
       )}
 
-      {/* Highlight animation */}
+      {/* Hiệu ứng nhấp nháy làm sáng */}
       {isHighlighted && (
         <span className="absolute inset-0 rounded-lg animate-ping opacity-20 bg-sky-400 pointer-events-none" />
       )}
@@ -169,7 +169,7 @@ function RackBinGrid({
     <div className="mt-2 space-y-2">
       {layout.map(shelfData => (
         <div key={shelfData.shelfNo} className="bg-white/80 rounded-lg border border-slate-200 overflow-hidden">
-          {/* Shelf header */}
+          {/* Tiêu đề Tầng Kệ */}
           <div className="px-2 py-1 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5">
             <Layers size={10} className="text-slate-400" />
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -179,7 +179,7 @@ function RackBinGrid({
               ({shelfData.bins.filter(b => b.status !== "EMPTY").length}/10 thùng có hàng)
             </span>
           </div>
-          {/* 10 Bins grid */}
+          {/* Lưới 10 Ô Thùng */}
           <div className="grid gap-1 p-1.5" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
             {shelfData.bins.map(bin => {
               const highlightId = `bin-${zone}-${rack}-${shelfData.shelfNo}-${bin.binNo}`;
@@ -221,7 +221,7 @@ export function WarehouseMap2D({
   highlightTarget,
 }: WarehouseMap2DProps) {
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
-  // Track which rack is expanded (showing bin grid)
+  // Theo dõi kệ nào đang được mở rộng (hiển thị lưới thùng)
   const [expandedRack, setExpandedRack] = useState<string | null>(null);
 
   const handleRackToggle = useCallback((rackKey: string) => {
@@ -262,7 +262,7 @@ export function WarehouseMap2D({
         .highlighted-bin { animation: binPulse 1.2s ease-in-out infinite; }
       `}</style>
 
-      {/* Inbound dock */}
+      {/* Khu vực tiếp nhận hàng nhập */}
       <div className="w-full mb-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-emerald-50 border border-dashed border-emerald-300">
         <span className="flex items-center gap-2 font-semibold text-emerald-700">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
@@ -271,7 +271,7 @@ export function WarehouseMap2D({
         <span className="font-mono text-[10px] text-emerald-500">Luồng một chiều → GSP</span>
       </div>
 
-      {/* Zone grid */}
+      {/* Lưới các khu vực (Zone) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 flex-1">
         {zones.map((zoneData) => {
           const cfg = ZONE_CONFIG[zoneData.zone] || ZONE_CONFIG.F;
@@ -296,7 +296,7 @@ export function WarehouseMap2D({
               onMouseLeave={() => setHoveredZone(null)}
               onClick={() => onZoneClick && onZoneClick(zoneData)}
             >
-              {/* Zone header */}
+              {/* Tiêu đề Khu Vực */}
               <div
                 className="px-4 py-3 flex items-center justify-between"
                 style={{ backgroundColor: cfg.headerBg, borderBottom: `1px solid ${cfg.borderColor}` }}
@@ -332,7 +332,7 @@ export function WarehouseMap2D({
                 </div>
               </div>
 
-              {/* Racks */}
+              {/* Danh sách Kệ */}
               <div className="p-3 grid gap-2.5 flex-1" onClick={(e) => e.stopPropagation()}>
                 {zoneData.racks.map((rackData: any) => {
                   const rackStatus = getRackWorstStatus(rackData.shelves);
@@ -345,7 +345,7 @@ export function WarehouseMap2D({
                       key={rackData.rack}
                       className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden"
                     >
-                      {/* Rack header — click to expand/collapse Bin Grid */}
+                      {/* Tiêu đề Kệ — bấm để mở/đóng Lưới Ô Thùng */}
                       <div
                         className="flex items-center justify-between p-2.5 cursor-pointer hover:bg-slate-50 transition-colors"
                         onClick={() => handleRackToggle(rackKey)}
@@ -370,7 +370,7 @@ export function WarehouseMap2D({
                         </div>
                       </div>
 
-                      {/* Compact shelf summary (visible when collapsed) */}
+                      {/* Tóm tắt tầng gọn gàng (hiển thị khi thu gọn) */}
                       {!isExpanded && (
                         <div className="flex flex-col-reverse gap-1 px-2.5 pb-2.5">
                           {rackData.shelves.map((shelfData: any) => {
@@ -404,7 +404,7 @@ export function WarehouseMap2D({
                         </div>
                       )}
 
-                      {/* Expanded: 4 Tầng × 10 Thùng Bin Grid */}
+                      {/* Mở rộng: Lưới 4 Tầng × 10 Thùng */}
                       {isExpanded && (
                         <div className="px-2 pb-2">
                           <RackBinGrid
@@ -421,7 +421,7 @@ export function WarehouseMap2D({
                 })}
               </div>
 
-              {/* Zone footer */}
+              {/* Chân thẻ Khu Vực */}
               <div
                 className="px-4 py-1.5 flex items-center justify-between text-[10px]"
                 style={{ borderTop: `1px solid ${cfg.borderColor}`, backgroundColor: cfg.headerBg, color: "#94a3b8" }}
@@ -436,7 +436,7 @@ export function WarehouseMap2D({
         })}
       </div>
 
-      {/* Outbound dock */}
+      {/* Khu vực xuất hàng */}
       <div className="w-full mt-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-sky-50 border border-dashed border-sky-300">
         <span className="flex items-center gap-2 font-semibold text-sky-700">
           <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse inline-block" />

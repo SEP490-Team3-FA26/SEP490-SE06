@@ -19,14 +19,14 @@ export function WarehouseFilterBar({
   onFilterChange,
   onSearchSelect,
 }: WarehouseFilterBarProps) {
-  // Search state
+  // Trạng thái tìm kiếm
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filter state
+  // Trạng thái bộ lọc
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [activeChips, setActiveChips] = useState<Set<QuickChipType>>(new Set());
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
@@ -200,7 +200,7 @@ export function WarehouseFilterBar({
     onSearchSelect(item.targetId);
   };
 
-  // Toggle quick chip
+  // Bật/tắt chip lọc nhanh
   const handleToggleChip = (chip: QuickChipType) => {
     setActiveChips((prev) => {
       const next = new Set(prev);

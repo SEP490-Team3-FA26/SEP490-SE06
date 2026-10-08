@@ -45,7 +45,7 @@ export function RelocateBinModal({
   batchNo,
   onSuccess,
 }: RelocateBinModalProps) {
-  // Destination selection state
+  // Trạng thái chọn vị trí đích
   const [targetZone, setTargetZone] = useState<string>(sourceLocation.zone || "A");
   const [targetRack, setTargetRack] = useState<string>(sourceLocation.rack || "A1");
   const [targetShelf, setTargetShelf] = useState<number>(sourceLocation.shelf || 1);
@@ -55,6 +55,17 @@ export function RelocateBinModal({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [loadingLayout, setLoadingLayout] = useState<boolean>(false);
   const [shelfLayouts, setShelfLayouts] = useState<ShelfLayout[]>([]);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "warning";
+  } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "warning" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
 
   // Tải sơ đồ kệ đích khi targetZone hoặc targetRack thay đổi
   useEffect(() => {
@@ -92,7 +103,7 @@ export function RelocateBinModal({
 
   const handleConfirm = async () => {
     if (!targetBin) {
-      alert("Vui lòng chọn Ô Thùng đích muốn chuyển đến!");
+      showToast("Vui lòng chọn Ô Thùng đích muốn chuyển đến!", "warning");
       return;
     }
 
@@ -103,13 +114,13 @@ export function RelocateBinModal({
       targetShelf === sourceLocation.shelf &&
       targetBin === sourceLocation.bin
     ) {
-      alert("Vị trí đích không được trùng với vị trí nguồn hiện tại!");
+      showToast("Vị trí đích không được trùng với vị trí nguồn hiện tại!", "warning");
       return;
     }
 
     try {
       setSubmitting(true);
-      const res = await inventoryMapService.relocateBin({
+      await inventoryMapService.relocateBin({
         fromLocation: sourceLocation,
         toLocation: {
           zone: targetZone,
@@ -121,16 +132,24 @@ export function RelocateBinModal({
         reason: reason || "Dồn kho",
       });
 
-      alert(
-        `Đã gửi yêu cầu chuyển thuốc thành công!\nTừ: Khu ${sourceLocation.zone} - Kệ ${sourceLocation.rack} - T${sourceLocation.shelf} - B${sourceLocation.bin}\nSang: Khu ${targetZone} - Kệ ${targetRack} - T${targetShelf} - B${targetBin}`
+      showToast(
+        `Đã gửi yêu cầu chuyển thuốc thành công! (Khu ${sourceLocation.zone}-${sourceLocation.rack}-T${sourceLocation.shelf}-B${sourceLocation.bin} ➔ Khu ${targetZone}-${targetRack}-T${targetShelf}-B${targetBin})`,
+        "success"
       );
 
+      // Delay 1000ms để Kafka consumer ghi DB xong trước khi re-fetch (tránh race condition)
       if (onSuccess) {
-        onSuccess();
+        setTimeout(() => {
+          onSuccess();
+        }, 1000);
       }
-      onClose();
+
+      // Tự động đóng modal sau khi hiển thị toast thành công
+      setTimeout(() => {
+        onClose();
+      }, 1200);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi khi chuyển vị trí");
+      showToast(err.response?.data?.message || err.message || "Lỗi khi chuyển vị trí", "error");
     } finally {
       setSubmitting(false);
     }
@@ -141,6 +160,30 @@ export function RelocateBinModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
       onClick={onClose}
     >
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-[100] max-w-md animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-auto">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold ${
+              toast.type === "error"
+                ? "bg-rose-50 text-rose-800 border-rose-200"
+                : toast.type === "warning"
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+            }`}
+          >
+            {toast.type === "error" ? (
+              <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+            ) : toast.type === "warning" ? (
+              <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+            ) : (
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            )}
+            <span className="leading-relaxed">{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       <div
         className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-slate-800 animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}

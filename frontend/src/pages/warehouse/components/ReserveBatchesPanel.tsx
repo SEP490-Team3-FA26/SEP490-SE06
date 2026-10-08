@@ -50,9 +50,10 @@ export function ReserveBatchesPanel({
       setQuarantiningId(batchId);
       await inventoryMapService.quarantineBatch(batchId, "Khóa từ Khu Dự Trữ (hết hạn / cận date)");
       alert("Đã gửi yêu cầu khóa lô.");
+      // Delay 1000ms để Kafka consumer ghi DB xong trước khi re-fetch
       setTimeout(() => {
         if (onRefresh) onRefresh();
-      }, 800);
+      }, 1000);
     } catch (e: any) {
       alert(e.message || "Lỗi khóa lô");
     } finally {
@@ -94,7 +95,7 @@ export function ReserveBatchesPanel({
           </div>
         </div>
 
-        {/* Stats & Search & Close */}
+        {/* Thống kê & Tìm kiếm & Đóng */}
         <div className="flex items-center gap-3">
           <div className="hidden md:flex items-center gap-2 text-xs">
             <div className="px-2.5 py-1 rounded-lg bg-white border border-amber-200 text-slate-700">
@@ -130,7 +131,7 @@ export function ReserveBatchesPanel({
         </div>
       </div>
 
-      {/* List / Table */}
+      {/* Bảng danh sách lô */}
       <div className="flex-1 overflow-auto p-4 custom-scrollbar bg-slate-50/50">
         {loading ? (
           <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">

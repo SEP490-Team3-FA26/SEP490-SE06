@@ -30,10 +30,10 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
   const [loading, setLoading] = useState(true);
   const [quarantining, setQuarantining] = useState<string | null>(null);
 
-  // For Shelf-level view (when bin is null/undefined)
+  // Dành cho chế độ xem theo Tầng Kệ (khi không chọn thùng cụ thể)
   const [shelfData, setShelfData] = useState<any[]>([]);
 
-  // For Bin-level view (when bin is selected)
+  // Dành cho chế độ xem theo Thùng (khi có thùng được chọn)
   const [binData, setBinData] = useState<BinDetailResponse | null>(null);
 
   // State cho Relocate / Gom kho modal
@@ -76,11 +76,11 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
       setQuarantining(batchId);
       await inventoryMapService.quarantineBatch(batchId, "Khóa thủ công từ sơ đồ kho (cận date / hết hạn)");
       alert("Đã gửi yêu cầu cách ly lô thuốc.");
-      // Delay 800ms để Kafka consumer ghi DB xong trước khi re-fetch
+      // Delay 1000ms để Kafka consumer ghi DB xong trước khi re-fetch
       setTimeout(() => {
         loadData();
         if (onRefresh) onRefresh();
-      }, 800);
+      }, 1000);
     } catch (err: any) {
       alert(err.message || "Lỗi khi khóa lô");
     } finally {
@@ -88,7 +88,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
     }
   };
 
-  // Bin Mode stats
+  // Thống kê chế độ Ô Thùng
   const unit = binData?.location?.unit || binData?.medicine?.unit || "Hộp";
   const medicineName = binData?.location?.medicineName || binData?.medicine?.name;
   const maxCap = binData?.maxCapacity || binData?.location?.maxCapacity || 200;
@@ -202,7 +202,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                 <p className="text-xs font-medium text-slate-500">Đang tải dữ liệu chi tiết...</p>
               </div>
             ) : isBinMode ? (
-              /* BIN VIEW */
+              /* CHẾ ĐỘ XEM Ô THÙNG */
               <>
                 {/* CẢNH BÁO KHU DỰ TRỮ (NẾU CÓ) - NGUYÊN TẮC FEFO */}
                 {reserveBatches.length > 0 && (
@@ -373,7 +373,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                 </div>
               </>
             ) : (
-              /* SHELF VIEW (ALL BINS ON THIS SHELF) */
+              /* CHẾ ĐỘ XEM TẦNG KỆ (TẤT CẢ CÁC Ô THÙNG TRÊN TẦNG) */
               shelfData.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 text-slate-400">
                   <Package size={40} className="mb-2 opacity-30 text-slate-300" />
@@ -505,10 +505,8 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
           batchNo={relocateState.batchNo}
           unit={unit}
           onSuccess={() => {
-            setTimeout(() => {
-              loadData();
-              if (onRefresh) onRefresh();
-            }, 800);
+            loadData();
+            if (onRefresh) onRefresh();
           }}
         />
       )}

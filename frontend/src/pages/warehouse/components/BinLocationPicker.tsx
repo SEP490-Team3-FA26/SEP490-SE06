@@ -51,7 +51,7 @@ export function BinLocationPicker({
   const shelf = Number(value?.shelf || 1);
   const bin = Number(value?.bin || 1);
 
-  // Check bin content whenever location changes
+  // Kiểm tra thông tin thùng khi vị trí thay đổi
   useEffect(() => {
     let active = true;
     setChecking(true);

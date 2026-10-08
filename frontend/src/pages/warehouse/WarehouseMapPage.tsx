@@ -18,7 +18,7 @@ export function WarehouseMapPage() {
   const [highlightTarget, setHighlightTarget] = useState<string>("");
   const [filterDesc, setFilterDesc] = useState<string>("");
 
-  // Reserve Batches state
+  // Trạng thái các lô Khu Dự Trữ
   const [reserveBatches, setReserveBatches] = useState<ReserveBatch[]>([]);
   const [loadingReserve, setLoadingReserve] = useState(false);
   const [showReservePanel, setShowReservePanel] = useState(true);
@@ -103,7 +103,7 @@ export function WarehouseMapPage() {
           </div>
         </div>
 
-        {/* Stats & Actions */}
+        {/* Thống kê & Thao tác */}
         <div className="flex items-center gap-2.5">
           <div className="hidden lg:flex items-center gap-2">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-sky-50 border border-sky-200 text-sky-700">
@@ -222,7 +222,7 @@ export function WarehouseMapPage() {
               </button>
             </div>
 
-            {/* Stats */}
+            {/* Thống kê */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               <div className="rounded-xl p-2.5 flex items-center gap-2 bg-sky-50 border border-sky-200">
                 <div className="p-1.5 rounded-lg bg-sky-100"><Package size={14} className="text-sky-600" /></div>
@@ -245,7 +245,7 @@ export function WarehouseMapPage() {
               </div>
             </div>
 
-            {/* Rack list */}
+            {/* Danh sách Kệ */}
             <div className="space-y-2">
               {drawerZone.racks?.map((rack: any) => (
                 <div key={rack.rack} className="rounded-xl p-3 bg-slate-50 border border-slate-200">
@@ -269,7 +269,7 @@ export function WarehouseMapPage() {
               ))}
             </div>
 
-            {/* Legend */}
+            {/* Chú thích màu */}
             <div className="mt-4 pt-3 flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap border-t border-slate-100">
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Bình thường
               <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block ml-2" /> Sắp hết
@@ -281,7 +281,7 @@ export function WarehouseMapPage() {
         )}
       </main>
 
-      {/* Reserve Batches Panel (Bottom drawer/section) */}
+      {/* Bảng Khu Kệ Dự Trữ (Ngăn kéo dưới đáy) */}
       {showReservePanel && (
         <ReserveBatchesPanel
           batches={reserveBatches}
@@ -296,7 +296,7 @@ export function WarehouseMapPage() {
                 bin: batch.location.bin,
               });
             } else {
-              // Highlight target or notify
+              // Làm sáng vị trí hoặc thông báo
               setHighlightTarget(batch.medicineName);
             }
           }}
@@ -304,7 +304,7 @@ export function WarehouseMapPage() {
         />
       )}
 
-      {/* Legend bar */}
+      {/* Thanh chú giải trạng thái */}
       <div className="shrink-0 h-10 bg-white border-t border-slate-200 flex items-center justify-center gap-6 px-4 text-[11px] text-slate-500">
         {[
           { color: "#22c55e", label: "Bình thường" },
@@ -320,7 +320,7 @@ export function WarehouseMapPage() {
         ))}
       </div>
 
-      {/* Shelf Detail Modal (Supports Bin Mode + Shelf Mode) */}
+      {/* Modal Chi tiết Tầng Kệ (Hỗ trợ cả chế độ Ô Thùng & Tầng Kệ) */}
       {selectedShelf && (
         <ShelfDetailModal
           zone={selectedShelf.zone}
