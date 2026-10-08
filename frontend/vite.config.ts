@@ -22,13 +22,22 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : { usePolling: true },
       proxy: {
         '/api': {
-          target: process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000',
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
           changeOrigin: true,
         },
         '/socket.io': {
-          target: process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000',
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
           changeOrigin: true,
           ws: true,
+        },
+        // Proxy voor statische audio- en mediabestanden van de backend
+        '/public': {
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
+          changeOrigin: true,
         },
       },
     },

@@ -1,0 +1,197 @@
+<mxfile host="65bd71144e">
+    <diagram name="Mobile-Package-Diagram" id="mobile-pkg-001">
+        <mxGraphModel dx="1204" dy="1254" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="780" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="&lt;span&gt;WDP301 — Mobile App Package Diagram (React Native / Expo)&lt;/span&gt;&lt;hr&gt;" style="text;html=1;align=center;verticalAlign=top;fontSize=15;fontStyle=0;strokeColor=none;fillColor=none;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="1100" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="100" value="&lt;span&gt;Mobile Client (React Native + Expo + TypeScript)&lt;/span&gt;" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#333333;fontSize=11;whiteSpace=wrap;html=1;fontStyle=0" parent="1" vertex="1">
+                    <mxGeometry x="40" y="70" width="740" height="660" as="geometry"/>
+                </mxCell>
+                <mxCell id="110" value="&lt;span&gt;[Entry] App.tsx + index.ts&lt;/span&gt;&lt;hr&gt;app.json / Expo Config (SDK 52)&lt;br&gt;Providers Init &amp;amp; Global ErrorBoundary" style="shape=folder;fontStyle=0;tabWidth=80;tabHeight=22;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#333333;" parent="100" vertex="1">
+                    <mxGeometry x="20" y="35" width="210" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="111" value="&lt;span&gt;Navigation&lt;/span&gt;&lt;hr&gt;AppNavigator / RootNavigator&lt;br&gt;Role Stacks &amp;amp; Deep Linking (wdp301://)" style="shape=folder;fontStyle=0;tabWidth=70;tabHeight=22;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#333333;" parent="100" vertex="1">
+                    <mxGeometry x="250" y="35" width="220" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="112" value="&lt;span&gt;Context / State&lt;/span&gt;&lt;hr&gt;AuthContext (RBAC) / NotificationCtx&lt;br&gt;PaymentTimerCtx / ThemeCtx" style="shape=folder;fontStyle=0;tabWidth=70;tabHeight=22;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#333333;" parent="100" vertex="1">
+                    <mxGeometry x="490" y="35" width="230" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="120" value="&lt;span&gt;Screens Layer (by Role &amp;amp; Feature)&lt;/span&gt;" style="swimlane;startSize=22;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;fontSize=10;whiteSpace=wrap;html=1;fontStyle=0" parent="100" vertex="1">
+                    <mxGeometry x="20" y="130" width="700" height="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="121" value="&lt;span&gt;auth/&lt;/span&gt;&lt;hr&gt;LoginScreen (6-Role Demo Hub)&lt;br&gt;RegisterScreen / VerifyEmail&lt;br&gt;ForgotPassword / Google OAuth2" style="shape=folder;fontStyle=0;tabWidth=50;tabHeight=18;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;" parent="120" vertex="1">
+                    <mxGeometry x="15" y="35" width="125" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="122" value="&lt;span&gt;customer/&lt;/span&gt;&lt;hr&gt;CustomerScreen (Store, Cart, AI)&lt;br&gt;CustomerCheckout / OrderConfirm&lt;br&gt;MedicineReminderScreen (FEFO)" style="shape=folder;fontStyle=0;tabWidth=60;tabHeight=18;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;" parent="120" vertex="1">
+                    <mxGeometry x="150" y="35" width="130" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="123" value="&lt;span&gt;pharmacist/&lt;/span&gt;&lt;hr&gt;PharmacistScreen (POS Counter)&lt;br&gt;AI OCR Prescription Scanner&lt;br&gt;Drug Interaction Checker" style="shape=folder;fontStyle=0;tabWidth=65;tabHeight=18;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;" parent="120" vertex="1">
+                    <mxGeometry x="290" y="35" width="125" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="124" value="&lt;span&gt;warehouse/&lt;/span&gt;&lt;hr&gt;WarehouseScreen (GSP Inventory)&lt;br&gt;AI Vision Box Counting &amp;amp; GRN&lt;br&gt;FEFO Alerts / Batch Tracing" style="shape=folder;fontStyle=0;tabWidth=65;tabHeight=18;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;" parent="120" vertex="1">
+                    <mxGeometry x="425" y="35" width="130" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="125" value="&lt;span&gt;branch/&lt;/span&gt;&lt;hr&gt;BranchScreen (Revenue &amp;amp; Staff)&lt;br&gt;Stock Requisitions (PR) / Transfer&lt;br&gt;Low Stock Alerts &amp;amp; Replenish" style="shape=folder;fontStyle=0;tabWidth=50;tabHeight=18;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;" parent="120" vertex="1">
+                    <mxGeometry x="565" y="35" width="120" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="126" value="&lt;span&gt;admin/ &amp;amp; director/&lt;/span&gt;&lt;hr&gt;DirectorScreen (Chain KPI, PO Approvals)&lt;br&gt;AdminScreen (System Health &amp;amp; Staff)" style="shape=folder;fontStyle=0;tabWidth=85;tabHeight=18;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;" parent="120" vertex="1">
+                    <mxGeometry x="15" y="130" width="180" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="127" value="&lt;span&gt;common/ &amp;amp; shared/&lt;/span&gt;&lt;hr&gt;AIAssistant (Symptom Chat / Whisper STT Voice)&lt;br&gt;ProfileScreen / EditProfile / NotificationListScreen&lt;br&gt;WebViewScreen / OrderHistory / HelpSupport" style="shape=folder;fontStyle=0;tabWidth=80;tabHeight=18;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#333333;" parent="120" vertex="1">
+                    <mxGeometry x="205" y="130" width="480" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="130" value="&lt;span&gt;Components / UI&lt;/span&gt;&lt;hr&gt;ui/ (Button, Input, Modal, Badge, Card, Toast)&lt;br&gt;warehouse/ (ShelfMap, CameraViewfinder)&lt;br&gt;barcode/ (GS1 Camera Scanner, VietQR Display)&lt;br&gt;FloatingPaymentTimer / AmbientBackground" style="shape=folder;fontStyle=0;tabWidth=85;tabHeight=22;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#333333;" parent="100" vertex="1">
+                    <mxGeometry x="20" y="380" width="335" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="131" value="&lt;span&gt;Services (API &amp;amp; Business Logic)&lt;/span&gt;&lt;hr&gt;api.service.ts (Axios + JWT Interceptors)&lt;br&gt;authApiService / paymentApiService (PayOS)&lt;br&gt;medicineReminder.service / reminderStorage&lt;br&gt;aiAssistantService / socket.service.ts" style="shape=folder;fontStyle=0;tabWidth=90;tabHeight=22;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#333333;" parent="100" vertex="1">
+                    <mxGeometry x="385" y="380" width="335" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="132" value="&lt;span&gt;Utils &amp;amp; Helpers&lt;/span&gt;&lt;hr&gt;AsyncStorage / SecureStore Wrappers&lt;br&gt;GS1 Barcode Parser / Currency (VND) &amp;amp; Date&lt;br&gt;Audio Recording Helpers (Voice STT)" style="shape=folder;fontStyle=0;tabWidth=75;tabHeight=20;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" parent="100" vertex="1">
+                    <mxGeometry x="20" y="515" width="335" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="133" value="&lt;span&gt;Types &amp;amp; Models&lt;/span&gt;&lt;hr&gt;RootStackParamList / AuthTypes / UserRole&lt;br&gt;Medicine / Order / Cart / Voucher DTOs&lt;br&gt;AIPrediction / StockTransfer / Audit Types" style="shape=folder;fontStyle=0;tabWidth=75;tabHeight=20;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" parent="100" vertex="1">
+                    <mxGeometry x="385" y="515" width="335" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="140" value="«init»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="110" target="111" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="141" value="«mount»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="110" target="120" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="125" y="120"/>
+                            <mxPoint x="160" y="120"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="142" value="«route»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="111" target="120" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="143" value="«consume»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.85;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="120" target="112" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="144" value="«render»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="120" target="130" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="145" value="«call»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="120" target="131" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="146" value="«import»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="130" target="132" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="147" value="«use»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="131" target="133" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="148" value="«storage»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=8;labelBackgroundColor=#ffffff;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0.85;entryY=0;entryDx=0;entryDy=0;fontStyle=0" parent="100" source="131" target="132" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="435" y="502"/>
+                            <mxPoint x="305" y="502"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="203" value="&lt;span&gt;Device Hardware &amp;amp; OS APIs&lt;/span&gt;&lt;hr&gt;Camera (expo-camera GS1 &amp;amp; AI OCR)&lt;br&gt;Push Notifications (expo-notifications)&lt;br&gt;Local Secure Storage (SecureStore)" style="shape=folder;fontStyle=0;tabWidth=90;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="70" width="270" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="201" value="&lt;span&gt;API Gateway (NestJS)&lt;/span&gt;&lt;hr&gt;NestJS — port 4000&lt;br&gt;JWT Auth + Redis Cache + Kafka Router&lt;br&gt;Swagger: /api/docs&lt;br&gt;&lt;i&gt;backend/apps/api-gateway/&lt;/i&gt;" style="shape=folder;fontStyle=0;tabWidth=90;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="180" width="270" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="202" value="&lt;span&gt;Realtime Server (Socket.IO)&lt;/span&gt;&lt;hr&gt;NestJS Gateway — WebSockets (WSS)&lt;br&gt;Rooms: user-{id}, branch-{id}, warehouse&lt;br&gt;Live Alerts, Stock &amp;amp; Order Status" style="shape=folder;fontStyle=0;tabWidth=90;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="300" width="270" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="204" value="&lt;span&gt;PayOS Payment Gateway&lt;/span&gt;&lt;hr&gt;VietQR Banking QR Code Generation&lt;br&gt;Triple-Layer: In-App Modal / Deep Link&lt;br&gt;Banking App Redirect (wdp301://checkout)" style="shape=folder;fontStyle=0;tabWidth=90;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;overflow=hidden;fontSize=9;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="405" width="270" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="300" value="&lt;span&gt;Legend&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;verticalAlign=top;fontSize=10;fontStyle=0;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="510" width="270" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2s" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="15" y="30" width="16" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2t" value="Entry / Routing / Payment Gateway" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="38" y="27" width="190" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3s" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="15" y="52" width="16" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3t" value="Context / State Management" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="38" y="49" width="190" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l4s" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="15" y="74" width="16" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="l4t" value="Screens Layer (Role-based)" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="38" y="71" width="190" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l5s" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="15" y="96" width="16" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="l5t" value="Components / Custom UI" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="38" y="93" width="190" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l6s" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="15" y="118" width="16" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="l6t" value="Services &amp;amp; Gateways" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="38" y="115" width="190" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l7s" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="15" y="140" width="16" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="l7t" value="Utils / Types / Hardware" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="38" y="137" width="190" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1" value="" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=8;fontStyle=0" parent="300" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="15" y="175" as="sourcePoint"/>
+                        <mxPoint x="55" y="175" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="l1t" value="UML Dependency («use», «call»)" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontStyle=0" parent="300" vertex="1">
+                    <mxGeometry x="65" y="165" width="180" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="l8t" value="«hardware»: Camera / Notifications" style="text;html=1;align=left;verticalAlign=middle;fontSize=8;fontStyle=2;fontColor=#666666;" vertex="1" parent="300">
+                    <mxGeometry x="65" y="185" width="180" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="212" value="«hardware» Camera / Push" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=9;labelBackgroundColor=#ffffff;exitX=1;exitY=0.15;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontStyle=0" parent="1" source="120" target="203" edge="1">
+                    <mxGeometry x="0.1" y="-12" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="800" y="235"/>
+                            <mxPoint x="800" y="118"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="210" value="«call»&#10;HTTP REST /api/*" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=9;labelBackgroundColor=#ffffff;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontStyle=0" parent="1" source="131" target="201" edge="1">
+                    <mxGeometry x="0.65" y="-12" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="820" y="472"/>
+                            <mxPoint x="820" y="233"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="211" value="«listen/emit»&#10;WebSocket (WSS)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=9;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontStyle=0" parent="1" source="131" target="202" edge="1">
+                    <mxGeometry x="0.6" y="-12" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="840" y="505"/>
+                            <mxPoint x="840" y="345"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="213" value="«pay» VietQR" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;endFill=0;fontSize=9;labelBackgroundColor=#ffffff;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontStyle=0" parent="1" source="131" target="204" edge="1">
+                    <mxGeometry x="0.3" y="-12" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="855" y="538"/>
+                            <mxPoint x="855" y="449"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

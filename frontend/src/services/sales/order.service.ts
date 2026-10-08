@@ -19,6 +19,14 @@ export interface OrderPayload {
   notes?: string;
   voucherCode?: string;
   userId?: string;
+  // AI-beslissingsondersteuning en auditspoor
+  isAiAssisted?: boolean;
+  aiAuditCode?: string;
+  consultationId?: string;
+  pharmacistApprovedBy?: string;
+  role?: string;
+  customerRole?: string;
+  isGuest?: boolean;
 }
 
 export interface SalePayload {
@@ -39,6 +47,10 @@ export interface SalePayload {
   paymentMethod: string;
   soldBy: string;
   remarks?: string;
+  role?: string;
+  customerRole?: string;
+  patientRole?: string;
+  isGuest?: boolean;
 }
 
 export interface PayOSLinkPayload {
@@ -57,6 +69,15 @@ export interface PayOSLinkPayload {
     unit: string;
   }[];
   userId?: string;
+  role?: string;
+  customerRole?: string;
+  patientRole?: string;
+  isGuest?: boolean;
+  // AI-beslissingsondersteuning en auditspoor
+  isAiAssisted?: boolean;
+  aiAuditCode?: string;
+  consultationId?: string;
+  pharmacistApprovedBy?: string;
 }
 
 export const orderService = {

@@ -75,5 +75,30 @@ export class Order extends Document {
 
   @Prop({ type: String, default: 'BR-001' })
   branchId?: string;
+
+  @Prop({ type: String, default: 'guest' })
+  customerRole?: string;
+
+  @Prop({ type: String, default: 'guest' })
+  role?: string;
+
+  @Prop({ type: Boolean, default: true })
+  isGuest?: boolean;
+
+  // AI-beslissingsondersteuning en GPP-auditspoorvelden
+  @Prop({ type: Boolean, default: false })
+  isAiAssisted?: boolean;
+
+  @Prop({ type: String })
+  aiAuditCode?: string;
+
+  @Prop({ type: String })
+  consultationId?: string;
+
+  @Prop({ type: String })
+  pharmacistApprovedBy?: string;
+
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 export const OrderSchema = SchemaFactory.createForClass(Order);

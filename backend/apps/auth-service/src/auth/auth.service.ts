@@ -108,11 +108,35 @@ export class AuthService implements OnApplicationBootstrap {
   // ĐĂNG NHẬP - Xác thực và cấp JWT Token
   // ============================================================
   async login(dto: LoginDto): Promise<any> {
-    const email = (dto.email || '').toLowerCase().trim();
-    const userFromDb = await this.userModel.findOne({ email });
+    const rawEmail = (dto.email || '').toLowerCase().trim();
+    const rawPhone = (dto.phone || '').trim();
+
+    if (!rawEmail && !rawPhone) {
+      throw new UnauthorizedException('Vui lòng cung cấp email hoặc số điện thoại để đăng nhập!');
+    }
+
+    let userFromDb: any = null;
+
+    // 1. Find user by phone if phone field is provided
+    if (rawPhone) {
+      userFromDb = await this.userModel.findOne({ phone: rawPhone });
+    }
+
+    // 2. If not found or phone not provided, check rawEmail field
+    if (!userFromDb && rawEmail) {
+      // Check if rawEmail matches a phone number format
+      if (/^0\d{9,10}$/.test(rawEmail) || /^\+?\d{9,15}$/.test(rawEmail)) {
+        userFromDb = await this.userModel.findOne({ phone: rawEmail });
+      }
+
+      // Query by email address if not found by phone
+      if (!userFromDb) {
+        userFromDb = await this.userModel.findOne({ email: rawEmail });
+      }
+    }
 
     if (!userFromDb) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
+      throw new UnauthorizedException('Email, số điện thoại hoặc mật khẩu không chính xác!');
     }
 
     if (!userFromDb.isActive) {

@@ -86,8 +86,10 @@ export const hrService = {
   },
 
   // --- SCHEDULES ---
-  getWeekSchedule: async (weekStart: string) => {
-    const response = await api.get('/api/hr/schedules/week', { params: { weekStart } });
+  getWeekSchedule: async (weekStart: string, branchId?: string) => {
+    const params: any = { weekStart };
+    if (branchId && branchId !== 'all') params.branchId = branchId;
+    const response = await api.get('/api/hr/schedules/week', { params });
     return response.data as WorkSchedule;
   },
   upsertSchedule: async (data: { weekStart: string; assignments: any[] }) => {

@@ -62,9 +62,13 @@ export const reconciliationService = {
   },
 
   // Dược sĩ xác nhận khẩn cấp có đối soát tại quầy khi mất mạng
-  async manualOverride(data: { orderCode: number; bankTransactionId: string; actualAmount?: number; notes?: string }) {
+  async manualOverride(data: { orderCode: number; bankTransactionId?: string; actualAmount?: number; notes?: string; [key: string]: any }) {
     const response = await api.post('/api/orders/reconciliation/override', data);
     return response.data;
+  },
+
+  async manualOverridePayment(data: any) {
+    return this.manualOverride(data);
   },
 
   // Kế toán xử lý giải trình biên bản lệch tiền

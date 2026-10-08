@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="3_POS_Retail_Counter_Sales">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1180" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- BOUNDARY -->
+        <mxCell id="boundary" value="Pharmacy Chain - POS Retail and Counter Sales Module" style="shape=rectangle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;strokeWidth=1.5;verticalAlign=top;fontStyle=1;fontSize=14;fontColor=#000000;container=0;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="25" y="20" width="1150" height="1090" as="geometry" />
+        </mxCell>
+
+        <!-- ACTORS -->
+        <mxCell id="act_pharm" value="Pharmacist" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="480" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="act_cust" value="Customer" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=1.2;fontFamily=Helvetica;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="480" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- === LEFT COLUMN: PHARMACIST SALES & CLINICAL WORKFLOW === -->
+        <!-- Search & Cart Cluster -->
+        <mxCell id="uc_search_retail" value="Search Medicines at Counter" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="50" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_add_pos_cart" value="Add Medicines to POS Cart" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="130" width="280" height="52" as="geometry" />
+        </mxCell>
+        <!-- Suggest substitute extends Add Cart (adjacent below) -->
+        <mxCell id="uc_suggest_sub" value="Suggest Substitute Medicine" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="210" width="260" height="52" as="geometry" />
+        </mxCell>
+        <!-- Cross-sell extends Add Cart (adjacent right beside ) -->
+        <mxCell id="uc_cross_sell" value="Suggest Cross-sell / Combo" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="450" y="210" width="250" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- Prescription OCR & AI Interaction Cluster -->
+        <mxCell id="uc_scan_rx_ai" value="Scan Prescription via OCR / AI" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="295" width="280" height="52" as="geometry" />
+        </mxCell>
+        <!-- Step 1: Confirms OCR (Pharmacist clinical verification) -->
+        <mxCell id="uc_confirm_ocr" value="Pharmacist Confirms OCR Result" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="375" width="280" height="52" as="geometry" />
+        </mxCell>
+        <!-- Step 2: System Automated Interaction Check (Included by Confirm OCR) -->
+        <mxCell id="uc_check_interact" value="Check Medicine Interactions (AI)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="455" width="280" height="52" as="geometry" />
+        </mxCell>
+        <!-- Step 3: System Automated Log Save (Included by Interaction Check) -->
+        <mxCell id="uc_save_ocr_history" value="Save OCR Prescription History" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="535" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_voice_hist" value="View AI Voice Consultation History" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="615" width="280" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- Payment & Invoicing Cluster -->
+        <mxCell id="uc_confirm_payment" value="Confirm Retail Payment &amp; Print Invoice" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="700" width="280" height="52" as="geometry" />
+        </mxCell>
+        <!-- Extends Confirm Payment: Apply Voucher (adjacent below) -->
+        <mxCell id="uc_apply_voucher" value="Apply Discount Voucher" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="780" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_create_wholesale" value="Create Wholesale Invoice (Giá bậc thang)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="860" width="280" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- Return Slip Cluster -->
+        <mxCell id="uc_search_return" value="Search Return Invoice" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="940" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_create_return_slip" value="Create Return Slip &amp; Refund" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="1020" width="280" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- === RIGHT COLUMN: CUSTOMER EXTENSIONS & STORE SHIFT === -->
+        <mxCell id="uc_shift_close" value="Close Shift &amp; Reconcile Cash" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="600" y="455" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_cancel_order" value="Cancel Order / Transaction" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="600" y="535" width="280" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- Payment Extensions (Adjacent to at y=700) -->
+        <mxCell id="uc_cust_phone" value="Provide Phone for Loyalty Points" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="600" y="700" width="280" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_send_einvoice" value="Send E-Invoice via Email" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f4821f;strokeColor=#000000;strokeWidth=1.2;fontColor=#000000;fontFamily=Helvetica;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="600" y="780" width="280" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- EDGES: Pharmacist -->
+        <mxCell id="e_1" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_search_retail"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_2" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_add_pos_cart"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_3" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_scan_rx_ai"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_4" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_confirm_ocr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_6" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_confirm_payment"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_7" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_create_wholesale"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_9" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_create_return_slip"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_10" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_shift_close"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_11" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_pharm" target="uc_cancel_order"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- EDGES: Customer -->
+        <mxCell id="e_12" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_scan_rx_ai"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_13" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_confirm_payment"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_15" style="edgeStyle=none;rounded=0;html=1;endArrow=none;strokeColor=#000000;strokeWidth=1.2;" edge="1" parent="1" source="act_cust" target="uc_create_return_slip"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- LOCAL SHORT INCLUDE / EXTEND -->
+        <!-- extends Add Cart (directly below pointing up) -->
+        <mxCell id="ext_sub_cart" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_suggest_sub" target="uc_add_pos_cart">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Cross-sell extends Add Cart (directly below pointing up) -->
+        <mxCell id="ext_cross_cart" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_cross_sell" target="uc_add_pos_cart">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- OCR Clinical Verification Sub-routines -->
+        <!-- Confirm OCR includes Check Interactions (simultaneous automated clinical safety check) -->
+        <mxCell id="inc_ocr_interact" value="&amp;laquo;include&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_confirm_ocr" target="uc_check_interact">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Check Interactions includes Save History (simultaneous automated audit logging) -->
+        <mxCell id="inc_ocr_save" value="&amp;laquo;include&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_check_interact" target="uc_save_ocr_history">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Payment Extensions (All optional extensions point TO Confirm Payment) -->
+        <!-- Apply Voucher extends Confirm Payment (directly below pointing up) -->
+        <mxCell id="ext_pay_voucher" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_apply_voucher" target="uc_confirm_payment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Loyalty Phone extends Confirm Payment (horizontal adjacent pointing left) -->
+        <mxCell id="ext_pay_phone" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_cust_phone" target="uc_confirm_payment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Send E-Invoice extends Confirm Payment (horizontal adjacent pointing left) -->
+        <mxCell id="ext_send_invoice" value="&amp;laquo;extend&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_send_einvoice" target="uc_confirm_payment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Create Return Slip includes Search Return Invoice (directly above - mandatory invoice lookup) -->
+        <mxCell id="inc_return_search" value="&amp;laquo;include&amp;raquo;" style="edgeStyle=none;rounded=0;html=1;dashed=1;endArrow=open;endSize=8;verticalAlign=middle;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=9;fontColor=#000000;" edge="1" parent="1" source="uc_create_return_slip" target="uc_search_return">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Caption -->
+        <mxCell id="caption" value="Figure 3 - Use Case Diagram For POS Retail and Counter Sales Module" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=13;fontColor=#004c99;" vertex="1" parent="1">
+          <mxGeometry x="25" y="1125" width="1150" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

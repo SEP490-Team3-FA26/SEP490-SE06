@@ -6,7 +6,7 @@ import {
 import { inventoryMapService, ReserveBatch } from "../../services/inventory/inventoryMap.service";
 import { WarehouseMap2D } from "./components/WarehouseMap2D";
 import { ShelfDetailModal } from "./components/ShelfDetailModal";
-import { WarehouseSearchBar } from "./components/WarehouseSearchBar";
+import { WarehouseFilterBar } from "./components/WarehouseFilterBar";
 import { ReserveBatchesPanel } from "./components/ReserveBatchesPanel";
 
 export function WarehouseMapPage() {
@@ -14,9 +14,11 @@ export function WarehouseMapPage() {
   const [zones, setZones] = useState<any[]>([]);
   const [selectedShelf, setSelectedShelf] = useState<{ zone: string; rack: string; shelf: number; bin?: number | null } | null>(null);
   const [drawerZone, setDrawerZone] = useState<any | null>(null);
+  const [highlightTargets, setHighlightTargets] = useState<Set<string>>(new Set());
   const [highlightTarget, setHighlightTarget] = useState<string>("");
+  const [filterDesc, setFilterDesc] = useState<string>("");
 
-  // Reserve Batches state
+  // Trạng thái các lô Khu Dự Trữ
   const [reserveBatches, setReserveBatches] = useState<ReserveBatch[]>([]);
   const [loadingReserve, setLoadingReserve] = useState(false);
   const [showReservePanel, setShowReservePanel] = useState(true);
@@ -42,7 +44,7 @@ export function WarehouseMapPage() {
     setLoading(true);
     try {
       const res = await inventoryMapService.getWarehouseMap();
-      setZones(res?.zones || res?.data?.zones || []);
+      setZones(res?.zones || (res as any)?.data?.zones || []);
     } catch (error) {
       console.error("Failed to fetch warehouse map", error);
     } finally {
@@ -85,9 +87,9 @@ export function WarehouseMapPage() {
       `}</style>
 
       {/* Header */}
-      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-5 shrink-0 z-20 shadow-sm">
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-5 shrink-0 z-20 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-sky-500 shadow text-white">
+          <div className="p-2 rounded-xl bg-sky-500 shadow text-white shrink-0">
             <Boxes size={18} />
           </div>
           <div>
@@ -101,26 +103,25 @@ export function WarehouseMapPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="hidden xl:flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-sky-50 border border-sky-200 text-sky-700">
-            <Database size={13} className="text-sky-500" />
-            <span><b>{totalStock.toLocaleString("vi-VN")}</b> tổng tồn</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-teal-50 border border-teal-200 text-teal-700">
-            <Package size={13} className="text-teal-500" />
-            <span><b>{totalBatches}</b> lô hàng</span>
-          </div>
-          {alertCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-amber-50 border border-amber-200 text-amber-700">
-              <AlertTriangle size={13} className="text-amber-500" />
-              <span><b>{alertCount}</b> cảnh báo</span>
+        {/* Thống kê & Thao tác */}
+        <div className="flex items-center gap-2.5">
+          <div className="hidden lg:flex items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-sky-50 border border-sky-200 text-sky-700">
+              <Database size={13} className="text-sky-500" />
+              <span><b>{totalStock.toLocaleString("vi-VN")}</b> tổng tồn</span>
             </div>
-          )}
-        </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-teal-50 border border-teal-200 text-teal-700">
+              <Package size={13} className="text-teal-500" />
+              <span><b>{totalBatches}</b> lô hàng</span>
+            </div>
+            {alertCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-amber-50 border border-amber-200 text-amber-700">
+                <AlertTriangle size={13} className="text-amber-500" />
+                <span><b>{alertCount}</b> cảnh báo</span>
+              </div>
+            )}
+          </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-2">
           {/* Nút bật/tắt Khu Kệ Dự Trữ FEFO */}
           <button
             onClick={() => setShowReservePanel(!showReservePanel)}
@@ -138,7 +139,6 @@ export function WarehouseMapPage() {
             </span>
           </button>
 
-          <WarehouseSearchBar onSelect={(target) => setHighlightTarget(target)} />
           <button
             onClick={() => { fetchMapData(); fetchReserveBatches(); }}
             disabled={loading}
@@ -150,6 +150,50 @@ export function WarehouseMapPage() {
         </div>
       </header>
 
+      {/* Toolbar: Bộ lọc & Tìm kiếm trực quan */}
+      <div className="bg-white border-b border-slate-200 px-5 py-2.5 shrink-0 z-10 shadow-xs">
+        <WarehouseFilterBar
+          zones={zones}
+          onSearchSelect={(target) => {
+            if (target === 'RESERVE') {
+              setShowReservePanel(true);
+            } else if (target) {
+              setHighlightTarget(target);
+              setHighlightTargets(new Set([target]));
+              setFilterDesc("");
+            }
+          }}
+          onFilterChange={(targets, desc) => {
+            setHighlightTargets(targets);
+            setHighlightTarget("");
+            setFilterDesc(desc || "");
+          }}
+        />
+      </div>
+
+      {/* Filter status indicator khi đang có bộ lọc active */}
+      {filterDesc && (
+        <div className="bg-sky-50/90 border-b border-sky-200/80 px-5 py-1.5 flex items-center justify-between text-xs text-sky-800 shrink-0 z-10 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+            <span className="font-semibold">{filterDesc}</span>
+            <span className="text-[11px] text-sky-600 hidden md:inline">
+              (Các vị trí tương ứng trên sơ đồ đang được làm sáng viền xanh)
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setHighlightTargets(new Set());
+              setHighlightTarget("");
+              setFilterDesc("");
+            }}
+            className="text-[11px] text-sky-600 hover:text-sky-800 underline font-medium cursor-pointer"
+          >
+            Tắt highlight
+          </button>
+        </div>
+      )}
+
       {/* Main */}
       <main className="flex-1 relative flex overflow-hidden">
         <WarehouseMap2D
@@ -157,6 +201,7 @@ export function WarehouseMapPage() {
           onShelfSelect={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
           onBinSelect={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
           onZoneClick={(zoneData) => setDrawerZone(zoneData)}
+          highlightTargets={highlightTargets}
           highlightTarget={highlightTarget}
         />
 
@@ -177,7 +222,7 @@ export function WarehouseMapPage() {
               </button>
             </div>
 
-            {/* Stats */}
+            {/* Thống kê */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               <div className="rounded-xl p-2.5 flex items-center gap-2 bg-sky-50 border border-sky-200">
                 <div className="p-1.5 rounded-lg bg-sky-100"><Package size={14} className="text-sky-600" /></div>
@@ -200,7 +245,7 @@ export function WarehouseMapPage() {
               </div>
             </div>
 
-            {/* Rack list */}
+            {/* Danh sách Kệ */}
             <div className="space-y-2">
               {drawerZone.racks?.map((rack: any) => (
                 <div key={rack.rack} className="rounded-xl p-3 bg-slate-50 border border-slate-200">
@@ -224,7 +269,7 @@ export function WarehouseMapPage() {
               ))}
             </div>
 
-            {/* Legend */}
+            {/* Chú thích màu */}
             <div className="mt-4 pt-3 flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap border-t border-slate-100">
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Bình thường
               <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block ml-2" /> Sắp hết
@@ -236,7 +281,7 @@ export function WarehouseMapPage() {
         )}
       </main>
 
-      {/* Reserve Batches Panel (Bottom drawer/section) */}
+      {/* Bảng Khu Kệ Dự Trữ (Ngăn kéo dưới đáy) */}
       {showReservePanel && (
         <ReserveBatchesPanel
           batches={reserveBatches}
@@ -251,7 +296,7 @@ export function WarehouseMapPage() {
                 bin: batch.location.bin,
               });
             } else {
-              // Highlight target or notify
+              // Làm sáng vị trí hoặc thông báo
               setHighlightTarget(batch.medicineName);
             }
           }}
@@ -259,7 +304,7 @@ export function WarehouseMapPage() {
         />
       )}
 
-      {/* Legend bar */}
+      {/* Thanh chú giải trạng thái */}
       <div className="shrink-0 h-10 bg-white border-t border-slate-200 flex items-center justify-center gap-6 px-4 text-[11px] text-slate-500">
         {[
           { color: "#22c55e", label: "Bình thường" },
@@ -275,7 +320,7 @@ export function WarehouseMapPage() {
         ))}
       </div>
 
-      {/* Shelf Detail Modal (Supports Bin Mode + Shelf Mode) */}
+      {/* Modal Chi tiết Tầng Kệ (Hỗ trợ cả chế độ Ô Thùng & Tầng Kệ) */}
       {selectedShelf && (
         <ShelfDetailModal
           zone={selectedShelf.zone}

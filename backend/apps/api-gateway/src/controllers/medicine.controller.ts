@@ -92,11 +92,12 @@ export class MedicineController implements OnModuleInit {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Lấy thống kê tồn kho" })
-  async getStats() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getStats(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.stats",
-      {},
+      { branchId },
     );
   }
 
@@ -104,11 +105,12 @@ export class MedicineController implements OnModuleInit {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Lấy báo cáo hết hạn của các lô hàng" })
-  async getExpirationReport() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getExpirationReport(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.expiration_report",
-      {},
+      { branchId },
     );
   }
 
@@ -143,11 +145,12 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({
     summary: "Lấy báo cáo các loại thuốc sắp hết hàng hoặc hết hàng",
   })
-  async getLowStockReport() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getLowStockReport(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.low_stock_report",
-      {},
+      { branchId },
     );
   }
 
@@ -157,11 +160,12 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({
     summary: "Lấy danh sách tối giản của các loại thuốc phục vụ cho dropdown",
   })
-  async getMedicinesDropdown() {
+  @ApiQuery({ name: "branchId", required: false, type: String })
+  async getMedicinesDropdown(@Query("branchId") branchId?: string) {
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.dropdown_list",
-      {},
+      { branchId },
     );
   }
 
@@ -443,6 +447,28 @@ export class MedicineController implements OnModuleInit {
   ) {
     this.inventoryClient.emit('inventory.medicine.event.quarantine', JSON.stringify({ batchId, reason: body?.reason }));
     return { status: 'Accepted', message: 'Lo thuoc da duoc gui yeu cau cach ly (QUARANTINED).' };
+  }
+
+  // POST /api/medicines/relocate-bin
+  @Post('relocate-bin')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Chuyen o / Don kho thuoc giua cac thung trong kho (async Kafka)' })
+  async relocateBin(@Body() dto: {
+    fromLocation: { zone: string; rack: string; shelf: number; bin: number };
+    toLocation: { zone: string; rack: string; shelf: number; bin: number };
+    batchId?: string;
+    reason?: string;
+  }) {
+    this.inventoryClient.emit('inventory.medicine.event.relocate_bin', JSON.stringify(dto));
+    if (this.cacheManager) {
+      try {
+        await this.cacheManager.del('medicines:warehouse-map');
+      } catch (e) {}
+    }
+    return { status: 'Accepted', message: 'Yeu cau chuyen o / don kho da duoc gui xu ly ngam.' };
   }
 
   @Get("barcode/:barcode")

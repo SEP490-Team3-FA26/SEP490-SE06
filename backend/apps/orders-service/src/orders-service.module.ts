@@ -9,6 +9,8 @@ import { Voucher, VoucherSchema } from './schemas/voucher.schema';
 import { Expense, ExpenseSchema } from './schemas/expense.schema';
 import { PaymentWebhookLog, PaymentWebhookLogSchema } from './schemas/payment-webhook-log.schema';
 import { PaymentReconciliation, PaymentReconciliationSchema } from './schemas/payment-reconciliation.schema';
+import { PaymentVoucher, PaymentVoucherSchema } from './schemas/payment-voucher.schema';
+import { MarketingCampaign, MarketingCampaignSchema } from './schemas/marketing-campaign.schema';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { PaymentReconciliation, PaymentReconciliationSchema } from './schemas/pa
       { name: Expense.name, schema: ExpenseSchema },
       { name: PaymentWebhookLog.name, schema: PaymentWebhookLogSchema },
       { name: PaymentReconciliation.name, schema: PaymentReconciliationSchema },
+      { name: PaymentVoucher.name, schema: PaymentVoucherSchema },
+      { name: MarketingCampaign.name, schema: MarketingCampaignSchema },
     ]),
     ClientsModule.registerAsync([
       {

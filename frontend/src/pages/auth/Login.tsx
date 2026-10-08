@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Mail, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon, Briefcase } from "lucide-react";
+import { ArrowRight, Mail, Phone, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon, Briefcase } from "lucide-react";
 import { authService } from "../../services/auth/auth.service";
 import { requestNotificationPermission } from "../../utils/notificationPermission";
 
@@ -80,7 +80,7 @@ export function Login() {
   ];
 
   const handleRoleSelect = (selectedRole: any) => {
-    // Nếu chọn một vai trò khác với phiên đang đăng nhập -> xóa phiên cũ để tránh nhầm lẫn giao diện
+    // If selecting a different role than the active session, clear old session to avoid interface conflicts
     if (activeSessionUser && activeSessionUser.role?.toLowerCase() !== selectedRole.id.toLowerCase()) {
       authService.clearSession();
       setActiveSessionUser(null);
@@ -135,7 +135,7 @@ export function Login() {
         console.warn('Failed to request notification permission:', err);
       });
 
-      // Redirect ưu tiên theo return URL (Deep Linking), nếu không có mới về dashboard theo Role
+      // Prioritize redirecting to return URL (Deep Linking), otherwise redirect to role-specific dashboard
       navigate(getDestinationUrl(data.user?.role || "admin"));
     } catch (err: any) {
       setError(err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
@@ -240,17 +240,19 @@ export function Login() {
         <div className="border-t border-slate-100 pt-5">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Email</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-bold text-slate-700">Email hoặc Số điện thoại</label>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
-                  <Mail size={18} />
+                  {/^[0-9+]/.test(email.trim()) ? <Phone size={18} className="text-blue-600" /> : <Mail size={18} />}
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Nhập email..."
-                  className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="Nhập email hoặc số điện thoại..."
+                  className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium"
                   required
                 />
               </div>

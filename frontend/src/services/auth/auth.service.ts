@@ -80,16 +80,29 @@ export const authService = {
     notifyAuthTokenChanged();
   },
 
-  async login(email: string, password: string) {
+  async login(identifier: string, password: string, phone?: string) {
     try {
-      const response = await api.post('/api/auth/login', { email, password });
+      const payload: any = { password };
+      if (phone) {
+        payload.phone = phone.trim();
+      }
+      if (identifier) {
+        const trimmed = identifier.trim();
+        // Check if identifier is formatted as a phone number
+        if (/^0\d{9,10}$/.test(trimmed) || /^\+?\d{9,15}$/.test(trimmed)) {
+          payload.phone = trimmed;
+        } else {
+          payload.email = trimmed;
+        }
+      }
+      const response = await api.post('/api/auth/login', payload);
       const data = response.data;
       if (data?.access_token && data?.user) {
         this.setSession(data.access_token, data.user);
       }
       return data;
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email hoặc mật khẩu.';
+      const msg = err.response?.data?.message || err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email/số điện thoại hoặc mật khẩu.';
       throw new Error(msg);
     }
   },

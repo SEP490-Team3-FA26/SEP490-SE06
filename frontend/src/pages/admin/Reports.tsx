@@ -7,6 +7,7 @@ import {
 import { ProfitAnalyticsDashboard } from "../../components/reports/ProfitAnalyticsDashboard";
 import { ReportHistoryTable } from "../../components/reports/ReportHistoryTable";
 import { ReportCreateModal } from "../../components/reports/ReportCreateModal";
+import { MarketingRoiDashboard } from "../../components/reports/MarketingRoiDashboard";
 import { Tabs } from "../../components/ui/Tabs";
 import { reportService } from "../../services/report/report.service";
 import api from "../../services/core/api";
@@ -48,7 +49,7 @@ function KpiCard({ title, value, description, icon, colorClass, bgClass }: KpiCa
 
 export function Reports() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "inventory" | "reports" | "trends" | "profit">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "inventory" | "reports" | "trends" | "profit" | "marketing">("overview");
   
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -144,6 +145,7 @@ export function Reports() {
     if (isAdmin || isBranch) {
       list.push(
         { id: "analytics", label: "Phân tích doanh thu (BI)", icon: <BarChart3 size={18} /> },
+        { id: "marketing", label: "Hiệu quả Marketing (ROI)", icon: <TrendingUp size={18} /> },
         { id: "inventory", label: "Hiệu suất kho hàng", icon: <Package size={18} /> },
         { id: "trends", label: "Xu hướng mùa & dịch bệnh (AI)", icon: <Sparkles size={18} /> }
       );
@@ -319,6 +321,9 @@ export function Reports() {
 
       {/* Profit Dashboard */}
       {activeTab === "profit" && isAdmin && <ProfitAnalyticsDashboard />}
+
+      {/* Marketing ROI Dashboard */}
+      {activeTab === "marketing" && <MarketingRoiDashboard />}
 
       {/* 3. Inventory Performance Dashboard (Lazy loaded) */}
       {activeTab === "inventory" && (isAdmin || isBranch) && (

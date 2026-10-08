@@ -120,9 +120,9 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
 
   return (
     <div className="space-y-6">
-      {/* 4 Thẻ KPI Đối Soát */}
+      {/* 4 Reconciliation KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Tỷ lệ khớp */}
+        {/* Match rate card */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tỷ Lệ Tự Động Khớp</p>
@@ -134,7 +134,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
           </div>
         </div>
 
-        {/* Tổng GD & Breakdown */}
+        {/* Total transactions card */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tổng GD Webhook</p>
@@ -148,7 +148,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
           </div>
         </div>
 
-        {/* Cần Kế toán đối soát */}
+        {/* Discrepancies needing reconciliation */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Lệch Cần Xử Lý</p>
@@ -164,7 +164,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
           </div>
         </div>
 
-        {/* Tổng tiền lệch */}
+        {/* Total difference */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Chênh Lệch Dòng Tiền</p>
@@ -221,7 +221,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
         </button>
       </div>
 
-      {/* Bảng Danh Sách Giao Dịch Đối Soát */}
+      {/* Reconciliation Records Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
@@ -336,7 +336,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
           </table>
         </div>
 
-        {/* Phân trang */}
+        {/* Pagination controls */}
         {totalPages > 1 && (
           <div className="p-3 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs text-slate-500">
@@ -362,7 +362,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
         )}
       </div>
 
-      {/* Modal Giải Quyết Biên Bản Đối Soát Cho Kế Toán */}
+      {/* Reconciliation Resolution Modal */}
       {modalOpen && selectedRecord && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100">

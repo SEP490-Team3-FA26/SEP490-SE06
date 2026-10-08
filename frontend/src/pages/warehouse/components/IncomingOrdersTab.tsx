@@ -123,16 +123,16 @@ export function IncomingOrdersTab({
 
   // Zone/Rack/Shelf constants
   const ZONE_OPTIONS = [
-    { value: 'A', label: 'Khu A - Kháng sinh' },
-    { value: 'B', label: 'Khu B - Hạ sốt & Giảm đau' },
-    { value: 'C', label: 'Khu C - Tim mạch' },
-    { value: 'D', label: 'Khu D - Tiêu hóa' },
-    { value: 'E', label: 'Khu E - TPCN' },
-    { value: 'F', label: 'Khu F - Vật tư y tế' },
+    { value: 'A', label: 'Khu A' },
+    { value: 'B', label: 'Khu B' },
+    { value: 'C', label: 'Khu C' },
+    { value: 'D', label: 'Khu D' },
+    { value: 'E', label: 'Khu E' },
+    { value: 'F', label: 'Khu F' },
   ];
   const SHELF_OPTIONS = [1, 2, 3, 4];
   const getRackOptions = (zone: string) => {
-    const counts: Record<string, number> = { A: 4, B: 4, C: 3, D: 4, E: 4, F: 4 };
+    const counts: Record<string, number> = { A: 4, B: 4, C: 4, D: 4, E: 4, F: 4 };
     const n = counts[zone] || 4;
     return Array.from({ length: n }, (_, i) => `${zone}${i + 1}`);
   };

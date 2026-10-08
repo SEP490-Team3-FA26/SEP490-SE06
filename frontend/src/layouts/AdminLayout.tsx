@@ -14,6 +14,7 @@ export function AdminLayout() {
       subItems: [
         { name: "Danh mục Dược phẩm", href: "/admin/master-data/products" },
         { name: "Hồ sơ Nhà cung cấp", href: "/admin/master-data/suppliers" },
+        { name: "Báo giá hàng loạt (RFQ)", href: "/admin/rfq" },
       ]
     },
     { name: "Bảng giá chuỗi", href: "/admin/price-management", icon: <Tag size={20} /> },

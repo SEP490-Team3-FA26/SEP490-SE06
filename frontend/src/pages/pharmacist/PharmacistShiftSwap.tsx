@@ -57,20 +57,20 @@ export function PharmacistShiftSwap() {
   const [swaps, setSwaps] = useState<ShiftSwapRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal tạo yêu cầu đổi ca
+  // Modal tao yeu cau doi ca
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [employees, setEmployees] = useState<PeerEmployee[]>([]);
   const [myAssignments, setMyAssignments] = useState<any[]>([]);
   const [allPublishedAssignments, setAllPublishedAssignments] = useState<any[]>([]);
 
-  // Modal từ chối yêu cầu
+  // Modal tu choi yeu cau
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ShiftSwapRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [submittingAction, setSubmittingAction] = useState(false);
 
-  // Form data đổi ca
+  // Form data doi ca
   const [formData, setFormData] = useState({
     myShiftInfo: "",
     targetId: "",
@@ -122,14 +122,14 @@ export function PharmacistShiftSwap() {
   const outgoing = swaps.filter(s => String(s.requesterId) === String(userId));
   const incoming = swaps.filter(s => String(s.targetId) === String(userId) && s.status === 'pending_target');
 
-  // Mở modal tạo yêu cầu đổi ca
+  // Mo modal tao yeu cau doi ca
   const openCreateModal = async () => {
     setIsModalOpen(true);
     setModalLoading(true);
     setFormData({ myShiftInfo: "", targetId: "", targetShiftInfo: "", reason: "" });
 
     try {
-      // 1. Tính toán ngày bắt đầu tuần hiện tại và tuần sau
+      // 1. Tinh toan ngay bat dau tuan hien tai va tuan sau
       const now = new Date();
       const thisMonday = getMonday(now);
       const nextMonday = new Date(thisMonday);
@@ -138,7 +138,7 @@ export function PharmacistShiftSwap() {
       const mon1 = formatDate(thisMonday);
       const mon2 = formatDate(nextMonday);
 
-      // 2. Tải lịch 2 tuần và danh sách đồng nghiệp
+      // 2. Tai lich 2 tuan va danh sach dong nghiep
       const [sched1Res, sched2Res, colleaguesRes] = await Promise.allSettled([
         hrService.getMyWeekSchedule(mon1),
         hrService.getMyWeekSchedule(mon2),
@@ -167,21 +167,21 @@ export function PharmacistShiftSwap() {
 
       setAllPublishedAssignments(allAssignments);
 
-      // 3. Lọc danh sách ca của chính tôi
+      // 3. Loc danh sach ca cua chinh toi
       const mine = allAssignments.filter(
         a => (userId && String(a.employeeId) === String(userId)) || (userName && a.employeeName === userName)
       );
-      // Sắp xếp ca của tôi theo thời gian
+      // Sap xep ca cua toi theo thoi gian
       mine.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       setMyAssignments(mine);
 
-      // 4. Lấy danh sách đồng nghiệp: Ưu tiên API colleagues, fallback sang assignments
+      // 4. Lay danh sach dong nghiep: Uu tien API colleagues, fallback sang assignments
       const peersMap = new Map<string, PeerEmployee>();
 
       if (colleaguesRes.status === 'fulfilled' && Array.isArray(colleaguesRes.value)) {
         colleaguesRes.value.forEach((emp: any) => {
           const empId = String(emp._id || emp.id);
-          // Chỉ lấy dược sĩ cùng chi nhánh và khác chính mình
+          // Chi lay duoc si cung chi nhanh va khac chinh minh
           if (empId !== String(userId) && (emp.role === 'pharmacist' || !emp.role)) {
             peersMap.set(empId, {
               _id: empId,
@@ -192,7 +192,7 @@ export function PharmacistShiftSwap() {
         });
       }
 
-      // Fallback: Nếu API đồng nghiệp rỗng, trích xuất từ chính các ca trực của tuần
+      // Fallback: Neu API dong nghiep rong, trich xuat tu chinh cac ca truc cua tuan
       if (peersMap.size === 0) {
         allAssignments.forEach((a) => {
           const empId = String(a.employeeId);
@@ -214,7 +214,7 @@ export function PharmacistShiftSwap() {
     }
   };
 
-  // Ca của đối phương dựa trên đồng nghiệp được chọn
+  // Ca cua doi phuong dua tren dong nghiep duoc chon
   const availableTargetShifts = useMemo(() => {
     if (!formData.targetId) return [];
     const shifts = allPublishedAssignments.filter(
@@ -224,7 +224,7 @@ export function PharmacistShiftSwap() {
     return shifts;
   }, [formData.targetId, allPublishedAssignments]);
 
-  // Gửi form yêu cầu đổi ca
+  // Gui form yeu cau doi ca
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.myShiftInfo || !formData.targetId || !formData.targetShiftInfo) {
@@ -259,7 +259,7 @@ export function PharmacistShiftSwap() {
     }
   };
 
-  // Đồng ý yêu cầu đổi ca
+  // Dong y yeu cau doi ca
   const handleAccept = async (id: string) => {
     if (!window.confirm("Bạn có chắc chắn đồng ý đổi ca này không? Sau khi đồng ý, yêu cầu sẽ được chuyển đến Quản lý chi nhánh duyệt.")) {
       return;
@@ -275,14 +275,14 @@ export function PharmacistShiftSwap() {
     }
   };
 
-  // Mở modal từ chối
+  // Mo modal tu choi
   const handleRejectClick = (req: ShiftSwapRequest) => {
     setSelectedRequest(req);
     setRejectReason("");
     setRejectModalOpen(true);
   };
 
-  // Gửi lý do từ chối
+  // Gui ly do tu choi
   const handleRejectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRequest) return;
@@ -401,7 +401,7 @@ export function PharmacistShiftSwap() {
               <span className="mt-3 text-xs font-semibold text-slate-500">Đang tải danh sách đổi ca...</span>
             </div>
           ) : activeTab === "outgoing" ? (
-            /* TAB 1: YÊU CẦU ĐÃ GỬI */
+            /* TAB 1: YEU CAU DA GUI */
             <div className="space-y-4">
               {outgoing.length === 0 ? (
                 <div className="text-center py-16 px-4">
@@ -443,7 +443,7 @@ export function PharmacistShiftSwap() {
 
                       {/* Swap Comparison Body */}
                       <div className="grid grid-cols-1 md:grid-cols-11 gap-3 items-center">
-                        {/* Ca của bạn */}
+                        {/* Ca cua ban */}
                         <div className="md:col-span-5 p-4 rounded-xl bg-blue-50/60 border border-blue-100/80">
                           <div className="text-[10px] font-bold text-[#0057cd] uppercase tracking-wider mb-1 flex items-center gap-1">
                             <User size={12} /> Ca của bạn (Đổi đi)
@@ -457,14 +457,14 @@ export function PharmacistShiftSwap() {
                           </div>
                         </div>
 
-                        {/* Mũi tên đổi */}
+                        {/* Mui ten doi */}
                         <div className="md:col-span-1 flex justify-center py-1">
                           <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500">
                             <ArrowRightLeft size={16} />
                           </div>
                         </div>
 
-                        {/* Ca của đối phương */}
+                        {/* Ca cua doi phuong */}
                         <div className="md:col-span-5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
                           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                             <User size={12} /> Đổi với: <strong className="text-slate-800">{formatEmployeeName(req.targetName)}</strong>
@@ -479,7 +479,7 @@ export function PharmacistShiftSwap() {
                         </div>
                       </div>
 
-                      {/* Lý do & phản hồi */}
+                      {/* Ly do & phan hoi */}
                       <div className="pt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs text-slate-600 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                         <div>
                           <strong className="font-semibold text-slate-800">Lý do đổi:</strong> {req.reason || "Không ghi chú"}
@@ -501,7 +501,7 @@ export function PharmacistShiftSwap() {
               )}
             </div>
           ) : (
-            /* TAB 2: YÊU CẦU ĐẾN TÔI */
+            /* TAB 2: YEU CAU DEN TOI */
             <div className="space-y-4">
               {incoming.length === 0 ? (
                 <div className="text-center py-16 px-4">
@@ -599,7 +599,7 @@ export function PharmacistShiftSwap() {
         </div>
       </div>
 
-      {/* 3. MODAL: TẠO YÊU CẦU ĐỔI CA */}
+      {/* 3. MODAL: TAO YEU CAU DOI CA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={() => !submittingAction && setIsModalOpen(false)} />
@@ -628,7 +628,7 @@ export function PharmacistShiftSwap() {
               </div>
             ) : (
               <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
-                {/* 1. Chọn ca của bạn */}
+                {/* 1. Chon ca cua ban */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                     1. Ca trực của bạn muốn đổi <span className="text-rose-500">*</span>
@@ -655,7 +655,7 @@ export function PharmacistShiftSwap() {
                   )}
                 </div>
 
-                {/* 2. Chọn đồng nghiệp */}
+                {/* 2. Chon dong nghiep */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                     2. Chọn đồng nghiệp muốn đổi ca <span className="text-rose-500">*</span>
@@ -681,7 +681,7 @@ export function PharmacistShiftSwap() {
                   )}
                 </div>
 
-                {/* 3. Chọn ca của đối phương */}
+                {/* 3. Chon ca cua doi phuong */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                     3. Ca trực của đồng nghiệp muốn nhận lại <span className="text-rose-500">*</span>
@@ -712,7 +712,7 @@ export function PharmacistShiftSwap() {
                   )}
                 </div>
 
-                {/* 4. Lý do đổi ca */}
+                {/* 4. Ly do doi ca */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                     4. Lý do đổi ca <span className="text-rose-500">*</span>
@@ -781,7 +781,7 @@ export function PharmacistShiftSwap() {
         </div>
       )}
 
-      {/* 4. MODAL: TỪ CHỐI ĐỔI CA */}
+      {/* 4. MODAL: TU CHOI DOI CA */}
       {rejectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={() => !submittingAction && setRejectModalOpen(false)} />

@@ -11,6 +11,7 @@ import { orderService } from "../../../services/sales/order.service";
 import { voucherService } from "../../../services/sales/voucher.service";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import { aiClinicalService } from "../../../services/ai/aiClinical.service";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -138,7 +139,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   const [pharmacistAgreementCheck, setPharmacistAgreementCheck] = useState<boolean>(true);
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
 
-  // Lắng nghe sự kiện Paste (Ctrl + V) khi mở modal quét đơn thuốc AI
+  // Lang nghe su kien Paste (Ctrl + V) khi mo modal quet don thuoc AI
   useEffect(() => {
     if (!showAIScanModal) return;
 
@@ -176,7 +177,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         });
         const newUrls = pastedFiles.map(f => URL.createObjectURL(f));
         setAiPreviewUrls(prev => [...prev, ...newUrls]);
-        showToast(`Đã dán ${pastedFiles.length} ảnh đơn thuốc từ Clipboard (Ctrl + V)!`, "info");
+        showToast(`Đã dán ${pastedFiles.length} ảnh đơn thuốc từ Clipboard (Ctrl + V)!`, "success");
       }
     };
 
@@ -211,7 +212,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         });
         const newUrls = droppedFiles.map(f => URL.createObjectURL(f));
         setAiPreviewUrls(prev => [...prev, ...newUrls]);
-        showToast(`Đã thêm ${droppedFiles.length} ảnh từ thao tác kéo thả!`, "info");
+        showToast(`Đã thêm ${droppedFiles.length} ảnh từ thao tác kéo thả!`, "success");
       } else {
         showToast("Vui lòng chỉ kéo thả tập tin hình ảnh!", "warning");
       }
@@ -267,7 +268,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     if (result.doctor.name) setDoctorName(result.doctor.name);
     if (result.doctor.hospital) setHospitalName(result.doctor.hospital);
 
-    // Gắn nhãn aiSuggested cho các sản phẩm do AI bóc tách
+    // Gan nhan aiSuggested cho cac san pham do AI boc tach
     const updatedWithFlag = (result.updatedCartItems || []).map((it: any) => ({
       ...it,
       aiSuggested: true
@@ -304,6 +305,28 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       })),
       clinicalNotes: "Dược sĩ phụ trách đã đối soát 100% hoạt chất, liều dùng theo lứa tuổi và gán lô FEFO cận hạn thành công."
     };
+
+    // Save adjustment delta to OCR audit log
+    if (aiScanResult?.scan_id) {
+      aiClinicalService.saveOcrAdjustment(aiScanResult.scan_id, {
+        pharmacistAdjustedItems: updatedWithFlag.map((item: any) => ({
+          medicineId: item.medicineId,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          dosage: item.dosage,
+          price: item.price,
+          active_ingredient: item.active_ingredient,
+        })),
+        adjustmentSummary: "Dược sĩ đối soát lâm sàng và chuyển thuốc vào giỏ hàng POS",
+        pharmacistInfo: {
+          name: confirmationInfo.pharmacistName,
+          license: confirmationInfo.pharmacistLicense,
+        },
+        auditCode,
+        status: "REVIEWED",
+      }).catch((e: any) => console.warn("Failed to persist OCR audit log:", e));
+    }
 
     setAiPharmacistConfirmation(confirmationInfo);
     setShowAIScanModal(false);
@@ -435,7 +458,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     }
   };
 
-  // Tự động load đơn điện tử đầu tiên nếu có mã trên dòng nhập liệu
+  // Tu dong load don dien tu dau tien neu co ma tren dong nhap lieu
   useEffect(() => {
     if (prescriptionMode === "QR") {
       if (prescriptionCode) {
@@ -560,6 +583,24 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       });
       setShowInvoiceModal(true);
 
+      // Sync orderCode with OCR log
+      if (aiPharmacistConfirmation?.scanId) {
+        aiClinicalService.saveOcrAdjustment(aiPharmacistConfirmation.scanId, {
+          pharmacistAdjustedItems: prescriptionItems.map((item: any) => ({
+            medicineId: item.medicineId,
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            dosage: item.dosage,
+            price: item.price,
+            active_ingredient: item.active_ingredient,
+          })),
+          adjustmentSummary: "Đơn thuốc đã được xuất bán thành công qua POS",
+          orderCode: payload.orderCode,
+          status: "DISPENSED",
+        }).catch((e: any) => console.warn("Failed to sync order code to OCR log:", e));
+      }
+
       // Clear forms
       setPrescriptionItems([]);
       setPatientName("");
@@ -665,7 +706,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       return;
     }
 
-    // 🛡️ CHECKOUT GUARD: Kiểm tra tồn kho trước khi thanh toán
+    // 🛡️ CHECKOUT GUARD: Kiem tra ton kho truoc khi thanh toan
     const overStockItem = prescriptionItems.find((it: any) => it.quantity > (it.stock || 0));
     if (overStockItem) {
       const msg = `Không thể thanh toán: Thuốc "${overStockItem.name}" vượt quá tồn kho (Yêu cầu ${overStockItem.quantity} ${overStockItem.unit}, chỉ còn ${overStockItem.stock} ${overStockItem.unit})!`;
@@ -745,7 +786,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     }
   };
 
-  // Tính toán tiền đơn thuốc
+  // Tinh toan tien don thuoc
   const subtotal = prescriptionItems.reduce((sum: number, it: any) => sum + (it.price * it.quantity), 0);
   const vipDiscount = Math.round(subtotal * 0.05); // 5% discount
   const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
@@ -792,12 +833,12 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     setVoucherError("");
   };
 
-  // Kiểm tra tương tác thuốc nguy hiểm (Clopidogrel + Omeprazole)
+  // Kiem tra tuong tac thuoc nguy hiem (Clopidogrel + Omeprazole)
   const hasClopidogrel = prescriptionItems.some((it: any) => it.active_ingredient.toLowerCase().includes("clopidogrel") || it.name.toLowerCase().includes("plavix") || it.name.toLowerCase().includes("platarex"));
   const hasOmeprazole = prescriptionItems.some((it: any) => it.active_ingredient.toLowerCase().includes("omeprazole") || it.name.toLowerCase().includes("losec") || it.name.toLowerCase().includes("ecosip"));
   const drugInteractionWarning = hasClopidogrel && hasOmeprazole;
 
-  // Kiểm tra có sản phẩm nào cận HSD hoặc hết hàng
+  // Kiem tra co san pham nao can HSD hoac het hang
   const hasNearExpiry = prescriptionItems.some((it: any) => {
     if (!it.expiry) return false;
     const diffTime = new Date(it.expiry).getTime() - new Date().getTime();
@@ -807,11 +848,11 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
 
   return (
     <div className="h-full flex flex-col xl:flex-row gap-6 overflow-hidden">
-      {/* Cột trái: Chi tiết đơn & Giỏ hàng */}
+      {/* Cot trai: Chi tiet don & Gio hang */}
       <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-6 pb-6">
 
-        {/* Thanh tìm kiếm đơn thuốc & Quét QR */}
-        <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm flex flex-col md:flex-row items-center gap-4 shrink-0">
+        {/* Prescription Search and Actions */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row items-center gap-3 shrink-0">
           <div className="flex-1 relative w-full">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
               <FileText size={18} />
@@ -822,34 +863,33 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               value={prescriptionCode}
               onChange={(e) => setPrescriptionCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && fetchPrescription(prescriptionCode)}
-              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-[12px] text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all text-sm shadow-2xs"
             />
           </div>
-          <div className="flex gap-3 w-full md:w-auto shrink-0">
+          <div className="flex gap-2.5 w-full md:w-auto shrink-0">
             <button
               onClick={() => fetchPrescription(prescriptionCode)}
               disabled={loading}
-              className="flex-1 md:flex-none px-6 py-3 bg-[#0057cd] hover:bg-[#00419e] text-white font-bold rounded-[12px] shadow-sm transition-colors"
+              className="flex-1 md:flex-none px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer text-xs uppercase tracking-wider"
             >
               {loading ? "Đang tải..." : "Tra cứu"}
             </button>
             <button
               onClick={() => setShowQRModal(true)}
-              className="flex-1 md:flex-none px-5 py-3 border-2 border-[#b1c5ff] text-[#0057cd] font-bold rounded-[12px] hover:bg-[#f2f3ff] transition-all flex items-center justify-center gap-2"
+              className="flex-1 md:flex-none px-4 py-3 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
             >
-              <QrCode size={18} /> Quét mã QR
+              <QrCode size={16} /> Quét mã QR
             </button>
             <button
               onClick={() => setShowAIScanModal(true)}
-              className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-[12px] shadow-sm transition-all flex items-center justify-center gap-2"
+              className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
             >
-              <Sparkles size={18} /> Quét Đơn Bằng AI
+              <Sparkles size={16} /> Quét Đơn Bằng AI
             </button>
           </div>
-
         </div>
 
-        {/* Thông tin Đơn thuốc & Người kê toa (Collapsible) */}
+        {/* Thong tin Don thuoc & Nguoi ke toa (Collapsible) */}
         <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm flex flex-col gap-4 shrink-0">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
             <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
@@ -1007,7 +1047,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
           </div>
         )}
 
-        {/* Tìm kiếm và thêm thuốc trực tiếp (Inline Search Bar) */}
+        {/* Tim kiem va them thuoc truc tiep (Inline Search Bar) */}
         <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm flex flex-col gap-3 shrink-0">
           <label className="block text-xs font-black text-slate-700 uppercase tracking-wide">
             Tìm thuốc kê đơn từ kho và thêm trực tiếp
@@ -1033,7 +1073,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               </button>
             )}
 
-            {/* Dropdown kết quả tìm kiếm */}
+            {/* Dropdown ket qua tim kiem */}
             {isDropdownOpen && searchResults.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl border border-slate-200 shadow-xl max-h-72 overflow-y-auto z-40 divide-y divide-slate-100">
                 <div className="p-2 bg-slate-50 text-[11px] font-bold text-slate-500 flex justify-between items-center sticky top-0 border-b border-slate-100">
@@ -1078,7 +1118,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
             )}
           </div>
 
-          {/* Thanh Bộ Lọc Thuốc Kê Đơn */}
+          {/* Thanh Bo Loc Thuoc Ke Don */}
           <div className="flex flex-wrap items-center gap-2.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 mt-1">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 mr-1">
               <Filter size={14} className="text-[#0057cd]" /> Lọc nhanh:
@@ -1146,10 +1186,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
           </div>
         </div>
 
-        {/* Bảng danh sách thuốc kê đơn */}
+        {/* Bang danh sach thuoc ke don */}
         {prescriptionItems.length > 0 ? (
           <>
-            {/* 🛡️ BANNER THÔNG BÁO XÁC NHẬN DƯỢC SĨ CHO ĐƠN THUỐC AI */}
+            {/* 🛡️ BANNER THONG BAO XAC NHAN DUOC SI CHO DON THUOC AI */}
             {aiPharmacistConfirmation?.confirmed && (
               <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-blue-500/10 border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="flex items-center gap-3.5">
@@ -1205,7 +1245,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               </div>
             )}
 
-            {/* Cảnh báo nhắc nhở nếu có thuốc AI nhưng chưa xác nhận */}
+            {/* Canh bao nhac nho neu co thuoc AI nhung chua xac nhan */}
             {prescriptionItems.some((it: any) => it.aiSuggested) && !aiPharmacistConfirmation?.confirmed && (
               <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
                 <div className="flex items-center gap-3">
@@ -1232,7 +1272,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               </div>
             )}
 
-            {/* Cảnh báo tương tác thuốc nguy hiểm */}
+            {/* Canh bao tuong tac thuoc nguy hiem */}
             {drugInteractionWarning && (
               <div className="bg-[#ffdad6] border border-[#93000a] rounded-[16px] p-5 shadow-sm flex items-start gap-4 animate-bounce">
                 <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm text-[#ba1a1a]">
@@ -1249,7 +1289,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               </div>
             )}
 
-            {/* Danh mục thuốc kê đơn */}
+            {/* Danh muc thuoc ke don */}
             <div className="bg-white rounded-[16px] border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[480px]">
               <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100">
                 <h2 className="text-[16px] font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -1280,7 +1320,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                     {prescriptionItems.map((it: any) => {
                       const isOutOfStock = it.stock < it.quantity;
 
-                      // Kiểm tra xem HSD của lô xuất kho sắp tới có cận hạn hay không (< 180 ngày)
+                      // Kiem tra xem HSD cua lo xuat kho sap toi co can han hay khong (< 180 ngay)
                       const diffTime = new Date(it.expiry).getTime() - new Date().getTime();
                       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                       const isNearExp = diffDays > 0 && diffDays <= 180;
@@ -1417,10 +1457,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
         )}
       </div>
 
-      {/* Cột phải: Thanh toán & Tổng tiền */}
+      {/* Cot phai: Thanh toan & Tong tien */}
       <div className="w-full xl:w-[400px] flex flex-col gap-6 shrink-0 pb-6 overflow-y-auto pl-1">
 
-        {/* Hóa đơn tóm tắt */}
+        {/* Hoa don tom tat */}
         <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm">
           <h3 className="text-[12px] font-black text-slate-500 uppercase tracking-widest mb-4 border-b border-slate-100 pb-3">Chi tiết thanh toán</h3>
           <div className="space-y-4 text-[14px]">
@@ -1493,60 +1533,59 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
           )}
         </div>
 
-        {/* Phương thức thanh toán */}
-        <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm">
-          <h3 className="text-[12px] font-black text-slate-500 uppercase tracking-widest mb-4">Phương thức thanh toán</h3>
+        {/* Payment Method Selector */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Phương thức thanh toán</h3>
           <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setPaymentMethod("CASH")}
-              className={`flex flex-col items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all relative ${paymentMethod === "CASH"
-                ? "border-[#0057cd] bg-[#f2f3ff] text-[#0057cd]"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
+              className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border transition-all cursor-pointer ${
+                paymentMethod === "CASH"
+                  ? "border-blue-600 bg-blue-50/70 text-blue-700 ring-1 ring-blue-600/30 shadow-xs"
+                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
             >
-              {paymentMethod === "CASH" && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#0057cd] rounded-full"></div>}
-              <Banknote size={20} />
-              <span className="text-[12px] font-bold">Tiền mặt</span>
+              <Banknote size={18} />
+              <span className="text-xs font-bold">Tiền mặt</span>
             </button>
             <button
               onClick={() => setPaymentMethod("CARD")}
-              className={`flex flex-col items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all relative ${paymentMethod === "CARD"
-                ? "border-[#0057cd] bg-[#f2f3ff] text-[#0057cd]"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
+              className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border transition-all cursor-pointer ${
+                paymentMethod === "CARD"
+                  ? "border-blue-600 bg-blue-50/70 text-blue-700 ring-1 ring-blue-600/30 shadow-xs"
+                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
             >
-              {paymentMethod === "CARD" && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#0057cd] rounded-full"></div>}
-              <CreditCard size={20} />
-              <span className="text-[12px] font-bold">Thẻ quẹt</span>
+              <CreditCard size={18} />
+              <span className="text-xs font-bold">Thẻ quẹt</span>
             </button>
             <button
               onClick={() => setPaymentMethod("QR_PAY")}
-              className={`flex flex-col items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all relative ${paymentMethod === "QR_PAY"
-                ? "border-[#0057cd] bg-[#f2f3ff] text-[#0057cd]"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
+              className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border transition-all cursor-pointer ${
+                paymentMethod === "QR_PAY"
+                  ? "border-blue-600 bg-blue-50/70 text-blue-700 ring-1 ring-blue-600/30 shadow-xs"
+                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
             >
-              {paymentMethod === "QR_PAY" && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#0057cd] rounded-full"></div>}
-              <QrCode size={20} />
-              <span className="text-[12px] font-bold">QR Pay</span>
+              <QrCode size={18} />
+              <span className="text-xs font-bold">VietQR PayOS</span>
             </button>
           </div>
 
           <div className="mt-4">
-            <label className="block text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-wide">Ghi chú cấp phát</label>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Ghi chú cấp phát</label>
             <textarea
               rows={2}
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
               placeholder="Ghi chú liều dùng hoặc dặn dò đặc biệt cho bệnh nhân..."
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0057cd] outline-none resize-none font-medium placeholder:font-normal"
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none resize-none font-medium placeholder:font-normal"
             />
           </div>
         </div>
 
-        {/* Nút hành động */}
-        <div className="flex flex-col gap-3 mt-auto">
-          {/* Thẻ trạng thái phê duyệt Dược sĩ cho đơn AI */}
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-2.5 mt-auto">
           {aiPharmacistConfirmation?.confirmed && (
             <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl p-3.5 text-xs text-emerald-900 flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2.5">
@@ -1575,25 +1614,25 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
           <button
             onClick={handleCheckout}
             disabled={prescriptionItems.length === 0 || loading || prescriptionItems.some((it: any) => it.quantity > (it.stock || 0))}
-            className="w-full bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-[16px] py-4.5 shadow-sm transition-all flex flex-col items-center justify-center gap-1 group relative overflow-hidden cursor-pointer disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl py-4 shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:cursor-not-allowed active:scale-[0.99]"
           >
-            <div className="flex items-center gap-2.5 font-black text-[16px] uppercase tracking-wide">
-              <Printer size={20} />
+            <div className="flex items-center gap-2 font-black text-sm uppercase tracking-wider">
+              <Printer size={18} />
               Hoàn tất & In đơn (F10)
             </div>
-            <div className="text-[10px] opacity-75 font-semibold">Tự động xuất kho theo FIFO</div>
+            <div className="text-[10px] opacity-80 font-medium">Tự động xuất kho theo FIFO</div>
           </button>
           <button
             onClick={() => { setPrescriptionItems([]); setPatientName(""); setDoctorName(""); setPrescriptionCode(""); }}
-            className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-[16px] py-3.5 shadow-sm transition-colors flex items-center justify-center gap-2 font-bold text-[14px]"
+            className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl py-2.5 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <XCircle size={18} /> Hủy bỏ đơn đang chọn
+            <XCircle size={15} /> Hủy bỏ đơn đang chọn
           </button>
         </div>
       </div>
 
       {/* =======================================
-       * 💳 MODAL THANH TOÁN PAYOS VIETQR
+       * 💳 MODAL THANH TOAN PAYOS VIETQR
        * ======================================= */}
       {showPayOSModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -1645,7 +1684,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       )}
 
       {/* =======================================
-       * 🔎 MODAL QUÉT QR ĐIỆN TỬ GIẢ LẬP
+       * 🔎 MODAL QUET QR DIEN TU GIA LAP
        * ======================================= */}
       {showQRModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1661,7 +1700,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
 
             <div className="p-6 flex flex-col gap-6 items-center">
               {isScanning ? (
-                /* Giao diện quét camera giả lập */
+                /* Giao dien quet camera gia lap */
                 <div className="w-64 h-64 border-4 border-[#0057cd] rounded-3xl relative overflow-hidden bg-black flex items-center justify-center shadow-lg">
                   <div className="w-56 h-56 border border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-700 text-xs gap-2 relative">
                     <QrCode size={120} className="text-slate-800 opacity-60 animate-pulse" />
@@ -1672,7 +1711,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   <div className="absolute inset-0 bg-red-500/10 mix-blend-overlay"></div>
                 </div>
               ) : (
-                /* Giao diện hướng dẫn & Đơn thuốc mẫu */
+                /* Giao dien huong dan & Don thuoc mau */
                 <div className="w-full flex flex-col gap-4">
                   <div className="text-center text-slate-600 text-sm">
                     Hướng camera điện thoại hoặc mã QR của đơn thuốc điện tử vào khung hình, hoặc chọn một **Đơn thuốc điện tử mẫu** để thử nghiệm nhanh:
@@ -1741,7 +1780,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       )}
 
       {/* =======================================
-       * 📄 INVOICE SUCCESS MODAL (HÓA ĐƠN IN FIFO)
+       * 📄 INVOICE SUCCESS MODAL (HOA DON IN FIFO)
        * ======================================= */}
       {showInvoiceModal && invoiceData && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1756,7 +1795,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
             </div>
 
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4">
-              {/* Badge Liên thông CSDL Dược Quốc gia GPP */}
+              {/* Badge Lien thong CSDL Duoc Quoc gia GPP */}
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
                   <Check size={18} />
@@ -1775,7 +1814,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 </div>
               </div>
 
-              {/* Badge Thẩm Định Lâm Sàng Của Dược Sĩ Cho Đơn Thuốc AI */}
+              {/* Badge Tham Dinh Lam Sang Cua Duoc Si Cho Don Thuoc AI */}
               {invoiceData.aiPharmacistConfirmation?.confirmed && (
                 <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
                   <div className="flex items-center gap-2.5">
@@ -1797,7 +1836,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 </div>
               )}
 
-              {/* Mẫu hóa đơn bán thuốc */}
+              {/* Mau hoa don ban thuoc */}
               <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50/50 shadow-inner font-mono text-[13px] text-slate-800 flex flex-col gap-4">
                 <div className="text-center border-b border-slate-200 pb-3">
                   <div className="font-bold text-[16px] text-slate-900 uppercase">HỆ THỐNG NHÀ THUỐC WDP</div>
@@ -1846,7 +1885,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   )}
                 </div>
 
-                {/* Danh sách thuốc thực xuất & lô hàng allocated */}
+                {/* Danh sach thuoc thuc xuat & lo hang allocated */}
                 <div>
                   <div className="font-bold border-b border-slate-200 pb-1.5 mb-2 uppercase text-xs">Chi tiết xuất kho & Liều dùng (FIFO)</div>
                   <div className="space-y-3 text-xs">
@@ -1885,7 +1924,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   </div>
                 </div>
 
-                {/* QR Code Đánh giá Dịch vụ & Nhận Điểm Thưởng */}
+                {/* QR Code Danh gia Dich vu & Nhan Diem Thuong */}
                 <div className="mt-2 pt-3 border-t border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-2 bg-gradient-to-b from-blue-50/40 to-white p-3 rounded-xl border border-blue-100 print:border-black print:bg-white">
                   <div className="text-[12px] font-bold text-[#0057cd] print:text-black uppercase tracking-wide">
                     ⭐ ĐÁNH GIÁ DỊCH VỤ - NHẬN QUÀ NGAY ⭐
@@ -1926,7 +1965,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
       )}
 
       {/* =======================================
-       * 🤖 MODAL QUÉT ĐƠN THUỐC AI (SIDE-BY-SIDE)
+       * 🤖 MODAL QUET DON THUOC AI (SIDE-BY-SIDE)
        * ======================================= */}
       {showAIScanModal && (
     <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -2027,7 +2066,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   {isAiDragging && (
                     <div className="absolute inset-0 bg-indigo-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white font-bold gap-2">
                       <Sparkles size={32} className="animate-bounce text-indigo-300" />
-                      <span>Thả ảnh vào đây để thêm trang đơn</span>
+                      <span>Tha anh vao day de them trang don</span>
                     </div>
                   )}
                 </div>
@@ -2037,12 +2076,12 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                     <FileText size={32} />
                   </div>
                   <div>
-                    <p className="font-bold text-sm text-slate-300">Chưa có ảnh đơn thuốc nào</p>
-                    <p className="text-xs text-slate-500 mt-1">Kéo thả, dán ảnh (Ctrl + V) hoặc tải lên tập tin ảnh đơn thuốc của khách hàng</p>
+                    <p className="font-bold text-sm text-slate-300">Chua co anh don thuoc nao</p>
+                    <p className="text-xs text-slate-500 mt-1">Keo tha, dan anh (Ctrl + V) hoac tai len tap tin anh don thuoc cua khach hang</p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center gap-2 mt-2">
                     <label className="cursor-pointer px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">
-                      Tải ảnh lên ngay
+                      Tai anh len ngay
                       <input
                         type="file"
                         accept="image/*"
@@ -2052,7 +2091,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                       />
                     </label>
                     <span className="text-[11px] font-semibold text-slate-400 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 flex items-center gap-1.5">
-                      Hoặc nhấn <kbd className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px] border border-slate-600">Ctrl + V</kbd> để dán ảnh
+                      Hoac nhan <kbd className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px] border border-slate-600">Ctrl + V</kbd> de dan anh
                     </span>
                   </div>
                 </div>
@@ -2069,11 +2108,11 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 {aiLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    AI đang đọc & khớp dữ liệu kho...
+                    AI dang doc & khop du lieu kho...
                   </>
                 ) : (
                   <>
-                    <Sparkles size={18} /> Phân Tích & Khớp Sản Phẩm (AI)
+                    <Sparkles size={18} /> Phan Tich & Khop San Pham (AI)
                   </>
                 )}
               </button>
@@ -2087,9 +2126,9 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 <div className="w-20 h-20 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4 shadow-sm">
                   <Sparkles size={36} />
                 </div>
-                <h4 className="font-extrabold text-slate-800 text-base">Sẵn sàng bóc tách đơn thuốc bằng AI</h4>
+                <h4 className="font-extrabold text-slate-800 text-base">San sang boc tach don thuoc bang AI</h4>
                 <p className="text-xs text-slate-500 max-w-md mt-1">
-                  Sau khi phân tích, hệ thống AI sẽ tự động trích xuất thông tin bệnh nhân, chuẩn hóa tên biệt dược & hoạt chất, và tự chọn Lô HSD gần nhất (FEFO) trong CSDL chi nhánh.
+                  Sau khi phan tich, he thong AI se tu dong trich xuat thong tin benh nhan, chuan hoa ten biet duoc & hoat chat, va tu chon Lo HSD gan nhat (FEFO) trong CSDL chi nhanh.
                 </p>
               </div>
             ) : (
@@ -2097,18 +2136,18 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 {/* Header bar: Patient summary & Processing stats */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Thông tin đơn thuốc</div>
+                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Thong tin don thuoc</div>
                     <div className="font-black text-slate-900 text-base flex items-center gap-2 mt-0.5">
-                      {aiScanResult.patient?.name || "Khách lẻ"}
-                      {aiScanResult.patient?.age && <span className="text-xs font-bold text-slate-500">({aiScanResult.patient.age} tuổi, {aiScanResult.patient.gender || "Nam"})</span>}
+                      {aiScanResult.patient?.name || "Khach le"}
+                      {aiScanResult.patient?.age && <span className="text-xs font-bold text-slate-500">({aiScanResult.patient.age} tuoi, {aiScanResult.patient.gender || "Nam"})</span>}
                     </div>
                     {aiScanResult.patient?.diagnosis && (
-                      <div className="text-xs text-indigo-700 font-semibold mt-0.5">Chẩn đoán: {aiScanResult.patient.diagnosis}</div>
+                      <div className="text-xs text-indigo-700 font-semibold mt-0.5">Chan doan: {aiScanResult.patient.diagnosis}</div>
                     )}
                   </div>
                   <div className="flex flex-col items-end text-[11px] font-bold text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                    <span className="text-indigo-600">Thời gian AI: {aiScanResult.processing_time_sec}s {aiScanResult.from_cache && '(Cache Hit⚡)'}</span>
-                    <span>Mã quét: {aiScanResult.scan_id}</span>
+                    <span className="text-indigo-600">Thoi gian AI: {aiScanResult.processing_time_sec}s {aiScanResult.from_cache && '(Cache Hit⚡)'}</span>
+                    <span>Ma quet: {aiScanResult.scan_id}</span>
                     <span className="text-slate-400">Prompt: {aiScanResult.prompt_version}</span>
                   </div>
                 </div>
@@ -2117,7 +2156,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 {aiScanResult.validation_warnings && aiScanResult.validation_warnings.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-amber-900 text-xs">
                     <div className="font-bold uppercase flex items-center gap-1.5 mb-1 text-amber-800">
-                      <AlertTriangle size={15} /> Cảnh báo kiểm soát nghiệp vụ:
+                      <AlertTriangle size={15} /> Canh bao kiem soat nghiep vu:
                     </div>
                     <ul className="list-disc pl-5 space-y-0.5 font-medium">
                       {aiScanResult.validation_warnings.map((w: string, i: number) => (
@@ -2130,8 +2169,8 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                 {/* Extracted items table */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 bg-slate-900 text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center">
-                    <span>Danh mục thuốc bóc tách & Khớp CSDL chi nhánh</span>
-                    <span className="text-[11px] font-normal text-slate-300">Tổng: {aiScanResult.items?.length || 0} sản phẩm</span>
+                    <span>Danh muc thuoc boc tach & Khop CSDL chi nhanh</span>
+                    <span className="text-[11px] font-normal text-slate-300">Tong: {aiScanResult.items?.length || 0} san pham</span>
                   </div>
 
                   <div className="divide-y divide-slate-100">
@@ -2148,17 +2187,17 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                             <div className="flex items-center gap-2">
                               {status === "EXACT_MATCH" && (
                                 <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-[10px] rounded-full border border-emerald-300 flex items-center gap-1">
-                                  🟢 Khớp SKU 100%
+                                  🟢 Khop SKU 100%
                                 </span>
                               )}
                               {status === "SUBSTITUTE_AVAILABLE" && (
                                 <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[10px] rounded-full border border-amber-300 flex items-center gap-1">
-                                  🟡 Khớp Hoạt Chất (Thay thế)
+                                  🟡 Khop Hoat Chat (Thay the)
                                 </span>
                               )}
                               {status === "NOT_FOUND" && (
                                 <span className="px-2.5 py-0.5 bg-red-100 text-red-800 font-extrabold text-[10px] rounded-full border border-red-300 flex items-center gap-1">
-                                  🔴 Chưa thấy trong CSDL
+                                  🔴 Chua thay trong CSDL
                                 </span>
                               )}
                               <span className="text-xs font-mono font-bold text-slate-500">#{ext.item_index || idx + 1}</span>
@@ -2171,34 +2210,34 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                           {/* Details comparison */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">1. Đọc từ ảnh đơn:</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">1. Doc tu anh don:</span>
                               <div className="font-extrabold text-slate-900 mt-0.5">{ext.raw_text}</div>
                               <div className="text-slate-500 mt-0.5">
-                                Hoạt chất: <span className="font-semibold text-slate-700">{ext.generic_name || "N/A"}</span> | Hàm lượng: {ext.strength || "N/A"}
+                                Hoat chat: <span className="font-semibold text-slate-700">{ext.generic_name || "N/A"}</span> | Ham luong: {ext.strength || "N/A"}
                               </div>
                               <div className="text-slate-500 mt-0.5">
-                                Liều dùng: <span className="font-semibold text-indigo-700">{ext.usage_instruction || "Theo chỉ định bác sĩ"}</span>
+                                Lieu dung: <span className="font-semibold text-indigo-700">{ext.usage_instruction || "Theo chi dinh bac si"}</span>
                               </div>
                             </div>
 
                             <div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">2. Khớp SKU Bán hàng & FEFO:</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">2. Khop SKU Ban hang & FEFO:</span>
                               {sku ? (
                                 <div>
                                   <div className="font-extrabold text-indigo-900 mt-0.5">{sku.product_name}</div>
                                   <div className="text-slate-600 font-bold mt-0.5">
-                                    Giá: {sku.retail_price?.toLocaleString()}₫/{sku.unit} | Tồn kho: <span className={sku.stock > 0 ? "text-emerald-700 font-black" : "text-red-600 font-black"}>{sku.stock} {sku.unit}</span>
+                                    Gia: {sku.retail_price?.toLocaleString()}₫/{sku.unit} | Ton kho: <span className={sku.stock > 0 ? "text-emerald-700 font-black" : "text-red-600 font-black"}>{sku.stock} {sku.unit}</span>
                                   </div>
                                   {fefo ? (
                                     <div className="text-[11px] font-bold text-emerald-700 mt-0.5 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
-                                      Lô FEFO: {fefo.batch_no} (HSD: {fefo.exp_date})
+                                      Lo FEFO: {fefo.batch_no} (HSD: {fefo.exp_date})
                                     </div>
                                   ) : (
-                                    <div className="text-[11px] text-amber-700 font-semibold mt-0.5">Lô mặc định</div>
+                                    <div className="text-[11px] text-amber-700 font-semibold mt-0.5">Lo mac dinh</div>
                                   )}
                                 </div>
                               ) : (
-                                <div className="text-red-600 font-bold mt-1">Không tìm thấy mã thuốc phù hợp trong CSDL chi nhánh</div>
+                                <div className="text-red-600 font-bold mt-1">Khong tim thay ma thuoc phu hop trong CSDL chi nhanh</div>
                               )}
                             </div>
                           </div>
@@ -2206,7 +2245,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                           {/* Quantity & Actions */}
                           <div className="flex items-center justify-between text-xs pt-1">
                             <div className="font-bold text-slate-700">
-                              Số lượng mua đề xuất: <span className="text-indigo-600 font-black text-sm">{ext.quantity} {ext.unit}</span>
+                              So luong mua de xuat: <span className="text-indigo-600 font-black text-sm">{ext.quantity} {ext.unit}</span>
                             </div>
                           </div>
                         </div>
@@ -2215,7 +2254,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                   </div>
                 </div>
 
-                {/* Khối Thẩm Định Bước Cuối Của Dược Sĩ */}
+                {/* Khoi Tham Dinh Buoc Cuoi Cua Duoc Si */}
                 <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-3">
                     <div className="flex items-center gap-2.5">
@@ -2224,35 +2263,35 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                       </div>
                       <div>
                         <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
-                          Bước Cuối: Thẩm Định Lâm Sàng & Phê Duyệt Của Dược Sĩ
+                          Buoc Cuoi: Tham Dinh Lam Sang & Phe Duyet Cua Duoc Si
                           <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-black border border-emerald-300">
-                            Bắt buộc GPP
+                            Bat buoc GPP
                           </span>
                         </h4>
                         <p className="text-[11px] text-emerald-800 mt-0.5">
-                          Dược sĩ phụ trách: <strong>{getBranchInfoFromToken().fullName || "Dược sĩ Trần Thị A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
+                          Duoc si phu trach: <strong>{getBranchInfoFromToken().fullName || "Duoc si Tran Thi A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
                         </p>
                       </div>
                     </div>
                     <span className="text-[10px] font-bold text-emerald-900 bg-white/90 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs shrink-0 self-start sm:self-auto">
-                      🕒 {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - Hôm nay
+                      🕒 {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - Hom nay
                     </span>
                   </div>
 
-                  {/* Checklist kiểm soát an toàn */}
+                  {/* Checklist kiem soat an toan */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
                     <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khớp hoạt chất & hàm lượng
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khop hoat chat & ham luong
                     </div>
                     <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Không tương tác chống chỉ định
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khong tuong tac chong chi dinh
                     </div>
                     <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Gán lô FEFO cận hạn tự động
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Gan lo FEFO can han tu dong
                     </div>
                   </div>
 
-                  {/* Checkbox cam kết trách nhiệm chuyên môn */}
+                  {/* Checkbox cam ket trach nhiem chuyen mon */}
                   <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-emerald-300 hover:bg-emerald-50/50 transition-colors shadow-2xs">
                     <input
                       type="checkbox"
@@ -2261,7 +2300,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                       className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
                     />
                     <span className="text-xs text-slate-700 leading-snug">
-                      Tôi là Dược sĩ phụ trách, đã đối soát đơn thuốc gốc, thẩm định lâm sàng danh mục thuốc do AI hỗ trợ đề xuất và <strong>chịu hoàn toàn trách nhiệm chuyên môn</strong> khi đưa vào đơn hàng xuất bán theo tiêu chuẩn GPP.
+                      Toi la Duoc si phu trach, da doi soat don thuoc goc, tham dinh lam sang danh muc thuoc do AI ho tro de xuat va <strong>chiu hoan toan trach nhiem chuyen mon</strong> khi dua vao don hang xuat ban theo tieu chuan GPP.
                     </span>
                   </label>
                 </div>
@@ -2272,13 +2311,13 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
                     onClick={handleApplyAIScanToCart}
                     className="flex-1 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg hover:shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
                   >
-                    <ShieldCheck size={19} /> Dược Sĩ Xác Nhận & Đưa Vào Đơn Hàng POS
+                    <ShieldCheck size={19} /> Duoc Si Xac Nhan & Dua Vao Don Hang POS
                   </button>
                   <button
                     onClick={() => { setAiScanResult(null); }}
                     className="px-5 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
                   >
-                    Quét đơn khác
+                    Quet don khac
                   </button>
                 </div>
               </div>
@@ -2290,7 +2329,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     )}
 
       {/* =======================================
-       * 📋 MODAL BIÊN BẢN THẨM ĐỊNH LÂM SÀNG DƯỢC SĨ (GPP)
+       * 📋 MODAL BIEN BAN THAM DINH LAM SANG DUOC SI (GPP)
        * ======================================= */}
       <AIPharmacistAuditModal
         isOpen={showAuditModal}

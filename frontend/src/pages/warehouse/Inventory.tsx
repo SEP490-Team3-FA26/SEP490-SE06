@@ -85,7 +85,7 @@ export function Inventory() {
 
   const fetchStats = async () => {
     try {
-      const data = await medicineService.getMedicineStats();
+      const data = await medicineService.getMedicineStats('CENTRAL_WH');
       setStats(data);
     } catch (err) {
       console.error("Failed to fetch stats", err);
@@ -97,7 +97,7 @@ export function Inventory() {
   const fetchExpirationReport = async () => {
     setExpirationLoading(true);
     try {
-      const data = await medicineService.getExpirationReport();
+      const data = await medicineService.getExpirationReport('CENTRAL_WH');
       setExpirationReport(data);
     } catch (err) {
       console.error("Failed to fetch expiration report", err);
@@ -109,7 +109,7 @@ export function Inventory() {
   const fetchLowStockReport = async () => {
     setLowStockLoading(true);
     try {
-      const data = await medicineService.getLowStockReport();
+      const data = await medicineService.getLowStockReport('CENTRAL_WH');
       setLowStockReport(data || []);
     } catch (err) {
       console.error("Failed to fetch low stock report", err);
@@ -274,6 +274,7 @@ export function Inventory() {
     setLoading(true);
     try {
       const result = await medicineService.getMedicines({
+        branchId: 'CENTRAL_WH',
         search: debouncedSearch || undefined,
         page,
         limit,

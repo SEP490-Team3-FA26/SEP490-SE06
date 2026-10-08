@@ -1,10 +1,42 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   ABC Pharmacy ERP — Design System CSS
+   Glassmorphism + Medical ERP Premium Token Layer
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Custom Properties: Medical ERP Design Tokens
+   -------------------------------------------------------------------------- */
 :root {
+  /* Brand Colors */
+  --color-brand-primary:   #059669;   /* emerald-600 */
+  --color-brand-secondary: #0d9488;   /* teal-600 */
+  --color-cold-chain:      #0284c7;   /* sky-600 (GSP cold storage) */
+
+  /* Status Palette */
+  --color-status-success:  #d1fae5;
+  --color-status-warning:  #fef3c7;
+  --color-status-danger:   #ffe4e6;
+  --color-status-cold:     #cffafe;
+
+  /* Glass Layer */
+  --glass-bg:              rgba(255, 255, 255, 0.80);
+  --glass-border:          rgba(226, 232, 240, 0.60);   /* slate-200/60 */
+  --glass-blur:            blur(16px);
+  --glass-shadow:          0 4px 24px -2px rgba(15, 23, 42, 0.08);
+
+  /* Spacing Rhythm (4px base) */
+  --radius-card:   0.75rem;  /* 12px — rounded-xl */
+  --radius-button: 0.625rem; /* 10px — rounded-lg  */
+  --radius-badge:  9999px;   /* pill  — rounded-full */
+
   color-scheme: light;
   --foreground: #171717;
   --background: #ffffff;
 }
+
+
 
 body {
   color: var(--foreground);
@@ -12,7 +44,7 @@ body {
 }
 
 /* Force high-contrast text color for form inputs and dropdowns on light backgrounds */
-input, select, textarea, button {
+input, select, textarea {
   color: #0f172a !important;
 }
 
@@ -147,3 +179,77 @@ input::placeholder, textarea::placeholder {
   animation: fade-in 0.5s ease-out forwards, audit-row-highlight 2s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
+
+/* ==========================================================================
+   NEW: Glassmorphism & Medical ERP UI Kit Additions
+   ========================================================================== */
+
+/* --- Shimmer skeleton loading animation --- */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg,
+    #f1f5f9 25%,
+    #e2e8f0 50%,
+    #f1f5f9 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* --- Pulse dot for live / low-stock indicators --- */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+/* --- Glass card base utility --- */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* --- Gradient emerald border on focus (for scan inputs) --- */
+.scan-focus:focus {
+  outline: none;
+  border-color: #14b8a6; /* teal-400 */
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+}
+
+/* --- Emerald flash animation for successful barcode scan --- */
+@keyframes scan-success-flash {
+  0%   { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35); }
+  60%  { border-color: #10b981; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.15); }
+  100% { border-color: #d1d5db; box-shadow: none; }
+}
+
+.scan-success {
+  animation: scan-success-flash 0.8s ease-out forwards;
+}
+
+/* --- Status badge dot pulse --- */
+@keyframes status-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50%       { box-shadow: 0 0 0 4px transparent; }
+}
+
+/* --- Smooth dropdown slide-down --- */
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px) scaleY(0.95); }
+  to   { opacity: 1; transform: translateY(0)   scaleY(1); }
+}
+
+.dropdown-animate {
+  animation: slide-down 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+}

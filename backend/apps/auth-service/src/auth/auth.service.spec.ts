@@ -175,6 +175,18 @@ describe('AuthService', () => {
       expect(result.access_token).toBe('mockJwtToken');
       expect(result.user.email).toBe('test@example.com');
     });
+
+    it('should return token when logging in with phone number', async () => {
+      const verifiedUser = { ...mockUser, phone: '0988123456', isEmailVerified: true, isTwoFactorEnabled: false };
+      userModel.findOne.mockResolvedValue(verifiedUser);
+      jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));
+
+      const result = await service.login({ phone: '0988123456', password: 'password123' });
+
+      expect(userModel.findOne).toHaveBeenCalledWith({ phone: '0988123456' });
+      expect(result.access_token).toBe('mockJwtToken');
+      expect(result.user.phone).toBe('0988123456');
+    });
   });
 
   describe('verifyEmail', () => {

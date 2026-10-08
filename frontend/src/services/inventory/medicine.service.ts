@@ -82,13 +82,13 @@ export const medicineService = {
     return response.data;
   },
 
-  async getMedicineStats() {
-    const response = await api.get('/api/medicines/stats');
+  async getMedicineStats(branchId?: string) {
+    const response = await api.get('/api/medicines/stats', { params: { branchId } });
     return response.data;
   },
 
-  async getExpirationReport() {
-    const response = await api.get('/api/medicines/expiration-report');
+  async getExpirationReport(branchId?: string) {
+    const response = await api.get('/api/medicines/expiration-report', { params: { branchId } });
     return response.data;
   },
 
@@ -127,13 +127,13 @@ export const medicineService = {
     return response.data;
   },
 
-  async getLowStockReport() {
-    const response = await api.get('/api/medicines/low-stock-report');
+  async getLowStockReport(branchId?: string) {
+    const response = await api.get('/api/medicines/low-stock-report', { params: { branchId } });
     return response.data;
   },
 
-  async getMedicinesDropdown() {
-    const response = await api.get('/api/medicines/dropdown');
+  async getMedicinesDropdown(branchId?: string) {
+    const response = await api.get('/api/medicines/dropdown', { params: { branchId } });
     return response.data;
   },
 

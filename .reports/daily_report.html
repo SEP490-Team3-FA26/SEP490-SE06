@@ -1,0 +1,480 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Báo Cáo Sức Khỏe Server & Code Review</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f1f5f9; padding: 24px 12px; margin: 0;">
+  <div style="max-width: 720px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+    
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #ffffff; padding: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <h2 style="margin: 0; font-size: 22px; font-weight: 700;">📊 Báo Cáo Sức Khỏe Server & Code Review Hằng Ngày</h2>
+          <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9;">
+            Thứ Ba, 6 tháng 10, 2026 • 23:37:16 • Tự động từ GitHub Actions Cloud
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 24px;">
+      
+      <!-- PHẦN 1: BÁO CÁO SỨC KHỎE SERVER & ALERT HẰNG NGÀY -->
+      
+    <!-- SERVER HEALTH DASHBOARD SECTION -->
+    <div style="margin-bottom: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
+      
+      <!-- Top Score Header Banner -->
+      <div style="background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600;">
+            Hạ Tầng Cloud VPS • 103.75.187.86
+          </div>
+          <div style="font-size: 18px; font-weight: 700; margin-top: 2px; color: #f8fafc;">
+            🏥 Sức Khỏe Máy Chủ & Trạng Thái Hệ Thống
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.08); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.15);">
+          <div style="font-size: 26px; font-weight: 800; color: #10b981; line-height: 1;">
+            100<span style="font-size: 14px; font-weight: 500; color: #94a3b8;">/100</span>
+          </div>
+          <div style="font-size: 12px; font-weight: 700; color: #10b981; text-transform: uppercase;">
+            ỔN ĐỊNH TUYỆT VỜI
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 20px;">
+        
+        <!-- Key Metrics KPI Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin-bottom: 20px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 18px; font-weight: 700; color: #0284c7;">5.0 <span style="font-size: 12px; font-weight: 500;">ngày</span></div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Uptime Liên Tục</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 18px; font-weight: 700; color: #059669;">97.9 <span style="font-size: 12px; font-weight: 500;">MB</span></div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">RAM RSS Process</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 18px; font-weight: 700; color: #7c3aed;">79.3%</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Heap Node.js (59.5M)</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 18px; font-weight: 700; color: #ea580c;">11.04 <span style="font-size: 12px; font-weight: 500;">ms</span></div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Event Loop P99</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 18px; font-weight: 700; color: #2563eb;">4,193</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Tổng HTTP Requests</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 18px; font-weight: 700; color: #dc2626;">37</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Lỗi Server 5xx</div>
+          </div>
+        </div>
+
+        <!-- Notification & Alert Center -->
+        <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #0f172a; display: flex; align-items: center; gap: 6px;">
+          <span>🔔</span> Trung Tâm Cảnh Báo & Alert Tự Động:
+        </h4>
+        <div style="margin-bottom: 20px;">
+          
+        <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px 14px; margin-bottom: 8px; border-radius: 4px;">
+          <div style="font-weight: 700; color: #92400e; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+            <span>⚠️</span>
+            <span>[WARNING] Phát Hiện Timeout 504 Khi Gọi Microservice/Database</span>
+          </div>
+          <div style="color: #334155; font-size: 12.5px; margin-top: 3px; line-height: 1.4;">
+            Các endpoint bị timeout (&gt;10s): /api/medicines/low-stock-report (10 lần), /api/medicines/stats (10 lần), /api/medicines/expiration-report (7 lần).
+          </div>
+        </div>
+      
+        <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 14px; margin-bottom: 8px; border-radius: 4px;">
+          <div style="font-weight: 700; color: #1e40af; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+            <span>ℹ️</span>
+            <span>[INFO] Lưu Lượng Dò Quét Bên Ngoài (Bot Scans: 500 requests)</span>
+          </div>
+          <div style="color: #334155; font-size: 12.5px; margin-top: 3px; line-height: 1.4;">
+            Ghi nhận nhiều yêu cầu dò tìm file nhạy cảm (.php, .asp, /HNAP1, cgi-bin) từ internet bên ngoài.
+          </div>
+        </div>
+      
+        <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 14px; margin-bottom: 8px; border-radius: 4px;">
+          <div style="font-weight: 700; color: #1e40af; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+            <span>ℹ️</span>
+            <span>[INFO] Uptime Xuất Sắc: 5.0 Ngày Hoạt Động Liên Tục</span>
+          </div>
+          <div style="color: #334155; font-size: 12.5px; margin-top: 3px; line-height: 1.4;">
+            Server đã chạy ổn định 119.8 giờ mà không cần khởi động lại.
+          </div>
+        </div>
+      
+        <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 14px; margin-bottom: 8px; border-radius: 4px;">
+          <div style="font-weight: 700; color: #1e40af; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+            <span>ℹ️</span>
+            <span>[INFO] Hiệu Quả Cache Cao (HTTP 304: 78.6%)</span>
+          </div>
+          <div style="color: #334155; font-size: 12.5px; margin-top: 3px; line-height: 1.4;">
+            Hầu hết các request tĩnh và dữ liệu danh mục được client tái sử dụng thông qua ETag/Cache-Control.
+          </div>
+        </div>
+      
+        </div>
+
+        <!-- Service Endpoints Status Table -->
+        <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #0f172a; display: flex; align-items: center; gap: 6px;">
+          <span>📡</span> Tình Trạng Kết Nối Các Dịch Vụ:
+        </h4>
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+              <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-transform: uppercase;">
+                <th style="padding: 8px 12px;">Dịch Vụ</th>
+                <th style="padding: 8px 12px;">Endpoint / URL</th>
+                <th style="padding: 8px 12px; text-align: center;">Độ Trễ</th>
+                <th style="padding: 8px 12px; text-align: right;">Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">API Gateway Health</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">http://103.75.187.86:4000/health</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">163ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">API Gateway Readiness</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">http://103.75.187.86:4000/health/ready</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">126ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">API Gateway Liveness</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">http://103.75.187.86:4000/health/live</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">74ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">Prometheus Metrics</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">http://103.75.187.86:4000/metrics</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">117ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">Production Frontend Web</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">https://abcpharmacy.store</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">333ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">Grafana Dashboard</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">http://103.75.187.86:3001</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">113ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">Dozzle Realtime Logs</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">http://103.75.187.86:8888</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">113ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px 12px; font-size: 13px; font-weight: 500; color: #1e293b;">Trạm Cảm Biến Kho GSP</td>
+        <td style="padding: 8px 12px; font-size: 12px; color: #64748b; font-family: monospace;">http://103.75.187.86:4000/api/sensor/latest</td>
+        <td style="padding: 8px 12px; font-size: 12px; text-align: center; color: #475569;">102ms</td>
+        <td style="padding: 8px 12px; text-align: right;">
+          <span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;">
+            200 OK
+          </span>
+        </td>
+      </tr>
+    
+            </tbody>
+          </table>
+        </div>
+
+        
+      <div style="margin-top: 16px;">
+        <h5 style="margin: 0 0 8px 0; font-size: 13px; color: #991b1b; display: flex; align-items: center; gap: 6px;">
+          <span>🔍</span> Top Endpoint Phát Sinh Lỗi (504 Timeout / 500 Server Error):
+        </h5>
+        <div style="border: 1px solid #fecaca; border-radius: 6px; overflow: hidden; background: #fff5f5;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+              <tr style="background: #fee2e2; font-size: 11px; color: #7f1d1d; text-transform: uppercase;">
+                <th style="padding: 6px 10px;">Method</th>
+                <th style="padding: 6px 10px;">Route</th>
+                <th style="padding: 6px 10px; text-align: center;">HTTP Status</th>
+                <th style="padding: 6px 10px; text-align: right;">Số Lượng</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+      <tr style="border-bottom: 1px solid #fee2e2; font-size: 12px;">
+        <td style="padding: 6px 10px; font-family: monospace; color: #b91c1c; font-weight: 600;">GET</td>
+        <td style="padding: 6px 10px; font-family: monospace; color: #334155;">/api/medicines/low-stock-report</td>
+        <td style="padding: 6px 10px; text-align: center; font-weight: 700; color: #dc2626;">504</td>
+        <td style="padding: 6px 10px; text-align: right; font-weight: 600; color: #b91c1c;">10 lần</td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #fee2e2; font-size: 12px;">
+        <td style="padding: 6px 10px; font-family: monospace; color: #b91c1c; font-weight: 600;">GET</td>
+        <td style="padding: 6px 10px; font-family: monospace; color: #334155;">/api/medicines/stats</td>
+        <td style="padding: 6px 10px; text-align: center; font-weight: 700; color: #dc2626;">504</td>
+        <td style="padding: 6px 10px; text-align: right; font-weight: 600; color: #b91c1c;">10 lần</td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #fee2e2; font-size: 12px;">
+        <td style="padding: 6px 10px; font-family: monospace; color: #b91c1c; font-weight: 600;">GET</td>
+        <td style="padding: 6px 10px; font-family: monospace; color: #334155;">/api/medicines/expiration-report</td>
+        <td style="padding: 6px 10px; text-align: center; font-weight: 700; color: #dc2626;">504</td>
+        <td style="padding: 6px 10px; text-align: right; font-weight: 600; color: #b91c1c;">7 lần</td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #fee2e2; font-size: 12px;">
+        <td style="padding: 6px 10px; font-family: monospace; color: #b91c1c; font-weight: 600;">GET</td>
+        <td style="padding: 6px 10px; font-family: monospace; color: #334155;">/api/prescriptions/tiger</td>
+        <td style="padding: 6px 10px; text-align: center; font-weight: 700; color: #dc2626;">500</td>
+        <td style="padding: 6px 10px; text-align: right; font-weight: 600; color: #b91c1c;">2 lần</td>
+      </tr>
+    
+      <tr style="border-bottom: 1px solid #fee2e2; font-size: 12px;">
+        <td style="padding: 6px 10px; font-family: monospace; color: #b91c1c; font-weight: 600;">GET</td>
+        <td style="padding: 6px 10px; font-family: monospace; color: #334155;">/api/purchase-requisitions</td>
+        <td style="padding: 6px 10px; text-align: center; font-weight: 700; color: #dc2626;">504</td>
+        <td style="padding: 6px 10px; text-align: right; font-weight: 600; color: #b91c1c;">2 lần</td>
+      </tr>
+    
+            </tbody>
+          </table>
+        </div>
+      </div>
+    
+
+        <!-- Deep Diagnostics -->
+        <h4 style="margin: 20px 0 10px 0; font-size: 14px; color: #0f172a; display: flex; align-items: center; gap: 6px;">
+          <span>🩺</span> Phân Tích Chẩn Đoán Chi Tiết (SRE Deep Dive):
+        </h4>
+        <div>
+          
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span style="font-weight: 600; font-size: 13px; color: #0f172a;">Tài Nguyên &amp; Khả Năng Chịu Tải</span>
+        <span style="font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">
+          Tốt
+        </span>
+      </div>
+      <p style="margin: 0; font-size: 12.5px; color: #475569; line-height: 1.5;">Process Node.js API Gateway đang chiếm 97.9 MB RSS trên tổng 6GB RAM vật lý (+ 4GB Swap). Heap sử dụng 59.5 MB (79.3% mức cấp phát hiện tại). Không phát hiện dấu hiệu rò rỉ bộ nhớ (Memory Leak).</p>
+    </div>
+  
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span style="font-weight: 600; font-size: 13px; color: #0f172a;">Độ Trễ Phản Hồi &amp; Event Loop</span>
+        <span style="font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">
+          Tối ưu
+        </span>
+      </div>
+      <p style="margin: 0; font-size: 12.5px; color: #475569; line-height: 1.5;">Event Loop Lag P50 đạt 9.99 ms, P99 đạt 11.04 ms. Thời gian đáp ứng cực kỳ nhạy, Main Thread hoàn toàn thông thoáng cho các kết nối WebSocket và Kafka message streaming.</p>
+    </div>
+  
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span style="font-weight: 600; font-size: 13px; color: #0f172a;">Tính Toàn Vẹn Hàng Đợi Message (Kafka &amp; Redis)</span>
+        <span style="font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">
+          Tuyệt đối
+        </span>
+      </div>
+      <p style="margin: 0; font-size: 12.5px; color: #475569; line-height: 1.5;">Hàng đợi Fallback Queue = 0, Dead Letter Queue = 0. Toàn bộ luồng dữ liệu nghiệp vụ được xử lý thông suốt giữa API Gateway và các Microservices.</p>
+    </div>
+  
+        </div>
+
+        
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #3b82f6; border-radius: 6px; padding: 12px 16px; margin-top: 14px;">
+        <h5 style="margin: 0 0 8px 0; font-size: 13px; color: #1e3a8a;">💡 Khuyến Nghị Vận Hành Kỹ Thuật (SRE Next Steps):</h5>
+        <ul style="margin: 0; padding-left: 20px; font-size: 12.5px; color: #334155; line-height: 1.5;">
+          
+      <li style="margin-bottom: 6px;">Tối ưu hóa Compound Index trong MongoDB cho các truy vấn thống kê thuốc (`/api/medicines/low-stock-report`, `/stats`, `/expiration-report`) và áp dụng Redis Cache với TTL 5-10 phút.</li>
+    
+      <li style="margin-bottom: 6px;">Bật tính năng Cloudflare Bot Fight Mode &amp; WAF Rule chặn các request quét file đuôi lạ.</li>
+    
+        </ul>
+      </div>
+    
+
+      </div>
+    </div>
+  
+
+      <!-- PHẦN 2: BÁO CÁO CODE REVIEW & TIẾN ĐỘ -->
+      <div style="border-top: 2px dashed #e2e8f0; padding-top: 24px; margin-top: 10px;">
+        <h3 style="color: #0f172a; font-size: 17px; margin: 0 0 16px 0; display: flex; align-items: center; gap: 6px;">
+          <span>💻</span> Tiến Độ Phát Triển & Đánh Giá Chất Lượng Code:
+        </h3>
+
+        <!-- Summary Badges -->
+        <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 130px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 20px; font-weight: bold; color: #2563eb;">5</div>
+            <div style="font-size: 12px; color: #64748b;">Commit Gần Nhất</div>
+          </div>
+          <div style="flex: 1; min-width: 130px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 20px; font-weight: bold; color: #059669;">3</div>
+            <div style="font-size: 12px; color: #64748b;">Thành Viên Đang Code</div>
+          </div>
+        </div>
+
+        <!-- Notice if fallback -->
+        
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; color: #1e40af;">
+            ℹ️ <em>Trong 24 giờ qua chưa có commit mới. Dưới đây là 5 commit gần nhất của dự án để bạn tiện theo dõi.</em>
+          </div>
+        
+
+        <!-- Smells and Standards Check -->
+        
+      <div style="background: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 10px 0; color: #92400e; font-size: 15px;">⚠️ Cảnh Báo Quy Chuẩn & Code Smells (1)</h4>
+        <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+          
+      <li style="margin-bottom: 6px; color: #b45309;">
+        <strong>[Warning] Code Smell (Shotgun Surgery):</strong> Commit [28b2d10] by phuoc12345 modified 370 files. Consider breaking changes into smaller atomic commits.
+      </li>
+    
+        </ul>
+      </div>
+    
+
+        <!-- Author Commits Breakdown -->
+        <h4 style="color: #0f172a; font-size: 15px; margin: 20px 0 12px 0; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+          👨‍💻 Chi Tiết Hoạt Động Theo Tác Giả:
+        </h4>
+        
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <h4 style="margin: 0 0 12px 0; color: #0f172a; font-size: 15px; display: flex; align-items: center;">
+          👤 <span style="margin-left: 8px;">phuoc12345 (de180577tranhongphuoc@gmail.com)</span>
+          <span style="margin-left: auto; background: #dbeafe; color: #1d4ed8; font-size: 12px; padding: 2px 8px; border-radius: 9999px;">
+            2 commit
+          </span>
+        </h4>
+        <ul style="margin: 0; padding-left: 20px;">
+          
+      <li style="margin-bottom: 8px;">
+        <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e293b;">ff65b08</code>
+        <span style="color: #64748b; font-size: 12px; margin-left: 6px;">[22:17 05/10/2026]</span>
+        <div style="margin-top: 4px; color: #334155; font-size: 14px;">merge: resolve conflicts from origin/demo into feat/SCRUM-92-UC-68-UC-72</div>
+      </li>
+    
+      <li style="margin-bottom: 8px;">
+        <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e293b;">28b2d10</code>
+        <span style="color: #64748b; font-size: 12px; margin-left: 6px;">[22:13 05/10/2026]</span>
+        <div style="margin-top: 4px; color: #334155; font-size: 14px;">feat(SCRUM-92): implement UC-68 to UC-72 OCR, voice consult, cash flow and pharmacist sales UI</div>
+      </li>
+    
+        </ul>
+      </div>
+    
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <h4 style="margin: 0 0 12px 0; color: #0f172a; font-size: 15px; display: flex; align-items: center;">
+          👤 <span style="margin-left: 8px;">Phuocth.dev (134176804+THPhuocDev@users.noreply.github.com)</span>
+          <span style="margin-left: auto; background: #dbeafe; color: #1d4ed8; font-size: 12px; padding: 2px 8px; border-radius: 9999px;">
+            1 commit
+          </span>
+        </h4>
+        <ul style="margin: 0; padding-left: 20px;">
+          
+      <li style="margin-bottom: 8px;">
+        <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e293b;">e04a112</code>
+        <span style="color: #64748b; font-size: 12px; margin-left: 6px;">[19:33 05/10/2026]</span>
+        <div style="margin-top: 4px; color: #334155; font-size: 14px;">Merge pull request #190 from SEP490-Team3-FA26/nam/rfq-labels-roi</div>
+      </li>
+    
+        </ul>
+      </div>
+    
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <h4 style="margin: 0 0 12px 0; color: #0f172a; font-size: 15px; display: flex; align-items: center;">
+          👤 <span style="margin-left: 8px;">KagamiToka (namkute140904@gmail.com)</span>
+          <span style="margin-left: auto; background: #dbeafe; color: #1d4ed8; font-size: 12px; padding: 2px 8px; border-radius: 9999px;">
+            2 commit
+          </span>
+        </h4>
+        <ul style="margin: 0; padding-left: 20px;">
+          
+      <li style="margin-bottom: 8px;">
+        <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e293b;">393b6ac</code>
+        <span style="color: #64748b; font-size: 12px; margin-left: 6px;">[21:45 04/10/2026]</span>
+        <div style="margin-top: 4px; color: #334155; font-size: 14px;">refactor: eliminate data clumps in recommendation service &amp; integrate pharma smart recommender into landing page</div>
+      </li>
+    
+      <li style="margin-bottom: 8px;">
+        <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e293b;">30b739f</code>
+        <span style="color: #64748b; font-size: 12px; margin-left: 6px;">[21:29 04/10/2026]</span>
+        <div style="margin-top: 4px; color: #334155; font-size: 14px;">merge: resolve conflicts from origin/demo into nam/rfq-labels-roi</div>
+      </li>
+    
+        </ul>
+      </div>
+    
+
+        <!-- Standards Reminder -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 24px;">
+          <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #334155;">📌 3 Quy Tắc Bất Biến Của Dự Án (Playbook v2.0):</h4>
+          <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #475569;">
+            <li>Tuyệt đối không gọi API HTTP trực tiếp giữa các microservices nội bộ (bắt buộc qua Kafka).</li>
+            <li>Frontend/Mobile tuyệt đối không kết nối trực tiếp DB/Microservice (bắt buộc qua API Gateway).</li>
+            <li>Tác vụ Ghi trả về HTTP 202 Accepted (Event-Driven qua Kafka).</li>
+          </ol>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div style="border-top: 1px solid #e2e8f0; margin-top: 28px; padding-top: 16px; text-align: center; font-size: 12px; color: #94a3b8;">
+        Hệ thống Tự Động Giám Sát Server & Code Review chạy trên GitHub Actions Cloud Runner • Dự án WDP301
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  

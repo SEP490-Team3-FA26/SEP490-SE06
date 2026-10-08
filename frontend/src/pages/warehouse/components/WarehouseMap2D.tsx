@@ -7,20 +7,20 @@ interface WarehouseMap2DProps {
   onShelfSelect: (zone: string, rack: string, shelf: number) => void;
   onBinSelect?: (zone: string, rack: string, shelf: number, bin: number) => void;
   onZoneClick?: (zoneData: any) => void;
+  highlightTargets?: Set<string>;
   highlightTarget?: string;
 }
 
 const ZONE_CONFIG: Record<string, {
   label: string; bgColor: string; headerBg: string; borderColor: string;
   textColor: string; badgeBg: string; badgeText: string; accentColor: string;
-  icon: string; description: string;
 }> = {
-  A: { label: "Khu A — Kháng Sinh", bgColor: "#eff6ff", headerBg: "#dbeafe", borderColor: "#93c5fd", textColor: "#1d4ed8", badgeBg: "#bfdbfe", badgeText: "#1e40af", accentColor: "#3b82f6", icon: "💊", description: "Penicillin · Cephalosporin · Macrolide · Quinolone" },
-  B: { label: "Khu B — Hạ Sốt & Giảm Đau", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#fcd34d", textColor: "#b45309", badgeBg: "#fde68a", badgeText: "#92400e", accentColor: "#f59e0b", icon: "🌡️", description: "Paracetamol · Ibuprofen · Diclofenac · Aspirin" },
-  C: { label: "Khu C — Tim Mạch", bgColor: "#fff1f2", headerBg: "#ffe4e6", borderColor: "#fda4af", textColor: "#be123c", badgeBg: "#fecdd3", badgeText: "#9f1239", accentColor: "#f43f5e", icon: "❤️", description: "Amlodipine · Metoprolol · Atorvastatin · Warfarin" },
-  D: { label: "Khu D — Tiêu Hóa", bgColor: "#f0fdf4", headerBg: "#dcfce7", borderColor: "#86efac", textColor: "#15803d", badgeBg: "#bbf7d0", badgeText: "#166534", accentColor: "#22c55e", icon: "🫁", description: "Omeprazole · Metoclopramide · Smecta · Loperamide" },
-  E: { label: "Khu E — TPCN", bgColor: "#faf5ff", headerBg: "#f3e8ff", borderColor: "#d8b4fe", textColor: "#7e22ce", badgeBg: "#e9d5ff", badgeText: "#6b21a8", accentColor: "#a855f7", icon: "🌿", description: "Vitamin · Khoáng chất · Omega-3 · Collagen" },
-  F: { label: "Khu F — Vật Tư Y Tế", bgColor: "#f8fafc", headerBg: "#f1f5f9", borderColor: "#cbd5e1", textColor: "#475569", badgeBg: "#e2e8f0", badgeText: "#334155", accentColor: "#64748b", icon: "🩺", description: "Băng · Gạc · Kim tiêm · Bơm tiêm · Dụng cụ y tế" },
+  A: { label: "Khu A", bgColor: "#eff6ff", headerBg: "#dbeafe", borderColor: "#93c5fd", textColor: "#1d4ed8", badgeBg: "#bfdbfe", badgeText: "#1e40af", accentColor: "#3b82f6" },
+  B: { label: "Khu B", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#fcd34d", textColor: "#b45309", badgeBg: "#fde68a", badgeText: "#92400e", accentColor: "#f59e0b" },
+  C: { label: "Khu C", bgColor: "#fff1f2", headerBg: "#ffe4e6", borderColor: "#fda4af", textColor: "#be123c", badgeBg: "#fecdd3", badgeText: "#9f1239", accentColor: "#f43f5e" },
+  D: { label: "Khu D", bgColor: "#f0fdf4", headerBg: "#dcfce7", borderColor: "#86efac", textColor: "#15803d", badgeBg: "#bbf7d0", badgeText: "#166534", accentColor: "#22c55e" },
+  E: { label: "Khu E", bgColor: "#faf5ff", headerBg: "#f3e8ff", borderColor: "#d8b4fe", textColor: "#7e22ce", badgeBg: "#e9d5ff", badgeText: "#6b21a8", accentColor: "#a855f7" },
+  F: { label: "Khu F", bgColor: "#f8fafc", headerBg: "#f1f5f9", borderColor: "#cbd5e1", textColor: "#475569", badgeBg: "#e2e8f0", badgeText: "#334155", accentColor: "#64748b" },
 };
 
 const BIN_STATUS: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
@@ -81,7 +81,7 @@ function BinCell({
       }}
       title={isEmpty ? `Thùng ${bin.binNo} — Trống (Click để gán thuốc)` : `${bin.medicineName} · ${bin.currentStock} ${bin.unit || ""} · ${s.label}`}
     >
-      {/* Bin number */}
+      {/* Số thứ tự Thùng */}
       <div className="text-[9px] font-bold opacity-50 leading-none">B{bin.binNo}</div>
 
       {isEmpty ? (
@@ -91,17 +91,17 @@ function BinCell({
         </div>
       ) : (
         <>
-          {/* Medicine name */}
+          {/* Tên thuốc */}
           <div className="text-[10px] font-semibold leading-tight line-clamp-2 mt-0.5 w-full">
             {bin.medicineName?.split(" ").slice(0, 3).join(" ")}
           </div>
-          {/* Stock */}
+          {/* Tồn kho */}
           <div className="flex items-center justify-between w-full mt-1">
             <span className="text-[10px] font-mono font-bold">
               {bin.currentStock?.toLocaleString("vi-VN")}
               <span className="font-normal text-[8px] ml-0.5">{bin.unit}</span>
             </span>
-            {/* Dot + Reserve indicator */}
+            {/* Chấm trạng thái + Ký hiệu hàng Dự Trữ */}
             <div className="flex items-center gap-0.5">
               {bin.hasReserveBatch && (
                 <span title="Có lô cũ ở Khu Dự Trữ">
@@ -114,7 +114,7 @@ function BinCell({
         </>
       )}
 
-      {/* Highlight animation */}
+      {/* Hiệu ứng nhấp nháy làm sáng */}
       {isHighlighted && (
         <span className="absolute inset-0 rounded-lg animate-ping opacity-20 bg-sky-400 pointer-events-none" />
       )}
@@ -126,9 +126,9 @@ function BinCell({
 // RackBinGrid — Kệ với 4 Tầng × 10 Thùng
 // ============================================================
 function RackBinGrid({
-  zone, rack, highlightTarget, onBinSelect,
+  zone, rack, highlightTargets, highlightTarget, onBinSelect,
 }: {
-  zone: string; rack: string; highlightTarget?: string;
+  zone: string; rack: string; highlightTargets?: Set<string>; highlightTarget?: string;
   onBinSelect?: (zone: string, rack: string, shelf: number, bin: number) => void;
 }) {
   const [layout, setLayout] = useState<ShelfLayout[] | null>(null);
@@ -169,7 +169,7 @@ function RackBinGrid({
     <div className="mt-2 space-y-2">
       {layout.map(shelfData => (
         <div key={shelfData.shelfNo} className="bg-white/80 rounded-lg border border-slate-200 overflow-hidden">
-          {/* Shelf header */}
+          {/* Tiêu đề Tầng Kệ */}
           <div className="px-2 py-1 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5">
             <Layers size={10} className="text-slate-400" />
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -179,10 +179,17 @@ function RackBinGrid({
               ({shelfData.bins.filter(b => b.status !== "EMPTY").length}/10 thùng có hàng)
             </span>
           </div>
-          {/* 10 Bins grid */}
+          {/* Lưới 10 Ô Thùng */}
           <div className="grid gap-1 p-1.5" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
             {shelfData.bins.map(bin => {
               const highlightId = `bin-${zone}-${rack}-${shelfData.shelfNo}-${bin.binNo}`;
+              const shelfTargetId = `${zone}-${rack}-${shelfData.shelfNo}`;
+              const isHighlighted =
+                (highlightTargets?.has(highlightId) ?? false) ||
+                (highlightTargets?.has(shelfTargetId) ?? false) ||
+                highlightTarget === highlightId ||
+                highlightTarget === shelfTargetId;
+
               return (
                 <BinCell
                   key={bin.binNo}
@@ -190,7 +197,7 @@ function RackBinGrid({
                   zone={zone}
                   rack={rack}
                   shelf={shelfData.shelfNo}
-                  isHighlighted={highlightTarget === highlightId}
+                  isHighlighted={isHighlighted}
                   onBinSelect={onBinSelect}
                 />
               );
@@ -205,9 +212,16 @@ function RackBinGrid({
 // ============================================================
 // Main WarehouseMap2D Component
 // ============================================================
-export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick, highlightTarget }: WarehouseMap2DProps) {
+export function WarehouseMap2D({
+  zones,
+  onShelfSelect,
+  onBinSelect,
+  onZoneClick,
+  highlightTargets,
+  highlightTarget,
+}: WarehouseMap2DProps) {
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
-  // Track which rack is expanded (showing bin grid)
+  // Theo dõi kệ nào đang được mở rộng (hiển thị lưới thùng)
   const [expandedRack, setExpandedRack] = useState<string | null>(null);
 
   const handleRackToggle = useCallback((rackKey: string) => {
@@ -215,12 +229,19 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
   }, []);
 
   React.useEffect(() => {
+    let targetId: string | null = null;
     if (highlightTarget) {
+      targetId = highlightTarget;
+    } else if (highlightTargets && highlightTargets.size > 0) {
+      targetId = highlightTargets.values().next().value || null;
+    }
+
+    if (targetId) {
       // Highlight có thể là bin hoặc shelf
-      const element = document.getElementById(highlightTarget);
+      const element = document.getElementById(targetId);
       if (element) element.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [highlightTarget]);
+  }, [highlightTarget, highlightTargets]);
 
   return (
     <div className="flex-1 h-full overflow-auto p-5 flex flex-col bg-slate-100">
@@ -241,7 +262,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
         .highlighted-bin { animation: binPulse 1.2s ease-in-out infinite; }
       `}</style>
 
-      {/* Inbound dock */}
+      {/* Khu vực tiếp nhận hàng nhập */}
       <div className="w-full mb-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-emerald-50 border border-dashed border-emerald-300">
         <span className="flex items-center gap-2 font-semibold text-emerald-700">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
@@ -250,7 +271,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
         <span className="font-mono text-[10px] text-emerald-500">Luồng một chiều → GSP</span>
       </div>
 
-      {/* Zone grid */}
+      {/* Lưới các khu vực (Zone) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 flex-1">
         {zones.map((zoneData) => {
           const cfg = ZONE_CONFIG[zoneData.zone] || ZONE_CONFIG.F;
@@ -275,18 +296,25 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
               onMouseLeave={() => setHoveredZone(null)}
               onClick={() => onZoneClick && onZoneClick(zoneData)}
             >
-              {/* Zone header */}
+              {/* Tiêu đề Khu Vực */}
               <div
                 className="px-4 py-3 flex items-center justify-between"
                 style={{ backgroundColor: cfg.headerBg, borderBottom: `1px solid ${cfg.borderColor}` }}
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl">{cfg.icon}</span>
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shadow-xs"
+                    style={{ backgroundColor: cfg.badgeBg, color: cfg.textColor }}
+                  >
+                    {zoneData.zone}
+                  </div>
                   <div>
                     <div className="text-xs font-bold tracking-wide" style={{ color: cfg.textColor }}>
-                      {cfg.label}
+                      Khu {zoneData.zone}
                     </div>
-                    <div className="text-[10px] mt-0.5 text-slate-500">{cfg.description}</div>
+                    <div className="text-[10px] mt-0.5 text-slate-500">
+                      {zoneData.racks?.length || 0} dãy kệ &middot; {zoneData.racks?.reduce((a: number, r: any) => a + r.shelves.length, 0)} tầng
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
@@ -304,7 +332,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
                 </div>
               </div>
 
-              {/* Racks */}
+              {/* Danh sách Kệ */}
               <div className="p-3 grid gap-2.5 flex-1" onClick={(e) => e.stopPropagation()}>
                 {zoneData.racks.map((rackData: any) => {
                   const rackStatus = getRackWorstStatus(rackData.shelves);
@@ -317,7 +345,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
                       key={rackData.rack}
                       className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden"
                     >
-                      {/* Rack header — click to expand/collapse Bin Grid */}
+                      {/* Tiêu đề Kệ — bấm để mở/đóng Lưới Ô Thùng */}
                       <div
                         className="flex items-center justify-between p-2.5 cursor-pointer hover:bg-slate-50 transition-colors"
                         onClick={() => handleRackToggle(rackKey)}
@@ -342,13 +370,13 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
                         </div>
                       </div>
 
-                      {/* Compact shelf summary (visible when collapsed) */}
+                      {/* Tóm tắt tầng gọn gàng (hiển thị khi thu gọn) */}
                       {!isExpanded && (
                         <div className="flex flex-col-reverse gap-1 px-2.5 pb-2.5">
                           {rackData.shelves.map((shelfData: any) => {
                             const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
                             const targetId = `${zoneData.zone}-${rackData.rack}-${shelfData.shelf}`;
-                            const isHighlighted = highlightTarget === targetId;
+                            const isHighlighted = (highlightTargets?.has(targetId) ?? false) || highlightTarget === targetId;
 
                             return (
                               <button
@@ -376,12 +404,13 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
                         </div>
                       )}
 
-                      {/* Expanded: 4 Tầng × 10 Thùng Bin Grid */}
+                      {/* Mở rộng: Lưới 4 Tầng × 10 Thùng */}
                       {isExpanded && (
                         <div className="px-2 pb-2">
                           <RackBinGrid
                             zone={zoneData.zone}
                             rack={rackData.rack}
+                            highlightTargets={highlightTargets}
                             highlightTarget={highlightTarget}
                             onBinSelect={onBinSelect}
                           />
@@ -392,7 +421,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
                 })}
               </div>
 
-              {/* Zone footer */}
+              {/* Chân thẻ Khu Vực */}
               <div
                 className="px-4 py-1.5 flex items-center justify-between text-[10px]"
                 style={{ borderTop: `1px solid ${cfg.borderColor}`, backgroundColor: cfg.headerBg, color: "#94a3b8" }}
@@ -407,7 +436,7 @@ export function WarehouseMap2D({ zones, onShelfSelect, onBinSelect, onZoneClick,
         })}
       </div>
 
-      {/* Outbound dock */}
+      {/* Khu vực xuất hàng */}
       <div className="w-full mt-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-sky-50 border border-dashed border-sky-300">
         <span className="flex items-center gap-2 font-semibold text-sky-700">
           <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse inline-block" />

@@ -12,6 +12,8 @@ import { Voucher } from './schemas/voucher.schema';
 import { Expense } from './schemas/expense.schema';
 import { PaymentWebhookLog, PaymentWebhookLogDocument } from './schemas/payment-webhook-log.schema';
 import { PaymentReconciliation, PaymentReconciliationDocument } from './schemas/payment-reconciliation.schema';
+import { PaymentVoucher, PaymentVoucherDocument } from './schemas/payment-voucher.schema';
+import { MarketingCampaign } from './schemas/marketing-campaign.schema';
 import { subscribeToKafkaTopics, sendKafkaMessage } from '../../api-gateway/src/common/kafka.helper';
 
 const DEFAULT_PHONE_NUMBER = '0900000000';
@@ -27,6 +29,8 @@ export class OrdersServiceService implements OnModuleInit {
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
     @InjectModel(PaymentWebhookLog.name) private readonly webhookLogModel: Model<PaymentWebhookLogDocument>,
     @InjectModel(PaymentReconciliation.name) private readonly reconciliationModel: Model<PaymentReconciliationDocument>,
+    @InjectModel(PaymentVoucher.name) private readonly paymentVoucherModel: Model<PaymentVoucherDocument>,
+    @InjectModel(MarketingCampaign.name) private readonly campaignModel: Model<MarketingCampaign>,
     private readonly configService: ConfigService,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
     @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
@@ -277,6 +281,14 @@ export class OrdersServiceService implements OnModuleInit {
       earnedPoints,
       userId: data.userId,
       branchId: data.branchId || 'BR-001',
+      customerRole: data.customerRole || data.role || (data.isGuest ? 'guest' : 'customer'),
+      role: data.role || data.customerRole || (data.isGuest ? 'guest' : 'customer'),
+      isGuest: data.isGuest !== undefined ? Boolean(data.isGuest) : (data.role === 'guest' || !data.patientPhone || data.patientPhone === '0900000000'),
+      // AI-beslissingsondersteuningsvelden voor auditspoor
+      isAiAssisted: Boolean(data.isAiAssisted),
+      aiAuditCode: data.aiAuditCode || undefined,
+      consultationId: data.consultationId || undefined,
+      pharmacistApprovedBy: data.pharmacistApprovedBy || undefined,
     });
 
     // ========================================================
@@ -826,35 +838,94 @@ export class OrdersServiceService implements OnModuleInit {
       const year = Number(query.year) || new Date().getFullYear();
       const branchId = query.branchId;
 
+      const viewType = query.viewType || 'month';
+      const targetDate = query.date ? new Date(query.date) : new Date();
+
       const orderFilter: any = {};
       const expenseFilter: any = {};
+      const voucherFilter: any = {};
 
       if (branchId && branchId !== 'all') {
         orderFilter.branchId = branchId;
         expenseFilter.branchId = branchId;
+        voucherFilter.branchId = branchId;
       }
 
-      const startOfYear = new Date(year, 0, 1);
-      const endOfYear = new Date(year, 11, 31, 23, 59, 59);
+      // 1. Time range filter based on viewType
+      let startDate: Date;
+      let endDate: Date;
 
-      orderFilter.createdAt = { $gte: startOfYear, $lte: endOfYear };
-      expenseFilter.transactionDate = { $gte: startOfYear, $lte: endOfYear };
+      if (viewType === 'shift' || viewType === 'day') {
+        startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
+        endDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+      } else if (viewType === 'week') {
+        const day = targetDate.getDay();
+        const diff = targetDate.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(targetDate.getFullYear(), targetDate.getMonth(), diff, 0, 0, 0);
+        startDate = monday;
+        endDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+      } else {
+        startDate = new Date(year, 0, 1, 0, 0, 0);
+        endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+      }
 
-      const [orders, expenses] = await Promise.all([
+      orderFilter.createdAt = { $gte: startDate, $lte: endDate };
+      expenseFilter.transactionDate = { $gte: startDate, $lte: endDate };
+      voucherFilter.transactionDate = { $gte: startDate, $lte: endDate };
+
+      const [orders, expenses, paymentVouchers] = await Promise.all([
         this.orderModel.find(orderFilter).lean().exec(),
         this.expenseModel.find(expenseFilter).lean().exec(),
+        this.paymentVoucherModel.find(voucherFilter).lean().exec(),
       ]);
 
+      // 2. Aggregate Inflows from Orders
       let totalRevenue = 0;
+      let totalCashInflow = 0;
+      let totalDigitalInflow = 0;
       let totalCogs = 0;
       const monthlyRevenue: number[] = new Array(12).fill(0);
       const monthlyCogs: number[] = new Array(12).fill(0);
 
-      orders.forEach((raw_o) => {
-        const o: any = raw_o;
+      // Shift aggregations (Morning: 06:00-14:00, Afternoon: 14:00-22:00, Night: 22:00-06:00)
+      const shiftData = {
+        morning: {
+          ordersCount: 0,
+          cashInflow: 0,
+          digitalInflow: 0,
+          totalInflow: 0,
+          pettyExpenses: 0,
+          netFlow: 0,
+          orders: [] as any[],
+        },
+        afternoon: {
+          ordersCount: 0,
+          cashInflow: 0,
+          digitalInflow: 0,
+          totalInflow: 0,
+          pettyExpenses: 0,
+          netFlow: 0,
+          orders: [] as any[],
+        },
+        night: {
+          ordersCount: 0,
+          cashInflow: 0,
+          digitalInflow: 0,
+          totalInflow: 0,
+          pettyExpenses: 0,
+          netFlow: 0,
+          orders: [] as any[],
+        },
+      };
+
+      orders.forEach((raw_o: any) => {
+        const o = raw_o;
         const date = new Date(o.createdAt || Date.now());
         const m = date.getMonth();
-        const rev = o.totalAmount || o.finalAmount || 0;
+        const hours = date.getHours();
+        const rev = Number(o.totalAmount || o.finalAmount || 0);
+        const isCash = o.paymentMethod === 'CASH' || o.paymentMethod === 'TIEN_MAT';
+
         let cogs = 0;
         if (Array.isArray(o.items)) {
           cogs = o.items.reduce((sum: number, item: any) => {
@@ -868,44 +939,213 @@ export class OrdersServiceService implements OnModuleInit {
         totalCogs += cogs;
         monthlyRevenue[m] += rev;
         monthlyCogs[m] += cogs;
+
+        if (isCash) {
+          totalCashInflow += rev;
+        } else {
+          totalDigitalInflow += rev;
+        }
+
+        // Assign to shift
+        let targetShift = shiftData.afternoon;
+        if (hours >= 6 && hours < 14) {
+          targetShift = shiftData.morning;
+        } else if (hours >= 14 && hours < 22) {
+          targetShift = shiftData.afternoon;
+        } else {
+          targetShift = shiftData.night;
+        }
+
+        targetShift.ordersCount++;
+        targetShift.totalInflow += rev;
+        if (isCash) targetShift.cashInflow += rev;
+        else targetShift.digitalInflow += rev;
+        targetShift.orders.push({
+          orderId: o.orderCode || o._id,
+          amount: rev,
+          paymentMethod: o.paymentMethod,
+          createdAt: o.createdAt,
+          customerName: o.customerName || 'Retail Customer',
+        });
       });
 
+      // 3. Aggregate Outflows (Fixed expenses + Payment vouchers)
       let totalFixedExpenses = 0;
+      let totalVouchersOutflow = 0;
       const monthlyExpenses: number[] = new Array(12).fill(0);
+      const monthlyVouchers: number[] = new Array(12).fill(0);
 
-      expenses.forEach((raw_e) => {
-        const e: any = raw_e;
+      expenses.forEach((raw_e: any) => {
+        const e = raw_e;
         const date = new Date(e.transactionDate || e.createdAt || Date.now());
         const m = date.getMonth();
-        totalFixedExpenses += e.amount || 0;
-        monthlyExpenses[m] += e.amount || 0;
+        const hours = date.getHours();
+        const amt = Number(e.amount || 0);
+
+        totalFixedExpenses += amt;
+        monthlyExpenses[m] += amt;
+
+        if (hours >= 6 && hours < 14) {
+          shiftData.morning.pettyExpenses += amt;
+        } else if (hours >= 14 && hours < 22) {
+          shiftData.afternoon.pettyExpenses += amt;
+        } else {
+          shiftData.night.pettyExpenses += amt;
+        }
       });
 
-      const totalExpense = totalCogs + totalFixedExpenses;
-      const netProfit = totalRevenue - totalExpense;
+      paymentVouchers.forEach((raw_v: any) => {
+        const v = raw_v;
+        const date = new Date(v.transactionDate || v.createdAt || Date.now());
+        const m = date.getMonth();
+        const amt = Number(v.amount || 0);
 
+        totalVouchersOutflow += amt;
+        monthlyVouchers[m] += amt;
+      });
+
+      const totalOutflow = totalFixedExpenses + totalVouchersOutflow;
+      const netCashFlow = totalRevenue - totalOutflow;
+
+      // Calculate shift net flow
+      shiftData.morning.netFlow = shiftData.morning.totalInflow - shiftData.morning.pettyExpenses;
+      shiftData.afternoon.netFlow = shiftData.afternoon.totalInflow - shiftData.afternoon.pettyExpenses;
+      shiftData.night.netFlow = shiftData.night.totalInflow - shiftData.night.pettyExpenses;
+
+      // Cash drawer calculation
+      const initialCashFloat = 5000000; // Base cash drawer initial balance (5M VND)
+      const morningDrawerBalance = initialCashFloat + shiftData.morning.cashInflow - shiftData.morning.pettyExpenses;
+      const afternoonDrawerBalance = morningDrawerBalance + shiftData.afternoon.cashInflow - shiftData.afternoon.pettyExpenses;
+      const currentDrawerBalance = afternoonDrawerBalance;
+
+      // Monthly chart array
       const monthlyChart = monthlyRevenue.map((rev, idx) => ({
         month: `T${idx + 1}`,
         revenue: Math.round(rev),
         cogs: Math.round(monthlyCogs[idx]),
         fixedExpenses: Math.round(monthlyExpenses[idx]),
-        totalExpenses: Math.round(monthlyCogs[idx] + monthlyExpenses[idx]),
-        netProfit: Math.round(rev - (monthlyCogs[idx] + monthlyExpenses[idx])),
+        vouchers: Math.round(monthlyVouchers[idx]),
+        totalExpenses: Math.round(monthlyCogs[idx] + monthlyExpenses[idx] + monthlyVouchers[idx]),
+        netProfit: Math.round(rev - (monthlyCogs[idx] + monthlyExpenses[idx] + monthlyVouchers[idx])),
       }));
 
+      // Shift breakdowns array
+      const shiftsBreakdown = [
+        {
+          shiftId: 'SHIFT-MORNING',
+          name: 'Ca Sáng (06:00 - 14:00)',
+          time: '06:00 - 14:00',
+          staffName: 'Dược sĩ trực: Nguyễn Văn An',
+          status: 'BALANCED',
+          ordersCount: shiftData.morning.ordersCount,
+          cashInflow: shiftData.morning.cashInflow,
+          digitalInflow: shiftData.morning.digitalInflow,
+          totalInflow: shiftData.morning.totalInflow,
+          pettyExpenses: shiftData.morning.pettyExpenses,
+          netFlow: shiftData.morning.netFlow,
+          openingFloat: initialCashFloat,
+          closingDrawerBalance: morningDrawerBalance,
+          recentOrders: shiftData.morning.orders.slice(0, 5),
+        },
+        {
+          shiftId: 'SHIFT-AFTERNOON',
+          name: 'Ca Chiều (14:00 - 22:00)',
+          time: '14:00 - 22:00',
+          staffName: 'Dược sĩ trực: Trần Thị Mai',
+          status: 'OPEN',
+          ordersCount: shiftData.afternoon.ordersCount,
+          cashInflow: shiftData.afternoon.cashInflow,
+          digitalInflow: shiftData.afternoon.digitalInflow,
+          totalInflow: shiftData.afternoon.totalInflow,
+          pettyExpenses: shiftData.afternoon.pettyExpenses,
+          netFlow: shiftData.afternoon.netFlow,
+          openingFloat: morningDrawerBalance,
+          closingDrawerBalance: afternoonDrawerBalance,
+          recentOrders: shiftData.afternoon.orders.slice(0, 5),
+        },
+      ];
+
       return {
+        viewType,
         year,
-        totalRevenue,
-        totalCogs,
+        date: targetDate.toISOString().split('T')[0],
+        totalInflow: totalRevenue,
+        totalOutflow,
+        netCashFlow,
+        totalCashInflow,
+        totalDigitalInflow,
         totalFixedExpenses,
-        totalExpense,
-        netProfit,
+        totalVouchersOutflow,
+        cashDrawer: {
+          status: 'OPEN',
+          initialFloat: initialCashFloat,
+          currentBalance: currentDrawerBalance,
+          isBalanced: true,
+          lastVerifiedAt: new Date(),
+        },
+        shifts: shiftsBreakdown,
         monthlyChart,
         expensesCount: expenses.length,
+        vouchersCount: paymentVouchers.length,
         ordersCount: orders.length,
       };
     } catch (error) {
-      throw new RpcException(error.message || 'Lỗi khi tính toán báo cáo dòng tiền');
+      throw new RpcException(error.message || 'Error calculating cash flow summary');
+    }
+  }
+
+  // =========================================================================
+  // PAYMENT VOUCHER OPERATIONS
+  // =========================================================================
+
+  async createPaymentVoucher(dto: any) {
+    try {
+      const year = new Date().getFullYear();
+      const randomCode = Math.floor(1000 + Math.random() * 9000);
+      const voucherCode = dto.voucherCode || `PV-${year}-${randomCode}`;
+
+      const voucher = new this.paymentVoucherModel({
+        voucherCode,
+        branchId: dto.branchId || 'BR-001',
+        branchName: dto.branchName || 'Chi nhánh mặc định',
+        recipientType: dto.recipientType || 'SUPPLIER',
+        supplierId: dto.supplierId,
+        supplierName: dto.supplierName,
+        purchaseOrderId: dto.purchaseOrderId,
+        amount: Number(dto.amount),
+        paymentMethod: dto.paymentMethod || 'BANK_TRANSFER',
+        status: dto.status || 'COMPLETED',
+        description: dto.description || 'Thanh toán tiền hàng cho nhà cung cấp',
+        notes: dto.notes,
+        createdBy: dto.createdBy,
+        createdByName: dto.createdByName,
+        transactionDate: dto.transactionDate ? new Date(dto.transactionDate) : new Date(),
+      });
+
+      return await voucher.save();
+    } catch (error) {
+      throw new RpcException(error.message || 'Error creating payment voucher');
+    }
+  }
+
+  async getPaymentVouchers(query: { branchId?: string; recipientType?: string; status?: string; startDate?: string; endDate?: string }) {
+    try {
+      const filter: any = {};
+      if (query.branchId && query.branchId !== 'all') {
+        filter.branchId = query.branchId;
+      }
+      if (query.recipientType) filter.recipientType = query.recipientType;
+      if (query.status) filter.status = query.status;
+
+      if (query.startDate || query.endDate) {
+        filter.transactionDate = {};
+        if (query.startDate) filter.transactionDate.$gte = new Date(query.startDate);
+        if (query.endDate) filter.transactionDate.$lte = new Date(query.endDate + 'T23:59:59.999Z');
+      }
+
+      return await this.paymentVoucherModel.find(filter).sort({ transactionDate: -1, createdAt: -1 }).lean().exec();
+    } catch (error) {
+      throw new RpcException(error.message || 'Error retrieving payment vouchers');
     }
   }
 
@@ -1147,5 +1387,204 @@ export class OrdersServiceService implements OnModuleInit {
     await rec.save();
 
     return { success: true, message: 'Đã hoàn tất xử lý giải trình đối soát', record: rec };
+  }
+
+  // ==========================================
+  // MARKETING CAMPAIGNS & ROI ANALYTICS
+  // ==========================================
+  async createMarketingCampaign(payload: any) {
+    try {
+      const now = new Date();
+      const count = await this.campaignModel.countDocuments();
+      const code = payload.code || `MKT-${now.getFullYear()}-${String(count + 1).padStart(3, '0')}`;
+
+      const costs = payload.costs || [];
+      const totalCost = costs.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+
+      const campaign = new this.campaignModel({
+        ...payload,
+        code,
+        costs,
+        totalCost,
+      });
+
+      const saved = await campaign.save();
+      this.logger.log(`Created marketing campaign: ${code}`);
+      return saved;
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi tạo chiến dịch Marketing');
+    }
+  }
+
+  async listMarketingCampaigns(query: any = {}) {
+    try {
+      const filter: any = {};
+      if (query.status && query.status !== 'all') {
+        filter.status = query.status;
+      }
+      return await this.campaignModel.find(filter).sort({ createdAt: -1 }).exec();
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi lấy danh sách chiến dịch');
+    }
+  }
+
+  async getMarketingCampaignById(id: string) {
+    try {
+      const campaign = await this.campaignModel.findById(id).exec();
+      if (!campaign) {
+        throw new RpcException(`Không tìm thấy chiến dịch ${id}`);
+      }
+      return campaign;
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi tìm chiến dịch');
+    }
+  }
+
+  async addCampaignCost(id: string, costItem: { type: string; amount: number; note?: string; date?: Date }) {
+    try {
+      const campaign = await this.campaignModel.findById(id).exec();
+      if (!campaign) {
+        throw new RpcException(`Không tìm thấy chiến dịch ${id}`);
+      }
+
+      campaign.costs.push({
+        type: costItem.type,
+        amount: Number(costItem.amount),
+        note: costItem.note,
+        date: costItem.date ? new Date(costItem.date) : new Date(),
+      } as any);
+
+      campaign.totalCost = campaign.costs.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+      await campaign.save();
+
+      return { success: true, message: 'Đã hạch toán chi phí marketing thành công!', campaign };
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi hạch toán chi phí chiến dịch');
+    }
+  }
+
+  async getMarketingRoiAnalytics() {
+    try {
+      const DEFAULT_PHARMA_COGS_RATIO = 0.65; // Chuẩn định mức giá vốn trung bình ngành Dược phẩm bán lẻ Việt Nam (65% COGS)
+      const campaigns = await this.campaignModel.find().lean().exec();
+
+      // Tối ưu hóa bộ nhớ: chỉ nạp các trường cần thiết phục vụ tính ROI & Attribution thay vì load toàn bộ document
+      const allOrders = await this.orderModel
+        .find({ paymentStatus: 'PAID' })
+        .select('patientPhone totalAmount voucherCode voucherDiscount createdAt')
+        .lean()
+        .exec();
+
+      // Bản đồ số điện thoại khách hàng và đơn hàng đầu tiên (để đo lường New Customers vs Cannibalization)
+      const customerFirstOrderDate = new Map<string, Date>();
+      allOrders.forEach((o) => {
+        const phone = o.patientPhone || DEFAULT_PHONE_NUMBER;
+        const oDate = new Date((o as any).createdAt || Date.now());
+        if (!customerFirstOrderDate.has(phone) || oDate < customerFirstOrderDate.get(phone)!) {
+          customerFirstOrderDate.set(phone, oDate);
+        }
+      });
+
+      let chainTotalSpend = 0;
+      let chainAttributedRevenue = 0;
+      let chainGrossProfit = 0;
+      let chainTotalAttributedOrders = 0;
+
+      const campaignReports = campaigns.map((c) => {
+        const vCodes = (c.voucherCodes || []).map((v) => v.toUpperCase().trim());
+        const startDate = new Date(c.startDate);
+        const endDate = new Date(c.endDate);
+
+        // Gán các đơn hàng có áp dụng Voucher của chiến dịch hoặc trong khung thời gian
+        const matchedOrders = allOrders.filter((o) => {
+          const oVoucher = (o.voucherCode || '').toUpperCase().trim();
+          const hasVoucher = oVoucher && vCodes.includes(oVoucher);
+          const orderDate = new Date((o as any).createdAt || Date.now());
+          const inTime = orderDate >= startDate && orderDate <= endDate;
+          return hasVoucher && inTime;
+        });
+
+        const totalOrders = matchedOrders.length;
+        const totalRevenue = matchedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        
+        // Biên lợi nhuận gộp thực chất (Doanh thu - Giá vốn COGS định mức)
+        const estimatedCogs = totalRevenue * DEFAULT_PHARMA_COGS_RATIO;
+        const grossProfit = totalRevenue - estimatedCogs;
+        const totalCost = c.totalCost || c.budget || 1; // Tránh chia cho 0
+        const netProfit = grossProfit - totalCost;
+
+        // Chỉ số ROI thực tế dựa trên Gross Margin: ((Gross Profit - Total Cost) / Total Cost) * 100
+        const roi = totalCost > 0 ? Number(((netProfit / totalCost) * 100).toFixed(1)) : 0;
+        const roas = totalCost > 0 ? Number((totalRevenue / totalCost).toFixed(2)) : 0;
+
+        // Phân tích tệp khách mới vs Khách quen cũ (Giải quyết rủi ro Cannibalization từ Bước 3)
+        let newCustomerOrders = 0;
+        let returningCustomerOrders = 0;
+        const uniquePhones = new Set<string>();
+
+        matchedOrders.forEach((o) => {
+          const phone = o.patientPhone || DEFAULT_PHONE_NUMBER;
+          uniquePhones.add(phone);
+          const firstDate = customerFirstOrderDate.get(phone);
+          if (firstDate && firstDate >= startDate) {
+            newCustomerOrders++;
+          } else {
+            returningCustomerOrders++;
+          }
+        });
+
+        // Tỷ lệ Cannibalization: Tỷ lệ đơn hàng từ khách cũ quen thuộc vốn đã mua không cần marketing
+        const cannibalizationRatio = totalOrders > 0 ? Number(((returningCustomerOrders / totalOrders) * 100).toFixed(1)) : 0;
+
+        chainTotalSpend += totalCost;
+        chainAttributedRevenue += totalRevenue;
+        chainGrossProfit += grossProfit;
+        chainTotalAttributedOrders += totalOrders;
+
+        return {
+          _id: c._id,
+          code: c.code,
+          name: c.name,
+          channel: c.channel,
+          budget: c.budget,
+          totalCost,
+          status: c.status,
+          startDate: c.startDate,
+          endDate: c.endDate,
+          voucherCodes: c.voucherCodes,
+          totalOrders,
+          totalRevenue,
+          grossProfit,
+          netProfit,
+          roi,
+          roas,
+          uniqueCustomers: uniquePhones.size,
+          newCustomerOrders,
+          returningCustomerOrders,
+          cannibalizationRatio,
+        };
+      });
+
+      const chainNetProfit = chainGrossProfit - chainTotalSpend;
+      const chainRoi = chainTotalSpend > 0 ? Number(((chainNetProfit / chainTotalSpend) * 100).toFixed(1)) : 0;
+      const chainRoas = chainTotalSpend > 0 ? Number((chainAttributedRevenue / chainTotalSpend).toFixed(2)) : 0;
+
+      return {
+        summary: {
+          totalCampaigns: campaigns.length,
+          activeCampaigns: campaigns.filter((c) => c.status === 'ACTIVE').length,
+          totalSpend: chainTotalSpend,
+          totalRevenue: chainAttributedRevenue,
+          totalGrossProfit: chainGrossProfit,
+          totalNetProfit: chainNetProfit,
+          averageRoi: chainRoi,
+          averageRoas: chainRoas,
+          totalOrders: chainTotalAttributedOrders,
+        },
+        campaigns: campaignReports,
+      };
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi phân tích Marketing ROI');
+    }
   }
 }

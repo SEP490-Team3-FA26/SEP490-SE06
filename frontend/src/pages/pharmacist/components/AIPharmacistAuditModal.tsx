@@ -172,7 +172,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
           
           {/* Key Information 2-Card Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Card 1: Dược sĩ phụ trách */}
+            {/* Card 1: Duoc si phu trach */}
             <div className="bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/80 flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-200 shadow-2xs">
                 <User size={20} />
@@ -195,7 +195,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
               </div>
             </div>
 
-            {/* Card 2: Bệnh nhân & Kênh AI */}
+            {/* Card 2: Benh nhan & Kenh AI */}
             <div className="bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/80 flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-800 flex items-center justify-center shrink-0 border border-cyan-200 shadow-2xs">
                 <Activity size={20} />
@@ -225,7 +225,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
             </div>
           </div>
 
-          {/* Triệu chứng / Chẩn đoán (Quote Card) */}
+          {/* Trieu chung / Chan doan (Quote Card) */}
           {data.diagnosis && (
             <div className="bg-gradient-to-r from-blue-50/60 to-cyan-50/60 rounded-2xl p-3.5 border border-blue-200/80">
               <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-blue-900 mb-1.5">
@@ -238,7 +238,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
             </div>
           )}
 
-          {/* 4 Trụ cột Thẩm định Lâm sàng GPP */}
+          {/* 4 Tru cot Tham dinh Lam sang GPP */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
@@ -293,7 +293,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
             </div>
           </div>
 
-          {/* Dấu Chứng Nhận Kỹ Thuật Số (Digital Cryptographic Stamp) */}
+          {/* Dau Chung Nhan Ky Thuat So (Digital Cryptographic Stamp) */}
           <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-4 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-left">
               <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
@@ -310,7 +310,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
               </div>
             </div>
 
-            {/* Chữ ký số Dược sĩ */}
+            {/* Chu ky so Duoc si */}
             <div className="text-center sm:text-right shrink-0 bg-white/80 px-4 py-2 rounded-xl border border-emerald-200/80 shadow-2xs">
               <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
                 DƯỢC SĨ PHÊ DUYỆT

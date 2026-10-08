@@ -88,7 +88,7 @@ export const CustomerRFMTab: React.FC<Props> = ({ selectedBranch }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header & Kích hoạt tính toán */}
+      {/* Header and Recalculate Trigger */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -124,7 +124,7 @@ export const CustomerRFMTab: React.FC<Props> = ({ selectedBranch }) => {
         </div>
       </div>
 
-      {/* 5 Thẻ Phân Cụm RFM */}
+      {/* 5 RFM Segment Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {Object.entries(segmentConfig).map(([key, config]) => {
           const Icon = config.icon;
@@ -166,7 +166,7 @@ export const CustomerRFMTab: React.FC<Props> = ({ selectedBranch }) => {
         })}
       </div>
 
-      {/* Bảng Danh Sách Khách Hàng AT_RISK Cần Dược Sĩ / CSKH Chăm Sóc */}
+      {/* Table: At-Risk Chronic Patients Needing Pharmacist Care */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 bg-orange-50/50 border-b border-orange-100 flex items-center justify-between">
           <div className="flex items-center gap-2">

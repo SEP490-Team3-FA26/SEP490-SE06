@@ -22,7 +22,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [isResyncing, setIsResyncing] = useState<string | null>(null);
 
-  // Mẫu Phiếu Nhập Kho liên thông CSDL Dược Quốc gia (GPP/GDP Inward)
+  // Mau Phieu Nhap Kho lien thong CSDL Duoc Quoc gia (GPP/GDP Inward)
   const inwardReceipts = [
     {
       _id: "PNK-DHG-8821",
@@ -154,7 +154,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
   };
 
   const handleExportGPPReport = () => {
-    // Tạo nội dung CSV chuẩn Báo cáo Cân Bằng Xuất - Nhập - Tồn Dược Quốc Gia
+    // Tao noi dung CSV chuan Bao cao Can Bang Xuat - Nhap - Ton Duoc Quoc Gia
     const headers = ["STT", "Ma_Giao_Dich_QG", "Ma_Chung_Tu", "Loai_Giao_Dich", "Doi_Tuong", "Tong_Tien_VND", "Ngay_Truyen_Tin", "Trang_Thai_GPP"];
     const rows = filteredOrders.map((o, idx) => [
       idx + 1,
@@ -240,7 +240,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
         </div>
       </div>
 
-      {/* ─── 🚨 CẢNH BÁO THU HỒI LÔ THUỐC TỪ CỤC QUẢN LÝ DƯỢC (RECALL & QUARANTINE SHIELD) ─── */}
+      {/* ─── 🚨 CANH BAO THU HOI LO THUOC TU CUC QUAN LY DUOC (RECALL & QUARANTINE SHIELD) ─── */}
       <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
@@ -288,7 +288,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
               />
             </div>
 
-            {/* Direction Filter (Xuất bán / Nhập kho) */}
+            {/* Direction Filter (Xuat ban / Nhap kho) */}
             <select
               value={directionFilter}
               onChange={(e) => setDirectionFilter(e.target.value)}
@@ -323,7 +323,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
               <option value="WHOLESALE">Bán sỉ</option>
             </select>
 
-            {/* Nút Xuất Báo Cáo GPP Excel/CSV */}
+            {/* Nut Xuat Bao Cao GPP Excel/CSV */}
             <button
               onClick={handleExportGPPReport}
               className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
@@ -381,7 +381,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
 
                   return (
                     <tr key={ord._id || idx} className="hover:bg-slate-50/80 transition-colors">
-                      {/* Mã Hóa đơn */}
+                      {/* Ma Hoa don */}
                       <td className="px-5 py-4 font-mono font-bold text-slate-900">
                         {ord._id ? ord._id.slice(-8).toUpperCase() : `#HD-${idx + 1}`}
                         {ord.orderCode && (
@@ -389,7 +389,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                         )}
                       </td>
 
-                      {/* Mã Biên nhận QG */}
+                      {/* Ma Bien nhan QG */}
                       <td className="px-5 py-4 font-mono font-black text-emerald-700">
                         <div className="flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -398,7 +398,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                         <div className="text-[10px] text-slate-400 font-sans font-medium">Mã CS: {ord.nationalFacilityCode || "79-001234"}</div>
                       </td>
 
-                      {/* Khách hàng / Bác sĩ */}
+                      {/* Khach hang / Bac si */}
                       <td className="px-5 py-4">
                         <div className="font-bold text-slate-900">{ord.patientName || "Khách mua lẻ"}</div>
                         {ord.patientPhone && <div className="text-[11px] text-slate-400">{ord.patientPhone}</div>}
@@ -407,7 +407,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                         )}
                       </td>
 
-                      {/* Kiểu bán & DS Thuốc */}
+                      {/* Kieu ban & DS Thuoc */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {ord.direction === "INWARD" ? (
@@ -423,6 +423,11 @@ export default function GPPView({ showToast }: GPPViewProps) {
                               📤 {ord.type || "RETAIL"}
                             </span>
                           )}
+                          {ord.isAiAssisted && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                              ✨ AI GPP: {ord.aiAuditCode || "ĐÃ DUYỆT"}
+                            </span>
+                          )}
                           <span className="text-slate-500 font-bold">({itemsCount} thuốc)</span>
                         </div>
                         <div className="text-[11px] text-slate-500 truncate max-w-xs mt-1">
@@ -430,18 +435,18 @@ export default function GPPView({ showToast }: GPPViewProps) {
                         </div>
                       </td>
 
-                      {/* Tổng tiền */}
+                      {/* Tong tien */}
                       <td className="px-5 py-4 text-right font-black text-slate-900 text-sm">
                         {(ord.totalAmount || 0).toLocaleString()}₫
                       </td>
 
-                      {/* Thời gian gửi */}
+                      {/* Thoi gian gui */}
                       <td className="px-5 py-4 text-slate-500">
                         <div>{new Date(ord.createdAt || Date.now()).toLocaleDateString("vi-VN")}</div>
                         <div className="text-[11px] text-slate-400">{new Date(ord.createdAt || Date.now()).toLocaleTimeString("vi-VN")}</div>
                       </td>
 
-                      {/* Trạng thái GPP */}
+                      {/* Trang thai GPP */}
                       <td className="px-5 py-4 text-center">
                         {syncStatus === "SYNCED" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -458,10 +463,10 @@ export default function GPPView({ showToast }: GPPViewProps) {
                         )}
                       </td>
 
-                      {/* Thao tác */}
+                      {/* Thao tac */}
                       <td className="px-5 py-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* Nút xem JSON chuẩn Bộ Y tế */}
+                          {/* Nut xem JSON chuan Bo Y te */}
                           <button
                             onClick={() => { setSelectedOrder({ ...ord, nationalSyncCode: syncCode }); setShowJsonModal(true); }}
                             className="p-1.5 text-slate-500 hover:text-[#0057cd] hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
@@ -470,7 +475,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                             <Eye size={15} />
                           </button>
 
-                          {/* Nút Re-sync */}
+                          {/* Nut Re-sync */}
                           <button
                             onClick={() => handleResync(ord._id)}
                             disabled={isResyncing === ord._id}
@@ -490,7 +495,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
         </div>
       </div>
 
-      {/* ─── 3. MODAL XEM GÓI TIN JSON CHUẨN THÔNG TƯ 02/2018/TT-BYT ─── */}
+      {/* ─── 3. MODAL XEM GOI TIN JSON CHUAN THONG TU 02/2018/TT-BYT ─── */}
       {showJsonModal && selectedOrder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
