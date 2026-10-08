@@ -449,6 +449,28 @@ export class MedicineController implements OnModuleInit {
     return { status: 'Accepted', message: 'Lo thuoc da duoc gui yeu cau cach ly (QUARANTINED).' };
   }
 
+  // POST /api/medicines/relocate-bin
+  @Post('relocate-bin')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Chuyen o / Don kho thuoc giua cac thung trong kho (async Kafka)' })
+  async relocateBin(@Body() dto: {
+    fromLocation: { zone: string; rack: string; shelf: number; bin: number };
+    toLocation: { zone: string; rack: string; shelf: number; bin: number };
+    batchId?: string;
+    reason?: string;
+  }) {
+    this.inventoryClient.emit('inventory.medicine.event.relocate_bin', JSON.stringify(dto));
+    if (this.cacheManager) {
+      try {
+        await this.cacheManager.del('medicines:warehouse-map');
+      } catch (e) {}
+    }
+    return { status: 'Accepted', message: 'Yeu cau chuyen o / don kho da duoc gui xu ly ngam.' };
+  }
+
   @Get("barcode/:barcode")
   @ApiOperation({
     summary:

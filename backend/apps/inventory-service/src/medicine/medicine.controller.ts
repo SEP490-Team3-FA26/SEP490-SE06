@@ -359,6 +359,17 @@ export class MedicineController {
     }
   }
 
+  // POST /api/medicines/relocate-bin (async event)
+  @EventPattern('inventory.medicine.event.relocate_bin')
+  async relocateBin(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      await this.medicineService.relocateBin(payload);
+    } catch (error: any) {
+      console.error('[inventory.medicine.event.relocate_bin] Error:', error.message);
+    }
+  }
+
   // =========================================================================
   // PHARMA-SMART RECOMMENDATION & SEARCH HISTORY HANDLERS
   // =========================================================================
