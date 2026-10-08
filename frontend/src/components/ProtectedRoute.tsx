@@ -48,14 +48,20 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     }
   }
 
-  const normalizedRole = role ? role.toLowerCase() : "";
-  const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
+  // If role cannot be determined from localStorage or token, redirect to login
+  if (!role) {
+    return <Navigate to={`/auth/login?redirect=${returnUrl}`} replace />;
+  }
 
-  const isAllowed = normalizedAllowedRoles.includes(normalizedRole) ||
+  const normalizedRole = role.toLowerCase();
+  const normalizedAllowedRoles = allowedRoles.map((r) => r.toLowerCase());
+
+  const isAllowed =
+    normalizedAllowedRoles.includes(normalizedRole) ||
     (normalizedRole === "head_branch" && normalizedAllowedRoles.includes("director")) ||
     (normalizedRole === "director" && normalizedAllowedRoles.includes("head_branch"));
 
-  if (role && !isAllowed) {
+  if (!isAllowed) {
     // Redirect other roles to their respective dashboards
     switch (normalizedRole) {
       case "admin":

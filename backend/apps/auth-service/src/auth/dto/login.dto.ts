@@ -1,20 +1,32 @@
-import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
   @ApiProperty({
-    example: 'admin@wdp301.com',
-    description: 'Địa chỉ email của tài khoản',
+    example: 'admin@vinapharmacy.com',
+    description: 'User email address (optional if logging in with phone number)',
+    required: false,
   })
-  @IsEmail({}, { message: 'Email không hợp lệ' })
-  email: string;
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiProperty({
+    example: '0988123456',
+    description: 'User phone number (optional if logging in with email)',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @ApiProperty({
     example: '123456',
-    description: 'Mật khẩu tài khoản (tối thiểu 6 ký tự)',
+    description: 'User password (minimum 6 characters)',
   })
   @IsString()
   @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
   @MaxLength(100, { message: 'Mật khẩu không được quá 100 ký tự' })
   password: string;
 }
+

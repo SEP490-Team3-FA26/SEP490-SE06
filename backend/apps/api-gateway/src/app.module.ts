@@ -42,6 +42,7 @@ import { S3StorageService } from "./storage/s3-storage.service";
 import { ReportService } from "./services/report.service";
 import { WebsocketModule } from "./websocket/websocket.module";
 import { NotificationModule } from "./notification/notification.module";
+import { AiClinicalModule } from "./ai-clinical/ai-clinical.module";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { AuditLogInterceptor } from "./interceptors/audit-log.interceptor";
 import { RedactionService } from "./services/redaction.service";
@@ -178,6 +179,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     ]),
     WebsocketModule,
     NotificationModule,
+    AiClinicalModule,
     RedisModule,
   ],
   controllers: [
@@ -388,6 +390,8 @@ export class AppGatewayModule implements OnModuleInit {
       "finance.expense.create",
       "finance.expense.list",
       "finance.cashflow.summary",
+      "finance.payment_voucher.create",
+      "finance.payment_voucher.list",
       "orders.payment.webhook_received",
       "orders.reconciliation.manual_override",
       "orders.reconciliation.get_discrepancies",

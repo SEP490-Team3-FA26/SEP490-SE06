@@ -12,13 +12,17 @@ export class MedicineController {
 
   @MessagePattern('inventory.medicine.list')
   async listMedicines(@Payload() query: any) {
+    const start = Date.now();
     try {
-      return await this.medicineService.listMedicines(query);
+      const res = await this.medicineService.listMedicines(query);
+      console.log(`[Inventory] inventory.medicine.list query: page=${query?.page || 1}, limit=${query?.limit || 10}, search="${query?.search || ''}" -> ${res?.data?.length || 0}/${res?.total || 0} items (${Date.now() - start}ms)`);
+      return res;
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách thuốc');
     }
   }
+
 
   @MessagePattern('inventory.medicine.create')
   async createMedicine(@Payload() data: any) {
@@ -106,17 +110,20 @@ export class MedicineController {
   @MessagePattern('inventory.medicine.stats')
   async getInventoryStats(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getInventoryStats(data?.branchId);
+      const stats = await this.medicineService.getInventoryStats(data?.branchId);
+      console.log(`[Inventory] inventory.medicine.stats -> ${stats?.totalMedicines || 0} meds, totalStock: ${stats?.totalStock || 0}`);
+      return stats;
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy thống kê tồn kho');
     }
   }
 
+
   @MessagePattern('inventory.medicine.expiration_report')
-  async getExpirationReport(@Payload() data?: any) {
+  async getExpirationReport(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getExpirationReport();
+      return await this.medicineService.getExpirationReport(data?.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy báo cáo hết hạn');
@@ -184,9 +191,9 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.medicine.low_stock_report')
-  async getLowStockReport(@Payload() data?: any) {
+  async getLowStockReport(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getLowStockReport();
+      return await this.medicineService.getLowStockReport(data?.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy báo cáo thuốc sắp hết hàng');
@@ -194,9 +201,9 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.medicine.dropdown_list')
-  async getMedicinesDropdown(@Payload() data?: any) {
+  async getMedicinesDropdown(@Payload() data?: { branchId?: string }) {
     try {
-      return await this.medicineService.getMedicinesDropdown();
+      return await this.medicineService.getMedicinesDropdown(data?.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách chọn thuốc');
@@ -310,7 +317,7 @@ export class MedicineController {
 
   // GET /api/medicines/reserve-batches?branchId=CENTRAL_WH
   @MessagePattern('inventory.medicine.reserve.list')
-  async getReserveBatches(@Payload() data: { branchId?: string }) {
+  async getReserveBatches(@Payload() data: { branchId?: string }): Promise<any> {
     try {
       return await this.medicineService.getReserveBatches(data);
     } catch (error) {
@@ -349,6 +356,17 @@ export class MedicineController {
       await this.medicineService.quarantineBatch(payload);
     } catch (error) {
       console.error('[inventory.medicine.event.quarantine] Error:', error.message);
+    }
+  }
+
+  // POST /api/medicines/relocate-bin (async event)
+  @EventPattern('inventory.medicine.event.relocate_bin')
+  async relocateBin(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      await this.medicineService.relocateBin(payload);
+    } catch (error: any) {
+      console.error('[inventory.medicine.event.relocate_bin] Error:', error.message);
     }
   }
 

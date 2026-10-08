@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Plus, DollarSign, Building2, Calendar, FileText, AlertCircle } from "lucide-react";
+import { X, Plus, DollarSign, Building2, Calendar, FileText, AlertCircle, ChevronDown } from "lucide-react";
 import { financeService, ExpensePayload } from "../services/finance.service";
 
 interface CreateExpenseModalProps {
@@ -28,16 +28,14 @@ export function CreateExpenseModal({ isOpen, branches, onClose, onSuccess }: Cre
     e.preventDefault();
     setErrorMsg("");
 
-    // Abnormal Case Validation: Expense category is unselected -> block submission
     if (!formData.category) {
       setErrorMsg("Vui lòng chọn Loại chi phí (Mặt bằng, Lương, Điện nước...)");
       return;
     }
 
-    // Validation: Expense amount must be a positive number > 0
     const numAmount = Number(formData.amount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      setErrorMsg("Số tiền chi phí phải là số dương lớn hơn 0");
+      setErrorMsg("Số tiền chi phí phải là số dương lớn hơn 0 đ");
       return;
     }
 
@@ -75,145 +73,158 @@ export function CreateExpenseModal({ isOpen, branches, onClose, onSuccess }: Cre
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-auto">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-in fade-in-0 duration-200">
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
+        {/* Header - shadcn Dialog style */}
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
-              <DollarSign size={20} />
+            <div className="h-10 w-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shadow-xs">
+              <DollarSign className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Ghi nhận Chi phí Vận hành</h2>
-              <p className="text-xs text-slate-500">Ghi nhận chi phí cố định (mặt bằng, lương, điện nước...)</p>
+              <h2 className="text-base font-semibold text-slate-900 tracking-tight">Ghi nhận Chi phí Vận hành</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Chi phí cố định chi nhánh (mặt bằng, lương, điện nước...)</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
-            <X size={18} />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 text-slate-800">
           {errorMsg && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-red-700">
-              <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+            <div className="p-3 bg-rose-50 border border-rose-200/80 rounded-xl text-xs font-medium text-rose-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Loại chi phí <span className="text-red-500">*</span>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Loại chi phí <span className="text-rose-500">*</span>
             </label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition-all font-medium"
-            >
-              <option value="">-- Chọn Loại chi phí --</option>
-              <option value="RENT">Mặt bằng (Rent)</option>
-              <option value="SALARY">Lương nhân viên (Salary)</option>
-              <option value="UTILITY">Điện nước & Dịch vụ (Utilities)</option>
-              <option value="OTHER">Chi phí khác (Other)</option>
-            </select>
+            <div className="relative">
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full h-10 appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 text-xs font-medium text-slate-900 shadow-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+              >
+                <option value="">-- Chọn Loại chi phí --</option>
+                <option value="RENT">Mặt bằng (Rent)</option>
+                <option value="SALARY">Lương nhân viên (Salary)</option>
+                <option value="UTILITY">Điện nước & Dịch vụ (Utilities)</option>
+                <option value="OTHER">Chi phí khác (Other)</option>
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-              <DollarSign size={12} /> Số tiền (VND) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              placeholder="VD: 25000000"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition-all"
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-medium text-slate-700">
+                Số tiền chi (VND) <span className="text-rose-500">*</span>
+              </label>
+              {Number(formData.amount) > 0 && (
+                <span className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md">
+                  {Number(formData.amount).toLocaleString('vi-VN')} đ
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                <span className="text-slate-400 text-xs font-semibold">₫</span>
+              </div>
+              <input
+                type="number"
+                min="1"
+                placeholder="VD: 25000000"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                className="w-full h-10 pl-8 pr-3 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 placeholder:text-slate-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Building2 size={12} /> Chi nhánh áp dụng
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Chi nhánh áp dụng
               </label>
-              <select
-                value={formData.branchId}
-                onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition-all"
-              >
-                {branches.map((b) => (
-                  <option key={b.id || b.code} value={b.id || b.code}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={formData.branchId}
+                  onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
+                  className="w-full h-10 appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 text-xs font-medium text-slate-900 shadow-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id || b.code} value={b.id || b.code}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Calendar size={12} /> Ngày ghi nhận
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Ngày ghi nhận
               </label>
               <input
                 type="date"
                 value={formData.transactionDate}
                 onChange={(e) => setFormData({ ...formData, transactionDate: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition-all"
+                className="w-full h-10 bg-white border border-slate-200 rounded-lg px-3 text-xs font-medium text-slate-900 shadow-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-              <FileText size={12} /> Tên / Nội dung khoản chi
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Nội dung khoản chi
             </label>
             <input
               type="text"
               placeholder="VD: Tiền thuê mặt bằng tháng 7/2026 Chi nhánh #1"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition-all"
+              className="w-full h-10 bg-white border border-slate-200 rounded-lg px-3 text-xs font-normal text-slate-900 placeholder:text-slate-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
               Ghi chú / Chứng từ đính kèm
             </label>
             <textarea
               rows={2}
-              placeholder="Ghi chú thêm về mã hóa đơn, hóa đơn GTGT, tài khoản thụ hưởng..."
+              placeholder="Ghi chú thêm về mã hóa đơn, chứng từ chi..."
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition-all resize-none"
+              className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs font-normal text-slate-900 placeholder:text-slate-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
             />
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex justify-end gap-3">
+          <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold transition-colors"
+              className="h-9 px-4 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-all"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+              className="h-9 px-4.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg shadow-sm shadow-rose-600/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
             >
-              {loading ? (
-                <span>Đang lưu...</span>
-              ) : (
-                <>
-                  <Plus size={16} />
-                  <span>Lưu Khoản Chi</span>
-                </>
-              )}
+              <Plus className="w-3.5 h-3.5" />
+              <span>{loading ? "Đang lưu..." : "Lưu Khoản Chi"}</span>
             </button>
           </div>
         </form>

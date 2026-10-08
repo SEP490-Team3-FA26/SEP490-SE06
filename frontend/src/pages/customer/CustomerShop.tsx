@@ -1,8 +1,11 @@
-
-
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Search, ShoppingCart, Star, Heart, Info, Check, ChevronLeft, ChevronRight, XCircle, Activity, ShieldAlert, Filter, X, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import {
+  Search, ShoppingCart, Star, Heart, Info, Check,
+  ChevronLeft, ChevronRight, XCircle, Activity,
+  ShieldAlert, Filter, X, ChevronDown, ChevronUp,
+  RotateCcw, Sparkles, SlidersHorizontal, ArrowUpDown
+} from "lucide-react";
 import { MedicineCard } from "../../components/MedicineCard";
 import { ShopFilterSidebar } from "../../components/ShopFilterSidebar";
 import { Pagination } from "../../components/Pagination";
@@ -11,14 +14,97 @@ import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRec
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import api from "../../services/core/api";
 
+// Sub-category Card Model
+export interface SubCategoryCard {
+  id: string;
+  name: string;
+  count: number;
+  image: string;
+  searchKeyword?: string;
+  categoryValue?: string;
+}
+
+// Map các danh mục con cho từng nhóm (chính xác như hình ảnh thực tế của Long Châu)
+export const subCategoriesByGroup: {
+  [key: string]: { parentName: string; title: string; items: SubCategoryCard[] };
+} = {
+  "Thuốc bổ": {
+    parentName: "Thực phẩm chức năng",
+    title: "Vitamin & Khoáng chất",
+    items: [
+      { id: "dau-ca", name: "Dầu cá - Omega 3", count: 13, image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=60", searchKeyword: "Omega 3" },
+      { id: "kem-magie", name: "Kẽm - Magie", count: 7, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Kẽm" },
+      { id: "vitamin-tong-hop", name: "Vitamin tổng hợp", count: 45, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin" },
+      { id: "canxi-d", name: "Canxi & Vitamin D", count: 44, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=60", searchKeyword: "Canxi" },
+      { id: "vitamin-c", name: "Vitamin C", count: 9, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin C" },
+      { id: "vitamin-e", name: "Vitamin E", count: 3, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin E" },
+      { id: "sat-folic", name: "Sắt - Axit Folic", count: 11, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=200&auto=format&fit=crop&q=60", searchKeyword: "Sắt" },
+    ]
+  },
+  "Dược mỹ phẩm": {
+    parentName: "Dược mỹ phẩm",
+    title: "Chăm sóc da mặt",
+    items: [
+      { id: "sua-rua-mat", name: "Sữa rửa mặt", count: 61, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Sữa rửa mặt" },
+      { id: "kem-chong-nang", name: "Kem chống nắng da mặt", count: 28, image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=200&auto=format&fit=crop&q=60", searchKeyword: "Kem chống nắng" },
+      { id: "duong-da", name: "Dưỡng da mặt", count: 15, image: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=200&auto=format&fit=crop&q=60", searchKeyword: "Dưỡng da" },
+      { id: "mat-na", name: "Mặt nạ", count: 14, image: "https://images.unsplash.com/photo-1567928815116-248c8c7c9451?w=200&auto=format&fit=crop&q=60", searchKeyword: "Mặt nạ" },
+      { id: "serum", name: "Serum, Essence, Ampoule", count: 16, image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=200&auto=format&fit=crop&q=60", searchKeyword: "Serum" },
+      { id: "toner", name: "Toner & Lotion", count: 2, image: "https://images.unsplash.com/photo-1608248597359-00994966d5b0?w=200&auto=format&fit=crop&q=60", searchKeyword: "Toner" },
+      { id: "tay-te-bao-chet", name: "Tẩy tế bào chết mặt", count: 2, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Tẩy tế bào chết" },
+      { id: "xit-khoang", name: "Xịt khoáng", count: 3, image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=200&auto=format&fit=crop&q=60", searchKeyword: "Xịt khoáng" },
+      { id: "tay-trang", name: "Nước tẩy trang, dầu tẩy trang", count: 19, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Tẩy trang" },
+      { id: "mieng-dan-mun", name: "Miếng dán mụn", count: 10, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Mụn" },
+    ]
+  },
+  "Thuốc kháng sinh": {
+    parentName: "Thuốc",
+    title: "Thuốc Kê Đơn & Kháng Sinh (Rx)",
+    items: [
+      { id: "ks-uong", name: "Kháng sinh đường uống", count: 24, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", categoryValue: "Thuốc kháng sinh" },
+      { id: "ha-sot", name: "Thuốc giảm đau hạ sốt", count: 18, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", categoryValue: "Thuốc giảm đau hạ sốt" },
+      { id: "tri-ho", name: "Thuốc trị ho cảm & Hô hấp", count: 15, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=60", categoryValue: "Thuốc trị ho cảm" },
+      { id: "da-day", name: "Thuốc dạ dày & Đại tràng", count: 16, image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=60", categoryValue: "Thuốc dạ dày" },
+      { id: "tim-mach", name: "Thuốc tim mạch & Huyết áp", count: 12, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=200&auto=format&fit=crop&q=60", categoryValue: "Thuốc tim mạch huyết áp" },
+      { id: "di-ung", name: "Thuốc chống dị ứng", count: 9, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", categoryValue: "Thuốc dị ứng" },
+    ]
+  },
+  "Thuốc giảm đau hạ sốt": {
+    parentName: "Thuốc",
+    title: "Thuốc Giảm Đau - Hạ Sốt - Kháng Viêm",
+    items: [
+      { id: "paracetamol", name: "Paracetamol đơn chất", count: 14, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Paracetamol" },
+      { id: "giam-dau-ket-hop", name: "Giảm đau kết hợp", count: 10, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", searchKeyword: "Panadol" },
+      { id: "khang-viem", name: "Kháng viêm NSAIDs", count: 8, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=60", searchKeyword: "Ibuprofen" },
+      { id: "ha-sot-tre-em", name: "Hạ sốt dành cho trẻ em", count: 6, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Hapacol" },
+      { id: "mieng-dan", name: "Miếng dán giảm đau", count: 5, image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=60", categoryValue: "Miếng dán giảm đau" },
+    ]
+  },
+  "Thiết bị y tế": {
+    parentName: "Thiết bị y tế",
+    title: "Thiết Bị Y Tế & Dụng Cụ Đo",
+    items: [
+      { id: "may-huyet-ap", name: "Máy đo huyết áp điện tử", count: 8, image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=200&auto=format&fit=crop&q=60", searchKeyword: "Huyết áp" },
+      { id: "may-duong-huyet", name: "Máy & Que thử đường huyết", count: 6, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Đường huyết" },
+      { id: "nhiet-ke", name: "Nhiệt kế điện tử hồng ngoại", count: 5, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", searchKeyword: "Nhiệt kế" },
+      { id: "khau-trang", name: "Khẩu trang & Băng gạc", count: 12, image: "https://images.unsplash.com/photo-1586942593568-29361efcd571?w=200&auto=format&fit=crop&q=60", searchKeyword: "Khẩu trang" },
+    ]
+  }
+};
+
 export function CustomerShop() {
-  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [medicines, setMedicines] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "");
+  const [selectedSubCategory, setSelectedSubCategory] = useState(searchParams.get("subCategory") || "");
   const [selectedClassification, setSelectedClassification] = useState("");
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+
+  // Sorting state (Long Châu standard: Bán chạy / Giá thấp / Giá cao)
+  const [sortBy, setSortBy] = useState<"bestseller" | "price-asc" | "price-desc">("bestseller");
 
   // Advanced Filter states
   const [selectedTargetGroup, setSelectedTargetGroup] = useState("");
@@ -85,6 +171,7 @@ export function CustomerShop() {
     setSelectedIngredient("");
     setSelectedClassification("");
     setSelectedCategory("");
+    setSelectedSubCategory("");
     setSearchQuery("");
   };
 
@@ -99,16 +186,16 @@ export function CustomerShop() {
 
       let minPrice = "";
       let maxPrice = "";
-      if (selectedPriceRange === "under-50") {
-        maxPrice = "50000";
-      } else if (selectedPriceRange === "50-100") {
-        minPrice = "50000";
-        maxPrice = "100000";
-      } else if (selectedPriceRange === "100-200") {
-        minPrice = "100000";
-        maxPrice = "200000";
-      } else if (selectedPriceRange === "over-200") {
-        minPrice = "200000";
+      if (selectedPriceRange === "under-50" || selectedPriceRange === "under-100") {
+        maxPrice = selectedPriceRange === "under-50" ? "50000" : "100000";
+      } else if (selectedPriceRange === "50-100" || selectedPriceRange === "100-300") {
+        minPrice = selectedPriceRange === "50-100" ? "50000" : "100000";
+        maxPrice = selectedPriceRange === "50-100" ? "100000" : "300000";
+      } else if (selectedPriceRange === "100-200" || selectedPriceRange === "300-500") {
+        minPrice = selectedPriceRange === "100-200" ? "100000" : "300000";
+        maxPrice = selectedPriceRange === "100-200" ? "200000" : "500000";
+      } else if (selectedPriceRange === "over-200" || selectedPriceRange === "over-500") {
+        minPrice = selectedPriceRange === "over-200" ? "200000" : "500000";
       }
 
       const targetParam = selectedTargetGroup ? `&targetGroup=${encodeURIComponent(selectedTargetGroup)}` : "";
@@ -136,8 +223,10 @@ export function CustomerShop() {
   useEffect(() => {
     const q = searchParams.get("search") || "";
     const cat = searchParams.get("category") || "";
+    const subCat = searchParams.get("subCategory") || "";
     setSearchQuery(q);
     setSelectedCategory(cat);
+    setSelectedSubCategory(subCat);
   }, [searchParams]);
 
   // Trigger fetch when pagination or dropdown filters/advanced filters change
@@ -199,9 +288,11 @@ export function CustomerShop() {
     return () => clearTimeout(delay);
   }, [searchQuery]);
 
-  const handleAddToCart = async (med: any, customQty: number = 1) => {
+  // Handle add to cart
+  const handleAddToCart = async (med: any, qty: number = 1) => {
     const medId = med.id || med._id;
     const token = localStorage.getItem("token");
+
     if (!token) {
       try {
         const guestCartStr = localStorage.getItem("guest_cart");
@@ -209,13 +300,13 @@ export function CustomerShop() {
         const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
 
         if (existingItem) {
-          if (existingItem.quantity + customQty > med.stock) {
+          if (existingItem.quantity + qty > (med.stock || 999)) {
             alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
             return;
           }
-          existingItem.quantity += customQty;
+          existingItem.quantity += qty;
         } else {
-          if (med.stock <= 0) {
+          if ((med.stock ?? 1) <= 0) {
             alert("Sản phẩm đã hết hàng!");
             return;
           }
@@ -224,10 +315,10 @@ export function CustomerShop() {
             _id: medId,
             name: med.name,
             category: med.category,
-            price: med.price,
-            quantity: customQty,
-            unit: med.unit || "Viên",
-            stock: med.stock,
+            price: med.salePrice || med.price,
+            quantity: qty,
+            unit: med.unit || "Hộp",
+            stock: med.stock || 100,
             active_ingredient: med.active_ingredient || "",
             image: med.image || ""
           });
@@ -236,9 +327,7 @@ export function CustomerShop() {
         window.dispatchEvent(new Event("cartUpdated"));
 
         setAddedItems((prev) => ({ ...prev, [medId]: true }));
-        setTimeout(() => {
-          setAddedItems((prev) => ({ ...prev, [medId]: false }));
-        }, 1500);
+        setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
       } catch (err) {
         console.error("Error updating guest cart:", err);
       }
@@ -246,27 +335,12 @@ export function CustomerShop() {
     }
 
     try {
-      const response = await api.post("/api/users/cart",
-        { medicineId: medId, quantity: customQty },
-        { headers: { "Authorization": `Bearer ${token}` } }
-      );
-
-      const resData = response.data;
+      await api.post("/api/users/cart", { medicineId: medId, quantity: qty });
       window.dispatchEvent(new Event("cartUpdated"));
-
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
-      setTimeout(() => {
-        setAddedItems((prev) => ({ ...prev, [medId]: false }));
-      }, 1500);
-
+      setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
     } catch (err: any) {
-      if (err.response && err.response.status === 404) {
-        setMedicines((prev) => prev.filter((m) => (m.id || m._id) !== medId));
-        return;
-      }
-      const msg = err.response?.data?.message || err.message || "Lỗi khi thêm vào giỏ hàng";
-      alert(msg);
-      console.error("Error adding to cart:", err);
+      alert(err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ");
     }
   };
 
@@ -311,141 +385,119 @@ export function CustomerShop() {
 
   const hasActiveFilters = !!(selectedCategory || selectedClassification || selectedTargetGroup || selectedPriceRange || selectedCountry || selectedBrand || searchQuery);
 
-  return (
-    <div className="flex flex-col gap-6 flex-1">
+  // Determine current active sub-category group information
+  const currentSubGroupData = useMemo(() => {
+    if (selectedCategory && subCategoriesByGroup[selectedCategory]) {
+      return subCategoriesByGroup[selectedCategory];
+    }
+    // Default fallback to "Thuốc bổ" / Vitamin nếu không có match
+    if (selectedCategory === "Dược mỹ phẩm") return subCategoriesByGroup["Dược mỹ phẩm"];
+    if (selectedCategory === "Thuốc kháng sinh") return subCategoriesByGroup["Thuốc kháng sinh"];
+    if (selectedCategory === "Thuốc giảm đau hạ sốt") return subCategoriesByGroup["Thuốc giảm đau hạ sốt"];
+    if (selectedCategory === "Thiết bị y tế") return subCategoriesByGroup["Thiết bị y tế"];
+    return subCategoriesByGroup["Thuốc kháng sinh"];
+  }, [selectedCategory]);
 
-      {/* Premium Hero Banner */}
-      <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-12 shadow-xl border border-white/5">
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-550 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
-        <div className="relative z-10 max-w-2xl flex flex-col gap-4">
-          <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400">
-            🏥 ABC Pharmarcy AI Shop
-          </span>
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1]">
-            Dược Phẩm Chính Hãng <br className="hidden sm:block" />
-            Mua Sắm An Tâm Tiết Kiệm
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-semibold">
-            Hệ thống tra cứu thông tin dược phẩm thông minh kết hợp AI, hỗ trợ kiểm tra tương tác thuốc, phân tích đơn thuốc tự động và cập nhật hạn dùng thời gian thực.
-          </p>
-        </div>
+  // Click on a sub-category card to quick filter
+  const handleSubCategoryClick = (card: SubCategoryCard) => {
+    if (card.categoryValue) {
+      setSelectedCategory(card.categoryValue);
+      setSearchParams({ category: card.categoryValue });
+    } else if (card.searchKeyword) {
+      setSearchQuery(card.searchKeyword);
+      setSearchParams({
+        ...(selectedCategory ? { category: selectedCategory } : {}),
+        search: card.searchKeyword
+      });
+    }
+  };
+
+  // Sorted medicines according to sorting criteria
+  const sortedMedicines = useMemo(() => {
+    const list = [...medicines];
+    if (sortBy === "price-asc") {
+      return list.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    }
+    if (sortBy === "price-desc") {
+      return list.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    }
+    return list; // 'bestseller'
+  }, [medicines, sortBy]);
+
+  return (
+    <div className="flex flex-col gap-5 flex-1">
+
+      {/* ========================================================================= */}
+      {/* 1. BREADCRUMB NAVIGATION (LONG CHÂU STANDARD) */}
+      {/* ========================================================================= */}
+      <nav className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+        <Link to="/" className="text-[#0057cd] hover:underline">Trang chủ</Link>
+        <span className="text-slate-300">/</span>
+        <button
+          onClick={() => {
+            if (selectedCategory) navigate(`/customer/shop?category=${encodeURIComponent(selectedCategory)}`);
+            else navigate("/customer/shop");
+          }}
+          className="text-[#0057cd] hover:underline cursor-pointer"
+        >
+          {currentSubGroupData.parentName}
+        </button>
+        <span className="text-slate-300">/</span>
+        <span className="text-slate-800 font-bold">{currentSubGroupData.title}</span>
+      </nav>
+
+      {/* ========================================================================= */}
+      {/* 2. GROUP TITLE */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          {currentSubGroupData.title}
+        </h1>
       </div>
 
-      {/* Modern Floating Search & Quick Select Filter Box */}
-      <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col gap-4.5 w-full">
-        <div className="flex flex-col lg:flex-row gap-4 items-center w-full">
-          {/* Main search bar */}
-          <div className="relative flex-1 w-full">
-            <div className="absolute inset-y-0 left-0 pl-4.5 flex items-center pointer-events-none text-slate-400">
-              <Search size={18} />
+      {/* ========================================================================= */}
+      {/* 3. SUB-CATEGORY GRID CARDS (BỘ LỌC DẠNG THẺ VUÔNG BO TRÒN GIỐNG LONG CHÂU) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3.5">
+        {currentSubGroupData.items.map((card) => {
+          const isSelected =
+            (card.categoryValue && selectedCategory === card.categoryValue) ||
+            (card.searchKeyword && searchQuery.toLowerCase().includes(card.searchKeyword.toLowerCase()));
+
+          return (
+            <div
+              key={card.id}
+              onClick={() => handleSubCategoryClick(card)}
+              className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 bg-white group hover:shadow-md hover:border-blue-400 ${
+                isSelected
+                  ? "border-[#0057cd] bg-blue-50/40 shadow-xs ring-2 ring-blue-500/20"
+                  : "border-slate-200/80 shadow-2xs hover:bg-slate-50/50"
+              }`}
+            >
+              {/* Product Thumbnail Box */}
+              <div className="w-14 h-14 rounded-xl bg-slate-50 p-1 border border-slate-100 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+                <img
+                  src={card.image}
+                  alt={card.name}
+                  className="w-full h-full object-contain"
+                  loading="lazy"
+                />
+              </div>
+
+              {/* Sub-category Info */}
+              <div className="flex flex-col min-w-0">
+                <span className={`text-xs font-bold leading-snug line-clamp-2 transition-colors ${
+                  isSelected ? "text-[#0057cd] font-black" : "text-slate-800 group-hover:text-[#0057cd]"
+                }`}>
+                  {card.name}
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5">
+                  {card.count} sản phẩm
+                </span>
+              </div>
             </div>
-            <input
-              type="text"
-              placeholder="Tìm kiếm nhanh thuốc, hoạt chất, nhóm trị liệu..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all placeholder:font-semibold placeholder:text-slate-400 text-sm shadow-inner"
-            />
-          </div>
-
-          <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full lg:w-auto items-center">
-            {/* Advanced mobile filter button */}
-            <button
-              onClick={() => setShowMobileFilters(true)}
-              className="w-full sm:w-auto lg:hidden px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-all hover:bg-slate-100"
-            >
-              <Filter size={16} className="text-blue-600" />
-              <span>Bộ lọc nâng cao</span>
-              {hasActiveFilters && <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
-            </button>
-
-            {/* Quick dropdown filters */}
-            <select
-              value={selectedClassification}
-              onChange={(e) => setSelectedClassification(e.target.value)}
-              className="w-full sm:w-56 px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer transition-all"
-            >
-              {classifications.map((cl) => (
-                <option key={cl.value} value={cl.value}>
-                  {cl.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full sm:w-60 px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer transition-all"
-            >
-              <option value="">Tất cả nhóm điều trị</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Selected Pill Tags Display */}
-        {hasActiveFilters && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-50 text-xs">
-            <span className="font-bold text-slate-400 mr-1 uppercase text-[10px]">Đang lọc theo:</span>
-            {searchQuery && (
-              <span className="px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl flex items-center gap-1.5">
-                Tìm kiếm: "{searchQuery}"
-                <X size={12} className="cursor-pointer text-slate-400 hover:text-slate-650" onClick={() => setSearchQuery("")} />
-              </span>
-            )}
-            {selectedCategory && (
-              <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold rounded-xl flex items-center gap-1.5 border border-blue-100">
-                Nhóm: {selectedCategory}
-                <X size={12} className="cursor-pointer text-blue-400 hover:text-blue-700" onClick={() => setSelectedCategory("")} />
-              </span>
-            )}
-            {selectedClassification && (
-              <span className="px-3 py-1 bg-purple-50 text-purple-700 font-bold rounded-xl flex items-center gap-1.5 border border-purple-100">
-                Phân loại: {classifications.find(c => c.value === selectedClassification)?.label}
-                <X size={12} className="cursor-pointer text-purple-400 hover:text-purple-700" onClick={() => setSelectedClassification("")} />
-              </span>
-            )}
-            {selectedTargetGroup && (
-              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-xl flex items-center gap-1.5 border border-emerald-100">
-                {selectedTargetGroup}
-                <X size={12} className="cursor-pointer text-emerald-400 hover:text-emerald-700" onClick={() => setSelectedTargetGroup("")} />
-              </span>
-            )}
-            {selectedPriceRange && (
-              <span className="px-3 py-1 bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center gap-1.5 border border-amber-100">
-                Giá: {selectedPriceRange === 'under-50' ? '<50k' : selectedPriceRange === '50-100' ? '50k-100k' : selectedPriceRange === '100-200' ? '100k-200k' : '>200k'}
-                <X size={12} className="cursor-pointer text-amber-400 hover:text-amber-700" onClick={() => setSelectedPriceRange("")} />
-              </span>
-            )}
-            {selectedCountry && (
-              <span className="px-3 py-1 bg-teal-50 text-teal-700 font-bold rounded-xl flex items-center gap-1.5 border border-teal-100">
-                Gốc: {selectedCountry}
-                <X size={12} className="cursor-pointer text-teal-400 hover:text-teal-700" onClick={() => setSelectedCountry("")} />
-              </span>
-            )}
-            {selectedBrand && (
-              <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-bold rounded-xl flex items-center gap-1.5 border border-indigo-100">
-                Hãng: {selectedBrand}
-                <X size={12} className="cursor-pointer text-indigo-400 hover:text-indigo-700" onClick={() => setSelectedBrand("")} />
-              </span>
-            )}
-            <button
-              onClick={() => {
-                handleResetFilters();
-                setSearchQuery("");
-                setSelectedCategory("");
-                setSelectedClassification("");
-              }}
-              className="text-rose-500 hover:text-rose-700 font-black uppercase text-[10px] tracking-wider ml-1 cursor-pointer"
-            >
-              Thiết lập lại
-            </button>
-          </div>
-        )}
+          );
+        })}
       </div>
 
       {/* Pharma-Smart Recommender & RFM Chronic Refill Component */}
@@ -458,11 +510,13 @@ export function CustomerShop() {
         }}
       />
 
-      {/* Main Layout Body */}
-      <div className="flex flex-col lg:flex-row gap-8 flex-1 items-start w-full">
+      {/* ========================================================================= */}
+      {/* 4. MAIN CONTENT AREA: SIDEBAR FILTER + PRODUCT LIST */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col lg:flex-row gap-8 flex-1 items-start w-full mt-2">
 
         {/* Sticky Desktop Filter Sidebar */}
-        <aside className="hidden lg:block w-72 flex-shrink-0 bg-white border border-slate-150 rounded-[28px] p-6 shadow-sm sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto no-scrollbar">
+        <aside className="hidden lg:block w-72 flex-shrink-0 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto no-scrollbar">
           {renderFilterSidebar()}
         </aside>
 
@@ -482,17 +536,115 @@ export function CustomerShop() {
           </div>
         )}
 
+        {/* Products Right Column */}
         <div className="flex-1 flex flex-col w-full">
+
+          {/* ========================================================================= */}
+          {/* SORTING TOOLBAR (CHUẨN CHUỖI LONG CHÂU: BÁN CHẠY / GIÁ THẤP / GIÁ CAO) */}
+          {/* ========================================================================= */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-slate-900">Danh sách sản phẩm</h2>
+                <span className="text-xs text-slate-400 font-semibold">({totalItems || sortedMedicines.length})</span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                Lưu ý: Thuốc kê đơn và một số sản phẩm sẽ cần tư vấn từ dược sĩ
+              </p>
+            </div>
+
+            {/* Mobile Filter Button */}
+            <div className="flex items-center justify-between sm:justify-end gap-2.5">
+              <button
+                onClick={() => setShowMobileFilters(true)}
+                className="lg:hidden px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Filter size={13} className="text-[#0057cd]" />
+                <span>Bộ lọc</span>
+                {hasActiveFilters && <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>}
+              </button>
+
+              {/* Sorting Pills */}
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                <span className="text-slate-500 text-xs hidden sm:inline font-medium">Sắp xếp theo:</span>
+                
+                <button
+                  onClick={() => setSortBy("bestseller")}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    sortBy === "bestseller"
+                      ? "bg-[#0057cd] text-white shadow-xs"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+                  }`}
+                >
+                  Bán chạy
+                </button>
+
+                <button
+                  onClick={() => setSortBy("price-asc")}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    sortBy === "price-asc"
+                      ? "bg-[#0057cd] text-white shadow-xs"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+                  }`}
+                >
+                  Giá thấp
+                </button>
+
+                <button
+                  onClick={() => setSortBy("price-desc")}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    sortBy === "price-desc"
+                      ? "bg-[#0057cd] text-white shadow-xs"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+                  }`}
+                >
+                  Giá cao
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Filter Pills Tags */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+              <span className="font-bold text-slate-400 mr-1 uppercase text-[10px]">Đang lọc:</span>
+              {searchQuery && (
+                <span className="px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl flex items-center gap-1.5">
+                  Từ khóa: "{searchQuery}"
+                  <X size={12} className="cursor-pointer text-slate-400 hover:text-slate-650" onClick={() => setSearchQuery("")} />
+                </span>
+              )}
+              {selectedCategory && (
+                <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold rounded-xl flex items-center gap-1.5 border border-blue-100">
+                  Nhóm: {selectedCategory}
+                  <X size={12} className="cursor-pointer text-blue-400 hover:text-blue-700" onClick={() => setSelectedCategory("")} />
+                </span>
+              )}
+              {selectedPriceRange && (
+                <span className="px-3 py-1 bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center gap-1.5 border border-amber-100">
+                  Giá: {selectedPriceRange}
+                  <X size={12} className="cursor-pointer text-amber-400 hover:text-amber-700" onClick={() => setSelectedPriceRange("")} />
+                </span>
+              )}
+              <button
+                onClick={handleResetFilters}
+                className="text-rose-500 hover:text-rose-700 font-black uppercase text-[10px] tracking-wider ml-1 cursor-pointer"
+              >
+                Xóa bộ lọc
+              </button>
+            </div>
+          )}
+
+          {/* Product Cards Grid */}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-32 gap-3">
-              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Đang kết nối kho thuốc...</span>
+              <div className="w-10 h-10 border-4 border-[#0057cd] border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Đang tải danh sách dược phẩm...</span>
             </div>
-          ) : medicines.length > 0 ? (
+          ) : sortedMedicines.length > 0 ? (
             <div className="flex flex-col gap-8 flex-1 justify-between">
-              {/* Grid display layout */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {medicines.map((med) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                {sortedMedicines.map((med) => {
                   const medId = med.id || med._id;
                   return (
                     <MedicineCard
@@ -515,11 +667,11 @@ export function CustomerShop() {
               />
             </div>
           ) : (
-            <div className="bg-white rounded-[28px] border border-slate-200 p-16 text-center flex flex-col items-center justify-center">
+            <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center flex flex-col items-center justify-center">
               <Info size={40} className="text-slate-300 mb-3" />
               <h3 className="font-extrabold text-slate-700 text-md">Không tìm thấy sản phẩm phù hợp</h3>
               <p className="text-slate-400 text-xs mt-1.5 max-w-sm font-semibold">
-                Thử thay đổi từ khóa tìm kiếm hoặc làm mới bộ lọc nâng cao để tải lại danh sách dược phẩm.
+                Thử chọn nhóm danh mục con khác hoặc xóa bớt tiêu chí lọc để xem thêm dược phẩm.
               </p>
             </div>
           )}

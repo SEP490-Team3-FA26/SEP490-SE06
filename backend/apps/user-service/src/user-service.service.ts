@@ -471,6 +471,35 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       tier: tierInfo.name,
       multiplier: tierInfo.multiplier,
       conversionRate: 1,
+      allergies: user.allergies || [],
+      chronicConditions: user.chronicConditions || [],
+    };
+  }
+
+  async updateClinicalProfile(data: { phone?: string; userId?: string; allergies?: string[]; chronicConditions?: string[] }) {
+    this.logger.log(`Updating clinical profile: phone=${data.phone}, userId=${data.userId}`);
+    let user;
+    if (data.userId) {
+      user = await this.userModel.findById(data.userId).exec();
+    } else if (data.phone) {
+      user = await this.userModel.findOne({ phone: data.phone.trim() }).exec();
+    }
+
+    if (!user) {
+      return { error: true, message: 'Không tìm thấy hồ sơ người dùng để cập nhật bệnh án', statusCode: 404 };
+    }
+
+    if (data.allergies !== undefined) user.allergies = data.allergies;
+    if (data.chronicConditions !== undefined) user.chronicConditions = data.chronicConditions;
+    await user.save();
+
+    return {
+      success: true,
+      userId: user._id.toString(),
+      fullName: user.fullName,
+      phone: user.phone,
+      allergies: user.allergies || [],
+      chronicConditions: user.chronicConditions || [],
     };
   }
 
@@ -789,31 +818,40 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   // --- ADMIN EMPLOYEE MANAGEMENT ---
 
   async createEmployee(data: any) {
-    this.logger.log(`Creating new employee: ${data.email}, createdByRole: ${data.createdByRole}`);
+    this.logger.log(`Creating new employee: ${data.email}, phone: ${data.phone}, createdByRole: ${data.createdByRole}`);
     const existing = await this.userModel.findOne({ email: data.email }).exec();
     if (existing) {
       return { error: true, message: 'Email đã tồn tại', statusCode: 409 };
     }
 
+    // Validate unique phone number if provided
+    if (data.phone) {
+      const existingPhone = await this.userModel.findOne({ phone: data.phone.trim() }).exec();
+      if (existingPhone) {
+        return { error: true, message: 'Số điện thoại đã tồn tại', statusCode: 409 };
+      }
+    }
+
     const passwordHash = await bcrypt.hash(data.password, 12);
 
-    // Nếu được tạo bởi branch manager → cần admin phê duyệt
+    // If created by branch manager -> needs admin approval
     const isBranchCreated = data.createdByRole === 'branch';
 
     const newUser = new this.userModel({
       email: data.email,
+      phone: data.phone ? data.phone.trim() : null,
       passwordHash,
       fullName: data.fullName,
       role: data.role,
       branchId: data.branchId || null,
-      isActive: !isBranchCreated,       // branch tạo → inactive, admin tạo → active
+      isActive: !isBranchCreated,       // branch created -> inactive, admin created -> active
       isEmailVerified: true,            // Auto verify for employee
       isApproved: isBranchCreated ? 'pending' : 'approved',
     });
 
     await newUser.save();
 
-    // Tự động cập nhật field manager trong Branch khi tạo quản lý chi nhánh
+    // Auto sync manager field in Branch when branch manager is created
     if (data.role === 'branch' && data.branchId && !isBranchCreated) {
       await this.syncManagerToBranch(data.branchId, data.fullName);
     }
@@ -882,10 +920,24 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     if (data.fullName) employee.fullName = data.fullName;
     if (data.role) employee.role = data.role;
     if (data.branchId !== undefined) employee.branchId = data.branchId;
+    if (data.phone !== undefined) {
+      if (data.phone) {
+        const existingPhone = await this.userModel.findOne({
+          phone: data.phone.trim(),
+          _id: { $ne: id },
+        }).exec();
+        if (existingPhone) {
+          return { error: true, message: 'Số điện thoại đã tồn tại', statusCode: 409 };
+        }
+        employee.phone = data.phone.trim();
+      } else {
+        employee.phone = null;
+      }
+    }
 
     await employee.save();
 
-    // Tự động cập nhật field manager trong Branch khi assign/thay đổi chi nhánh
+    // Auto sync manager field in Branch when branch manager changes
     const finalRole = data.role || employee.role;
     if (finalRole === 'branch') {
       const newBranchId = data.branchId !== undefined ? data.branchId : oldBranchId;
@@ -898,6 +950,13 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     const result = employee.toObject();
     delete result.passwordHash;
     return result;
+  }
+
+  // Get user details by phone number (excluding password hash)
+  async getUserByPhone(phone: string) {
+    if (!phone) return null;
+    const user = await this.userModel.findOne({ phone: phone.trim() }).select('-passwordHash').exec();
+    return user;
   }
 
   /**

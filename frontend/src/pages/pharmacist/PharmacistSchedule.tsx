@@ -154,7 +154,7 @@ export function PharmacistSchedule() {
   const todayStr = formatDate(new Date());
   const isPublished = schedule?.status === 'published';
 
-  // Cơ chế phòng thủ: Tự động trích xuất ca làm việc từ chính phân công nếu shifts rỗng
+  // Co che phong thu: Tu dong trich xuat ca lam viec tu chinh phan cong neu shifts rong
   const effectiveShifts: WorkShift[] = useMemo(() => {
     if (shifts.length > 0) return shifts;
     if (!schedule?.assignments || schedule.assignments.length === 0) return [];
@@ -177,7 +177,7 @@ export function PharmacistSchedule() {
     return Array.from(shiftMap.values()).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [shifts, schedule]);
 
-  // Thống kê số ca trực của chính dược sĩ trong tuần (khớp theo userId hoặc userName)
+  // Thong ke so ca truc cua chinh duoc si trong tuan (khop theo userId hoac userName)
   const myShiftsCount = (schedule?.assignments || []).filter(
     a => (userId && String(a.employeeId) === String(userId)) || (userName && a.employeeName === userName)
   ).length;
@@ -441,7 +441,7 @@ export function PharmacistSchedule() {
 
       {/* 4. Shift Swap Guide & Workflow Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-        {/* Cột 1: Chú thích hiển thị & Ý nghĩa ca trực */}
+        {/* Cot 1: Chu thich hien thi & Y nghia ca truc */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2.5 text-slate-900 font-bold text-base mb-4">
@@ -495,7 +495,7 @@ export function PharmacistSchedule() {
           </div>
         </div>
 
-        {/* Cột 2 & 3: Luồng quy trình đổi ca 3 bước & Quy định */}
+        {/* Cot 2 & 3: Luong quy trinh doi ca 3 buoc & Quy dinh */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2.5 text-slate-900 font-bold text-base mb-4">
@@ -507,7 +507,7 @@ export function PharmacistSchedule() {
 
             {/* 3 Steps */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-5">
-              {/* Bước 1 */}
+              {/* Buoc 1 */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -527,7 +527,7 @@ export function PharmacistSchedule() {
                 </div>
               </div>
 
-              {/* Bước 2 */}
+              {/* Buoc 2 */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -547,7 +547,7 @@ export function PharmacistSchedule() {
                 </div>
               </div>
 
-              {/* Bước 3 */}
+              {/* Buoc 3 */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -568,7 +568,7 @@ export function PharmacistSchedule() {
               </div>
             </div>
 
-            {/* Quy tắc quan trọng */}
+            {/* Quy tac quan trong */}
             <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs text-amber-900 leading-relaxed space-y-1.5">
               <div className="font-bold flex items-center gap-1.5 text-amber-950">
                 <AlertCircle size={15} className="text-amber-600" />
