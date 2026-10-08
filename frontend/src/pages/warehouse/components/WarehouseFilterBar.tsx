@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Search, Loader2, MapPin, ChevronDown, Check,
   AlertTriangle, TrendingDown, XCircle, RotateCcw,
-  Boxes, Filter, Tag
+  Boxes, Filter, Tag, Archive, AlertCircle
 } from "lucide-react";
 import { inventoryMapService } from "../../../services/inventory/inventoryMap.service";
 
@@ -262,36 +262,59 @@ export function WarehouseFilterBar({
 
         {/* Kết quả tìm kiếm thuốc */}
         {isSearchOpen && (
-          <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-            <div className="max-h-64 overflow-y-auto custom-scrollbar">
+          <div className="absolute top-full left-0 mt-2 w-96 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="max-h-72 overflow-y-auto custom-scrollbar">
               {searchResults.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-500">
-                  Không tìm thấy thuốc hoặc thuốc chưa được gán vị trí trên kệ.
+                  Không tìm thấy thuốc khớp với từ khóa tìm kiếm.
                 </div>
               ) : (
                 <ul>
                   {searchResults.map((item, idx) => (
                     <li
-                      key={`${item.medicineId}-${item.targetId}-${idx}`}
+                      key={`${item.medicineId}-${item.targetId || 'unassigned'}-${idx}`}
                       onClick={() => handleSelectSearchResult(item)}
-                      className="p-2.5 hover:bg-sky-50/70 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
+                      className="p-3 hover:bg-sky-50/70 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-semibold text-xs text-slate-800">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-xs text-slate-800 line-clamp-1" title={item.name}>
                             {item.name}
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            SKU: {item.sku}
+                          <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            <span>SKU: {item.sku}</span>
+                            {item.category && <span>&middot; {item.category}</span>}
                           </div>
                         </div>
+                        {item.stock !== undefined && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap shrink-0 ${
+                            item.stock > 0
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                          }`}>
+                            {item.stock > 0 ? `Tồn: ${item.stock.toLocaleString("vi-VN")} ${item.unit || 'hộp'}` : "Hết hàng"}
+                          </span>
+                        )}
                       </div>
-                      <div className="mt-1.5 flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 w-fit px-2 py-0.5 rounded-md border border-sky-200/70 font-medium">
-                        <MapPin size={11} className="text-sky-500" />
-                        <span>
-                          Khu {item.location?.zone} &middot; Kệ {item.location?.rack} &middot; Tầng {item.location?.shelf}
-                        </span>
-                      </div>
+
+                      {item.location?.zone && item.location.zone !== 'RESERVE' ? (
+                        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 w-fit px-2 py-0.5 rounded-md border border-sky-200/70 font-medium">
+                          <MapPin size={11} className="text-sky-500 shrink-0" />
+                          <span>
+                            Khu {item.location.zone} &middot; Kệ {item.location.rack} &middot; Tầng {item.location.shelf} {item.location.bin ? `· Thùng B${item.location.bin}` : ''}
+                          </span>
+                        </div>
+                      ) : item.isReserve || item.location?.zone === 'RESERVE' ? (
+                        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 w-fit px-2 py-0.5 rounded-md border border-amber-200 font-medium">
+                          <Archive size={11} className="text-amber-500 shrink-0" />
+                          <span>Khu Lưu Trữ Dự Phòng (RESERVE)</span>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-500 bg-slate-50 w-fit px-2 py-0.5 rounded-md border border-slate-200 font-medium">
+                          <AlertCircle size={11} className="text-slate-400 shrink-0" />
+                          <span>Chưa có hàng tại kho tổng</span>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

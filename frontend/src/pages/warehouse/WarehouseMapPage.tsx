@@ -44,7 +44,7 @@ export function WarehouseMapPage() {
     setLoading(true);
     try {
       const res = await inventoryMapService.getWarehouseMap();
-      setZones(res?.zones || res?.data?.zones || []);
+      setZones(res?.zones || (res as any)?.data?.zones || []);
     } catch (error) {
       console.error("Failed to fetch warehouse map", error);
     } finally {
@@ -155,9 +155,13 @@ export function WarehouseMapPage() {
         <WarehouseFilterBar
           zones={zones}
           onSearchSelect={(target) => {
-            setHighlightTarget(target);
-            setHighlightTargets(new Set([target]));
-            setFilterDesc("");
+            if (target === 'RESERVE') {
+              setShowReservePanel(true);
+            } else if (target) {
+              setHighlightTarget(target);
+              setHighlightTargets(new Set([target]));
+              setFilterDesc("");
+            }
           }}
           onFilterChange={(targets, desc) => {
             setHighlightTargets(targets);
