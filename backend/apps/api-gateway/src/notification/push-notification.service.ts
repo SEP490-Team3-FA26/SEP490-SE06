@@ -7,6 +7,7 @@ import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
 import { getMessaging, Messaging } from 'firebase-admin/messaging';
 import { DeviceToken, DeviceTokenDocument } from './schemas/device-token.schema';
 import { IotAlert, IotAlertDocument } from './schemas/iot-alert.schema';
+import { SensorStation, SensorStationDocument } from './schemas/sensor-station.schema';
 
 export interface PushPayload {
   title: string;
@@ -23,11 +24,16 @@ export class PushNotificationService implements OnModuleInit {
   private firebaseApp: App | null = null;
   private messaging: Messaging | null = null;
 
+  // In-memory cache ngưỡng nhiệt độ từng trạm (TTL 30 giây) tránh query DB mỗi giây
+  private readonly thresholdCache = new Map<string, { tempMax: number; expireAt: number }>();
+
   constructor(
     @InjectModel(DeviceToken.name)
     private readonly deviceTokenModel: Model<DeviceTokenDocument>,
     @InjectModel(IotAlert.name)
     private readonly iotAlertModel: Model<IotAlertDocument>,
+    @InjectModel(SensorStation.name)
+    private readonly stationModel: Model<SensorStationDocument>,
   ) {}
 
   onModuleInit() {
@@ -275,6 +281,43 @@ export class PushNotificationService implements OnModuleInit {
     } catch (e: any) {
       this.logger.warn(`Loi luu iot_alert: ${e?.message}`);
       return null;
+    }
+  }
+
+  /**
+   * Lấy ngưỡng nhiệt độ cảnh báo của trạm cảm biến từ MongoDB.
+   * Sử dụng In-memory cache TTL 30s để không làm chậm luồng telemetry 1s.
+   */
+  async getStationTempThreshold(deviceId: string): Promise<number> {
+    const DEFAULT_THRESHOLD = 40.0;
+    const now = Date.now();
+    const cached = this.thresholdCache.get(deviceId);
+    if (cached && now < cached.expireAt) {
+      return cached.tempMax;
+    }
+
+    try {
+      const station = await this.stationModel
+        .findOne({ deviceId }, { tempMax: 1 })
+        .lean()
+        .exec();
+
+      const threshold =
+        station?.tempMax !== undefined && !isNaN(Number(station.tempMax))
+          ? Number(station.tempMax)
+          : DEFAULT_THRESHOLD;
+
+      this.thresholdCache.set(deviceId, {
+        tempMax: threshold,
+        expireAt: now + 30000, // Cache 30 giây
+      });
+
+      return threshold;
+    } catch (err: any) {
+      this.logger.warn(
+        `Lỗi đọc ngưỡng tempMax từ DB cho trạm ${deviceId}: ${err?.message}`,
+      );
+      return DEFAULT_THRESHOLD;
     }
   }
 }
