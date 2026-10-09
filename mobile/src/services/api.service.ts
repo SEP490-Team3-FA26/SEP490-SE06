@@ -182,38 +182,8 @@ export class ApiService {
     };
   }
 
-  // --- DEMO & OFFLINE FALLBACK USERS ---
-  public static getMockUserForDemo(emailOrPhone: string): { user: UserProfile; token: string; role: string } | null {
-    const term = emailOrPhone.trim().toLowerCase();
-    const demoMap: Record<string, { role: UserRole; name: string; branchId?: string; branchName?: string }> = {
-      'admin@vinapharmacy.com': { role: UserRole.ADMIN, name: 'Quản Trị Viên (Admin)' },
-      'director@vinapharmacy.com': { role: UserRole.HEAD_BRANCH, name: 'Giám Đốc Chi Nhánh', branchId: 'BR-001', branchName: 'Chi Nhánh Trung Tâm' },
-      'warehouse@vinapharmacy.com': { role: UserRole.WAREHOUSE, name: 'Thủ Kho Tổng', branchId: 'WH-001', branchName: 'Kho Dược Trung Tâm GSP' },
-      'pharmacist@vinapharmacy.com': { role: UserRole.PHARMACIST, name: 'Dược Sĩ Bán Hàng', branchId: 'BR-001', branchName: 'Chi Nhánh Q1 - TP.HCM' },
-      'manager@vinapharmacy.com': { role: UserRole.BRANCH, name: 'Quản Lý Cơ Sở', branchId: 'BR-002', branchName: 'Chi Nhánh Q3' },
-      'user@vinapharmacy.com': { role: UserRole.CUSTOMER, name: 'Khách Hàng Thân Thiết' },
-    };
-
-    const matched = demoMap[term];
-    if (matched) {
-      const mockUser: UserProfile = {
-        id: `mock_${matched.role}`,
-        name: matched.name,
-        email: term,
-        phone: '0901234567',
-        role: matched.role,
-        branchId: matched.branchId,
-        branchName: matched.branchName,
-        points: matched.role === UserRole.CUSTOMER ? 1500 : undefined,
-        isActive: true,
-        isVerified: true,
-      };
-      return {
-        user: mockUser,
-        token: `mock_jwt_token_${matched.role}_${Date.now()}`,
-        role: matched.role,
-      };
-    }
+  // --- DEMO & OFFLINE FALLBACK USERS (Đã vô hiệu hóa để chỉ cho phép đăng nhập thật) ---
+  public static getMockUserForDemo(_emailOrPhone: string): { user: UserProfile; token: string; role: string } | null {
     return null;
   }
 
@@ -256,31 +226,12 @@ export class ApiService {
         };
       }
 
-      // If backend responded with error or not found, check demo fallback
-      const demoData = this.getMockUserForDemo(emailOrPhone);
-      if (demoData && (password === '123456' || password.length > 0)) {
-        this.setToken(demoData.token);
-        return {
-          accessToken: demoData.token,
-          user: demoData.user,
-          role: demoData.role,
-          message: 'Đăng nhập thành công (Demo Mode)',
-        };
-      }
-
-      return data;
+      // Xử lý thông báo lỗi xác thực từ backend
+      const errorMsg =
+        data?.message ||
+        (Array.isArray(data?.message) ? data.message.join(', ') : 'Tài khoản hoặc mật khẩu không chính xác');
+      throw new Error(errorMsg);
     } catch (e: any) {
-      console.warn('Login request error, evaluating demo/offline fallback:', e);
-      const demoData = this.getMockUserForDemo(emailOrPhone);
-      if (demoData) {
-        this.setToken(demoData.token);
-        return {
-          accessToken: demoData.token,
-          user: demoData.user,
-          role: demoData.role,
-          message: 'Đăng nhập thành công (Chế độ Offline/Demo)',
-        };
-      }
       throw new Error(e?.message || 'Không thể kết nối đến máy chủ xác thực');
     }
   }

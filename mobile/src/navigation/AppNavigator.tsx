@@ -54,6 +54,7 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator
       id="app-stack"
+      key={auth.isAuthenticated ? `auth-${role || 'user'}` : 'unauth'}
       initialRouteName={auth.isAuthenticated ? getInitialActorScreen() : 'LoginScreen'}
       screenOptions={{
         headerShown: false,
