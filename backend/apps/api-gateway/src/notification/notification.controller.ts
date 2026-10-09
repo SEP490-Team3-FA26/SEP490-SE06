@@ -1,6 +1,7 @@
-import { Controller, Get, Patch, Delete, Query, Param, Req, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Query, Param, Req, UseGuards, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
+import { PushNotificationService } from './push-notification.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
 @ApiTags('Notifications')
@@ -10,7 +11,10 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 export class NotificationController {
   private readonly logger = new Logger(NotificationController.name);
 
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly pushService: PushNotificationService,
+  ) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Lấy notifications cho user hiện tại' })
@@ -94,4 +98,54 @@ export class NotificationController {
     await this.notificationService.delete(id);
     return { success: true, message: 'Notification deleted' };
   }
+
+  @Post('devices/register')
+  @ApiOperation({ summary: 'Đăng ký push token của thiết bị di động' })
+  async registerDevice(@Body() body: any, @Req() req: any) {
+    const user = req.user;
+    const userId = user.sub || user._id;
+    const device = await this.pushService.registerToken({
+      userId,
+      role: user.role,
+      branchId: user.branchId,
+      pushToken: body.pushToken,
+      platform: body.platform,
+      deviceModel: body.deviceModel,
+    });
+    return { success: true, data: device };
+  }
+
+  @Post('devices/unregister')
+  @ApiOperation({ summary: 'Hủy đăng ký push token khi đăng xuất' })
+  async unregisterDevice(@Body() body: any) {
+    await this.pushService.unregisterToken(body.pushToken);
+    return { success: true, message: 'Device unregistered' };
+  }
+
+  @Post('test-push')
+  @ApiOperation({ summary: 'Gửi test thông báo còi hú đến điện thoại theo role' })
+  async testPush(@Body() body: any) {
+    const role = body.role || 'warehouse';
+    const title = body.title || 'TEST CÒI BÁO ĐỘNG KHO TỔNG';
+    const message = body.body || 'Kiểm tra thông báo đẩy đến điện thoại thủ kho';
+
+    const result = await this.pushService.sendToRole(role, {
+      title,
+      body: message,
+      channelId: 'iot_temperature_critical',
+      sound: 'siren_alarm',
+      data: {
+        type: 'IOT_TEMPERATURE_ALERT',
+        deviceId: 'ESP32S3_2884855FFFFC',
+        temp: '41.5',
+      },
+    });
+
+    return {
+      success: true,
+      message: `Đã gửi test push tới role ${role}`,
+      result,
+    };
+  }
 }
+

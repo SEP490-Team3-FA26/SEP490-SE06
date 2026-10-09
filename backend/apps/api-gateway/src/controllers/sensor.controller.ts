@@ -17,15 +17,25 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { AppWebsocketGateway } from '../websocket/websocket.gateway';
 import { SensorIngestDto } from '../dto/sensor-telemetry.dto';
+import { PushNotificationService } from '../notification/push-notification.service';
+import { NotificationService } from '../notification/notification.service';
 
 @ApiTags('🌡️ IoT Telemetry Sensor')
 @Controller('api/sensor')
 export class SensorController implements OnModuleInit {
   private readonly logger = new Logger(SensorController.name);
 
+  // Bộ đệm đếm số mẫu vi phạm liên tiếp (Debounce)
+  private readonly consecutiveViolations = new Map<string, number>();
+
+  // Bộ đệm mốc thời gian bắn push gần nhất (Cooldown - tối thiểu 5 phút)
+  private readonly lastPushTimeMap = new Map<string, number>();
+
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
     private readonly wsGateway: AppWebsocketGateway,
+    private readonly pushService: PushNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async onModuleInit() {
@@ -112,6 +122,66 @@ export class SensorController implements OnModuleInit {
             timestamp: normalizedRecord.timestamp,
           });
         }
+      }
+
+      // Đánh giá cảnh báo quá nhiệt GSP (> 40.0°C đối với Kho Tổng)
+      const temp = Number(normalizedRecord.metrics?.temperature ?? 0);
+      const isOverTemp = temp > 40.0;
+
+      if (isOverTemp) {
+        const count = (this.consecutiveViolations.get(deviceId) || 0) + 1;
+        this.consecutiveViolations.set(deviceId, count);
+
+        // Debounce: Vượt ngưỡng liên tiếp >= 15 mẫu (khoảng 15s)
+        const isDebounced = count >= 15;
+        const nowMs = Date.now();
+        const lastPush = this.lastPushTimeMap.get(deviceId) || 0;
+        const isCooldownElapsed = nowMs - lastPush >= 5 * 60 * 1000; // 5 phút cooldown
+
+        if (isDebounced && isCooldownElapsed) {
+          this.lastPushTimeMap.set(deviceId, nowMs);
+          this.logger.warn(
+            `[IOT PUSH TRIGGERED] Nhiệt độ kho ${temp}°C vượt ngưỡng 40°C liên tục ${count}s -> Bắn push notification tới thủ kho`,
+          );
+
+          // 1. Bắn Push Notification đến toàn bộ điện thoại có role warehouse
+          this.pushService
+            .sendToRole('warehouse', {
+              title: 'CẢNH BÁO QUÁ NHIỆT KHO TỔNG',
+              body: `Nhiệt độ hiện tại ${temp}°C đã vượt ngưỡng 40°C! Vui lòng kiểm tra kho ngay lập tức.`,
+              channelId: 'iot_temperature_critical',
+              sound: 'siren_alarm',
+              data: {
+                type: 'IOT_TEMPERATURE_ALERT',
+                deviceId,
+                temp: String(temp),
+              },
+            })
+            .catch((e) => this.logger.error(`Lỗi gửi push alert: ${e?.message}`));
+
+          // 2. Lưu vào danh sách thông báo hệ thống
+          this.notificationService
+            .create({
+              type: 'IOT_TEMPERATURE_ALERT',
+              targetRooms: ['warehouse', 'admin'],
+              message: `Nhiệt độ Kho Tổng ${temp}°C đã vượt ngưỡng an toàn 40.0°C!`,
+            })
+            .catch((e) => this.logger.warn(`Lỗi lưu notification DB: ${e?.message}`));
+
+          // 3. Ghi nhận nhật ký sự cố vào iot_alerts
+          this.pushService
+            .recordIotAlert({
+              deviceId,
+              stationName: 'Trạm Quan Trắc Kho Tổng GSP',
+              targetId: 'CENTRAL_WH',
+              currentValue: temp,
+              thresholdValue: 40.0,
+              severity: temp > 43.0 ? 'CRITICAL' : 'WARNING',
+            })
+            .catch((e) => this.logger.warn(`Lỗi lưu iot_alert DB: ${e?.message}`));
+        }
+      } else {
+        this.consecutiveViolations.set(deviceId, 0);
       }
     }
 

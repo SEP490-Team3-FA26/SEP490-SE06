@@ -1,0 +1,35 @@
+# Dependencies & build caches
+node_modules
+node_modules/**
+**/node_modules/**
+.expo
+.expo/**
+dist
+dist/**
+web-build
+web-build/**
+.dart_tool
+.dart_tool/**
+build
+build/**
+**/build/**
+.gradle
+.gradle/**
+**/android/.gradle/**
+android/app/build
+android/app/build/**
+*.apk
+*.aab
+
+# Desktop OS folders from old Flutter setup
+linux
+linux/**
+macos
+macos/**
+windows
+windows/**
+.kotlin
+.kotlin/**
+
+# Keep google-services.json
+!google-services.json

@@ -68,7 +68,7 @@ export class TelemetryService implements OnModuleInit {
           targetType: 'WAREHOUSE',
           targetId: 'CENTRAL_WH',
           tempMin: 15.0,
-          tempMax: 25.0,
+          tempMax: 40.0,
           humMax: 70.0,
           isActive: true,
         });
@@ -86,8 +86,8 @@ export class TelemetryService implements OnModuleInit {
       const temp = Number(item.metrics?.temperature ?? 0);
       const hum = Number(item.metrics?.humidity ?? 0);
 
-      // Tự động kiểm tra cờ vi phạm GSP (Nhiệt độ > 25°C hoặc Độ ẩm > 70%)
-      const isGspViolated = temp > (station.tempMax || 25.0) || hum > (station.humMax || 70.0);
+      // Tự động kiểm tra cờ vi phạm GSP (Nhiệt độ > 40°C hoặc Độ ẩm > 70%)
+      const isGspViolated = temp > (station.tempMax || 40.0) || hum > (station.humMax || 70.0);
 
       return {
         deviceId,
@@ -189,7 +189,7 @@ export class TelemetryService implements OnModuleInit {
         name: 'Trạm Quan Trắc Kho Tổng GSP',
         targetId: 'CENTRAL_WH',
         tempMin: 15.0,
-        tempMax: 25.0,
+        tempMax: 40.0,
         humMax: 70.0,
       },
       data: latestTelemetry || null,

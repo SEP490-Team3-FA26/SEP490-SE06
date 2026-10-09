@@ -14,13 +14,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vinapharmacy.mobile",
+      "bundleIdentifier": "com.abcpharmacy.mobile",
       "infoPlist": {
         "NSCalendarsUsageDescription": "Cho phép ứng dụng thêm sự kiện vào lịch của bạn.",
         "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc."
       }
     },
     "android": {
+      "package": "com.abcpharmacy.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -34,7 +36,9 @@
         "WRITE_CALENDAR",
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ]
     },
     "web": {
@@ -54,6 +58,12 @@
           "color": "#0284C7"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f7db0cf2-e41b-4383-bec8-3a75eb6c12ec"
+      }
+    },
+    "owner": "phuche2004"
   }
 }

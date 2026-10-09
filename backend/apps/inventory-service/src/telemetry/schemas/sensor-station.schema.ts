@@ -18,8 +18,8 @@ export class SensorStation extends Document {
   @Prop({ type: Number, default: 15.0 })
   tempMin: number; // Chuẩn GSP tối thiểu 15°C
 
-  @Prop({ type: Number, default: 25.0 })
-  tempMax: number; // Chuẩn GSP tối đa 25°C (hoặc 30°C tùy kho)
+  @Prop({ type: Number, default: 40.0 })
+  tempMax: number; // Ngưỡng tối đa 40°C
 
   @Prop({ type: Number, default: 70.0 })
   humMax: number; // Chuẩn GSP độ ẩm tối đa 70% RH

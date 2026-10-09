@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AppState, LogBox } from 'react-native';
+import { AppState, LogBox, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
@@ -22,7 +22,7 @@ LogBox.ignoreLogs([
 ]);
 
 const linking = {
-  prefixes: ['wdp301://', 'https://vinapharmacy.vn'],
+  prefixes: ['wdp301://', 'https://abcpharmacy.store'],
   config: {
     screens: {
       OrderConfirmation: 'checkout',
@@ -32,6 +32,18 @@ const linking = {
 
 const App: React.FC = () => {
   useEffect(() => {
+    // 0. Khoi tao Android Notification Channel muc MAX cho canh bao qua nhiet GSP
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('iot_temperature_critical', {
+        name: 'Cảnh Báo Quá Nhiệt GSP',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 500, 250, 500],
+        lightColor: '#EF4444',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+      }).catch((e) => console.warn('Init notification channel warning:', e));
+    }
+
     // 1. Khởi tạo Notification Channel, Action Categories và xin quyền
     MedicineReminderService.init().then(() => {
       // Gia hạn lịch 7 ngày tới khi mở app
