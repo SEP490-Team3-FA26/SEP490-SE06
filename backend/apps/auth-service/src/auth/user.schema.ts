@@ -9,6 +9,7 @@ export enum UserRole {
   BRANCH = 'branch',
   PHARMACIST = 'pharmacist',
   USER = 'user',
+  MOH_INSPECTOR = 'moh_inspector',
 }
 
 export type UserDocument = User & Document;

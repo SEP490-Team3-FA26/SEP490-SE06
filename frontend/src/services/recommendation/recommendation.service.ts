@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface RecommendedMedicine {
   _id: string;
@@ -53,7 +54,7 @@ export const recommendationService = {
   }): Promise<{ status: string; message: string }> {
     try {
       const deviceId = payload.deviceId || getOrSetDeviceId();
-      const response = await api.post('/api/recommendations/search-log', {
+      const response = await api.post(API_ENDPOINTS.RECOMMENDATIONS.SEARCH_LOG, {
         ...payload,
         deviceId,
       });
@@ -72,7 +73,7 @@ export const recommendationService = {
     branchId?: string;
   }): Promise<RecommendationData> {
     const deviceId = params?.deviceId || getOrSetDeviceId();
-    const response = await api.get<RecommendationData>('/api/recommendations/for-you', {
+    const response = await api.get<RecommendationData>(API_ENDPOINTS.RECOMMENDATIONS.FOR_YOU, {
       params: {
         ...params,
         deviceId,
@@ -88,7 +89,7 @@ export const recommendationService = {
     deviceId?: string;
   }): Promise<string[]> {
     const deviceId = params?.deviceId || getOrSetDeviceId();
-    const response = await api.get<string[]>('/api/recommendations/recent-searches', {
+    const response = await api.get<string[]>(API_ENDPOINTS.RECOMMENDATIONS.RECENT_SEARCHES, {
       params: {
         ...params,
         deviceId,
@@ -104,7 +105,7 @@ export const recommendationService = {
     deviceId?: string;
   }): Promise<{ status: string; message: string }> {
     const deviceId = params?.deviceId || getOrSetDeviceId();
-    const response = await api.delete('/api/recommendations/recent-searches', {
+    const response = await api.delete(API_ENDPOINTS.RECOMMENDATIONS.RECENT_SEARCHES, {
       data: {
         ...params,
         deviceId,

@@ -12,7 +12,8 @@ import { Pagination } from "../../components/Pagination";
 import { MedicineDetailModal } from "../../components/MedicineDetailModal";
 import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRecommender";
 import { recommendationService } from "../../services/recommendation/recommendation.service";
-import api from "../../services/core/api";
+import { medicineService } from "../../services/inventory/medicine.service";
+import { cartService } from "../../services/sales/cart.service";
 
 // Sub-category Card Model
 export interface SubCategoryCard {
@@ -198,17 +199,22 @@ export function CustomerShop() {
         minPrice = selectedPriceRange === "over-200" ? "200000" : "500000";
       }
 
-      const targetParam = selectedTargetGroup ? `&targetGroup=${encodeURIComponent(selectedTargetGroup)}` : "";
-      const minPriceParam = minPrice ? `&minPrice=${minPrice}` : "";
-      const maxPriceParam = maxPrice ? `&maxPrice=${maxPrice}` : "";
-      const flavourParam = selectedFlavour ? `&flavour=${encodeURIComponent(selectedFlavour)}` : "";
-      const countryParam = selectedCountry ? `&country=${encodeURIComponent(selectedCountry)}` : "";
-      const brandParam = selectedBrand ? `&brand=${encodeURIComponent(selectedBrand)}` : "";
-      const indicationParam = selectedIndication ? `&indication=${encodeURIComponent(selectedIndication)}` : "";
-      const brandOriginParam = selectedBrandOrigin ? `&brandOrigin=${encodeURIComponent(selectedBrandOrigin)}` : "";
+      const result = await medicineService.getMedicines({
+        page: currentPage,
+        limit,
+        search: searchQuery || undefined,
+        category: selectedCategory || undefined,
+        drug_classification: selectedClassification || undefined,
+        targetGroup: selectedTargetGroup || undefined,
+        minPrice: minPrice || undefined,
+        maxPrice: maxPrice || undefined,
+        flavour: selectedFlavour || undefined,
+        country: selectedCountry || undefined,
+        brand: selectedBrand || undefined,
+        indication: selectedIndication || undefined,
+        brandOrigin: selectedBrandOrigin || undefined,
+      });
 
-      const res = await api.get(`/api/medicines?page=${currentPage}&limit=${limit}${searchParam}${categoryParam}${classParam}${targetParam}${minPriceParam}${maxPriceParam}${flavourParam}${countryParam}${brandParam}${indicationParam}${brandOriginParam}`);
-      const result = res.data;
       setMedicines(result.data || []);
       setTotalItems(result.total || 0);
       setTotalPages(Math.ceil((result.total || 0) / limit) || 1);
@@ -335,7 +341,7 @@ export function CustomerShop() {
     }
 
     try {
-      await api.post("/api/users/cart", { medicineId: medId, quantity: qty });
+      await cartService.addToCart(medId, qty);
       window.dispatchEvent(new Event("cartUpdated"));
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);

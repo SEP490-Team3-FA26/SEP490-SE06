@@ -790,8 +790,14 @@ export function CustomerCheckout() {
                   <Printer size={15} /> In hóa đơn
                 </button>
                 <button
+                  onClick={() => { setShowSuccessModal(false); navigate("/customer/orders"); }}
+                  className="px-4 py-3 bg-blue-50 hover:bg-blue-100 text-[#0d6efd] font-bold text-xs uppercase tracking-wider rounded-xl border border-blue-200 transition-all cursor-pointer"
+                >
+                  Xem Đơn Hàng
+                </button>
+                <button
                   onClick={() => { setShowSuccessModal(false); navigate("/customer/shop"); }}
-                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl"
+                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer"
                 >
                   Về Cửa Hàng
                 </button>

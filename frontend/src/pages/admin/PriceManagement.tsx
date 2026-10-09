@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { branchService } from "../../services/admin/branch.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { pricingService } from "../../services/inventory/pricing.service";
-import api from "../../services/core/api";
 
 interface WholesaleTier {
   minQuantity: number;
@@ -200,10 +199,10 @@ export function PriceManagement() {
     setCopyLoading(true);
     try {
       if (syncAll) {
-        await api.post("/api/pricing/sync-all", { fromBranchId: selectedBranch });
+        await pricingService.syncAllPrices(selectedBranch);
         alert("Đồng bộ giá tới tất cả chi nhánh thành công!");
       } else {
-        await api.post("/api/pricing/copy", { fromBranchId: selectedBranch, toBranchId: copyToBranch });
+        await pricingService.copyPrices(selectedBranch, copyToBranch);
         alert("Sao chép bảng giá thành công!");
       }
       setShowCopyModal(false);

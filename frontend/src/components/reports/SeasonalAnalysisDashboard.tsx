@@ -16,8 +16,7 @@ import {
   ShieldCheck,
   CheckCircle2
 } from "lucide-react";
-import { reportService } from "../../services/report/report.service";
-import api from "../../services/core/api";
+import { reportService, branchService } from "../../services";
 import { useNavigate } from "react-router-dom";
 
 export function SeasonalAnalysisDashboard() {
@@ -65,9 +64,9 @@ export function SeasonalAnalysisDashboard() {
 
   const fetchBranches = async () => {
     try {
-      const res = await api.get('/api/branches');
-      if (Array.isArray(res.data)) {
-        setBranchesList(res.data);
+      const branches = await branchService.getBranches();
+      if (Array.isArray(branches)) {
+        setBranchesList(branches);
       }
     } catch (err) {
       console.error('Lỗi tải danh sách chi nhánh:', err);

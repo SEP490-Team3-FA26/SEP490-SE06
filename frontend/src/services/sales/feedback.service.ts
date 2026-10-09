@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface FeedbackData {
   _id?: string;
@@ -62,31 +63,36 @@ export interface FeedbackSubmissionResponse {
 export const feedbackService = {
   // Public lookup order from QR code on receipt
   async lookupOrder(orderCode: string) {
-    const response = await api.get(`/api/feedbacks/lookup/${encodeURIComponent(orderCode)}`);
+    const response = await api.get(API_ENDPOINTS.FEEDBACKS.LOOKUP(orderCode));
     return response.data;
   },
 
   // Submit feedback (Public or Authenticated)
   async submitFeedback(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResponse> {
-    const response = await api.post('/api/feedbacks', payload);
+    const response = await api.post(API_ENDPOINTS.FEEDBACKS.CREATE, payload);
     return response.data;
   },
 
   // Branch Manager: Get feedbacks of branch
   async getBranchFeedbacks(branchId: string, params?: { status?: string; rating?: number; page?: number; limit?: number }) {
-    const response = await api.get(`/api/feedbacks/branch/${encodeURIComponent(branchId)}`, { params });
+    const response = await api.get(API_ENDPOINTS.FEEDBACKS.BY_BRANCH(branchId), { params });
     return response.data;
   },
 
   // Branch Manager: Resolve negative feedback within 24h SLA
   async resolveFeedback(id: string, resolution: { actionTaken?: string; notes: string; customerSatisfied?: boolean }) {
-    const response = await api.patch(`/api/feedbacks/${id}/resolve`, resolution);
+    const response = await api.patch(API_ENDPOINTS.FEEDBACKS.RESOLVE(id), resolution);
     return response.data;
   },
 
   // Admin / Director: Chain-wide summary
   async getChainSummary() {
-    const response = await api.get('/api/feedbacks/analytics/chain-summary');
+    const response = await api.get(API_ENDPOINTS.FEEDBACKS.CHAIN_ANALYTICS);
+    return response.data;
+  },
+
+  async getFeedbacksByCustomer(phone: string) {
+    const response = await api.get(API_ENDPOINTS.FEEDBACKS.BY_CUSTOMER(phone));
     return response.data;
   },
 };

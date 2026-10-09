@@ -8,7 +8,6 @@ import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { voucherService } from "../../../services/sales/voucher.service";
-import api from "../../../services/core/api";
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 // Goedkeuring en auditcomponenten voor AI-gegenereerde medicijnen
@@ -395,16 +394,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
     setAiLoading(true);
     try {
       const { branchId } = getBranchInfoFromToken();
-      const res = await api.post("/api/prescriptions/symptom-consult", {
-        symptoms: text,
-        branchId: branchId || "BR-001"
-      });
-      if (res.data) {
+      const res = await prescriptionService.textConsult(text, branchId || "BR-001");
+      if (res) {
         setAiResult({
           success: true,
           transcribed_text: text,
-          prescription: res.data.prescription || res.data,
-          inventory_status: res.data.inventory_status || { available: res.data.available || [] }
+          prescription: res.prescription || res,
+          inventory_status: res.inventory_status || { available: res.available || [] }
         });
         setIsEditingTranscript(false);
         showToast("Đã phân tích lại phác đồ theo văn bản chỉnh sửa!", "success");
@@ -989,6 +985,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
         patientName,
         patientPhone,
         patientEmail: patientEmail || undefined,
+        userId: loyaltyInfo?.userId || undefined,
         redeemedPoints: usePoints ? redeemedPoints : 0,
         role: assignedRole,
         customerRole: assignedRole,
@@ -1006,6 +1003,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
           patientName,
           patientPhone,
           patientEmail: patientEmail || undefined,
+          userId: loyaltyInfo?.userId || undefined,
           totalAmount: total,
           paymentMethod: "QR_PAY",
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,

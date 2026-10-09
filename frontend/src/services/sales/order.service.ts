@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface OrderItem {
   medicineId: string;
@@ -82,47 +83,54 @@ export interface PayOSLinkPayload {
 
 export const orderService = {
   async createOrder(payload: OrderPayload) {
-    const response = await api.post('/api/orders', payload);
+    const response = await api.post(API_ENDPOINTS.ORDERS.CREATE, payload);
     return response.data;
   },
 
   async checkOrderStatus(orderCode: number | string) {
-    const response = await api.get(`/api/orders/check/${orderCode}`);
+    const response = await api.get(API_ENDPOINTS.ORDERS.CHECK(orderCode));
     return response.data;
   },
 
-  async getMyOrders() {
-    const response = await api.get('/api/orders/my-orders');
+  async getMyOrders(phone?: string) {
+    const response = await api.get(API_ENDPOINTS.ORDERS.MY_ORDERS, {
+      params: phone ? { phone } : undefined,
+    });
+    return response.data;
+  },
+
+  async getOrders(params?: any) {
+    const response = await api.get(API_ENDPOINTS.ORDERS.LIST, { params });
     return response.data;
   },
 
   async createPayOSLink(payload: PayOSLinkPayload) {
-    const response = await api.post('/api/orders/payos-link', payload);
+    const response = await api.post(API_ENDPOINTS.ORDERS.PAYOS_LINK, payload);
     return response.data;
   },
 
   async createSale(payload: SalePayload) {
-    const response = await api.post('/api/sales', payload);
+    const response = await api.post(API_ENDPOINTS.SALES.POS_CHECKOUT, payload);
     return response.data;
   },
 
   async listSalesOrders(search?: string, type?: string) {
-    const response = await api.get('/api/sales', { params: { search, type } });
+    const response = await api.get(API_ENDPOINTS.SALES.POS_CHECKOUT, { params: { search, type } });
     return response.data;
   },
 
   async getSaleById(id: string) {
-    const response = await api.get(`/api/sales/${id}`);
+    const response = await api.get(API_ENDPOINTS.SALES.DETAIL(id));
     return response.data;
   },
 
   async processReturn(payload: any) {
-    const response = await api.post('/api/sales/return', payload);
+    const response = await api.post(API_ENDPOINTS.SALES.RETURN, payload);
     return response.data;
   },
 
   async processExchange(payload: any) {
-    const response = await api.post('/api/sales/exchange', payload);
+    const response = await api.post(API_ENDPOINTS.SALES.EXCHANGE, payload);
     return response.data;
   }
 };

@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface PaymentReconciliationRecord {
   _id: string;
@@ -51,19 +52,19 @@ export const reconciliationService = {
     page?: number;
     limit?: number;
   }) {
-    const response = await api.get('/api/orders/reconciliation/discrepancies', { params });
+    const response = await api.get(API_ENDPOINTS.ORDERS.RECONCILIATION_DISCREPANCIES, { params });
     return response.data;
   },
 
   // Lấy tổng hợp báo cáo đối soát
   async getSummary(params?: { branchId?: string; startDate?: string; endDate?: string }): Promise<ReconciliationSummary> {
-    const response = await api.get('/api/orders/reconciliation/summary', { params });
+    const response = await api.get(API_ENDPOINTS.ORDERS.RECONCILIATION_SUMMARY, { params });
     return response.data;
   },
 
   // Dược sĩ xác nhận khẩn cấp có đối soát tại quầy khi mất mạng
   async manualOverride(data: { orderCode: number; bankTransactionId?: string; actualAmount?: number; notes?: string; [key: string]: any }) {
-    const response = await api.post('/api/orders/reconciliation/override', data);
+    const response = await api.post(API_ENDPOINTS.ORDERS.RECONCILIATION_OVERRIDE, data);
     return response.data;
   },
 
@@ -73,7 +74,7 @@ export const reconciliationService = {
 
   // Kế toán xử lý giải trình biên bản lệch tiền
   async resolveDiscrepancy(id: string, data: { resolutionNotes: string; refundProcessed?: boolean }) {
-    const response = await api.patch(`/api/orders/reconciliation/${id}/resolve`, data);
+    const response = await api.patch(API_ENDPOINTS.ORDERS.RECONCILIATION_RESOLVE(id), data);
     return response.data;
   },
 };

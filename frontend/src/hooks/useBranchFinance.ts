@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import api from '../services/core/api';
+import { branchService } from '../services/admin/branch.service';
+import { orderService } from '../services/sales/order.service';
 import {
   financeService,
   ExpenseItem,
@@ -126,9 +127,9 @@ export function useBranchFinance(options?: UseBranchFinanceOptions) {
   // Fetch branch list once
   const fetchBranches = useCallback(async () => {
     try {
-      const res = await api.get('/api/branches');
-      if (Array.isArray(res.data)) {
-        setBranchesList(res.data);
+      const data = await branchService.getBranches();
+      if (Array.isArray(data)) {
+        setBranchesList(data);
       }
     } catch (err) {
       console.error('Error fetching branches:', err);
@@ -142,7 +143,7 @@ export function useBranchFinance(options?: UseBranchFinanceOptions) {
       const monday = getMondayStr(selectedDate);
       const [ordersRes, expensesRes, vouchersRes, summaryRes, scheduleRes, employeesRes] =
         await Promise.allSettled([
-          api.get('/api/orders'),
+          orderService.getOrders(),
           financeService.getExpenses({ branchId: selectedBranch, year: selectedYear }),
           financeService.getPaymentVouchers({ branchId: selectedBranch }),
           financeService.getCashFlowSummary({
@@ -155,8 +156,8 @@ export function useBranchFinance(options?: UseBranchFinanceOptions) {
           employeeService.getEmployees(selectedBranch !== 'all' ? { branchId: selectedBranch } : undefined),
         ]);
 
-      if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value.data)) {
-        const fetchedOrders = ordersRes.value.data;
+      if (ordersRes.status === 'fulfilled') {
+        const fetchedOrders = Array.isArray(ordersRes.value) ? ordersRes.value : ordersRes.value?.data || [];
         setOrders(fetchedOrders);
 
         // Auto-select latest active date from database if current date has no orders

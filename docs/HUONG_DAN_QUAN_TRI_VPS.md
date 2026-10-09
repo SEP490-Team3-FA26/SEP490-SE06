@@ -191,11 +191,19 @@ docker compose logs -f redis
 # Xem lượng RAM/CPU từng container đang ngốn theo thời gian thực
 docker stats --no-stream
 
-# Dọn dẹp các images không dùng (dangling images) giúp giải phóng hàng chục GB ổ cứng
+# Dọn dẹp các images không dùng (dangling images)
 docker image prune -f
 
-# Dọn dẹp sạch sẽ build cache, container đã tắt và network thừa
-docker system prune -a --volumes -f
+# Dọn dẹp BuildKit Build Cache theo TTL (ví dụ cũ hơn 7 ngày = 168 giờ)
+docker builder prune -a -f --filter "until=168h"
+
+# Dọn dẹp toàn bộ Build Cache không dùng để giải phóng hàng chục GB SSD
+docker builder prune -a -f
+
+# Tự động hóa dọn dẹp định kỳ 1 tuần 1 lần (03:00 sáng Chủ Nhật hàng tuần):
+# Script thực thi: /usr/local/bin/docker-weekly-prune.sh
+# Cấu hình Cron: /etc/cron.d/wdp301-docker-prune
+# Log dọn dẹp: /var/log/docker-weekly-prune.log
 ```
 
 ---

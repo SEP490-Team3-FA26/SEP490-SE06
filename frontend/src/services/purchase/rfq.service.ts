@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface RfqItem {
   medicineId: string;
@@ -103,48 +104,48 @@ export interface SubmitQuotePayload {
 export const rfqService = {
   // Lấy danh sách RFQ
   async getRfqs(params?: { status?: string; branchId?: string }): Promise<RequestForQuotationData[]> {
-    const response = await api.get('/api/rfqs', { params });
+    const response = await api.get(API_ENDPOINTS.RFQ.LIST, { params });
     return response.data;
   },
 
   // Chi tiết RFQ và ma trận báo giá
   async getRfqById(id: string): Promise<RequestForQuotationData> {
-    const response = await api.get(`/api/rfqs/${id}`);
+    const response = await api.get(API_ENDPOINTS.RFQ.DETAIL(id));
     return response.data;
   },
 
   // Tạo RFQ mới
   async createRfq(payload: CreateRfqPayload) {
-    const response = await api.post('/api/rfqs', payload);
+    const response = await api.post(API_ENDPOINTS.RFQ.CREATE, payload);
     return response.data;
   },
 
   // Gửi RFQ đồng loạt qua email/portal đến các NCC
   async sendRfq(id: string) {
-    const response = await api.post(`/api/rfqs/${id}/send`);
+    const response = await api.post(`${API_ENDPOINTS.RFQ.DETAIL(id)}/send`);
     return response.data;
   },
 
   // Nhập bảng chào giá của NCC
   async submitQuotation(id: string, payload: SubmitQuotePayload) {
-    const response = await api.post(`/api/rfqs/${id}/quotations`, payload);
+    const response = await api.post(`${API_ENDPOINTS.RFQ.DETAIL(id)}/quotations`, payload);
     return response.data;
   },
 
   // Chọn thầu và tự động sinh PO
   async awardRfq(id: string, awardPayload: { quotationId: string; supplierId: string; reason?: string }) {
-    const response = await api.post(`/api/rfqs/${id}/award`, awardPayload);
+    const response = await api.post(API_ENDPOINTS.RFQ.AWARD(id), awardPayload);
     return response.data;
   },
 
   // CỔNG BÁO GIÁ NCC (MAGIC LINK KHÔNG CẦN TÀI KHOẢN)
   async getRfqByToken(token: string) {
-    const response = await api.get(`/api/rfq-portal/${token}`);
+    const response = await api.get(API_ENDPOINTS.RFQ.PORTAL_GET_BY_TOKEN(token));
     return response.data;
   },
 
   async submitQuoteByToken(token: string, payload: any) {
-    const response = await api.post(`/api/rfq-portal/${token}/quote`, payload);
+    const response = await api.post(API_ENDPOINTS.RFQ.PORTAL_SUBMIT_QUOTE(token), payload);
     return response.data;
   },
 };

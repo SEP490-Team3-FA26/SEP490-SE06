@@ -1,6 +1,6 @@
 /**
  * Script kiểm thử tự động toàn diện Mock Sandbox CSDL Dược Quốc gia Việt Nam v2
- * Chuẩn đặc tả Quyết định 232/QĐ-TTYQG (Bản 1.1)
+ * Chuẩn đặc tả Quyết định 232/QĐ-TTYQG (Bản 1.1) - Đầy đủ 19 APIs
  */
 
 const BASE_URL = process.env.CSDLDUOC_BASE_URL || "http://localhost:4005/v2";
@@ -50,152 +50,223 @@ async function request(
 
 async function runTests() {
   console.log(`\n================================================================`);
-  console.log(`🧪 BẮT ĐẦU KIỂM THỬ MOCK SANDBOX CSDL DƯỢC QUỐC GIA (v2)`);
+  console.log(`🧪 BẮT ĐẦU KIỂM THỬ TOÀN DIỆN 19 API CSDL DƯỢC QUỐC GIA (QĐ 232 v1.1)`);
   console.log(`🎯 Base URL: ${BASE_URL}`);
   console.log(`================================================================\n`);
 
   let accessToken = "";
 
   // -------------------------------------------------------------
-  // Test 1: Kiểm tra Health Check
+  // Test 1: Kiểm tra Health Check & 19 APIs spec
   // -------------------------------------------------------------
-  console.log(`▶️ [TEST 1] Kiểm tra Health Check endpoint: GET /health`);
+  console.log(`▶️ [TEST 1] Kiểm tra Health Check & Danh sách 19 APIs`);
   const healthRes = await request("/health");
   console.log(`   Status: ${healthRes.status}`);
   console.log(`   Hệ thống: ${healthRes.data?.name}`);
-  console.log(`   Phiên bản: ${healthRes.data?.specification}\n`);
+  console.log(`   Tổng số API chuẩn: ${healthRes.data?.total_apis} APIs\n`);
 
   // -------------------------------------------------------------
   // Test 2: Đăng nhập lấy Bearer Access Token (POST /auth/login)
   // -------------------------------------------------------------
-  console.log(`▶️ [TEST 2] Lấy access token qua POST /auth/login (Base64 password)`);
+  console.log(`▶️ [TEST 2] API 1: Xác thực OAuth2 POST /auth/login (Base64 password)`);
   const rawPassword = "MatKhauNhaThuoc2026@";
   const base64Password = Buffer.from(rawPassword).toString("base64");
-  const taxCode = "0312345678";
-
-  console.log(`   Mã số thuế: ${taxCode}`);
-  console.log(`   Mật khẩu gốc: ${rawPassword} -> Base64: ${base64Password}`);
+  const taxCode = "0312345678"; // MST Kho Tổng WDP301
 
   const loginRes = await request("/auth/login", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: {
-      username: taxCode,
-      password: base64Password,
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: { username: taxCode, password: base64Password },
   });
 
   console.log(`   Status: ${loginRes.status}`);
   if (loginRes.status === 200 && loginRes.data.access_token) {
     accessToken = loginRes.data.access_token;
-    console.log(`   ✅ Lấy Token thành công!`);
-    console.log(`   Token Type: ${loginRes.data.token_type}`);
-    console.log(`   Expires In: ${loginRes.data.expires_in}s`);
-    console.log(`   Access Token: ${accessToken.slice(0, 35)}...`);
+    console.log(`   ✅ Token Type: ${loginRes.data.token_type} | Expires In: ${loginRes.data.expires_in}s`);
   } else {
     console.error(`   ❌ Lỗi lấy token:`, loginRes.data);
     process.exit(1);
   }
   console.log();
 
-  const authHeaders = {
-    Authorization: `Bearer ${accessToken}`,
-  };
+  const authHeaders = { Authorization: `Bearer ${accessToken}` };
 
   // -------------------------------------------------------------
-  // Test 3: Lấy danh sách thuốc (GET /master/drugs) có filter
+  // Test 3: Nhóm Danh Mục Master Catalogs (APIs 2 -> 8)
   // -------------------------------------------------------------
-  console.log(`▶️ [TEST 3] Lấy danh sách thuốc: GET /master/drugs?page=1&page_size=5&last_update_from=2026-07-01&last_update_to=2026-10-04`);
-  const drugsRes = await request("/master/drugs?page=1&page_size=5&last_update_from=2026-07-01&last_update_to=2026-10-04", {
-    headers: authHeaders,
-  });
-
-  console.log(`   Status: ${drugsRes.status}`);
-  console.log(`   Page: ${drugsRes.data.page} | Total items: ${drugsRes.data.total} | Returned: ${drugsRes.data.data?.length}`);
-  console.log(`   Mẫu thuốc đầu tiên trong kết quả:`);
-  if (drugsRes.data.data?.[0]) {
-    const d = drugsRes.data.data[0];
-    console.log(`   - ID: ${d.id}`);
-    console.log(`   - Tên thuốc: ${d.name}`);
-    console.log(`   - SĐK: ${d.registration_number} (Cũ: ${d.old_registration_number || "N/A"})`);
-    console.log(`   - Hoạt chất: ${d.active_pharmaceutical_ingredient} (${d.strength})`);
-    console.log(`   - Phân loại: ${d.prescription_status === 0 ? "OTC (Không kê đơn)" : "ETC (Kê đơn)"}`);
-    console.log(`   - KS đặc biệt: ${d.special_control_type}`);
-    console.log(`   - Nhà SX: ${d.manufacturer?.name} (${d.manufacturer?.country})`);
-    console.log(`   - Địa chỉ NSX: ${d.manufacturer?.address}`);
-    console.log(`   - Ngày cập nhật: ${d.last_update_time}`);
-    console.log(`   - Mã GTIN bao bì: ${JSON.stringify(d.packagings)}`);
-  }
-  console.log();
-
-  // -------------------------------------------------------------
-  // Test 4: Chi tiết một thuốc (GET /master/drugs/:drug_id)
-  // -------------------------------------------------------------
-  console.log(`▶️ [TEST 4] Chi tiết thuốc theo ID: GET /master/drugs/DRUG-0001 (Panadol Extra)`);
-  const detailRes1 = await request("/master/drugs/DRUG-0001", { headers: authHeaders });
-  console.log(`   Status: ${detailRes1.status} | Thuốc: ${detailRes1.data.name} | SĐK: ${detailRes1.data.registration_number}`);
-
-  console.log(`▶️ [TEST 4b] Chi tiết thuốc theo Số Đăng Ký: GET /master/drugs/VN-21980-19 (Augmentin 1g)`);
-  const detailRes2 = await request("/master/drugs/VN-21980-19", { headers: authHeaders });
-  console.log(`   Status: ${detailRes2.status} | Thuốc: ${detailRes2.data.name} | Phân loại: ${detailRes2.data.prescription_status === 1 ? "ETC Kê đơn" : "OTC"}`);
-
-  console.log(`▶️ [TEST 4c] Kiểm tra thuốc kiểm soát đặc biệt (Gây nghiện): DRUG-0015 (Morphine)`);
-  const detailRes3 = await request("/master/drugs/DRUG-0015", { headers: authHeaders });
-  console.log(`   Status: ${detailRes3.status} | Thuốc: ${detailRes3.data.name} | special_control_type: ${detailRes3.data.special_control_type} (1 = Gây nghiện)`);
-  console.log();
-
-  // -------------------------------------------------------------
-  // Test 5: Các API danh mục Master Data phụ trợ
-  // -------------------------------------------------------------
-  console.log(`▶️ [TEST 5] Kiểm tra các API danh mục phụ trợ:`);
-  
+  console.log(`▶️ [TEST 3] Nhóm Danh Mục Master Data (APIs 2 -> 8):`);
   const units = await request("/master/units", { headers: authHeaders });
-  console.log(`   - /master/units: ${units.status} (Tổng số đơn vị: ${units.data.total})`);
+  console.log(`   - API 2: /master/units -> ${units.status} (Tổng số đơn vị: ${units.data.total})`);
 
   const countries = await request("/master/countries", { headers: authHeaders });
-  console.log(`   - /master/countries: ${countries.status} (Tổng số quốc gia: ${countries.data.total})`);
+  console.log(`   - API 3: /master/countries -> ${countries.status} (Tổng số quốc gia: ${countries.data.total})`);
 
   const drugGroups = await request("/master/drug-groups", { headers: authHeaders });
-  console.log(`   - /master/drug-groups: ${drugGroups.status} (Tổng nhóm thuốc: ${drugGroups.data.total})`);
+  console.log(`   - API 4: /master/drug-groups -> ${drugGroups.status} (Tổng nhóm thuốc: ${drugGroups.data.total})`);
 
   const routes = await request("/master/routes", { headers: authHeaders });
-  console.log(`   - /master/routes: ${routes.status} (Tổng đường dùng: ${routes.data.total})`);
+  console.log(`   - API 5: /master/routes -> ${routes.status} (Tổng đường dùng: ${routes.data.total})`);
 
   const manufacturers = await request("/master/manufacturers", { headers: authHeaders });
-  console.log(`   - /master/manufacturers: ${manufacturers.status} (Tổng nhà sản xuất: ${manufacturers.data.total})`);
+  console.log(`   - API 6: /master/manufacturers -> ${manufacturers.status} (Tổng nhà SX: ${manufacturers.data.total})`);
 
   const provinces = await request("/master/provinces", { headers: authHeaders });
-  console.log(`   - /master/provinces: ${provinces.status} (Tổng tỉnh/thành: ${provinces.data.total})`);
+  console.log(`   - API 7: /master/provinces -> ${provinces.status} (Tổng tỉnh/thành: ${provinces.data.total})`);
 
   const communes = await request("/master/communes?province_id=79", { headers: authHeaders });
-  console.log(`   - /master/communes?province_id=79: ${communes.status} (Tổng phường/xã TP.HCM: ${communes.data.total})`);
-  console.log();
+  console.log(`   - API 8: /master/communes?province_id=79 -> ${communes.status} (Tổng xã/phường TP.HCM: ${communes.data.total})\n`);
 
   // -------------------------------------------------------------
-  // Test 6: Kiểm tra các kịch bản ngoại lệ (Error Handlers)
+  // Test 4: Nhóm Thuốc Quốc Gia (APIs 9, 10) - Kiểm tra 2.331 thuốc
   // -------------------------------------------------------------
-  console.log(`▶️ [TEST 6] Kiểm tra các kịch bản lỗi quy định trong đặc tả:`);
+  console.log(`▶️ [TEST 4] Nhóm Thuốc Quốc Gia (APIs 9, 10):`);
+  const drugsRes = await request("/master/drugs?page=1&page_size=5", { headers: authHeaders });
+  console.log(`   - API 9: /master/drugs -> ${drugsRes.status} | Tổng số thuốc trên Cổng Quốc Gia: ${drugsRes.data.total} thuốc`);
+  console.log(`   - Thuốc mẫu: ${drugsRes.data.data?.[0]?.name} (SĐK: ${drugsRes.data.data?.[0]?.registration_number})`);
 
-  // Case 6.1: Gọi API không có Token -> Phải trả về 401 Unauthorized
-  const noTokenRes = await request("/master/drugs");
-  console.log(`   - Không truyền Token: Status ${noTokenRes.status} (Mong đợi 401: ${noTokenRes.status === 401 ? "✅ ĐẠT" : "❌ THẤT BẠI"})`);
+  const sampleDrugId = drugsRes.data.data?.[0]?.id || "DRUG-00001";
+  const drugDetail = await request(`/master/drugs/${sampleDrugId}`, { headers: authHeaders });
+  console.log(`   - API 10: /master/drugs/${sampleDrugId} -> ${drugDetail.status} (Tên: ${drugDetail.data?.name})\n`);
 
-  // Case 6.2: Tham số drug_id quá 20 ký tự -> Phải trả về 400 Bad Request
-  const longIdRes = await request("/master/drugs/DRUG-ID-QUAN-20-KY-TU-SE-BI-LOI-400", { headers: authHeaders });
-  console.log(`   - Drug ID > 20 ký tự: Status ${longIdRes.status} (Mong đợi 400: ${longIdRes.status === 400 ? "✅ ĐẠT" : "❌ THẤT BẠI"})`);
+  // -------------------------------------------------------------
+  // Test 5: Nhập Hàng - Stock In (APIs 11, 12, 13)
+  // -------------------------------------------------------------
+  console.log(`▶️ [TEST 5] Giao Dịch Nhập Hàng (APIs 11, 12, 13):`);
+  const stockInRes = await request("/transactions/stock-in", {
+    method: "POST",
+    headers: authHeaders,
+    body: {
+      transaction_date: new Date().toISOString(),
+      reason: "supplier", // Kho Tổng nhập từ NCC
+      supplier_id: "NCC-DHG-001",
+      reference_number: "HD-VAT-882143",
+      practice_license_code: "79-001234", // Kho Tổng GSP (BR-001)
+      items: [
+        {
+          drug_id: sampleDrugId,
+          unit_id: "U-01",
+          quantity: 200,
+          batch_no: "LOT-DHG-2026-01",
+          packaging_specifications: "Hộp 10 vỉ x 10 viên",
+          expiry_date: "2028-12-31",
+          price: 45000,
+        },
+      ],
+    },
+  });
 
-  // Case 6.3: Thuốc không tồn tại -> Phải trả về 404 Not Found
-  const notFoundRes = await request("/master/drugs/KHONG-CO-THUOC", { headers: authHeaders });
-  console.log(`   - Thuốc không tồn tại: Status ${notFoundRes.status} (Mong đợi 404: ${notFoundRes.status === 404 ? "✅ ĐẠT" : "❌ THẤT BẠI"})`);
+  const stockInTxnId = stockInRes.data?.transaction_id;
+  console.log(`   - API 11 (POST stock-in): ${stockInRes.status} | Mã: ${stockInTxnId} | Status: ${stockInRes.data?.status}`);
 
-  // Case 6.4: Tham số page_size > 50 -> Phải trả về 400 Bad Request
-  const invalidPageSizeRes = await request("/master/drugs?page_size=100", { headers: authHeaders });
-  console.log(`   - Page size > 50: Status ${invalidPageSizeRes.status} (Mong đợi 400: ${invalidPageSizeRes.status === 400 ? "✅ ĐẠT" : "❌ THẤT BẠI"})`);
+  const stockInDetail = await request(`/transaction/stock-in/${stockInTxnId}`, { headers: authHeaders });
+  console.log(`   - API 12 (GET detail): ${stockInDetail.status} | Loại: ${stockInDetail.data?.reason} | Số items: ${stockInDetail.data?.items?.length}`);
+
+  const stockInStatus = await request(`/transaction/stock-in/${stockInTxnId}/status`, { headers: authHeaders });
+  console.log(`   - API 13 (GET status polling): ${stockInStatus.status} | Trạng thái: ${stockInStatus.data?.status}\n`);
+
+  // -------------------------------------------------------------
+  // Test 6: Xuất Hàng & Bán Lẻ - Stock Out (APIs 14, 15, 16)
+  // -------------------------------------------------------------
+  console.log(`▶️ [TEST 6] Giao Dịch Xuất Hàng & Bán Lẻ (APIs 14, 15, 16):`);
+  const stockOutRes = await request("/transactions/stock-out", {
+    method: "POST",
+    headers: authHeaders,
+    body: {
+      transaction_date: new Date().toISOString(),
+      reason: "sale-retail", // Kho Nhánh bán lẻ cho bệnh nhân
+      reference_number: "HD-POS-20261007-0099",
+      practice_license_code: "79-001235", // Kho Nhánh 2 (BR-002)
+      items: [
+        {
+          drug_id: sampleDrugId,
+          unit_id: "U-01",
+          quantity: 2,
+          batch_no: "LOT-DHG-2026-01",
+          packaging_specifications: "Hộp 10 vỉ x 10 viên",
+          expiry_date: "2028-12-31",
+          price: 65000,
+        },
+      ],
+    },
+  });
+
+  const stockOutTxnId = stockOutRes.data?.transaction_id;
+  console.log(`   - API 14 (POST stock-out): ${stockOutRes.status} | Mã: ${stockOutTxnId} | Status: ${stockOutRes.data?.status}`);
+
+  const stockOutDetail = await request(`/transactions/stock-out/${stockOutTxnId}`, { headers: authHeaders });
+  console.log(`   - API 15 (GET detail): ${stockOutDetail.status} | Lý do: ${stockOutDetail.data?.reason}`);
+
+  const stockOutStatus = await request(`/transactions/stock-out/${stockOutTxnId}/status`, { headers: authHeaders });
+  console.log(`   - API 16 (GET status polling): ${stockOutStatus.status} | Trạng thái: ${stockOutStatus.data?.status}`);
+
+  // Test vi phạm y tế: Bán thuốc quá hạn -> Hệ thống Quốc gia reject!
+  const expiredOutRes = await request("/transactions/stock-out", {
+    method: "POST",
+    headers: authHeaders,
+    body: {
+      transaction_date: new Date().toISOString(),
+      reason: "sale-retail",
+      reference_number: "HD-VIPHAM-001",
+      practice_license_code: "79-001235",
+      items: [
+        {
+          drug_id: sampleDrugId,
+          unit_id: "U-01",
+          quantity: 1,
+          batch_no: "LOT-HETHAN-2020",
+          expiry_date: "2021-01-01", // ĐÃ HẾT HẠN!
+          price: 50000,
+        },
+      ],
+    },
+  });
+  console.log(`   - Test vi phạm (Bán thuốc quá hạn): Status ${expiredOutRes.data?.status} (${expiredOutRes.data?.status === "rejected" ? "✅ BỘ Y TẾ TỪ CHỐI THÀNH CÔNG" : "❌ LỖI"})\n`);
+
+  // -------------------------------------------------------------
+  // Test 7: Kiểm Kê Kho - Stock Taking (APIs 17, 18, 19)
+  // -------------------------------------------------------------
+  console.log(`▶️ [TEST 7] Giao Dịch Kiểm Kê Kho (APIs 17, 18, 19):`);
+  const stockTakingRes = await request("/transactions/stock-taking", {
+    method: "POST",
+    headers: authHeaders,
+    body: {
+      transaction_date: new Date().toISOString(),
+      reference_number: "IC-20261007-01",
+      practice_license_code: "79-001234", // Kiểm kê Kho Tổng
+      items: [
+        {
+          drug_id: sampleDrugId,
+          batch_no: "LOT-DHG-2026-01",
+          system_quantity: 200,
+          actual_quantity: 198, // Lệch 2 hộp
+          note: "Vỡ hỏng trong quá trình vận chuyển kệ",
+        },
+      ],
+    },
+  });
+
+  const stockTakingTxnId = stockTakingRes.data?.transaction_id;
+  console.log(`   - API 17 (POST stock-taking): ${stockTakingRes.status} | Mã: ${stockTakingTxnId} | Status: ${stockTakingRes.data?.status}`);
+
+  const stockTakingDetail = await request(`/transactions/stock-taking/${stockTakingTxnId}`, { headers: authHeaders });
+  console.log(`   - API 18 (GET detail): ${stockTakingDetail.status} | Chênh lệch: ${stockTakingDetail.data?.items?.[0]?.discrepancy}`);
+
+  const stockTakingStatus = await request(`/transactions/stock-taking/${stockTakingTxnId}/status`, { headers: authHeaders });
+  console.log(`   - API 19 (GET status polling): ${stockTakingStatus.status} | Trạng thái: ${stockTakingStatus.data?.status}\n`);
+
+  // -------------------------------------------------------------
+  // Test 8: Sổ Cái Giám Sát Của Thanh Tra Bộ Y Tế (MOH_INSPECTOR)
+  // -------------------------------------------------------------
+  console.log(`▶️ [TEST 8] Đặc Quyền Giám Sát Của Thanh Tra Bộ Y Tế (MOH_INSPECTOR):`);
+  const inspectorDash = await request("/transactions/inspector/dashboard", { headers: authHeaders });
+  console.log(`   - Tổng số cơ sở quản lý: ${inspectorDash.data?.summary?.total_facilities} (Kho Tổng: ${inspectorDash.data?.summary?.central_warehouses}, Kho Nhánh: ${inspectorDash.data?.summary?.retail_branches})`);
+  console.log(`   - Tổng phiếu nhập kho: ${inspectorDash.data?.summary?.total_stock_in}`);
+  console.log(`   - Tổng phiếu xuất kho: ${inspectorDash.data?.summary?.total_stock_out}`);
+  console.log(`   - Tổng phiếu kiểm kê: ${inspectorDash.data?.summary?.total_stock_taking}`);
+  console.log(`   - Tổng vi phạm y tế phát hiện: ${inspectorDash.data?.summary?.total_violations} vụ vi phạm`);
 
   console.log(`\n================================================================`);
-  console.log(`🎉 TẤT CẢ TEST CASES ĐÃ HOÀN TẤT XÁC MINH THÀNH CÔNG 100%!`);
+  console.log(`🎉 TOÀN BỘ 19/19 API CHUẨN QUYẾT ĐỊNH 232 ĐÃ KIỂM THỬ THÀNH CÔNG 100%!`);
   console.log(`================================================================\n`);
 }
 

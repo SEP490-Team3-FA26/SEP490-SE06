@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Mail, Phone, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon, Briefcase } from "lucide-react";
+import { ArrowRight, Mail, Phone, Lock, Eye, EyeOff, PackageSearch, Store, Pill, ShieldCheck, CheckCircle2, Users, AlertCircle, Loader2, LogOut, LayoutDashboard, Store as StoreIcon, Briefcase, Building2 } from "lucide-react";
 import { authService } from "../../services/auth/auth.service";
 import { requestNotificationPermission } from "../../utils/notificationPermission";
 
@@ -87,7 +87,7 @@ export function Login() {
     }
     setRole(selectedRole.id);
     setEmail(selectedRole.email);
-    setPassword("123456");
+    setPassword(selectedRole.password || "123456");
     setError("");
   };
 
@@ -104,6 +104,8 @@ export function Login() {
         return "/branch";
       case "pharmacist":
         return "/pharmacist";
+      case "moh_inspector":
+        return "/inspector/gpp-sync";
       case "user":
       default:
         return "/";

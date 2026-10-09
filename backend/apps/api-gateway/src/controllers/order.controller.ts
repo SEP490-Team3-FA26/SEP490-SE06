@@ -54,7 +54,8 @@ export class OrderController implements OnModuleInit {
   @ApiOperation({ summary: 'Tạo đơn hàng mới' })
   async createOrder(@Body() data: CreateOrderDto, @Req() req: any) {
     if (req.user) {
-      if (req.user.sub) data.userId = req.user.sub;
+      const isStaff = ['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role);
+      if (!isStaff && req.user.sub && !data.userId) data.userId = req.user.sub;
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
     }
     return await sendKafkaMessage(this.orderClient, 'orders.create', { ...data });
@@ -207,13 +208,14 @@ export class OrderController implements OnModuleInit {
   @ApiOperation({ summary: 'Tạo link thanh toán PayOS' })
   async createPayOSLink(@Body() data: CreatePayOSLinkDto, @Req() req: any) {
     if (req.user) {
-      if (req.user.sub) data.userId = req.user.sub;
+      const isStaff = ['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role);
+      if (!isStaff && req.user.sub && !data.userId) data.userId = req.user.sub;
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
     }
     return await sendKafkaMessage(this.orderClient, 'orders.create', {
       ...data,
       paymentMethod: 'QR_PAY',
-      userId: req.user?.sub || data.userId,
+      userId: data.userId || (req.user && !['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role) ? req.user.sub : undefined),
     });
   }
 
@@ -230,7 +232,8 @@ export class OrderController implements OnModuleInit {
   async getMyOrders(@Req() req: any, @Query('phone') phone?: string) {
     const userId = req.user?.sub;
     const fullName = req.user?.fullName || '';
+    const userPhone = phone || req.user?.phone || '';
 
-    return await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId, fullName, phone });
+    return await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId, fullName, phone: userPhone });
   }
 }

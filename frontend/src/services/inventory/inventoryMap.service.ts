@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 // ============================================================
 // Types
@@ -69,31 +70,31 @@ export interface BinDetailResponse {
 export const inventoryMapService = {
   /** Lấy toàn bộ sơ đồ kho (danh sách zone + rack) */
   getWarehouseMap: async () => {
-    const response = await api.get('/api/medicines/warehouse-map');
+    const response = await api.get(API_ENDPOINTS.MEDICINES.WAREHOUSE_MAP);
     return response.data;
   },
 
   /** Cũ — lấy chi tiết theo Tầng (backward compat) */
   getShelfDetail: async (zone: string, rack: string, shelf: number) => {
-    const response = await api.get(`/api/medicines/shelf-detail?zone=${zone}&rack=${rack}&shelf=${shelf}`);
+    const response = await api.get(API_ENDPOINTS.MEDICINES.SHELF_DETAIL, { params: { zone, rack, shelf } });
     return response.data;
   },
 
   /** MỚI — Lấy layout kệ: 4 Tầng × 10 Thùng với thông tin thuốc và tồn kho */
   getShelfLayout: async (zone: string, rack: string): Promise<ShelfLayout[]> => {
-    const response = await api.get('/api/medicines/shelf-layout', { params: { zone, rack } });
+    const response = await api.get(`${API_ENDPOINTS.MEDICINES.LIST}/shelf-layout`, { params: { zone, rack } });
     return response.data;
   },
 
   /** MỚI — Lấy danh sách lô Khu Dự Trữ (slotType = RESERVE), sắp xếp FEFO */
   getReserveBatches: async (branchId = 'CENTRAL_WH'): Promise<ReserveBatch[]> => {
-    const response = await api.get('/api/medicines/reserve-batches', { params: { branchId } });
+    const response = await api.get(`${API_ENDPOINTS.MEDICINES.LIST}/reserve-batches`, { params: { branchId } });
     return response.data;
   },
 
   /** MỚI — Chi tiết thùng: lô MAIN + lô RESERVE của thuốc đó */
   getBinDetail: async (zone: string, rack: string, shelf: number, bin: number) => {
-    const response = await api.get('/api/medicines/bin-detail', { params: { zone, rack, shelf, bin } });
+    const response = await api.get(`${API_ENDPOINTS.MEDICINES.LIST}/bin-detail`, { params: { zone, rack, shelf, bin } });
     return response.data;
   },
 
@@ -106,23 +107,23 @@ export const inventoryMapService = {
     bin: number;
     maxCapacity?: number;
   }) => {
-    const response = await api.post('/api/medicines/assign-location', dto);
+    const response = await api.post(API_ENDPOINTS.MEDICINES.ASSIGN_LOCATION, dto);
     return response.data;
   },
 
   /** MỚI — Khóa lô thuốc (QUARANTINED) */
   quarantineBatch: async (batchId: string, reason?: string) => {
-    const response = await api.patch(`/api/medicines/batches/${batchId}/quarantine`, { reason });
+    const response = await api.patch(`${API_ENDPOINTS.MEDICINES.LIST}/batches/${encodeURIComponent(batchId)}/quarantine`, { reason });
     return response.data;
   },
 
   warehouseSearch: async (q: string) => {
-    const response = await api.get(`/api/medicines/warehouse-search?q=${encodeURIComponent(q)}`);
+    const response = await api.get(API_ENDPOINTS.MEDICINES.WAREHOUSE_SEARCH, { params: { q: q.trim() } });
     return response.data;
   },
 
   syncLocations: async () => {
-    const response = await api.post('/api/medicines/sync-locations');
+    const response = await api.post(API_ENDPOINTS.MEDICINES.SYNC_STOCK);
     return response.data;
   }
 };

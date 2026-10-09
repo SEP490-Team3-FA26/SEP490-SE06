@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Phone, Mail, MapPin, Lock, Edit2, Save, X, Eye, EyeOff, CheckCircle2, AlertCircle, Shield, Building2, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../services/core/api';
+import { authService, branchService, userService } from '../../services';
 import { notifyAuthTokenChanged } from '../../utils/authEvents';
 
 const ROLE_MAP: Record<string, { label: string; color: string; bg: string }> = {
@@ -64,8 +64,7 @@ export function Profile() {
     const fetchProfile = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/api/auth/profile');
-        const data = res.data;
+        const data = await authService.getProfile();
         const fetchedBranchId = data.branchId || '';
         setProfile({
           fullName: data.fullName || data.name || '',
@@ -79,8 +78,7 @@ export function Profile() {
         // Nếu có branchId → fetch danh sách branch để lấy tên
         if (fetchedBranchId) {
           try {
-            const branchRes = await api.get('/api/branches');
-            const branches: any[] = branchRes.data || [];
+            const branches: any[] = (await branchService.getBranches()) || [];
             // branchId trong user là branchCode (VD: "BR-002"), khớp với b.branchCode hoặc b._id
             const found = branches.find(
               (b: any) =>
@@ -124,7 +122,7 @@ export function Profile() {
     setIsSaving(true);
     setProfileError('');
     try {
-      await api.put('/api/users/profile', {
+      await userService.updateProfile({
         fullName: editData.fullName.trim(),
         phone: editData.phone.trim(),
         address: editData.address.trim(),
@@ -154,7 +152,7 @@ export function Profile() {
     if (newPassword !== confirmPassword) { setPasswordError('Mật khẩu xác nhận không khớp.'); return; }
     setIsChangingPassword(true);
     try {
-      await api.post('/api/auth/change-password', { oldPassword, newPassword });
+      await userService.changePassword(oldPassword, newPassword);
       setPasswordSuccess('Đổi mật khẩu thành công! Bạn sẽ được đăng xuất...');
       setTimeout(() => {
         localStorage.removeItem('token');

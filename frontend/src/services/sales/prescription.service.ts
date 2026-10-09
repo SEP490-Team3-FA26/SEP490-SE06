@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface ScannedCartItem {
   medicineId: string;
@@ -34,7 +35,7 @@ export interface ProcessedScanResult {
 export const prescriptionService = {
   async getPrescriptions() {
     try {
-      const response = await api.get('/api/prescriptions');
+      const response = await api.get(API_ENDPOINTS.PRESCRIPTIONS.LIST);
       return Array.isArray(response?.data) ? response.data : [];
     } catch {
       return [];
@@ -42,13 +43,13 @@ export const prescriptionService = {
   },
 
   async getPrescriptionByCode(code: string) {
-    const response = await api.get(`/api/prescriptions/${code}`);
+    const response = await api.get(API_ENDPOINTS.PRESCRIPTIONS.DETAIL(code));
     return response.data;
   },
 
   async recommendPrescription(formData: FormData) {
     try {
-      const response = await api.post('/api/ai/voice-consult', formData, {
+      const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.VOICE_CONSULT, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -162,7 +163,7 @@ export const prescriptionService = {
   },
 
   async scanPrescriptionAI(formData: FormData) {
-    const response = await api.post('/api/ai/scan-prescription', formData, {
+    const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.SCAN_OCR, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -281,7 +282,7 @@ export const prescriptionService = {
   },
 
   async textConsult(symptoms: string, branchId?: string) {
-    const response = await api.post('/api/prescriptions/symptom-consult', {
+    const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.SYMPTOM_CONSULT, {
       symptoms,
       branch_id: branchId,
     });
@@ -295,13 +296,13 @@ export const prescriptionService = {
     gender?: string;
     allergies?: string[];
   }) {
-    const response = await api.post('/api/prescriptions/chat', payload);
+    const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.CHAT, payload);
     return response.data;
   },
 
   async getChatSessions() {
     try {
-      const response = await api.get('/api/prescriptions/chat/sessions');
+      const response = await api.get(API_ENDPOINTS.PRESCRIPTIONS.CHAT_SESSIONS);
       return response.data;
     } catch {
       return { success: false, sessions: [] };
@@ -310,7 +311,7 @@ export const prescriptionService = {
 
   async saveChatSession(session: any) {
     try {
-      const response = await api.post('/api/prescriptions/chat/sessions', session);
+      const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.CHAT_SESSIONS, session);
       return response.data;
     } catch {
       return { success: false };
@@ -319,7 +320,7 @@ export const prescriptionService = {
 
   async deleteChatSession(sessionId: string) {
     try {
-      const response = await api.delete(`/api/prescriptions/chat/sessions/${sessionId}`);
+      const response = await api.delete(API_ENDPOINTS.PRESCRIPTIONS.CHAT_SESSION_DELETE(sessionId));
       return response.data;
     } catch {
       return { success: false };
