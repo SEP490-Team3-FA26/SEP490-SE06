@@ -21,6 +21,17 @@ LogBox.ignoreLogs([
   'Fetch request has been canceled',
 ]);
 
+// Đảm bảo thông báo hiện banner, rung và phát chuông ngay cả khi app đang mở trên màn hình (Foreground)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
 const linking = {
   prefixes: ['wdp301://', 'https://abcpharmacy.store'],
   config: {
