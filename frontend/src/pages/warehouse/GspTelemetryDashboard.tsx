@@ -120,7 +120,7 @@ const METRIC_DEFINITIONS: Record<
   MetricKey,
   { label: string; unit: string; color: string; desc: string; minRange: number }
 > = {
-  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 25°C", minRange: 2.0 },
+  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 40°C", minRange: 2.0 },
   humidity: { label: "Độ Ẩm Không Khí", unit: "%RH", color: "#06b6d4", desc: "Chuẩn GSP ≤ 70%RH", minRange: 5.0 },
   dewPoint: { label: "Điểm Sương (Td)", unit: "°C", color: "#6366f1", desc: "Công thức Magnus Eq", minRange: 2.0 },
   vpd: { label: "Áp Suất Hơi (VPD)", unit: "kPa", color: "#a855f7", desc: "Tốc độ bay hơi ẩm dược phẩm", minRange: 0.5 },
@@ -387,7 +387,7 @@ export function GspTelemetryDashboard() {
   const seqVal = latestData?.seq;
 
   // Đánh giá vi phạm chuẩn GSP thực tế
-  const isTempViolated = tempVal !== undefined && (tempVal < 15.0 || tempVal > (station?.tempMax || 25.0));
+  const isTempViolated = tempVal !== undefined && (tempVal < 15.0 || tempVal > (station?.tempMax || 40.0));
   const isHumViolated = humVal !== undefined && humVal > (station?.humMax || 70.0);
   const isGspAlert = isTempViolated || isHumViolated || Boolean(latestData?.status?.alert);
 
@@ -449,7 +449,7 @@ export function GspTelemetryDashboard() {
               }`}
             >
               {isGspAlert ? <AlertTriangle className="w-4 h-4 text-rose-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
-              <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : "ĐẠT CHUẨN GSP (15-25°C, ≤70%RH)"}</span>
+              <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : `ĐẠT CHUẨN GSP (15-${station?.tempMax || 40}°C, ≤70%RH)`}</span>
             </div>
           ) : (
             <div className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 flex items-center gap-2 text-xs font-semibold">
@@ -538,18 +538,18 @@ export function GspTelemetryDashboard() {
                 className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
                   tempVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
-                    : tempVal >= 15 && tempVal <= 25
+                    : tempVal >= 15 && tempVal <= (station?.tempMax || 40.0)
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : tempVal > 25
+                    : tempVal > (station?.tempMax || 40.0)
                     ? "bg-rose-50 text-rose-700 border-rose-200"
                     : "bg-cyan-50 text-cyan-700 border-cyan-200"
                 }`}
               >
                 {tempVal === undefined
                   ? "Chờ dữ liệu"
-                  : tempVal >= 15 && tempVal <= 25
+                  : tempVal >= 15 && tempVal <= (station?.tempMax || 40.0)
                   ? "Chuẩn GSP"
-                  : tempVal > 25
+                  : tempVal > (station?.tempMax || 40.0)
                   ? "Vượt chuẩn"
                   : "Thấp"}
               </span>
@@ -567,12 +567,12 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Chuẩn: <strong>15 - 25°C</strong></span>
+              <span>Chuẩn: <strong>15 - {station?.tempMax || 40}°C</strong></span>
               <span
                 className={`font-semibold ${
                   tempVal === undefined
                     ? "text-slate-400"
-                    : tempVal > 25
+                    : tempVal > (station?.tempMax || 40.0)
                     ? "text-rose-600"
                     : tempVal < 15
                     ? "text-cyan-600"
@@ -581,7 +581,7 @@ export function GspTelemetryDashboard() {
               >
                 {tempVal === undefined
                   ? "--"
-                  : tempVal > 25
+                  : tempVal > (station?.tempMax || 40.0)
                   ? "Vượt chuẩn (Quá nóng)"
                   : tempVal < 15
                   ? "Thấp hơn chuẩn"
@@ -1025,7 +1025,7 @@ export function GspTelemetryDashboard() {
                     }}
                   />
                   {/* Ngưỡng GSP */}
-                  <ReferenceLine yAxisId="left" y={25} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Max 25°C", fill: "#ef4444", fontSize: 10 }} />
+                  <ReferenceLine yAxisId="left" y={station?.tempMax || 40} stroke="#ef4444" strokeDasharray="4 4" label={{ value: `Max ${station?.tempMax || 40}°C`, fill: "#ef4444", fontSize: 10 }} />
                   <ReferenceLine yAxisId="left" y={15} stroke="#3b82f6" strokeDasharray="4 4" label={{ value: "Min 15°C", fill: "#3b82f6", fontSize: 10 }} />
                   <ReferenceLine yAxisId="right" y={70} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Max 70%RH", fill: "#f59e0b", fontSize: 10 }} />
 
@@ -1131,7 +1131,7 @@ export function GspTelemetryDashboard() {
                   />
                   {selectedMetric === "temperature" && (
                     <>
-                      <ReferenceLine y={25} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Max 25°C", fill: "#ef4444", fontSize: 10 }} />
+                      <ReferenceLine y={station?.tempMax || 40} stroke="#ef4444" strokeDasharray="4 4" label={{ value: `Max ${station?.tempMax || 40}°C`, fill: "#ef4444", fontSize: 10 }} />
                       <ReferenceLine y={15} stroke="#3b82f6" strokeDasharray="4 4" label={{ value: "Min 15°C", fill: "#3b82f6", fontSize: 10 }} />
                     </>
                   )}

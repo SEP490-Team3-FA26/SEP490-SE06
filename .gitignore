@@ -80,6 +80,8 @@ stop-dev.ps1
 
 # Google Cloud Credentials / Service Accounts
 service_account*.json
+*service-account*.json
+*google-services*.json
 *.pem
 
 # Uploaded media and temporary audio records

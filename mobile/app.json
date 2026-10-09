@@ -14,13 +14,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vinapharmacy.mobile",
+      "bundleIdentifier": "com.abcpharmacy.mobile",
       "infoPlist": {
         "NSCalendarsUsageDescription": "Cho phép ứng dụng thêm sự kiện vào lịch của bạn.",
         "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc."
       }
     },
     "android": {
+      "package": "com.abcpharmacy.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

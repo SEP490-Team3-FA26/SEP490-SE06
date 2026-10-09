@@ -1345,6 +1345,39 @@ export class ApiService {
     return [];
   }
 
+  public static async registerDeviceToken(
+    pushToken: string,
+    platform: string = 'android',
+    deviceModel: string = 'Mobile Device',
+  ): Promise<boolean> {
+    try {
+      if (!pushToken) return false;
+      const res = await fetch(`${this.baseUrl}/api/notifications/devices/register`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ pushToken, platform, deviceModel }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('Failed to register device push token:', e);
+      return false;
+    }
+  }
+
+  public static async unregisterDeviceToken(pushToken: string): Promise<boolean> {
+    try {
+      if (!pushToken) return false;
+      const res = await fetch(`${this.baseUrl}/api/notifications/devices/unregister`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ pushToken }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   // --- WAREHOUSE & GOODS RECEIPTS (GRN) ---
   public static async getGoodsReceipts(): Promise<any[]> {
     try {
