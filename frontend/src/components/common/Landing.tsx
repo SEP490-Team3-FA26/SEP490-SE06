@@ -15,7 +15,8 @@ import {
   Tag, AlertCircle, RefreshCw, Filter, RotateCcw, X, Loader2
 } from "lucide-react";
 import { notifyAuthTokenChanged } from "../../utils/authEvents";
-import api from "../../services/core/api";
+import { medicineService } from "../../services/inventory/medicine.service";
+import { cartService } from "../../services/sales/cart.service";
 import { authService } from "../../services/auth/auth.service";
 import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
 import { MascotLogoIcon } from "../ui/Logo";
@@ -267,11 +268,11 @@ export function Landing() {
     const timer = setTimeout(async () => {
       setIsSearchingLive(true);
       try {
-        const res = await api.get(`/api/medicines?limit=6&search=${encodeURIComponent(searchQuery.trim())}`);
-        if (res.data?.data) {
-          setSearchResults(res.data.data);
-        } else if (Array.isArray(res.data)) {
-          setSearchResults(res.data.slice(0, 6));
+        const res = await medicineService.getMedicines({ limit: 6, search: searchQuery.trim() });
+        if (res?.data) {
+          setSearchResults(res.data);
+        } else if (Array.isArray(res)) {
+          setSearchResults(res.slice(0, 6));
         }
       } catch (err) {
         console.error("Live search error:", err);
@@ -346,13 +347,10 @@ export function Landing() {
         setCartCount(count);
         return;
       }
-      const res = await api.get("/api/users/cart");
-      if (res.status === 200) {
-        const data = res.data;
-        if (data && data.items) {
-          const count = data.items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-          setCartCount(count);
-        }
+      const data = await cartService.getCart();
+      if (data && data.items) {
+        const count = data.items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+        setCartCount(count);
       }
     } catch (err: any) {
       const guestCartStr = localStorage.getItem("guest_cart");
@@ -366,21 +364,25 @@ export function Landing() {
   const fetchProducts = async () => {
     setLoadingProducts(true);
     try {
-      let url = `/api/medicines?page=1&limit=8`;
-      if (activeCategory) url += `&category=${encodeURIComponent(activeCategory)}`;
-      if (selectedClassification) url += `&classification=${encodeURIComponent(selectedClassification)}`;
-      if (selectedTargetGroup) url += `&targetGroup=${encodeURIComponent(selectedTargetGroup)}`;
-      if (selectedDosageForm) url += `&dosageForm=${encodeURIComponent(selectedDosageForm)}`;
-      if (selectedPrice === "under-50") url += `&maxPrice=50000`;
-      else if (selectedPrice === "50-100") url += `&minPrice=50000&maxPrice=100000`;
-      else if (selectedPrice === "100-200") url += `&minPrice=100000&maxPrice=200000`;
-      else if (selectedPrice === "over-200") url += `&minPrice=200000`;
+      let minPrice: number | undefined;
+      let maxPrice: number | undefined;
+      if (selectedPrice === "under-50") { maxPrice = 50000; }
+      else if (selectedPrice === "50-100") { minPrice = 50000; maxPrice = 100000; }
+      else if (selectedPrice === "100-200") { minPrice = 100000; maxPrice = 200000; }
+      else if (selectedPrice === "over-200") { minPrice = 200000; }
 
-      const res = await api.get(url);
-      if (res.status === 200) {
-        const result = res.data;
-        setMedicines(result.data || []);
-      }
+      const result = await medicineService.getMedicines({
+        page: 1,
+        limit: 8,
+        category: activeCategory || undefined,
+        classification: selectedClassification || undefined,
+        targetGroup: selectedTargetGroup || undefined,
+        dosageForm: selectedDosageForm || undefined,
+        minPrice,
+        maxPrice,
+      });
+
+      setMedicines(result?.data || (Array.isArray(result) ? result : []));
     } catch (err) {
       console.error("Fetch products error:", err);
     } finally {
@@ -568,10 +570,7 @@ export function Landing() {
     }
 
     try {
-      await api.post("/api/users/cart",
-        { medicineId: medId, quantity: qty },
-        { headers: { "Authorization": `Bearer ${currentToken}` } }
-      );
+      await cartService.addToCart(medId, qty);
 
       window.dispatchEvent(new Event("cartUpdated"));
       setAddedItems((prev) => ({ ...prev, [medId]: true }));

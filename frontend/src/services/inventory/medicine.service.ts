@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface MedicineQueryParams {
   page?: number | string;
@@ -29,6 +30,8 @@ export interface PaginationInfo {
 
 export interface PaginatedResult<T> {
   data: T[];
+  total?: number;
+  totalPages?: number;
   pagination?: PaginationInfo;
 }
 
@@ -46,11 +49,18 @@ export interface Medicine {
   unit?: string;
   supplierId?: string;
   status?: string;
+  // --- Chuẩn đồng bộ CSDL Dược Quốc Gia ---
+  is_medicine?: boolean;
+  national_drug_code?: string;
+  national_drug_id?: string;
+  national_sync_status?: 'SYNCED' | 'UNSYNCED' | 'NOT_REQUIRED';
+  national_synced_at?: string;
+  registration_number?: string;
 }
 
 export const medicineService = {
   async getMedicines(params: MedicineQueryParams = {}) {
-    const response = await api.get<PaginatedResult<Medicine>>('/api/medicines', { params });
+    const response = await api.get<PaginatedResult<Medicine>>(API_ENDPOINTS.MEDICINES.LIST, { params });
     return response.data as PaginatedResult<Medicine>;
   },
 
@@ -59,7 +69,7 @@ export const medicineService = {
       return this.getMedicines(params);
     }
     try {
-      const response = await api.get<PaginatedResult<Medicine>>(`/api/medicines/branch/${branchId}`, { params });
+      const response = await api.get<PaginatedResult<Medicine>>(API_ENDPOINTS.MEDICINES.BRANCH_MEDICINES(branchId), { params });
       return response.data as PaginatedResult<Medicine>;
     } catch (err) {
       console.warn(`Lỗi lấy kho chi nhánh (${branchId}), chuyển sang danh mục tổng:`, err);
@@ -68,33 +78,33 @@ export const medicineService = {
   },
 
   async getMedicineById(id: string) {
-    const response = await api.get<Medicine>(`/api/medicines/${id}`);
+    const response = await api.get<Medicine>(API_ENDPOINTS.MEDICINES.DETAIL(id));
     return response.data as Medicine;
   },
 
   async getAlternatives(id: string, branchId: string) {
-    const response = await api.get(`/api/medicines/${id}/alternatives`, { params: { branchId } });
+    const response = await api.get(API_ENDPOINTS.MEDICINES.ALTERNATIVES(id), { params: { branchId } });
     return response.data;
   },
 
   async updateMedicineStatus(id: string, status: string) {
-    const response = await api.patch(`/api/medicines/${id}/status`, { status });
+    const response = await api.patch(`${API_ENDPOINTS.MEDICINES.DETAIL(id)}/status`, { status });
     return response.data;
   },
 
   async getMedicineStats(branchId?: string) {
-    const response = await api.get('/api/medicines/stats', { params: { branchId } });
+    const response = await api.get(API_ENDPOINTS.MEDICINES.STATS, { params: { branchId } });
     return response.data;
   },
 
   async getExpirationReport(branchId?: string) {
-    const response = await api.get('/api/medicines/expiration-report', { params: { branchId } });
+    const response = await api.get(API_ENDPOINTS.MEDICINES.EXPIRATION_ALERTS, { params: { branchId } });
     return response.data;
   },
 
   async getFilters() {
     try {
-      const response = await api.get('/api/medicines/filters');
+      const response = await api.get(API_ENDPOINTS.MEDICINES.FILTERS);
       if (response?.data?.categories) {
         return response.data;
       }
@@ -111,29 +121,29 @@ export const medicineService = {
   },
 
   async updatePriceTiers(id: string, priceTiers: { minQuantity: number; price: number }[]) {
-    const response = await api.patch(`/api/medicines/${id}/price-tiers`, { priceTiers });
+    const response = await api.patch(`${API_ENDPOINTS.MEDICINES.DETAIL(id)}/price-tiers`, { priceTiers });
     return response.data;
   },
 
   async updatePrice(id: string, price: number) {
-    const response = await api.patch<{ success?: boolean; message?: string; price?: number }>(`/api/medicines/${id}/price`, { price });
+    const response = await api.patch<{ success?: boolean; message?: string; price?: number }>(`${API_ENDPOINTS.MEDICINES.DETAIL(id)}/price`, { price });
     return response.data;
   },
 
   async getImportExportReport(startDate?: string, endDate?: string) {
-    const response = await api.get('/api/inventory-transactions/report', {
+    const response = await api.get(`${API_ENDPOINTS.INVENTORY_TRANSACTIONS.LIST}/report`, {
       params: { startDate, endDate }
     });
     return response.data;
   },
 
   async getLowStockReport(branchId?: string) {
-    const response = await api.get('/api/medicines/low-stock-report', { params: { branchId } });
+    const response = await api.get(API_ENDPOINTS.MEDICINES.LOW_STOCK_REPORT, { params: { branchId } });
     return response.data;
   },
 
   async getMedicinesDropdown(branchId?: string) {
-    const response = await api.get('/api/medicines/dropdown', { params: { branchId } });
+    const response = await api.get(API_ENDPOINTS.MEDICINES.DROPDOWN, { params: { branchId } });
     return response.data;
   },
 
@@ -145,29 +155,39 @@ export const medicineService = {
     discountPrice?: number;
     performedBy?: string;
   }) {
-    const response = await api.post('/api/medicines/expiration-action', payload);
+    const response = await api.post(API_ENDPOINTS.MEDICINES.EXPIRATION_ACTION, payload);
     return response.data;
   },
 
   async createMedicine(payload: Partial<Medicine> & Record<string, any>) {
-    const response = await api.post('/api/medicines', payload);
+    const response = await api.post(API_ENDPOINTS.MEDICINES.CREATE, payload);
     return response.data;
   },
 
   async updateMedicine(id: string, payload: Partial<Medicine> & Record<string, any>) {
-    const response = await api.put(`/api/medicines/${id}`, payload);
+    const response = await api.put(API_ENDPOINTS.MEDICINES.UPDATE(id), payload);
     return response.data;
   },
 
   async getByBarcode(barcode: string, branchId?: string) {
-    const response = await api.get(`/api/medicines/barcode/${encodeURIComponent(barcode)}`, {
+    const response = await api.get(API_ENDPOINTS.MEDICINES.BARCODE(barcode), {
       params: { branchId }
     });
     return response.data;
   },
 
   async generateBarcode(id: string) {
-    const response = await api.post(`/api/medicines/${id}/generate-barcode`);
+    const response = await api.post(API_ENDPOINTS.MEDICINES.GENERATE_BARCODE(id));
+    return response.data;
+  },
+
+  async getTransactions(params?: { type?: string; limit?: number; page?: number; [key: string]: any }) {
+    const response = await api.get(API_ENDPOINTS.INVENTORY_TRANSACTIONS.LIST, { params });
+    return response.data;
+  },
+
+  async traceBatch(batchNo: string) {
+    const response = await api.get(API_ENDPOINTS.INVENTORY_TRANSACTIONS.TRACE_BATCH(batchNo));
     return response.data;
   }
 };

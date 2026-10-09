@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams } from "react-router-dom";
-import api from "../../services/core/api";
+import { medicineService } from "../../services/inventory/medicine.service";
 
 interface BatchInfo {
   branchId: string;
@@ -118,8 +118,8 @@ export function LotTracking() {
     setError(null);
     setResult(null);
     try {
-      const response = await api.get(`/api/inventory-transactions/trace/${encodeURIComponent(batchNo.trim())}`);
-      setResult(response.data);
+      const data = await medicineService.traceBatch(batchNo.trim());
+      setResult(data);
       setSearchBatchNo(batchNo);
       setActiveTab(initialTab);
     } catch (err: any) {

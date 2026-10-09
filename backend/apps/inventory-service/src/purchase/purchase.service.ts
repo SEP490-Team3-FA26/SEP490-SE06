@@ -18,6 +18,7 @@ import {
 } from "../../../api-gateway/src/common/kafka.helper";
 import { InspectionRecord } from "./schemas/inspection-record.schema";
 import { RequestForQuotation } from "./schemas/request-for-quotation.schema";
+import { NationalPharmaService } from "../national-pharma/national-pharma.service";
 import * as crypto from "crypto";
 
 @Injectable()
@@ -151,6 +152,7 @@ export class PurchaseService {
     private readonly inspectionModel: Model<InspectionRecord>,
     @InjectModel(RequestForQuotation.name)
     private readonly rfqModel: Model<RequestForQuotation>,
+    private readonly nationalPharmaService: NationalPharmaService,
   ) {}
 
   async onModuleInit() {
@@ -1251,6 +1253,20 @@ export class PurchaseService {
       grn.discrepancyReason = discrepancyReason;
     }
     await grn.save();
+
+    // 6. Tự động liên thông CSDL Dược Quốc gia (Stock-In Hook theo QĐ 232)
+    try {
+      const targetBranch = (grn as any).branchId || (po as any).branchId || 'BR-001';
+      const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+      grn.nationalFacilityCode = gppSync.facilityCode;
+      grn.nationalSyncCode = gppSync.syncCode;
+      grn.nationalSyncStatus = gppSync.syncStatus;
+      grn.nationalSyncedAt = gppSync.syncedAt;
+      grn.nationalSyncMessage = gppSync.message;
+      await grn.save();
+    } catch (gppErr: any) {
+      this.logger.warn(`[CSDL Dược GRN Sync Warning] ${gppErr.message}`);
+    }
 
     // Keep the inspection record synchronized with the completed GRN/PO.
     await this.inspectionModel

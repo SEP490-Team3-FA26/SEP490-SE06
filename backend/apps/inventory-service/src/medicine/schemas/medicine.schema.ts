@@ -17,6 +17,12 @@ export class MedicinePackagingUnit {
 
   @Prop({ sparse: true })
   barcode?: string; // Mã vạch riêng cho từng quy cách (Hộp/Vỉ/Viên) nếu có
+
+  @Prop({ sparse: true })
+  unit_id?: string; // Mã đơn vị chuẩn BYT (U-01, U-02...)
+
+  @Prop({ sparse: true })
+  gtin?: string; // Mã toàn cầu GS1 phân định bao gói
 }
 export const MedicinePackagingUnitSchema = SchemaFactory.createForClass(MedicinePackagingUnit);
 
@@ -51,6 +57,37 @@ export class Medicine extends Document {
 
   @Prop({ default: 'COMMON_SUPPLEMENT', index: true })
   drug_classification: string;
+
+  // --- Quy chuẩn Quyết định 232/QĐ-TTYQG & CSDL Dược Quốc Gia ---
+  @Prop({ default: 0, index: true })
+  prescription_status: number; // 0: OTC (Thuốc không kê đơn), 1: ETC (Thuốc kê đơn bắt buộc)
+
+  @Prop({ default: 0, index: true })
+  special_control_type: number; // 0: Bình thường, 1: Gây nghiện, 2: Hướng thần, 3: Tiền chất, 4: Thuốc độc...
+
+  @Prop({ type: Boolean, default: true, index: true })
+  is_medicine: boolean; // Là mặt hàng thuốc (True: bắt buộc liên thông CSDL Dược Quốc gia, False: TPCN / vật tư)
+
+  @Prop({ sparse: true, index: true })
+  national_drug_code?: string; // Mã Dược Quốc Gia (Số đăng ký / Mã định danh BYT, VD: VN-16755-13, VD-17429-12...)
+
+  @Prop({ type: String, default: 'SYNCED', enum: ['SYNCED', 'UNSYNCED', 'NOT_REQUIRED'], index: true })
+  national_sync_status: string; // 'SYNCED' (Đã đồng bộ), 'UNSYNCED' (Chưa đồng bộ), 'NOT_REQUIRED' (Không đồng bộ)
+
+  @Prop({ type: Date, default: Date.now })
+  national_synced_at?: Date; // Thời điểm đồng bộ lên CSDL Dược Quốc Gia
+
+  @Prop({ sparse: true, index: true })
+  national_drug_id?: string; // Mã định danh CSDL Dược Quốc gia (VD: DRUG-0001)
+
+  @Prop()
+  old_registration_number?: string; // Số đăng ký lưu hành cũ
+
+  @Prop()
+  strength?: string; // Hàm lượng hoạt chất (VD: 500mg/65mg)
+
+  @Prop({ type: [Object], default: [] })
+  routes?: { id: string; name: string }[]; // Đường dùng thuốc (VD: Đường uống, tiêm bắp...)
 
   @Prop({ index: true })
   active_ingredient: string;

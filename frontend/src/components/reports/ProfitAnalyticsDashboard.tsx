@@ -7,8 +7,8 @@ import {
   PieChart, 
   Building 
 } from 'lucide-react';
-import api from '../../services/core/api';
 import { KpiCard } from './KpiCard';
+import { branchService, reportService } from '../../services';
 
 const branchColors: Record<string, string> = {
   'BR-001': '#3182CE',
@@ -34,9 +34,9 @@ export function ProfitAnalyticsDashboard() {
 
   const fetchBranches = async () => {
     try {
-      const res = await api.get('/api/branches');
-      if (Array.isArray(res.data)) {
-        setBranchesList(res.data);
+      const branches = await branchService.getBranches();
+      if (Array.isArray(branches)) {
+        setBranchesList(branches);
       }
     } catch (err) {
       console.error('Lỗi tải danh sách chi nhánh:', err);
@@ -47,9 +47,13 @@ export function ProfitAnalyticsDashboard() {
     setLoadingAnalytics(true);
     try {
       const dateStr = `${selectedMonth}-01`;
-      const res = await api.get(`/api/reports/profit?period=month&date=${dateStr}&branchId=${selectedBranch}`);
-      if (res.data && res.data.success) {
-        setAnalyticsData(res.data.data);
+      const resData = await reportService.getProfitAnalytics({
+        period: 'month',
+        date: dateStr,
+        branchId: selectedBranch,
+      });
+      if (resData && resData.success) {
+        setAnalyticsData(resData.data);
       }
     } catch (err) {
       console.error('Lỗi tải phân tích lợi nhuận:', err);

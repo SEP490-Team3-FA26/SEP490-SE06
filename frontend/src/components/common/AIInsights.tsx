@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router-dom";
-import api from "../../services/core/api";
+import { reportService } from "../../services";
 
 interface SmartInsight {
   id: string;
@@ -58,12 +58,12 @@ export function AIInsights() {
     setLoading(true);
     try {
       const [seasonalRes, forecastRes] = await Promise.allSettled([
-        api.get('/api/reports/seasonal-analysis'),
-        api.get('/api/reports/ai-forecast?periodDays=30')
+        reportService.getSeasonalAnalysis(),
+        reportService.getAiForecast(30)
       ]);
 
-      const sData = seasonalRes.status === 'fulfilled' ? seasonalRes.value.data : null;
-      const fData = forecastRes.status === 'fulfilled' ? (forecastRes.value.data?.data || forecastRes.value.data) : null;
+      const sData = seasonalRes.status === 'fulfilled' ? seasonalRes.value : null;
+      const fData = forecastRes.status === 'fulfilled' ? (forecastRes.value?.data || forecastRes.value) : null;
 
       setSeasonalData(sData);
       setForecastData(fData);

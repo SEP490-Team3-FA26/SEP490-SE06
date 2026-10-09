@@ -6,9 +6,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { purchaseRequisitionService } from "../../services/purchase/purchaseRequisition.service";
+import { stockTransferService } from "../../services/inventory/stockTransfer.service";
 import { branchService } from "../../services/admin/branch.service";
 import { CreatePOModal } from "../../components/CreatePOModal";
-import api from "../../services/core/api";
 
 // --- In-memory cache for instant back-navigation (resets on page refresh/new login) ---
 const prCache: Record<string, { data: any[]; ts: number }> = {};
@@ -63,9 +63,9 @@ export function PurchaseRequisition() {
   const fetchData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await api.get(`/api/purchase-requisitions?status=${tab}`);
-      setPrList(res.data);
-      setCachedPrList(tab, res.data);
+      const data = await purchaseRequisitionService.getPurchaseRequisitions(tab);
+      setPrList(data);
+      setCachedPrList(tab, data);
     } catch (err: any) {
       console.error('PR fetch error:', err);
     } finally { setLoading(false); }
@@ -277,12 +277,12 @@ export function PurchaseRequisition() {
                       setActionLoading(true);
                       setMsg(null);
                       try {
-                        const res = await api.post("/api/stock-transfers", {
-                          prId: detailPr._id,
-                          shippedBy: "Nguyễn Văn A",
-                          fromBranchId: selectedSourceBranch
-                        });
-                        setMsg({ type: "success", text: res.data.message || "Đã tạo phiếu chuyển kho thành công!" });
+                        const res = await stockTransferService.createStockTransfer(
+                          detailPr._id,
+                          selectedSourceBranch,
+                          "Nguyễn Văn A"
+                        );
+                        setMsg({ type: "success", text: res?.message || "Đã tạo phiếu chuyển kho thành công!" });
                         setDetailPr(null);
                         fetchData();
                       } catch (err: any) {

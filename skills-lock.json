@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "abc-code-review": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/abc-code-review/SKILL.md"
+    },
     "abc-drawio": {
       "source": "./local",
       "sourceType": "local",
@@ -15,7 +20,7 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/code-review/SKILL.md",
-      "computedHash": "caa9a086baaf9e0f7cd71f64edfa83da6821c05e826b083221f3d02e3d6a1905"
+      "computedHash": "57cfd4ceb011f05e58a1a4f4cad3b2e03419d371f8990f4bcb32ff0d435a039f"
     },
     "google-docx": {
       "source": "./local",

@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface StockTransferItem {
   medicineId: string;
@@ -30,22 +31,31 @@ export interface StockTransfer {
 
 export const stockTransferService = {
   async getStockTransfers(status?: string, toBranchId?: string): Promise<StockTransfer[]> {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (toBranchId) params.append('toBranchId', toBranchId);
+    const params: Record<string, string> = {};
+    if (status) params.status = status;
+    if (toBranchId) params.toBranchId = toBranchId;
     
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    const response = await api.get(`/api/stock-transfers${queryString}`);
+    const response = await api.get(API_ENDPOINTS.STOCK_TRANSFERS.LIST, { params });
     return response.data;
   },
 
   async getStockTransferById(id: string): Promise<StockTransfer> {
-    const response = await api.get(`/api/stock-transfers/${id}`);
+    const response = await api.get(API_ENDPOINTS.STOCK_TRANSFERS.DETAIL(id));
     return response.data;
   },
 
   async createStockTransfer(prId: string, fromBranchId: string, shippedBy: string): Promise<any> {
-    const response = await api.post('/api/stock-transfers', { prId, fromBranchId, shippedBy });
+    const response = await api.post(API_ENDPOINTS.STOCK_TRANSFERS.CREATE, { prId, fromBranchId, shippedBy });
+    return response.data;
+  },
+
+  async directTransfer(payload: any): Promise<any> {
+    const response = await api.post(API_ENDPOINTS.STOCK_TRANSFERS.DIRECT, payload);
+    return response.data;
+  },
+
+  async getRecommendations(params?: any): Promise<any> {
+    const response = await api.get(API_ENDPOINTS.STOCK_TRANSFERS.RECOMMEND, { params });
     return response.data;
   },
 
@@ -55,7 +65,7 @@ export const stockTransferService = {
     inspectionItems: { medicineId: string; batchNo: string; actualQuantity: number }[],
     inspectionNote?: string
   ): Promise<any> {
-    const response = await api.post(`/api/stock-transfers/${id}/receive`, { receivedBy, inspectionItems, inspectionNote });
+    const response = await api.post(API_ENDPOINTS.STOCK_TRANSFERS.RECEIVE(id), { receivedBy, inspectionItems, inspectionNote });
     return response.data;
   }
 };

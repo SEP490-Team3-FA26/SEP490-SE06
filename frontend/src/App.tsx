@@ -85,6 +85,7 @@ import PrescriptionManagement from "./pages/pharmacist/PrescriptionManagement";
 import OcrHistoryPage from "./pages/pharmacist/OcrHistoryPage";
 import VoiceConsultHistoryPage from "./pages/pharmacist/VoiceConsultHistoryPage";
 import GppSyncPage from "./pages/pharmacist/GppSyncPage";
+import { InspectorDashboard } from "./pages/inspector/InspectorDashboard";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
 // Helper component to preserve query parameters on redirect
@@ -152,6 +153,12 @@ export default function App() {
               <Route path="feedbacks" element={<BranchFeedbackPage />} />
               <Route path="profile" element={<Profile />} />
               <Route path="settings" element={<Settings />} />
+
+              <Route path="master-data/products" element={<Products />} />
+              <Route path="master-data/suppliers" element={<Suppliers />} />
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="inspector" element={<InspectorDashboard />} />
+              <Route path="gpp-sync" element={<GppSyncPage />} />
             </Route>
           </Route>
 
@@ -260,8 +267,19 @@ export default function App() {
             </Route>
           </Route>
 
+          {/* --- MOH Inspector (Thanh Tra CSDL Dược Quốc Gia) Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["moh_inspector", "admin", "director", "head_branch"]} />}>
+            <Route path="/inspector" element={<PharmacistLayout />}>
+              <Route index element={<InspectorDashboard />} />
+              <Route path="gpp-sync" element={<GppSyncPage />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+          </Route>
+
           {/* Profile riêng lẻ cho user thường */}
-          <Route element={<ProtectedRoute allowedRoles={["admin", "director", "head_branch", "warehouse", "branch", "pharmacist", "user"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["admin", "director", "head_branch", "warehouse", "branch", "pharmacist", "moh_inspector", "user"]} />}>
             <Route path="/profile" element={<Profile />} />
           </Route>
 

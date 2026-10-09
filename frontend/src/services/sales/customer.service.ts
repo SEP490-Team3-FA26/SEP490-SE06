@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface CustomerLoyaltyData {
   userId?: string;
@@ -68,7 +69,7 @@ export const customerService = {
 
     try {
       // 1. Fetch loyalty info via API Gateway
-      const loyaltyRes = await api.get(`/api/users/loyalty/lookup?phone=${encodeURIComponent(cleanPhone)}`);
+      const loyaltyRes = await api.get(API_ENDPOINTS.USERS.LOYALTY_LOOKUP(cleanPhone));
       if (!loyaltyRes.data || loyaltyRes.data.error) {
         return null;
       }
@@ -94,8 +95,8 @@ export const customerService = {
 
       try {
         const [rfmRes, recRes] = await Promise.allSettled([
-          api.get(`/api/users/rfm/customer/${encodeURIComponent(cleanPhone)}`),
-          api.get('/api/recommendations/for-you', { params: { phone: cleanPhone } }),
+          api.get(API_ENDPOINTS.USERS.RFM_CUSTOMER(cleanPhone)),
+          api.get(API_ENDPOINTS.RECOMMENDATIONS.FOR_YOU, { params: { phone: cleanPhone } }),
         ]);
 
         if (rfmRes.status === 'fulfilled' && rfmRes.value?.data) {
@@ -193,7 +194,7 @@ export const customerService = {
 
     try {
       // Register account in system
-      await api.post('/api/auth/register', {
+      await api.post(API_ENDPOINTS.AUTH.REGISTER, {
         fullName: cleanName,
         email: cleanEmail,
         password: defaultPassword,
@@ -208,7 +209,7 @@ export const customerService = {
     // Persist medical allergies & chronic notes to MongoDB for clinical safety
     if ((dto.allergies && dto.allergies.length > 0) || (dto.chronicConditions && dto.chronicConditions.length > 0)) {
       try {
-        await api.put(`/api/users/clinical-safety/${encodeURIComponent(cleanPhone)}`, {
+        await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone), {
           allergies: dto.allergies || [],
           chronicConditions: dto.chronicConditions || [],
         });
@@ -285,7 +286,7 @@ export const customerService = {
    */
   async updateClinicalSafety(phone: string, data: { allergies?: string[]; chronicConditions?: string[] }): Promise<any> {
     const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
-    const res = await api.put(`/api/users/clinical-safety/${encodeURIComponent(cleanPhone)}`, data);
+    const res = await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone), data);
     return res.data;
   },
 
@@ -295,7 +296,7 @@ export const customerService = {
   async getClinicalSafety(phone: string): Promise<{ allergies: string[]; chronicConditions: string[] }> {
     const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
     try {
-      const res = await api.get(`/api/users/clinical-safety/${encodeURIComponent(cleanPhone)}`);
+      const res = await api.get(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone));
       return {
         allergies: res.data?.allergies || [],
         chronicConditions: res.data?.chronicConditions || [],

@@ -32,6 +32,7 @@ import {
   RequestForQuotationSchema,
 } from "./schemas/request-for-quotation.schema";
 import { MedicineModule } from "../medicine/medicine.module";
+import { NationalPharmaModule } from "../national-pharma/national-pharma.module";
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { MedicineModule } from "../medicine/medicine.module";
       { name: RequestForQuotation.name, schema: RequestForQuotationSchema },
     ]),
     MedicineModule, // To access Medicine and MedicineBatch schemas
+    NationalPharmaModule,
     ClientsModule.register([
       {
         name: "SUPPLIER_SERVICE",

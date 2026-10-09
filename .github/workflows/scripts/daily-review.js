@@ -26,28 +26,34 @@ function generateReport() {
   });
   const reportTimeStr = now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-  // 1. Lấy commits trong 24 giờ qua
-  let gitLogRaw = runGit('git log --since="24 hours ago" --pretty=format:"%H|%h|%an|%ae|%ad|%s" --date=format:"%H:%M %d/%m/%Y"');
+  // 1. Lấy commits trong 24 giờ qua từ tất cả các nhánh remote
+  let gitLogRaw = runGit('git log --all --remotes --since="24 hours ago" --pretty=format:"%H|%h|%an|%ae|%ad|%s" --date=format:"%H:%M %d/%m/%Y"');
   let isFallback = false;
 
-  // Nếu không có commit trong 24h qua, kiểm tra 5 commit gần nhất để report có nội dung tham chiếu
+  // Nếu không có commit trong 24h qua, lấy 8 commit gần nhất trên toàn bộ nhánh để report
   if (!gitLogRaw) {
-    gitLogRaw = runGit('git log -n 5 --pretty=format:"%H|%h|%an|%ae|%ad|%s" --date=format:"%H:%M %d/%m/%Y"');
+    gitLogRaw = runGit('git log --all --remotes -n 8 --pretty=format:"%H|%h|%an|%ae|%ad|%s" --date=format:"%H:%M %d/%m/%Y"');
     isFallback = true;
   }
 
   const rawLines = gitLogRaw ? gitLogRaw.split('\n').filter(Boolean) : [];
-  const commits = rawLines.map(line => {
+  const seenHashes = new Set();
+  const commits = [];
+  for (const line of rawLines) {
     const parts = line.split('|');
-    return {
-      hash: parts[0],
-      shortHash: parts[1],
-      author: parts[2],
-      email: parts[3],
-      date: parts[4],
-      message: parts.slice(5).join('|')
-    };
-  });
+    const hash = parts[0];
+    if (hash && !seenHashes.has(hash)) {
+      seenHashes.add(hash);
+      commits.push({
+        hash,
+        shortHash: parts[1],
+        author: parts[2],
+        email: parts[3],
+        date: parts[4],
+        message: parts.slice(5).join('|')
+      });
+    }
+  }
 
   // Gom nhóm commit theo tác giả
   const authorMap = {};
@@ -86,16 +92,8 @@ function generateReport() {
       });
     }
 
-    // Check Vietnamese comments in code diffs (rule: no Vietnamese comments)
+    // Quy chuẩn dự án sep.md: Comment code bằng tiếng Việt được khuyến khích
     const rawDiff = runGit(`git show ${c.hash}`);
-    const vietnameseCommentRegex = /^\+.*(\/\/|\/\*|\*)\s*.*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/im;
-    if (vietnameseCommentRegex.test(rawDiff)) {
-      smellFindings.push({
-        type: 'Coding Standard',
-        severity: 'Warning',
-        detail: `Commit [${c.shortHash}] by ${c.author} contains Vietnamese characters in code comments. Project standard requires English comments.`
-      });
-    }
 
     // Check microservice rule: if modifying backend microservices
     const backendFiles = files.filter(f => f.startsWith('backend/apps/'));

@@ -1,5 +1,6 @@
 import { AxiosInstance } from 'axios';
 import api from './core/api';
+import { API_ENDPOINTS } from '../constants/apiEndpoints';
 
 export interface ExpensePayload {
   branchId: string;
@@ -142,7 +143,7 @@ export interface IFinanceService {
  * Object-Oriented Finance Service implementation with encapsulation and DI
  */
 export class FinanceService implements IFinanceService {
-  private readonly basePath: string = '/api/finance';
+  private readonly basePath: string = API_ENDPOINTS.FINANCE.BASE;
 
   constructor(private readonly client: AxiosInstance = api) {}
 

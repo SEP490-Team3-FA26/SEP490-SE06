@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface TelemetryMetrics {
   temperature: number;
@@ -53,7 +54,7 @@ export interface SensorStation {
 export const sensorTelemetryService = {
   // Lấy chỉ số mới nhất của trạm
   async getLatest(deviceId?: string): Promise<{ success: boolean; station: SensorStation; data: TelemetryRecord | null }> {
-    const res = await api.get('/api/sensor/latest', {
+    const res = await api.get(API_ENDPOINTS.SENSORS.LATEST, {
       params: deviceId ? { deviceId } : {},
     });
     return res.data;
@@ -68,7 +69,7 @@ export const sensorTelemetryService = {
     totalRaw: number;
     records: TelemetryRecord[];
   }> {
-    const res = await api.get('/api/sensor/history', {
+    const res = await api.get(API_ENDPOINTS.SENSORS.HISTORY, {
       params: {
         deviceId: deviceId || 'ESP32S3_404CCA44C814',
         range,
@@ -79,7 +80,7 @@ export const sensorTelemetryService = {
 
   // Lấy danh sách các trạm đo
   async getStations(): Promise<{ success: boolean; data: SensorStation[] }> {
-    const res = await api.get('/api/sensor/stations');
+    const res = await api.get(API_ENDPOINTS.SENSORS.STATIONS);
     return res.data;
   },
 };

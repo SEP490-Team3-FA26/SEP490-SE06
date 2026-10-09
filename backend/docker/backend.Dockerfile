@@ -35,6 +35,7 @@ RUN npm install --omit=dev --legacy-peer-deps
 # Copy source để ts-node không cần thiết – chỉ dùng dist
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/apps ./apps
+COPY --from=builder /app/mock-csdlduoc ./mock-csdlduoc
 COPY --from=builder /app/tsconfig*.json ./
 
 EXPOSE 4000

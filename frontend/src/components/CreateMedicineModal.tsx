@@ -33,6 +33,9 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
     cong_dung: "",
     cach_dung: "",
     tac_dung_phu: "",
+    is_medicine: true,
+    national_drug_code: "",
+    national_sync_status: "SYNCED",
   });
 
   useEffect(() => {
@@ -265,9 +268,76 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 type="text"
                 placeholder="VD: VD-12345-20"
                 value={formData.registration_number}
-                onChange={(e) => setFormData({ ...formData, registration_number: e.target.value })}
+                onChange={(e) => {
+                  const regNo = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    registration_number: regNo,
+                    national_drug_code: prev.national_drug_code === prev.registration_number || !prev.national_drug_code ? regNo : prev.national_drug_code,
+                  }));
+                }}
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
               />
+            </div>
+
+            {/* CSDL Dược Quốc Gia (Bộ Y Tế) */}
+            <div className="md:col-span-2 p-4 rounded-xl border border-blue-200/80 bg-blue-50/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Building2 className="text-[#0057cd]" size={16} />
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Đồng bộ CSDL Dược Quốc gia (Bộ Y Tế)
+                  </span>
+                </div>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_medicine}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFormData((prev) => ({
+                        ...prev,
+                        is_medicine: checked,
+                        national_sync_status: checked ? (prev.national_sync_status === "NOT_REQUIRED" ? "SYNCED" : prev.national_sync_status) : "NOT_REQUIRED"
+                      }));
+                    }}
+                    className="w-4 h-4 text-[#0057cd] rounded border-slate-300 focus:ring-[#0057cd]"
+                  />
+                  <span className="text-xs font-bold text-slate-800">Là mặt hàng thuốc</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Mã Dược Quốc Gia (VD: VN-16755-13, VD-17429-12...)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Mã số cấp phép hoặc SĐK"
+                    value={formData.national_drug_code}
+                    onChange={(e) => setFormData({ ...formData, national_drug_code: e.target.value })}
+                    disabled={!formData.is_medicine}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono disabled:bg-slate-100 disabled:text-slate-400 focus:ring-2 focus:ring-[#0057cd]/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Trạng thái đồng bộ CSDL Dược
+                  </label>
+                  <select
+                    value={formData.national_sync_status}
+                    onChange={(e) => setFormData({ ...formData, national_sync_status: e.target.value })}
+                    disabled={!formData.is_medicine}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400 focus:ring-2 focus:ring-[#0057cd]/30"
+                  >
+                    <option value="SYNCED" className="text-emerald-700 font-bold">Đã đồng bộ</option>
+                    <option value="UNSYNCED" className="text-amber-700 font-bold">Chưa đồng bộ</option>
+                    <option value="NOT_REQUIRED" className="text-slate-500">Không đồng bộ</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div>

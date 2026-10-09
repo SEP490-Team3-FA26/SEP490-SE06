@@ -3,7 +3,7 @@ import { X, AlertTriangle, CheckCircle2, Trash2, Loader2, Search, Package, Alert
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
-import api from "../services/core/api";
+import { medicineService } from "../services";
 
 export interface CreateDisposalModalProps {
   onClose: () => void;
@@ -80,9 +80,9 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
 
   // Fetch full medicines for filtering
   useEffect(() => {
-    api.get('/api/medicines?limit=500')
+    medicineService.getMedicines({ limit: 500 })
       .then(res => {
-        const list = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+        const list = Array.isArray(res?.data) ? res.data : [];
         setMedicines(list);
       })
       .catch(err => {
@@ -277,7 +277,7 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
       // Execute disposal action for all items
       for (const item of disposalCart) {
         const batchId = item.selectedBatch.id || item.selectedBatch._id;
-        await api.post('/api/medicines/expiration-action', {
+        await medicineService.handleExpirationAction({
           batchId,
           action: 'DISPOSE',
           quantity: item.quantity,

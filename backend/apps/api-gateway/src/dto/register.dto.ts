@@ -8,6 +8,7 @@ export enum UserRole {
   WAREHOUSE = 'warehouse',
   CUSTOMER = 'customer',
   USER = 'user',
+  MOH_INSPECTOR = 'moh_inspector',
 }
 
 export class RegisterDto {
