@@ -166,9 +166,14 @@ export class MedicineMapper {
           : (context?.dbMed?.stock || med?.stock || 0);
       earliestExpiryStr = this.calculateEarliestExpiry(activeBatches);
     } else {
-      // Toàn chuỗi hoặc không chỉ định chi nhánh: Lấy tồn kho chung của thuốc
-      totalStock = context?.dbMed?.stock || med?.stock || 0;
-      earliestExpiryStr = this.calculateEarliestExpiry(activeBatches);
+      // KHO TỔNG (CENTRAL_WH) mặc định khi không truyền branchId:
+      // CHỈ tính tồn các lô ACTIVE của Kho Tổng (CENTRAL_WH)!
+      // Tuyệt đối KHÔNG cộng dồn bất kỳ chi nhánh nào vào Kho Tổng!
+      const centralActiveBatches = activeBatches.filter(
+        (b) => !b.branchId || b.branchId === 'CENTRAL_WH',
+      );
+      totalStock = centralActiveBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+      earliestExpiryStr = this.calculateEarliestExpiry(centralActiveBatches);
     }
 
     return { totalStock, earliestExpiryStr };
