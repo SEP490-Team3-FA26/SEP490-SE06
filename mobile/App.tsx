@@ -3,6 +3,7 @@ import { AppState, LogBox, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
 import { AuthProvider } from './src/context/AuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { NavigationContainer } from '@react-navigation/native';
@@ -11,6 +12,30 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { MedicineReminderService } from './src/services/medicineReminder.service';
+import { FireEmergencyCallService } from './src/services/fireEmergencyCall.service';
+
+// 0. Định nghĩa Background Notification Task để kích hoạt cuộc gọi kể cả khi tắt app
+const FIRE_ALARM_BG_TASK = 'FIRE_ALARM_BACKGROUND_NOTIFICATION_TASK';
+
+TaskManager.defineTask(FIRE_ALARM_BG_TASK, async ({ data, error }) => {
+  if (error) {
+    console.warn('[BgTask] Lỗi xử lý notification background:', error);
+    return;
+  }
+  try {
+    const rawData = (data as any)?.notification?.data;
+    if (rawData?.type === 'FIRE_EMERGENCY') {
+      FireEmergencyCallService.showEmergencyCall({
+        temp: String(rawData.temp || '65.0'),
+        deviceId: String(rawData.deviceId || 'Kho Tổng GSP'),
+        isTest: rawData.isTest === 'true',
+      });
+    }
+  } catch (err) {
+    console.warn('[BgTask] Lỗi kích hoạt cuộc gọi khẩn cấp:', err);
+  }
+});
+
 // Ignore known non-critical Expo Go warnings
 LogBox.ignoreLogs([
   '`expo-notifications` functionality is not fully supported in Expo Go',
@@ -42,6 +67,25 @@ const linking = {
 
 const App: React.FC = () => {
   useEffect(() => {
+    // Khoi tao CallKeep cho cuoc goi bao chay
+    FireEmergencyCallService.init();
+
+    // Dang ky background task cho notification
+    Notifications.registerTaskAsync(FIRE_ALARM_BG_TASK).catch((e) => {
+      console.warn('Register FIRE_ALARM_BG_TASK warning:', e);
+    });
+
+    // Lang nghe thong bao den lúc foreground de bat cuoc goi
+    const notifReceivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      const payload = notification.request.content.data;
+      if (payload?.type === 'FIRE_EMERGENCY') {
+        FireEmergencyCallService.showEmergencyCall({
+          temp: String(payload.temp || '65.0'),
+          deviceId: String(payload.deviceId || 'Kho Tổng GSP'),
+          isTest: payload.isTest === 'true',
+        });
+      }
+    });
     // 0. Khoi tao Android Notification Channel muc MAX cho canh bao qua nhiet GSP & Hoa hoan
     if (Platform.OS === 'android') {
       // Don dep cac channel loi cu
@@ -100,6 +144,7 @@ const App: React.FC = () => {
     });
 
     return () => {
+      notifReceivedSub.remove();
       responseListener?.remove();
       appStateSub.remove();
     };
