@@ -11,8 +11,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { MedicineReminderService } from './src/services/medicineReminder.service';
-import { FireEmergencyModal } from './src/components/warehouse/FireEmergencyModal';
-
 // Ignore known non-critical Expo Go warnings
 LogBox.ignoreLogs([
   '`expo-notifications` functionality is not fully supported in Expo Go',
@@ -46,27 +44,31 @@ const App: React.FC = () => {
   useEffect(() => {
     // 0. Khoi tao Android Notification Channel muc MAX cho canh bao qua nhiet GSP & Hoa hoan
     if (Platform.OS === 'android') {
+      // Don dep cac channel loi cu
+      Notifications.deleteNotificationChannelAsync('fire_emergency_call_v4').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_alarm_v4').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_alarm_v5').catch(() => {});
+
       Notifications.setNotificationChannelAsync('iot_temperature_critical', {
         name: 'Cảnh Báo Quá Nhiệt GSP',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 500, 250, 500],
+        enableVibrate: true,
         lightColor: '#EF4444',
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
       }).catch((e) => console.warn('Init notification channel warning:', e));
 
-      Notifications.setNotificationChannelAsync('iot_fire_alarm_channel', {
-        name: 'Báo Động Hỏa Hoạn',
+      Notifications.setNotificationChannelAsync('fire_emergency_siren_v6', {
+        name: 'Báo Động Hỏa Hoạn Khẩn Cấp',
         importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 800, 400, 800, 400, 800],
+        vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
+        enableVibrate: true,
         lightColor: '#DC2626',
+        enableLights: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
         sound: 'alarm_gentle.wav',
-        audioAttributes: {
-          usage: Notifications.AndroidAudioUsage.ALARM,
-          contentType: Notifications.AndroidAudioContentType.SONIFICATION,
-        },
       }).catch((e) => console.warn('Init fire alarm channel warning:', e));
     }
 
@@ -116,7 +118,6 @@ const App: React.FC = () => {
           </NotificationProvider>
         </AuthProvider>
       </SafeAreaProvider>
-      <FireEmergencyModal />
       <Toast />
     </GestureHandlerRootView>
   );

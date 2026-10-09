@@ -37,6 +37,10 @@
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
         "POST_NOTIFICATIONS",
+        "USE_FULL_SCREEN_INTENT",
+        "WAKE_LOCK",
+        "DISABLE_KEYGUARD",
+        "VIBRATE",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
       ]
@@ -56,6 +60,7 @@
         {
           "icon": "./assets/icon.png",
           "color": "#0284C7",
+          "defaultChannel": "fire_emergency_siren_v6",
           "sounds": [
             "./assets/alarm_gentle.wav"
           ]

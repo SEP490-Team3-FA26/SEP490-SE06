@@ -28,17 +28,18 @@ export const FireEmergencyModal: React.FC = () => {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
       const payload = notification.request.content.data;
       if (payload?.type === 'FIRE_EMERGENCY') {
-        setData({
+        const itemData = {
           deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
           temp: String(payload.temp || '65.0'),
           title: notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
           isTest: payload.isTest === 'true',
-        });
+        };
+        setData(itemData);
         setVisible(true);
 
-        // Rung cảnh báo bổ sung trên thiết bị
+        // Kích hoạt rung dồn dập lặp lại liên tục cho đến khi thủ kho bấm xác nhận
         if (Platform.OS === 'android') {
-          Vibration.vibrate([0, 800, 400, 800, 400, 800], false);
+          Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
         }
       }
     });
@@ -47,13 +48,18 @@ export const FireEmergencyModal: React.FC = () => {
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const payload = response.notification.request.content.data;
       if (payload?.type === 'FIRE_EMERGENCY') {
-        setData({
+        const itemData = {
           deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
           temp: String(payload.temp || '65.0'),
           title: response.notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
           isTest: payload.isTest === 'true',
-        });
+        };
+        setData(itemData);
         setVisible(true);
+
+        if (Platform.OS === 'android') {
+          Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
+        }
       }
     });
 
