@@ -169,7 +169,7 @@ export class NotificationController {
     if (type === 'FIRE_EMERGENCY') {
       title = 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG (TEST)';
       messageBody = `THỬ NGHIỆM: Kích hoạt chuông báo động hỏa hoạn khẩn cấp tại trạm ${deviceId}!`;
-      channelId = 'fire_emergency_alarm_v5';
+      channelId = 'fire_emergency_siren_v6';
       sound = 'alarm_gentle';
       severity = 'EMERGENCY';
       dataPayload = {

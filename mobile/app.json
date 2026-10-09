@@ -60,6 +60,7 @@
         {
           "icon": "./assets/icon.png",
           "color": "#0284C7",
+          "defaultChannel": "fire_emergency_siren_v6",
           "sounds": [
             "./assets/alarm_gentle.wav"
           ]
