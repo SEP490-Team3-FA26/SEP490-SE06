@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist/
+web-build/
+.kotlin/
+/ios
+build/
+!google-services.json
