@@ -71,6 +71,13 @@ docker build -t wdp301-ai:latest ./backend/apps/ai-service -f ./backend/apps/ai-
 echo "🐳 Đang khởi động hệ thống qua Docker Compose..."
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
+# 6.1. Tự động đồng bộ Firebase FCM key và reload Nginx (Triệt tiêu vĩnh viễn lỗi 502 Bad Gateway)
+echo "🔄 Đồng bộ Firebase credentials và làm mới Nginx Reverse Proxy..."
+if [ -f "$APP_DIR/backend/service-account-key.json" ]; then
+  docker cp "$APP_DIR/backend/service-account-key.json" wdp301-gateway:/app/service-account-key.json || true
+fi
+docker compose -f docker-compose.prod.yml restart frontend || true
+
 # 7. Dọn dẹp Docker images rác
 echo "🧹 Dọn dẹp Docker images trung gian..."
 docker image prune -f
