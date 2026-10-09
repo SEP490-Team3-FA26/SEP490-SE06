@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
+import { FireEmergencyCallService } from '../../services/fireEmergencyCall.service';
 
 interface EmergencyData {
   deviceId: string;
@@ -28,13 +29,17 @@ export const FireEmergencyModal: React.FC = () => {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
       const payload = notification.request.content.data;
       if (payload?.type === 'FIRE_EMERGENCY') {
-        setData({
+        const itemData = {
           deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
           temp: String(payload.temp || '65.0'),
           title: notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
           isTest: payload.isTest === 'true',
-        });
+        };
+        setData(itemData);
         setVisible(true);
+
+        // Kích hoạt cuộc gọi toàn màn hình native
+        FireEmergencyCallService.showEmergencyCall(itemData);
 
         // Rung cảnh báo bổ sung trên thiết bị
         if (Platform.OS === 'android') {
@@ -47,13 +52,17 @@ export const FireEmergencyModal: React.FC = () => {
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const payload = response.notification.request.content.data;
       if (payload?.type === 'FIRE_EMERGENCY') {
-        setData({
+        const itemData = {
           deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
           temp: String(payload.temp || '65.0'),
           title: response.notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
           isTest: payload.isTest === 'true',
-        });
+        };
+        setData(itemData);
         setVisible(true);
+
+        // Kích hoạt cuộc gọi toàn màn hình native
+        FireEmergencyCallService.showEmergencyCall(itemData);
       }
     });
 
@@ -67,6 +76,9 @@ export const FireEmergencyModal: React.FC = () => {
     setVisible(false);
     setData(null);
     Vibration.cancel();
+
+    // Dừng cuộc gọi và tắt chuông reo
+    FireEmergencyCallService.stopEmergencyCall();
 
     // Hủy các thông báo đang hiển thị trên khay hệ thống để tắt chuông/còi
     try {

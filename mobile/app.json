@@ -37,6 +37,12 @@
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
         "POST_NOTIFICATIONS",
+        "USE_FULL_SCREEN_INTENT",
+        "WAKE_LOCK",
+        "DISABLE_KEYGUARD",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_PHONE_CALL",
+        "VIBRATE",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
       ]
@@ -59,6 +65,12 @@
           "sounds": [
             "./assets/alarm_gentle.wav"
           ]
+        }
+      ],
+      [
+        "react-native-full-screen-notification-incoming-call",
+        {
+          "statusBarColor": "#991B1B"
         }
       ]
     ],
