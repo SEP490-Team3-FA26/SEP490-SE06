@@ -41,6 +41,12 @@
         "WAKE_LOCK",
         "DISABLE_KEYGUARD",
         "VIBRATE",
+        "MANAGE_OWN_CALLS",
+        "CALL_PHONE",
+        "READ_PHONE_STATE",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_PHONE_CALL",
+        "BIND_TELECOM_CONNECTION_SERVICE",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
       ]
@@ -55,6 +61,7 @@
       "expo-status-bar",
       "expo-font",
       "expo-splash-screen",
+      "@config-plugins/react-native-callkeep",
       [
         "expo-notifications",
         {
