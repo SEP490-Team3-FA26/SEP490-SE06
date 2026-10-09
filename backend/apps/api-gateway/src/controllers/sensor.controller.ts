@@ -133,11 +133,11 @@ export class SensorController implements OnModuleInit {
         const count = (this.consecutiveViolations.get(deviceId) || 0) + 1;
         this.consecutiveViolations.set(deviceId, count);
 
-        // Debounce: Vượt ngưỡng liên tiếp >= 15 mẫu (khoảng 15s)
-        const isDebounced = count >= 15;
+        // Debounce: Vượt ngưỡng liên tiếp >= 3 mẫu (khoảng 3s) để test phản hồi nhanh
+        const isDebounced = count >= 3;
         const nowMs = Date.now();
         const lastPush = this.lastPushTimeMap.get(deviceId) || 0;
-        const isCooldownElapsed = nowMs - lastPush >= 5 * 60 * 1000; // 5 phút cooldown
+        const isCooldownElapsed = nowMs - lastPush >= 30 * 1000; // 30s cooldown
 
         if (isDebounced && isCooldownElapsed) {
           this.lastPushTimeMap.set(deviceId, nowMs);
@@ -151,7 +151,7 @@ export class SensorController implements OnModuleInit {
               title: 'CẢNH BÁO QUÁ NHIỆT KHO TỔNG',
               body: `Nhiệt độ hiện tại ${temp}°C đã vượt ngưỡng ${threshold}°C! Vui lòng kiểm tra kho ngay lập tức.`,
               channelId: 'iot_temperature_critical',
-              sound: 'siren_alarm',
+              sound: 'default',
               data: {
                 type: 'IOT_TEMPERATURE_ALERT',
                 deviceId,
