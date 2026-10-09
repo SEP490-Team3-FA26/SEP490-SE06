@@ -228,7 +228,7 @@ export class PushNotificationService implements OnModuleInit {
       try {
         const messages = expoTokens.map((token) => ({
           to: token,
-          sound: 'default',
+          sound: payload.sound || 'default',
           title: payload.title,
           body: payload.body,
           data: payload.data || {},

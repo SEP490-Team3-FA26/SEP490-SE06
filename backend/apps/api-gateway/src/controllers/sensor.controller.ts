@@ -124,12 +124,63 @@ export class SensorController implements OnModuleInit {
         }
       }
 
-      // Đánh giá cảnh báo quá nhiệt GSP theo ngưỡng động của trạm cấu hình trong MongoDB
+      // Đánh giá cảnh báo: Hỏa hoạn (>= 60°C) hoặc Quá nhiệt GSP (> threshold)
       const temp = Number(normalizedRecord.metrics?.temperature ?? 0);
       const threshold = await this.pushService.getStationTempThreshold(deviceId);
+      const isFireEmergency = temp >= 60.0;
       const isOverTemp = temp > threshold;
 
-      if (isOverTemp) {
+      if (isFireEmergency) {
+        // Hỏa hoạn khẩn cấp: Kích hoạt ngay lập tức 0s debounce
+        const nowMs = Date.now();
+        const lastPush = this.lastPushTimeMap.get(deviceId) || 0;
+        const isCooldownElapsed = nowMs - lastPush >= 30 * 1000; // Cooldown 30s giữa các lần bắn push
+
+        if (isCooldownElapsed) {
+          this.lastPushTimeMap.set(deviceId, nowMs);
+          this.logger.error(
+            `[IOT FIRE EMERGENCY] Nhiệt độ kho ${temp}°C vượt ngưỡng hỏa hoạn (>= 60°C) -> Bắn chuông báo động hỏa hoạn khẩn cấp tới thủ kho`,
+          );
+
+          // 1. Bắn Push Notification kênh hỏa hoạn đến toàn bộ điện thoại role warehouse
+          this.pushService
+            .sendToRole('warehouse', {
+              title: 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
+              body: `NGUY CẤP: Nhiệt độ kho ${temp}°C đã vượt ngưỡng hỏa hoạn (>= 60°C)! Sơ tán và kiểm tra ngay lập tức!`,
+              channelId: 'iot_fire_alarm_channel',
+              sound: 'alarm_gentle',
+              severity: 'EMERGENCY',
+              data: {
+                type: 'FIRE_EMERGENCY',
+                deviceId,
+                temp: String(temp),
+                threshold: '60',
+              },
+            })
+            .catch((e) => this.logger.error(`Lỗi gửi push fire emergency: ${e?.message}`));
+
+          // 2. Lưu vào danh sách thông báo hệ thống
+          this.notificationService
+            .create({
+              type: 'IOT_TEMPERATURE_ALERT',
+              targetRooms: ['warehouse', 'admin'],
+              message: `NGUY CẤP: Phát hiện hỏa hoạn tại Kho Tổng! Nhiệt độ ${temp}°C vượt ngưỡng 60°C.`,
+            })
+            .catch((e) => this.logger.warn(`Lỗi lưu notification DB: ${e?.message}`));
+
+          // 3. Ghi nhận nhật ký sự cố vào iot_alerts với mức độ EMERGENCY
+          this.pushService
+            .recordIotAlert({
+              deviceId,
+              stationName: 'Trạm Quan Trắc Kho Tổng GSP',
+              targetId: 'CENTRAL_WH',
+              currentValue: temp,
+              thresholdValue: 60,
+              severity: 'EMERGENCY',
+            })
+            .catch((e) => this.logger.warn(`Lỗi lưu iot_alert DB: ${e?.message}`));
+        }
+      } else if (isOverTemp) {
         const count = (this.consecutiveViolations.get(deviceId) || 0) + 1;
         this.consecutiveViolations.set(deviceId, count);
 
@@ -152,6 +203,7 @@ export class SensorController implements OnModuleInit {
               body: `Nhiệt độ hiện tại ${temp}°C đã vượt ngưỡng ${threshold}°C! Vui lòng kiểm tra kho ngay lập tức.`,
               channelId: 'iot_temperature_critical',
               sound: 'default',
+              severity: 'WARNING',
               data: {
                 type: 'IOT_TEMPERATURE_ALERT',
                 deviceId,

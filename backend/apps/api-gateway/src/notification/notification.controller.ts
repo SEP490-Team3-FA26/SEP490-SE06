@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Delete, Query, Param, Req, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Query, Param, Req, UseGuards, Logger, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import { PushNotificationService } from './push-notification.service';
@@ -144,6 +144,69 @@ export class NotificationController {
     return {
       success: true,
       message: `Đã gửi test push tới role ${role}`,
+      result,
+    };
+  }
+
+  @Post('test-iot-alert')
+  @ApiOperation({ summary: 'Bắn test cảnh báo IoT (GSP hoặc Hỏa hoạn) đến thủ kho' })
+  async testIotAlert(@Body() body: any, @Req() req: any) {
+    const user = req.user;
+    if (user.role !== 'warehouse' && user.role !== 'admin') {
+      throw new ForbiddenException('Chỉ thủ kho hoặc admin mới có quyền thực hiện test cảnh báo');
+    }
+
+    const type = body.type === 'FIRE_EMERGENCY' ? 'FIRE_EMERGENCY' : 'GSP_WARNING';
+    const deviceId = body.deviceId || 'ESP32S3_404CCA44C814';
+
+    let title: string;
+    let messageBody: string;
+    let channelId: string;
+    let sound: string;
+    let severity: 'WARNING' | 'EMERGENCY';
+    let dataPayload: Record<string, string>;
+
+    if (type === 'FIRE_EMERGENCY') {
+      title = 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG (TEST)';
+      messageBody = `THỬ NGHIỆM: Kích hoạt chuông báo động hỏa hoạn khẩn cấp tại trạm ${deviceId}!`;
+      channelId = 'iot_fire_alarm_channel';
+      sound = 'alarm_gentle';
+      severity = 'EMERGENCY';
+      dataPayload = {
+        type: 'FIRE_EMERGENCY',
+        deviceId,
+        temp: '65.0',
+        isTest: 'true',
+      };
+    } else {
+      title = 'CẢNH BÁO QUÁ NHIỆT KHO TỔNG (TEST)';
+      messageBody = `THỬ NGHIỆM: Nhiệt độ kho tổng vượt ngưỡng an toàn GSP tại trạm ${deviceId}!`;
+      channelId = 'iot_temperature_critical';
+      sound = 'default';
+      severity = 'WARNING';
+      dataPayload = {
+        type: 'IOT_TEMPERATURE_ALERT',
+        deviceId,
+        temp: '42.0',
+        isTest: 'true',
+      };
+    }
+
+    // Chỉ bắn Push Notification thử nghiệm, không lưu DB theo yêu cầu
+    const result = await this.pushService.sendToRole('warehouse', {
+      title,
+      body: messageBody,
+      channelId,
+      sound,
+      severity,
+      data: dataPayload,
+    });
+
+    return {
+      success: true,
+      message: `Đã gửi thử nghiệm ${type} tới thủ kho`,
+      type,
+      deviceId,
       result,
     };
   }

@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { MedicineReminderService } from './src/services/medicineReminder.service';
+import { FireEmergencyModal } from './src/components/warehouse/FireEmergencyModal';
 
 // Ignore known non-critical Expo Go warnings
 LogBox.ignoreLogs([
@@ -43,7 +44,7 @@ const linking = {
 
 const App: React.FC = () => {
   useEffect(() => {
-    // 0. Khoi tao Android Notification Channel muc MAX cho canh bao qua nhiet GSP
+    // 0. Khoi tao Android Notification Channel muc MAX cho canh bao qua nhiet GSP & Hoa hoan
     if (Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('iot_temperature_critical', {
         name: 'Cảnh Báo Quá Nhiệt GSP',
@@ -53,6 +54,20 @@ const App: React.FC = () => {
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
       }).catch((e) => console.warn('Init notification channel warning:', e));
+
+      Notifications.setNotificationChannelAsync('iot_fire_alarm_channel', {
+        name: 'Báo Động Hỏa Hoạn',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 800, 400, 800, 400, 800],
+        lightColor: '#DC2626',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+        sound: 'alarm_gentle.wav',
+        audioAttributes: {
+          usage: Notifications.AndroidAudioUsage.ALARM,
+          contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+        },
+      }).catch((e) => console.warn('Init fire alarm channel warning:', e));
     }
 
     // 1. Khởi tạo Notification Channel, Action Categories và xin quyền
@@ -101,6 +116,7 @@ const App: React.FC = () => {
           </NotificationProvider>
         </AuthProvider>
       </SafeAreaProvider>
+      <FireEmergencyModal />
       <Toast />
     </GestureHandlerRootView>
   );
