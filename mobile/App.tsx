@@ -12,7 +12,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { MedicineReminderService } from './src/services/medicineReminder.service';
 import { FireEmergencyModal } from './src/components/warehouse/FireEmergencyModal';
-import { FireEmergencyCallService } from './src/services/fireEmergencyCall.service';
 
 // Ignore known non-critical Expo Go warnings
 LogBox.ignoreLogs([
@@ -47,6 +46,10 @@ const App: React.FC = () => {
   useEffect(() => {
     // 0. Khoi tao Android Notification Channel muc MAX cho canh bao qua nhiet GSP & Hoa hoan
     if (Platform.OS === 'android') {
+      // Don dep cac channel loi cu
+      Notifications.deleteNotificationChannelAsync('fire_emergency_call_v4').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_alarm_v4').catch(() => {});
+
       Notifications.setNotificationChannelAsync('iot_temperature_critical', {
         name: 'Cảnh Báo Quá Nhiệt GSP',
         importance: Notifications.AndroidImportance.MAX,
@@ -56,8 +59,8 @@ const App: React.FC = () => {
         bypassDnd: true,
       }).catch((e) => console.warn('Init notification channel warning:', e));
 
-      Notifications.setNotificationChannelAsync('fire_emergency_call_v4', {
-        name: 'Báo Động Hỏa Hoạn (Cuộc Gọi Khẩn Cấp)',
+      Notifications.setNotificationChannelAsync('fire_emergency_alarm_v5', {
+        name: 'Báo Động Hỏa Hoạn Khẩn Cấp',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 800, 400, 800, 400, 800],
         lightColor: '#DC2626',
@@ -70,9 +73,6 @@ const App: React.FC = () => {
         },
       }).catch((e) => console.warn('Init fire alarm channel warning:', e));
     }
-
-    // Khoi tao listener cuoc goi toan man hinh bao chay
-    FireEmergencyCallService.init();
 
     // 1. Khởi tạo Notification Channel, Action Categories và xin quyền
     MedicineReminderService.init().then(() => {

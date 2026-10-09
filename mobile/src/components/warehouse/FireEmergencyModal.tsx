@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
-import { FireEmergencyCallService } from '../../services/fireEmergencyCall.service';
 
 interface EmergencyData {
   deviceId: string;
@@ -38,12 +37,9 @@ export const FireEmergencyModal: React.FC = () => {
         setData(itemData);
         setVisible(true);
 
-        // Kích hoạt cuộc gọi toàn màn hình native
-        FireEmergencyCallService.showEmergencyCall(itemData);
-
-        // Rung cảnh báo bổ sung trên thiết bị
+        // Kích hoạt rung dồn dập lặp lại liên tục cho đến khi thủ kho bấm xác nhận
         if (Platform.OS === 'android') {
-          Vibration.vibrate([0, 800, 400, 800, 400, 800], false);
+          Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
         }
       }
     });
@@ -61,8 +57,9 @@ export const FireEmergencyModal: React.FC = () => {
         setData(itemData);
         setVisible(true);
 
-        // Kích hoạt cuộc gọi toàn màn hình native
-        FireEmergencyCallService.showEmergencyCall(itemData);
+        if (Platform.OS === 'android') {
+          Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
+        }
       }
     });
 
@@ -76,9 +73,6 @@ export const FireEmergencyModal: React.FC = () => {
     setVisible(false);
     setData(null);
     Vibration.cancel();
-
-    // Dừng cuộc gọi và tắt chuông reo
-    FireEmergencyCallService.stopEmergencyCall();
 
     // Hủy các thông báo đang hiển thị trên khay hệ thống để tắt chuông/còi
     try {
