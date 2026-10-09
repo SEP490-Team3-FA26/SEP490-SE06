@@ -17,6 +17,24 @@ export class OrderItem {
 
   @Prop({ type: String, default: 'Hộp' })
   unit?: string;
+
+  @Prop({ type: Number, default: 1, min: 1 })
+  exchangeValue?: number;
+
+  @Prop({ type: Number, min: 0 })
+  dosePerTime?: number;
+
+  @Prop({ type: Number, min: 0 })
+  timesPerDay?: number;
+
+  @Prop({ type: Number, min: 0 })
+  dailyDose?: number;
+
+  @Prop({ type: Number, min: 0 })
+  durationDays?: number;
+
+  @Prop({ type: String })
+  dosageInstructions?: string;
 }
 export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
@@ -46,7 +64,21 @@ export class Order extends Document {
   @Prop({ type: String, required: true, default: 'QR_PAY', enum: ['CASH', 'CARD', 'QR_PAY'] })
   paymentMethod: string;
 
-  @Prop({ type: String, required: true, default: 'PENDING', enum: ['PENDING', 'PAID', 'CANCELLED', 'FAILED'] })
+  @Prop({
+    type: String,
+    required: true,
+    default: 'PENDING',
+    enum: [
+      'PENDING',
+      'PAID',
+      'CANCELLED',
+      'FAILED',
+      'PARTIAL_PAID',
+      'PAYMENT_RECEIVED_INVENTORY_PENDING',
+      'INVENTORY_FULFILLING',
+      'INVENTORY_FAILED',
+    ],
+  })
   paymentStatus: string;
 
   @Prop({ type: String })
@@ -85,7 +117,7 @@ export class Order extends Document {
   @Prop({ type: Boolean, default: true })
   isGuest?: boolean;
 
-  // AI-beslissingsondersteuning en GPP-auditspoorvelden
+  // AI decision-support and GPP audit trail
   @Prop({ type: Boolean, default: false })
   isAiAssisted?: boolean;
 
@@ -97,6 +129,12 @@ export class Order extends Document {
 
   @Prop({ type: String })
   pharmacistApprovedBy?: string;
+
+  @Prop({ type: String })
+  approvedBy?: string;
+
+  @Prop({ type: Date })
+  approvedAt?: Date;
 
   createdAt?: Date;
   updatedAt?: Date;

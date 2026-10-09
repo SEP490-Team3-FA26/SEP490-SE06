@@ -65,12 +65,12 @@ def get_embeddings_cohere(texts: list[str]) -> list[list[float]]:
 
 def clean_price(price_raw):
     if not price_raw:
-        return 50000
+        return 0
     try:
         cleaned = re.sub(r'[^0-9.]', '', str(price_raw))
-        return int(float(cleaned)) if cleaned else 50000
+        return int(float(cleaned)) if cleaned else 0
     except:
-        return 50000
+        return 0
 
 def main():
     MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
@@ -165,7 +165,7 @@ def main():
                     "image_url": image_url,
                     "stock_quantity": batch_item.get("stock") if batch_item.get("stock") is not None else 0,
                     "status": batch_item.get("status") or "In Stock",
-                    "expiry_date": batch_item.get("expiry_date") or "2026-12-31",
+                    "expiry_date": batch_item.get("expiry_date") or None,
                     "unit": batch_item.get("unit") or "Hộp"
                 })
                 
@@ -223,7 +223,7 @@ def main():
                 "image_url": image_url,
                 "stock_quantity": batch_item.get("stock") if batch_item.get("stock") is not None else 0,
                 "status": batch_item.get("status") or "In Stock",
-                "expiry_date": batch_item.get("expiry_date") or "2026-12-31",
+                "expiry_date": batch_item.get("expiry_date") or None,
                 "unit": batch_item.get("unit") or "Hộp"
             })
             

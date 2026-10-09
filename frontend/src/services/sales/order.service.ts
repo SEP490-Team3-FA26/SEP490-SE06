@@ -6,6 +6,12 @@ export interface OrderItem {
   quantity: number;
   price?: number;
   unit?: string;
+  exchangeValue?: number;
+  dosePerTime?: number;
+  timesPerDay?: number;
+  dailyDose?: number;
+  durationDays?: number;
+  dosageInstructions?: string;
 }
 
 export interface OrderPayload {
@@ -61,12 +67,20 @@ export interface PayOSLinkPayload {
   paymentMethod?: 'QR_PAY';
   voucherCode?: string;
   redeemedPoints?: number;
+  type?: 'ONLINE' | 'RETAIL' | 'POS_SALE';
+  branchId?: string;
   items: {
     medicineId: string;
     name: string;
     quantity: number;
     price: number;
     unit: string;
+    exchangeValue?: number;
+    dosePerTime?: number;
+    timesPerDay?: number;
+    dailyDose?: number;
+    durationDays?: number;
+    dosageInstructions?: string;
   }[];
   userId?: string;
   role?: string;

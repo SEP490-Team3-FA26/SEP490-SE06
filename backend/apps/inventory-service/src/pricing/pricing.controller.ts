@@ -57,6 +57,16 @@ export class PricingController {
     }
   }
 
+  @MessagePattern('inventory.pricing.quote')
+  async quotePrices(@Payload() data: { branchId?: string; type?: string; items: any[] }) {
+    try {
+      return await this.pricingService.quotePrices(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi báo giá đơn hàng');
+    }
+  }
+
   @MessagePattern('inventory.pricing.copy')
   async copyPriceList(@Payload() data: { fromBranchId: string; toBranchId: string; updatedBy?: string }) {
     try {

@@ -232,7 +232,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
       }, 0)
     : 0;
 
-  const totalExchangeValue = exchangeCart.reduce((sum, item) => sum + item.quantity * (item.price || 50000), 0);
+  const totalExchangeValue = exchangeCart.reduce((sum, item) => sum + item.quantity * (item.price ?? 0), 0);
   const netDifference = totalExchangeValue - totalReturnedValue;
 
   // --- Submit Return ---

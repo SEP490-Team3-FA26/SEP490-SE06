@@ -135,7 +135,7 @@ export default function WholesaleView() {
         medicineId: medId,
         name: med.name,
         active_ingredient: med.active_ingredient || '',
-        price: med.price || 50000,
+        price: med.price ?? 0,
         priceTiers: med.priceTiers || [],
         quantity: 10, // Si toi thieu 10 don vi
         unit: med.unit || 'Hộp',

@@ -12,9 +12,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-import { ClientKafka } from '@nestjs/microservices';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { ClientKafka, RpcException } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../guards/optional-jwt-auth.guard';
@@ -32,7 +30,6 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 export class OrderController implements OnModuleInit {
   constructor(
     @Inject('ORDER_SERVICE') private readonly orderClient: ClientKafka,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   async onModuleInit() {
@@ -53,9 +50,16 @@ export class OrderController implements OnModuleInit {
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Tạo đơn hàng mới' })
   async createOrder(@Body() data: CreateOrderDto, @Req() req: any) {
+    if (data.type === 'PRESCRIPTION' && !req.user?.sub) {
+      throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được tạo đơn kê đơn', statusCode: 403 });
+    }
     if (req.user) {
       if (req.user.sub) data.userId = req.user.sub;
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
+      if (data.type === 'PRESCRIPTION') {
+        data.approvedBy = req.user.sub;
+        data.approvedAt = new Date().toISOString();
+      }
     }
     return await sendKafkaMessage(this.orderClient, 'orders.create', { ...data });
   }
@@ -72,19 +76,8 @@ export class OrderController implements OnModuleInit {
   @Post('webhook/payos')
   @ApiOperation({ summary: 'Tiếp nhận webhook thanh toán tự động với khóa chống lặp Idempotency 24h' })
   async handlePayOSWebhook(@Body() body: PayOSWebhookDto) {
-    const reference = body?.data?.reference || body?.data?.paymentLinkId || String(body?.data?.orderCode);
-    const lockKey = `webhook:lock:payos:${reference}`;
-
-    // 1. Kiểm tra Idempotency Lock trên Redis
-    const isLocked = await this.cacheManager.get(lockKey);
-    if (isLocked) {
-      return { success: true, message: 'Giao dịch đã được tiếp nhận và xử lý trước đó (Idempotent OK)' };
-    }
-
-    // 2. Set Lock 24 giờ (86400s)
-    await this.cacheManager.set(lockKey, 'PROCESSED', 86400 * 1000);
-
-    // 3. Chuyển tiếp vào Kafka để xử lý đối soát và dung sai thông minh
+    // Signature verification and idempotency are handled in orders-service so an
+    // invalid request cannot poison the gateway Redis lock before verification.
     return await sendKafkaMessage(this.orderClient, 'orders.payment.webhook_received', body);
   }
 
@@ -206,9 +199,16 @@ export class OrderController implements OnModuleInit {
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Tạo link thanh toán PayOS' })
   async createPayOSLink(@Body() data: CreatePayOSLinkDto, @Req() req: any) {
+    if (data.type === 'PRESCRIPTION' && !req.user?.sub) {
+      throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được tạo đơn kê đơn', statusCode: 403 });
+    }
     if (req.user) {
       if (req.user.sub) data.userId = req.user.sub;
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
+      if (data.type === 'PRESCRIPTION') {
+        data.approvedBy = req.user.sub;
+        data.approvedAt = new Date().toISOString();
+      }
     }
     return await sendKafkaMessage(this.orderClient, 'orders.create', {
       ...data,
@@ -225,12 +225,14 @@ export class OrderController implements OnModuleInit {
   }
 
   @Get('my-orders')
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Danh sách đơn hàng của khách hàng hiện tại' })
-  async getMyOrders(@Req() req: any, @Query('phone') phone?: string) {
+  async getMyOrders(@Req() req: any) {
     const userId = req.user?.sub;
-    const fullName = req.user?.fullName || '';
+    if (!userId) {
+      throw new RpcException({ message: 'Không xác định được tài khoản đăng nhập', statusCode: 401 });
+    }
 
-    return await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId, fullName, phone });
+    return await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId });
   }
 }

@@ -47,7 +47,7 @@ export class OrdersServiceService implements OnModuleInit {
   async onModuleInit() {
     await subscribeToKafkaTopics(
       this.inventoryClient,
-      ['inventory.sale.create', 'inventory.sale.revert'],
+      ['inventory.sale.create', 'inventory.sale.revert', 'inventory.pricing.quote'],
       60,
       3000,
     );
@@ -97,6 +97,7 @@ export class OrdersServiceService implements OnModuleInit {
             {
               phone: order.patientPhone,
               pointsDelta: order.redeemedPoints,
+              operationKey: `ORDER:${order.orderCode}:REFUND`,
             }
           );
         }
@@ -124,6 +125,23 @@ export class OrdersServiceService implements OnModuleInit {
     }
     this.logger.log(`Creating order in DB. PaymentMethod: ${data?.paymentMethod}, patientName: ${data?.patientName}, totalAmount: ${data?.totalAmount}`);
 
+    const quote = await sendKafkaMessage(this.inventoryClient, 'inventory.pricing.quote', {
+      branchId: data.branchId,
+      type: data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
+      items: data.items || [],
+    });
+    if (!quote?.items || quote.items.length !== (data.items || []).length) {
+      throw new RpcException({ message: 'Không thể xác định bảng giá server cho đơn hàng' });
+    }
+    data.items = (data.items || []).map((item: any, index: number) => {
+      const priced = quote.items[index];
+      if (!priced || String(priced.medicineId) !== String(item.medicineId)) {
+        throw new RpcException({ message: `Không thể xác định giá thuốc ${item.medicineId}` });
+      }
+      return { ...item, price: priced.price, unit: priced.unit, exchangeValue: priced.exchangeValue };
+    });
+    const serverSubtotal = Number(quote.subtotal) || 0;
+
     // Generate a unique 64-bit int order code for PayOS
     const orderCode = Math.floor(100000 + Math.random() * 90000000);
 
@@ -131,8 +149,7 @@ export class OrdersServiceService implements OnModuleInit {
     let voucherDiscount = 0;
 
     if (data.voucherCode) {
-      const subtotal = data.items.reduce((sum: number, it: any) => sum + it.price * it.quantity, 0);
-      const valRes = await this.validateVoucher(data.voucherCode, subtotal);
+      const valRes = await this.validateVoucher(data.voucherCode, serverSubtotal);
       if (valRes.error) {
         throw new RpcException(valRes.message);
       }
@@ -143,6 +160,8 @@ export class OrdersServiceService implements OnModuleInit {
     let redeemedPoints = data.redeemedPoints || 0;
     let pointsDiscount = 0;
     let earnedPoints = 0;
+    let memberDiscount = 0;
+    let loyaltyMultiplier = 1;
     let patientEmail = data.patientEmail || undefined;
 
     // Nếu đơn hàng từ UserLoyalty, lấy thông tin email
@@ -162,6 +181,8 @@ export class OrdersServiceService implements OnModuleInit {
           if (userLoyalty.email && !patientEmail) {
             patientEmail = userLoyalty.email;
           }
+
+          memberDiscount = Math.round(serverSubtotal * 0.05);
         }
       } catch (err: any) {
         this.logger.warn(`Failed to fetch user loyalty for ID ${data.userId}: ${err.message}`);
@@ -213,9 +234,7 @@ export class OrdersServiceService implements OnModuleInit {
           }
 
           // Enforce 50% max point redemption constraint
-          const subtotal = data.items.reduce((sum: number, it: any) => sum + it.price * it.quantity, 0);
-          const memberDiscount = Math.round(subtotal * 0.05);
-          const payableBeforePoints = subtotal - memberDiscount - voucherDiscount;
+          const payableBeforePoints = serverSubtotal - memberDiscount - voucherDiscount;
           const maxRedeemPoints = Math.floor(payableBeforePoints * 0.5);
 
           if (redeemedPoints > maxRedeemPoints) {
@@ -223,6 +242,7 @@ export class OrdersServiceService implements OnModuleInit {
           }
 
           pointsDiscount = redeemedPoints * (userLoyalty.conversionRate || 1);
+          loyaltyMultiplier = userLoyalty.multiplier || 1;
 
           // Earned points: 1% * tier multiplier
           earnedPoints = Math.round((data.totalAmount / 100) * (userLoyalty.multiplier || 1.0));
@@ -245,17 +265,10 @@ export class OrdersServiceService implements OnModuleInit {
       }
     }
 
-    // Instantly deduct points from user balance if redeeming
-    if (redeemedPoints > 0) {
-      await sendKafkaMessage(
-        this.userClient,
-        'user.loyalty.update_points',
-        {
-          phone: data.patientPhone,
-          pointsDelta: -redeemedPoints,
-        }
-      );
-    }
+    const taxableAmount = Math.max(0, serverSubtotal - memberDiscount - voucherDiscount - pointsDiscount);
+    const serverTotalAmount = Math.max(0, taxableAmount + Math.round(taxableAmount * 0.08));
+    data.totalAmount = serverTotalAmount;
+    earnedPoints = Math.round((serverTotalAmount / 100) * loyaltyMultiplier);
 
     const newOrder = new this.orderModel({
       orderCode,
@@ -269,6 +282,12 @@ export class OrdersServiceService implements OnModuleInit {
         quantity: it.quantity,
         price: it.price,
         unit: it.unit || 'Hộp',
+        exchangeValue: it.exchangeValue || 1,
+        dosePerTime: it.dosePerTime,
+        timesPerDay: it.timesPerDay,
+        dailyDose: it.dailyDose,
+        durationDays: it.durationDays,
+        dosageInstructions: it.dosageInstructions,
       })),
       totalAmount: data.totalAmount,
       paymentMethod: data.paymentMethod || 'QR_PAY',
@@ -284,11 +303,13 @@ export class OrdersServiceService implements OnModuleInit {
       customerRole: data.customerRole || data.role || (data.isGuest ? 'guest' : 'customer'),
       role: data.role || data.customerRole || (data.isGuest ? 'guest' : 'customer'),
       isGuest: data.isGuest !== undefined ? Boolean(data.isGuest) : (data.role === 'guest' || !data.patientPhone || data.patientPhone === '0900000000'),
-      // AI-beslissingsondersteuningsvelden voor auditspoor
+      // AI decision-support audit fields
       isAiAssisted: Boolean(data.isAiAssisted),
       aiAuditCode: data.aiAuditCode || undefined,
       consultationId: data.consultationId || undefined,
       pharmacistApprovedBy: data.pharmacistApprovedBy || undefined,
+      approvedBy: data.approvedBy,
+      approvedAt: data.approvedAt ? new Date(data.approvedAt) : undefined,
     });
 
     // ========================================================
@@ -323,6 +344,7 @@ export class OrdersServiceService implements OnModuleInit {
           {
             phone: newOrder.patientPhone,
             pointsDelta: -redeemedPoints,
+            operationKey: `ORDER:${orderCode}:RESERVE`,
           }
         );
       }
@@ -377,13 +399,33 @@ export class OrdersServiceService implements OnModuleInit {
         };
       } catch (err: any) {
         this.logger.error('Error creating PayOS payment link:', err);
+        if (redeemedPoints > 0 && data.patientPhone && data.patientPhone !== DEFAULT_PHONE_NUMBER) {
+          await sendKafkaMessage(this.userClient, 'user.loyalty.update_points', {
+            phone: data.patientPhone,
+            pointsDelta: redeemedPoints,
+            operationKey: `ORDER:${orderCode}:REFUND`,
+          }).catch((refundErr: any) => this.logger.error(`Failed to refund reserved points: ${refundErr.message}`));
+        }
+        if (voucherCode) {
+          await this.voucherModel.updateOne({ code: voucherCode, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } }).exec();
+        }
         throw new RpcException({ message: `Lỗi tạo link thanh toán PayOS: ${err.message}` });
       }
     }
 
-    // CASH or CARD: Complete order instantly
-    newOrder.paymentStatus = 'PAID';
+    // CASH or CARD: money is received, but the order is not fulfilled until
+    // inventory confirms the deduction.
+    newOrder.paymentStatus = 'PAYMENT_RECEIVED_INVENTORY_PENDING';
     await newOrder.save();
+    const fulfillmentClaim = await this.orderModel.findOneAndUpdate(
+      { _id: newOrder._id, paymentStatus: 'PAYMENT_RECEIVED_INVENTORY_PENDING' },
+      { $set: { paymentStatus: 'INVENTORY_FULFILLING' } },
+      { new: true },
+    ).exec();
+    if (!fulfillmentClaim) {
+      throw new RpcException({ message: 'Đơn hàng đang được xử lý xuất kho ở một phiên khác', statusCode: 409 });
+    }
+    newOrder.paymentStatus = 'INVENTORY_FULFILLING';
 
     // Deduct inventory and record sale
     try {
@@ -399,6 +441,7 @@ export class OrdersServiceService implements OnModuleInit {
               phone: newOrder.patientPhone,
               pointsDelta: newOrder.earnedPoints,
               accumulatedDelta: newOrder.earnedPoints,
+              operationKey: `ORDER:${newOrder.orderCode}:EARN`,
             }
           ).catch((e: any) => this.logger.warn(`Failed to update loyalty points for phone ${newOrder.patientPhone}: ${e.message}`));
         } catch (e: any) {
@@ -420,29 +463,31 @@ export class OrdersServiceService implements OnModuleInit {
     } catch (err: any) {
       this.logger.error('Error deducting inventory:', err);
 
-      // Asynchronously trigger sending invoice email even if inventory deduction fails
-      this.sendInvoiceEmailAsync(newOrder);
+      newOrder.paymentStatus = 'INVENTORY_FAILED';
+      await newOrder.save();
 
-      // Save with warning
       return {
-        success: true,
+        success: false,
         orderCode,
         paymentMethod: data.paymentMethod,
         order: newOrder,
-        warning: `Đơn hàng đã lưu nhưng trừ kho thất bại: ${err.message}`,
+        warning: `Đã nhận thanh toán nhưng chưa xuất kho được: ${err.message}`,
       };
     }
   }
 
   async checkPaymentStatus(orderCode: number) {
     this.logger.log(`Checking payment status for orderCode: ${orderCode}`);
-    const order = await this.orderModel.findOne({ orderCode }).exec();
+    let order = await this.orderModel.findOne({ orderCode }).exec();
     if (!order) {
       throw new RpcException({ message: `Không tìm thấy đơn hàng với mã: ${orderCode}` });
     }
 
     if (order.paymentStatus === 'PAID' || order.paymentStatus === 'CANCELLED') {
       return { success: true, status: order.paymentStatus, order };
+    }
+    if (order.paymentStatus === 'PARTIAL_PAID') {
+      return { success: false, status: 'PARTIAL_PAID', order, warning: 'Đơn hàng đang bị chặn do số tiền thanh toán chưa đủ' };
     }
 
     try {
@@ -451,11 +496,37 @@ export class OrdersServiceService implements OnModuleInit {
 
       this.logger.log(`PayOS status for ${orderCode}: ${paymentInfo.status}`);
       if (paymentInfo.status === 'PAID') {
-        order.paymentStatus = 'PAID';
-        await order.save();
+        const fulfillmentClaim = await this.orderModel.findOneAndUpdate(
+          {
+            _id: order._id,
+            paymentStatus: { $in: ['PENDING', 'PAYMENT_RECEIVED_INVENTORY_PENDING', 'INVENTORY_FAILED'] },
+          },
+          { $set: { paymentStatus: 'INVENTORY_FULFILLING' } },
+          { new: true },
+        ).exec();
+        if (!fulfillmentClaim) {
+          const current = await this.orderModel.findById(order._id).exec();
+          return { success: current?.paymentStatus === 'PAID', status: current?.paymentStatus, order: current };
+        }
+        order = fulfillmentClaim;
 
         // Deduct inventory
-        const saleRes = await this.deductInventory(order);
+        let saleRes;
+        try {
+          saleRes = await this.deductInventory(order);
+        } catch (inventoryError: any) {
+          order.paymentStatus = 'INVENTORY_FAILED';
+          await order.save();
+          return {
+            success: false,
+            status: 'INVENTORY_FAILED',
+            order,
+            warning: `Thanh toán đã nhận nhưng chưa xuất kho được: ${inventoryError.message}`,
+          };
+        }
+
+        order.paymentStatus = 'PAID';
+        await order.save();
 
         // CREDIT POINTS ON SUCCESSFUL PAYOS PAYMENT
         if (order.earnedPoints > 0 && order.patientPhone !== '0900000000') {
@@ -466,6 +537,7 @@ export class OrdersServiceService implements OnModuleInit {
               phone: order.patientPhone,
               pointsDelta: order.earnedPoints,
               accumulatedDelta: order.earnedPoints,
+              operationKey: `ORDER:${order.orderCode}:EARN`,
             }
           );
         }
@@ -490,6 +562,7 @@ export class OrdersServiceService implements OnModuleInit {
             {
               phone: order.patientPhone,
               pointsDelta: order.redeemedPoints,
+              operationKey: `ORDER:${order.orderCode}:REFUND`,
             }
           ).catch(e => this.logger.error('Failed to refund points on cancel', e));
         }
@@ -544,32 +617,15 @@ export class OrdersServiceService implements OnModuleInit {
 
   async getMyOrders(userId?: string, fullName?: string, phone?: string) {
     const cleanUserId = userId && userId.trim() !== '' ? userId.trim() : null;
-    const cleanPhone = phone && phone.trim() !== '' ? phone.trim() : null;
-    const cleanName = fullName && fullName.trim() !== '' ? fullName.trim() : null;
-
-    if (!cleanUserId && !cleanPhone && !cleanName) {
+    if (!cleanUserId) {
       return [];
     }
 
-    const orConditions: any[] = [];
+    // Order history is an account-owned resource. Phone/name are display
+    // attributes and must never be accepted as alternative lookup keys.
+    const query = { userId: cleanUserId };
 
-    if (cleanUserId) {
-      orConditions.push({ userId: cleanUserId });
-    }
-    if (cleanPhone) {
-      orConditions.push({ patientPhone: cleanPhone });
-    }
-    if (cleanName) {
-      orConditions.push({ patientName: { $regex: cleanName, $options: 'i' } });
-    }
-
-    if (orConditions.length === 0) {
-      return [];
-    }
-
-    const query = { $or: orConditions };
-
-    this.logger.log(`[getMyOrders] Querying orders for userId=${cleanUserId}, fullName=${cleanName}, phone=${cleanPhone}`);
+    this.logger.log(`[getMyOrders] Querying orders for userId=${cleanUserId}`);
     const results = await this.orderModel.find(query).sort({ createdAt: -1 }).exec();
     this.logger.log(`[getMyOrders] Found ${results.length} orders`);
     return results;
@@ -585,14 +641,24 @@ export class OrdersServiceService implements OnModuleInit {
         medicineId: it.medicineId,
         name: it.name,
         quantity: it.quantity,
+        price: it.price,
+        unit: it.unit,
+        exchangeValue: it.exchangeValue,
+        dosePerTime: it.dosePerTime,
+        timesPerDay: it.timesPerDay,
+        dailyDose: it.dailyDose,
+        durationDays: it.durationDays,
+        dosageInstructions: it.dosageInstructions,
       })),
       patientName: order.patientName,
       patientPhone: order.patientPhone,
       soldBy: order.type === 'ONLINE' ? 'Khách đặt online' : 'Dược sĩ tại quầy',
       branchId: order.branchId || null,
+      approvedBy: order.approvedBy,
+      approvedAt: order.approvedAt,
     };
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       this.inventoryClient.send('inventory.sale.create', payload).pipe(timeout(10000)).subscribe({
         next: (res) => {
           this.logger.log(`Inventory deduction success for orderCode ${order.orderCode}: ${JSON.stringify(res)}`);
@@ -600,7 +666,7 @@ export class OrdersServiceService implements OnModuleInit {
         },
         error: (err) => {
           this.logger.warn(`Inventory deduction failed/timed out for orderCode ${order.orderCode}: ${err.message}`);
-          resolve({ warning: err.message || 'Hệ thống kho chưa phản hồi' });
+          reject(new Error(err.message || 'Hệ thống kho chưa phản hồi'));
         },
       });
     });
@@ -1154,10 +1220,37 @@ export class OrdersServiceService implements OnModuleInit {
   // =========================================================================
 
   async handlePaymentWebhook(payload: any) {
-    const data = payload?.data || payload;
+    let data: any;
+    try {
+      // Verify the signed PayOS payload before it can alter order state.
+      data = await this.payos.webhooks.verify(payload);
+    } catch (error: any) {
+      const unsignedData = payload?.data || {};
+      const invalidReference = String(unsignedData.reference || unsignedData.paymentLinkId || `INVALID-${Date.now()}`);
+      await this.webhookLogModel.create({
+        gatewayProvider: 'PAYOS',
+        transactionId: invalidReference,
+        orderCode: Number(unsignedData.orderCode) || 0,
+        amount: Number(unsignedData.amount) || 0,
+        rawPayload: payload,
+        signatureVerified: false,
+        processingStatus: 'INVALID_SIGNATURE',
+      }).catch(() => undefined);
+      throw new RpcException({ message: 'Webhook PayOS không hợp lệ hoặc sai chữ ký', statusCode: 401 });
+    }
+
     const orderCode = Number(data.orderCode);
     const amount = Number(data.amount);
     const reference = String(data.reference || data.paymentLinkId || Date.now());
+
+    const duplicate = await this.webhookLogModel.findOne({
+      gatewayProvider: 'PAYOS',
+      transactionId: reference,
+      processingStatus: 'PROCESSED',
+    }).exec();
+    if (duplicate) {
+      return { status: 'DUPLICATE', orderCode, message: 'Webhook PayOS đã được xử lý trước đó' };
+    }
 
     // 1. Lưu log raw webhook
     try {
@@ -1176,6 +1269,9 @@ export class OrdersServiceService implements OnModuleInit {
       });
     } catch (logErr: any) {
       this.logger.warn(`Webhook log already exists or error: ${logErr.message}`);
+      if (logErr?.code === 11000) {
+        return { status: 'DUPLICATE', orderCode, message: 'Webhook PayOS đã được xử lý trước đó' };
+      }
     }
 
     // 2. Tìm đơn hàng tương ứng
@@ -1202,12 +1298,12 @@ export class OrdersServiceService implements OnModuleInit {
 
     if (differenceAmount === 0) {
       reconciliationStatus = 'MATCHED';
-      order.paymentStatus = 'PAID';
+      order.paymentStatus = 'PAYMENT_RECEIVED_INVENTORY_PENDING';
     } else if (differenceAmount > 0 && differenceAmount <= 5000) {
       // Dung sai thông minh <= 5.000 VNĐ: Cho phép xuất thuốc ngay tại quầy
       reconciliationStatus = 'UNDERPAID_TOLERANCE';
       toleranceApplied = true;
-      order.paymentStatus = 'PAID';
+      order.paymentStatus = 'PAYMENT_RECEIVED_INVENTORY_PENDING';
       this.logger.log(`[Reconciliation] Smart tolerance applied for order #${orderCode}: missing ${differenceAmount}đ`);
     } else if (differenceAmount > 5000) {
       // Chuyển thiếu nhiều hơn 5k: Chặn đơn
@@ -1217,7 +1313,7 @@ export class OrdersServiceService implements OnModuleInit {
     } else {
       // Chuyển thừa tiền (differenceAmount < 0)
       reconciliationStatus = 'OVERPAID_CREDITED';
-      order.paymentStatus = 'PAID';
+      order.paymentStatus = 'PAYMENT_RECEIVED_INVENTORY_PENDING';
       const excessAmount = Math.abs(differenceAmount);
       this.logger.log(`[Reconciliation] Order #${orderCode} overpaid: excess ${excessAmount}đ credited to customer`);
       // Cộng điểm thưởng bù trừ nếu có SĐT khách
@@ -1225,7 +1321,8 @@ export class OrdersServiceService implements OnModuleInit {
         try {
           this.userClient.emit('user.loyalty.update_points', {
             phone: order.patientPhone,
-            points: Math.floor(excessAmount),
+            pointsDelta: Math.floor(excessAmount),
+            operationKey: `PAYOS:${reference}:EXCESS`,
             reason: `Hoàn tiền chuyển thừa đơn #${orderCode}`,
           });
         } catch (e: any) {
@@ -1269,8 +1366,18 @@ export class OrdersServiceService implements OnModuleInit {
     const actualAmount = data.actualAmount || expectedAmount;
     const differenceAmount = expectedAmount - actualAmount;
 
-    order.paymentStatus = 'PAID';
+    order.paymentStatus = 'PAYMENT_RECEIVED_INVENTORY_PENDING';
     await order.save();
+
+    try {
+      await this.deductInventory(order);
+      order.paymentStatus = 'PAID';
+      await order.save();
+    } catch (inventoryError: any) {
+      order.paymentStatus = 'INVENTORY_FAILED';
+      await order.save();
+      throw new RpcException({ message: `Đã xác nhận nhận tiền nhưng xuất kho thất bại: ${inventoryError.message}`, statusCode: 409 });
+    }
 
     const rec = await this.reconciliationModel.create({
       orderId: order._id,
@@ -1588,3 +1695,4 @@ export class OrdersServiceService implements OnModuleInit {
     }
   }
 }
+
