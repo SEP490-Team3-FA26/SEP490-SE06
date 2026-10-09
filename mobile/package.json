@@ -4,7 +4,7 @@
   "type": "commonjs",
   "main": "index.ts",
   "scripts": {
-    "postinstall": "node scripts/patch-expo-notifications.js && node scripts/patch-callkeep.js",
+    "postinstall": "node scripts/patch-expo-notifications.js",
     "start": "expo start",
     "go": "expo start --go",
     "go:clean": "expo start --go -c",
@@ -14,7 +14,6 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@config-plugins/react-native-callkeep": "^14.0.2",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^7.15.2",
@@ -39,7 +38,6 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
-    "react-native-callkeep": "^4.3.16",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-qrcode-svg": "^6.3.16",
     "react-native-reanimated": "4.5.1",
