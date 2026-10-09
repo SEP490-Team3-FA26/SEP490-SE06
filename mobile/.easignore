@@ -1,8 +1,21 @@
+# Dependencies & build caches
 node_modules/
 .expo/
 dist/
 web-build/
-.kotlin/
-/ios
+.dart_tool/
 build/
+.gradle/
+android/.gradle/
+android/app/build/
+*.apk
+*.aab
+
+# Desktop OS folders from old Flutter
+linux/
+macos/
+windows/
+.kotlin/
+
+# Include google-services.json
 !google-services.json
