@@ -161,7 +161,7 @@ export class PushNotificationService implements OnModuleInit {
     if (fcmTokens.length > 0 && this.messaging) {
       try {
         const channelId = payload.channelId || 'iot_temperature_critical';
-        const sound = payload.sound || 'siren_alarm';
+        const sound = payload.sound === 'siren_alarm' ? 'default' : (payload.sound || 'default');
 
         const res = await this.messaging.sendEachForMulticast({
           tokens: fcmTokens,
@@ -175,6 +175,7 @@ export class PushNotificationService implements OnModuleInit {
               channelId,
               sound,
               defaultVibrateTimings: true,
+              priority: 'high',
             },
           },
           apns: {
@@ -185,7 +186,11 @@ export class PushNotificationService implements OnModuleInit {
               },
             },
           },
-          data: payload.data || {},
+          data: {
+            ...(payload.data || {}),
+            title: payload.title,
+            body: payload.body,
+          },
         });
 
         sent += res.successCount;
