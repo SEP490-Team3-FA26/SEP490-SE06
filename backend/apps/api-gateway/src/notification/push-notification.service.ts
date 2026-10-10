@@ -163,36 +163,46 @@ export class PushNotificationService implements OnModuleInit {
         const channelId = payload.channelId || 'fire_emergency_siren_v6';
         const sound = payload.sound === 'siren_alarm' ? 'default' : (payload.sound || 'default');
 
-        const res = await this.messaging.sendEachForMulticast({
+        const isFireEmergency = payload.data?.type === 'FIRE_EMERGENCY';
+
+        const multicastMessage: any = {
           tokens: fcmTokens,
-          notification: {
-            title: payload.title,
-            body: payload.body,
-          },
           android: {
             priority: 'high',
-            notification: {
-              channelId,
-              sound,
-              defaultVibrateTimings: true,
-              priority: 'high',
-              visibility: 'public',
-            },
           },
-          apns: {
+          data: {
+            ...(payload.data || {}),
+            title: payload.title,
+            body: payload.body,
+            channelId,
+            sound,
+          },
+        };
+
+        // Nếu KHÔNG PHẢI báo cháy khẩn cấp, giữ lại trường notification chuẩn cho các tin thông thường
+        if (!isFireEmergency) {
+          multicastMessage.notification = {
+            title: payload.title,
+            body: payload.body,
+          };
+          multicastMessage.android.notification = {
+            channelId,
+            sound,
+            defaultVibrateTimings: true,
+            priority: 'high',
+            visibility: 'public',
+          };
+          multicastMessage.apns = {
             payload: {
               aps: {
                 sound: 'default',
                 badge: 1,
               },
             },
-          },
-          data: {
-            ...(payload.data || {}),
-            title: payload.title,
-            body: payload.body,
-          },
-        });
+          };
+        }
+
+        const res = await this.messaging.sendEachForMulticast(multicastMessage);
 
         sent += res.successCount;
         failed += res.failureCount;
