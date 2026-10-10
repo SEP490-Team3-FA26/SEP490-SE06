@@ -13,20 +13,7 @@ export const MedicineReminderService = {
    */
   async init(): Promise<boolean> {
     try {
-      // 1. Cấu hình hành vi hiển thị khi app đang mở (Foreground)
-      try {
-        Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldShowBanner: true,
-            shouldShowList: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-          }),
-        });
-      } catch (e) {
-        // Ignored on Expo Go
-      }
+      // Hành vi notification handler toàn cục đã được định nghĩa và lọc an toàn tại App.tsx
 
       // 2. Tạo notification channel trên Android với độ ưu tiên cao nhất
       if (Platform.OS === 'android') {

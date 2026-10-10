@@ -160,8 +160,8 @@ export class PushNotificationService implements OnModuleInit {
     // 1. Gui qua Firebase Admin cho Android FCM
     if (fcmTokens.length > 0 && this.messaging) {
       try {
-        const channelId = payload.channelId || 'fire_emergency_siren_v6';
-        const sound = payload.sound === 'siren_alarm' ? 'default' : (payload.sound || 'default');
+        const channelId = payload.channelId || 'fire_emergency_ringtone_v7';
+        const sound = payload.sound || 'phone_ring';
 
         const isFireEmergency = payload.data?.type === 'FIRE_EMERGENCY';
 
