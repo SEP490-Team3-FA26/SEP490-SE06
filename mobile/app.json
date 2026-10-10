@@ -56,6 +56,16 @@
       "expo-font",
       "expo-splash-screen",
       [
+        "react-native-notify-kit",
+        {
+          "android": {
+            "foregroundService": {
+              "types": ["mediaPlayback"]
+            }
+          }
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",

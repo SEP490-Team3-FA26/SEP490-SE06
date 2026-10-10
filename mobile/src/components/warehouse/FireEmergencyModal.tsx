@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 
+import { FireEmergencyNotifeeService } from '../../services/fireEmergencyNotifee.service';
+
 interface EmergencyData {
   deviceId: string;
   temp: string;
@@ -24,57 +26,32 @@ export const FireEmergencyModal: React.FC = () => {
   const [data, setData] = useState<EmergencyData | null>(null);
 
   useEffect(() => {
-    // 1. Lắng nghe khi thông báo đẩy tới lúc app đang mở (Foreground)
-    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
-      const payload = notification.request.content.data;
-      if (payload?.type === 'FIRE_EMERGENCY') {
-        const itemData = {
-          deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
-          temp: String(payload.temp || '65.0'),
-          title: notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-          isTest: payload.isTest === 'true',
-        };
-        setData(itemData);
+    // Lắng nghe trạng thái báo động từ FireEmergencyNotifeeService
+    const unsubscribe = FireEmergencyNotifeeService.subscribe((alertPayload) => {
+      if (alertPayload) {
+        setData({
+          deviceId: String(alertPayload.deviceId || 'ESP32S3_404CCA44C814'),
+          temp: String(alertPayload.temp || '65.0'),
+          title: alertPayload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
+          isTest: alertPayload.isTest ?? false,
+        });
         setVisible(true);
-
-        // Kích hoạt rung dồn dập lặp lại liên tục cho đến khi thủ kho bấm xác nhận
-        if (Platform.OS === 'android') {
-          Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
-        }
-      }
-    });
-
-    // 2. Lắng nghe khi thủ kho bấm vào banner thông báo từ background / màn hình khóa
-    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const payload = response.notification.request.content.data;
-      if (payload?.type === 'FIRE_EMERGENCY') {
-        const itemData = {
-          deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
-          temp: String(payload.temp || '65.0'),
-          title: response.notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-          isTest: payload.isTest === 'true',
-        };
-        setData(itemData);
-        setVisible(true);
-
-        if (Platform.OS === 'android') {
-          Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
-        }
+      } else {
+        setVisible(false);
+        setData(null);
       }
     });
 
     return () => {
-      receivedSub.remove();
-      responseSub.remove();
+      unsubscribe();
     };
   }, []);
 
   const handleAcknowledge = async () => {
     setVisible(false);
     setData(null);
-    Vibration.cancel();
+    await FireEmergencyNotifeeService.stopAlarm();
 
-    // Hủy các thông báo đang hiển thị trên khay hệ thống để tắt chuông/còi
     try {
       await Notifications.dismissAllNotificationsAsync();
     } catch (err) {
