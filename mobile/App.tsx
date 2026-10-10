@@ -70,8 +70,8 @@ TaskManager.defineTask(BACKGROUND_FIRE_TASK, async ({ data, error }) => {
   const payload = (data as any)?.notification?.data || (data as any)?.data || (data as any);
   if (payload?.type === 'FIRE_EMERGENCY') {
     await FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-      title: payload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-      body: payload.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
+      title: payload.alertTitle || payload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
+      body: payload.alertBody || payload.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
       deviceId: String(payload.deviceId || ''),
       temp: String(payload.temp || ''),
       isTest: payload.isTest === 'true',
@@ -89,6 +89,7 @@ const App: React.FC = () => {
     // Khởi tạo các Notification Channels mức MAX của Expo cho báo cháy
     if (Platform.OS === 'android') {
       // Dọn dẹp các channel cũ trên Expo
+      Notifications.deleteNotificationChannelAsync('fire_emergency_ringtone_v7').catch(() => {});
       Notifications.deleteNotificationChannelAsync('fire_emergency_siren_v6').catch(() => {});
       Notifications.deleteNotificationChannelAsync('fire_emergency_alarm_v5').catch(() => {});
       Notifications.deleteNotificationChannelAsync('fire_emergency_call_v4').catch(() => {});
@@ -102,10 +103,10 @@ const App: React.FC = () => {
         enableLights: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
-        sound: 'phone_ring.wav',
+        sound: 'default',
       };
 
-      Notifications.setNotificationChannelAsync('fire_emergency_ringtone_v7', fireChannelConfig).catch(() => {});
+      Notifications.setNotificationChannelAsync('fire_emergency_ring_v8', fireChannelConfig).catch(() => {});
 
       Notifications.setNotificationChannelAsync('iot_temperature_critical', {
         name: 'Cảnh Báo Quá Nhiệt GSP',
@@ -123,8 +124,8 @@ const App: React.FC = () => {
       const payload = notification.request.content.data;
       if (payload?.type === 'FIRE_EMERGENCY') {
         FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-          title: notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-          body: notification.request.content.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
+          title: String(payload.alertTitle || notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG'),
+          body: String(payload.alertBody || notification.request.content.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!'),
           deviceId: String(payload.deviceId || ''),
           temp: String(payload.temp || ''),
           isTest: payload.isTest === 'true',

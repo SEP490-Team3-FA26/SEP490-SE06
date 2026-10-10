@@ -160,23 +160,36 @@ export class PushNotificationService implements OnModuleInit {
     // 1. Gui qua Firebase Admin cho Android FCM
     if (fcmTokens.length > 0 && this.messaging) {
       try {
-        const channelId = payload.channelId || 'fire_emergency_ringtone_v7';
-        const sound = payload.sound || 'phone_ring';
+        const channelId = payload.channelId || 'fire_emergency_ring_v8';
+        const sound = payload.sound || 'content://settings/system/ringtone';
 
         const isFireEmergency = payload.data?.type === 'FIRE_EMERGENCY';
+
+        // Với sự kiện FIRE_EMERGENCY: tuyệt đối KHÔNG đưa key 'title' và 'body' vào data payload,
+        // để tránh native code của expo-notifications tự động render thêm 1 thông báo trùng lặp.
+        // Toàn bộ tiêu đề và nội dung được đưa vào 'alertTitle' và 'alertBody' cho Notifee hiển thị độc quyền.
+        const fcmData = isFireEmergency
+          ? {
+              ...(payload.data || {}),
+              alertTitle: payload.title,
+              alertBody: payload.body,
+              channelId,
+              sound,
+            }
+          : {
+              ...(payload.data || {}),
+              title: payload.title,
+              body: payload.body,
+              channelId,
+              sound,
+            };
 
         const multicastMessage: any = {
           tokens: fcmTokens,
           android: {
             priority: 'high',
           },
-          data: {
-            ...(payload.data || {}),
-            title: payload.title,
-            body: payload.body,
-            channelId,
-            sound,
-          },
+          data: fcmData,
         };
 
         // Nếu KHÔNG PHẢI báo cháy khẩn cấp, giữ lại trường notification chuẩn cho các tin thông thường

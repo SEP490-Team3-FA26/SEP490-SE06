@@ -148,15 +148,5 @@ if (fs.existsSync(notifyKitChannelManager)) {
   }
 }
 
-// 8. Đảm bảo file âm thanh phone_ring.wav luôn tồn tại trong android/app/src/main/res/raw
-const assetRing = path.join(__dirname, '..', 'assets', 'phone_ring.wav');
-const androidRawDir = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res', 'raw');
-const androidRawRing = path.join(androidRawDir, 'phone_ring.wav');
-
-if (fs.existsSync(assetRing) && fs.existsSync(androidRawDir)) {
-  fs.copyFileSync(assetRing, androidRawRing);
-  console.log('[Patch] Synced phone_ring.wav to android/app/src/main/res/raw');
-}
-
 console.log('[Patch] All mobile patches applied successfully!');
 

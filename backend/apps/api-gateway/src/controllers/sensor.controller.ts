@@ -147,8 +147,8 @@ export class SensorController implements OnModuleInit {
             .sendToRole('warehouse', {
               title: 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
               body: `NGUY CẤP: Nhiệt độ kho ${temp}°C đã vượt ngưỡng hỏa hoạn (>= 60°C)! Sơ tán và kiểm tra ngay lập tức!`,
-              channelId: 'fire_emergency_ringtone_v7',
-              sound: 'phone_ring',
+              channelId: 'fire_emergency_ring_v8',
+              sound: 'content://settings/system/ringtone',
               severity: 'EMERGENCY',
               data: {
                 type: 'FIRE_EMERGENCY',
