@@ -21,15 +21,29 @@ LogBox.ignoreLogs([
   'Fetch request has been canceled',
 ]);
 
-// Đảm bảo thông báo hiện banner, rung và phát chuông ngay cả khi app đang mở trên màn hình (Foreground)
+// Đảm bảo thông báo hiện banner, rung và phát chuông cho các tin thường.
+// RIÊNG sự kiện FIRE_EMERGENCY: chặn triệt để không cho Expo hiển thị để tránh bị 2 thông báo đè nhau,
+// do Notifee đã toàn quyền hiển thị thông báo khẩn cấp (kèm nút tắt còi, full-screen, rung và đổ chuông).
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data;
+    if (data?.type === 'FIRE_EMERGENCY') {
+      return {
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 const linking = {
@@ -58,8 +72,8 @@ TaskManager.defineTask(BACKGROUND_FIRE_TASK, async ({ data, error }) => {
     await FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
       title: payload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
       body: payload.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
-      deviceId: payload.deviceId,
-      temp: payload.temp,
+      deviceId: String(payload.deviceId || ''),
+      temp: String(payload.temp || ''),
       isTest: payload.isTest === 'true',
     });
   }
@@ -74,8 +88,13 @@ const App: React.FC = () => {
 
     // Khởi tạo các Notification Channels mức MAX của Expo cho báo cháy
     if (Platform.OS === 'android') {
+      // Dọn dẹp các channel cũ trên Expo
+      Notifications.deleteNotificationChannelAsync('fire_emergency_siren_v6').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_alarm_v5').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_call_v4').catch(() => {});
+
       const fireChannelConfig = {
-        name: 'Báo Động Hỏa Hoạn Khẩn Cấp',
+        name: 'Báo Động Hỏa Hoạn Khẩn Cấp (Đổ Chuông)',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
         enableVibrate: true,
@@ -83,12 +102,10 @@ const App: React.FC = () => {
         enableLights: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
-        sound: 'alarm_gentle.wav',
+        sound: 'phone_ring.wav',
       };
 
-      Notifications.setNotificationChannelAsync('fire_emergency_siren_v6', fireChannelConfig).catch(() => {});
-      Notifications.setNotificationChannelAsync('fire_emergency_alarm_v5', fireChannelConfig).catch(() => {});
-      Notifications.setNotificationChannelAsync('fire_emergency_call_v4', fireChannelConfig).catch(() => {});
+      Notifications.setNotificationChannelAsync('fire_emergency_ringtone_v7', fireChannelConfig).catch(() => {});
 
       Notifications.setNotificationChannelAsync('iot_temperature_critical', {
         name: 'Cảnh Báo Quá Nhiệt GSP',

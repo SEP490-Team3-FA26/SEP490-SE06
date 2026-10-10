@@ -28,21 +28,23 @@ class FireEmergencyNotifeeManager {
     if (Platform.OS !== 'android') return;
 
     try {
-      const channelConfig = {
-        name: 'Báo Động Hỏa Hoạn Khẩn Cấp',
+      // Dọn dẹp triệt để các channel cũ để tránh Android cache cấu hình câm tiếng
+      await notifee.deleteChannel('fire_emergency_siren_v6').catch(() => {});
+      await notifee.deleteChannel('fire_emergency_alarm_v5').catch(() => {});
+      await notifee.deleteChannel('fire_emergency_call_v4').catch(() => {});
+
+      // Tạo kênh chuông báo động hỏa hoạn khẩn cấp v7 chuẩn âm thanh chuông điện thoại
+      await notifee.createChannel({
+        id: 'fire_emergency_ringtone_v7',
+        name: 'Báo Động Hỏa Hoạn Khẩn Cấp (Đổ Chuông)',
         importance: AndroidImportance.HIGH,
-        sound: 'alarm_gentle',
+        sound: 'phone_ring',
         vibration: true,
         vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
         bypassDnd: true,
         lights: true,
         lightColor: '#DC2626',
-      };
-
-      // Đăng ký cả 3 ID kênh để tương thích mọi phiên bản
-      await notifee.createChannel({ id: 'fire_emergency_siren_v6', ...channelConfig });
-      await notifee.createChannel({ id: 'fire_emergency_alarm_v5', ...channelConfig });
-      await notifee.createChannel({ id: 'fire_emergency_call_v4', ...channelConfig });
+      });
     } catch (err) {
       console.warn('Lỗi khởi tạo notifee channel:', err);
     }
@@ -50,6 +52,13 @@ class FireEmergencyNotifeeManager {
 
   // Kích hoạt còi báo động hỏa hoạn toàn màn hình (Full-Screen Alert + Loop Sound + Foreground Service)
   public async triggerFireEmergencyAlarm(payload: FireAlertPayload): Promise<void> {
+    // Nếu báo động đang diễn ra, chỉ cập nhật payload mà không tạo thêm thông báo mới (chống duplicate)
+    if (this.isAlarmActive) {
+      this.currentPayload = payload;
+      this.notifyListeners(payload);
+      return;
+    }
+
     this.isAlarmActive = true;
     this.currentPayload = payload;
     this.notifyListeners(payload);
@@ -77,13 +86,13 @@ class FireEmergencyNotifeeManager {
           temp: payload.temp || '',
         },
         android: {
-          channelId: 'fire_emergency_siren_v6',
+          channelId: 'fire_emergency_ringtone_v7',
           asForegroundService: true, // Chạy dưới dạng Foreground Service (không bị OS kill)
           lightUpScreen: true, // Bật sáng màn hình khi có thông báo
           category: AndroidCategory.CALL, // Phân loại mức cuộc gọi đến khẩn cấp
           importance: AndroidImportance.HIGH,
-          loopSound: true, // Lặp âm thanh còi hú liên tục không ngừng
-          sound: 'alarm_gentle',
+          loopSound: true, // Lặp âm thanh chuông điện thoại liên tục không ngừng
+          sound: 'phone_ring',
           fullScreenAction: {
             id: 'default',
             launchActivity: 'default',
