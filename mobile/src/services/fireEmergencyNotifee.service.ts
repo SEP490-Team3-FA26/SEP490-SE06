@@ -29,16 +29,17 @@ class FireEmergencyNotifeeManager {
 
     try {
       // Dọn dẹp triệt để các channel cũ để tránh Android cache cấu hình câm tiếng
+      await notifee.deleteChannel('fire_emergency_ringtone_v7').catch(() => {});
       await notifee.deleteChannel('fire_emergency_siren_v6').catch(() => {});
       await notifee.deleteChannel('fire_emergency_alarm_v5').catch(() => {});
       await notifee.deleteChannel('fire_emergency_call_v4').catch(() => {});
 
-      // Tạo kênh chuông báo động hỏa hoạn khẩn cấp v7 chuẩn âm thanh chuông điện thoại
+      // Tạo kênh chuông báo động hỏa hoạn khẩn cấp v8 sử dụng trực tiếp chuông cuộc gọi hệ thống Android
       await notifee.createChannel({
-        id: 'fire_emergency_ringtone_v7',
+        id: 'fire_emergency_ring_v8',
         name: 'Báo Động Hỏa Hoạn Khẩn Cấp (Đổ Chuông)',
         importance: AndroidImportance.HIGH,
-        sound: 'phone_ring',
+        sound: 'content://settings/system/ringtone',
         vibration: true,
         vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
         bypassDnd: true,
@@ -86,13 +87,13 @@ class FireEmergencyNotifeeManager {
           temp: payload.temp || '',
         },
         android: {
-          channelId: 'fire_emergency_ringtone_v7',
+          channelId: 'fire_emergency_ring_v8',
           asForegroundService: true, // Chạy dưới dạng Foreground Service (không bị OS kill)
           lightUpScreen: true, // Bật sáng màn hình khi có thông báo
           category: AndroidCategory.CALL, // Phân loại mức cuộc gọi đến khẩn cấp
           importance: AndroidImportance.HIGH,
           loopSound: true, // Lặp âm thanh chuông điện thoại liên tục không ngừng
-          sound: 'phone_ring',
+          sound: 'content://settings/system/ringtone',
           fullScreenAction: {
             id: 'default',
             launchActivity: 'default',

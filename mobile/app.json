@@ -70,9 +70,8 @@
         {
           "icon": "./assets/icon.png",
           "color": "#0284C7",
-          "defaultChannel": "fire_emergency_ringtone_v7",
+          "defaultChannel": "fire_emergency_ring_v8",
           "sounds": [
-            "./assets/phone_ring.wav",
             "./assets/alarm_gentle.wav"
           ]
         }

@@ -169,8 +169,8 @@ export class NotificationController {
     if (type === 'FIRE_EMERGENCY') {
       title = 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG (TEST)';
       messageBody = `THỬ NGHIỆM: Kích hoạt chuông báo động hỏa hoạn khẩn cấp tại trạm ${deviceId}!`;
-      channelId = 'fire_emergency_ringtone_v7';
-      sound = 'phone_ring';
+      channelId = 'fire_emergency_ring_v8';
+      sound = 'content://settings/system/ringtone';
       severity = 'EMERGENCY';
       dataPayload = {
         type: 'FIRE_EMERGENCY',
