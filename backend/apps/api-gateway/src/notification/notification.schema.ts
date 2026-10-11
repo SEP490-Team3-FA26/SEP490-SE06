@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true, collection: 'notifications' })
 export class Notification extends Document {
-  @Prop({ required: true, enum: ['NEW_PR', 'PR_APPROVED', 'PR_REJECTED', 'NEW_PO', 'GRN_COMPLETED'] })
+  @Prop({ required: true, enum: ['NEW_PR', 'PR_APPROVED', 'PR_REJECTED', 'NEW_PO', 'GRN_COMPLETED', 'IOT_TEMPERATURE_ALERT', 'LOW_STOCK'] })
   type: string;
 
   @Prop({ required: true, index: true })
