@@ -7,8 +7,14 @@
 #   docker compose -f docker-compose.prod.yml up -d
 # ============================================================
 
+name: wdp301
+
+x-project-log-labels: &project-log-labels
+  dev.dozzle.group: WDP301 - Full Project
+
 x-backend-common: &backend-common
   image: ${BACKEND_IMAGE:-wdp301-backend:latest}
+  labels: *project-log-labels
   pull_policy: never
   restart: unless-stopped
   env_file:
@@ -51,6 +57,7 @@ services:
   # ──────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    labels: *project-log-labels
     container_name: wdp301-redis
     restart: unless-stopped
     command: redis-server --save 60 1 --loglevel warning --maxmemory 64mb --maxmemory-policy allkeys-lru
@@ -70,6 +77,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
+    labels: *project-log-labels
     container_name: wdp301-kafka
     restart: unless-stopped
     environment:
@@ -102,6 +110,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:latest
+    labels: *project-log-labels
     container_name: wdp301-qdrant
     restart: unless-stopped
     volumes:
@@ -219,6 +228,7 @@ services:
   # 7. AI Service — self-hosted, no third-party API (Pre-built image)
   ai-service:
     image: ${AI_IMAGE:-wdp301-ai:latest}
+    labels: *project-log-labels
     pull_policy: never
     container_name: wdp301-ai
     restart: unless-stopped
@@ -258,6 +268,7 @@ services:
   # ──────────────────────────────────────────────────────────
   frontend:
     image: ${FRONTEND_IMAGE:-wdp301-frontend:latest}
+    labels: *project-log-labels
     pull_policy: never
     container_name: wdp301-frontend
     restart: unless-stopped
@@ -291,6 +302,7 @@ services:
   # ──────────────────────────────────────────────────────────
   dozzle:
     image: amir20/dozzle:latest
+    labels: *project-log-labels
     container_name: wdp301-dozzle
     restart: unless-stopped
     ports:
@@ -313,6 +325,7 @@ services:
 
   node-exporter:
     image: prom/node-exporter:v1.8.0
+    labels: *project-log-labels
     container_name: wdp301-node-exporter
     restart: unless-stopped
     pid: host
@@ -333,6 +346,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.51.0
+    labels: *project-log-labels
     container_name: wdp301-prometheus
     restart: unless-stopped
     command:
@@ -355,6 +369,7 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.0
+    labels: *project-log-labels
     container_name: wdp301-grafana
     restart: unless-stopped
     ports:
