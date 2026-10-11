@@ -1,9 +1,47 @@
-import notifee, {
-  AndroidImportance,
-  AndroidCategory,
-  EventType,
-} from 'react-native-notify-kit';
 import { Platform, Vibration } from 'react-native';
+
+export const AndroidImportance = {
+  NONE: 0,
+  MIN: 1,
+  LOW: 2,
+  DEFAULT: 3,
+  HIGH: 4,
+};
+
+export const AndroidCategory = {
+  ALARM: 'alarm',
+  CALL: 'call',
+  ERR: 'err',
+  EVENT: 'event',
+  MSG: 'msg',
+  REMINDER: 'reminder',
+  SERVICE: 'service',
+  STATUS: 'status',
+};
+
+export const EventType = {
+  UNKNOWN: -1,
+  DISMISSED: 0,
+  PRESS: 1,
+  ACTION_PRESS: 2,
+  DELIVERED: 3,
+  TRIGGER_NOTIFICATION_CREATED: 7,
+};
+
+// Safe Lazy Loader cho Notifee (Tránh Invariant Violation: 'NotifeeApiModule' trên iOS / Expo Go)
+let notifeeInstance: any = null;
+function getNotifee(): any {
+  if (Platform.OS !== 'android') return null;
+  if (!notifeeInstance) {
+    try {
+      const mod = require('react-native-notify-kit');
+      notifeeInstance = mod.default || mod;
+    } catch (e) {
+      notifeeInstance = null;
+    }
+  }
+  return notifeeInstance;
+}
 
 export interface FireAlertPayload {
   title?: string;
@@ -25,7 +63,8 @@ class FireEmergencyNotifeeManager {
 
   // Khởi tạo các notification channel khẩn cấp với mức ưu tiên cao nhất
   public async initChannels(): Promise<void> {
-    if (Platform.OS !== 'android') return;
+    const notifee = getNotifee();
+    if (!notifee) return;
 
     try {
       // Dọn dẹp triệt để các channel cũ để tránh Android cache cấu hình câm tiếng
@@ -73,6 +112,9 @@ class FireEmergencyNotifeeManager {
     const body =
       payload.body ||
       `KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP TẠI TRẠM ${payload.deviceId || 'ESP32'} (${payload.temp || '65.0'}°C)!`;
+
+    const notifee = getNotifee();
+    if (!notifee) return;
 
     try {
       await this.initChannels();
@@ -127,6 +169,9 @@ class FireEmergencyNotifeeManager {
 
     Vibration.cancel();
 
+    const notifee = getNotifee();
+    if (!notifee) return;
+
     try {
       if (Platform.OS === 'android') {
         await notifee.stopForegroundService();
@@ -170,26 +215,33 @@ class FireEmergencyNotifeeManager {
   }
 
   private registerEventHandlers(): void {
-    // Đăng ký Foreground Service duy trì còi hú
-    notifee.registerForegroundService(() => {
-      return new Promise(() => {
-        // Giữ Promise pending để Foreground Service sống liên tục cho đến khi stopAlarm được gọi
+    const notifee = getNotifee();
+    if (!notifee) return;
+
+    try {
+      // Đăng ký Foreground Service duy trì còi hú
+      notifee.registerForegroundService(() => {
+        return new Promise(() => {
+          // Giữ Promise pending để Foreground Service sống liên tục cho đến khi stopAlarm được gọi
+        });
       });
-    });
 
-    // Lắng nghe khi người dùng tương tác với notification khi app đang mở
-    notifee.onForegroundEvent(({ type, detail }) => {
-      if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'stop_alarm') {
-        this.stopAlarm();
-      }
-    });
+      // Lắng nghe khi người dùng tương tác với notification khi app đang mở
+      notifee.onForegroundEvent(({ type, detail }: any) => {
+        if (type === EventType.ACTION_PRESS && detail?.pressAction?.id === 'stop_alarm') {
+          this.stopAlarm();
+        }
+      });
 
-    // Lắng nghe khi người dùng tương tác khi app chạy ngầm / tắt
-    notifee.onBackgroundEvent(async ({ type, detail }) => {
-      if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'stop_alarm') {
-        await this.stopAlarm();
-      }
-    });
+      // Lắng nghe khi người dùng tương tác khi app chạy ngầm / tắt
+      notifee.onBackgroundEvent(async ({ type, detail }: any) => {
+        if (type === EventType.ACTION_PRESS && detail?.pressAction?.id === 'stop_alarm') {
+          await this.stopAlarm();
+        }
+      });
+    } catch (e) {
+      console.warn('[Notifee] Error registering event handlers:', e);
+    }
   }
 }
 
