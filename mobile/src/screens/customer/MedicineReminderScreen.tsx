@@ -17,10 +17,16 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { showToast } from '../../components/ui/toastHelper';
-import { ReminderStorageService } from '../../services/reminderStorage.service';
+import { useAuth } from '../../context/AuthContext';
+import {
+  ReminderStorageService,
+  parseOrderToReminder,
+  createRemindersFromOrder,
+} from '../../services/reminderStorage.service';
 import { MedicineReminderService } from '../../services/medicineReminder.service';
 import { ApiService } from '../../services/api.service';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
+import { Order } from '../../types/pharmacy.types';
 import {
   MedicineReminder,
   MedicineReminderLog,
@@ -45,8 +51,11 @@ const SAMPLE_MEDS = [
   { name: 'Vitamin C Sủi', dosage: '1 viên pha nước', meal: 'AFTER_MEAL' as MealTiming },
 ];
 
-export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState<'REMINDERS' | 'LOGS'>('REMINDERS');
+export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> = ({
+  navigation,
+  route,
+}) => {
+  const [activeTab, setActiveTab] = useState<'REMINDERS' | 'SCHEDULE' | 'LOGS'>('REMINDERS');
   const [reminders, setReminders] = useState<MedicineReminder[]>([]);
   const [logs, setLogs] = useState<MedicineReminderLog[]>([]);
   const [scheduledCount, setScheduledCount] = useState<number>(0);
@@ -66,8 +75,82 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
   const [customTime, setCustomTime] = useState<string>('');
   const [note, setNote] = useState<string>('');
 
+  // Form Fields v2.0: Dosing & Refill
+  const [totalDoses, setTotalDoses] = useState<string>('20');
+  const [dosagePerTime, setDosagePerTime] = useState<string>('1');
+  const [totalDays, setTotalDays] = useState<string>('10');
+  const [refillEnabled, setRefillEnabled] = useState<boolean>(true);
+  const [orderSourceId, setOrderSourceId] = useState<string | undefined>(undefined);
+
+  // Authentication Context
+  const { user } = useAuth();
+
+  // Order Import Modal States
+  const [orderModalVisible, setOrderModalVisible] = useState<boolean>(false);
+  const [orderSearchPhone, setOrderSearchPhone] = useState<string>(user?.phone || '0705248921');
+  const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState<boolean>(false);
+
   // Test notification state
   const [testingCountDown, setTestingCountDown] = useState<number | null>(null);
+
+  const fetchOrdersForImport = useCallback(async (phoneToSearch?: string) => {
+    try {
+      setLoadingOrders(true);
+      const targetPhone = phoneToSearch || orderSearchPhone || user?.phone || '0705248921';
+      const fetched = await ApiService.getMyOrders(targetPhone);
+      setCustomerOrders(fetched || []);
+    } catch (e) {
+      console.warn('Lỗi tải danh sách đơn hàng cho lịch nhắc thuốc:', e);
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, [orderSearchPhone, user?.phone]);
+
+  const handleOpenOrderImport = () => {
+    setOrderModalVisible(true);
+    fetchOrdersForImport();
+  };
+
+  const handleSelectOrderItem = (item: any, orderId: string) => {
+    const parsed = parseOrderToReminder(item, orderId);
+    setEditingReminder(null);
+    setMedName(parsed.medicineName || item.name || '');
+    setDosage(parsed.dosage || '1 viên');
+    setMealTiming(parsed.mealTiming || 'AFTER_MEAL');
+    setTimes(parsed.times && parsed.times.length > 0 ? parsed.times : ['08:00', '20:00']);
+    setSelectedDays(parsed.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+    setNote(parsed.note || item.dosageInstructions || item.cach_dung || '');
+    setTotalDoses(parsed.totalDoses ? String(parsed.totalDoses) : '20');
+    setDosagePerTime(parsed.dosagePerTime ? String(parsed.dosagePerTime) : '1');
+    setTotalDays(parsed.totalDays ? String(parsed.totalDays) : '7');
+    setRefillEnabled(parsed.refillEnabled ?? false);
+    setOrderSourceId(orderId);
+    setOrderModalVisible(false);
+    setModalVisible(true);
+    showToast.success('Đã nạp cách dùng', `Đã lấy liều dùng cho ${parsed.medicineName || item.name}`);
+  };
+
+  const handleCreateAllFromOrder = async (order: Order) => {
+    try {
+      const created = await createRemindersFromOrder(order);
+      if (created.length > 0) {
+        for (const rem of created) {
+          await MedicineReminderService.scheduleReminderSlidingWindow(rem, 7);
+        }
+        await loadData();
+        setOrderModalVisible(false);
+        showToast.success(
+          'Tạo Lịch Thành Công!',
+          `Đã tự động tạo lịch uống thuốc và hẹn giờ nhắc cho ${created.length} loại thuốc từ đơn ${order.orderCode || order.id}!`
+        );
+      } else {
+        showToast.info('Thông báo', 'Đơn hàng không có thuốc nào để tạo lịch');
+      }
+    } catch (e: any) {
+      showToast.error('Lỗi', e.message || 'Không thể tạo lịch từ đơn hàng');
+    }
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -90,6 +173,67 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Nhận dữ liệu truyền từ tab Đơn Hàng (1-Tap Fast Create)
+  useEffect(() => {
+    if (route?.params?.autoFill) {
+      const af = route.params.autoFill as Partial<MedicineReminder>;
+      setEditingReminder(null);
+      setMedName(af.medicineName || '');
+      setDosage(af.dosage || '1 viên');
+      setMealTiming(af.mealTiming || 'AFTER_MEAL');
+      setTimes(af.times && af.times.length > 0 ? af.times : ['08:00', '20:00']);
+      setSelectedDays(af.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+      setNote(af.note || '');
+      setTotalDoses(af.totalDoses ? String(af.totalDoses) : '20');
+      setDosagePerTime(af.dosagePerTime ? String(af.dosagePerTime) : '1');
+      setTotalDays(af.totalDays ? String(af.totalDays) : '10');
+      setRefillEnabled(af.refillEnabled ?? true);
+      setOrderSourceId(af.orderId);
+      setModalVisible(true);
+
+      // Xóa params sau khi đã áp dụng để không lặp lại khi render lại
+      navigation.setParams({ autoFill: undefined });
+    }
+  }, [route?.params?.autoFill, navigation]);
+
+  // Tính toán số ngày dùng ước tính khi thay đổi số viên và số lần uống
+  useEffect(() => {
+    const total = parseInt(totalDoses, 10);
+    const doseEach = parseInt(dosagePerTime, 10) || 1;
+    const daily = times.length * doseEach;
+    if (!isNaN(total) && total > 0 && daily > 0) {
+      const calculatedDays = Math.max(1, Math.floor(total / daily));
+      setTotalDays(String(calculatedDays));
+      setRefillEnabled(calculatedDays >= 8);
+    }
+  }, [totalDoses, dosagePerTime, times.length]);
+
+  // Helper tính tiến trình dùng thuốc và trạng thái nhắc mua lại
+  const getMedicineProgress = (reminder: MedicineReminder) => {
+    if (!reminder.totalDoses || reminder.totalDoses <= 0) return null;
+    const daily = (reminder.times?.length || 1) * (reminder.dosagePerTime || 1);
+    const start = new Date(reminder.startDate || reminder.createdAt || new Date());
+    start.setHours(0, 0, 0, 0);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const daysPassed = Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    const dosesConsumed = Math.min(reminder.totalDoses, daysPassed * daily);
+    const dosesRemaining = Math.max(0, reminder.totalDoses - dosesConsumed);
+    const remainingPct = Math.round((dosesRemaining / reminder.totalDoses) * 100);
+    const daysLeft = daily > 0 ? Math.ceil(dosesRemaining / daily) : 0;
+    const isNearRefill = remainingPct <= (reminder.refillThresholdPct || 20);
+
+    return {
+      totalDoses: reminder.totalDoses,
+      dosesConsumed,
+      dosesRemaining,
+      remainingPct,
+      daysLeft,
+      isNearRefill,
+      daily,
+    };
+  };
 
   // Handle countdown for test button
   useEffect(() => {
@@ -114,6 +258,11 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
     setTimes(['08:00', '20:00']);
     setCustomTime('');
     setNote('');
+    setTotalDoses('20');
+    setDosagePerTime('1');
+    setTotalDays('10');
+    setRefillEnabled(true);
+    setOrderSourceId(undefined);
     setModalVisible(true);
   };
 
@@ -127,6 +276,11 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
     setTimes(reminder.times);
     setCustomTime('');
     setNote(reminder.note || '');
+    setTotalDoses(reminder.totalDoses ? String(reminder.totalDoses) : '20');
+    setDosagePerTime(reminder.dosagePerTime ? String(reminder.dosagePerTime) : '1');
+    setTotalDays(reminder.totalDays ? String(reminder.totalDays) : '10');
+    setRefillEnabled(reminder.refillEnabled ?? false);
+    setOrderSourceId(reminder.orderId);
     setModalVisible(true);
   };
 
@@ -140,6 +294,9 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
     if (changedItem) {
       if (nextState) {
         await MedicineReminderService.scheduleReminderSlidingWindow(changedItem, 7);
+        if (changedItem.refillEnabled) {
+          await MedicineReminderService.scheduleRefillNotifications(changedItem);
+        }
         showToast.success('Đã bật nhắc nhở', `Đã lên lịch nhắc cho ${reminder.medicineName}`);
       } else {
         await MedicineReminderService.cancelReminderNotifications(reminder.id);
@@ -227,6 +384,18 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
+    const parsedTotalDoses = parseInt(totalDoses, 10);
+    const parsedDosagePerTime = parseInt(dosagePerTime, 10) || 1;
+    const parsedTotalDays = parseInt(totalDays, 10);
+
+    let calculatedEndDate: string | undefined = undefined;
+    if (!isNaN(parsedTotalDays) && parsedTotalDays > 0) {
+      const d = new Date(editingReminder ? editingReminder.startDate : todayStr);
+      d.setDate(d.getDate() + parsedTotalDays - 1);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      calculatedEndDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
     const newReminder: MedicineReminder = {
       id: editingReminder ? editingReminder.id : `med_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       medicineName: medName.trim(),
@@ -235,10 +404,21 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
       daysOfWeek: selectedDays,
       times,
       startDate: editingReminder ? editingReminder.startDate : todayStr,
+      endDate: calculatedEndDate || (editingReminder ? editingReminder.endDate : undefined),
       note: note.trim() || undefined,
       isEnabled: editingReminder ? editingReminder.isEnabled : true,
       createdAt: editingReminder ? editingReminder.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+
+      // Fields v2.0
+      totalDoses: !isNaN(parsedTotalDoses) && parsedTotalDoses > 0 ? parsedTotalDoses : undefined,
+      timesPerDay: times.length,
+      dosagePerTime: parsedDosagePerTime,
+      totalDays: !isNaN(parsedTotalDays) && parsedTotalDays > 0 ? parsedTotalDays : undefined,
+      refillEnabled: refillEnabled,
+      refillThresholdPct: 20,
+      orderId: orderSourceId || (editingReminder ? editingReminder.orderId : undefined),
+      sourceType: orderSourceId ? 'FROM_ORDER' : (editingReminder?.sourceType || 'MANUAL'),
     };
 
     const updatedList = await ReminderStorageService.upsertReminder(newReminder);
@@ -247,9 +427,14 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
     // Lên lịch ngay nếu đang bật
     if (newReminder.isEnabled) {
       const scheduled = await MedicineReminderService.scheduleReminderSlidingWindow(newReminder, 7);
+      let refillScheduled = 0;
+      if (newReminder.refillEnabled) {
+        refillScheduled = await MedicineReminderService.scheduleRefillNotifications(newReminder);
+      }
+
       showToast.success(
         'Lưu thành công!',
-        `Đã tạo ${scheduled} thông báo nhắc thuốc cho 7 ngày tới (kể cả khi mất mạng)`
+        `Đã tạo ${scheduled} thông báo uống thuốc ${refillScheduled > 0 ? `+ ${refillScheduled} thông báo nhắc mua lại` : ''} cho 7 ngày tới (kể cả khi mất mạng)`
       );
     } else {
       showToast.info('Đã lưu', 'Lịch nhắc đã lưu ở trạng thái tắt');
@@ -344,6 +529,14 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
 
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <AnimatedTouchable
+            style={[styles.scanQuickBtn, { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }]}
+            onPress={handleOpenOrderImport}
+          >
+            <Ionicons name="receipt-outline" size={15} color="#16A34A" />
+            <Text style={[styles.scanQuickBtnText, { color: '#16A34A' }]}>Đơn Hàng</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
             style={styles.scanQuickBtn}
             onPress={() => setShowScanner(true)}
           >
@@ -386,6 +579,22 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'SCHEDULE' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('SCHEDULE')}
+        >
+          <Ionicons
+            name="pie-chart-outline"
+            size={18}
+            color={activeTab === 'SCHEDULE' ? '#0891B2' : '#64748B'}
+          />
+          <Text
+            style={[styles.tabText, activeTab === 'SCHEDULE' && styles.tabTextActive]}
+          >
+            Tiến Độ ({reminders.filter((r) => r.totalDoses && r.totalDoses > 0).length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.tabButton, activeTab === 'LOGS' && styles.tabButtonActive]}
           onPress={() => setActiveTab('LOGS')}
         >
@@ -395,13 +604,13 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
             color={activeTab === 'LOGS' ? '#0891B2' : '#64748B'}
           />
           <Text style={[styles.tabText, activeTab === 'LOGS' && styles.tabTextActive]}>
-            Nhật Ký Uống ({logs.length})
+            Nhật Ký ({logs.length})
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Main Content Area */}
-      {activeTab === 'REMINDERS' ? (
+      {activeTab === 'REMINDERS' && (
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
@@ -425,6 +634,8 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
           ) : (
             reminders.map((reminder) => {
               const mealDesc = MedicineReminderService.getMealDescription(reminder.mealTiming);
+              const progress = getMedicineProgress(reminder);
+
               return (
                 <View key={reminder.id} style={styles.reminderCard}>
                   {/* Card Header: Name + Switch */}
@@ -451,6 +662,30 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
                       thumbColor={reminder.isEnabled ? '#0891B2' : '#F1F5F9'}
                     />
                   </View>
+
+                  {/* Refill Alert Banner nếu chạm 20% còn lại */}
+                  {progress && progress.isNearRefill ? (
+                    <View style={styles.refillAlertBanner}>
+                      <Ionicons name="warning" size={18} color="#B91C1C" />
+                      <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Text style={styles.refillAlertTitle}>
+                          ⚠️ SẮP HẾT THUỐC: Còn {progress.dosesRemaining} viên (~{progress.remainingPct}%)
+                        </Text>
+                        <Text style={styles.refillAlertSub}>
+                          {reminder.refillEnabled
+                            ? '🔔 Đã hẹn chuông 09:00 sáng mỗi ngày nhắc đặt mua lại'
+                            : 'Hãy mua thêm để không gián đoạn phác đồ điều trị bạn nhé'}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : progress && reminder.totalDoses ? (
+                    <View style={styles.dosesBadgeRow}>
+                      <Ionicons name="information-circle-outline" size={13} color="#0369A1" />
+                      <Text style={styles.dosesBadgeText}>
+                        Liệu trình: Còn khoảng {progress.daysLeft} ngày ({progress.dosesRemaining}/{reminder.totalDoses} viên)
+                      </Text>
+                    </View>
+                  ) : null}
 
                   {/* Times Badges */}
                   <View style={styles.timesRow}>
@@ -529,8 +764,136 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
             })
           )}
         </ScrollView>
-      ) : (
-        /* LOGS TAB */
+      )}
+
+      {/* SCHEDULE TAB (TIẾN ĐỘ LIỆU TRÌNH VÀ REFILL) */}
+      {activeTab === 'SCHEDULE' && (
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.scheduleIntroBox}>
+            <Ionicons name="shield-checkmark" size={24} color="#0891B2" />
+            <View style={{ marginLeft: 10, flex: 1 }}>
+              <Text style={styles.scheduleIntroTitle}>Theo Dõi Tiến Trình Liệu Trình</Text>
+              <Text style={styles.scheduleIntroSub}>
+                Tự động tính toán lượng thuốc còn lại, cảnh báo đỏ khi chạm mốc 20% và nổ chuông 09:00 sáng trong 7 ngày liên tiếp nhắc mua lại.
+              </Text>
+            </View>
+          </View>
+
+          {reminders.filter((r) => r.totalDoses && r.totalDoses > 0).length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={64} color="#94A3B8" />
+              <Text style={styles.emptyStateTitle}>Chưa có thông tin số lượng thuốc</Text>
+              <Text style={styles.emptyStateSub}>
+                Khi tạo lịch nhắc thuốc, bạn hãy nhập tổng số viên đã mua để hệ thống tự động theo dõi tiến trình và hẹn giờ nhắc mua lại.
+              </Text>
+              <View style={{ marginTop: 20, width: 220 }}>
+                <GradientButton
+                  title="+ Thêm Lịch Nhắc Mới"
+                  onPress={handleOpenCreate}
+                  gradientVariant="cyan"
+                />
+              </View>
+            </View>
+          ) : (
+            reminders
+              .filter((r) => r.totalDoses && r.totalDoses > 0)
+              .map((reminder) => {
+                const progress = getMedicineProgress(reminder)!;
+                const barColor =
+                  progress.remainingPct > 50
+                    ? '#10B981'
+                    : progress.remainingPct > 20
+                    ? '#F59E0B'
+                    : '#EF4444';
+
+                return (
+                  <View key={reminder.id} style={styles.scheduleCard}>
+                    <View style={styles.scheduleCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.scheduleMedName}>{reminder.medicineName}</Text>
+                        <Text style={styles.scheduleMedSub}>
+                          Khẩu phần: {reminder.times?.length || 1} lần/ngày • {reminder.dosage}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.pctBadge,
+                          { backgroundColor: progress.remainingPct <= 20 ? '#FEE2E2' : '#E0F2FE' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.pctBadgeText,
+                            { color: progress.remainingPct <= 20 ? '#B91C1C' : '#0369A1' },
+                          ]}
+                        >
+                          Còn {progress.remainingPct}%
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Progress Bar */}
+                    <View style={styles.progressBarTrack}>
+                      <View
+                        style={[
+                          styles.progressBarFill,
+                          {
+                            width: `${Math.max(5, Math.min(100, progress.remainingPct))}%`,
+                            backgroundColor: barColor,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    {/* Stats Row */}
+                    <View style={styles.scheduleStatsGrid}>
+                      <View style={styles.statCol}>
+                        <Text style={styles.statLabel}>Đã dùng</Text>
+                        <Text style={styles.statValue}>
+                          {progress.dosesConsumed} / {reminder.totalDoses} viên
+                        </Text>
+                      </View>
+
+                      <View style={styles.statCol}>
+                        <Text style={styles.statLabel}>Còn lại ước tính</Text>
+                        <Text style={[styles.statValue, { color: barColor }]}>
+                          ~{progress.daysLeft} ngày
+                        </Text>
+                      </View>
+
+                      <View style={styles.statCol}>
+                        <Text style={styles.statLabel}>Nhắc mua 09:00</Text>
+                        <Text style={styles.statValue}>
+                          {reminder.refillEnabled ? '✅ Bật 7 ngày' : '⏸️ Chưa bật'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Quick Refill Hint */}
+                    {progress.remainingPct <= 30 ? (
+                      <TouchableOpacity
+                        style={styles.reorderBtn}
+                        onPress={() => {
+                          showToast.success('Mua Lại Thuốc', `Đã ghi nhận yêu cầu mua thêm cho ${reminder.medicineName}`);
+                        }}
+                      >
+                        <Ionicons name="cart-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.reorderBtnText}>Đặt Mua Bổ Sung Kịp Thời</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                );
+              })
+          )}
+        </ScrollView>
+      )}
+
+      {/* LOGS TAB */}
+      {activeTab === 'LOGS' && (
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
@@ -625,17 +988,33 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
             </View>
 
             <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
-              {/* Scan Barcode Quick Action */}
-              <TouchableOpacity
-                style={styles.scanModalRowBtn}
-                onPress={() => {
-                  setModalVisible(false);
-                  setShowScanner(true);
-                }}
-              >
-                <Ionicons name="barcode-outline" size={20} color="#0891B2" />
-                <Text style={styles.scanModalRowBtnText}>Quét Vỏ Hộp Thuốc Để Điền Tự Động</Text>
-              </TouchableOpacity>
+              {/* Scan Barcode & Import from Order Actions */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                <TouchableOpacity
+                  style={[styles.scanModalRowBtn, { flex: 1, marginBottom: 0 }]}
+                  onPress={() => {
+                    setModalVisible(false);
+                    setShowScanner(true);
+                  }}
+                >
+                  <Ionicons name="barcode-outline" size={18} color="#0891B2" />
+                  <Text style={styles.scanModalRowBtnText}>Quét Mã Vạch</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.scanModalRowBtn,
+                    { flex: 1.2, marginBottom: 0, backgroundColor: '#F0FDF4', borderColor: '#86EFAC' },
+                  ]}
+                  onPress={() => {
+                    setModalVisible(false);
+                    handleOpenOrderImport();
+                  }}
+                >
+                  <Ionicons name="receipt-outline" size={18} color="#16A34A" />
+                  <Text style={[styles.scanModalRowBtnText, { color: '#16A34A' }]}>Từ Đơn Hàng Mua</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Quick Sample Medicines */}
               {!editingReminder ? (
@@ -800,6 +1179,70 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
                 </View>
               </View>
 
+              {/* SECTION: THÔNG TIN HỘP THUỐC & NHẮC MUA LẠI */}
+              <View style={styles.sectionDividerBox}>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="cube-outline" size={18} color="#0891B2" />
+                  <Text style={styles.sectionTitleText}>Thông Tin Hộp Thuốc & Nhắc Mua Lại</Text>
+                </View>
+
+                {/* Total Doses & Dosage Per Time Row */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputSubLabel}>Tổng số viên/gói mua</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="VD: 20, 30..."
+                      keyboardType="numeric"
+                      value={totalDoses}
+                      onChangeText={setTotalDoses}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputSubLabel}>Mỗi lần uống (viên/gói)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="VD: 1, 2..."
+                      keyboardType="numeric"
+                      value={dosagePerTime}
+                      onChangeText={setDosagePerTime}
+                    />
+                  </View>
+                </View>
+
+                {/* Total Days estimated */}
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.inputSubLabel}>Ước tính số ngày dùng (liệu trình)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="VD: 7, 10, 14..."
+                    keyboardType="numeric"
+                    value={totalDays}
+                    onChangeText={setTotalDays}
+                  />
+                  <Text style={styles.estimateHintText}>
+                    💡 Mỗi ngày uống {times.length * (parseInt(dosagePerTime, 10) || 1)} viên. Dùng trong ~{totalDays || 0} ngày.
+                  </Text>
+                </View>
+
+                {/* Switch Refill */}
+                <View style={styles.refillSwitchRow}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={styles.refillSwitchTitle}>Nhắc mua lại khi còn 20% liều</Text>
+                    <Text style={styles.refillSwitchDesc}>
+                      Tự động báo thức 09:00 sáng mỗi ngày trong 7 ngày liên tiếp trước khi hết thuốc để bạn kịp đặt mua bổ sung.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={refillEnabled}
+                    onValueChange={setRefillEnabled}
+                    trackColor={{ false: '#CBD5E1', true: '#06B6D4' }}
+                    thumbColor={refillEnabled ? '#0891B2' : '#F1F5F9'}
+                  />
+                </View>
+              </View>
+
               {/* Note */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Ghi chú thêm (tùy chọn)</Text>
@@ -829,6 +1272,146 @@ export const MedicineReminderScreen: React.FC<{ navigation: any }> = ({ navigati
                 />
               </View>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL IMPORT FROM PURCHASED ORDERS */}
+      <Modal visible={orderModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '88%' }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Nhập Từ Đơn Hàng Đã Mua</Text>
+                <Text style={styles.orderImportSubtitle}>
+                  Tự động trích xuất cách dùng & liều dùng từ đơn thuốc
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setOrderModalVisible(false)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Phone Filter Row */}
+            <View style={styles.orderSearchRow}>
+              <Ionicons name="call-outline" size={18} color="#0891B2" style={{ marginRight: 6 }} />
+              <TextInput
+                style={styles.orderSearchInput}
+                placeholder="Nhập SĐT khách hàng (0705248921)..."
+                value={orderSearchPhone}
+                onChangeText={setOrderSearchPhone}
+                keyboardType="phone-pad"
+              />
+              <TouchableOpacity
+                style={styles.orderSearchBtn}
+                onPress={() => fetchOrdersForImport(orderSearchPhone)}
+              >
+                <Ionicons name="search" size={16} color="#FFFFFF" />
+                <Text style={styles.orderSearchBtnText}>Tìm Đơn</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Orders Content */}
+            {loadingOrders ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <Ionicons name="hourglass-outline" size={32} color="#0891B2" />
+                <Text style={{ marginTop: 8, color: '#64748B', fontSize: 13 }}>
+                  Đang tải đơn hàng cho {orderSearchPhone}...
+                </Text>
+              </View>
+            ) : customerOrders.length === 0 ? (
+              <View style={styles.orderEmptyBox}>
+                <Ionicons name="receipt-outline" size={48} color="#CBD5E1" />
+                <Text style={styles.orderEmptyTitle}>Không tìm thấy đơn hàng</Text>
+                <Text style={styles.orderEmptySub}>
+                  Hãy thử tìm kiếm với SĐT <Text style={{ fontWeight: '700', color: '#0891B2' }}>0705248921</Text> để xem các đơn thuốc mẫu tại nhà thuốc.
+                </Text>
+                <TouchableOpacity
+                  style={styles.samplePhoneBtn}
+                  onPress={() => {
+                    setOrderSearchPhone('0705248921');
+                    fetchOrdersForImport('0705248921');
+                  }}
+                >
+                  <Text style={styles.samplePhoneBtnText}>Thử với SĐT 0705248921</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {customerOrders.map((ord, ordIdx) => (
+                  <View key={ord.id || ord._id || ordIdx} style={styles.orderImportCard}>
+                    {/* Header đơn hàng */}
+                    <View style={styles.orderImportCardHeader}>
+                      <View>
+                        <Text style={styles.orderImportCode}>
+                          Đơn #{ord.orderCode || ord.id}
+                        </Text>
+                        <Text style={styles.orderImportDate}>
+                          Ngày mua: {new Date(ord.createdAt || Date.now()).toLocaleDateString('vi-VN')} • {ord.patientName || ord.customerName || 'Khách hàng'}
+                        </Text>
+                      </View>
+                      <View style={styles.orderPaidTag}>
+                        <Text style={styles.orderPaidTagText}>ĐÃ THANH TOÁN</Text>
+                      </View>
+                    </View>
+
+                    {/* Danh sách thuốc trong đơn */}
+                    <View style={styles.orderImportItemsContainer}>
+                      {(ord.items || []).map((it, itemIdx) => {
+                        const parsed = parseOrderToReminder(it, ord.orderCode || ord.id);
+                        return (
+                          <View key={itemIdx} style={styles.orderImportItemRow}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={styles.orderImportItemName}>
+                                💊 {it.name}
+                              </Text>
+                              <Text style={styles.orderImportItemQty}>
+                                Số lượng: {it.quantity} {it.unit}
+                              </Text>
+
+                              {/* Chi tiết cách dùng từ đơn */}
+                              <View style={styles.orderImportInstructionBox}>
+                                <Ionicons name="medical" size={13} color="#0891B2" />
+                                <Text style={styles.orderImportInstructionText}>
+                                  {it.dosageInstructions || it.cach_dung || 'Theo hướng dẫn dược sĩ'}
+                                </Text>
+                              </View>
+
+                              {/* Lịch tự động tính toán */}
+                              <View style={styles.orderImportScheduleSummary}>
+                                <Text style={styles.orderImportScheduleSummaryText}>
+                                  ⏱ {parsed.times?.length} lần/ngày ({parsed.times?.join(', ')}) • {parsed.mealTiming === 'AFTER_MEAL' ? 'Sau ăn' : 'Trước ăn'} • Liệu trình {parsed.totalDays} ngày ({parsed.totalDoses} liều)
+                                </Text>
+                              </View>
+                            </View>
+
+                            <TouchableOpacity
+                              style={styles.orderImportSelectBtn}
+                              onPress={() => handleSelectOrderItem(it, String(ord.orderCode || ord.id))}
+                            >
+                              <Ionicons name="arrow-forward-circle" size={18} color="#FFFFFF" />
+                              <Text style={styles.orderImportSelectBtnText}>Chọn</Text>
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    {/* Nút tạo lịch toàn bộ đơn */}
+                    <TouchableOpacity
+                      style={styles.orderImportAllBtn}
+                      onPress={() => handleCreateAllFromOrder(ord)}
+                    >
+                      <Ionicons name="sparkles" size={15} color="#059669" />
+                      <Text style={styles.orderImportAllBtnText}>
+                        Tự Động Tạo Lịch Toàn Bộ Đơn ({ord.items?.length || 0} thuốc)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -1354,5 +1937,386 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#0891B2',
+  },
+  /* Alerts & Refill Badges */
+  refillAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  refillAlertTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  refillAlertSub: {
+    fontSize: 11,
+    color: '#B91C1C',
+    marginTop: 2,
+  },
+  dosesBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  dosesBadgeText: {
+    fontSize: 12,
+    color: '#0369A1',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  /* Schedule Tab Styling */
+  scheduleIntroBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFEFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
+    marginBottom: 16,
+  },
+  scheduleIntroTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0E7490',
+  },
+  scheduleIntroSub: {
+    fontSize: 12,
+    color: '#155E75',
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  scheduleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  scheduleCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  scheduleMedName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  scheduleMedSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  pctBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pctBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  progressBarTrack: {
+    height: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  scheduleStatsGrid: {
+    flexDirection: 'row',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: '#F1F5F9',
+    justifyContent: 'space-between',
+  },
+  statCol: {
+    flex: 1,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  reorderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0891B2',
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 6,
+  },
+  reorderBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  /* Form Section: Dosing & Refill */
+  sectionDividerBox: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitleText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+  inputSubLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 4,
+  },
+  estimateHintText: {
+    fontSize: 11,
+    color: '#0F766E',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  refillSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  refillSwitchTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  refillSwitchDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  /* Order Import Modal Styles */
+  orderImportSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  orderSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  orderSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    paddingVertical: 8,
+  },
+  orderSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0891B2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderSearchBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  orderEmptyBox: {
+    paddingVertical: 36,
+    alignItems: 'center',
+  },
+  orderEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 10,
+  },
+  orderEmptySub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 20,
+    lineHeight: 18,
+  },
+  samplePhoneBtn: {
+    marginTop: 14,
+    backgroundColor: '#E0F2FE',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  samplePhoneBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  orderImportCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 12,
+  },
+  orderImportCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  orderImportCode: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  orderImportDate: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  orderPaidTag: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  orderPaidTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  orderImportItemsContainer: {
+    gap: 8,
+  },
+  orderImportItemRow: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  orderImportItemName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  orderImportItemQty: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  orderImportInstructionBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFEFF',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+    gap: 4,
+    borderWidth: 0.5,
+    borderColor: '#A5F3FC',
+  },
+  orderImportInstructionText: {
+    fontSize: 11,
+    color: '#0E7490',
+    fontWeight: '600',
+    flex: 1,
+  },
+  orderImportScheduleSummary: {
+    marginTop: 4,
+  },
+  orderImportScheduleSummaryText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600',
+  },
+  orderImportSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0891B2',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderImportSelectBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  orderImportAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    paddingVertical: 8,
+    marginTop: 10,
+    gap: 6,
+  },
+  orderImportAllBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
   },
 });
