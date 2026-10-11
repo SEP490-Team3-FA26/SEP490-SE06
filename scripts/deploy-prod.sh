@@ -71,9 +71,10 @@ docker build -t wdp301-ai:latest ./backend/apps/ai-service -f ./backend/apps/ai-
 echo "🐳 Đang khởi động hệ thống qua Docker Compose..."
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-# 7. Dọn dẹp Docker images rác
-echo "🧹 Dọn dẹp Docker images trung gian..."
+# 7. Dọn dẹp Docker images rác và Build Cache cũ
+echo "🧹 Dọn dẹp Docker images trung gian và Build Cache..."
 docker image prune -f
+docker builder prune -f --keep-storage 2GB
 
 echo "=================================================="
 echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ TRÊN PRODUCTION!"

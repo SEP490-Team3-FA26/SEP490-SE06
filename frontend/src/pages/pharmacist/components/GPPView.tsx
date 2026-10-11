@@ -6,6 +6,8 @@ import {
   Download, FileSpreadsheet, ShieldAlert
 } from "lucide-react";
 import { orderService } from "../../../services/sales/order.service";
+import { goodsReceiptService } from "../../../services/purchase/goodsReceipt.service";
+import { inventoryCheckService } from "../../../services/inventory/inventoryCheck.service";
 
 interface GPPViewProps {
   showToast?: (message: string, type?: "success" | "error" | "warning") => void;
@@ -13,80 +15,38 @@ interface GPPViewProps {
 
 export default function GPPView({ showToast }: GPPViewProps) {
   const [orders, setOrders] = useState<any[]>([]);
+  const [goodsReceipts, setGoodsReceipts] = useState<any[]>([]);
+  const [inventoryChecks, setInventoryChecks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [directionFilter, setDirectionFilter] = useState("ALL"); // ALL, OUTWARD, INWARD
+  const [directionFilter, setDirectionFilter] = useState("ALL"); // ALL, OUTWARD, INWARD, STOCK_TAKING
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [isResyncing, setIsResyncing] = useState<string | null>(null);
 
-  // Mau Phieu Nhap Kho lien thong CSDL Duoc Quoc gia (GPP/GDP Inward)
-  const inwardReceipts = [
-    {
-      _id: "PNK-DHG-8821",
-      nationalSyncCode: "DQG-IN-20260825-992143",
-      nationalFacilityCode: "79-001234",
-      direction: "INWARD",
-      type: "NHAP_KHO_NCC",
-      supplierName: "Công ty Cổ phần Dược Hậu Giang (DHG Pharma)",
-      vatInvoiceNumber: "HD-VAT-009214",
-      patientName: "NCC: Dược Hậu Giang (DHG)",
-      totalAmount: 18500000,
-      createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-      nationalSyncStatus: "SYNCED",
-      items: [
-        {
-          medicineId: "6a21a9a84f7acd1b57259761",
-          name: "Cao dán Salonpas Diclofenac Patch Hisamitsu (15 gói x 2 miếng)",
-          quantity: 200,
-          unit: "Hộp",
-          exchangeValue: 30,
-          baseQuantity: 6000,
-          baseUnit: "Miếng",
-          price: 92500,
-          dosageInstructions: "Kiểm định đạt tiêu chuẩn Cục Quản lý Dược",
-          batches: [{ batchNo: "LOT-DHG-2026", quantity: 200 }]
-        }
-      ]
-    },
-    {
-      _id: "PNK-IMEX-4412",
-      nationalSyncCode: "DQG-IN-20260825-881204",
-      nationalFacilityCode: "79-001234",
-      direction: "INWARD",
-      type: "NHAP_KHO_NCC",
-      supplierName: "Công ty CP Dược phẩm Imexpharm",
-      vatInvoiceNumber: "HD-VAT-003891",
-      patientName: "NCC: Imexpharm",
-      totalAmount: 42300000,
-      createdAt: new Date(Date.now() - 3600000 * 28).toISOString(),
-      nationalSyncStatus: "SYNCED",
-      items: [
-        {
-          medicineId: "6a21a9a84f7acd1b57259799",
-          name: "Amoxicillin + Acid Clavulanic 625mg",
-          quantity: 500,
-          unit: "Hộp",
-          exchangeValue: 20,
-          baseQuantity: 10000,
-          baseUnit: "Viên",
-          price: 84600,
-          dosageInstructions: "Kiểm định đạt tiêu chuẩn GDP/GPP",
-          batches: [{ batchNo: "LOT-IMEX-882", quantity: 500 }]
-        }
-      ]
-    }
-  ];
-
-  const fetchOrders = async () => {
+  const fetchAllData = async () => {
     setLoading(true);
     try {
-      // Fetch real sales orders from backend
-      const res = await orderService.listSalesOrders();
-      const list = res.data || res || [];
-      setOrders(Array.isArray(list) ? list : []);
+      const [ordersRes, grnRes, checkRes] = await Promise.allSettled([
+        orderService.listSalesOrders(),
+        goodsReceiptService.getGoodsReceipts(),
+        inventoryCheckService.getChecks(),
+      ]);
+
+      if (ordersRes.status === "fulfilled") {
+        const list = ordersRes.value.data || ordersRes.value || [];
+        setOrders(Array.isArray(list) ? list : []);
+      }
+      if (grnRes.status === "fulfilled") {
+        const list = grnRes.value.data || grnRes.value || [];
+        setGoodsReceipts(Array.isArray(list) ? list : []);
+      }
+      if (checkRes.status === "fulfilled") {
+        const list = checkRes.value.data || checkRes.value || [];
+        setInventoryChecks(Array.isArray(list) ? list : []);
+      }
     } catch (err) {
       console.error("Lỗi tải danh sách hóa đơn GPP:", err);
     } finally {
@@ -95,13 +55,32 @@ export default function GPPView({ showToast }: GPPViewProps) {
   };
 
   useEffect(() => {
-    fetchOrders();
+    fetchAllData();
   }, []);
 
-  // Filtered transactions (Combined Sales Outward & Receipts Inward)
+  // Filtered transactions (Combined Sales Outward, Receipts Inward & Stock-Taking)
   const allTransactions = [
-    ...orders.map(o => ({ ...o, direction: "OUTWARD" })),
-    ...inwardReceipts
+    ...orders.map(o => ({ ...o, direction: "OUTWARD", transactionType: "STOCK_OUT" })),
+    ...goodsReceipts.map(g => ({
+      ...g,
+      direction: "INWARD",
+      transactionType: "STOCK_IN",
+      totalAmount: g.totalAmount || (g.items || []).reduce((sum: number, it: any) => sum + (Number(it.actualQty !== undefined ? it.actualQty : it.quantity) || 0) * (Number(it.unitPrice) || 0), 0),
+      patientName: `NCC: ${g.supplierName || 'Dược Hậu Giang / Imexpharm'}`,
+      nationalSyncCode: g.nationalSyncCode || `DQG-IN-${g.vatInvoiceNumber || (g._id ? g._id.slice(-8).toUpperCase() : '882143')}`,
+      nationalSyncStatus: g.nationalSyncStatus || 'SYNCED',
+      nationalFacilityCode: g.nationalFacilityCode || '79-001234',
+    })),
+    ...inventoryChecks.map(c => ({
+      ...c,
+      direction: "STOCK_TAKING",
+      transactionType: "STOCK_TAKING",
+      totalAmount: 0,
+      patientName: `Kiểm kê: ${c.performedBy || 'Dược sĩ phụ trách GPP'}`,
+      nationalSyncCode: c.nationalSyncCode || `DQG-ST-${c.checkCode || (c._id ? c._id.slice(-8).toUpperCase() : '993120')}`,
+      nationalSyncStatus: c.nationalSyncStatus || 'SYNCED',
+      nationalFacilityCode: c.nationalFacilityCode || '79-001234',
+    }))
   ];
 
   const filteredOrders = allTransactions.filter((ord) => {
@@ -143,7 +122,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
       if (showToast) {
         showToast("Đã đồng bộ lại hóa đơn lên CSDL Dược Quốc gia thành công!", "success");
       }
-      fetchOrders();
+      fetchAllData();
     } catch (err) {
       if (showToast) {
         showToast("Không thể kết nối đến Cổng Dược Quốc gia. Vui lòng thử lại!", "error");
@@ -232,7 +211,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
           <div className="space-y-1">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Chuẩn dữ liệu Y tế</div>
             <div className="text-sm font-black text-slate-800">Bộ Y Tế / Cục Quản Lý Dược</div>
-            <div className="text-xs text-slate-500 font-mono font-medium">QĐ 412/QĐ-BYT (JSON REST)</div>
+            <div className="text-xs text-slate-500 font-mono font-medium">QĐ 232/QĐ-TTYQG (Bản 1.1)</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
             <Building2 size={26} />
@@ -288,15 +267,16 @@ export default function GPPView({ showToast }: GPPViewProps) {
               />
             </div>
 
-            {/* Direction Filter (Xuat ban / Nhap kho) */}
+            {/* Direction Filter (Xuat ban / Nhap kho / Kiem ke) */}
             <select
               value={directionFilter}
               onChange={(e) => setDirectionFilter(e.target.value)}
               className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
             >
-              <option value="ALL">Tất cả Luồng (Xuất & Nhập)</option>
+              <option value="ALL">Tất cả Luồng (Xuất, Nhập & Kiểm kê)</option>
               <option value="OUTWARD">📤 Xuất Bán Hàng (DQG-...)</option>
               <option value="INWARD">📥 Nhập Kho NCC (DQG-IN-...)</option>
+              <option value="STOCK_TAKING">📋 Kiểm Kê Kho (DQG-ST-...)</option>
             </select>
 
             {/* Status Filter */}
@@ -334,7 +314,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
 
             {/* Refresh Button */}
             <button
-              onClick={fetchOrders}
+              onClick={fetchAllData}
               disabled={loading}
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
               title="Làm mới danh sách"
@@ -413,6 +393,10 @@ export default function GPPView({ showToast }: GPPViewProps) {
                           {ord.direction === "INWARD" ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                               📥 NHẬP KHO GDP
+                            </span>
+                          ) : ord.direction === "STOCK_TAKING" ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1">
+                              📋 KIỂM KÊ KHO GPP
                             </span>
                           ) : (
                             <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${

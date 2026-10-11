@@ -7,8 +7,8 @@ import {
   Users, 
   Building 
 } from 'lucide-react';
-import api from '../../services/core/api';
 import { KpiCard } from './KpiCard';
+import { branchService, reportService } from '../../services';
 import { Select } from '../ui/Select';
 import { MonthPicker } from '../ui/MonthPicker';
 
@@ -36,9 +36,9 @@ export function SalesAnalyticsDashboard() {
 
   const fetchBranches = async () => {
     try {
-      const res = await api.get('/api/branches');
-      if (Array.isArray(res.data)) {
-        setBranchesList(res.data);
+      const branches = await branchService.getBranches();
+      if (Array.isArray(branches)) {
+        setBranchesList(branches);
       }
     } catch (err) {
       console.error('Lỗi tải danh sách chi nhánh:', err);
@@ -49,9 +49,13 @@ export function SalesAnalyticsDashboard() {
     setLoadingAnalytics(true);
     try {
       const dateStr = `${selectedMonth}-01`;
-      const res = await api.get(`/api/reports/revenue/analytics?period=month&date=${dateStr}&branchId=${selectedBranch}`);
-      if (res.data && res.data.success) {
-        setAnalyticsData(res.data.data);
+      const resData = await reportService.getRevenueAnalytics({
+        period: 'month',
+        date: dateStr,
+        branchId: selectedBranch,
+      });
+      if (resData && resData.success) {
+        setAnalyticsData(resData.data);
       }
     } catch (err) {
       console.error('Lỗi tải phân tích bán hàng:', err);

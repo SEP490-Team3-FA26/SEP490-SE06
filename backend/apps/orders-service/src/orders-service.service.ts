@@ -1,7 +1,7 @@
 import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { ClientKafka } from '@nestjs/microservices';
 import { PayOS } from '@payos/node';
@@ -617,18 +617,84 @@ export class OrdersServiceService implements OnModuleInit {
 
   async getMyOrders(userId?: string, fullName?: string, phone?: string) {
     const cleanUserId = userId && userId.trim() !== '' ? userId.trim() : null;
+    let cleanPhone = phone && phone.trim() !== '' ? phone.trim() : null;
+    let cleanName = fullName && fullName.trim() !== '' ? fullName.trim() : null;
+
+    // Lịch sử đơn hàng là tài nguyên thuộc quyền sở hữu tài khoản khách hàng
     if (!cleanUserId) {
       return [];
     }
 
-    // Order history is an account-owned resource. Phone/name are display
-    // attributes and must never be accepted as alternative lookup keys.
-    const query = { userId: cleanUserId };
+    // Tự động phân giải số điện thoại và họ tên từ thông tin tài khoản nếu thiếu
+    if (!cleanPhone || !cleanName) {
+      try {
+        const userQuery: any[] = [{ id: cleanUserId }];
+        if (Types.ObjectId.isValid(cleanUserId)) {
+          userQuery.unshift({ _id: new Types.ObjectId(cleanUserId) });
+        }
+        const userDoc = await this.orderModel.db.collection('users').findOne({ $or: userQuery });
+        if (userDoc) {
+          if (!cleanPhone && userDoc.phone) cleanPhone = String(userDoc.phone).trim();
+          if (!cleanName && userDoc.fullName) cleanName = String(userDoc.fullName).trim();
+        }
+      } catch (err: any) {
+        this.logger.warn(`Không thể tự động phân giải chi tiết người dùng cho userId ${cleanUserId}: ${err.message}`);
+      }
+    }
 
-    this.logger.log(`[getMyOrders] Querying orders for userId=${cleanUserId}`);
-    const results = await this.orderModel.find(query).sort({ createdAt: -1 }).exec();
-    this.logger.log(`[getMyOrders] Found ${results.length} orders`);
-    return results;
+    // Truy vấn đơn hàng trực tuyến của tài khoản hoặc khớp số điện thoại chính chủ
+    const orConditions: any[] = [{ userId: cleanUserId }];
+    if (cleanPhone) {
+      orConditions.push({ patientPhone: cleanPhone });
+    }
+
+    const query = { $or: orConditions };
+
+    this.logger.log(`[getMyOrders] Truy vấn đơn hàng cho userId=${cleanUserId}, fullName=${cleanName}, phone=${cleanPhone}`);
+    const results = await this.orderModel.find(query).sort({ createdAt: -1 }).lean().exec();
+
+    // Truy vấn thêm đơn bán lẻ tại quầy (POS) từ collection salesorders theo số điện thoại
+    let salesOrders: any[] = [];
+    if (cleanPhone) {
+      try {
+        salesOrders = await this.orderModel.db.collection('salesorders')
+          .find({ patientPhone: cleanPhone })
+          .sort({ createdAt: -1 })
+          .toArray();
+      } catch (err: any) {
+        this.logger.warn(`Không thể truy vấn salesorders cho khách hàng: ${err.message}`);
+      }
+    }
+
+    const existingCodes = new Set(results.map((o: any) => String(o.orderCode)));
+    const normalizedSales = (salesOrders || [])
+      .filter((s: any) => !existingCodes.has(String(s.orderCode)))
+      .map((s: any) => ({
+        _id: s._id,
+        orderCode: s.orderCode,
+        items: s.items || [],
+        totalAmount: s.totalAmount || 0,
+        paymentMethod: s.paymentMethod || 'CASH',
+        paymentStatus: 'PAID', // Đơn bán lẻ tại quầy đã hoàn tất thanh toán
+        type: s.type || 'RETAIL',
+        shippingAddress: s.shippingAddress || 'Mua tại quầy',
+        patientName: s.patientName || cleanName || 'Khách hàng',
+        patientPhone: s.patientPhone || cleanPhone || '',
+        soldBy: s.soldBy || 'Dược sĩ tại quầy',
+        branchId: s.branchId || 'BR-001',
+        isPosInStore: true,
+        nationalSyncCode: s.nationalSyncCode,
+        nationalSyncStatus: s.nationalSyncStatus,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      }));
+
+    const allOrders = [...results, ...normalizedSales].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    this.logger.log(`[getMyOrders] Tìm thấy ${results.length} đơn online/QR và ${normalizedSales.length} đơn POS (Tổng: ${allOrders.length})`);
+    return allOrders;
   }
 
   private async deductInventory(order: any) {

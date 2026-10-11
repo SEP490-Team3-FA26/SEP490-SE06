@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface InventoryCheckItem {
   medicineId: string;
@@ -24,22 +25,22 @@ export interface InventoryCheckPayload {
 
 export const inventoryCheckService = {
   async getChecks() {
-    const response = await api.get('/api/inventory-checks');
+    const response = await api.get(API_ENDPOINTS.INVENTORY_CHECKS.LIST);
     return response.data;
   },
 
   async getCheckById(id: string) {
-    const response = await api.get(`/api/inventory-checks/${id}`);
+    const response = await api.get(API_ENDPOINTS.INVENTORY_CHECKS.DETAIL(id));
     return response.data;
   },
 
   async createCheck(payload: InventoryCheckPayload) {
-    const response = await api.post('/api/inventory-checks', payload);
+    const response = await api.post(API_ENDPOINTS.INVENTORY_CHECKS.CREATE, payload);
     return response.data;
   },
 
   async completeCheck(id: string) {
-    const response = await api.post(`/api/inventory-checks/${id}/complete`);
+    const response = await api.post(API_ENDPOINTS.INVENTORY_CHECKS.COMPLETE(id));
     return response.data;
   }
 };

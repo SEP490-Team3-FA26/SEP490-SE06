@@ -36,7 +36,10 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import api from '../../services/core/api';
+import { orderService } from '../../services/sales/order.service';
+import { authService } from '../../services/auth/auth.service';
+import { branchService } from '../../services/admin/branch.service';
+import { userService } from '../../services/auth/user.service';
 import { feedbackService, FeedbackSubmissionResponse } from '../../services/sales/feedback.service';
 
 interface CustomerShipmentLogistics {
@@ -419,14 +422,14 @@ export function CustomerOrders() {
   const fetchOrdersData = async () => {
     setLoading(true);
     try {
-      const [ordersRes, profileRes, branchesRes, loyaltyRes] = await Promise.all([
-        api.get('/api/orders/my-orders').catch(() => ({ data: [] })),
-        api.get('/api/auth/profile').catch(() => ({ data: null })),
-        api.get('/api/branches').catch(() => ({ data: [] })),
-        api.get('/api/users/loyalty').catch(() => ({ data: null }))
+      const [profileRes, branchesRes, loyaltyRes] = await Promise.all([
+        authService.getProfile().catch(() => null),
+        branchService.getBranches().catch(() => []),
+        userService.getLoyalty().catch(() => null)
       ]);
 
-      const phone = profileRes?.data?.phone || '';
+      const phone = profileRes?.phone || loyaltyRes?.phone || '';
+      const ordersRes = await orderService.getMyOrders(phone).catch(() => []);
       
       // 🌟 Lấy danh sách các đơn đã đánh giá từ localStorage
       let reviewedCodes: string[] = [];
@@ -439,9 +442,9 @@ export function CustomerOrders() {
       // 🌟 Lấy thêm danh sách từ API backend theo số điện thoại (đồng bộ 2 chiều)
       if (phone && phone !== 'Chưa cập nhật') {
         try {
-          const fbRes = await api.get(`/api/feedbacks/customer/${encodeURIComponent(phone)}`);
-          if (Array.isArray(fbRes.data)) {
-            fbRes.data.forEach((f: any) => {
+          const fbData = await feedbackService.getFeedbacksByCustomer(phone);
+          if (Array.isArray(fbData)) {
+            fbData.forEach((f: any) => {
               if (f.orderCode && !reviewedCodes.includes(String(f.orderCode))) {
                 reviewedCodes.push(String(f.orderCode));
               }
@@ -454,17 +457,17 @@ export function CustomerOrders() {
       }
 
       const reviewedSet = new Set(reviewedCodes.map(String));
-      const rawOrders = ordersRes.data || [];
+      const rawOrders = Array.isArray(ordersRes) ? ordersRes : ordersRes?.data || [];
       const mappedOrders = rawOrders.map((o: any) => ({
         ...o,
         isReviewed: o.isReviewed || reviewedSet.has(String(o.orderCode)) || reviewedSet.has(String(o._id))
       }));
 
       setOrders(mappedOrders);
-      setUserProfile(profileRes.data || null);
-      setBranches(branchesRes.data || []);
-      if (loyaltyRes && loyaltyRes.data && !loyaltyRes.data.error) {
-        setLoyaltyInfo(loyaltyRes.data);
+      setUserProfile(profileRes || null);
+      setBranches(Array.isArray(branchesRes) ? branchesRes : branchesRes?.data || []);
+      if (loyaltyRes && !loyaltyRes.error) {
+        setLoyaltyInfo(loyaltyRes);
       }
     } catch (error) {
       console.error("Failed to load orders data:", error);
@@ -483,7 +486,7 @@ export function CustomerOrders() {
 
     setIsSavingAddress(true);
     try {
-      await api.put('/api/users/profile', {
+      await userService.updateProfile({
         fullName: userProfile?.fullName || 'Khách Hàng',
         phone: userProfile?.phone || '0987654321',
         address: newAddressInput.trim()

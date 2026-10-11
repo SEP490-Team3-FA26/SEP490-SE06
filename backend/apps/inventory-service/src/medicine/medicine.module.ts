@@ -11,6 +11,7 @@ import { BranchStockBalance, BranchStockBalanceSchema } from './schemas/branch-s
 import { InventoryCheck, InventoryCheckSchema } from './schemas/inventory-check.schema';
 import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/schemas/inventory-transaction.schema';
 import { SearchHistory, SearchHistorySchema } from './schemas/search-history.schema';
+import { NationalPharmaModule } from '../national-pharma/national-pharma.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SearchHistory, SearchHistorySchema } from './schemas/search-history.sch
       { name: InventoryTransaction.name, schema: InventoryTransactionSchema },
       { name: SearchHistory.name, schema: SearchHistorySchema },
     ]),
+    NationalPharmaModule,
   ],
   controllers: [MedicineController],
   providers: [MedicineService, RecommendationService],

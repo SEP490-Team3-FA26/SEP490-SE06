@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface AuditLogQuery {
   page?: number;
@@ -60,17 +61,17 @@ export interface AuditLogsResponse {
 
 export const auditService = {
   async getAuditLogs(query: AuditLogQuery): Promise<AuditLogsResponse> {
-    const res = await api.get('/api/users/audit-logs', { params: query });
+    const res = await api.get(API_ENDPOINTS.AUDIT.LOGS, { params: query });
     return res.data;
   },
 
   async requestExport(query: AuditLogQuery): Promise<{ jobId: string; status: string }> {
-    const res = await api.post('/api/users/audit-logs/export', query);
+    const res = await api.post(`${API_ENDPOINTS.AUDIT.LOGS}/export`, query);
     return res.data;
   },
 
   async getExportStatus(jobId: string): Promise<{ id: string; status: string; filename?: string; totalRecords?: number; progress?: number; error?: string }> {
-    const res = await api.get(`/api/users/audit-logs/export-status/${jobId}`);
+    const res = await api.get(`${API_ENDPOINTS.AUDIT.LOGS}/export-status/${jobId}`);
     return res.data;
   },
 

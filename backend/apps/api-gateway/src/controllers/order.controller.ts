@@ -54,7 +54,8 @@ export class OrderController implements OnModuleInit {
       throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được tạo đơn kê đơn', statusCode: 403 });
     }
     if (req.user) {
-      if (req.user.sub) data.userId = req.user.sub;
+      const isStaff = ['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role);
+      if (!isStaff && req.user.sub && !data.userId) data.userId = req.user.sub;
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
       if (data.type === 'PRESCRIPTION') {
         data.approvedBy = req.user.sub;
@@ -203,7 +204,8 @@ export class OrderController implements OnModuleInit {
       throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được tạo đơn kê đơn', statusCode: 403 });
     }
     if (req.user) {
-      if (req.user.sub) data.userId = req.user.sub;
+      const isStaff = ['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role);
+      if (!isStaff && req.user.sub && !data.userId) data.userId = req.user.sub;
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
       if (data.type === 'PRESCRIPTION') {
         data.approvedBy = req.user.sub;
@@ -213,7 +215,7 @@ export class OrderController implements OnModuleInit {
     return await sendKafkaMessage(this.orderClient, 'orders.create', {
       ...data,
       paymentMethod: 'QR_PAY',
-      userId: req.user?.sub || data.userId,
+      userId: data.userId || (req.user && !['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role) ? req.user.sub : undefined),
     });
   }
 
@@ -227,12 +229,15 @@ export class OrderController implements OnModuleInit {
   @Get('my-orders')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Danh sách đơn hàng của khách hàng hiện tại' })
-  async getMyOrders(@Req() req: any) {
+  async getMyOrders(@Req() req: any, @Query('phone') phone?: string) {
     const userId = req.user?.sub;
     if (!userId) {
       throw new RpcException({ message: 'Không xác định được tài khoản đăng nhập', statusCode: 401 });
     }
 
-    return await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId });
+    const fullName = req.user?.fullName || '';
+    const userPhone = phone || req.user?.phone || '';
+
+    return await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId, fullName, phone: userPhone });
   }
 }

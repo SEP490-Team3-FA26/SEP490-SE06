@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import api from "../../services/core/api";
+import { reportService, supplierService, purchaseOrderService } from "../../services";
 import { 
   Sparkles, 
   ShoppingCart, 
@@ -99,8 +99,7 @@ export function AIForecast() {
     setError(null);
     setSelectedIds([]);
     try {
-      const res = await api.get(`/api/reports/ai-forecast?periodDays=${pDays}`);
-      const data = res.data;
+      const data = await reportService.getAiForecast(pDays);
       
       if (data && data.recommendations) {
         setForecast(data);
@@ -126,7 +125,7 @@ export function AIForecast() {
     setRetrainMsg(null);
     try {
       // Gọi endpoint GPU train
-      await api.post('/api/ai/forecast/train', { epochs: 60, batch_size: 64 });
+      await reportService.trainAiForecast(60, 64);
       setRetrainMsg("⚡ Đã kích hoạt tiến trình huấn luyện AI trên GPU RTX 3050 CUDA! Đang làm mới dữ liệu...");
       setTimeout(() => {
         fetchForecast(period);
@@ -319,10 +318,9 @@ export function AIForecast() {
     setPoQuantities(initialQtys);
 
     try {
-      const res = await api.get('/api/suppliers');
-      const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      const list = (await supplierService.getSuppliers()) || [];
       const map: Record<string, string> = {};
-      list.forEach((s: any) => {
+      (Array.isArray(list) ? list : []).forEach((s: any) => {
         const id = String(s._id || s.id || '');
         if (id) map[id] = s.name || s.supplierName || 'Nhà cung cấp';
       });
@@ -359,12 +357,12 @@ export function AIForecast() {
         return;
       }
 
-      const res = await api.post('/api/purchase-orders/auto-route', {
+      const resData = await purchaseOrderService.autoRoute({
         items: itemsPayload,
         prIds: []
       });
 
-      setAutoPoSuccess(res.data);
+      setAutoPoSuccess(resData);
     } catch (err: any) {
       alert(err.response?.data?.message || err.message || "Lỗi khi tự động sinh đơn PO nháp");
     } finally {
