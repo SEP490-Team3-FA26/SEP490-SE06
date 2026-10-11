@@ -1,6 +1,7 @@
-import { Controller, Get, Patch, Delete, Query, Param, Req, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Query, Param, Req, UseGuards, Logger, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
+import { PushNotificationService } from './push-notification.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
 @ApiTags('Notifications')
@@ -10,7 +11,10 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 export class NotificationController {
   private readonly logger = new Logger(NotificationController.name);
 
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly pushService: PushNotificationService,
+  ) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Lấy notifications cho user hiện tại' })
@@ -94,4 +98,117 @@ export class NotificationController {
     await this.notificationService.delete(id);
     return { success: true, message: 'Notification deleted' };
   }
+
+  @Post('devices/register')
+  @ApiOperation({ summary: 'Đăng ký push token của thiết bị di động' })
+  async registerDevice(@Body() body: any, @Req() req: any) {
+    const user = req.user;
+    const userId = user.sub || user._id;
+    const device = await this.pushService.registerToken({
+      userId,
+      role: user.role,
+      branchId: user.branchId,
+      pushToken: body.pushToken,
+      platform: body.platform,
+      deviceModel: body.deviceModel,
+    });
+    return { success: true, data: device };
+  }
+
+  @Post('devices/unregister')
+  @ApiOperation({ summary: 'Hủy đăng ký push token khi đăng xuất' })
+  async unregisterDevice(@Body() body: any) {
+    await this.pushService.unregisterToken(body.pushToken);
+    return { success: true, message: 'Device unregistered' };
+  }
+
+  @Post('test-push')
+  @ApiOperation({ summary: 'Gửi test thông báo còi hú đến điện thoại theo role' })
+  async testPush(@Body() body: any) {
+    const role = body.role || 'warehouse';
+    const title = body.title || 'TEST CÒI BÁO ĐỘNG KHO TỔNG';
+    const message = body.body || 'Kiểm tra thông báo đẩy đến điện thoại thủ kho';
+
+    const result = await this.pushService.sendToRole(role, {
+      title,
+      body: message,
+      channelId: 'iot_temperature_critical',
+      sound: 'siren_alarm',
+      data: {
+        type: 'IOT_TEMPERATURE_ALERT',
+        deviceId: 'ESP32S3_2884855FFFFC',
+        temp: '41.5',
+      },
+    });
+
+    return {
+      success: true,
+      message: `Đã gửi test push tới role ${role}`,
+      result,
+    };
+  }
+
+  @Post('test-iot-alert')
+  @ApiOperation({ summary: 'Bắn test cảnh báo IoT (GSP hoặc Hỏa hoạn) đến thủ kho' })
+  async testIotAlert(@Body() body: any, @Req() req: any) {
+    const user = req.user;
+    if (user.role !== 'warehouse' && user.role !== 'admin') {
+      throw new ForbiddenException('Chỉ thủ kho hoặc admin mới có quyền thực hiện test cảnh báo');
+    }
+
+    const type = body.type === 'FIRE_EMERGENCY' ? 'FIRE_EMERGENCY' : 'GSP_WARNING';
+    const deviceId = body.deviceId || 'ESP32S3_404CCA44C814';
+
+    let title: string;
+    let messageBody: string;
+    let channelId: string;
+    let sound: string;
+    let severity: 'WARNING' | 'EMERGENCY';
+    let dataPayload: Record<string, string>;
+
+    if (type === 'FIRE_EMERGENCY') {
+      title = 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG (TEST)';
+      messageBody = `THỬ NGHIỆM: Kích hoạt chuông báo động hỏa hoạn khẩn cấp tại trạm ${deviceId}!`;
+      channelId = 'fire_emergency_ring_v8';
+      sound = 'content://settings/system/ringtone';
+      severity = 'EMERGENCY';
+      dataPayload = {
+        type: 'FIRE_EMERGENCY',
+        deviceId,
+        temp: '65.0',
+        isTest: 'true',
+      };
+    } else {
+      title = 'CẢNH BÁO QUÁ NHIỆT KHO TỔNG (TEST)';
+      messageBody = `THỬ NGHIỆM: Nhiệt độ kho tổng vượt ngưỡng an toàn GSP tại trạm ${deviceId}!`;
+      channelId = 'iot_temperature_critical';
+      sound = 'default';
+      severity = 'WARNING';
+      dataPayload = {
+        type: 'IOT_TEMPERATURE_ALERT',
+        deviceId,
+        temp: '42.0',
+        isTest: 'true',
+      };
+    }
+
+    // Chỉ bắn Push Notification thử nghiệm, không lưu DB theo yêu cầu
+    const result = await this.pushService.sendToRole('warehouse', {
+      title,
+      body: messageBody,
+      channelId,
+      sound,
+      severity,
+      data: dataPayload,
+    });
+
+    return {
+      success: true,
+      message: `Đã gửi thử nghiệm ${type} tới thủ kho`,
+      type,
+      deviceId,
+      result,
+    };
+  }
 }
+

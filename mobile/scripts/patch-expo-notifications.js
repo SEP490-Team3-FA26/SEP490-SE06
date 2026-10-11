@@ -117,4 +117,36 @@ export default {
 patchFile('build/BadgeModule.native.js', patchBadge);
 patchFile('src/BadgeModule.native.ts', patchBadge);
 
-console.log('[Patch] All expo-notifications patches applied successfully!');
+// 7. Patch react-native-notify-kit: AudioAttributes sang USAGE_NOTIFICATION_RINGTONE
+// Giúp âm thanh báo động khẩn cấp phát qua luồng chuông điện thoại (Ringtone), không bị hệ điều hành tắt tiếng khi ở chế độ Rung/Tắt thông báo
+const notifyKitChannelManager = path.join(
+  __dirname,
+  '..',
+  'node_modules',
+  'react-native-notify-kit',
+  'android',
+  'src',
+  'main',
+  'java',
+  'app',
+  'notifee',
+  'core',
+  'ChannelManager.java'
+);
+
+if (fs.existsSync(notifyKitChannelManager)) {
+  let content = fs.readFileSync(notifyKitChannelManager, 'utf8');
+  if (content.includes('AudioAttributes.USAGE_NOTIFICATION)')) {
+    content = content.replace(
+      'AudioAttributes.USAGE_NOTIFICATION)',
+      'AudioAttributes.USAGE_NOTIFICATION_RINGTONE)'
+    );
+    fs.writeFileSync(notifyKitChannelManager, content, 'utf8');
+    console.log('[Patch] Successfully patched react-native-notify-kit to USAGE_NOTIFICATION_RINGTONE');
+  } else {
+    console.log('[Patch] react-native-notify-kit ChannelManager already up-to-date');
+  }
+}
+
+console.log('[Patch] All mobile patches applied successfully!');
+
