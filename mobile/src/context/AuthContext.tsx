@@ -7,7 +7,9 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { ApiService } from '../services/api.service';
 import { authApiService } from '../services/authApiService';
 import { SocketService } from '../services/socket.service';
@@ -15,6 +17,49 @@ import { UserRole, UserProfile } from '../types/pharmacy.types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
+const PUSH_TOKEN_KEY = 'device_push_token';
+
+const syncPushTokenToServer = async () => {
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') {
+      return;
+    }
+
+    let token = '';
+    try {
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      token = typeof deviceToken.data === 'string' ? deviceToken.data : String(deviceToken.data);
+    } catch {
+      const expoToken = await Notifications.getExpoPushTokenAsync();
+      token = expoToken.data;
+    }
+
+    if (token) {
+      await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+      await ApiService.registerDeviceToken(token, Platform.OS);
+    }
+  } catch (err) {
+    console.warn('Sync push token warning:', err);
+  }
+};
+
+const unregisterPushTokenFromServer = async () => {
+  try {
+    const token = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if (token) {
+      await ApiService.unregisterDeviceToken(token);
+      await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    }
+  } catch (err) {
+    console.warn('Unregister push token warning:', err);
+  }
+};
 
 export type UserRoleMobile =
   | 'admin'
@@ -141,6 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userProfile));
       setUser(userProfile);
+      void syncPushTokenToServer();
 
       return {
         success: true,
@@ -262,6 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     try {
       setIsLoading(true);
+      await unregisterPushTokenFromServer();
       SocketService.disconnect();
       ApiService.setToken('');
       await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, USER_DATA_KEY]);

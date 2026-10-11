@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AppState, LogBox } from 'react-native';
+import { AppState, LogBox, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
@@ -21,8 +21,33 @@ LogBox.ignoreLogs([
   'Fetch request has been canceled',
 ]);
 
+// Đảm bảo thông báo hiện banner, rung và phát chuông cho các tin thường.
+// RIÊNG sự kiện FIRE_EMERGENCY: chặn triệt để không cho Expo hiển thị để tránh bị 2 thông báo đè nhau,
+// do Notifee đã toàn quyền hiển thị thông báo khẩn cấp (kèm nút tắt còi, full-screen, rung và đổ chuông).
+Notifications.setNotificationHandler({
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data;
+    if (data?.type === 'FIRE_EMERGENCY') {
+      return {
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
+});
+
 const linking = {
-  prefixes: ['wdp301://', 'https://vinapharmacy.vn'],
+  prefixes: ['wdp301://', 'https://abcpharmacy.store'],
   config: {
     screens: {
       OrderConfirmation: 'checkout',
@@ -30,22 +55,108 @@ const linking = {
   },
 };
 
+import * as TaskManager from 'expo-task-manager';
+import { FireEmergencyNotifeeService } from './src/services/fireEmergencyNotifee.service';
+import { FireEmergencyModal } from './src/components/warehouse/FireEmergencyModal';
+
+// Đăng ký TaskManager xử lý FCM Data-Only khi app chạy ngầm hoặc bị killed
+const BACKGROUND_FIRE_TASK = 'BACKGROUND_FIRE_EMERGENCY_NOTIFICATION_TASK';
+
+TaskManager.defineTask(BACKGROUND_FIRE_TASK, async ({ data, error }) => {
+  if (error) {
+    console.warn('Background fire notification task error:', error);
+    return;
+  }
+  const payload = (data as any)?.notification?.data || (data as any)?.data || (data as any);
+  if (payload?.type === 'FIRE_EMERGENCY') {
+    await FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
+      title: payload.alertTitle || payload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
+      body: payload.alertBody || payload.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
+      deviceId: String(payload.deviceId || ''),
+      temp: String(payload.temp || ''),
+      isTest: payload.isTest === 'true',
+    });
+  }
+});
+
+Notifications.registerTaskAsync(BACKGROUND_FIRE_TASK).catch(() => {});
+
 const App: React.FC = () => {
   useEffect(() => {
+    // 0. Khởi tạo Notifee channels mức HIGH/CALL cho Android Full-Screen Alert
+    FireEmergencyNotifeeService.initChannels().catch(() => {});
+
+    // Khởi tạo các Notification Channels mức MAX của Expo cho báo cháy
+    if (Platform.OS === 'android') {
+      // Dọn dẹp các channel cũ trên Expo
+      Notifications.deleteNotificationChannelAsync('fire_emergency_ringtone_v7').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_siren_v6').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_alarm_v5').catch(() => {});
+      Notifications.deleteNotificationChannelAsync('fire_emergency_call_v4').catch(() => {});
+
+      const fireChannelConfig = {
+        name: 'Báo Động Hỏa Hoạn Khẩn Cấp (Đổ Chuông)',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
+        enableVibrate: true,
+        lightColor: '#DC2626',
+        enableLights: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+        sound: 'default',
+      };
+
+      Notifications.setNotificationChannelAsync('fire_emergency_ring_v8', fireChannelConfig).catch(() => {});
+
+      Notifications.setNotificationChannelAsync('iot_temperature_critical', {
+        name: 'Cảnh Báo Quá Nhiệt GSP',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 500, 250, 500],
+        enableVibrate: true,
+        lightColor: '#EF4444',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+      }).catch((e) => console.warn('Init notification channel warning:', e));
+    }
+
+    // Lắng nghe thông báo khi app đang mở trên màn hình (Foreground)
+    const receivedListener = Notifications.addNotificationReceivedListener((notification) => {
+      const payload = notification.request.content.data;
+      if (payload?.type === 'FIRE_EMERGENCY') {
+        FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
+          title: String(payload.alertTitle || notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG'),
+          body: String(payload.alertBody || notification.request.content.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!'),
+          deviceId: String(payload.deviceId || ''),
+          temp: String(payload.temp || ''),
+          isTest: payload.isTest === 'true',
+        });
+      }
+    });
+
     // 1. Khởi tạo Notification Channel, Action Categories và xin quyền
     MedicineReminderService.init().then(() => {
-      // Gia hạn lịch 7 ngày tới khi mở app
       MedicineReminderService.rescheduleAllActiveReminders();
     }).catch((err) => {
       console.warn('MedicineReminderService.init warning:', err);
     });
 
-    // 2. Lắng nghe tương tác người dùng với thông báo (bấm Đã uống / Nhắc lại 10p)
+    // 2. Lắng nghe tương tác người dùng với thông báo (bấm Đã uống / Nhắc lại 10p / Báo cháy)
     let responseListener: { remove: () => void } | null = null;
     try {
       responseListener = Notifications.addNotificationResponseReceivedListener(
         (response) => {
-          MedicineReminderService.handleNotificationResponse(response);
+          const payload = response.notification.request.content.data;
+          if (payload?.type === 'FIRE_EMERGENCY') {
+            FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
+              title: response.notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
+              body: response.notification.request.content.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
+              deviceId: String(payload.deviceId || ''),
+              temp: String(payload.temp || ''),
+              isTest: payload.isTest === 'true',
+            });
+          } else {
+            MedicineReminderService.handleNotificationResponse(response);
+          }
         }
       );
     } catch (e) {
@@ -60,6 +171,7 @@ const App: React.FC = () => {
     });
 
     return () => {
+      receivedListener.remove();
       responseListener?.remove();
       appStateSub.remove();
     };
@@ -78,6 +190,7 @@ const App: React.FC = () => {
           </NotificationProvider>
         </AuthProvider>
       </SafeAreaProvider>
+      <FireEmergencyModal />
       <Toast />
     </GestureHandlerRootView>
   );
