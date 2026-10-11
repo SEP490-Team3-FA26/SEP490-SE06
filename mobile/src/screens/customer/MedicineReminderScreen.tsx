@@ -17,10 +17,16 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { showToast } from '../../components/ui/toastHelper';
-import { ReminderStorageService } from '../../services/reminderStorage.service';
+import { useAuth } from '../../context/AuthContext';
+import {
+  ReminderStorageService,
+  parseOrderToReminder,
+  createRemindersFromOrder,
+} from '../../services/reminderStorage.service';
 import { MedicineReminderService } from '../../services/medicineReminder.service';
 import { ApiService } from '../../services/api.service';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
+import { Order } from '../../types/pharmacy.types';
 import {
   MedicineReminder,
   MedicineReminderLog,
@@ -76,8 +82,75 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
   const [refillEnabled, setRefillEnabled] = useState<boolean>(true);
   const [orderSourceId, setOrderSourceId] = useState<string | undefined>(undefined);
 
+  // Authentication Context
+  const { user } = useAuth();
+
+  // Order Import Modal States
+  const [orderModalVisible, setOrderModalVisible] = useState<boolean>(false);
+  const [orderSearchPhone, setOrderSearchPhone] = useState<string>(user?.phone || '0705248921');
+  const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState<boolean>(false);
+
   // Test notification state
   const [testingCountDown, setTestingCountDown] = useState<number | null>(null);
+
+  const fetchOrdersForImport = useCallback(async (phoneToSearch?: string) => {
+    try {
+      setLoadingOrders(true);
+      const targetPhone = phoneToSearch || orderSearchPhone || user?.phone || '0705248921';
+      const fetched = await ApiService.getMyOrders(targetPhone);
+      setCustomerOrders(fetched || []);
+    } catch (e) {
+      console.warn('Lỗi tải danh sách đơn hàng cho lịch nhắc thuốc:', e);
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, [orderSearchPhone, user?.phone]);
+
+  const handleOpenOrderImport = () => {
+    setOrderModalVisible(true);
+    fetchOrdersForImport();
+  };
+
+  const handleSelectOrderItem = (item: any, orderId: string) => {
+    const parsed = parseOrderToReminder(item, orderId);
+    setEditingReminder(null);
+    setMedName(parsed.medicineName || item.name || '');
+    setDosage(parsed.dosage || '1 viên');
+    setMealTiming(parsed.mealTiming || 'AFTER_MEAL');
+    setTimes(parsed.times && parsed.times.length > 0 ? parsed.times : ['08:00', '20:00']);
+    setSelectedDays(parsed.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+    setNote(parsed.note || item.dosageInstructions || item.cach_dung || '');
+    setTotalDoses(parsed.totalDoses ? String(parsed.totalDoses) : '20');
+    setDosagePerTime(parsed.dosagePerTime ? String(parsed.dosagePerTime) : '1');
+    setTotalDays(parsed.totalDays ? String(parsed.totalDays) : '7');
+    setRefillEnabled(parsed.refillEnabled ?? false);
+    setOrderSourceId(orderId);
+    setOrderModalVisible(false);
+    setModalVisible(true);
+    showToast.success('Đã nạp cách dùng', `Đã lấy liều dùng cho ${parsed.medicineName || item.name}`);
+  };
+
+  const handleCreateAllFromOrder = async (order: Order) => {
+    try {
+      const created = await createRemindersFromOrder(order);
+      if (created.length > 0) {
+        for (const rem of created) {
+          await MedicineReminderService.scheduleReminderSlidingWindow(rem, 7);
+        }
+        await loadData();
+        setOrderModalVisible(false);
+        showToast.success(
+          'Tạo Lịch Thành Công!',
+          `Đã tự động tạo lịch uống thuốc và hẹn giờ nhắc cho ${created.length} loại thuốc từ đơn ${order.orderCode || order.id}!`
+        );
+      } else {
+        showToast.info('Thông báo', 'Đơn hàng không có thuốc nào để tạo lịch');
+      }
+    } catch (e: any) {
+      showToast.error('Lỗi', e.message || 'Không thể tạo lịch từ đơn hàng');
+    }
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -455,6 +528,14 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
         </View>
 
         <View style={{ flexDirection: 'row', gap: 6 }}>
+          <AnimatedTouchable
+            style={[styles.scanQuickBtn, { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }]}
+            onPress={handleOpenOrderImport}
+          >
+            <Ionicons name="receipt-outline" size={15} color="#16A34A" />
+            <Text style={[styles.scanQuickBtnText, { color: '#16A34A' }]}>Đơn Hàng</Text>
+          </AnimatedTouchable>
+
           <AnimatedTouchable
             style={styles.scanQuickBtn}
             onPress={() => setShowScanner(true)}
@@ -907,17 +988,33 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
             </View>
 
             <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
-              {/* Scan Barcode Quick Action */}
-              <TouchableOpacity
-                style={styles.scanModalRowBtn}
-                onPress={() => {
-                  setModalVisible(false);
-                  setShowScanner(true);
-                }}
-              >
-                <Ionicons name="barcode-outline" size={20} color="#0891B2" />
-                <Text style={styles.scanModalRowBtnText}>Quét Vỏ Hộp Thuốc Để Điền Tự Động</Text>
-              </TouchableOpacity>
+              {/* Scan Barcode & Import from Order Actions */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                <TouchableOpacity
+                  style={[styles.scanModalRowBtn, { flex: 1, marginBottom: 0 }]}
+                  onPress={() => {
+                    setModalVisible(false);
+                    setShowScanner(true);
+                  }}
+                >
+                  <Ionicons name="barcode-outline" size={18} color="#0891B2" />
+                  <Text style={styles.scanModalRowBtnText}>Quét Mã Vạch</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.scanModalRowBtn,
+                    { flex: 1.2, marginBottom: 0, backgroundColor: '#F0FDF4', borderColor: '#86EFAC' },
+                  ]}
+                  onPress={() => {
+                    setModalVisible(false);
+                    handleOpenOrderImport();
+                  }}
+                >
+                  <Ionicons name="receipt-outline" size={18} color="#16A34A" />
+                  <Text style={[styles.scanModalRowBtnText, { color: '#16A34A' }]}>Từ Đơn Hàng Mua</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Quick Sample Medicines */}
               {!editingReminder ? (
@@ -1175,6 +1272,146 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 />
               </View>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL IMPORT FROM PURCHASED ORDERS */}
+      <Modal visible={orderModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '88%' }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Nhập Từ Đơn Hàng Đã Mua</Text>
+                <Text style={styles.orderImportSubtitle}>
+                  Tự động trích xuất cách dùng & liều dùng từ đơn thuốc
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setOrderModalVisible(false)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Phone Filter Row */}
+            <View style={styles.orderSearchRow}>
+              <Ionicons name="call-outline" size={18} color="#0891B2" style={{ marginRight: 6 }} />
+              <TextInput
+                style={styles.orderSearchInput}
+                placeholder="Nhập SĐT khách hàng (0705248921)..."
+                value={orderSearchPhone}
+                onChangeText={setOrderSearchPhone}
+                keyboardType="phone-pad"
+              />
+              <TouchableOpacity
+                style={styles.orderSearchBtn}
+                onPress={() => fetchOrdersForImport(orderSearchPhone)}
+              >
+                <Ionicons name="search" size={16} color="#FFFFFF" />
+                <Text style={styles.orderSearchBtnText}>Tìm Đơn</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Orders Content */}
+            {loadingOrders ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <Ionicons name="hourglass-outline" size={32} color="#0891B2" />
+                <Text style={{ marginTop: 8, color: '#64748B', fontSize: 13 }}>
+                  Đang tải đơn hàng cho {orderSearchPhone}...
+                </Text>
+              </View>
+            ) : customerOrders.length === 0 ? (
+              <View style={styles.orderEmptyBox}>
+                <Ionicons name="receipt-outline" size={48} color="#CBD5E1" />
+                <Text style={styles.orderEmptyTitle}>Không tìm thấy đơn hàng</Text>
+                <Text style={styles.orderEmptySub}>
+                  Hãy thử tìm kiếm với SĐT <Text style={{ fontWeight: '700', color: '#0891B2' }}>0705248921</Text> để xem các đơn thuốc mẫu tại nhà thuốc.
+                </Text>
+                <TouchableOpacity
+                  style={styles.samplePhoneBtn}
+                  onPress={() => {
+                    setOrderSearchPhone('0705248921');
+                    fetchOrdersForImport('0705248921');
+                  }}
+                >
+                  <Text style={styles.samplePhoneBtnText}>Thử với SĐT 0705248921</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {customerOrders.map((ord, ordIdx) => (
+                  <View key={ord.id || ord._id || ordIdx} style={styles.orderImportCard}>
+                    {/* Header đơn hàng */}
+                    <View style={styles.orderImportCardHeader}>
+                      <View>
+                        <Text style={styles.orderImportCode}>
+                          Đơn #{ord.orderCode || ord.id}
+                        </Text>
+                        <Text style={styles.orderImportDate}>
+                          Ngày mua: {new Date(ord.createdAt || Date.now()).toLocaleDateString('vi-VN')} • {ord.patientName || ord.customerName || 'Khách hàng'}
+                        </Text>
+                      </View>
+                      <View style={styles.orderPaidTag}>
+                        <Text style={styles.orderPaidTagText}>ĐÃ THANH TOÁN</Text>
+                      </View>
+                    </View>
+
+                    {/* Danh sách thuốc trong đơn */}
+                    <View style={styles.orderImportItemsContainer}>
+                      {(ord.items || []).map((it, itemIdx) => {
+                        const parsed = parseOrderToReminder(it, ord.orderCode || ord.id);
+                        return (
+                          <View key={itemIdx} style={styles.orderImportItemRow}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={styles.orderImportItemName}>
+                                💊 {it.name}
+                              </Text>
+                              <Text style={styles.orderImportItemQty}>
+                                Số lượng: {it.quantity} {it.unit}
+                              </Text>
+
+                              {/* Chi tiết cách dùng từ đơn */}
+                              <View style={styles.orderImportInstructionBox}>
+                                <Ionicons name="medical" size={13} color="#0891B2" />
+                                <Text style={styles.orderImportInstructionText}>
+                                  {it.dosageInstructions || it.cach_dung || 'Theo hướng dẫn dược sĩ'}
+                                </Text>
+                              </View>
+
+                              {/* Lịch tự động tính toán */}
+                              <View style={styles.orderImportScheduleSummary}>
+                                <Text style={styles.orderImportScheduleSummaryText}>
+                                  ⏱ {parsed.times?.length} lần/ngày ({parsed.times?.join(', ')}) • {parsed.mealTiming === 'AFTER_MEAL' ? 'Sau ăn' : 'Trước ăn'} • Liệu trình {parsed.totalDays} ngày ({parsed.totalDoses} liều)
+                                </Text>
+                              </View>
+                            </View>
+
+                            <TouchableOpacity
+                              style={styles.orderImportSelectBtn}
+                              onPress={() => handleSelectOrderItem(it, String(ord.orderCode || ord.id))}
+                            >
+                              <Ionicons name="arrow-forward-circle" size={18} color="#FFFFFF" />
+                              <Text style={styles.orderImportSelectBtnText}>Chọn</Text>
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    {/* Nút tạo lịch toàn bộ đơn */}
+                    <TouchableOpacity
+                      style={styles.orderImportAllBtn}
+                      onPress={() => handleCreateAllFromOrder(ord)}
+                    >
+                      <Ionicons name="sparkles" size={15} color="#059669" />
+                      <Text style={styles.orderImportAllBtnText}>
+                        Tự Động Tạo Lịch Toàn Bộ Đơn ({ord.items?.length || 0} thuốc)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -1895,5 +2132,191 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 2,
     lineHeight: 15,
+  },
+  /* Order Import Modal Styles */
+  orderImportSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  orderSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  orderSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    paddingVertical: 8,
+  },
+  orderSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0891B2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderSearchBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  orderEmptyBox: {
+    paddingVertical: 36,
+    alignItems: 'center',
+  },
+  orderEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 10,
+  },
+  orderEmptySub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 20,
+    lineHeight: 18,
+  },
+  samplePhoneBtn: {
+    marginTop: 14,
+    backgroundColor: '#E0F2FE',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  samplePhoneBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  orderImportCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 12,
+  },
+  orderImportCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  orderImportCode: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  orderImportDate: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  orderPaidTag: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  orderPaidTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  orderImportItemsContainer: {
+    gap: 8,
+  },
+  orderImportItemRow: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  orderImportItemName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  orderImportItemQty: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  orderImportInstructionBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFEFF',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+    gap: 4,
+    borderWidth: 0.5,
+    borderColor: '#A5F3FC',
+  },
+  orderImportInstructionText: {
+    fontSize: 11,
+    color: '#0E7490',
+    fontWeight: '600',
+    flex: 1,
+  },
+  orderImportScheduleSummary: {
+    marginTop: 4,
+  },
+  orderImportScheduleSummaryText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600',
+  },
+  orderImportSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0891B2',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderImportSelectBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  orderImportAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    paddingVertical: 8,
+    marginTop: 10,
+    gap: 6,
+  },
+  orderImportAllBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
   },
 });

@@ -173,7 +173,13 @@ export interface OrderItem {
   unit: string;
   batchNo?: string;
   cach_dung?: string; // Hướng dẫn sử dụng: vd "Sáng 1 viên, Tối 1 viên sau ăn - Dùng trong 7 ngày"
+  dosageInstructions?: string; // Hướng dẫn sử dụng từ POS đơn hàng
   so_ngay_dung?: number; // Số ngày dùng ước tính
+  durationDays?: number; // Liệu trình điều trị tính bằng ngày
+  dosePerTime?: number; // Liều mỗi lần uống
+  timesPerDay?: number; // Số lần uống mỗi ngày
+  dailyDose?: number; // Tổng liều uống trong 1 ngày
+  baseQuantity?: number; // Tổng số viên/đơn vị cơ sở
   so_vien_hop?: number; // Tổng số viên hoặc liều trong 1 đơn vị đóng gói
   dosage_form?: string; // Dạng bào chế: viên nén, gói, siro, chai...
 }
@@ -183,7 +189,9 @@ export interface Order {
   _id?: string;
   orderCode?: string;
   customerName?: string;
+  patientName?: string; // Tên bệnh nhân/khách hàng từ đơn bán lẻ
   phone?: string;
+  patientPhone?: string; // SĐT từ đơn bán lẻ
   items: OrderItem[];
   totalAmount: number;
   discountAmount?: number;
