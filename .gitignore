@@ -86,3 +86,7 @@ service_account*.json
 backend/public/uploads/
 public/uploads/
 *.webm
+
+# Temporary build & artifacts
+.codex-build/
+presentation-output/
