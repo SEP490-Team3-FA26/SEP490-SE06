@@ -15,6 +15,7 @@ import {
   HttpStatus,
   UseGuards,
   Optional,
+  BadRequestException,
 } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import {
@@ -101,7 +102,8 @@ export class MedicineController implements OnModuleInit {
     );
   }
 
-  @Get("expiration-report")
+  // Hỗ trợ cả 2 endpoint báo cáo hết hạn và cảnh báo hết hạn
+  @Get(["expiration-report", "expiration-alerts"])
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Lấy báo cáo hết hạn của các lô hàng" })
@@ -532,6 +534,12 @@ export class MedicineController implements OnModuleInit {
   @Get(":id")
   @ApiOperation({ summary: "Lấy chi tiết 1 loại thuốc" })
   async getMedicineById(@Param("id") id: string) {
+    // Kiểm tra định dạng ObjectId hợp lệ để tránh rơi nhầm các route chưa định nghĩa
+    if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+      throw new BadRequestException(
+        `Mã thuốc "${id}" không hợp lệ (phải là MongoDB ObjectId 24 ký tự)`,
+      );
+    }
     return await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.get_by_id",

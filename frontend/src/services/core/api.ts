@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { notifyAuthTokenChanged } from '../../utils/authEvents';
 
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
+
 const api = axios.create({
   // @ts-ignore
   baseURL: import.meta.env.VITE_API_URL || '', // Resolves to backend URL in prod, or relative in dev
@@ -27,7 +29,7 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-      const isAuthRequest = error.config?.url?.includes('/api/auth/login') || error.config?.url?.includes('/api/auth/register');
+      const isAuthRequest = error.config?.url?.includes(API_ENDPOINTS.AUTH.LOGIN) || error.config?.url?.includes(API_ENDPOINTS.AUTH.REGISTER);
       const isPublicPath = typeof window !== 'undefined' && (
         window.location.pathname === '/' ||
         window.location.pathname.startsWith('/auth/') ||

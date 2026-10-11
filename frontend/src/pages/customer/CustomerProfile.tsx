@@ -29,7 +29,8 @@ import {
   Compass,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import api from '../../services/core/api';
+import { authService } from '../../services/auth/auth.service';
+import { userService } from '../../services/auth/user.service';
 import { notifyAuthTokenChanged } from '../../utils/authEvents';
 
 interface LoyaltyData {
@@ -93,30 +94,29 @@ export function CustomerProfile() {
     setLoading(true);
     try {
       // 1. Lấy thông tin user profile
-      const userRes = await api.get('/api/auth/profile');
+      const userRes = await authService.getProfile();
       let pointsFromProfile = 0;
 
-      if (userRes && userRes.data) {
-        pointsFromProfile = userRes.data.points || userRes.data.loyaltyPoints || 0;
+      if (userRes) {
+        pointsFromProfile = userRes.points || userRes.loyaltyPoints || 0;
         setUser({
-          fullName: userRes.data.fullName || userRes.data.name || 'Người dùng',
-          phone: userRes.data.phone || 'Chưa cập nhật',
-          email: userRes.data.email || '',
-          address: userRes.data.address || 'Chưa cập nhật',
+          fullName: userRes.fullName || userRes.name || 'Người dùng',
+          phone: userRes.phone || 'Chưa cập nhật',
+          email: userRes.email || '',
+          address: userRes.address || 'Chưa cập nhật',
           loyaltyPoints: pointsFromProfile,
         });
       }
 
       // 2. Lấy thông tin Loyalty chính xác theo chuẩn v2.0
       try {
-        const loyaltyRes = await api.get('/api/users/loyalty');
-        if (loyaltyRes && loyaltyRes.data && !loyaltyRes.data.error) {
-          const lData = loyaltyRes.data;
+        const lData = await userService.getLoyalty();
+        if (lData && !lData.error) {
           setLoyalty({
             userId: lData.userId,
-            fullName: lData.fullName || userRes?.data?.fullName,
-            phone: lData.phone || userRes?.data?.phone,
-            email: lData.email || userRes?.data?.email,
+            fullName: lData.fullName || userRes?.fullName,
+            phone: lData.phone || userRes?.phone,
+            email: lData.email || userRes?.email,
             points: lData.points ?? pointsFromProfile,
             accumulatedPoints: lData.accumulatedPoints ?? lData.points ?? pointsFromProfile,
             tier: lData.tier || 'Bronze',
@@ -130,7 +130,7 @@ export function CustomerProfile() {
           }
         }
       } catch (err) {
-        console.warn('Could not fetch /api/users/loyalty, using profile data fallback:', err);
+        console.warn('Could not fetch loyalty data, using profile data fallback:', err);
       }
     } catch (error) {
       console.error('Failed to load profile data:', error);
@@ -177,7 +177,7 @@ export function CustomerProfile() {
 
     setIsSavingProfile(true);
     try {
-      await api.put('/api/users/profile', {
+      await userService.updateProfile({
         fullName: editFullName.trim(),
         phone: editPhone.trim(),
         address: editAddress.trim(),
@@ -221,10 +221,7 @@ export function CustomerProfile() {
 
     setIsChangingPassword(true);
     try {
-      await api.post('/api/auth/change-password', {
-        oldPassword,
-        newPassword,
-      });
+      await authService.changePassword(oldPassword, newPassword);
 
       setPasswordSuccess('Đổi mật khẩu thành công! Bạn sẽ được đăng xuất để đăng nhập lại...');
 

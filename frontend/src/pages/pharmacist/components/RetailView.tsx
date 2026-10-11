@@ -8,9 +8,7 @@ import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { voucherService } from "../../../services/sales/voucher.service";
-import { reconciliationService } from "../../../services/sales/reconciliation.service";
-import { useCustomerRFM } from "../../../hooks/useCustomerRFM";
-import api from "../../../services/core/api";
+
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
@@ -1114,6 +1112,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
         patientName,
         patientPhone,
         patientEmail: patientEmail || undefined,
+        userId: loyaltyInfo?.userId || undefined,
         redeemedPoints: usePoints ? redeemedPoints : 0,
         remarks: aiPharmacistConfirmation?.confirmed
           ? `[ĐÃ XÁC NHẬN BỞI DS ${aiPharmacistConfirmation.pharmacistName} - MÃ DUYỆT ${aiPharmacistConfirmation.auditCode}]`
@@ -1130,6 +1129,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
           patientName,
           patientPhone,
           patientEmail: patientEmail || undefined,
+          userId: loyaltyInfo?.userId || undefined,
           totalAmount: total,
           paymentMethod: "QR_PAY",
           type: "RETAIL",

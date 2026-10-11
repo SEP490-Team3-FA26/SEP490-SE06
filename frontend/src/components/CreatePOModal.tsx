@@ -3,7 +3,7 @@ import { X, AlertTriangle, CheckCircle2, PackagePlus, Loader2, Search, Trash2 } 
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
-import api from "../services/core/api";
+import { medicineService, supplierService, purchaseOrderService } from "../services";
 
 export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillPrItems?: any[]; onClose: () => void; onSuccess: () => void }) {
   const [medicines, setMedicines] = useState<any[]>([]);
@@ -54,8 +54,8 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
   // Fetch full medicines for filtering
   useEffect(() => {
     Promise.all([
-      api.get('/api/medicines?limit=500').then(res => res.data),
-      api.get('/api/suppliers').then(res => res.data)
+      medicineService.getMedicines({ limit: 500 }),
+      supplierService.getSuppliers()
     ]).then(([medData, supData]) => {
       setMedicines(Array.isArray(medData?.data) ? medData.data : []);
       setSuppliers(Array.isArray(supData) ? supData : []);
@@ -68,8 +68,7 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
 
   const fetchMedicineById = async (id: string) => {
     try {
-      const res = await api.get(`/api/medicines/${id}`);
-      return res.data;
+      return await medicineService.getMedicineById(id);
     } catch { return null; }
   };
 
@@ -233,7 +232,7 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      await api.post('/api/purchase-orders/auto-route', {
+      await purchaseOrderService.autoRoute({
         items: cart.map(i => ({ medicineId: i.id, quantity: i.quantity, unitPrice: i.unitPrice })),
         prIds: [...new Set(cart.flatMap(i => i.prIds || []))].filter(Boolean)
       });

@@ -60,9 +60,9 @@ export function VietQRPopup({
   const startPolling = useCallback(() => {
     pollIntervalRef.current = setInterval(async () => {
       try {
-        // Replace with real API call: GET /api/orders/check/:orderCode
-        // const res = await api.get(`/api/orders/check/${orderCode}`);
-        // if (res.data?.status === 'PAID') { clearIntervals(); onPaymentSuccess(); }
+        // Replace with real API call: orderService.checkOrderStatus(orderCode)
+        // const res = await orderService.checkOrderStatus(orderCode);
+        // if (res?.status === 'PAID') { clearIntervals(); onPaymentSuccess(); }
         console.debug("[VietQRPopup] Polling payment status for", orderCode);
       } catch (err) {
         console.error("[VietQRPopup] Poll error:", err);

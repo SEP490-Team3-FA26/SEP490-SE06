@@ -11,7 +11,6 @@ import { supplierService } from "../../services/purchase/supplier.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
-import api from "../../services/core/api";
 import { CreateDisposalModal } from "../../components/CreateDisposalModal";
 
 interface InventoryHistoryProps {
@@ -93,9 +92,8 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
     setRecordLoading(true);
     setSelectedMedicineNameForRecord(medName);
     try {
-      const res = await api.get(`/api/goods-receipts/${grnId}/items/${itemId}/inspection`);
-      const body = res.data;
-      if (body.success && body.data) {
+      const body = await goodsReceiptService.getItemInspection(grnId, itemId);
+      if (body?.success && body?.data) {
         setSelectedInspectionRecord(body.data);
       } else {
         setApprovalNotice({
@@ -155,8 +153,8 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
         setPurchaseOrders(poRes);
         setGoodsReceiptNotes(grnRes);
       } else if (type === "dispose") {
-        const res = await api.get('/api/inventory-transactions', { params: { type: 'DISPOSE', limit: 100 } });
-        const list = res.data?.data || res.data || [];
+        const res = await medicineService.getTransactions({ type: 'DISPOSE', limit: 100 });
+        const list = res?.data || res || [];
         setDisposalTransactions(Array.isArray(list) ? list : []);
       }
     } catch (err: any) {
@@ -272,7 +270,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
 
     setDisposalLoading(true);
     try {
-      await api.post('/api/medicines/expiration-action', {
+      await medicineService.handleExpirationAction({
         batchId: selectedBatch.id || selectedBatch._id,
         action: 'DISPOSE',
         quantity: disposalQty,
@@ -304,7 +302,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
     setRejectLoading(true);
     setError(null);
     try {
-      await api.post("/api/purchase-orders/reject-delivery", {
+      await purchaseOrderService.rejectDelivery({
         poId: selectedPoForReject._id,
         reason: rejectReason,
       });

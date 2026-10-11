@@ -31,7 +31,7 @@ import {
   Pie
 } from "recharts";
 import { motion, AnimatePresence } from "motion/react";
-import api from "../../services/core/api";
+import { supplierService } from "../../services/purchase/supplier.service";
 
 export function SupplierCreditManagement() {
   const [tab, setTab] = useState<"SUMMARY" | "LIST" | "OVERDUE">("SUMMARY");
@@ -63,8 +63,8 @@ export function SupplierCreditManagement() {
 
   const fetchSummary = async () => {
     try {
-      const res = await api.get("/api/supplier-credit/summary");
-      setSummaryData(res.data);
+      const res = await supplierService.getCreditSummary();
+      setSummaryData(res);
     } catch (e: any) {
       const errorResponse = e?.response?.data;
       setErrorMsg(errorResponse?.message || e.message || "Lỗi kết nối");
@@ -73,8 +73,8 @@ export function SupplierCreditManagement() {
 
   const fetchOverdue = async () => {
     try {
-      const res = await api.get("/api/supplier-credit/overdue");
-      setOverdueData(res.data);
+      const res = await supplierService.getOverdueCredits();
+      setOverdueData(res);
     } catch (e: any) {
       const errorResponse = e?.response?.data;
       setErrorMsg(errorResponse?.message || e.message || "Lỗi kết nối");
@@ -113,11 +113,11 @@ export function SupplierCreditManagement() {
     setLoadingDetail(true);
     try {
       const [resDetail, resAging] = await Promise.all([
-        api.get(`/api/suppliers/${supplier.id}/credit`),
-        api.get(`/api/suppliers/${supplier.id}/aging`)
+        supplierService.getSupplierCredit(supplier.id),
+        supplierService.getSupplierAging(supplier.id)
       ]);
-      setDebtDetail(resDetail.data);
-      setAgingData(resAging.data);
+      setDebtDetail(resDetail);
+      setAgingData(resAging);
     } catch (e: any) {
       const errorResponse = e?.response?.data;
       setErrorMsg("Lỗi tải lịch sử công nợ: " + (errorResponse?.message || e.message));
@@ -130,11 +130,11 @@ export function SupplierCreditManagement() {
     if (!selectedSupplier) return;
     setLoading(true);
     try {
-      const res = await api.put(`/api/suppliers/${selectedSupplier.id}/credit-limit`, {
+      const res = await supplierService.updateCreditLimit(selectedSupplier.id, {
         creditLimit: Number(newCreditLimit),
-        paymentTermDays: Number(newPaymentTerm)
+        paymentTermsDays: Number(newPaymentTerm)
       });
-      setSuccessMsg(res.data.message || "Cập nhật hạn mức công nợ thành công!");
+      setSuccessMsg(res?.message || "Cập nhật hạn mức công nợ thành công!");
       setShowLimitModal(false);
       await initData();
       setTimeout(() => setSuccessMsg(null), 4000);
@@ -155,13 +155,12 @@ export function SupplierCreditManagement() {
     }
     setLoading(true);
     try {
-      const res = await api.post(`/api/suppliers/${selectedSupplier.id}/payment`, {
+      const res = await supplierService.recordPayment(selectedSupplier.id, {
         amount: Number(payAmount),
         paymentMethod,
-        notes: paymentNotes,
-        performedBy
+        notes: paymentNotes
       });
-      setSuccessMsg(res.data.message || "Ghi nhận thanh toán thành công!");
+      setSuccessMsg(res?.message || "Ghi nhận thanh toán thành công!");
       setShowPaymentModal(false);
       await initData();
       setTimeout(() => setSuccessMsg(null), 4000);

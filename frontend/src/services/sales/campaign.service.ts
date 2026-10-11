@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface CampaignCostItem {
   type: 'ADS' | 'PRINTING' | 'GIFTS' | 'VOUCHER_DISCOUNT' | 'AGENCY_FEE' | 'OTHER';
@@ -79,7 +80,7 @@ export interface CreateCampaignPayload {
 export const campaignService = {
   // Lấy danh sách chiến dịch
   async getCampaigns(status?: string): Promise<MarketingCampaignData[]> {
-    const response = await api.get('/api/marketing/campaigns', { params: { status } });
+    const response = await api.get(API_ENDPOINTS.MARKETING.CAMPAIGNS, { params: { status } });
     return response.data;
   },
 
@@ -94,25 +95,25 @@ export const campaignService = {
         date: new Date().toISOString(),
       });
     }
-    const response = await api.post('/api/marketing/campaigns', { ...payload, costs });
+    const response = await api.post(API_ENDPOINTS.MARKETING.CAMPAIGNS, { ...payload, costs });
     return response.data;
   },
 
   // Chi tiết chiến dịch
   async getCampaignById(id: string): Promise<MarketingCampaignData> {
-    const response = await api.get(`/api/marketing/campaigns/${id}`);
+    const response = await api.get(API_ENDPOINTS.MARKETING.CAMPAIGN_DETAIL(id));
     return response.data;
   },
 
   // Hạch toán chi phí phát sinh
   async addCampaignCost(id: string, cost: CampaignCostItem) {
-    const response = await api.post(`/api/marketing/campaigns/${id}/costs`, cost);
+    const response = await api.post(API_ENDPOINTS.MARKETING.CAMPAIGN_COSTS(id), cost);
     return response.data;
   },
 
   // Phân tích hiệu quả ROI & ROAS toàn chuỗi
   async getRoiOverview(): Promise<MarketingRoiOverviewResponse> {
-    const response = await api.get('/api/marketing/campaigns/analytics/overview');
+    const response = await api.get(API_ENDPOINTS.MARKETING.ANALYTICS_OVERVIEW);
     return response.data;
   },
 };

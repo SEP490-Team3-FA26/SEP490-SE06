@@ -1,5 +1,6 @@
 import api from '../core/api';
 import { notifyAuthTokenChanged } from '../../utils/authEvents';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 const PENDING_EMAIL_KEY = "pendingVerificationEmail";
 const SESSION_COOKIE_KEY = "abc_session_active";
@@ -95,7 +96,7 @@ export const authService = {
           payload.email = trimmed;
         }
       }
-      const response = await api.post('/api/auth/login', payload);
+      const response = await api.post(API_ENDPOINTS.AUTH.LOGIN, payload);
       const data = response.data;
       if (data?.access_token && data?.user) {
         this.setSession(data.access_token, data.user);
@@ -109,7 +110,7 @@ export const authService = {
 
   async register(fullName: string, email: string, password: string) {
     try {
-      const response = await api.post('/api/auth/register', { fullName, email, password, role: 'user' });
+      const response = await api.post(API_ENDPOINTS.AUTH.REGISTER, { fullName, email, password, role: 'user' });
       const data = response.data;
       if (data?.access_token && data?.user) {
         this.setSession(data.access_token, data.user);
@@ -123,7 +124,7 @@ export const authService = {
 
   async logout() {
     try {
-      await api.post('/api/auth/logout');
+      await api.post(API_ENDPOINTS.AUTH.LOGOUT);
     } catch (err) {
       console.warn('Lỗi khi gọi API logout:', err);
     } finally {
@@ -133,7 +134,7 @@ export const authService = {
 
   async getProfile() {
     try {
-      const response = await api.get('/api/auth/profile');
+      const response = await api.get(API_ENDPOINTS.AUTH.PROFILE);
       if (response.data) {
         localStorage.setItem("user", JSON.stringify(response.data));
       }
@@ -146,7 +147,7 @@ export const authService = {
 
   async verifyEmail(email: string, token: string) {
     try {
-      const response = await api.post('/api/auth/verify-email', { email, token });
+      const response = await api.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, { email, token });
       this.clearPendingEmail();
       return response.data;
     } catch (err: any) {
@@ -157,7 +158,7 @@ export const authService = {
 
   async resendVerification(email: string) {
     try {
-      const response = await api.post('/api/auth/resend-verification', { email });
+      const response = await api.post(API_ENDPOINTS.AUTH.RESEND_VERIFICATION, { email });
       return response.data;
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Không thể gửi lại mã OTP';
@@ -167,7 +168,7 @@ export const authService = {
 
   async forgotPassword(email: string) {
     try {
-      const response = await api.post('/api/auth/forgot-password', { email });
+      const response = await api.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email });
       return response.data;
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu đặt lại mật khẩu';
@@ -177,11 +178,16 @@ export const authService = {
 
   async resetPassword(email: string, token: string, newPassword: string) {
     try {
-      const response = await api.post('/api/auth/reset-password', { email, token, newPassword });
+      const response = await api.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, { email, token, newPassword });
       return response.data;
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Đặt lại mật khẩu thất bại';
       throw new Error(msg);
     }
+  },
+
+  async changePassword(oldPassword: string, newPassword: string) {
+    const response = await api.post(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, { oldPassword, newPassword });
+    return response.data;
   }
 };

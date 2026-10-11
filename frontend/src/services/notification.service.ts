@@ -1,4 +1,5 @@
 import api from './core/api';
+import { API_ENDPOINTS } from '../constants/apiEndpoints';
 
 export interface NotificationDTO {
   _id: string;
@@ -35,7 +36,7 @@ class NotificationService {
     limit?: number;
     offset?: number;
   }) {
-    const response = await api.get('/api/notifications/me', { params });
+    const response = await api.get(API_ENDPOINTS.NOTIFICATIONS.ME, { params });
     return response.data;
   }
 
@@ -43,7 +44,7 @@ class NotificationService {
    * Đánh dấu notification là đã đọc
    */
   async markAsRead(notificationId: string) {
-    const response = await api.patch(`/api/notifications/${notificationId}/read`);
+    const response = await api.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId));
     return response.data;
   }
 
@@ -51,7 +52,7 @@ class NotificationService {
    * Đánh dấu tất cả notifications là đã đọc
    */
   async markAllAsRead() {
-    const response = await api.patch('/api/notifications/mark-all-read');
+    const response = await api.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ);
     return response.data;
   }
 
@@ -59,7 +60,7 @@ class NotificationService {
    * Xóa notification
    */
   async deleteNotification(notificationId: string) {
-    const response = await api.delete(`/api/notifications/${notificationId}`);
+    const response = await api.delete(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId));
     return response.data;
   }
 
@@ -67,7 +68,7 @@ class NotificationService {
    * Lấy số lượng notifications chưa đọc
    */
   async getUnreadCount() {
-    const response = await api.get('/api/notifications/unread-count');
+    const response = await api.get(API_ENDPOINTS.NOTIFICATIONS.UNREAD_COUNT);
     return response.data;
   }
 
@@ -75,11 +76,12 @@ class NotificationService {
    * Polling: Lấy notifications mới (sau timestamp)
    */
   async getNewNotifications(afterTimestamp: string) {
-    const response = await api.get('/api/notifications/new', {
+    const response = await api.get(API_ENDPOINTS.NOTIFICATIONS.CREATE, {
       params: { after: afterTimestamp }
     });
     return response.data;
   }
 }
 
-export default new NotificationService();
+export const notificationService = new NotificationService();
+export default notificationService;

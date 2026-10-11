@@ -81,6 +81,7 @@ docker compose -f docker-compose.prod.yml restart frontend || true
 # 7. Dọn dẹp Docker images rác
 echo "🧹 Dọn dẹp Docker images trung gian..."
 docker image prune -f
+docker builder prune -f --keep-storage 2GB
 
 echo "=================================================="
 echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ TRÊN PRODUCTION!"

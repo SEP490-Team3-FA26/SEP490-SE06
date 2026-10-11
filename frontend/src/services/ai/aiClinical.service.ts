@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface OcrExtractedItem {
   medicineId?: string;
@@ -127,7 +128,7 @@ export const aiClinicalService = {
    * Upload prescription image files and perform multimodal AI vision scan
    */
   async scanPrescription(formData: FormData) {
-    const response = await api.post('/api/ai/scan-prescription', formData, {
+    const response = await api.post(API_ENDPOINTS.AI.SCAN_PRESCRIPTION, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -139,7 +140,7 @@ export const aiClinicalService = {
    * Query OCR scan audit history
    */
   async getOcrHistory(params?: OcrHistoryQuery) {
-    const response = await api.get('/api/ai/ocr-history', { params });
+    const response = await api.get(API_ENDPOINTS.AI.OCR_HISTORY, { params });
     return response.data;
   },
 
@@ -147,7 +148,7 @@ export const aiClinicalService = {
    * Get single OCR log by scanId
    */
   async getOcrLogById(scanId: string) {
-    const response = await api.get(`/api/ai/ocr-history/${scanId}`);
+    const response = await api.get(API_ENDPOINTS.AI.OCR_HISTORY_DETAIL(scanId));
     return response.data;
   },
 
@@ -165,7 +166,7 @@ export const aiClinicalService = {
       status?: string;
     }
   ) {
-    const response = await api.put(`/api/ai/ocr-history/${scanId}/adjust`, payload);
+    const response = await api.put(API_ENDPOINTS.AI.OCR_HISTORY_ADJUST(scanId), payload);
     return response.data;
   },
 
@@ -178,7 +179,7 @@ export const aiClinicalService = {
    */
   async recordVoiceConsult(formData: FormData) {
     try {
-      const response = await api.post('/api/ai/voice-consult', formData, {
+      const response = await api.post(API_ENDPOINTS.AI.VOICE_CONSULT, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -288,7 +289,7 @@ export const aiClinicalService = {
    * Query voice consultation records
    */
   async getConsultations(params?: ConsultationQuery) {
-    const response = await api.get('/api/ai/consultations', { params });
+    const response = await api.get(API_ENDPOINTS.AI.CONSULTATIONS, { params });
     return response.data;
   },
 
@@ -296,7 +297,7 @@ export const aiClinicalService = {
    * Get audio details and consultation transcript by ID
    */
   async getConsultationAudio(id: string) {
-    const response = await api.get(`/api/ai/consult-audio/${id}`);
+    const response = await api.get(API_ENDPOINTS.AI.CONSULT_AUDIO(id));
     return response.data;
   },
 
@@ -316,7 +317,7 @@ export const aiClinicalService = {
       orderCode?: number;
     }
   ) {
-    const response = await api.put(`/api/ai/consultations/${consultationId}/confirm`, payload);
+    const response = await api.put(API_ENDPOINTS.AI.CONSULTATION_CONFIRM(consultationId), payload);
     return response.data;
   },
 };

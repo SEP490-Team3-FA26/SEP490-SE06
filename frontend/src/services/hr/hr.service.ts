@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface WorkShift { 
   _id: string; 
@@ -69,19 +70,19 @@ export interface StaffNotification {
 export const hrService = {
   // --- SHIFTS ---
   listShifts: async () => {
-    const response = await api.get('/api/hr/shifts');
+    const response = await api.get(API_ENDPOINTS.HR.SHIFTS);
     return response.data as WorkShift[];
   },
   createShift: async (data: Partial<WorkShift>) => {
-    const response = await api.post('/api/hr/shifts', data);
+    const response = await api.post(API_ENDPOINTS.HR.SHIFTS, data);
     return response.data;
   },
   updateShift: async (id: string, data: Partial<WorkShift>) => {
-    const response = await api.patch(`/api/hr/shifts/${id}`, data);
+    const response = await api.patch(API_ENDPOINTS.HR.SHIFT_DETAIL(id), data);
     return response.data;
   },
   toggleShift: async (id: string) => {
-    const response = await api.patch(`/api/hr/shifts/${id}/toggle`);
+    const response = await api.patch(`${API_ENDPOINTS.HR.SHIFT_DETAIL(id)}/toggle`);
     return response.data;
   },
 
@@ -89,61 +90,61 @@ export const hrService = {
   getWeekSchedule: async (weekStart: string, branchId?: string) => {
     const params: any = { weekStart };
     if (branchId && branchId !== 'all') params.branchId = branchId;
-    const response = await api.get('/api/hr/schedules/week', { params });
+    const response = await api.get(API_ENDPOINTS.HR.WEEK_SCHEDULES, { params });
     return response.data as WorkSchedule;
   },
   upsertSchedule: async (data: { weekStart: string; assignments: any[] }) => {
-    const response = await api.post('/api/hr/schedules', data);
+    const response = await api.post(API_ENDPOINTS.HR.SCHEDULES, data);
     return response.data;
   },
   publishSchedule: async (weekStart: string) => {
-    const response = await api.post('/api/hr/schedules/publish', { weekStart });
+    const response = await api.post(API_ENDPOINTS.HR.PUBLISH_SCHEDULE, { weekStart });
     return response.data;
   },
   getMyWeekSchedule: async (weekStart: string) => {
-    const response = await api.get('/api/hr/schedules/my-week', { params: { weekStart } });
+    const response = await api.get(`${API_ENDPOINTS.HR.SCHEDULES}/my-week`, { params: { weekStart } });
     return response.data as WorkSchedule;
   },
 
   // --- SWAPS ---
   listSwaps: async (status?: string) => {
-    const response = await api.get('/api/hr/swaps', { params: { status } });
+    const response = await api.get(API_ENDPOINTS.HR.SWAPS, { params: { status } });
     return response.data as ShiftSwapRequest[];
   },
   listMySwaps: async () => {
-    const response = await api.get('/api/hr/swaps/mine');
+    const response = await api.get(API_ENDPOINTS.HR.MY_SWAPS);
     return response.data as ShiftSwapRequest[];
   },
   createSwap: async (data: Partial<ShiftSwapRequest>) => {
-    const response = await api.post('/api/hr/swaps', data);
+    const response = await api.post(API_ENDPOINTS.HR.SWAPS, data);
     return response.data;
   },
   targetRespond: async (id: string, data: { response: string; rejectReason?: string }) => {
-    const response = await api.patch(`/api/hr/swaps/${id}/target-respond`, data);
+    const response = await api.patch(`${API_ENDPOINTS.HR.SWAPS}/${id}/target-respond`, data);
     return response.data;
   },
   managerRespond: async (id: string, data: { response: string; rejectReason?: string }) => {
-    const response = await api.patch(`/api/hr/swaps/${id}/manager-respond`, data);
+    const response = await api.patch(`${API_ENDPOINTS.HR.SWAPS}/${id}/manager-respond`, data);
     return response.data;
   },
 
   // --- NOTIFICATIONS ---
   listNotifications: async (limit?: number, skip?: number) => {
-    const response = await api.get('/api/hr/notifications', { params: { limit, skip } });
+    const response = await api.get(API_ENDPOINTS.HR.NOTIFICATIONS, { params: { limit, skip } });
     return response.data as StaffNotification[];
   },
   markRead: async (notificationId?: string) => {
-    const response = await api.patch('/api/hr/notifications/mark-read', { notificationId });
+    const response = await api.patch(API_ENDPOINTS.HR.MARK_NOTIFICATION_READ(notificationId || ''));
     return response.data;
   },
   getUnreadCount: async () => {
-    const response = await api.get('/api/hr/notifications/unread-count');
+    const response = await api.get(API_ENDPOINTS.HR.UNREAD_NOTIFICATIONS);
     return response.data as number;
   },
 
   // --- COLLEAGUES ---
   getColleagues: async () => {
-    const response = await api.get('/api/hr/colleagues');
+    const response = await api.get(API_ENDPOINTS.HR.COLLEAGUES);
     return response.data;
   }
 };
