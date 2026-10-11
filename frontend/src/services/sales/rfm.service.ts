@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface CustomerRFMSegment {
   _id?: string;
@@ -29,25 +30,25 @@ export interface RFMOverview {
 export const rfmService = {
   // POS: Tra cứu phân khúc khách hàng theo SĐT (cache 24h)
   async getCustomerSegment(phone: string): Promise<CustomerRFMSegment> {
-    const response = await api.get(`/api/users/rfm/customer/${encodeURIComponent(phone)}`);
+    const response = await api.get(API_ENDPOINTS.USERS.RFM_CUSTOMER(phone));
     return response.data;
   },
 
   // Admin/Director: Lấy ma trận tổng quan RFM
   async getOverview(branchId?: string): Promise<RFMOverview> {
-    const response = await api.get('/api/users/rfm/overview', { params: { branchId } });
+    const response = await api.get(API_ENDPOINTS.USERS.RFM_OVERVIEW, { params: { branchId } });
     return response.data;
   },
 
   // Admin: Kích hoạt tính toán lại RFM
   async triggerRecalculate() {
-    const response = await api.post('/api/users/rfm/recalculate');
+    const response = await api.post(API_ENDPOINTS.USERS.RFM_RECALCULATE);
     return response.data;
   },
 
   // CSKH: Danh sách khách hàng có nguy cơ rời bỏ cần chăm sóc
   async getAtRiskCustomers(params?: { branchId?: string; limit?: number }) {
-    const response = await api.get('/api/users/rfm/at-risk', { params });
+    const response = await api.get(API_ENDPOINTS.USERS.RFM_AT_RISK, { params });
     return response.data;
   },
 };

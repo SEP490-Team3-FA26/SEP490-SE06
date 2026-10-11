@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Package, TrendingUp, TrendingDown, RefreshCw, CalendarDays, Search, Building } from 'lucide-react';
-import api from '../../services/core/api';
+import { branchService, reportService } from '../../services';
 
 export function InventoryPerformanceDashboard() {
   const [loading, setLoading] = useState(false);
@@ -26,9 +26,9 @@ export function InventoryPerformanceDashboard() {
 
   const fetchBranches = async () => {
     try {
-      const res = await api.get('/api/branches');
-      if (Array.isArray(res.data)) {
-        setBranchesList(res.data);
+      const branches = await branchService.getBranches();
+      if (Array.isArray(branches)) {
+        setBranchesList(branches);
       }
     } catch (err) {
       console.error('Lỗi tải danh sách chi nhánh:', err);
@@ -38,9 +38,13 @@ export function InventoryPerformanceDashboard() {
   const fetchPerformanceData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/reports/inventory-performance?branchId=${selectedBranch}&startDate=${startDate}&endDate=${endDate}`);
-      if (res.data && res.data.success) {
-        setData(res.data.data);
+      const resData = await reportService.getInventoryPerformance({
+        branchId: selectedBranch,
+        startDate,
+        endDate
+      });
+      if (resData && resData.success) {
+        setData(resData.data);
       }
     } catch (error) {
       console.error('Lỗi tải báo cáo hiệu suất:', error);

@@ -1,5 +1,6 @@
 const { Router } = require("express");
 import type { Request, Response } from "express";
+import mongoose from "mongoose";
 import { MOCK_DRUGS, DrugItem } from "../data/drugs.data";
 import {
   MASTER_UNITS,
@@ -35,7 +36,7 @@ function paginate<T>(items: T[], page: number, pageSize: number): { page: number
  * @query last_update_to (YYYY-MM-DD)
  * @query search (Tùy chọn: tìm tên, hoạt chất, số đăng ký)
  */
-masterRouter.get("/drugs", (req: Request, res: Response): void => {
+masterRouter.get("/drugs", async (req: Request, res: Response): Promise<void> => {
   let page = parseInt(req.query.page as string, 10) || 1;
   let pageSize = parseInt(req.query.page_size as string, 10) || 20;
 
@@ -79,6 +80,40 @@ masterRouter.get("/drugs", (req: Request, res: Response): void => {
     return;
   }
 
+  // Kiểm tra kết nối MongoDB collection national_drugs
+  const isMongoConnected = mongoose.connection && mongoose.connection.readyState === 1 && mongoose.connection.db;
+
+  if (isMongoConnected) {
+    try {
+      const coll = mongoose.connection.db.collection("national_drugs");
+      const query: any = {};
+
+      if (lastUpdateFrom) {
+        query.last_update_time = { ...query.last_update_time, $gte: lastUpdateFrom };
+      }
+      if (lastUpdateTo) {
+        query.last_update_time = { ...query.last_update_time, $lte: lastUpdateTo };
+      }
+      if (search) {
+        query.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { active_pharmaceutical_ingredient: { $regex: search, $options: "i" } },
+          { registration_number: { $regex: search, $options: "i" } },
+          { id: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const total = await coll.countDocuments(query);
+      const skip = (page - 1) * pageSize;
+      const data = await coll.find(query).skip(skip).limit(pageSize).toArray();
+
+      res.status(200).json({ page, total, data });
+      return;
+    } catch (dbErr) {
+      console.warn("Lỗi đọc national_drugs từ MongoDB, fallback sang in-memory:", dbErr);
+    }
+  }
+
   let filtered = [...MOCK_DRUGS];
 
   // Lọc theo khoảng ngày cập nhật
@@ -111,7 +146,7 @@ masterRouter.get("/drugs", (req: Request, res: Response): void => {
  * @desc Lấy chi tiết một loại thuốc theo mã định danh hoặc số đăng ký lưu hành
  * @param drug_id (Tối đa 20 ký tự)
  */
-masterRouter.get("/drugs/:drug_id", (req: Request, res: Response): void => {
+masterRouter.get("/drugs/:drug_id", async (req: Request, res: Response): Promise<void> => {
   const drugId = req.params.drug_id;
 
   if (!drugId || drugId.length > 20) {
@@ -125,7 +160,28 @@ masterRouter.get("/drugs/:drug_id", (req: Request, res: Response): void => {
 
   const normalizedKey = drugId.trim().toUpperCase();
 
-  // Tìm theo id hoặc registration_number hoặc old_registration_number
+  const isMongoConnected = mongoose.connection && mongoose.connection.readyState === 1 && mongoose.connection.db;
+  if (isMongoConnected) {
+    try {
+      const coll = mongoose.connection.db.collection("national_drugs");
+      const drug = await coll.findOne({
+        $or: [
+          { id: { $regex: `^${normalizedKey}$`, $options: "i" } },
+          { registration_number: { $regex: `^${normalizedKey}$`, $options: "i" } },
+          { old_registration_number: { $regex: `^${normalizedKey}$`, $options: "i" } },
+        ],
+      });
+
+      if (drug) {
+        res.status(200).json(drug);
+        return;
+      }
+    } catch (dbErr) {
+      console.warn("Lỗi đọc national_drugs từ MongoDB, fallback in-memory:", dbErr);
+    }
+  }
+
+  // Fallback in-memory
   const drug = MOCK_DRUGS.find(
     (d) =>
       d.id.toUpperCase() === normalizedKey ||

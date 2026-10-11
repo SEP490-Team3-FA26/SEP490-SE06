@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Search, Send, ArrowRightLeft, Trash2, Plus, AlertCircle, CheckCircle2, Loader2, Package } from "lucide-react";
-import { branchService } from "../../services/admin/branch.service";
-import { medicineService } from "../../services/inventory/medicine.service";
-import api from "../../services/core/api";
+import { branchService, medicineService, stockTransferService } from "../../services";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -110,7 +108,7 @@ export function BranchTransfer() {
     setActionLoading(true);
 
     try {
-      const response = await api.post("/api/stock-transfers/direct", {
+      const resData = await stockTransferService.directTransfer({
         fromBranchId: activeBranchId,
         toBranchId: selectedToBranch.branchCode,
         toBranchName: selectedToBranch.name,
@@ -123,9 +121,7 @@ export function BranchTransfer() {
         }))
       });
 
-      const resData = response.data;
-
-      setMsg({ type: "success", text: resData.message || "Tạo yêu cầu chuyển kho trực tiếp thành công!" });
+      setMsg({ type: "success", text: resData?.message || "Tạo yêu cầu chuyển kho trực tiếp thành công!" });
       setCart([]);
       
       // Refresh current inventory

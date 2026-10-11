@@ -4,8 +4,7 @@ import {
   ShieldCheck, Calendar, Package, Eye, ArrowRight, DollarSign, Building2, CreditCard
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { purchaseRequisitionService } from "../../services/purchase/purchaseRequisition.service";
-import api from "../../services/core/api";
+import { purchaseRequisitionService, purchaseOrderService, supplierService, stockTransferService } from "../../services";
 
 /**
  * Admin phê duyệt & thanh toán các Đơn Đặt Hàng (PO) đã được tự động tách theo NCC.
@@ -37,14 +36,12 @@ export function HQApproval() {
     setRecommendationResult(null);
     setActiveRecMedicine({ id: medicineId, name: medicineName, qty: quantity });
     try {
-      const res = await api.get(`/api/stock-transfers/recommend`, {
-        params: {
-          medicineId,
-          toBranchId: detailPr.branchId,
-          quantity,
-        }
+      const data = await stockTransferService.getRecommendations({
+        medicineId,
+        toBranchId: detailPr.branchId,
+        quantity,
       });
-      setRecommendationResult(res.data);
+      setRecommendationResult(data);
     } catch (err) {
       console.error(err);
       setMsg({ type: "error", text: "Không thể lấy gợi ý điều phối. Vui lòng thử lại." });
@@ -58,7 +55,7 @@ export function HQApproval() {
     setActionLoading(true);
     setMsg(null);
     try {
-      await api.post("/api/stock-transfers/direct", {
+      await stockTransferService.directTransfer({
         fromBranchId: rec.branchId,
         toBranchId: detailPr.branchId,
         toBranchName: detailPr.branchName,
@@ -90,22 +87,22 @@ export function HQApproval() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resPo, resSuppliers, resPr] = await Promise.all([
-        api.get(`/api/purchase-orders?status=${tab === "URGENT" ? "PENDING_APPROVAL" : tab}`),
-        api.get(`/api/suppliers`),
-        api.get(`/api/purchase-requisitions?status=URGENT_PENDING`)
+      const statusParam = tab === "URGENT" ? "PENDING_APPROVAL" : tab;
+      const [poDataRaw, suppliersData, prData] = await Promise.all([
+        purchaseOrderService.getPurchaseOrders(statusParam),
+        supplierService.getSuppliers(),
+        purchaseRequisitionService.getPurchaseRequisitions("URGENT_PENDING")
       ]);
 
-      setSuppliers(Array.isArray(resSuppliers.data) ? resSuppliers.data : []);
+      setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
 
-      const prData = resPr.data;
       setUrgentPrs(prData || []);
       // Nếu không có đơn hỏa tốc nào và đang ở tab URGENT, tự chuyển về PENDING_APPROVAL
       if ((!prData || prData.length === 0) && tab === "URGENT") {
         setTab("PENDING_APPROVAL");
       }
 
-      let poData = resPo.data;
+      let poData = poDataRaw;
       if (poData && poData.value) poData = poData.value;
       if (!Array.isArray(poData)) poData = [];
       setPoList(poData);
@@ -128,7 +125,7 @@ export function HQApproval() {
 
       for (const currentPoId of targetPos) {
         try {
-          await api.post("/api/purchase-orders/approve-pay", {
+          await purchaseOrderService.approveAndPay({
             poId: currentPoId,
             action,
             rejectionReason: action === "REJECT" ? rejectReason : undefined,
@@ -168,7 +165,7 @@ export function HQApproval() {
 
       for (const prId of selectedPrs) {
         try {
-          await api.post("/api/purchase-requisitions/process-urgent", { prId, action });
+          await purchaseRequisitionService.processUrgent({ prId, action });
           successCount++;
         } catch { errorCount++; }
       }

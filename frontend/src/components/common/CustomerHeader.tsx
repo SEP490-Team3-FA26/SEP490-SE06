@@ -9,8 +9,7 @@ import {
   Sparkles, HeartPulse, Stethoscope, Scale, Eye, Apple, Brain,
   Droplets, Wind, Bone, MoreHorizontal, Activity
 } from "lucide-react";
-import api from "../../services/core/api";
-import { authService } from "../../services/auth/auth.service";
+import { authService, userService, cartService, medicineService } from "../../services";
 import { notifyAuthTokenChanged, AUTH_TOKEN_CHANGED_EVENT } from "../../utils/authEvents";
 import { MascotLogoIcon } from "../ui/Logo";
 import { MedicineDetailModal } from "../MedicineDetailModal";
@@ -22,7 +21,7 @@ const headerTrendingTags = [
 ];
 
 // S3 Public CDN for Mega Menu assets from environment variable
-const MEGA_MENU_CDN = import.meta.env.VITE_MEGA_MENU_CDN_URL;
+const MEGA_MENU_CDN = (import.meta as any).env?.VITE_MEGA_MENU_CDN_URL || '';
 
 // Type definitions for Long Chau style Mega Menu
 export interface QuickSubCard {
@@ -580,10 +579,10 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     setUserRole(curRole);
 
     if (curToken) {
-      api.get("/api/users/loyalty")
-        .then((res) => {
-          if (res.data && !res.data.error) {
-            setLoyalty(res.data);
+      userService.getLoyaltyInfo()
+        .then((data) => {
+          if (data && !data.error) {
+            setLoyalty(data);
           }
         })
         .catch((err) => console.error("Error reading loyalty:", err));
@@ -604,9 +603,9 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
         return;
       }
 
-      const res = await api.get("/api/users/cart");
-      if (res.data && res.data.items) {
-        const count = res.data.items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+      const cartData = await cartService.getCart();
+      if (cartData && cartData.items) {
+        const count = cartData.items.reduce((acc: number, item: any) => acc + item.quantity, 0);
         setCartCount(count);
       }
     } catch (err) {
@@ -648,11 +647,11 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     const timer = setTimeout(async () => {
       setIsSearchingLive(true);
       try {
-        const res = await api.get(`/api/medicines?limit=6&search=${encodeURIComponent(searchQuery.trim())}`);
-        if (res.data?.data) {
-          setSearchResults(res.data.data);
-        } else if (Array.isArray(res.data)) {
-          setSearchResults(res.data.slice(0, 6));
+        const resData = await medicineService.getMedicines({ limit: 6, search: searchQuery.trim() });
+        if (resData?.data) {
+          setSearchResults(resData.data);
+        } else if (Array.isArray(resData)) {
+          setSearchResults(resData.slice(0, 6));
         }
       } catch (err) {
         console.error("Live search error:", err);
@@ -734,7 +733,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     }
 
     try {
-      await api.post("/api/users/cart", { medicineId: medId, quantity: qty });
+      await cartService.addToCart(medId, qty);
       window.dispatchEvent(new Event("cartUpdated"));
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);

@@ -1,4 +1,5 @@
 import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface MedicineLocation {
   zone: string;
@@ -24,47 +25,52 @@ export interface GoodsReceiptPayload {
 
 export const goodsReceiptService = {
   async getGoodsReceipts() {
-    const response = await api.get('/api/goods-receipts');
+    const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.LIST);
     return response.data;
   },
 
   async createGoodsReceipt(payload: GoodsReceiptPayload) {
-    const response = await api.post('/api/goods-receipts', payload);
+    const response = await api.post(API_ENDPOINTS.GOODS_RECEIPTS.CREATE, payload);
     return response.data;
   },
 
   async updateGoodsReceipt(id: string, payload: any) {
-    const response = await api.patch(`/api/goods-receipts/${id}`, payload);
+    const response = await api.patch(API_ENDPOINTS.GOODS_RECEIPTS.DETAIL(id), payload);
     return response.data;
   },
 
   async submitInspection(id: string) {
-    const response = await api.post(`/api/goods-receipts/${id}/submit-inspection`);
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.DETAIL(id)}/submit-inspection`);
     return response.data;
   },
 
   async approveGoodsReceipt(id: string, discrepancyReason?: string) {
-    const response = await api.post(`/api/goods-receipts/${id}/approve`, { discrepancyReason });
+    const response = await api.post(API_ENDPOINTS.GOODS_RECEIPTS.APPROVE(id), { discrepancyReason });
     return response.data;
   },
 
   async rejectGoodsReceipt(id: string, action: "reinspect" | "cancel", reason: string) {
-    const response = await api.post(`/api/goods-receipts/${id}/reject`, { action, reason });
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.DETAIL(id)}/reject`, { action, reason });
     return response.data;
   },
 
   async createInspectionRecord(grnId: string, inspectedBy: string) {
-    const response = await api.post('/api/goods-receipts/inspections', { grnId, inspectedBy });
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections`, { grnId, inspectedBy });
     return response.data;
   },
 
   async verifyInspectionItem(recordId: string, itemId: string, actualQty: number, batchNo?: string, expDate?: string, location?: { zone: string; rack: string; shelf: number }) {
-    const response = await api.post('/api/goods-receipts/inspections/verify', { recordId, itemId, actualQty, batchNo, expDate, location });
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections/verify`, { recordId, itemId, actualQty, batchNo, expDate, location });
     return response.data;
   },
 
   async submitInspectionReport(recordId: string, notes: string) {
-    const response = await api.post('/api/goods-receipts/inspections/submit', { recordId, notes });
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections/submit`, { recordId, notes });
+    return response.data;
+  },
+
+  async getItemInspection(grnId: string, itemId: string) {
+    const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.INSPECTION(grnId, itemId));
     return response.data;
   }
 };

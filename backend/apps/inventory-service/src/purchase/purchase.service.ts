@@ -18,6 +18,7 @@ import {
 } from "../../../api-gateway/src/common/kafka.helper";
 import { InspectionRecord } from "./schemas/inspection-record.schema";
 import { RequestForQuotation } from "./schemas/request-for-quotation.schema";
+import { NationalPharmaService } from "../national-pharma/national-pharma.service";
 import * as crypto from "crypto";
 
 @Injectable()
@@ -151,6 +152,7 @@ export class PurchaseService {
     private readonly inspectionModel: Model<InspectionRecord>,
     @InjectModel(RequestForQuotation.name)
     private readonly rfqModel: Model<RequestForQuotation>,
+    private readonly nationalPharmaService: NationalPharmaService,
   ) {}
 
   async onModuleInit() {
@@ -1211,6 +1213,13 @@ export class PurchaseService {
       });
     }
 
+    // Accounts payable must follow quantities actually accepted into stock,
+    // not the quantities originally expected on the PO.
+    grn.totalAmount = grn.items.reduce(
+      (sum, item) => sum + (Number(item.actualQty) || 0) * (Number(item.unitPrice) || 0),
+      0,
+    );
+
     // 2. Record supplier credit if CREDIT
     if (po.paymentType === "CREDIT") {
       try {
@@ -1251,6 +1260,20 @@ export class PurchaseService {
       grn.discrepancyReason = discrepancyReason;
     }
     await grn.save();
+
+    // 6. Tự động liên thông CSDL Dược Quốc gia (Stock-In Hook theo QĐ 232)
+    try {
+      const targetBranch = (grn as any).branchId || (po as any).branchId || 'BR-001';
+      const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+      grn.nationalFacilityCode = gppSync.facilityCode;
+      grn.nationalSyncCode = gppSync.syncCode;
+      grn.nationalSyncStatus = gppSync.syncStatus;
+      grn.nationalSyncedAt = gppSync.syncedAt;
+      grn.nationalSyncMessage = gppSync.message;
+      await grn.save();
+    } catch (gppErr: any) {
+      this.logger.warn(`[CSDL Dược GRN Sync Warning] ${gppErr.message}`);
+    }
 
     // Keep the inspection record synchronized with the completed GRN/PO.
     await this.inspectionModel
@@ -3096,11 +3119,15 @@ export class PurchaseService {
       if (!targetSupplier) {
         throw new RpcException({ message: 'Không tìm thấy thông tin Nhà cung cấp.' });
       }
+      if (targetSupplier.status === 'SUBMITTED') {
+        throw new RpcException({ message: 'Link báo giá đã được sử dụng trước đó.', statusCode: 409 });
+      }
 
       return await this.submitSupplierQuotation(rfq._id.toString(), {
         ...quotationDto,
         supplierId: targetSupplier.supplierId,
         supplierName: targetSupplier.supplierName,
+        submittedViaToken: true,
       });
     } catch (error) {
       throw new RpcException({ message: error.message || 'Lỗi khi gửi báo giá' });
@@ -3150,6 +3177,9 @@ export class PurchaseService {
       // Cập nhật trạng thái targetSupplier tương ứng
       const target = rfq.targetSuppliers.find((s) => s.supplierId === quotationDto.supplierId);
       if (target) {
+        if (quotationDto.submittedViaToken && target.status === 'SUBMITTED') {
+          throw new RpcException({ message: 'Link báo giá đã được sử dụng trước đó.', statusCode: 409 });
+        }
         target.status = 'SUBMITTED';
       }
 

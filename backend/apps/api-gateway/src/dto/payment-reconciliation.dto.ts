@@ -49,6 +49,38 @@ export class PayOSWebhookDataDto {
   @IsString()
   @IsOptional()
   counterAccountBankId?: string;
+
+  @IsString()
+  @IsOptional()
+  currency?: string;
+
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  @IsString()
+  @IsOptional()
+  desc?: string;
+
+  @IsString()
+  @IsOptional()
+  counterAccountBankName?: string;
+
+  @IsString()
+  @IsOptional()
+  counterAccountName?: string;
+
+  @IsString()
+  @IsOptional()
+  counterAccountNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  virtualAccountName?: string;
+
+  @IsString()
+  @IsOptional()
+  virtualAccountNumber?: string;
 }
 
 export class PayOSWebhookDto {

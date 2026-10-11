@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, Param, Query, Inject, OnModuleInit, UseGuards, Req } from '@nestjs/common';
-import { ClientKafka } from '@nestjs/microservices';
+import { ClientKafka, RpcException } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { OptionalJwtAuthGuard } from '../guards/optional-jwt-auth.guard';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
@@ -36,6 +36,13 @@ export class SalesController implements OnModuleInit {
     if (req.user) {
       if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
       if (req.user.fullName && !data.soldBy) data.soldBy = req.user.fullName;
+    }
+    if (data.type === 'PRESCRIPTION') {
+      if (!req.user?.sub) {
+        throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được duyệt đơn kê đơn', statusCode: 403 });
+      }
+      data.approvedBy = req.user.sub;
+      data.approvedAt = new Date().toISOString();
     }
     const result = await sendKafkaMessage(this.inventoryClient, 'inventory.sale.create', data);
     

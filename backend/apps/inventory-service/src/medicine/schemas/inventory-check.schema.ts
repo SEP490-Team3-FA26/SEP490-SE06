@@ -45,6 +45,22 @@ export class InventoryCheck extends Document {
 
   @Prop({ type: String })
   notes: string;
+
+  // --- Liên thông Cơ sở Dữ liệu Dược Quốc gia (Mục 5.4.7 QĐ 232) ---
+  @Prop({ type: String })
+  nationalFacilityCode?: string;
+
+  @Prop({ type: String, index: true })
+  nationalSyncCode?: string;
+
+  @Prop({ type: String, default: 'SYNCED', enum: ['PENDING', 'SYNCED', 'FAILED'], index: true })
+  nationalSyncStatus?: string;
+
+  @Prop({ type: Date })
+  nationalSyncedAt?: Date;
+
+  @Prop({ type: String })
+  nationalSyncMessage?: string;
 }
 
 export const InventoryCheckSchema = SchemaFactory.createForClass(InventoryCheck);

@@ -1,4 +1,5 @@
 import api from './core/api';
+import { API_ENDPOINTS } from '../constants/apiEndpoints';
 
 export interface BranchBreakdown {
   branchId: string;
@@ -106,7 +107,7 @@ export const getSafeStockChain = async (params: SafeStockChainParams = {}): Prom
   if (params.page !== undefined) queryParams.append('page', String(params.page));
   if (params.limit !== undefined) queryParams.append('limit', String(params.limit));
 
-  const { data } = await api.get(`/api/medicines/safe-stock-chain?${queryParams.toString()}`);
+  const { data } = await api.get(`${API_ENDPOINTS.MEDICINES.SAFE_STOCK_CHAIN}?${queryParams.toString()}`);
   return data;
 };
 
@@ -116,6 +117,11 @@ export const getAnomalyDetection = async (params: AnomalyDetectionParams = {}): 
   if (params.periodDays !== undefined) queryParams.append('periodDays', String(params.periodDays));
   if (params.zScoreThreshold !== undefined) queryParams.append('zScoreThreshold', String(params.zScoreThreshold));
 
-  const { data } = await api.get(`/api/medicines/anomaly-detection?${queryParams.toString()}`);
+  const { data } = await api.get(`${API_ENDPOINTS.MEDICINES.ANOMALY_DETECTION}?${queryParams.toString()}`);
   return data;
+};
+
+export const supplyChainService = {
+  getSafeStockChain,
+  getAnomalyDetection,
 };

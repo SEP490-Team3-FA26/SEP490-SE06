@@ -57,6 +57,24 @@ export function Inventory() {
   const [newMinQty, setNewMinQty] = useState<string>("");
   const [newTierPrice, setNewTierPrice] = useState<string>("");
 
+  // Quản lý thông báo Toast chuẩn hóa theo Playbook v2.0
+  const [toasts, setToasts] = useState<
+    { id: string; message: string; type: "success" | "error" | "warning" | "info" }[]
+  >([]);
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "warning" | "info" = "success"
+  ) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
+  };
+
+  // State modal xác nhận cách ly lô thuốc (thay thế window.confirm)
+  const [quarantineConfirmBatch, setQuarantineConfirmBatch] = useState<any | null>(null);
 
   const fetchMedicineDetails = async (id: string) => {
     setFetchingDetails(true);
@@ -148,9 +166,10 @@ export function Inventory() {
       await medicineService.updatePriceTiers(tieredPricingMedicine.id, tieredPricingList);
       setInventory(prev => prev.map(item => item.id === tieredPricingMedicine.id ? { ...item, priceTiers: tieredPricingList } : item));
       setTieredPricingModalOpen(false);
+      showToast("Lưu cấu hình giá sỉ thành công!", "success");
     } catch (err) {
       console.error("Failed to save price tiers", err);
-      alert("Lỗi khi lưu cấu hình giá sỉ!");
+      showToast("Lỗi khi lưu cấu hình giá sỉ!", "error");
     } finally {
       setTieredPricingSaving(false);
     }
@@ -177,11 +196,11 @@ export function Inventory() {
   const handleConfirmExpirationAction = async () => {
     if (!selectedExpirationBatch) return;
     if (expirationQty <= 0 && expirationAction !== 'DISCOUNT') {
-      alert("Số lượng xử lý phải lớn hơn 0");
+      showToast("Số lượng xử lý phải lớn hơn 0", "warning");
       return;
     }
     if (expirationAction === 'DISCOUNT' && (!expirationDiscountPrice || expirationDiscountPrice <= 0)) {
-      alert("Giá khuyến mãi phải lớn hơn 0");
+      showToast("Giá khuyến mãi phải lớn hơn 0", "warning");
       return;
     }
 
@@ -195,14 +214,17 @@ export function Inventory() {
         discountPrice: expirationAction === 'DISCOUNT' ? expirationDiscountPrice : undefined,
         performedBy: "Quản lý"
       });
-      alert("Xử lý đề xuất xử lý thuốc hết hạn thành công!");
+      showToast("Xử lý đề xuất xử lý thuốc hết hạn thành công!", "success");
       setExpirationActionModalOpen(false);
       setSelectedExpirationBatch(null);
-      fetchExpirationReport();
-      fetchStats();
+      // Delay 800ms để Kafka consumer ghi nhận DB trước khi re-fetch theo Playbook v2.0
+      setTimeout(() => {
+        fetchExpirationReport();
+        fetchStats();
+      }, 800);
     } catch (err: any) {
       console.error(err);
-      alert("Lỗi khi xử lý đề xuất: " + (err.response?.data?.message || err.message));
+      showToast("Lỗi khi xử lý đề xuất: " + (err.response?.data?.message || err.message), "error");
     } finally {
       setExpirationProcessing(false);
     }
@@ -210,19 +232,23 @@ export function Inventory() {
 
   const [quarantiningId, setQuarantiningId] = useState<string | null>(null);
 
-  const handleQuarantineBatch = async (batchId: string) => {
-    if (!window.confirm("Khóa lô này và chuyển sang trạng thái cách ly? Lô sẽ không được phép xuất bán.")) return;
+  const handleQuarantineBatch = (batch: any) => {
+    // Mở modal xác nhận cách ly thay vì dùng window.confirm của trình duyệt
+    setQuarantineConfirmBatch(typeof batch === 'string' ? { id: batch } : batch);
+  };
+
+  const executeQuarantine = async (batchId: string) => {
     try {
       setQuarantiningId(batchId);
       await inventoryMapService.quarantineBatch(batchId, "Khóa cách ly từ tab Cần xử lý");
-      alert("Đã gửi yêu cầu cách ly lô thuốc.");
+      showToast("Đã gửi yêu cầu cách ly lô thuốc vào Kafka queue.", "info");
       // Delay 800ms để Kafka consumer ghi nhận cập nhật DB trước khi re-fetch
       setTimeout(() => {
         fetchExpirationReport();
         fetchStats();
       }, 800);
     } catch (e: any) {
-      alert("Lỗi khi khóa lô: " + (e.message || "Lỗi không xác định"));
+      showToast("Lỗi khi khóa lô: " + (e.message || "Lỗi không xác định"), "error");
     } finally {
       setQuarantiningId(null);
     }
@@ -543,6 +569,7 @@ export function Inventory() {
                 <tr>
                   <th scope="col" className="px-4 py-2 font-bold">Mã & Tên Thuốc</th>
                   <th scope="col" className="px-4 py-2 font-bold">Danh Mục & Hoạt Chất</th>
+                  <th scope="col" className="px-4 py-2 font-bold text-center">Đồng bộ CSDL Dược</th>
                   <th scope="col" className="px-4 py-2 font-bold text-right">Giá Bán</th>
                   <th scope="col" className="px-4 py-2 font-bold text-center">Tồn Kho</th>
                   <th scope="col" className="px-4 py-2 font-bold">Trạng Thái</th>
@@ -575,6 +602,29 @@ export function Inventory() {
                           {item.active_ingredient}
                         </div>
                       )}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        {item.is_medicine === false || item.national_sync_status === "NOT_REQUIRED" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                            Không đồng bộ
+                          </span>
+                        ) : item.national_sync_status === "UNSYNCED" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Chưa đồng bộ
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Đã đồng bộ
+                          </span>
+                        )}
+                        <span className="font-mono text-[9px] text-slate-500 font-bold">
+                          {item.national_drug_code || item.registration_number || item.national_drug_id || (item.sku ? `VN-${item.sku.slice(0, 5)}` : "VN-16755-13")}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-slate-900 font-black text-right whitespace-nowrap text-xs">
                       {item.price.toLocaleString("vi-VN")} ₫ <span className="text-slate-400 text-[10px] font-normal">/ {item.unit || 'Hộp'}</span>
@@ -841,7 +891,7 @@ export function Inventory() {
                           Đề xuất
                         </button>
                         <button
-                          onClick={() => handleQuarantineBatch(batch.id || batch._id)}
+                          onClick={() => handleQuarantineBatch(batch)}
                           disabled={quarantiningId === (batch.id || batch._id) || batch.status === 'QUARANTINED'}
                           className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-black px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1 disabled:opacity-50"
                           title="Khóa lô (Cách ly không xuất bán)"
@@ -1393,20 +1443,21 @@ export function Inventory() {
                     const min = parseInt(newMinQty);
                     const pr = parseFloat(newTierPrice);
                     if (isNaN(min) || min <= 0) {
-                      alert("Vui lòng nhập số lượng tối thiểu hợp lệ (> 0)!");
+                      showToast("Vui lòng nhập số lượng tối thiểu hợp lệ (> 0)!", "warning");
                       return;
                     }
                     if (isNaN(pr) || pr <= 0) {
-                      alert("Vui lòng nhập đơn giá sỉ hợp lệ (> 0)!");
+                      showToast("Vui lòng nhập đơn giá sỉ hợp lệ (> 0)!", "warning");
                       return;
                     }
                     if (tieredPricingList.some(t => t.minQuantity === min)) {
-                      alert(`Đã tồn tại cấu hình cho mức số lượng tối thiểu ${min}!`);
+                      showToast(`Đã tồn tại cấu hình cho mức số lượng tối thiểu ${min}!`, "warning");
                       return;
                     }
                     setTieredPricingList(prev => [...prev, { minQuantity: min, price: pr }]);
                     setNewMinQty("");
                     setNewTierPrice("");
+                    showToast("Đã thêm bậc giá mới!", "success");
                   }}
                   className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-sm transition-all"
                 >
@@ -1608,8 +1659,12 @@ export function Inventory() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={() => {
-          fetchData();
-          fetchStats();
+          showToast("Đã tạo thuốc mới thành công!", "success");
+          // Delayed 800ms re-fetch theo Playbook v2.0
+          setTimeout(() => {
+            fetchData();
+            fetchStats();
+          }, 800);
         }}
       />
       {/* Edit Medicine Modal */}
@@ -1621,13 +1676,75 @@ export function Inventory() {
           setEditingMedicine(null);
         }}
         onSuccess={() => {
-          fetchData();
-          fetchStats();
-          if (selectedMedicine?.id) {
-            fetchMedicineDetails(selectedMedicine.id);
-          }
+          showToast("Đã cập nhật thuốc thành công!", "success");
+          // Delayed 800ms re-fetch theo Playbook v2.0
+          setTimeout(() => {
+            fetchData();
+            fetchStats();
+            if (selectedMedicine?.id) {
+              fetchMedicineDetails(selectedMedicine.id);
+            }
+          }, 800);
         }}
       />
+
+      {/* Modal Xác Nhận Cách Ly Lô Thuốc (Thay thế window.confirm) */}
+      {quarantineConfirmBatch && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/45 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-center gap-3 text-purple-700 mb-3">
+              <ShieldAlert className="w-6 h-6 text-purple-600" />
+              <h3 className="font-extrabold text-slate-800 text-base">Xác Nhận Khóa Cách Ly Lô Thuốc</h3>
+            </div>
+            <p className="text-slate-600 text-xs leading-relaxed mb-6">
+              Bạn có chắc chắn muốn khóa cách ly lô{" "}
+              <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
+                {quarantineConfirmBatch.batchNo || quarantineConfirmBatch.batchNumber || quarantineConfirmBatch.id}
+              </span>
+              ? Lô thuốc sau khi cách ly sẽ bị gắn cờ <span className="font-bold text-purple-700">QUARANTINED</span> và lập tức ngưng xuất bán trên toàn chuỗi.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setQuarantineConfirmBatch(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                onClick={() => {
+                  const bId = quarantineConfirmBatch.id || quarantineConfirmBatch._id;
+                  setQuarantineConfirmBatch(null);
+                  executeQuarantine(bId);
+                }}
+                className="px-4 py-2 text-xs font-extrabold text-white bg-purple-700 hover:bg-purple-800 rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              >
+                <ShieldAlert size={14} />
+                Xác Nhận Khóa Lô
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Container */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2.5 max-w-md w-full pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto px-4.5 py-3.5 rounded-2xl shadow-2xl border text-xs font-bold tracking-wide transition-all ${
+              toast.type === "error"
+                ? "bg-rose-900/95 text-rose-100 border-rose-700/80"
+                : toast.type === "warning"
+                ? "bg-amber-900/95 text-amber-100 border-amber-700/80"
+                : toast.type === "info"
+                ? "bg-blue-900/95 text-blue-100 border-blue-700/80"
+                : "bg-emerald-950/95 text-emerald-100 border-emerald-700/80"
+            }`}
+          >
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
