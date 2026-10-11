@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BranchPriceList } from './schemas/branch-price-list.schema';
 import { Medicine } from '../medicine/schemas/medicine.schema';
+import { getSelectedUnit, resolveUnitPrice } from '../sales/unit-pricing';
 
 @Injectable()
 export class PricingService {
@@ -239,6 +240,44 @@ export class PricingService {
     // Cuối cùng fallback về Medicine.price
     const medicine = await this.medicineModel.findById(medicineId).exec();
     return medicine?.price || 0;
+  }
+
+  /**
+   * Server-side quote for an order. The caller may send a selling unit, but
+   * never a price that becomes authoritative.
+   */
+  async quotePrices(data: { branchId?: string; type?: string; items: any[] }) {
+    const items = [];
+    for (const item of data.items || []) {
+      const quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        throw new RpcException({ message: `Số lượng thuốc ${item.medicineId} phải là số nguyên dương`, statusCode: 400 });
+      }
+      const medicine = await this.medicineModel.findById(item.medicineId).exec();
+      if (!medicine) {
+        throw new RpcException({ message: `Không tìm thấy thuốc với ID: ${item.medicineId}`, statusCode: 404 });
+      }
+      const selectedUnit = getSelectedUnit(medicine, item.unit);
+      const referencePrice = await this.resolvePrice(
+        data.branchId,
+        medicine._id.toString(),
+        data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
+        Number(item.quantity) || 1,
+      );
+      const price = resolveUnitPrice(medicine, selectedUnit, referencePrice);
+      items.push({
+        medicineId: medicine._id.toString(),
+        name: medicine.name,
+        quantity,
+        unit: selectedUnit.unitName || medicine.unit || 'Hộp',
+        exchangeValue: Number(selectedUnit.exchangeValue) || 1,
+        price,
+      });
+    }
+    return {
+      items,
+      subtotal: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    };
   }
 
   /**

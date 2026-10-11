@@ -83,13 +83,16 @@ export class User extends Document {
   @Prop({ default: 'Bronze' })
   tier?: string;
 
-  /** Tiền sử dị ứng thuốc/hoạt chất (dùng cho AI kiểm tra và cảnh báo an toàn lâm sàng) */
+  /** Tiền sử dị ứng thuốc/hoạt chất */
   @Prop({ type: [String], default: [] })
   allergies?: string[];
 
-  /** Tiền sử bệnh mãn tính (tiểu đường, tăng huyết áp... để AI kiểm tra chống chỉ định khi kê đơn) */
+  /** Tiền sử bệnh mãn tính */
   @Prop({ type: [String], default: [] })
   chronicConditions?: string[];
+
+  @Prop({ type: [String], default: [], select: false })
+  loyaltyOperationKeys?: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

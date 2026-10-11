@@ -1,21 +1,29 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
-  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap, RotateCcw,
-  Volume2, Edit3, MessageSquareQuote, ShieldCheck
+  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap,
+  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { voucherService } from "../../../services/sales/voucher.service";
+import { reconciliationService } from "../../../services/sales/reconciliation.service";
+import { useCustomerRFM } from "../../../hooks/useCustomerRFM";
 import api from "../../../services/core/api";
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
-// Goedkeuring en auditcomponenten voor AI-gegenereerde medicijnen
-import { AIPharmacistApprovalModal } from "./AIPharmacistApprovalModal";
-import { AIPharmacistAuditModal, AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
-import { CustomerActionBar } from "./CustomerActionBar";
-import { useCustomerLookup } from "../../../hooks/useCustomerLookup";
+import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import {
+  buildRetailDosageInstruction,
+  buildUnitOptions,
+  calculateRetailQuantity,
+  getBaseUnitOption,
+  getDefaultUnitOption,
+  getUnitFactor,
+  getUnitPrice,
+  isPackageOnlyUnit,
+} from "../../../utils/medicineUnits";
 
 // Helper to decode JWT token to extract branchId and user info
 function getBranchInfoFromToken() {
@@ -43,10 +51,11 @@ function getBranchInfoFromToken() {
 }
 
 interface RetailViewProps {
-  showToast: (message: string, type?: "success" | "error" | "warning" | "info") => void;
+  showToast: (message: string, type?: "success" | "error" | "warning") => void;
 }
 
 export default function RetailView({ showToast }: RetailViewProps) {
+  const currentBranch = getBranchInfoFromToken().branchId || "BR-001";
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
@@ -115,61 +124,86 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const [alternativesList, setAlternativesList] = useState<any[]>([]);
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
 
-  // Loyalty and Customer states
+  // RFM Customer Segmentation
+  const { currentCustomerSegment, lookupCustomerSegment, clearCustomerSegment } = useCustomerRFM();
+
+  // Loyalty states
   const [customerPhone, setCustomerPhone] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
   const [loyaltyInfo, setLoyaltyInfo] = useState<any>(null);
   const [usePoints, setUsePoints] = useState(false);
   const [redeemedPoints, setRedeemedPoints] = useState(0);
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
 
-  // Customer Lookup Hook for daily pharmacist SOP
-  const {
-    customer,
-    isWalkIn,
-    searchQuery: customerQuery,
-    setSearchQuery: setCustomerQuery,
-    isSearching: isSearchingCustomer,
-    searchError: custSearchError,
-    isNotFound: isCustNotFound,
-    recentCustomers,
-    inputRef: customerInputRef,
-    searchCustomer: executeSearchCustomer,
-    quickRegister: executeQuickRegister,
-    selectRecent: executeSelectRecent,
-    setWalkInMode: executeWalkInMode,
-    clearCustomer: executeClearCustomer,
-  } = useCustomerLookup({
-    onCustomerSelected: (selectedProfile) => {
-      if (selectedProfile) {
-        setLoyaltyInfo(selectedProfile.loyalty);
-        setCustomerPhone(selectedProfile.loyalty.phone);
-        if (selectedProfile.loyalty.email) {
-          setPatientEmail(selectedProfile.loyalty.email);
-        }
-      } else {
-        setLoyaltyInfo(null);
-        setCustomerPhone("");
-        setUsePoints(false);
-        setRedeemedPoints(0);
-      }
-    },
-    showToast,
-  });
+  // Emergency Manual Override States (POS Fallback)
+  const [showEmergencyOverrideModal, setShowEmergencyOverrideModal] = useState(false);
+  const [bankTransactionId, setBankTransactionId] = useState("");
+  const [overrideReason, setOverrideReason] = useState("Khách đã chuyển khoản thành công, hệ thống ngân hàng đang trễ webhook");
+  const [isOverriding, setIsOverriding] = useState(false);
+
+  const handleConfirmEmergencyOverride = async () => {
+    if (!payosOrderCode) return;
+    try {
+      setIsOverriding(true);
+      const branchInfo = getBranchInfoFromToken();
+      const res = await reconciliationService.manualOverridePayment({
+        orderCode: payosOrderCode,
+        branchId: branchInfo.branchId || "BR-001",
+        actualAmount: total,
+        bankTransactionId: bankTransactionId.trim() || undefined,
+        overrideReason: overrideReason.trim(),
+      });
+      showToast("Đã xác nhận khẩn cấp có đối soát và hoàn tất đơn hàng!", "success");
+      setShowEmergencyOverrideModal(false);
+      setShowPayOSModal(false);
+      setPayosPolling(false);
+      setInvoiceData(normalizeInvoiceResult(res));
+      setShowInvoiceModal(true);
+      setCart([]);
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.response?.data?.message || err.message || "Lỗi khi xác nhận khẩn cấp", "error");
+    } finally {
+      setIsOverriding(false);
+    }
+  };
 
   const handleSearchCustomer = async () => {
     if (!customerPhone) return;
-    executeSearchCustomer(customerPhone);
+    setIsSearchingCustomer(true);
+    setLoyaltyInfo(null);
+    setUsePoints(false);
+    setRedeemedPoints(0);
+    try {
+      const [loyaltyRes] = await Promise.all([
+        api.get(`/api/users/loyalty/lookup?phone=${customerPhone}`),
+        lookupCustomerSegment(customerPhone),
+      ]);
+      if (loyaltyRes.data && !loyaltyRes.data.error) {
+        setLoyaltyInfo(loyaltyRes.data);
+        if (loyaltyRes.data.email) {
+          setPatientEmail(loyaltyRes.data.email);
+        }
+        showToast("Đã tìm thấy khách hàng thành viên!", "success");
+      } else {
+        showToast("Không tìm thấy thông tin thành viên.", "warning");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Không tìm thấy thông tin thành viên.", "warning");
+    } finally {
+      setIsSearchingCustomer(false);
+    }
   };
 
   const handleClearCustomer = () => {
-    executeClearCustomer();
     setLoyaltyInfo(null);
     setCustomerPhone("");
     setUsePoints(false);
     setRedeemedPoints(0);
     setPatientEmail("");
+    clearCustomerSegment();
   };
-
 
   const finalizeSalesOrder = async (payload: any) => {
     setLoading(true);
@@ -177,10 +211,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
     try {
       const result = await orderService.createSale(payload);
 
-      setInvoiceData(normalizeInvoiceResult(result));
+      setInvoiceData({
+        ...normalizeInvoiceResult(result),
+        aiPharmacistConfirmation
+      });
       setShowInvoiceModal(true);
-      setCart([]); // Wagentje leegmaken
-      setAuditData(null);
+      setCart([]); // Clear cart
+      setAiPharmacistConfirmation(null);
 
       if (appliedVoucher) {
         setInvoiceVoucher(appliedVoucher);
@@ -209,10 +246,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
             payosPaidHandledRef.current = true;
             setPayosPolling(false);
             setShowPayOSModal(false);
-            setInvoiceData(normalizeInvoiceResult(data));
+            setInvoiceData({
+              ...normalizeInvoiceResult(data),
+              aiPharmacistConfirmation
+            });
             setShowInvoiceModal(true);
-            setCart([]); // Wagentje leegmaken
-            setAuditData(null);
+            setCart([]); // Clear cart
+            setAiPharmacistConfirmation(null);
           }
         } catch (err) {
           console.error("Lỗi polling status thanh toán:", err);
@@ -230,10 +270,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
         payosPaidHandledRef.current = true;
         setPayosPolling(false);
         setShowPayOSModal(false);
-        setInvoiceData(normalizeInvoiceResult(data));
+        setInvoiceData({
+          ...normalizeInvoiceResult(data),
+          aiPharmacistConfirmation
+        });
         setShowInvoiceModal(true);
-        setCart([]); // Wagentje leegmaken
-        setAuditData(null);
+        setCart([]); // Clear cart
+        setAiPharmacistConfirmation(null);
       } else {
         showToast("Hệ thống chưa ghi nhận được thanh toán. Vui lòng chuyển khoản lại hoặc đợi vài giây.", "warning");
       }
@@ -251,21 +294,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [aiResult, setAiResult] = useState<any>(null);
 
-  // Goedkeuringstoestand en auditcertificaat voor AI-medicijnen
-  const [showApprovalModal, setShowApprovalModal] = useState<boolean>(false);
+  // Pharmacist AI Confirmation & GPP Audit States
+  const [aiPharmacistConfirmation, setAiPharmacistConfirmation] = useState<AIPharmacistConfirmationData | null>(null);
+  const [pharmacistAgreementCheck, setPharmacistAgreementCheck] = useState<boolean>(true);
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
-  const [auditData, setAuditData] = useState<AIPharmacistConfirmationData | null>(null);
-
-  // Real-time Speech-to-Text & Transcript Editing States
-  const [liveTranscript, setLiveTranscript] = useState<string>("");
-  const [isEditingTranscript, setIsEditingTranscript] = useState<boolean>(false);
-  const [editedTranscript, setEditedTranscript] = useState<string>("");
-  const recognitionRef = useRef<any>(null);
-
-  const audioUrl = useMemo(() => {
-    if (!voiceBlob) return null;
-    return URL.createObjectURL(voiceBlob);
-  }, [voiceBlob]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -284,50 +316,9 @@ export default function RetailView({ showToast }: RetailViewProps) {
   }, [recording]);
 
   const startVoiceRecording = async () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch (e) {
-        // Safe ignore
-      }
-    }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // Safe ignore
-      }
-    }
     setAiResult(null);
     setVoiceBlob(null);
-    setTimer(0);
-    setLiveTranscript("");
-    setIsEditingTranscript(false);
-    setEditedTranscript("");
     audioChunksRef.current = [];
-
-    // Optional browser SpeechRecognition for real-time STT preview
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = "vi-VN";
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.onresult = (event: any) => {
-          let str = "";
-          for (let i = 0; i < event.results.length; i++) {
-            str += event.results[i][0].transcript;
-          }
-          setLiveTranscript(str);
-        };
-        recognition.start();
-        recognitionRef.current = recognition;
-      } catch (e) {
-        // Recognition optional
-      }
-    }
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
@@ -354,29 +345,74 @@ export default function RetailView({ showToast }: RetailViewProps) {
       mediaRecorderRef.current.stop();
       setRecording(false);
     }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // Safe ignore
-      }
-    }
   };
 
   const handleSendVoiceToAI = async () => {
     if (!voiceBlob) return;
     setAiLoading(true);
     try {
+      const { branchId: currentBranchId } = getBranchInfoFromToken();
+      const activeBranch = currentBranchId || "BR-001";
+
       const formData = new FormData();
       formData.append("audio", voiceBlob, "counter_recording.webm");
-      const { branchId } = getBranchInfoFromToken();
-      if (branchId) {
-        formData.append("branch_id", branchId);
+      if (activeBranch) {
+        formData.append("branch_id", activeBranch);
       }
 
       const data = await prescriptionService.recommendPrescription(formData);
+
+      // 🛡️ ĐỐI SOÁT TỒN KHO VẬT LÝ THỰC TẾ TẠI CHI NHÁNH HIỆN TẠI (BR-001)
+      if (data?.inventory_status?.available && Array.isArray(data.inventory_status.available)) {
+        const validatedAvailable = await Promise.all(
+          data.inventory_status.available.map(async (av: any) => {
+            try {
+              // Tìm kiếm thuốc tại kho chi nhánh hiện tại
+              const branchRes = await medicineService.getBranchMedicines(activeBranch, {
+                search: av.name,
+                limit: 10,
+              });
+              const branchMeds: any[] = branchRes?.data || [];
+
+              // Tìm bản ghi khớp tên (ưu tiên bản ghi có tồn kho thực tế tại chi nhánh nếu có trùng SKU)
+              const exactMatch =
+                branchMeds.find(
+                  (m: any) =>
+                    (m.name.toLowerCase() === av.name.toLowerCase() || (m.id || m._id) === av.id) &&
+                    (m.stock || 0) > 0
+                ) ||
+                branchMeds.find(
+                  (m: any) =>
+                    m.name.toLowerCase() === av.name.toLowerCase() || (m.id || m._id) === av.id
+                );
+
+              const branchStock = exactMatch ? Math.max(0, exactMatch.stock || 0) : (av.branch_stock ?? 0);
+
+              return {
+                ...av,
+                id: exactMatch ? (exactMatch.id || exactMatch._id) : av.id,
+                _id: exactMatch ? (exactMatch._id || exactMatch.id) : av._id,
+                stock: branchStock,
+                branchStock: branchStock,
+                unit: exactMatch?.unit || av.unit || "Hộp",
+                price: exactMatch?.price || av.price,
+                active_ingredient: exactMatch?.active_ingredient || av.active_ingredient,
+                baseUnit: exactMatch?.baseUnit || av.baseUnit,
+                unitOptions: exactMatch?.unitOptions || av.unitOptions,
+                fefoBatchNo: exactMatch?.fefoBatchNo,
+                fefoExpDate: exactMatch?.fefoExpDate,
+                suggested_alternatives: av.suggested_alternatives || [],
+              };
+            } catch (err) {
+              console.warn("Lỗi đối soát kho chi nhánh cho thuốc", av.name, err);
+              return { ...av, stock: av.branch_stock ?? 0, branchStock: av.branch_stock ?? 0 };
+            }
+          })
+        );
+        data.inventory_status.available = validatedAvailable;
+      }
+
       setAiResult(data);
-      setEditedTranscript(data?.transcribed_text || liveTranscript || "");
     } catch (err: any) {
       console.error(err);
       const errMsg = err.response?.data?.message || err.message || "Lỗi phân tích cuộc thoại từ AI.";
@@ -386,100 +422,183 @@ export default function RetailView({ showToast }: RetailViewProps) {
     }
   };
 
-  const handleReAnalyzeText = async () => {
-    const text = editedTranscript.trim();
-    if (!text) {
-      showToast("Vui lòng nhập nội dung triệu chứng", "warning");
+  const handleSwapAlternative = (drugIndex: number, alternative: any) => {
+    if (!aiResult?.prescription?.recommended_drugs) return;
+    const updatedDrugs = [...aiResult.prescription.recommended_drugs];
+    updatedDrugs[drugIndex] = {
+      ...updatedDrugs[drugIndex],
+      name: alternative.name,
+      active_ingredient: alternative.active_ingredient,
+      dosage: alternative.dosage || "Theo hướng dẫn bao bì",
+    };
+
+    const updatedAvailable = [...(aiResult.inventory_status?.available || [])];
+    const existingIdx = updatedAvailable.findIndex(
+      (av: any) => av.name.toLowerCase() === alternative.name.toLowerCase() || av.id === alternative.id
+    );
+    const newAvEntry = {
+      ...alternative,
+      id: alternative.id,
+      _id: alternative.id,
+      stock: alternative.stock,
+      branchStock: alternative.stock,
+      is_in_stock: true,
+      unit: alternative.unit || "Hộp",
+      price: alternative.price ?? 0,
+    };
+
+    if (existingIdx >= 0) {
+      updatedAvailable[existingIdx] = newAvEntry;
+    } else {
+      updatedAvailable.push(newAvEntry);
+    }
+
+    setAiResult({
+      ...aiResult,
+      prescription: {
+        ...aiResult.prescription,
+        recommended_drugs: updatedDrugs,
+      },
+      inventory_status: {
+        ...aiResult.inventory_status,
+        available: updatedAvailable,
+      },
+    });
+    showToast(`Đã đổi sang thuốc thay thế có sẵn: ${alternative.name}`, "success");
+  };
+
+
+  const handleAddAiToCart = () => {
+    if (!pharmacistAgreementCheck) {
+      showToast("Vui lòng tích chọn cam kết trách nhiệm chuyên môn của Dược sĩ!", "warning");
       return;
     }
-    setAiLoading(true);
-    try {
-      const { branchId } = getBranchInfoFromToken();
-      const res = await api.post("/api/prescriptions/symptom-consult", {
-        symptoms: text,
-        branchId: branchId || "BR-001"
-      });
-      if (res.data) {
-        setAiResult({
-          success: true,
-          transcribed_text: text,
-          prescription: res.data.prescription || res.data,
-          inventory_status: res.data.inventory_status || { available: res.data.available || [] }
-        });
-        setIsEditingTranscript(false);
-        showToast("Đã phân tích lại phác đồ theo văn bản chỉnh sửa!", "success");
-      }
-    } catch (err: any) {
-      console.error("Lỗi phân tích lại triệu chứng:", err);
-      showToast(err.response?.data?.message || "Lỗi phân tích triệu chứng từ văn bản", "error");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  // Opent het klinische goedkeuringsvenster voor de apotheker
-  const handleAddAiToCart = () => {
-    if (!aiResult?.prescription?.recommended_drugs?.length) return;
-    setShowApprovalModal(true);
-  };
-
-  // Verwerkt door de apotheker goedgekeurde medicijnen en voegt ze toe aan het POS-winkelwagentje
-  const handleApproveAiDrugs = (approvedItems: any[], auditConfirmation: any) => {
+    if (!aiResult?.prescription?.recommended_drugs || !aiResult?.inventory_status?.available) return;
+    const available = aiResult.inventory_status.available;
     let newCart = [...cart];
     let count = 0;
+    const addedDrugs: any[] = [];
+    const outOfStockDrugs: string[] = [];
 
-    approvedItems.forEach((drug: any) => {
-      const medId = drug.id || drug._id;
-      const existing = newCart.find((it) => (it.id || it._id) === medId);
-      if (existing) {
-        existing.quantity += drug.quantity || 1;
-        if (drug.dosageInstructions) {
-          existing.dosageInstructions = drug.dosageInstructions;
+    aiResult.prescription.recommended_drugs.forEach((drug: any) => {
+      const match = available.find((av: any) => av.name.toLowerCase() === drug.name.toLowerCase());
+      if (match && (match.stock || 0) > 0) {
+        const medId = match.id || match._id;
+        const existing = newCart.find(it => (it.id || it._id) === medId);
+        if (existing) {
+          const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
+            unitName: existing.selectedUnit || existing.unit,
+            exchangeValue: existing.exchangeValue,
+          });
+          if (nextBaseQty <= (match.stock || 0)) {
+            existing.quantity += 1;
+            existing.aiSuggested = true;
+            count++;
+            addedDrugs.push({ name: match.name, dosage: drug.dosage || existing.dosageInstructions, quantity: 1, unit: existing.unit, price: existing.price, active_ingredient: match.active_ingredient });
+          }
+        } else {
+          const unitOptions = buildUnitOptions(match);
+          const defaultUnit = getDefaultUnitOption(match);
+          const baseUnit = getBaseUnitOption(unitOptions);
+          const newItem = {
+            ...match,
+            id: medId,
+            baseUnit: match.baseUnit || baseUnit.unitName || 'đơn vị',
+            unitOptions,
+            selectedUnit: defaultUnit.unitName,
+            unit: defaultUnit.unitName,
+            exchangeValue: getUnitFactor(defaultUnit),
+            price: getUnitPrice(match, defaultUnit),
+            stock: match.stock, // Đảm bảo gán đúng tồn kho chi nhánh
+            quantity: 1,
+            dosePerTime: 1,
+            timesPerDay: 2,
+            durationDays: 7,
+            dailyDose: 2,
+            dosageInstructions: drug.usage || buildRetailDosageInstruction({
+              unitName: defaultUnit.unitName,
+              dosageForm: match.dosage_form,
+              baseUnitName: baseUnit.unitName,
+            }),
+            active_ingredient: drug.active_ingredient || match.active_ingredient,
+            aiSuggested: true
+          };
+          newCart.push(newItem);
+          count++;
+          addedDrugs.push({ name: match.name, dosage: newItem.dosageInstructions, quantity: 1, unit: newItem.unit, price: newItem.price, active_ingredient: match.active_ingredient });
         }
-        count++;
       } else {
-        const unitOptions = buildUnitOptions(drug);
-        const defaultUnit = unitOptions[0] || {
-          unitName: drug.unit || 'Hộp',
-          exchangeValue: 1,
-          price: drug.price || 50000,
-        };
-        newCart.push({
-          ...drug,
-          id: medId,
-          baseUnit: drug.baseUnit || defaultUnit.unitName || 'Hộp',
-          unitOptions,
-          selectedUnit: drug.selectedUnit || defaultUnit.unitName,
-          unit: drug.unit || defaultUnit.unitName,
-          exchangeValue: defaultUnit.exchangeValue,
-          price: drug.price || defaultUnit.price,
-          quantity: drug.quantity || 1,
-          dosePerTime: 1,
-          timesPerDay: 2,
-          durationDays: 7,
-          dailyDose: 2,
-          dosageInstructions:
-            drug.dosageInstructions ||
-            drug.usage ||
-            `Uống 1 ${defaultUnit.unitName}/lần, ngày 2 lần`,
-          active_ingredient: drug.active_ingredient,
-        });
-        count++;
+        outOfStockDrugs.push(drug.name);
       }
     });
 
     if (count > 0) {
       setCart(newCart);
+
+      const { fullName: currentUserName, branchId: currentBranchId } = getBranchInfoFromToken();
+      const auditCode = `GPP-AI-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const confirmationInfo: AIPharmacistConfirmationData = {
+        confirmed: true,
+        pharmacistName: currentUserName || "Dược sĩ Trần Thị A",
+        pharmacistLicense: "CCHN-GPP/02849-HN",
+        confirmedAt: new Date().toISOString(),
+        auditCode,
+        totalItems: count,
+        patientName: loyaltyInfo ? loyaltyInfo.fullName : "Khách lẻ vãng lai",
+        diagnosis: `Tư vấn triệu chứng AI: "${aiResult.transcribed_text || "Hội thoại quầy thuốc"}"`,
+        doctorName: "Dược sĩ tư vấn tại quầy",
+        hospitalName: "Nhà thuốc GPP",
+        warningsCount: aiResult.prescription?.warnings ? 1 : 0,
+        source: "AI_VOICE_CONSULT",
+        drugs: addedDrugs,
+        clinicalNotes: "Dược sĩ phụ trách đã thẩm định triệu chứng, kiểm tra chỉ định & liều lượng đối soát kho quầy."
+      };
+
+      setAiPharmacistConfirmation(confirmationInfo);
+      showToast(`✅ Đã thêm ${count} thuốc có sẵn tại chi nhánh! (Mã duyệt: ${auditCode})`, "success");
+
+      if (outOfStockDrugs.length > 0) {
+        showToast(`⚠️ Bỏ qua ${outOfStockDrugs.length} thuốc đã hết hàng tại quầy: ${outOfStockDrugs.join(", ")}`, "warning");
+      }
       setVoiceModalOpen(false);
-      showToast(
-        `Đã thẩm định & phê duyệt ${count} thuốc GPP! Mã: ${auditConfirmation.auditCode}`,
-        'success'
-      );
-      setAuditData(auditConfirmation);
-      setShowAuditModal(true);
     } else {
-      showToast('Không có thuốc nào được phê duyệt vào đơn hàng!', 'warning');
+      const { branchId: currentBranchId } = getBranchInfoFromToken();
+      showToast(
+        `Không có thuốc nào trong đề xuất AI còn hàng tại Chi nhánh ${currentBranchId || "BR-001"}. Vui lòng bấm "Tìm thuốc thay thế" hoặc tạo phiếu điều chuyển kho!`,
+        "warning"
+      );
     }
+  };
+
+  const handleQuickConfirmAI = () => {
+    const { fullName: currentUserName } = getBranchInfoFromToken();
+    const auditCode = `GPP-AI-${Math.floor(100000 + Math.random() * 900000)}`;
+    const confirmationInfo: AIPharmacistConfirmationData = {
+      confirmed: true,
+      pharmacistName: currentUserName || "Dược sĩ Trần Thị A",
+      pharmacistLicense: "CCHN-GPP/02849-HN",
+      confirmedAt: new Date().toISOString(),
+      auditCode,
+      totalItems: cart.length,
+      patientName: loyaltyInfo ? loyaltyInfo.fullName : "Khách lẻ vãng lai",
+      diagnosis: "Tư vấn phác đồ tại quầy",
+      doctorName: "Dược sĩ phụ trách",
+      hospitalName: "Nhà thuốc GPP",
+      warningsCount: 0,
+      source: "AI_VOICE_CONSULT",
+      drugs: cart.map((item: any) => ({
+        name: item.name,
+        dosage: item.dosageInstructions || "Uống theo chỉ dẫn",
+        quantity: item.quantity,
+        unit: item.unit,
+        active_ingredient: item.active_ingredient,
+        price: item.price
+      })),
+      clinicalNotes: "Dược sĩ trực tiếp thẩm định lâm sàng tại quầy POS."
+    };
+    setAiPharmacistConfirmation(confirmationInfo);
+    showToast(`✅ Dược sĩ ${confirmationInfo.pharmacistName} đã xác nhận bước cuối thành công! (Mã duyệt: ${auditCode})`, "success");
   };
 
   // Debounce search query & filters
@@ -490,7 +609,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
       return;
     }
     const delay = setTimeout(() => {
-      searchMedicines(searchQuery);
+      searchMedicines(searchQuery, selectedCategory, selectedClassification, stockFilter);
     }, 300);
     return () => clearTimeout(delay);
   }, [searchQuery, selectedCategory, selectedClassification, stockFilter]);
@@ -535,13 +654,17 @@ export default function RetailView({ showToast }: RetailViewProps) {
         gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.1);
-      } catch (e) {}
+      } catch (e) { }
 
       const medId = med.id || med._id;
       const existing = cart.find(it => (it.id || it._id) === medId);
 
       if (existing) {
-        if (existing.quantity >= totalStock) {
+        const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
+          unitName: existing.selectedUnit || existing.unit,
+          exchangeValue: existing.exchangeValue,
+        });
+        if (nextBaseQty > totalStock) {
           showToast(`⚠️ Đã đạt số lượng tồn khả dụng tối đa (${totalStock}) của chi nhánh!`, "warning");
           return;
         }
@@ -549,8 +672,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
         showToast(`⚡ Quét mã: Đã tăng số lượng "${med.name}" (+1)!`, "success");
       } else {
         const unitOptions = buildUnitOptions(med);
-        const selectedUnitObj = res.matchedUnit || unitOptions[0] || { unitName: med.unit || 'Hộp', exchangeValue: 1, price: med.price || 0 };
-        const baseUnit = med.baseUnit || selectedUnitObj.unitName || 'viên';
+        const selectedUnitObj = res.matchedUnit || getDefaultUnitOption(med);
+        const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
 
         setCart(prev => [
           ...prev,
@@ -561,8 +684,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
             unitOptions,
             selectedUnit: selectedUnitObj.unitName,
             unit: selectedUnitObj.unitName,
-            exchangeValue: selectedUnitObj.exchangeValue || 1,
-            price: selectedUnitObj.price || med.price || 0,
+            exchangeValue: getUnitFactor(selectedUnitObj),
+            price: getUnitPrice(med, selectedUnitObj),
             quantity: 1,
             fefoBatchNo: fefoBatch ? fefoBatch.batchNo : undefined,
             fefoExpDate: fefoBatch ? fefoBatch.expDate : undefined,
@@ -570,7 +693,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
             timesPerDay: 2,
             durationDays: 7,
             dailyDose: 2,
-            dosageInstructions: `Uống 1 ${selectedUnitObj.unitName}/lần, 2 lần/ngày sau ăn - Dùng 7 ngày`
+            dosageInstructions: buildRetailDosageInstruction({
+              unitName: selectedUnitObj.unitName,
+              dosageForm: med.dosage_form,
+              baseUnitName: baseUnit,
+            })
           }
         ]);
 
@@ -646,19 +773,19 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const { branchId } = getBranchInfoFromToken();
       const catParam = cat !== undefined ? cat : selectedCategory;
       const clsParam = cls !== undefined ? cls : selectedClassification;
+      const currentStockF = stockF !== undefined ? stockF : stockFilter;
       const data = await medicineService.getBranchMedicines(branchId || '', {
         limit: 20,
-        search: query,
+        search: query ? query.trim() : undefined,
         category: catParam || undefined,
         classification: clsParam || undefined,
-        branchStockOnly: true
+        branchStockOnly: currentStockF === "IN_STOCK"
       });
       let res = data.data || [];
-      const currentStockF = stockF !== undefined ? stockF : stockFilter;
       if (currentStockF === "IN_STOCK") {
-        res = res.filter((m: any) => m.stock > 0);
+        res = res.filter((m: any) => (m.stock || 0) > 0);
       } else if (currentStockF === "OUT_OF_STOCK") {
-        res = res.filter((m: any) => m.stock <= 0);
+        res = res.filter((m: any) => (m.stock || 0) <= 0);
       }
       setSearchResults(res);
       setIsDropdownOpen(true);
@@ -669,72 +796,40 @@ export default function RetailView({ showToast }: RetailViewProps) {
     }
   };
 
-  const buildUnitOptions = (med: any) => {
-    if (med.units && Array.isArray(med.units) && med.units.length > 0) {
-      return med.units;
-    }
-    if (med.unitOptions && Array.isArray(med.unitOptions) && med.unitOptions.length > 0) {
-      return med.unitOptions;
-    }
-    const basePrice = med.price || 50000;
-    const nameLower = (med.name || '').toLowerCase();
-    const mainUnit = med.unit || 'Hộp';
-
-    if (mainUnit === 'Hộp' && (nameLower.includes('gói') || nameLower.includes('ống') || nameLower.includes('chai') || nameLower.includes('lọ'))) {
-      const isGoi = nameLower.includes('gói');
-      const isOng = nameLower.includes('ống');
-      const subUnitName = isGoi ? 'Gói' : (isOng ? 'Ống' : 'Lọ/Chai');
-      const matchSubCount = nameLower.match(/(\d+)\s*(gói|ống|chai|lọ)/);
-      const subCount = matchSubCount ? parseInt(matchSubCount[1], 10) : 10;
-      return [
-        { unitName: 'Hộp', exchangeValue: subCount, price: basePrice, isBaseUnit: true },
-        { unitName: subUnitName, exchangeValue: 1, price: Math.round(basePrice / subCount * 1.05) },
-      ];
-    }
-
-    if (mainUnit === 'Hộp') {
-      return [
-        { unitName: 'Hộp', exchangeValue: 100, price: basePrice, isBaseUnit: true },
-        { unitName: 'Vỉ', exchangeValue: 10, price: Math.round(basePrice / 10 * 1.05) },
-        { unitName: 'Viên', exchangeValue: 1, price: Math.round(basePrice / 100 * 1.1) },
-      ];
-    } else if (mainUnit === 'Vỉ') {
-      return [
-        { unitName: 'Vỉ', exchangeValue: 10, price: basePrice, isBaseUnit: true },
-        { unitName: 'Viên', exchangeValue: 1, price: Math.round(basePrice / 10 * 1.1) },
-      ];
-    } else if (mainUnit === 'Gói' || mainUnit === 'Chai' || mainUnit === 'Ống' || mainUnit === 'Tuýp' || mainUnit === 'Lọ') {
-      return [
-        { unitName: mainUnit, exchangeValue: 1, price: basePrice, isBaseUnit: true }
-      ];
-    }
-    return [
-      { unitName: mainUnit || 'Hộp', exchangeValue: 1, price: basePrice, isBaseUnit: true }
-    ];
-  };
-
   const addToCart = (med: any) => {
     const medId = med.id || med._id;
     const existing = cart.find(it => (it.id || it._id) === medId);
     if (existing) {
-      setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
-      if (existing.quantity + 1 > (med.stock || 0)) {
+      const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
+        unitName: existing.selectedUnit || existing.unit,
+        exchangeValue: existing.exchangeValue,
+      });
+      if (nextBaseQty > (med.stock || 0)) {
         showToast(`Cảnh báo: Số lượng thuốc "${med.name}" vượt quá tồn kho (${med.stock || 0} ${med.unit || 'viên'})!`, "warning");
+        return;
       }
+      setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
     } else {
       const unitOptions = buildUnitOptions(med);
-      const isViProduct = (med.name || '').toLowerCase().includes('ngậm') || (med.name || '').toLowerCase().includes('sủi');
-      // Ưu tiên Vỉ cho viên ngậm/sủi, hoặc đơn vị lẻ cho thuốc kê đơn theo ngày
-      const defaultUnit = (isViProduct && unitOptions.length > 2) 
-        ? unitOptions[1] 
-        : (unitOptions.length > 1 ? unitOptions[unitOptions.length - 1] : unitOptions[0]);
-      const baseUnit = med.baseUnit || defaultUnit.unitName || 'viên';
+      const defaultUnit = getDefaultUnitOption(med);
+      const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
       const dosePerTime = 1;
       const timesPerDay = 2;
       const durationDays = 7;
       const dailyDose = dosePerTime * timesPerDay;
-      const qty = defaultUnit.exchangeValue === 1 ? (dailyDose * durationDays) : 1;
-      const dosageInstructions = `Sáng 1 ${baseUnit}, Tối 1 ${baseUnit} sau ăn - Dùng trong ${durationDays} ngày`;
+      const qty = calculateRetailQuantity({
+        unit: defaultUnit,
+        dailyDose,
+        durationDays,
+      });
+      const dosageInstructions = buildRetailDosageInstruction({
+        unitName: defaultUnit.unitName,
+        dosageForm: med.dosage_form,
+        dosePerTime,
+        timesPerDay,
+        durationDays,
+        baseUnitName: baseUnit,
+      });
 
       setCart([
         ...cart,
@@ -745,8 +840,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
           unitOptions,
           selectedUnit: defaultUnit.unitName,
           unit: defaultUnit.unitName,
-          exchangeValue: defaultUnit.exchangeValue,
-          price: defaultUnit.price,
+          exchangeValue: getUnitFactor(defaultUnit),
+          price: getUnitPrice(med, defaultUnit),
           quantity: qty,
           dosePerTime,
           timesPerDay,
@@ -769,19 +864,30 @@ export default function RetailView({ showToast }: RetailViewProps) {
     setCart(cart.map(it => {
       if ((it.id || it._id) !== medId) return it;
       const opt = it.unitOptions?.find((u: any) => u.unitName === unitName) || { unitName, exchangeValue: 1, price: it.price };
-      let newQty = it.quantity;
-      if (opt.exchangeValue === 1) {
-        newQty = (it.dailyDose || 2) * (it.durationDays || 7);
-      } else {
-        newQty = Math.max(1, Math.ceil(((it.dailyDose || 2) * (it.durationDays || 7)) / (opt.exchangeValue || 1)));
-      }
+      const newQty = isPackageOnlyUnit(opt.unitName)
+        ? 1
+        : calculateRetailQuantity({
+            unit: opt,
+            dailyDose: it.dailyDose || 2,
+            durationDays: it.durationDays || 7,
+          });
+      const baseUnit = getBaseUnitOption(it.unitOptions || [opt]);
       return {
         ...it,
         selectedUnit: opt.unitName,
         unit: opt.unitName,
-        exchangeValue: opt.exchangeValue,
-        price: opt.price,
-        quantity: newQty
+        exchangeValue: getUnitFactor(opt),
+        price: getUnitPrice(it, opt),
+        baseUnit: it.baseUnit || baseUnit.unitName,
+        quantity: newQty,
+        dosageInstructions: buildRetailDosageInstruction({
+          unitName: opt.unitName,
+          dosageForm: it.dosage_form,
+          dosePerTime: it.dosePerTime || 1,
+          timesPerDay: it.timesPerDay || 2,
+          durationDays: it.durationDays || 7,
+          baseUnitName: it.baseUnit || baseUnit.unitName,
+        }),
       };
     }));
   };
@@ -795,16 +901,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const dDays = Number(field === 'durationDays' ? val : updated.durationDays) || 1;
       const dailyD = dPerTime * tPerDay;
       updated.dailyDose = dailyD;
-      const bUnit = updated.baseUnit || updated.selectedUnit || 'viên';
+      const bUnit = updated.baseUnit || updated.selectedUnit || 'đơn vị';
 
       if (field === 'durationDays' || field === 'dosePerTime' || field === 'timesPerDay') {
-        if (updated.exchangeValue === 1) {
-          updated.quantity = Math.max(1, dailyD * dDays);
-        } else {
-          const factor = updated.exchangeValue || 100;
-          updated.quantity = Math.max(1, Math.ceil((dailyD * dDays) / factor));
-        }
-        updated.dosageInstructions = `Uống ${dPerTime} ${bUnit}/lần, ${tPerDay} lần/ngày sau ăn - Dùng trong ${dDays} ngày`;
+        updated.quantity = calculateRetailQuantity({
+          unit: { unitName: updated.selectedUnit || updated.unit, exchangeValue: updated.exchangeValue },
+          dailyDose: dailyD,
+          durationDays: dDays,
+          currentQuantity: updated.quantity,
+        });
+        updated.dosageInstructions = buildRetailDosageInstruction({
+          unitName: updated.selectedUnit || updated.unit,
+          dosageForm: updated.dosage_form,
+          dosePerTime: dPerTime,
+          timesPerDay: tPerDay,
+          durationDays: dDays,
+          baseUnitName: bUnit,
+        });
       }
       return updated;
     }));
@@ -816,15 +929,25 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const dPerTime = Number(it.dosePerTime) || 1;
       const tPerDay = Number(it.timesPerDay) || 2;
       const dailyD = dPerTime * tPerDay;
-      const bUnit = it.baseUnit || it.selectedUnit || 'viên';
-      const newQty = it.exchangeValue === 1
-        ? Math.max(1, dailyD * days)
-        : Math.max(1, Math.ceil((dailyD * days) / (it.exchangeValue || 100)));
+      const bUnit = it.baseUnit || it.selectedUnit || 'đơn vị';
+      const newQty = calculateRetailQuantity({
+        unit: { unitName: it.selectedUnit || it.unit, exchangeValue: it.exchangeValue },
+        dailyDose: dailyD,
+        durationDays: days,
+        currentQuantity: it.quantity,
+      });
       return {
         ...it,
         durationDays: days,
         quantity: newQty,
-        dosageInstructions: presetText || `Uống ${dPerTime} ${bUnit}/lần, ${tPerDay} lần/ngày sau ăn - Dùng trong ${days} ngày`
+        dosageInstructions: presetText || buildRetailDosageInstruction({
+          unitName: it.selectedUnit || it.unit,
+          dosageForm: it.dosage_form,
+          dosePerTime: dPerTime,
+          timesPerDay: tPerDay,
+          durationDays: days,
+          baseUnitName: bUnit,
+        })
       };
     }));
   };
@@ -899,14 +1022,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
 
       const maxUnits = Math.max(1, Math.floor(availableStock / factor));
       const dailyDose = it.dailyDose || ((it.dosePerTime || 1) * (it.timesPerDay || 2));
-      const newDays = Math.max(1, Math.floor((maxUnits * factor) / dailyDose));
-      const bUnit = it.baseUnit || it.selectedUnit || 'viên';
+      const newDays = isPackageOnlyUnit(it.selectedUnit || it.unit)
+        ? (it.durationDays || 7)
+        : Math.max(1, Math.floor((maxUnits * factor) / dailyDose));
+      const bUnit = it.baseUnit || it.selectedUnit || 'đơn vị';
 
       return {
         ...it,
         quantity: maxUnits,
         durationDays: newDays,
-        dosageInstructions: `Uống ${it.dosePerTime || 1} ${bUnit}/lần, ${it.timesPerDay || 2} lần/ngày sau ăn - Dùng trong ${newDays} ngày`
+        dosageInstructions: buildRetailDosageInstruction({
+          unitName: it.selectedUnit || it.unit,
+          dosageForm: it.dosage_form,
+          dosePerTime: it.dosePerTime || 1,
+          timesPerDay: it.timesPerDay || 2,
+          durationDays: newDays,
+          baseUnitName: bUnit,
+        })
       };
     }));
     showToast("Đã tự động điều chỉnh số lượng theo tồn kho thực tế!", "info");
@@ -924,6 +1056,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const availableStock = item.stock || 0;
       if (requiredBase > availableStock) {
         showToast(`Đã vượt quá tồn kho khả dụng (${availableStock} ${item.baseUnit || 'đơn vị'})!`, "warning");
+        return;
       }
       setCart(cart.map(it => (it.id || it._id) === id ? { ...it, quantity: newQty } : it));
     }
@@ -956,16 +1089,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
       const { branchId: currentBranchId, fullName: currentUserName } = getBranchInfoFromToken();
 
       const generatedOrderCode = Math.floor(10000000 + Math.random() * 90000000);
-      const isGuestCustomer = isWalkIn || !loyaltyInfo;
-      const assignedRole = isGuestCustomer ? 'guest' : (loyaltyInfo?.role || 'customer');
       const patientName = loyaltyInfo ? loyaltyInfo.fullName : "Khách lẻ vãng lai";
       const patientPhone = loyaltyInfo ? loyaltyInfo.phone : "0900000000";
-
-      // Controleert of medicijnen afkomstig zijn van AI-aanbevelingen
-      const hasAiItems = cart.some(it => it.aiApproved || it.auditCode) || Boolean(auditData);
-      const aiAuditCode = auditData?.auditCode || cart.find(it => it.auditCode)?.auditCode;
-      const consultationId = (auditData as any)?.consultationId || undefined;
-      const pharmacistApprovedBy = auditData?.pharmacistName || currentUserName || "Dược sĩ trực quầy";
 
       const payload = {
         type: "RETAIL",
@@ -990,15 +1115,14 @@ export default function RetailView({ showToast }: RetailViewProps) {
         patientPhone,
         patientEmail: patientEmail || undefined,
         redeemedPoints: usePoints ? redeemedPoints : 0,
-        role: assignedRole,
-        customerRole: assignedRole,
-        patientRole: assignedRole,
-        isGuest: isGuestCustomer,
-        // AI-auditspoorvelden
-        isAiAssisted: hasAiItems,
-        aiAuditCode: hasAiItems ? aiAuditCode : undefined,
-        consultationId: hasAiItems ? consultationId : undefined,
-        pharmacistApprovedBy: hasAiItems ? pharmacistApprovedBy : undefined,
+        remarks: aiPharmacistConfirmation?.confirmed
+          ? `[ĐÃ XÁC NHẬN BỞI DS ${aiPharmacistConfirmation.pharmacistName} - MÃ DUYỆT ${aiPharmacistConfirmation.auditCode}]`
+          : undefined,
+        aiAssisted: Boolean(aiPharmacistConfirmation?.confirmed),
+        pharmacistConfirmed: Boolean(aiPharmacistConfirmation?.confirmed),
+        pharmacistConfirmedBy: aiPharmacistConfirmation?.pharmacistName,
+        pharmacistConfirmedAt: aiPharmacistConfirmation?.confirmedAt,
+        aiAuditCode: aiPharmacistConfirmation?.auditCode,
       };
 
       if (paymentMethod === "QR_PAY") {
@@ -1008,24 +1132,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
           patientEmail: patientEmail || undefined,
           totalAmount: total,
           paymentMethod: "QR_PAY",
+          type: "RETAIL",
+          branchId: currentBranchId || undefined,
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
           redeemedPoints: usePoints ? redeemedPoints : 0,
-          role: assignedRole,
-          customerRole: assignedRole,
-          patientRole: assignedRole,
-          isGuest: isGuestCustomer,
           items: cart.map(it => ({
             medicineId: it.id || it._id,
             name: it.name,
             quantity: it.quantity,
             price: it.price,
-            unit: it.unit
-          })),
-          // AI-auditspoorvelden
-          isAiAssisted: hasAiItems,
-          aiAuditCode: hasAiItems ? aiAuditCode : undefined,
-          consultationId: hasAiItems ? consultationId : undefined,
-          pharmacistApprovedBy: hasAiItems ? pharmacistApprovedBy : undefined,
+            unit: it.selectedUnit || it.unit,
+            exchangeValue: getUnitFactor({ unitName: it.selectedUnit || it.unit, exchangeValue: it.exchangeValue }),
+            dosePerTime: it.dosePerTime,
+            timesPerDay: it.timesPerDay,
+            dailyDose: it.dailyDose,
+            durationDays: it.durationDays,
+            dosageInstructions: it.dosageInstructions,
+          }))
         });
 
         payload.orderCode = payosResult.orderCode;
@@ -1064,32 +1187,15 @@ export default function RetailView({ showToast }: RetailViewProps) {
   const hasWarfarin = cart.some(it => it.name?.toLowerCase().includes("warfarin") || it.active_ingredient?.toLowerCase().includes("warfarin"));
   const hasInteraction = hasCiprofloxacin && hasWarfarin;
 
-  // Clinical Drug Allergy Check against customer's medical safety record
-  const customerAllergyAlerts = useMemo(() => {
-    if (!customer?.clinical?.allergies || customer.clinical.allergies.length === 0) return [];
-    const allergies = customer.clinical.allergies.map((a: string) => a.toLowerCase().trim());
-    const conflicts: { medicineName: string; allergy: string }[] = [];
-
-    cart.forEach((item) => {
-      const medText = `${item.name || ''} ${item.active_ingredient || ''}`.toLowerCase();
-      allergies.forEach((allergy: string) => {
-        if (allergy && medText.includes(allergy)) {
-          conflicts.push({ medicineName: item.name, allergy });
-        }
-      });
-    });
-    return conflicts;
-  }, [cart, customer]);
-
   // 🧠 AI Gợi ý Thực Phẩm Chức Năng Bổ Trợ Bệnh Mãn Tính (Dựa trên Phác đồ GPP)
   const chronicCareSuggestions = useMemo(() => {
     const list: any[] = [];
     const fullText = cart.map(it => `${it.name} ${it.active_ingredient || ""}`).join(" ").toLowerCase();
 
     // 1. Huyết áp & Tim mạch
-    if (fullText.includes("amlodipine") || fullText.includes("losartan") || fullText.includes("telmisartan") || 
-        fullText.includes("captopril") || fullText.includes("enalapril") || fullText.includes("bisoprolol") || 
-        fullText.includes("nifedipine") || fullText.includes("plavix") || fullText.includes("aspirin") || fullText.includes("huyết áp")) {
+    if (fullText.includes("amlodipine") || fullText.includes("losartan") || fullText.includes("telmisartan") ||
+      fullText.includes("captopril") || fullText.includes("enalapril") || fullText.includes("bisoprolol") ||
+      fullText.includes("nifedipine") || fullText.includes("plavix") || fullText.includes("aspirin") || fullText.includes("huyết áp")) {
       list.push({
         id: "CARDIO",
         title: "Bệnh Mãn Tính: Tăng Huyết Áp & Tim Mạch",
@@ -1113,8 +1219,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
     }
 
     // 2. Đái tháo đường (Tiểu đường)
-    if (fullText.includes("metformin") || fullText.includes("gliclazide") || fullText.includes("glimepiride") || 
-        fullText.includes("januvia") || fullText.includes("forxiga") || fullText.includes("jardiance") || fullText.includes("tiểu đường")) {
+    if (fullText.includes("metformin") || fullText.includes("gliclazide") || fullText.includes("glimepiride") ||
+      fullText.includes("januvia") || fullText.includes("forxiga") || fullText.includes("jardiance") || fullText.includes("tiểu đường")) {
       list.push({
         id: "DIABETES",
         title: "Bệnh Mãn Tính: Đái Tháo Đường Type 2",
@@ -1138,8 +1244,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
     }
 
     // 3. Kháng sinh đường uống
-    if (fullText.includes("amoxicillin") || fullText.includes("augmentin") || fullText.includes("cefixime") || 
-        fullText.includes("ciprofloxacin") || fullText.includes("azithromycin") || fullText.includes("klamentin")) {
+    if (fullText.includes("amoxicillin") || fullText.includes("augmentin") || fullText.includes("cefixime") ||
+      fullText.includes("ciprofloxacin") || fullText.includes("azithromycin") || fullText.includes("klamentin")) {
       list.push({
         id: "ANTIBIOTIC",
         title: "Phác Đồ Kháng Sinh Đường Uống",
@@ -1157,8 +1263,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
     }
 
     // 4. Xương khớp & Giảm đau kháng viêm NSAID
-    if (fullText.includes("celecoxib") || fullText.includes("meloxicam") || fullText.includes("diclofenac") || 
-        fullText.includes("ibuprofen") || fullText.includes("glucosamine")) {
+    if (fullText.includes("celecoxib") || fullText.includes("meloxicam") || fullText.includes("diclofenac") ||
+      fullText.includes("ibuprofen") || fullText.includes("glucosamine")) {
       list.push({
         id: "JOINT",
         title: "Bệnh Lý Cơ Xương Khớp & Kháng Viêm",
@@ -1184,9 +1290,9 @@ export default function RetailView({ showToast }: RetailViewProps) {
   }, [cart]);
 
   return (
-    <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-5 overflow-hidden">
-      {/* Cột trái (8/12): Tìm kiếm & Giỏ hàng */}
-      <div className="lg:col-span-8 overflow-y-auto pr-1 flex flex-col gap-4 pb-6 min-w-0">
+    <div className="h-full flex flex-col xl:flex-row gap-6 overflow-hidden">
+      {/* Cột trái: Tìm kiếm & Giỏ hàng */}
+      <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-6 pb-6">
 
         {/* Tìm kiếm & Tư vấn bằng giọng nói AI */}
         <div className="relative shrink-0 flex flex-col gap-3">
@@ -1225,16 +1331,14 @@ export default function RetailView({ showToast }: RetailViewProps) {
                     <X size={16} />
                   </button>
                 )}
-                <div 
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider select-none transition-all ${
-                    isBarcodeLoading 
-                      ? 'bg-emerald-500 text-white animate-pulse shadow-sm shadow-emerald-500/50' 
+                <div
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider select-none transition-all ${isBarcodeLoading
+                      ? 'bg-emerald-500 text-white animate-pulse shadow-sm shadow-emerald-500/50'
                       : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                  }`}
+                    }`}
                   title="Máy quét Barcode USB / Camera sẵn sàng"
                 >
-                  <ScanBarcode size={13} className={isBarcodeLoading ? 'text-white' : 'text-emerald-600'} />
-                  <span>Scanner ON</span>
+
                 </div>
               </div>
             </div>
@@ -1339,10 +1443,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
               </div>
               {searchResults.map((med) => {
                 const totalStock = med.stock || 0;
-                const boxCap = med.boxCapacity || (med.units && med.units[0]?.exchangeValue) || (med.unit === 'Hộp' ? 100 : 1);
+                const unitOptions = buildUnitOptions(med);
+                const boxCap = med.boxCapacity || Math.max(...unitOptions.map((u: any) => getUnitFactor(u)), 1);
                 const unopenedBoxes = boxCap > 1 ? Math.max(0, Math.floor(totalStock / boxCap)) : totalStock;
                 const openedUnits = med.openedBoxUnits !== undefined ? med.openedBoxUnits : (boxCap > 1 ? (totalStock % boxCap) : 0);
-                const baseUnitName = med.baseUnit || (med.units && med.units.length > 1 ? med.units[med.units.length - 1].unitName : med.unit) || 'viên';
+                const baseUnitName = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
 
                 return (
                   <button
@@ -1402,40 +1507,6 @@ export default function RetailView({ showToast }: RetailViewProps) {
           </div>
         )}
 
-        {/* Cảnh báo dị ứng thuốc theo hồ sơ bệnh nhân */}
-        {customerAllergyAlerts.length > 0 && (
-          <div className="bg-rose-50 border-2 border-rose-500 rounded-2xl p-4 shadow-sm flex items-start gap-3.5 animate-pulse">
-            <div className="w-10 h-10 rounded-xl bg-rose-600 flex items-center justify-center shrink-0 shadow-sm text-white">
-              <ShieldAlert size={22} />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-rose-900 font-extrabold text-sm uppercase tracking-wide">
-                  CẢNH BÁO NGUY HIỂM: DỊ ỨNG THUỐC CỦA BỆNH NHÂN!
-                </h3>
-                <span className="text-[10px] bg-rose-600 text-white font-black px-2 py-0.5 rounded uppercase">
-                  An Toàn Dược Lâm Sàng
-                </span>
-              </div>
-              <p className="text-xs text-rose-800 font-semibold mt-1">
-                Thuốc trong giỏ hàng có chứa thành phần trùng với tiền sử dị ứng đã lưu của <strong>{customer?.loyalty.fullName}</strong>:
-              </p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {customerAllergyAlerts.map((ca, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-300 text-rose-700 rounded-lg text-xs font-bold shadow-2xs"
-                  >
-                    <span>💊 {ca.medicineName}</span>
-                    <span className="text-rose-500 font-mono">({ca.allergy})</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-
         {/* 🧠 AI CLINICAL & SUPPLEMENT ASSISTANT (GỢI Ý TPCN BỔ TRỢ THEO BỆNH MÃN TÍNH) */}
         {chronicCareSuggestions.length > 0 && (
           <div className="bg-gradient-to-br from-indigo-50/90 via-white to-blue-50/90 border-2 border-indigo-200 rounded-[20px] p-5 shadow-sm space-y-4">
@@ -1493,6 +1564,89 @@ export default function RetailView({ showToast }: RetailViewProps) {
           </div>
         )}
 
+        {/* 🛡️ BANNER THÔNG BÁO XÁC NHẬN DƯỢC SĨ CHO ĐƠN THUỐC TƯ VẤN AI */}
+        {aiPharmacistConfirmation?.confirmed && (
+          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-blue-500/10 border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-3.5">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30 shrink-0">
+                  <ShieldCheck size={26} />
+                </div>
+                <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white"></span>
+                </span>
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                    <CheckCircle2 size={11} className="text-emerald-700" /> ĐÃ XÁC NHẬN BƯỚC CUỐI • CHUẨN GPP
+                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-500">
+                    Mã duyệt: <strong className="text-emerald-700 font-extrabold">{aiPharmacistConfirmation.auditCode}</strong>
+                  </span>
+                </div>
+                <h3 className="text-sm font-black text-slate-900 mt-1">
+                  Dược sĩ <span className="text-emerald-700 underline decoration-emerald-400 decoration-2">{aiPharmacistConfirmation.pharmacistName}</span> đã thẩm định đơn thuốc tư vấn AI
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Thời gian duyệt: <strong>{new Date(aiPharmacistConfirmation.confirmedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong> - {new Date(aiPharmacistConfirmation.confirmedAt).toLocaleDateString('vi-VN')} • {aiPharmacistConfirmation.totalItems} khoản mục thuốc
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowAuditModal(true)}
+                className="px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-300 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer hover:shadow"
+              >
+                <FileCheck2 size={15} /> Xem Biên Bản Thẩm Định AI
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Bạn có chắc chắn muốn hủy xác nhận thẩm định của đơn thuốc AI này?")) {
+                    setAiPharmacistConfirmation(null);
+                    showToast("Đã hủy xác nhận thẩm định đơn thuốc AI.", "warning");
+                  }
+                }}
+                className="px-2.5 py-2 text-slate-400 hover:text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
+                title="Hủy xác nhận thẩm định"
+              >
+                Hủy duyệt
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Cảnh báo nhắc nhở nếu có thuốc AI nhưng chưa xác nhận */}
+        {cart.some((it: any) => it.aiSuggested) && !aiPharmacistConfirmation?.confirmed && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                  Đơn thuốc do AI tư vấn - Chờ Dược sĩ xác nhận bước cuối
+                  <span className="bg-amber-200 text-amber-900 text-[10px] px-2 py-0.5 rounded-full font-bold">Quy chuẩn GPP</span>
+                </h4>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Vui lòng đối soát lâm sàng các loại thuốc do AI gợi ý và bấm xác nhận để hoàn tất quy trình.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleQuickConfirmAI}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+            >
+              <ShieldCheck size={16} /> Dược Sĩ Xác Nhận Bước Cuối Ngay
+            </button>
+          </div>
+        )}
+
         {/* Giỏ hàng bán lẻ POS chuyên nghiệp */}
         <div className="bg-white rounded-[16px] border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[480px]">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-[16px]">
@@ -1521,23 +1675,24 @@ export default function RetailView({ showToast }: RetailViewProps) {
             ) : (
               cart.map((it) => {
                 const totalStock = it.stock || 0;
-                const boxCap = it.boxCapacity || (it.unitOptions?.find((u: any) => u.isBaseUnit)?.exchangeValue) || (it.unit === 'Hộp' ? 100 : 1);
+                const unitOptions = it.unitOptions || buildUnitOptions(it);
+                const boxCap = it.boxCapacity || Math.max(...unitOptions.map((u: any) => getUnitFactor(u)), 1);
                 const unopenedBoxes = boxCap > 1 ? Math.max(0, Math.floor(totalStock / boxCap)) : totalStock;
                 const openedUnits = it.openedBoxUnits !== undefined ? it.openedBoxUnits : (boxCap > 1 ? (totalStock % boxCap) : 0);
-                const baseUnitName = it.baseUnit || (it.unitOptions && it.unitOptions.length > 1 ? it.unitOptions[it.unitOptions.length - 1].unitName : it.unit) || 'viên';
+                const baseUnitName = it.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
 
-                const factor = it.exchangeValue || 1;
+                const factor = getUnitFactor({ unitName: it.selectedUnit || it.unit, exchangeValue: it.exchangeValue });
                 const requiredBaseQty = it.quantity * factor;
                 const isOverStock = requiredBaseQty > totalStock;
+                const packageOnlyUnit = isPackageOnlyUnit(it.selectedUnit || it.unit);
 
                 return (
                   <div
                     key={it.id}
-                    className={`rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-sm ${
-                      isOverStock
+                    className={`rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-sm ${isOverStock
                         ? "bg-rose-50/40 border-2 border-rose-300"
                         : "bg-slate-50/60 border border-slate-200/80 hover:border-[#0057cd]/50"
-                    }`}
+                      }`}
                   >
                     {/* Cảnh báo vượt tồn kho */}
                     {isOverStock && (
@@ -1569,13 +1724,16 @@ export default function RetailView({ showToast }: RetailViewProps) {
                       </div>
                     )}
 
-                    {/* Dòng 1: Tên thuốc, hoạt chất, số lô và xóa nhanh */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-baseline gap-2">
+                    {/* Dòng 1: Thông tin cơ bản, Quy đổi đơn vị & Số lượng */}
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-black text-slate-900 text-[15px]">{it.name}</span>
-                          {it.active_ingredient && (
-                            <span className="text-[11px] text-slate-500 font-medium">({it.active_ingredient})</span>
+                          <span className="text-[11px] text-slate-500 font-medium">({it.active_ingredient || "N/A"})</span>
+                          {it.aiSuggested && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
+                              <Sparkles size={10} className="text-emerald-600" /> AI Tư vấn • Đã duyệt GPP
+                            </span>
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -1596,26 +1754,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
                         </div>
                       </div>
 
-                      {/* Nút xóa nhanh */}
-                      <button
-                        type="button"
-                        onClick={() => updateQty(it.id, -it.quantity, it.stock)}
-                        title="Xóa thuốc khỏi đơn"
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-
-                    {/* Dòng 2: Bộ chọn Đơn vị quy đổi, Tăng giảm số lượng & Thành tiền */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
                       {/* Bộ chọn Đơn vị quy đổi */}
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Đơn vị bán:</span>
+                        <span className="text-xs font-bold text-slate-500">Đơn vị bán:</span>
                         <select
                           value={it.selectedUnit || it.unit || "Hộp"}
                           onChange={(e) => handleUnitChange(it.id, e.target.value)}
-                          className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-[#0057cd] cursor-pointer shadow-xs min-w-[120px]"
+                          className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-[#0057cd] cursor-pointer shadow-sm min-w-[85px]"
                         >
                           {(it.unitOptions && it.unitOptions.length > 0 ? it.unitOptions : buildUnitOptions(it)).map((u: any) => (
                             <option key={u.unitName} value={u.unitName}>
@@ -1625,11 +1770,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
                         </select>
                       </div>
 
-                      {/* Tăng giảm số lượng & Giá tiền */}
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center border border-slate-300 rounded-xl bg-white shadow-xs overflow-hidden">
+                      {/* Tăng giảm số lượng */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center border border-slate-300 rounded-xl bg-white shadow-sm overflow-hidden">
                           <button
-                            type="button"
                             onClick={() => updateQty(it.id, -1, it.stock)}
                             className="p-2 hover:bg-slate-100 text-slate-600 transition-colors"
                           >
@@ -1639,14 +1783,12 @@ export default function RetailView({ showToast }: RetailViewProps) {
                             {it.quantity}
                           </span>
                           <button
-                            type="button"
                             onClick={() => updateQty(it.id, 1, it.stock)}
                             className="p-2 hover:bg-slate-100 text-slate-600 transition-colors"
                           >
                             <Plus size={14} />
                           </button>
                         </div>
-
                         <div className="text-right min-w-[100px]">
                           <div className="font-black text-[#0057cd] text-[16px]">
                             {(it.price * it.quantity).toLocaleString()}₫
@@ -1663,15 +1805,23 @@ export default function RetailView({ showToast }: RetailViewProps) {
                       <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-700">
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-500">Liều mỗi lần:</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="10"
-                            value={it.dosePerTime || 1}
-                            onChange={(e) => handleDosageChange(it.id, 'dosePerTime', e.target.value)}
-                            className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-[#0057cd]"
-                          />
-                          <span className="text-[11px] text-slate-500 font-bold">{baseUnitName}</span>
+                          {packageOnlyUnit ? (
+                            <span className="px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 font-black">
+                              Lượng vừa đủ
+                            </span>
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={it.dosePerTime || 1}
+                                onChange={(e) => handleDosageChange(it.id, 'dosePerTime', e.target.value)}
+                                className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-[#0057cd]"
+                              />
+                              <span className="text-[11px] text-slate-500 font-bold">{baseUnitName}</span>
+                            </>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1.5">
@@ -1707,11 +1857,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
                               key={d}
                               type="button"
                               onClick={() => handleQuickPreset(it.id, d)}
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
-                                it.durationDays === d
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${it.durationDays === d
                                   ? "bg-[#0057cd] text-white shadow-xs"
                                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                              }`}
+                                }`}
                             >
                               {d}N
                             </button>
@@ -1727,20 +1876,29 @@ export default function RetailView({ showToast }: RetailViewProps) {
                             type="text"
                             value={it.dosageInstructions || ""}
                             onChange={(e) => handleDosageChange(it.id, 'dosageInstructions', e.target.value)}
-                            placeholder={`Nhập hướng dẫn liều dùng (${baseUnitName})...`}
+                            placeholder={packageOnlyUnit
+                              ? "Ví dụ: Bôi một lượng vừa đủ theo hướng dẫn trên nhãn..."
+                             : `Nhập hướng dẫn liều dùng (${baseUnitName})...`}
                             className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-[#0057cd] focus:bg-white"
                           />
                         </div>
 
                         {/* Tag gợi ý liều dùng nhanh 1-Click */}
                         <div className="flex flex-wrap items-center gap-1.5 pl-16">
-                          {[
-                            `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
-                            `Ngày 2 lần sau ăn`,
-                            `Dùng khi đau, cách 4-6h`,
-                            `Trước ăn 30 phút`,
-                            `Dùng với nhiều nước`,
-                          ].map((tag, idx) => (
+                          {(packageOnlyUnit
+                            ? [
+                                "Bôi một lượng vừa đủ theo hướng dẫn trên nhãn",
+                                "Dùng theo hướng dẫn trên nhãn/đơn thuốc",
+                                "Không bôi lên vùng da trầy xước",
+                              ]
+                            : [
+                                `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
+                                `Ngày 2 lần sau ăn`,
+                                `Dùng khi đau, cách 4-6h`,
+                                `Trước ăn 30 phút`,
+                                `Dùng với nhiều nước`,
+                              ]
+                          ).map((tag, idx) => (
                             <button
                               key={idx}
                               type="button"
@@ -1761,37 +1919,190 @@ export default function RetailView({ showToast }: RetailViewProps) {
         </div>
       </div>
 
-      {/* Cột phải (4/12): Khách hàng & Thanh toán */}
-      <div className="lg:col-span-4 flex flex-col gap-4 shrink-0 pb-6 pl-1 overflow-y-auto custom-scrollbar min-w-0">
+      {/* Cột phải: Thanh toán */}
+      <div className="w-full xl:w-[380px] flex flex-col gap-6 shrink-0 pb-6 pl-1 overflow-y-auto custom-scrollbar">
 
-        {/* Khách hàng thân thiết / Tra cứu tài khoản */}
-        <CustomerActionBar
-          customer={customer}
-          isWalkIn={isWalkIn}
-          searchQuery={customerQuery}
-          setSearchQuery={setCustomerQuery}
-          isSearching={isSearchingCustomer}
-          searchError={custSearchError}
-          isNotFound={isCustNotFound}
-          recentCustomers={recentCustomers}
-          inputRef={customerInputRef}
-          onSearch={(phone) => executeSearchCustomer(phone)}
-          onQuickRegister={executeQuickRegister}
-          onSelectRecent={executeSelectRecent}
-          onWalkIn={executeWalkInMode}
-          onClear={handleClearCustomer}
-          usePoints={usePoints}
-          onToggleUsePoints={(use) => {
-            setUsePoints(use);
-            if (use && loyaltyInfo) {
-              const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
-              setRedeemedPoints(Math.min(loyaltyInfo.points, maxRedeem));
-            } else {
-              setRedeemedPoints(0);
-            }
-          }}
-          redeemedPoints={redeemedPoints}
-        />
+        {/* Tóm tắt khách sỉ/ VIP */}
+        <div className="bg-white border border-slate-200 rounded-[16px] p-5 shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">KHÁCH HÀNG THÂN THIẾT</h3>
+            {loyaltyInfo ? (
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">
+                {loyaltyInfo.tier} VIP
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                Khách Lẻ
+              </span>
+            )}
+          </div>
+
+          {!loyaltyInfo ? (
+            <div className="flex flex-col gap-2.5">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="SĐT khách hàng..."
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleSearchCustomer}
+                  disabled={isSearchingCustomer}
+                  className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                >
+                  Tìm kiếm
+                </button>
+              </div>
+              <input
+                type="email"
+                placeholder="Email nhận HDĐT (tùy chọn)..."
+                value={patientEmail}
+                onChange={(e) => setPatientEmail(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+              />
+              <div className="text-[11px] text-slate-400 font-bold text-left italic">
+                * Nhập số điện thoại để tích điểm & quy đổi ưu đãi thành viên.
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 text-left">
+              <div className="flex justify-between items-center">
+                <span className="font-extrabold text-slate-800 text-[14px]">{loyaltyInfo.fullName}</span>
+                <button
+                  type="button"
+                  onClick={handleClearCustomer}
+                  className="text-xs text-rose-500 hover:text-rose-700 font-bold"
+                >
+                  Hủy chọn
+                </button>
+              </div>
+              <div className="text-[12px] text-slate-500 font-bold">
+                SĐT: {loyaltyInfo.phone} | Điểm khả dụng: <span className="text-[#0057cd]">{loyaltyInfo.points.toLocaleString()}đ</span>
+              </div>
+
+              {/* Adaptive RFM Badge & Gợi ý Toa Thuốc */}
+              {currentCustomerSegment && (
+                <div className="p-2.5 rounded-xl border border-purple-100 bg-purple-50/50 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Phân khúc RFM:</span>
+                    {currentCustomerSegment.segment === 'CHAMPIONS' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                        <Crown size={11} className="text-amber-600" /> Khách Kim Cương
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'LOYAL_CHRONIC' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                        <HeartPulse size={11} className="text-rose-600" /> Bệnh Mãn Tính (30N)
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'POTENTIAL_LOYALIST' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
+                        <Sparkles size={11} className="text-blue-600" /> Tiềm Năng
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'AT_RISK' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200 animate-pulse">
+                        <AlertTriangle size={11} className="text-orange-600" /> Nguy Cơ Rời Bỏ
+                      </span>
+                    )}
+                    {currentCustomerSegment.segment === 'HIBERNATING' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        Ngủ Đông
+                      </span>
+                    )}
+                  </div>
+
+                  {currentCustomerSegment.predictedRefillDate && (
+                    <div className="text-[11px] text-rose-700 font-semibold flex items-center justify-between">
+                      <span>Dự kiến tái mua toa thuốc:</span>
+                      <span className="font-bold">
+                        {new Date(currentCustomerSegment.predictedRefillDate).toLocaleDateString('vi-VN')}
+                      </span>
+                    </div>
+                  )}
+
+                  {currentCustomerSegment.recommendedVoucher && (
+                    <div className="flex items-center justify-between pt-1 border-t border-purple-100/60">
+                      <span className="text-[11px] text-purple-700 font-medium flex items-center gap-1">
+                        <Gift size={12} /> Ưu đãi giữ chân:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoucherCode(currentCustomerSegment.recommendedVoucher || '');
+                          showToast(`Đã tự động điền mã ưu đãi ${currentCustomerSegment.recommendedVoucher}`, 'success');
+                        }}
+                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-sm transition-colors"
+                      >
+                        Áp dụng {currentCustomerSegment.recommendedVoucher}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email nhận hóa đơn</label>
+                <input
+                  type="email"
+                  placeholder="Nhập email khách hàng..."
+                  value={patientEmail}
+                  onChange={(e) => setPatientEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                />
+              </div>
+
+              {loyaltyInfo.points > 0 && (
+                <div className="pt-2.5 border-t border-slate-100 flex flex-col gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={usePoints}
+                      onChange={(e) => {
+                        setUsePoints(e.target.checked);
+                        if (e.target.checked) {
+                          const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
+                          setRedeemedPoints(Math.min(loyaltyInfo.points, maxRedeem));
+                        } else {
+                          setRedeemedPoints(0);
+                        }
+                      }}
+                      className="rounded border-slate-350 text-[#0057cd] focus:ring-[#0057cd] w-4 h-4 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-700">Tiêu điểm giảm giá</span>
+                  </label>
+
+                  {usePoints && (
+                    <div className="flex flex-col gap-1 pl-6">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          max={Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5)}
+                          value={redeemedPoints}
+                          onChange={(e) => {
+                            const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
+                            const pts = Math.min(loyaltyInfo.points, maxRedeem, Number(e.target.value));
+                            setRedeemedPoints(pts);
+                          }}
+                          className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                        />
+                        <span className="text-xs font-bold text-slate-500">
+                          điểm (Giảm {redeemedPoints.toLocaleString()}₫)
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        * Tối đa 50% đơn (tối đa {Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5).toLocaleString()} điểm)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Voucher Box */}
         <div className="bg-white border border-slate-200 rounded-[16px] p-5 shadow-sm flex flex-col gap-2">
@@ -1899,10 +2210,29 @@ export default function RetailView({ showToast }: RetailViewProps) {
           </div>
         </div>
 
-        {cart.some(it => ((it.quantity || 1) * (it.exchangeValue || 1)) > (it.stock || 0)) && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs font-bold flex items-center gap-2">
-            <AlertTriangle size={18} className="shrink-0 text-rose-600" />
-            <span>Có sản phẩm vượt quá tồn kho khả dụng! Vui lòng điều chỉnh trước khi thanh toán.</span>
+        {/* Thẻ trạng thái phê duyệt Dược sĩ cho đơn AI */}
+        {aiPharmacistConfirmation?.confirmed && (
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl p-3.5 text-xs text-emerald-900 flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <ShieldCheck size={16} />
+              </div>
+              <div>
+                <div className="font-extrabold text-[11px] uppercase tracking-wide text-emerald-950 flex items-center gap-1">
+                  Đơn AI: Đã Thẩm Định Lâm Sàng
+                </div>
+                <div className="text-[10px] text-emerald-700 font-medium">
+                  DS. {aiPharmacistConfirmation.pharmacistName} • {aiPharmacistConfirmation.auditCode}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAuditModal(true)}
+              className="px-2 py-1 bg-white hover:bg-emerald-100/60 text-emerald-800 text-[10px] font-black rounded-lg border border-emerald-300 transition-colors cursor-pointer"
+            >
+              Chi tiết
+            </button>
           </div>
         )}
 
@@ -1946,6 +2276,28 @@ export default function RetailView({ showToast }: RetailViewProps) {
                 </div>
               )}
 
+              {/* Badge Thẩm Định Lâm Sàng Của Dược Sĩ Cho Đơn Thuốc AI */}
+              {invoiceData.aiPharmacistConfirmation?.confirmed && (
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-emerald-950 uppercase text-[11px] flex items-center gap-1.5">
+                        ✓ ĐÃ THẨM ĐỊNH LÂM SÀNG BƯỚC CUỐI (AI ASSISTED)
+                      </div>
+                      <div className="text-[10px] text-emerald-800">
+                        Dược sĩ phụ trách: <strong>{invoiceData.aiPharmacistConfirmation.pharmacistName}</strong> • Mã duyệt: <span className="font-mono font-bold text-emerald-700">{invoiceData.aiPharmacistConfirmation.auditCode}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full shrink-0">
+                    GPP Verified
+                  </span>
+                </div>
+              )}
+
               {/* Mẫu hóa đơn bán thuốc */}
               <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50/50 shadow-inner font-mono text-[13px] text-slate-800 flex flex-col gap-4">
                 <div className="text-center border-b border-slate-200 pb-3">
@@ -1971,18 +2323,6 @@ export default function RetailView({ showToast }: RetailViewProps) {
                     <span>Khách hàng:</span>
                     <span>{invoiceData.data?.patientName || "Khách lẻ vãng lai"}</span>
                   </div>
-                  {invoiceData.data?.isAiAssisted && (
-                    <div className="flex justify-between items-center bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md border border-purple-200 mt-1">
-                      <span className="font-bold flex items-center gap-1">✨ Phê duyệt GPP AI:</span>
-                      <span className="font-bold font-mono text-[11px]">{invoiceData.data?.aiAuditCode || "ĐÃ DUYỆT"}</span>
-                    </div>
-                  )}
-                  {invoiceData.data?.pharmacistApprovedBy && (
-                    <div className="flex justify-between text-[11px] text-purple-900 mt-0.5">
-                      <span>Dược sĩ thẩm định:</span>
-                      <span className="font-bold">{invoiceData.data.pharmacistApprovedBy}</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Chi tiết xuất kho allocated */}
@@ -2020,6 +2360,26 @@ export default function RetailView({ showToast }: RetailViewProps) {
                       <span>+{invoiceData.data.earnedPoints.toLocaleString()} điểm</span>
                     </div>
                   )}
+                </div>
+
+                {/* QR Code Đánh giá Dịch vụ & Nhận Điểm Thưởng */}
+                <div className="mt-2 pt-3 border-t border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-2 bg-gradient-to-b from-blue-50/40 to-white p-3 rounded-xl border border-blue-100 print:border-black print:bg-white">
+                  <div className="text-[12px] font-bold text-[#0057cd] print:text-black uppercase tracking-wide">
+                    ⭐ ĐÁNH GIÁ DỊCH VỤ - NHẬN QUÀ NGAY ⭐
+                  </div>
+                  <div className="bg-white p-1 rounded-lg border border-slate-200 print:border-black shadow-sm">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                        `${window.location.origin}/feedback/${invoiceData.data?.orderCode || invoiceData.data?._id || payosOrderCode || ""}`
+                      )}`}
+                      alt="QR Đánh giá dịch vụ" 
+                      className="w-[100px] h-[100px] object-contain"
+                    />
+                  </div>
+                  <div className="text-[11px] text-slate-600 print:text-black font-medium leading-tight">
+                    Quét mã nhận ngay <span className="font-bold text-emerald-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br/>
+                    và Voucher giảm giá cho lần mua sau!
+                  </div>
                 </div>
               </div>
             </div>
@@ -2076,18 +2436,121 @@ export default function RetailView({ showToast }: RetailViewProps) {
               </div>
             </div>
 
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex flex-col gap-2.5">
+              <div className="flex gap-2.5 w-full">
+                <button
+                  onClick={checkManualPayment}
+                  className="flex-1 py-3 bg-[#0057cd] hover:bg-[#00419e] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow"
+                >
+                  Kiểm tra thanh toán
+                </button>
+                <button
+                  onClick={() => { setShowPayOSModal(false); setPayosPolling(false); }}
+                  className="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Đóng
+                </button>
+              </div>
+
+              {/* Nút Fallback Xác Nhận Khẩn Cấp Khi Ngân Hàng Chậm */}
+              <button
+                type="button"
+                onClick={() => setShowEmergencyOverrideModal(true)}
+                className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs uppercase tracking-wide rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5"
+              >
+                <Zap size={14} className="fill-white" />
+                Xác nhận khẩn cấp có đối soát (POS Fallback)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================
+       * ⚡ MODAL XÁC NHẬN KHẨN CẤP CÓ ĐỐI SOÁT (POS FALLBACK)
+       * ======================================= */}
+      {showEmergencyOverrideModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-amber-200 shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-amber-100 flex items-center justify-between bg-amber-50">
+              <h3 className="font-bold text-amber-900 text-sm flex items-center gap-2">
+                <Zap className="text-amber-600 fill-amber-500" size={18} />
+                Xác Nhận Khẩn Cấp & Xuất Thuốc Ngay
+              </h3>
+              <button
+                onClick={() => setShowEmergencyOverrideModal(false)}
+                className="text-amber-400 hover:text-amber-700 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 flex flex-col gap-4 text-xs">
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-amber-900 leading-relaxed">
+                <p className="font-bold mb-1">⚠️ Cơ chế đối soát ngoại lệ (Audit Trail):</p>
+                Dược sĩ chỉ sử dụng tính năng này khi khách hàng đã hiển thị màn hình trừ tiền thành công trên ứng dụng ngân hàng, nhưng hệ thống Webhook ngân hàng chưa ghi nhận kịp. Hệ thống sẽ tự động ghi nhận biên bản đối soát cho Kế toán kiểm tra cuối ngày.
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Mã đơn hàng POS:</label>
+                <input
+                  type="text"
+                  disabled
+                  value={`#${payosOrderCode}`}
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-slate-800"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Số tiền xác nhận:</label>
+                <input
+                  type="text"
+                  disabled
+                  value={`${total.toLocaleString('vi-VN')} đ`}
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-bold text-emerald-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">
+                  Mã giao dịch ngân hàng / Ref ID (từ màn hình app khách):
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: FT2427..., 123456789..."
+                  value={bankTransactionId}
+                  onChange={(e) => setBankTransactionId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Lý do xác nhận khẩn cấp:</label>
+                <textarea
+                  rows={2}
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex gap-3">
               <button
-                onClick={checkManualPayment}
-                className="flex-1 py-3 bg-[#0057cd] hover:bg-[#00419e] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow"
+                type="button"
+                onClick={() => setShowEmergencyOverrideModal(false)}
+                className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all"
               >
-                Kiểm tra thanh toán
+                Hủy bỏ
               </button>
               <button
-                onClick={() => { setShowPayOSModal(false); setPayosPolling(false); }}
-                className="px-4 py-3 bg-slate-150 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+                type="button"
+                disabled={isOverriding}
+                onClick={handleConfirmEmergencyOverride}
+                className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                Đóng
+                {isOverriding && <Loader2 size={14} className="animate-spin" />}
+                Xác Nhận & Xuất Thuốc
               </button>
             </div>
           </div>
@@ -2099,23 +2562,34 @@ export default function RetailView({ showToast }: RetailViewProps) {
        * ======================================= */}
       {voiceModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col transform transition-all duration-300">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-black text-slate-900 text-sm flex items-center gap-2 uppercase tracking-wide">
-                <Sparkles className="text-purple-600 animate-pulse" /> Trợ Lý Tư Vấn Triệu Chứng AI
-              </h3>
+          <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-[80vw] max-w-5xl overflow-hidden flex flex-col transform transition-all duration-300 max-h-[90vh]">
+            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-purple-50/70 via-white to-blue-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                  <Sparkles size={20} className="animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base uppercase tracking-wide flex items-center gap-2">
+                    Trợ Lý Tư Vấn Triệu Chứng AI
+                    <span className="text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+                      Voice & Symptom AI v2.0
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Bóc tách hội thoại triệu chứng khách hàng & gợi ý phác đồ điều trị chuẩn y tế GPP</p>
+                </div>
+              </div>
               <button
                 onClick={() => { setVoiceModalOpen(false); setAiResult(null); setVoiceBlob(null); }}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                <XCircle size={22} />
+                <XCircle size={24} />
               </button>
             </div>
 
-            <div className="p-6 flex flex-col md:flex-row gap-6 overflow-y-auto max-h-[70vh]">
-              {/* Cột trái: Ghi âm */}
-              <div className="flex-1 flex flex-col items-center justify-center border border-slate-100 p-5 rounded-2xl bg-slate-50/50 text-center gap-4.5">
-                <div className="relative w-24 h-24 flex items-center justify-center">
+            <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {/* Cột trái: Ghi âm (md:col-span-5) */}
+              <div className="md:col-span-5 flex flex-col items-center justify-center border border-slate-200/80 p-6 rounded-2xl bg-gradient-to-b from-slate-50/90 to-white text-center gap-5 shadow-xs h-fit">
+                <div className="relative w-28 h-28 flex items-center justify-center">
                   {recording && (
                     <>
                       <div className="absolute inset-0 bg-purple-100 rounded-full animate-ping opacity-45"></div>
@@ -2124,231 +2598,206 @@ export default function RetailView({ showToast }: RetailViewProps) {
                   )}
                   <button
                     onClick={recording ? stopVoiceRecording : startVoiceRecording}
-                    className={`relative z-10 w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95 cursor-pointer ${recording ? "bg-rose-500 text-white shadow-rose-200" : "bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200"
+                    className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95 cursor-pointer ${recording ? "bg-rose-500 text-white shadow-rose-200" : "bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200"
                       }`}
                   >
-                    {recording ? <Square size={20} className="fill-white" /> : <Mic size={24} />}
+                    {recording ? <Square size={24} className="fill-white" /> : <Mic size={28} />}
                   </button>
                 </div>
                 <div>
-                  <div className="text-lg font-black font-mono text-slate-800">
+                  <div className="text-2xl font-black font-mono text-slate-800">
                     {String(Math.floor(timer / 60)).padStart(2, "0")}:{String(timer % 60).padStart(2, "0")}
                   </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                    {recording ? "Đang thu âm cuộc hội thoại..." : voiceBlob ? "Đã lưu bản ghi âm" : "Nhấp nút để ghi âm triệu chứng"}
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mt-1 block">
+                    {recording ? "Đang thu âm cuộc hội thoại..." : voiceBlob ? "Đã lưu bản ghi âm sẵn sàng" : "Nhấp nút tròn để ghi âm triệu chứng"}
                   </span>
                 </div>
 
-                {/* Nhận diện giọng nói trực tiếp (Live STT Preview) */}
-                {recording && liveTranscript && (
-                  <div className="w-full bg-purple-50 border border-purple-200 rounded-xl p-2.5 text-left animate-in fade-in">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">
-                      <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping"></span>
-                      Đang nhận diện giọng nói:
-                    </div>
-                    <p className="text-xs text-purple-950 font-semibold italic line-clamp-3">"{liveTranscript}"</p>
-                  </div>
+                {voiceBlob && !recording && (
+                  <button
+                    onClick={handleSendVoiceToAI}
+                    disabled={aiLoading}
+                    className="w-full py-3 bg-[#0057cd] hover:bg-[#00419e] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Sparkles size={16} />
+                    {aiLoading ? "Đang phân tích..." : "Gửi AI Phân Tích & Bóc Tách"}
+                  </button>
                 )}
 
-                {/* Trình phát âm thanh nghe lại (Audio Playback) */}
-                {voiceBlob && audioUrl && !recording && (
-                  <div className="w-full bg-white border border-slate-200 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xs">
-                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      <span className="flex items-center gap-1">
-                        <Volume2 size={12} className="text-purple-600" /> Nghe lại file âm thanh:
-                      </span>
-                      <span className="font-mono text-purple-700">{String(Math.floor(timer / 60)).padStart(2, "0")}:{String(timer % 60).padStart(2, "0")}</span>
-                    </div>
-                    <audio controls src={audioUrl} className="w-full h-8" />
-                  </div>
-                )}
-
-                {/* Nút hành động cột trái */}
-                <div className="w-full flex flex-col gap-2">
-                  {recording ? (
-                    <button
-                      type="button"
-                      onClick={stopVoiceRecording}
-                      className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Square size={14} className="fill-white" /> Dừng ghi âm
-                    </button>
-                  ) : (
-                    <>
-                      {voiceBlob && (
-                        <button
-                          type="button"
-                          onClick={handleSendVoiceToAI}
-                          disabled={aiLoading}
-                          className="w-full py-2.5 bg-[#0057cd] hover:bg-[#00419e] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow cursor-pointer disabled:opacity-50"
-                        >
-                          {aiLoading ? "Đang phân tích..." : "Gửi AI Phân Tích"}
-                        </button>
-                      )}
-
-                      {(voiceBlob || aiResult) && (
-                        <button
-                          type="button"
-                          onClick={startVoiceRecording}
-                          disabled={aiLoading}
-                          className="w-full py-2 bg-white hover:bg-purple-50 text-purple-700 hover:text-purple-900 border border-purple-200 font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
-                        >
-                          <RotateCcw size={14} /> Ghi âm lại
-                        </button>
-                      )}
-                    </>
-                  )}
+                <div className="text-[11px] text-slate-500 bg-slate-100/90 p-3.5 rounded-xl border border-slate-200/80 text-left w-full space-y-1.5">
+                  <div className="font-bold text-slate-700 flex items-center gap-1.5">💡 Hướng dẫn tư vấn lâm sàng:</div>
+                  <div>• Lắng nghe các triệu chứng, thời gian mắc và tiền sử dị ứng thuốc của khách hàng.</div>
+                  <div>• Hệ thống tự động chuyển đổi giọng nói thành văn bản, đối soát tồn kho và rà soát tương tác thuốc.</div>
                 </div>
               </div>
 
-              {/* Cột phải: Đề xuất */}
-              <div className="flex-[1.4] flex flex-col gap-4">
+              {/* Cột phải: Đề xuất (md:col-span-7) */}
+              <div className="md:col-span-7 flex flex-col gap-4">
                 {aiLoading && (
-                  <div className="flex flex-col items-center justify-center py-10 gap-3">
-                    <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest text-center">
-                      AI đang chuyển giọng nói thành văn bản & phân tích phác đồ...
-                    </span>
-                    {liveTranscript && (
-                      <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-left">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Văn bản vừa thu được:</span>
-                        <p className="text-xs text-slate-700 italic">"{liveTranscript}"</p>
-                      </div>
-                    )}
+                  <div className="flex flex-col items-center justify-center py-20 gap-3 border border-dashed border-purple-200 rounded-2xl bg-purple-50/20">
+                    <div className="w-10 h-10 border-3 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs font-black text-purple-700 uppercase tracking-widest">AI đang bóc tách triệu chứng & đối soát kho...</span>
                   </div>
                 )}
 
                 {!aiLoading && !aiResult && (
-                  <div className="border border-dashed border-slate-200 rounded-2xl p-6 text-center flex flex-col items-center justify-center h-full">
-                    <Sparkles size={28} className="text-purple-300 mb-2 animate-bounce" />
-                    <span className="text-xs font-bold text-slate-700">Chờ kết quả AI</span>
-                    <p className="text-[10px] text-slate-400 mt-1 max-w-[200px] leading-normal">
-                      Hãy ghi âm giọng nói của khách hàng ở cột trái để bắt đầu phân tích.
+                  <div className="border border-dashed border-slate-200 rounded-2xl p-10 text-center flex flex-col items-center justify-center min-h-[350px]">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center mb-3">
+                      <Sparkles size={32} className="animate-bounce" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-800">Chờ kết quả AI tư vấn</span>
+                    <p className="text-xs text-slate-400 mt-1 max-w-[280px] leading-relaxed">
+                      Hãy ghi âm giọng nói của khách hàng ở cột bên trái, sau đó nhấn "Gửi AI Phân Tích" để nhận phác đồ gợi ý.
                     </p>
                   </div>
                 )}
 
-                {!aiLoading && aiResult && (
+                {aiResult && (
                   <div className="flex flex-col gap-4">
-                    {/* 🎙️ HỘP VĂN BẢN BÓC BĂNG TỪ GIỌNG NÓI (VOICE TO TEXT) */}
-                    <div className="bg-gradient-to-r from-purple-50/90 via-indigo-50/50 to-white border-2 border-purple-200/90 rounded-2xl p-4 shadow-2xs space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-2xs">
-                            <Mic size={13} />
-                          </div>
-                          <div>
-                            <span className="font-black text-purple-950 text-xs uppercase tracking-wide">
-                              Văn Bản Bóc Băng Từ Giọng Nói (Speech-to-Text)
-                            </span>
-                            <span className="ml-2 text-[9px] font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
-                              AI Whisper STT
-                            </span>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsEditingTranscript(!isEditingTranscript);
-                            if (!isEditingTranscript) {
-                              setEditedTranscript(aiResult.transcribed_text || liveTranscript || "");
-                            }
-                          }}
-                          className="text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-white hover:bg-purple-100/70 border border-purple-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                        >
-                          <Edit3 size={12} />
-                          {isEditingTranscript ? "Hủy sửa" : "Chỉnh sửa"}
-                        </button>
-                      </div>
-
-                      {!isEditingTranscript ? (
-                        <div className="bg-white rounded-xl p-3 border border-purple-100/80 shadow-2xs">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                            <MessageSquareQuote size={12} className="text-purple-500" />
-                            Khách hàng nói:
-                          </div>
-                          <p className="text-slate-800 text-[13px] font-bold leading-relaxed">
-                            "{aiResult.transcribed_text || liveTranscript || "Không nhận diện được giọng nói rõ ràng"}"
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <textarea
-                            value={editedTranscript}
-                            onChange={(e) => setEditedTranscript(e.target.value)}
-                            rows={3}
-                            placeholder="Nhập nội dung triệu chứng khách hàng nói..."
-                            className="w-full p-2.5 bg-white border border-purple-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-2xs"
-                          />
-                          <div className="flex justify-end">
-                            <button
-                              type="button"
-                              onClick={handleReAnalyzeText}
-                              disabled={aiLoading || !editedTranscript.trim()}
-                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] uppercase tracking-wider rounded-lg transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                            >
-                              <Sparkles size={12} /> Phân tích lại theo văn bản
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                    <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-xl text-xs leading-relaxed">
+                      <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider block mb-0.5">Khách hàng phản ánh:</span>
+                      <p className="font-extrabold text-slate-800">"{aiResult.transcribed_text}"</p>
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Đơn thuốc AI gợi ý:</span>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Đơn thuốc AI gợi ý phác đồ:</span>
                       {aiResult.prescription?.recommended_drugs?.length > 0 ? (
-                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                           {aiResult.prescription.recommended_drugs.map((drug: any, idx: number) => {
                             const match = aiResult.inventory_status?.available?.find(
                               (av: any) => av.name.toLowerCase() === drug.name.toLowerCase()
                             );
+                            const altList: any[] = match?.suggested_alternatives || 
+                              aiResult.inventory_status?.out_of_stock_details?.find((d: any) => d.name.toLowerCase() === drug.name.toLowerCase())?.suggested_alternatives || [];
 
                             return (
-                              <div key={idx} className="border border-slate-100 rounded-lg p-2.5 bg-slate-50/50 flex items-center justify-between gap-3 text-xs">
-                                <div>
-                                  <div className="font-bold text-slate-800">{drug.name}</div>
-                                  <div className="text-[10px] text-slate-500">{drug.dosage}</div>
+                              <div key={idx} className="border border-slate-200/80 rounded-xl p-3 bg-white hover:border-purple-300 transition-all flex flex-col gap-2 text-xs shadow-2xs">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <div className="font-black text-slate-900 text-[13px]">{drug.name}</div>
+                                    <div className="text-[11px] text-slate-500 mt-0.5">Liều dùng: {drug.dosage}</div>
+                                  </div>
+                                  {match && match.stock > 0 ? (
+                                    <span className="text-[10px] text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full font-bold uppercase shrink-0 flex items-center gap-1 shadow-2xs">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                      Còn tại CN: {match.stock} {match.unit || "Hộp"}
+                                    </span>
+                                  ) : (
+                                    <div className="flex flex-col items-end gap-1 shrink-0">
+                                      <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded font-bold uppercase">
+                                        Hết hàng tại CN (Tồn: 0)
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSearchQuery(drug.name);
+                                          searchMedicines(drug.name);
+                                          setVoiceModalOpen(false);
+                                        }}
+                                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                                      >
+                                        Tìm thuốc thay thế
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
-                                {match && match.stock > 0 ? (
-                                  <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">Còn kho</span>
-                                ) : (
-                                  <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">Hết/Không có</span>
+
+                                {/* Khối gợi ý thuốc thay thế có sẵn tại chi nhánh nếu thuốc này hết hàng */}
+                                {(!match || match.stock <= 0) && altList.length > 0 && (
+                                  <div className="mt-1 pt-2 border-t border-rose-100 flex flex-col gap-1.5 bg-gradient-to-r from-amber-50/60 to-emerald-50/40 p-2.5 rounded-lg border border-amber-200/60">
+                                    <span className="text-[10px] font-black text-amber-900 uppercase tracking-wide flex items-center gap-1">
+                                      <span>⚡</span> Gợi ý thay thế CÒN HÀNG tại chi nhánh ({currentBranch}):
+                                    </span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {altList.map((alt: any, aIdx: number) => (
+                                        <button
+                                          key={aIdx}
+                                          type="button"
+                                          onClick={() => handleSwapAlternative(idx, alt)}
+                                          className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-slate-800 hover:text-emerald-900 border border-amber-300 hover:border-emerald-500 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
+                                          title="Nhấp để tự động đổi sang thuốc này"
+                                        >
+                                          <span className="text-emerald-600 font-extrabold group-hover:scale-125 transition-transform">✓</span>
+                                          <span className="font-bold">{alt.name}</span>
+                                          <span className="text-[10px] text-emerald-800 bg-emerald-100/90 px-1.5 py-0.5 rounded font-bold">
+                                            Tồn: {alt.stock} {alt.unit || "Hộp"}
+                                          </span>
+                                          <span className="text-[10px] text-slate-400 font-medium">({alt.reason})</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             );
                           })}
                         </div>
                       ) : (
-                        <div className="text-xs text-slate-400 italic">Không có thuốc phù hợp.</div>
+                        <div className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-xl">Không có thuốc phù hợp với triệu chứng này.</div>
                       )}
                     </div>
 
                     {aiResult.prescription?.warnings && (
-                      <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 text-[10px] leading-relaxed font-semibold">
-                        ⚠️ Cảnh báo: {aiResult.prescription.warnings}
+                      <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3.5 text-xs leading-relaxed font-semibold flex items-start gap-2 shadow-2xs">
+                        <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-amber-950 uppercase text-[10px] tracking-wider block">Cảnh báo dược lâm sàng:</strong>
+                          {aiResult.prescription.warnings}
+                        </div>
                       </div>
                     )}
 
-                    <div className="flex gap-2.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={startVoiceRecording}
-                        disabled={aiLoading}
-                        className="flex-1 py-3 bg-slate-100 hover:bg-purple-50 text-purple-700 hover:text-purple-900 border border-purple-200 font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <RotateCcw size={14} /> Ghi âm lại
-                      </button>
+                    {/* Khối Thẩm Định Bước Cuối Của Dược Sĩ Cho Đơn AI Tư Vấn */}
+                    <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-emerald-200/80 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                            <ShieldCheck size={18} />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                              Thẩm Định Lâm Sàng Của Dược Sĩ
+                              <span className="bg-emerald-200 text-emerald-900 text-[9px] px-1.5 py-0.5 rounded-full font-black border border-emerald-300">
+                                Bắt buộc GPP
+                              </span>
+                            </h4>
+                            <p className="text-[11px] text-emerald-800">
+                              Dược sĩ: <strong>{getBranchInfoFromToken().fullName || "Dược sĩ Trần Thị A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={handleAddAiToCart}
-                        disabled={!aiResult.prescription?.recommended_drugs?.length}
-                        className="flex-[1.8] py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-slate-200 disabled:to-slate-300 disabled:text-slate-400 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-emerald-600/25 flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
-                      >
-                        <ShieldCheck size={16} /> Dược Sĩ Thẩm Định & Duyệt GPP
-                      </button>
+                      {/* Checklist nhanh */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
+                          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khớp triệu chứng & liều dùng
+                        </div>
+                        <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
+                          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Kiểm tra tồn kho & xuất FEFO
+                        </div>
+                      </div>
+
+                      {/* Checkbox cam kết trách nhiệm */}
+                      <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-emerald-300 hover:bg-emerald-50/50 transition-colors shadow-2xs">
+                        <input
+                          type="checkbox"
+                          checked={pharmacistAgreementCheck}
+                          onChange={(e) => setPharmacistAgreementCheck(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-700 leading-snug">
+                          Tôi xác nhận đã kiểm tra triệu chứng khách hàng, đối soát đề xuất AI và <strong>chịu hoàn toàn trách nhiệm chuyên môn</strong> xuất bán đơn này.
+                        </span>
+                      </label>
                     </div>
+
+                    <button
+                      onClick={handleAddAiToCart}
+                      className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-emerald-600/30 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                    >
+                      <ShieldCheck size={18} /> Dược Sĩ Phê Duyệt & Thêm Vào Đơn Hàng
+                    </button>
                   </div>
                 )}
               </div>
@@ -2418,29 +2867,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
           </div>
         </div>
       )}
-
       {/* =======================================
-       * 🩺 MODALE COMPONENT VOOR APOTHEKERSVERIFICATIE VAN AI-MEDICIJNEN
-       * ======================================= */}
-      <AIPharmacistApprovalModal
-        isOpen={showApprovalModal}
-        onClose={() => setShowApprovalModal(false)}
-        aiResult={aiResult}
-        onApprove={handleApproveAiDrugs}
-        pharmacistName={getBranchInfoFromToken().fullName || "Dược sĩ trực quầy"}
-        pharmacistLicense="CCHN-GPP/02849-HN"
-        branchName={getBranchInfoFromToken().branchId || "Chi Nhánh 1 (Quận 1)"}
-        branchId={getBranchInfoFromToken().branchId || "BR-001"}
-      />
-
-      {/* =======================================
-       * 📋 MODALE COMPONENT VOOR GPP-AUDITRAPPORT VAN DE APOTHEKER
+       * 📜 BIÊN BẢN THẨM ĐỊNH LÂM SÀNG DƯỢC SĨ (AI AUDIT MODAL)
        * ======================================= */}
       <AIPharmacistAuditModal
         isOpen={showAuditModal}
         onClose={() => setShowAuditModal(false)}
-        data={auditData}
-        branchName={getBranchInfoFromToken().branchId || "Chi Nhánh 1 (Quận 1)"}
+        data={aiPharmacistConfirmation}
       />
     </div>
   );

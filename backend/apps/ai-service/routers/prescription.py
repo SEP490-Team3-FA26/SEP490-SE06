@@ -605,19 +605,20 @@ async def get_medicines_ai(
                     
                     price_raw = details.get("Giá bán") or details.get("price") or row.get("price")
                     try:
-                        price = int(float(re.sub(r'[^0-9.]', '', str(price_raw)))) if price_raw else 50000
+                        price = int(float(re.sub(r'[^0-9.]', '', str(price_raw)))) if price_raw else 0
                     except:
-                        price = 50000
+                        price = 0
                         
+                    min_stock = row.get("safetyStock") or row.get("reorderPoint") or 0
                     mapped_data.append({
                         "id": str(row_id),
                         "name": row.get("name"),
                         "category": row.get("category") or details.get("Danh mục") or "Chưa phân loại",
                         "price": price,
                         "stock": stock,
-                        "minStock": 50,
-                        "status": row.get("status") or ("In Stock" if stock > 50 else ("Low Stock" if stock > 0 else "Out of Stock")),
-                        "expiry": row.get("expiry_date") or "2026-12-31",
+                        "minStock": min_stock,
+                        "status": row.get("status") or ("In Stock" if stock > min_stock else ("Low Stock" if stock > 0 else "Out of Stock")),
+                        "expiry": row.get("expiry_date") or None,
                         "image": row.get("image") or row.get("image_url") or "",
                         "active_ingredient": details.get("Thành phần") or details.get("active_ingredient") or row.get("active_ingredient") or ""
                     })
@@ -656,22 +657,23 @@ async def get_medicines_ai(
             for hit in results:
                 payload = hit.payload
                 # Parse price
-                price_raw = payload.get("price") or 50000
+                price_raw = payload.get("price") or 0
                 try:
-                    price = int(float(re.sub(r'[^0-9.]', '', str(price_raw)))) if price_raw else 50000
+                    price = int(float(re.sub(r'[^0-9.]', '', str(price_raw)))) if price_raw else 0
                 except:
-                    price = 50000
+                    price = 0
                 
+                min_stock = payload.get("safetyStock") or payload.get("reorderPoint") or 0
                 mapped_data.append({
                     "id": payload.get("mongo_id") or f"MED-V{str(hit.id)[:8].upper()}",
                     "name": payload.get("name"),
                     "category": payload.get("category") or "Chưa phân loại",
                     "drug_classification": payload.get("drug_classification") or "COMMON_SUPPLEMENT",
                     "price": price,
-                    "stock": payload.get("stock_quantity") or 10,
-                    "minStock": 50,
-                    "status": payload.get("status") or "In Stock",
-                    "expiry": payload.get("expiry_date") or "2026-12-31",
+                    "stock": payload.get("stock_quantity") or 0,
+                    "minStock": min_stock,
+                    "status": payload.get("status") or ("In Stock" if (payload.get("stock_quantity") or 0) > 0 else "Out of Stock"),
+                    "expiry": payload.get("expiry_date") or None,
                     "unit": payload.get("unit") or "Hộp",
                     "image": payload.get("image_url") or "",
                     "active_ingredient": payload.get("active_ingredient") or ""
@@ -703,19 +705,20 @@ async def get_medicines_ai(
                 
                 price_raw = details.get("Giá bán") or details.get("price") or row.get("price")
                 try:
-                    price = int(float(re.sub(r'[^0-9.]', '', str(price_raw)))) if price_raw else 50000
+                    price = int(float(re.sub(r'[^0-9.]', '', str(price_raw)))) if price_raw else 0
                 except:
-                    price = 50000
+                    price = 0
                     
+                min_stock = row.get("safetyStock") or row.get("reorderPoint") or 0
                 mapped_data.append({
                     "id": str(row_id),
                     "name": row.get("name"),
                     "category": row.get("category") or details.get("Danh mục") or "Chưa phân loại",
                     "price": price,
                     "stock": stock,
-                    "minStock": 50,
-                    "status": row.get("status") or ("In Stock" if stock > 50 else ("Low Stock" if stock > 0 else "Out of Stock")),
-                    "expiry": row.get("expiry_date") or "2026-12-31",
+                    "minStock": min_stock,
+                    "status": row.get("status") or ("In Stock" if stock > min_stock else ("Low Stock" if stock > 0 else "Out of Stock")),
+                    "expiry": row.get("expiry_date") or None,
                     "image": row.get("image") or row.get("image_url") or "",
                     "active_ingredient": details.get("Thành phần") or details.get("active_ingredient") or row.get("active_ingredient") or ""
                 })
