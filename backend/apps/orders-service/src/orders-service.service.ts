@@ -257,6 +257,35 @@ export class OrdersServiceService implements OnModuleInit {
       );
     }
 
+    // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+    let auditFlag = false;
+    let flagReason: string | undefined = undefined;
+    let cashierVoucherDailyCount = 0;
+
+    const cashierName = data.soldBy || data.pharmacistApprovedBy || 'Dược sĩ trực quầy';
+
+    if (voucherCode && data.paymentMethod === 'CASH') {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      // Đếm số đơn hàng tiền mặt có dùng voucher của thu ngân này trong ngày hôm nay
+      const dailyCount = await this.orderModel.countDocuments({
+        $or: [{ soldBy: cashierName }, { pharmacistApprovedBy: cashierName }],
+        paymentMethod: 'CASH',
+        voucherCode: { $exists: true, $ne: '' },
+        createdAt: { $gte: startOfToday },
+      }).exec();
+
+      cashierVoucherDailyCount = dailyCount + 1;
+
+      // Nếu áp dụng quá 10 voucher/ngày cho đơn tiền mặt -> Hệ thống tự động gắn cờ nghi vấn (Audit Flag)
+      if (cashierVoucherDailyCount > 10) {
+        auditFlag = true;
+        flagReason = 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION';
+        this.logger.warn(`⚠️ [RỦI RO 7 - AUDIT FLAG] Thu ngân "${cashierName}" đã áp dụng ${cashierVoucherDailyCount} voucher cho các đơn tiền mặt trong ngày hôm nay! Đã tự động gắn cờ nghi vấn trục lợi.`);
+      }
+    }
+
     const newOrder = new this.orderModel({
       orderCode,
       patientName: data.patientName,
@@ -289,6 +318,11 @@ export class OrdersServiceService implements OnModuleInit {
       aiAuditCode: data.aiAuditCode || undefined,
       consultationId: data.consultationId || undefined,
       pharmacistApprovedBy: data.pharmacistApprovedBy || undefined,
+      soldBy: cashierName,
+      // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA)
+      auditFlag,
+      flagReason,
+      cashierVoucherDailyCount,
     });
 
     // ========================================================
@@ -1652,4 +1686,25 @@ export class OrdersServiceService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi phân tích Marketing ROI');
     }
   }
+
+  //  Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+  async getVoucherAuditFlags() {
+    try {
+      const flaggedOrders = await this.orderModel
+        .find({ auditFlag: true })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .exec();
+
+      return {
+        success: true,
+        count: flaggedOrders.length,
+        data: flaggedOrders,
+      };
+    } catch (error) {
+      this.logger.error('Lỗi khi lấy danh sách kiểm toán nghi vấn voucher:', error);
+      throw new RpcException(error.message || 'Lỗi khi lấy danh sách kiểm toán nghi vấn voucher');
+    }
+  }
 }
+

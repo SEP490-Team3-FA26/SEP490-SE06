@@ -399,17 +399,48 @@ export class SalesService implements OnModuleInit {
       });
     }
 
+    // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+    let auditFlag = false;
+    let flagReason: string | undefined = undefined;
+    let cashierVoucherDailyCount = 0;
+
+    const voucherCode = data.voucherCode ? String(data.voucherCode).toUpperCase().trim() : undefined;
+    const voucherDiscount = Number(data.voucherDiscount) || 0;
+    const paymentMethod = data.paymentMethod || 'CASH';
+    const cashierName = data.soldBy || 'Dược sĩ trực quầy';
+
+    if (voucherCode && paymentMethod === 'CASH') {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const dailyCount = await this.saleModel.countDocuments({
+        soldBy: cashierName,
+        paymentMethod: 'CASH',
+        voucherCode: { $exists: true, $ne: '' },
+        createdAt: { $gte: startOfToday },
+      }).exec();
+
+      cashierVoucherDailyCount = dailyCount + 1;
+
+      // Nếu áp dụng quá 10 voucher/ngày cho đơn tiền mặt -> Hệ thống tự động gắn cờ nghi vấn (Audit Flag)
+      if (cashierVoucherDailyCount > 10) {
+        auditFlag = true;
+        flagReason = 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION';
+        this.logger.warn(`⚠️ [RỦI RO 7 - AUDIT FLAG] Thu ngân "${cashierName}" đã áp dụng ${cashierVoucherDailyCount} voucher cho đơn tiền mặt trong ngày hôm nay! Đã tự động gắn cờ nghi vấn.`);
+      }
+    }
+
     // Tạo hóa đơn bán hàng
     const salesOrder = new this.saleModel({
       prescriptionId: prescription ? prescription._id.toString() : undefined,
       prescriptionCode: data.prescriptionCode,
       items: orderItems,
       totalAmount: totalAmount,
-      paymentMethod: data.paymentMethod || 'CASH',
+      paymentMethod: paymentMethod,
       type: data.type || 'RETAIL',
       patientName: data.patientName || (prescription ? prescription.patientName : undefined),
       patientPhone: data.patientPhone || (prescription ? prescription.patientPhone : undefined),
-      soldBy: data.soldBy || 'Dược sĩ',
+      soldBy: cashierName,
       orderCode: data.orderCode,
       branchId: data.branchId || null,
       redeemedPoints: data.redeemedPoints || 0,
@@ -417,6 +448,12 @@ export class SalesService implements OnModuleInit {
       customerRole: data.customerRole || data.role || (data.isGuest ? 'guest' : 'customer'),
       role: data.role || data.customerRole || (data.isGuest ? 'guest' : 'customer'),
       isGuest: data.isGuest !== undefined ? Boolean(data.isGuest) : (data.role === 'guest' || !data.patientPhone || data.patientPhone === '0900000000'),
+      // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA)
+      voucherCode,
+      voucherDiscount,
+      auditFlag,
+      flagReason,
+      cashierVoucherDailyCount,
     });
 
     // Tự động liên thông CSDL Dược Quốc gia (GPP Sandbox)

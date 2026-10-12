@@ -10,7 +10,13 @@ import {
   Droplets, Wind, Bone, MoreHorizontal, Activity
 } from "lucide-react";
 import { authService, userService, cartService, medicineService } from "../../services";
-import { notifyAuthTokenChanged, AUTH_TOKEN_CHANGED_EVENT } from "../../utils/authEvents";
+import {
+  AUTH_LOGIN_REQUIRED_EVENT,
+  AUTH_TOKEN_CHANGED_EVENT,
+  notifyAuthLoginRequired,
+  notifyAuthTokenChanged,
+} from "../../utils/authEvents";
+import { LoginRequiredModal } from "./LoginRequiredModal";
 import { MascotLogoIcon } from "../ui/Logo";
 import { MedicineDetailModal } from "../MedicineDetailModal";
 
@@ -565,6 +571,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
 
   const [selectedMedicineForModal, setSelectedMedicineForModal] = useState<any | null>(null);
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+  const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
 
   // Sync search input if URL changes
   useEffect(() => {
@@ -620,6 +627,8 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     window.addEventListener("cartUpdated", updateCartCount);
     window.addEventListener("loyaltyUpdated", syncAuthState);
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
+    const handleLoginRequired = () => setShowLoginRequiredModal(true);
+    window.addEventListener(AUTH_LOGIN_REQUIRED_EVENT, handleLoginRequired);
 
     const handleClickOutside = (e: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
@@ -632,6 +641,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
       window.removeEventListener("cartUpdated", updateCartCount);
       window.removeEventListener("loyaltyUpdated", syncAuthState);
       window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
+      window.removeEventListener(AUTH_LOGIN_REQUIRED_EVENT, handleLoginRequired);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
@@ -687,54 +697,12 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     }, 1200);
   };
 
-  // Add to cart from modal
+  // Thêm vào giỏ hàng từ modal chi tiết (hỗ trợ cả khách vãng lai và thành viên)
   const handleAddToCart = async (med: any, qty: number = 1) => {
     const medId = med.id || med._id;
-    const curToken = localStorage.getItem("token");
-
-    if (!curToken) {
-      try {
-        const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
-        const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
-
-        if (existingItem) {
-          if (existingItem.quantity + qty > (med.stock || 999)) {
-            alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
-            return;
-          }
-          existingItem.quantity += qty;
-        } else {
-          if ((med.stock ?? 1) <= 0) {
-            alert("Sản phẩm đã hết hàng!");
-            return;
-          }
-          cart.push({
-            id: medId,
-            _id: medId,
-            name: med.name,
-            category: med.category,
-            price: med.salePrice || med.price,
-            quantity: qty,
-            unit: med.unit || "Hộp",
-            stock: med.stock || 100,
-            active_ingredient: med.active_ingredient || "",
-            image: med.image || ""
-          });
-        }
-        localStorage.setItem("guest_cart", JSON.stringify(cart));
-        window.dispatchEvent(new Event("cartUpdated"));
-        setAddedItems((prev) => ({ ...prev, [medId]: true }));
-        setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
-      } catch (err) {
-        console.error("Error updating guest cart:", err);
-      }
-      return;
-    }
 
     try {
-      await cartService.addToCart(medId, qty);
-      window.dispatchEvent(new Event("cartUpdated"));
+      await cartService.addProduct(med, qty);
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
     } catch (err: any) {
@@ -1201,12 +1169,20 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               </Link>
             )}
 
-            {/* Long Chau Pill-shaped Cart Button */}
-            <Link
-              ref={cartIconRef}
+            {/* Nút Giỏ hàng: Nếu chưa đăng nhập thì redirect sang trang đăng nhập */}
+            <button
+              ref={cartIconRef as any}
               id="cart-icon-btn"
-              to="/customer/cart"
-              className="flex items-center gap-2 bg-[#0047a5] hover:bg-[#003c8c] text-white px-4 py-2 rounded-full font-bold text-xs transition-all shadow-sm relative group cursor-pointer"
+              type="button"
+              onClick={() => {
+                const curToken = localStorage.getItem("token");
+                if (!curToken) {
+                  navigate("/auth/login?redirect=/customer/cart");
+                } else {
+                  navigate("/customer/cart");
+                }
+              }}
+              className="flex items-center gap-2 bg-[#0047a5] hover:bg-[#003c8c] text-white px-4 py-2 rounded-full font-bold text-xs transition-all shadow-sm relative group cursor-pointer border-none outline-none"
             >
               <div className="relative">
                 <ShoppingCart size={18} />
@@ -1217,7 +1193,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                 )}
               </div>
               <span className="hidden sm:inline">Giỏ hàng</span>
-            </Link>
+            </button>
 
             {/* Mobile Hamburger Button */}
             <button
@@ -1713,6 +1689,16 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
           addedItems={addedItems}
         />
       )}
+
+      <LoginRequiredModal
+        isOpen={showLoginRequiredModal}
+        onClose={() => setShowLoginRequiredModal(false)}
+        onLogin={() => {
+          setShowLoginRequiredModal(false);
+          const returnUrl = `${location.pathname}${location.search}`;
+          navigate(`/auth/login?redirect=${encodeURIComponent(returnUrl)}`);
+        }}
+      />
     </>
   );
 }

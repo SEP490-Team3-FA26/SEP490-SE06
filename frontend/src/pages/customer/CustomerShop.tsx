@@ -14,12 +14,13 @@ import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRec
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { cartService } from "../../services/sales/cart.service";
+import { notifyAuthLoginRequired } from "../../utils/authEvents";
 
 // Sub-category Card Model
 export interface SubCategoryCard {
   id: string;
   name: string;
-  count: number;
+  count?: number;
   image: string;
   searchKeyword?: string;
   categoryValue?: string;
@@ -103,6 +104,8 @@ export function CustomerShop() {
   const [selectedSubCategory, setSelectedSubCategory] = useState(searchParams.get("subCategory") || "");
   const [selectedClassification, setSelectedClassification] = useState("");
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+  // Lưu số lượng thuốc thực tế truy vấn trực tiếp từ MongoDB cho các danh mục con
+  const [realCategoryCounts, setRealCategoryCounts] = useState<Record<string, number>>({});
 
   // Sorting state (Long Châu standard: Bán chạy / Giá thấp / Giá cao)
   const [sortBy, setSortBy] = useState<"bestseller" | "price-asc" | "price-desc">("bestseller");
@@ -202,9 +205,12 @@ export function CustomerShop() {
       const result = await medicineService.getMedicines({
         page: currentPage,
         limit,
-        search: searchQuery || undefined,
+        search: (selectedIngredient || searchQuery) || undefined,
         category: selectedCategory || undefined,
+        classification: selectedClassification || undefined,
         drug_classification: selectedClassification || undefined,
+        bypassAiSearch: true, // Truy vấn trực tiếp DB MongoDB
+        directDb: true,
         targetGroup: selectedTargetGroup || undefined,
         minPrice: minPrice || undefined,
         maxPrice: maxPrice || undefined,
@@ -294,55 +300,13 @@ export function CustomerShop() {
     return () => clearTimeout(delay);
   }, [searchQuery]);
 
-  // Handle add to cart
+  // Xử lý thêm sản phẩm vào giỏ hàng (khách vãng lai và thành viên)
   const handleAddToCart = async (med: any, qty: number = 1) => {
     const medId = med.id || med._id;
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      try {
-        const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
-        const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
-
-        if (existingItem) {
-          if (existingItem.quantity + qty > (med.stock || 999)) {
-            alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
-            return;
-          }
-          existingItem.quantity += qty;
-        } else {
-          if ((med.stock ?? 1) <= 0) {
-            alert("Sản phẩm đã hết hàng!");
-            return;
-          }
-          cart.push({
-            id: medId,
-            _id: medId,
-            name: med.name,
-            category: med.category,
-            price: med.salePrice || med.price,
-            quantity: qty,
-            unit: med.unit || "Hộp",
-            stock: med.stock || 100,
-            active_ingredient: med.active_ingredient || "",
-            image: med.image || ""
-          });
-        }
-        localStorage.setItem("guest_cart", JSON.stringify(cart));
-        window.dispatchEvent(new Event("cartUpdated"));
-
-        setAddedItems((prev) => ({ ...prev, [medId]: true }));
-        setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
-      } catch (err) {
-        console.error("Error updating guest cart:", err);
-      }
-      return;
-    }
 
     try {
-      await cartService.addToCart(medId, qty);
-      window.dispatchEvent(new Event("cartUpdated"));
+      // Dùng cartService.addProduct: nếu chưa đăng nhập sẽ lưu vào guest_cart, nếu có token sẽ gọi API giỏ hàng
+      await cartService.addProduct(med, qty);
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
     } catch (err: any) {
@@ -403,6 +367,20 @@ export function CustomerShop() {
     if (selectedCategory === "Thiết bị y tế") return subCategoriesByGroup["Thiết bị y tế"];
     return subCategoriesByGroup["Thuốc kháng sinh"];
   }, [selectedCategory]);
+
+  // Truy vấn trực tiếp số lượng thuốc thực tế của các danh mục con từ database MongoDB
+  useEffect(() => {
+    if (currentSubGroupData?.items?.length) {
+      medicineService
+        .getSubCategoryCounts(selectedCategory, currentSubGroupData.items)
+        .then((counts) => {
+          if (counts && Object.keys(counts).length > 0) {
+            setRealCategoryCounts(counts);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedCategory, currentSubGroupData]);
 
   // Click on a sub-category card to quick filter
   const handleSubCategoryClick = (card: SubCategoryCard) => {
@@ -497,9 +475,12 @@ export function CustomerShop() {
                 }`}>
                   {card.name}
                 </span>
-                <span className="text-[11px] text-slate-400 font-medium mt-0.5">
-                  {card.count} sản phẩm
-                </span>
+                {/* Áp dụng Cách 1: Ẩn số cứng hardcode. Chỉ hiển thị khi có số lượng thực tế query trực tiếp từ MongoDB */}
+                {realCategoryCounts[card.id] !== undefined ? (
+                  <span className="text-[11px] text-slate-400 font-medium mt-0.5">
+                    {realCategoryCounts[card.id]} sản phẩm
+                  </span>
+                ) : null}
               </div>
             </div>
           );

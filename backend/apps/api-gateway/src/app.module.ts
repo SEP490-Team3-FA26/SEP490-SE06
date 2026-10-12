@@ -239,6 +239,7 @@ export class AppGatewayModule implements OnModuleInit {
     // 1. INVENTORY_SERVICE Reply Topics
     const inventoryTopics = [
       "inventory.medicine.list",
+      "inventory.medicine.subcategory_counts",
       "inventory.medicine.get_by_id",
       "inventory.medicine.update_status",
       "inventory.medicine.update_price_tiers",

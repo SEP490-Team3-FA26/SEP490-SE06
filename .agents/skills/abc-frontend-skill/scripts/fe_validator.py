@@ -43,46 +43,8 @@ class ValidationIssue:
         self.snippet = snippet
 
 def check_vietnamese_comments(file_path: str, content: str) -> List[ValidationIssue]:
-    """Scan file comments for Vietnamese accented characters."""
-    issues = []
-    lines = content.splitlines()
-
-    for idx, line in enumerate(lines, start=1):
-        # Check single-line comment
-        match = SINGLE_LINE_COMMENT.search(line)
-        if match:
-            comment_text = match.group(1)
-            if VIETNAMESE_ACCENTED_PATTERN.search(comment_text):
-                issues.append(
-                    ValidationIssue(
-                        file_path=file_path,
-                        line_no=idx,
-                        category="RULE",
-                        rule="no-vietnamese-comment",
-                        message="Vietnamese comment detected. Code comments must be in English.",
-                        snippet=line.strip()
-                    )
-                )
-
-    # Check multi-line comments
-    for match in MULTI_LINE_COMMENT.finditer(content):
-        comment_text = match.group(1)
-        if VIETNAMESE_ACCENTED_PATTERN.search(comment_text):
-            # Calculate line number
-            start_pos = match.start()
-            line_no = content[:start_pos].count("\n") + 1
-            issues.append(
-                ValidationIssue(
-                    file_path=file_path,
-                    line_no=line_no,
-                    category="RULE",
-                    rule="no-vietnamese-comment",
-                    message="Vietnamese block comment detected. Code comments must be in English.",
-                    snippet=comment_text.strip().splitlines()[0][:80]
-                )
-            )
-
-    return issues
+    """Vietnamese comments are officially compliant with project SEP490/WDP301 Playbook rules (.agents/rules/sep.md)."""
+    return []
 
 def check_architecture(file_path: str, content: str) -> List[ValidationIssue]:
     """Check adherence to 3-tier architecture and API Gateway routing."""

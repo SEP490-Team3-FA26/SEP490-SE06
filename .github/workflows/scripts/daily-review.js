@@ -83,28 +83,56 @@ function generateReport() {
     const diffStat = runGit(`git diff-tree --no-commit-id --name-only -r ${c.hash}`);
     const files = diffStat ? diffStat.split('\n').filter(Boolean) : [];
 
-    // Smell: Shotgun Surgery (excessive modified files in a single commit)
-    if (files.length > 30 && !c.message.startsWith('Merge pull request')) {
+    // Kiểm tra file nhạy cảm (.env, credentials, secrets)
+    const sensitivePatterns = [/\.env($|\.)/i, /secret/i, /credential/i, /\.pem$/i, /\.key$/i, /id_rsa/i];
+    files.forEach(f => {
+      if (sensitivePatterns.some(p => p.test(f))) {
+        smellFindings.push({
+          type: 'Security Warning',
+          severity: 'Critical',
+          detail: `Commit [${c.shortHash}] của ${c.author} chỉnh sửa file nhạy cảm: ${f}`
+        });
+      }
+    });
+
+    // Lấy thông tin thống kê số dòng thay đổi (+/-)
+    const numStat = runGit(`git show --numstat --pretty=format: ${c.hash}`);
+    let additions = 0;
+    let deletions = 0;
+    if (numStat) {
+      numStat.split('\n').filter(Boolean).forEach(line => {
+        const parts = line.split('\t');
+        if (parts.length >= 2) {
+          const add = parseInt(parts[0], 10);
+          const del = parseInt(parts[1], 10);
+          if (!isNaN(add)) additions += add;
+          if (!isNaN(del)) deletions += del;
+        }
+      });
+    }
+    c.additions = additions;
+    c.deletions = deletions;
+    c.filesCount = files.length;
+
+    // Smell: Shotgun Surgery (thay đổi quá nhiều file trong 1 commit)
+    if (files.length > 30 && !c.message.startsWith('Merge pull request') && !c.message.startsWith('Merge branch')) {
       smellFindings.push({
         type: 'Code Smell (Shotgun Surgery)',
         severity: 'Warning',
-        detail: `Commit [${c.shortHash}] by ${c.author} modified ${files.length} files. Consider breaking changes into smaller atomic commits.`
+        detail: `Commit [${c.shortHash}] của ${c.author} chỉnh sửa ${files.length} files. Nên chia nhỏ thành các atomic commit.`
       });
     }
 
-    // Quy chuẩn dự án sep.md: Comment code bằng tiếng Việt được khuyến khích
-    const rawDiff = runGit(`git show ${c.hash}`);
-
-    // Check microservice rule: if modifying backend microservices
+    // Kiểm tra vi phạm kiến trúc Backend Microservices
     const backendFiles = files.filter(f => f.startsWith('backend/apps/'));
     if (backendFiles.length > 0) {
       const diffContent = runGit(`git show ${c.hash} -- ${backendFiles.join(' ')}`);
-      // Rule 1: No direct internal HTTP calls between microservices (must use Kafka)
+      // Quy chuẩn 1: Không gọi HTTP trực tiếp giữa các microservices (phải dùng Kafka)
       if (diffContent.includes('axios.get(') || diffContent.includes('axios.post(') || diffContent.includes('HttpService')) {
         smellFindings.push({
           type: 'Microservices Architecture',
           severity: 'Critical',
-          detail: `Commit [${c.shortHash}] may contain direct internal HTTP calls in microservices. Must use Kafka Event/Message!`
+          detail: `Commit [${c.shortHash}] có dấu hiệu gọi HTTP trực tiếp giữa microservices. Bắt buộc dùng Kafka Event/Message!`
         });
       }
     }
@@ -117,10 +145,15 @@ function generateReport() {
   let authorSectionsHtml = '';
   for (const [authorName, authorCommits] of Object.entries(authorMap)) {
     const commitListHtml = authorCommits.map(c => `
-      <li style="margin-bottom: 8px;">
-        <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e293b;">${c.shortHash}</code>
-        <span style="color: #64748b; font-size: 12px; margin-left: 6px;">[${c.date}]</span>
-        <div style="margin-top: 4px; color: #334155; font-size: 14px;">${escapeHtml(c.message)}</div>
+      <li style="margin-bottom: 10px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e293b;">${c.shortHash}</code>
+          <span style="color: #64748b; font-size: 11px;">${c.date}</span>
+        </div>
+        <div style="margin-top: 4px; color: #1e293b; font-size: 13px; font-weight: 500;">${escapeHtml(c.message)}</div>
+        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+          Thay đổi: <span style="color: #16a34a; font-weight: 600;">+${c.additions || 0}</span> / <span style="color: #dc2626; font-weight: 600;">-${c.deletions || 0}</span> dòng trong <strong>${c.filesCount || 0}</strong> files
+        </div>
       </li>
     `).join('');
 

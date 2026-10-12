@@ -61,11 +61,18 @@ export function CustomerCart() {
   };
 
   useEffect(() => {
+    // Kiểm tra phiên đăng nhập: Nếu chưa đăng nhập thì điều hướng sang trang login
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/auth/login?redirect=/customer/cart");
+      return;
+    }
+
     loadCart();
     const handleCartUpdate = () => loadCart();
     window.addEventListener("cartUpdated", handleCartUpdate);
     return () => window.removeEventListener("cartUpdated", handleCartUpdate);
-  }, []);
+  }, [navigate]);
 
   const updateQuantity = async (id: string, newQty: number | string) => {
     // Nếu truyền chuỗi rỗng để user xoá số nhập lại

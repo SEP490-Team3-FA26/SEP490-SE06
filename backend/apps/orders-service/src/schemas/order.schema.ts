@@ -98,6 +98,19 @@ export class Order extends Document {
   @Prop({ type: String })
   pharmacistApprovedBy?: string;
 
+  @Prop({ type: String })
+  soldBy?: string;
+
+  // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+  @Prop({ type: Boolean, default: false, index: true })
+  auditFlag?: boolean; // Cờ nghi vấn kiểm toán (Audit Flag) khi phát hiện bất thường
+
+  @Prop({ type: String })
+  flagReason?: string; // Lý do gắn cờ (VD: 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION')
+
+  @Prop({ type: Number, default: 0 })
+  cashierVoucherDailyCount?: number; // Số đơn voucher tiền mặt thu ngân này áp dụng trong ngày
+
   createdAt?: Date;
   updatedAt?: Date;
 }

@@ -52,6 +52,9 @@ export interface SalePayload {
   customerRole?: string;
   patientRole?: string;
   isGuest?: boolean;
+  // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA)
+  voucherCode?: string;
+  voucherDiscount?: number;
 }
 
 export interface PayOSLinkPayload {
@@ -61,6 +64,7 @@ export interface PayOSLinkPayload {
   totalAmount: number;
   paymentMethod?: 'QR_PAY';
   voucherCode?: string;
+  voucherDiscount?: number;
   redeemedPoints?: number;
   items: {
     medicineId: string;
