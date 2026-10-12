@@ -135,13 +135,13 @@ export class UserServiceController {
   }
 
   @MessagePattern('user.admin.employee.ban_unban')
-  handleToggleBanEmployee(@Payload() data: { id: string }) {
-    return this.userService.toggleBanEmployee(data.id);
+  handleToggleBanEmployee(@Payload() data: { id: string; requesterRole?: string; requesterBranchId?: string }) {
+    return this.userService.toggleBanEmployee(data.id, data.requesterRole, data.requesterBranchId);
   }
 
   @MessagePattern('user.admin.employee.delete')
-  handleDeleteEmployee(@Payload() data: { id: string }) {
-    return this.userService.deleteEmployee(data.id);
+  handleDeleteEmployee(@Payload() data: { id: string; requesterRole?: string; requesterBranchId?: string }) {
+    return this.userService.deleteEmployee(data.id, data.requesterRole, data.requesterBranchId);
   }
 
   @MessagePattern('user.admin.employee.approve')
