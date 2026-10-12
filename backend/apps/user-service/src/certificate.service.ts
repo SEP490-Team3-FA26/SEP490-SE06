@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { StaffCertificate, StaffCertificateDocument, CertificateStatus, CertificateType, CertificatePurpose } from './schemas/staff-certificate.schema';
-import { User, UserDocument } from '../../auth-service/src/auth/user.schema';
+import { User, UserDocument, UserRole } from '../../auth-service/src/auth/user.schema';
 
 @Injectable()
 export class CertificateService {
@@ -30,6 +30,22 @@ export class CertificateService {
     });
     if (existing) {
       throw new BadRequestException('Số hiệu văn bằng/chứng chỉ này đã tồn tại trong hồ sơ của bạn');
+    }
+
+    // Đảm bảo tính duy nhất tuyệt đối của số CCHN trên toàn chuỗi nhà thuốc (tránh dùng chung hoặc mượn bằng)
+    if (data.certificateType === CertificateType.PRACTICE_CERTIFICATE && data.certificateNumber) {
+      const globalDuplicate = await this.certModel.findOne({
+        certificateType: CertificateType.PRACTICE_CERTIFICATE,
+        certificateNumber: data.certificateNumber.trim(),
+        userId: { $ne: new Types.ObjectId(userId) },
+        status: { $in: [CertificateStatus.CHO_DUYET, CertificateStatus.DA_DUYET] },
+      });
+
+      if (globalDuplicate) {
+        throw new BadRequestException(
+          'Số Chứng chỉ hành nghề Dược này đã được đăng ký bởi một nhân viên khác trong hệ thống chuỗi',
+        );
+      }
     }
 
     const newCert = new this.certModel({
@@ -74,6 +90,39 @@ export class CertificateService {
 
     if (cert.status === CertificateStatus.DA_DUYET) {
       throw new BadRequestException('Hồ sơ đã được phê duyệt hợp lệ, không thể tự sửa. Vui lòng liên hệ Quản lý.');
+    }
+
+    const targetCertType = data.certificateType || cert.certificateType;
+    const targetCertNumber = data.certificateNumber ? data.certificateNumber.trim() : cert.certificateNumber?.trim();
+
+    // Kiểm tra trùng số hiệu văn bằng với các hồ sơ khác của chính nhân sự này
+    if (targetCertNumber && data.certificateNumber && data.certificateNumber.trim() !== cert.certificateNumber) {
+      const ownDuplicate = await this.certModel.findOne({
+        _id: { $ne: cert._id },
+        userId: new Types.ObjectId(userId),
+        certificateNumber: targetCertNumber,
+        status: { $in: [CertificateStatus.CHO_DUYET, CertificateStatus.DA_DUYET] },
+      });
+      if (ownDuplicate) {
+        throw new BadRequestException('Số hiệu văn bằng/chứng chỉ này đã tồn tại trong hồ sơ của bạn');
+      }
+    }
+
+    // Đảm bảo tính duy nhất tuyệt đối của số CCHN trên toàn chuỗi nhà thuốc
+    if (targetCertType === CertificateType.PRACTICE_CERTIFICATE && targetCertNumber) {
+      const globalDuplicate = await this.certModel.findOne({
+        _id: { $ne: cert._id },
+        certificateType: CertificateType.PRACTICE_CERTIFICATE,
+        certificateNumber: targetCertNumber,
+        userId: { $ne: new Types.ObjectId(userId) },
+        status: { $in: [CertificateStatus.CHO_DUYET, CertificateStatus.DA_DUYET] },
+      });
+
+      if (globalDuplicate) {
+        throw new BadRequestException(
+          'Số Chứng chỉ hành nghề Dược này đã được đăng ký bởi một nhân viên khác trong hệ thống chuỗi',
+        );
+      }
     }
 
     if (data.certificateType) cert.certificateType = data.certificateType;
@@ -141,17 +190,62 @@ export class CertificateService {
     }
 
     const manager = await this.userModel.findById(managerId);
+    if (!manager) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản người thực hiện');
+    }
+
+    // Kiểm tra thẩm quyền chi nhánh nhằm ngăn chặn lỗ hổng IDOR
+    const isAdmin = manager.role === UserRole.ADMIN;
+    const isSameBranch = !!manager.branchId && !!cert.branchId && manager.branchId === cert.branchId;
+
+    if (!isAdmin && !isSameBranch) {
+      throw new ForbiddenException(
+        'Bạn không có thẩm quyền phê duyệt hoặc từ chối hồ sơ văn bằng của chi nhánh khác',
+      );
+    }
+
+    // Ràng buộc Luật Dược: Chỉ CCHN mới đủ điều kiện pháp lý làm PTCM chi nhánh
+    if (approvalData.isBranchPIC && cert.certificateType !== CertificateType.PRACTICE_CERTIFICATE) {
+      throw new BadRequestException(
+        'Chỉ có Chứng chỉ hành nghề Dược (CCHN) mới đủ điều kiện pháp lý để chỉ định làm Phụ trách chuyên môn (PTCM) chi nhánh',
+      );
+    }
 
     // Xác định mức phụ cấp hàng tháng
     const allowance = Number(approvalData.monthlyAllowance) || 0;
     const isPIC = !!approvalData.isBranchPIC;
+
+    // Chuẩn GPP: Đảm bảo duy nhất 1 Dược sĩ PTCM trong một cơ sở tại một thời điểm
+    if (isPIC && cert.branchId) {
+      await this.certModel.updateMany(
+        {
+          branchId: cert.branchId,
+          _id: { $ne: cert._id },
+          isBranchPIC: true,
+        },
+        { $set: { isBranchPIC: false } },
+      );
+
+      await this.userModel.updateMany(
+        {
+          branchId: cert.branchId,
+          _id: { $ne: cert.userId },
+          isBranchPIC: true,
+        },
+        { $set: { isBranchPIC: false } },
+      );
+
+      this.logger.log(
+        `Chuyển giao vai trò PTCM chi nhánh ${cert.branchId} sang nhân sự ${cert.userId} (${cert.userFullName})`,
+      );
+    }
 
     cert.status = CertificateStatus.DA_DUYET;
     cert.monthlyAllowance = allowance;
     cert.isBranchPIC = isPIC;
     cert.rejectionReason = '';
     cert.verifiedBy = new Types.ObjectId(managerId);
-    cert.verifiedByName = manager?.fullName || 'Quản lý cơ sở';
+    cert.verifiedByName = manager.fullName || 'Quản lý cơ sở';
     cert.verifiedAt = new Date();
 
     const saved = await cert.save();
@@ -174,13 +268,26 @@ export class CertificateService {
     }
 
     const manager = await this.userModel.findById(managerId);
+    if (!manager) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản người thực hiện');
+    }
+
+    // Kiểm tra thẩm quyền chi nhánh nhằm ngăn chặn lỗ hổng IDOR
+    const isAdmin = manager.role === UserRole.ADMIN;
+    const isSameBranch = !!manager.branchId && !!cert.branchId && manager.branchId === cert.branchId;
+
+    if (!isAdmin && !isSameBranch) {
+      throw new ForbiddenException(
+        'Bạn không có thẩm quyền phê duyệt hoặc từ chối hồ sơ văn bằng của chi nhánh khác',
+      );
+    }
 
     cert.status = CertificateStatus.TU_CHOI;
     cert.rejectionReason = reason.trim();
     cert.monthlyAllowance = 0;
     cert.isBranchPIC = false;
     cert.verifiedBy = new Types.ObjectId(managerId);
-    cert.verifiedByName = manager?.fullName || 'Quản lý cơ sở';
+    cert.verifiedByName = manager.fullName || 'Quản lý cơ sở';
     cert.verifiedAt = new Date();
 
     const saved = await cert.save();

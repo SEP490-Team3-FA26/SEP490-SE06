@@ -130,9 +130,12 @@ export function BranchCertificateApproval() {
         ? cert.monthlyAllowance
         : defaultAllowance;
 
+    const isPracticeCert = cert.certificateType === 'PRACTICE_CERTIFICATE';
+
     setApprovingCert(cert);
     setApprovalAllowance(initialAllowance);
-    setIsPICAssignment(cert.purpose === 'BRANCH_PIC_RESPONSIBLE');
+    // Chỉ kích hoạt cờ PTCM nếu là Chứng chỉ hành nghề Dược (CCHN)
+    setIsPICAssignment(isPracticeCert && cert.purpose === 'BRANCH_PIC_RESPONSIBLE');
   };
 
   // Xác nhận duyệt
@@ -603,22 +606,41 @@ export function BranchCertificateApproval() {
             </div>
 
             {/* Checkbox PTCM */}
-            <label className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/50 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPICAssignment}
-                onChange={e => setIsPICAssignment(e.target.checked)}
-                className="mt-0.5 text-amber-600 focus:ring-0 rounded"
-              />
-              <div className="text-xs">
-                <p className="font-bold text-amber-900">
-                  Chỉ định làm Dược sĩ Phụ trách Chuyên môn (PTCM) Chi nhánh
-                </p>
-                <p className="text-amber-700 text-[11px] mt-0.5">
-                  Người này sẽ đại diện pháp lý về chuyên môn GPP cho nhà thuốc của bạn
-                </p>
+            {approvingCert.certificateType === 'PRACTICE_CERTIFICATE' ? (
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isPICAssignment}
+                  onChange={e => setIsPICAssignment(e.target.checked)}
+                  className="mt-0.5 text-amber-600 focus:ring-0 rounded"
+                />
+                <div className="text-xs">
+                  <p className="font-bold text-amber-900">
+                    Chỉ định làm Dược sĩ Phụ trách Chuyên môn (PTCM) Chi nhánh
+                  </p>
+                  <p className="text-amber-700 text-[11px] mt-0.5">
+                    Người này sẽ đại diện pháp lý về chuyên môn GPP cho nhà thuốc của bạn
+                  </p>
+                </div>
+              </label>
+            ) : (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed">
+                <input
+                  type="checkbox"
+                  disabled
+                  checked={false}
+                  className="mt-0.5 text-slate-400 focus:ring-0 rounded"
+                />
+                <div className="text-xs">
+                  <p className="font-bold text-slate-600">
+                    Chỉ định làm Dược sĩ Phụ trách Chuyên môn (PTCM) Chi nhánh
+                  </p>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Chỉ áp dụng cho Chứng chỉ hành nghề Dược (CCHN) theo quy định Luật Dược & chuẩn GPP
+                  </p>
+                </div>
               </div>
-            </label>
+            )}
 
             {/* Buttons */}
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
