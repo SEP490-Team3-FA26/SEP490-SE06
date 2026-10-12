@@ -839,7 +839,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
 
     const newUser = new this.userModel({
       email: data.email,
-      phone: data.phone ? data.phone.trim() : null,
+      phone: data.phone?.trim() || undefined,
       passwordHash,
       fullName: data.fullName,
       role: data.role,
@@ -931,7 +931,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
         }
         employee.phone = data.phone.trim();
       } else {
-        employee.phone = null;
+        employee.set('phone', undefined);
       }
     }
 
