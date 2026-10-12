@@ -4,6 +4,7 @@ import { UserService } from './user-service.service';
 import { BranchService } from './branch.service';
 import { ExportJobStatusDto } from './dto/export-job-status.dto';
 import { HrService } from './hr.service';
+import { CertificateService } from './certificate.service';
 
 @Controller()
 export class UserServiceController {
@@ -11,6 +12,7 @@ export class UserServiceController {
     private readonly userService: UserService,
     private readonly branchService: BranchService,
     private readonly hrService: HrService,
+    private readonly certService: CertificateService,
   ) { }
 
   @MessagePattern('user.edit_profile')
@@ -304,5 +306,51 @@ export class UserServiceController {
   @MessagePattern('hr.notification.unread_count')
   handleUnreadCount(@Payload() data: { userId: string }) {
     return this.hrService.getUnreadCount(data.userId);
+  }
+
+  // --- HR: CERTIFICATE & CCHN MANAGEMENT ---
+  @MessagePattern('hr.certificate.submit')
+  handleSubmitCertificate(@Payload() data: { userId: string; [key: string]: any }) {
+    const { userId, ...certData } = data;
+    return this.certService.submitCertificate(userId, certData);
+  }
+
+  @MessagePattern('hr.certificate.my_list')
+  handleGetMyCertificates(@Payload() data: { userId: string }) {
+    return this.certService.getMyCertificates(data.userId);
+  }
+
+  @MessagePattern('hr.certificate.update')
+  handleUpdateCertificate(@Payload() data: { userId: string; certificateId: string; [key: string]: any }) {
+    const { userId, certificateId, ...updateData } = data;
+    return this.certService.updateMyCertificate(userId, certificateId, updateData);
+  }
+
+  @MessagePattern('hr.certificate.delete')
+  handleDeleteCertificate(@Payload() data: { userId: string; certificateId: string }) {
+    return this.certService.deleteMyCertificate(data.userId, data.certificateId);
+  }
+
+  @MessagePattern('hr.certificate.branch_list')
+  handleListBranchCertificates(@Payload() data: { branchId: string; status?: string }) {
+    return this.certService.listBranchCertificates(data.branchId, data.status);
+  }
+
+  @MessagePattern('hr.certificate.approve')
+  handleApproveCertificate(@Payload() data: { managerId: string; certificateId: string; monthlyAllowance?: number; isBranchPIC?: boolean }) {
+    return this.certService.approveCertificate(data.managerId, data.certificateId, {
+      monthlyAllowance: data.monthlyAllowance,
+      isBranchPIC: data.isBranchPIC,
+    });
+  }
+
+  @MessagePattern('hr.certificate.reject')
+  handleRejectCertificate(@Payload() data: { managerId: string; certificateId: string; rejectionReason: string }) {
+    return this.certService.rejectCertificate(data.managerId, data.certificateId, data.rejectionReason);
+  }
+
+  @MessagePattern('hr.certificate.branch_summary')
+  handleGetBranchCertificateSummary(@Payload() data: { branchId: string }) {
+    return this.certService.getBranchCertificateSummary(data.branchId);
   }
 }

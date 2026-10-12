@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Trash2, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Trash2, Clock, Award } from "lucide-react";
 import { employeeService, Employee } from "../../services/admin/employee.service";
 
 function getBranchIdFromToken() {
@@ -155,13 +156,22 @@ export function BranchEmployees() {
           </h1>
           <p className="text-slate-500 mt-1">Danh sách dược sĩ và nhân viên làm việc tại chi nhánh hiện tại</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2 whitespace-nowrap"
-        >
-          <Plus size={18} />
-          Cấp Account Nhân viên
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/branch/certificates"
+            className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-indigo-200 text-sm whitespace-nowrap"
+          >
+            <Award size={18} />
+            Thẩm định Bằng cấp & CCHN
+          </Link>
+          <button
+            onClick={() => handleOpenModal()}
+            className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2 whitespace-nowrap"
+          >
+            <Plus size={18} />
+            Cấp Account Nhân viên
+          </button>
+        </div>
       </div>
 
       {/* Filter / Search */}
