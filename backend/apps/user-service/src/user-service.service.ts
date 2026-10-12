@@ -818,7 +818,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   // --- ADMIN EMPLOYEE MANAGEMENT ---
 
   async createEmployee(data: any) {
-    this.logger.log(`Creating new employee: ${data.email}, phone: ${data.phone}, createdByRole: ${data.createdByRole}`);
+    this.logger.log(`Creating new employee: ${data.email}, phone: ${data.phone}, requesterRole: ${data.requesterRole}`);
     const existing = await this.userModel.findOne({ email: data.email }).exec();
     if (existing) {
       return { error: true, message: 'Email đã tồn tại', statusCode: 409 };
@@ -832,27 +832,33 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       }
     }
 
-    const passwordHash = await bcrypt.hash(data.password, 12);
+    // Ràng buộc phân quyền: Quản lý chi nhánh chỉ được tạo Dược sĩ cho cơ sở của mình
+    if (data.requesterRole === 'branch') {
+      if (!data.requesterBranchId) {
+        return { error: true, message: 'Tài khoản quản lý không có thông tin chi nhánh', statusCode: 403 };
+      }
+      data.branchId = data.requesterBranchId;
+      data.role = 'pharmacist';
+    }
 
-    // If created by branch manager -> needs admin approval
-    const isBranchCreated = data.createdByRole === 'branch';
+    const passwordHash = await bcrypt.hash(data.password, 12);
 
     const newUser = new this.userModel({
       email: data.email,
-      phone: data.phone ? data.phone.trim() : null,
+      phone: data.phone?.trim() || undefined,
       passwordHash,
       fullName: data.fullName,
       role: data.role,
       branchId: data.branchId || null,
-      isActive: !isBranchCreated,       // branch created -> inactive, admin created -> active
-      isEmailVerified: true,            // Auto verify for employee
-      isApproved: isBranchCreated ? 'pending' : 'approved',
+      isActive: true,       // Quản lý cơ sở chịu trách nhiệm cao nhất, nhân viên kích hoạt hoạt động ngay
+      isEmailVerified: true,
+      isApproved: 'approved',
     });
 
     await newUser.save();
 
     // Auto sync manager field in Branch when branch manager is created
-    if (data.role === 'branch' && data.branchId && !isBranchCreated) {
+    if (data.role === 'branch' && data.branchId) {
       await this.syncManagerToBranch(data.branchId, data.fullName);
     }
 
@@ -910,10 +916,19 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async updateEmployee(id: string, data: any) {
-    this.logger.log(`Admin updating employee: ${id}`);
+    this.logger.log(`Updating employee: ${id}`);
     const employee = await this.userModel.findById(id).exec();
     if (!employee) {
       return { error: true, message: 'Nhân viên không tồn tại', statusCode: 404 };
+    }
+
+    // Ràng buộc bảo mật IDOR: Quản lý chi nhánh chỉ được cập nhật nhân sự thuộc cơ sở của mình
+    if (data.requesterRole === 'branch') {
+      if (!data.requesterBranchId || employee.branchId !== data.requesterBranchId) {
+        return { error: true, message: 'Bạn không có quyền chỉnh sửa nhân sự của chi nhánh khác', statusCode: 403 };
+      }
+      data.branchId = data.requesterBranchId;
+      data.role = 'pharmacist';
     }
 
     const oldBranchId = employee.branchId;
@@ -931,7 +946,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
         }
         employee.phone = data.phone.trim();
       } else {
-        employee.phone = null;
+        employee.set('phone', undefined);
       }
     }
 
@@ -975,11 +990,27 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  async toggleBanEmployee(id: string) {
-    this.logger.log(`Admin toggling ban for employee: ${id}`);
+  async toggleBanEmployee(id: string, requesterRole?: string, requesterBranchId?: string) {
+    this.logger.log(`Toggling ban for employee: ${id}`);
     const employee = await this.userModel.findById(id).exec();
     if (!employee) {
       return { error: true, message: 'Nhân viên không tồn tại', statusCode: 404 };
+    }
+
+    // Ràng buộc bảo mật IDOR: Quản lý chi nhánh chỉ được thao tác với nhân sự trong cơ sở mình
+    if (requesterRole === 'branch') {
+      if (!requesterBranchId || employee.branchId !== requesterBranchId) {
+        return { error: true, message: 'Bạn không có quyền thao tác với nhân viên của chi nhánh khác', statusCode: 403 };
+      }
+    }
+
+    // Ràng buộc chuẩn GPP: Nếu nhân sự này đang là PTCM và chuẩn bị bị khóa
+    if (employee.isActive && employee.isBranchPIC) {
+      return {
+        error: true,
+        message: 'Dược sĩ này đang là Phụ trách chuyên môn (PTCM) của chi nhánh. Vui lòng chuyển giao vai trò PTCM cho nhân sự khác trước khi khóa tài khoản.',
+        statusCode: 400,
+      };
     }
 
     // Toggle trạng thái isActive
@@ -991,12 +1022,28 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     return result;
   }
 
-  async deleteEmployee(id: string) {
+  async deleteEmployee(id: string, requesterRole?: string, requesterBranchId?: string) {
     this.logger.log(`Deleting employee: ${id}`);
-    const employee = await this.userModel.findByIdAndDelete(id).exec();
+    const employee = await this.userModel.findById(id).exec();
     if (!employee) {
       return { error: true, message: 'Nhân viên không tồn tại', statusCode: 404 };
     }
+
+    // Ràng buộc bảo mật: Quản lý chi nhánh không có quyền xóa tài khoản nhân sự, chỉ được phép khóa (Ban)
+    if (requesterRole === 'branch') {
+      return { error: true, message: 'Quản lý chi nhánh không có thẩm quyền xóa tài khoản nhân viên, chỉ được phép khóa tài khoản', statusCode: 403 };
+    }
+
+    // Ràng buộc chuẩn GPP: Không được xóa trực tiếp nhân sự đang là PTCM cơ sở
+    if (employee.isBranchPIC) {
+      return {
+        error: true,
+        message: 'Không thể xóa Dược sĩ đang đứng tên Phụ trách chuyên môn (PTCM) của chi nhánh. Vui lòng chỉ định PTCM mới trước khi xóa.',
+        statusCode: 400,
+      };
+    }
+
+    await this.userModel.findByIdAndDelete(id).exec();
     return { success: true, message: 'Xóa nhân viên thành công' };
   }
 

@@ -10,6 +10,7 @@ import {
   Inject,
   OnModuleInit,
   Query,
+  Request,
 } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
@@ -41,8 +42,12 @@ export class AdminEmployeeController implements OnModuleInit {
   @Get()
   @Roles('admin', 'branch', 'pharmacist')
   @ApiOperation({ summary: 'Lấy danh sách nhân viên' })
-  async listEmployees(@Query() query: any) {
-    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', query || {});
+  async listEmployees(@Query() query: any, @Request() req: any) {
+    const filter = { ...(query || {}) };
+    if (req.user?.role === 'branch' && req.user.branchId) {
+      filter.branchId = req.user.branchId;
+    }
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', filter);
   }
 
   @Get(':id')
@@ -53,26 +58,44 @@ export class AdminEmployeeController implements OnModuleInit {
 
   @Post()
   @ApiOperation({ summary: 'Tạo tài khoản nhân viên mới' })
-  async createEmployee(@Body() data: any) {
-    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.create', data);
+  async createEmployee(@Body() data: any, @Request() req: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.create', {
+      ...data,
+      requesterRole: req.user?.role,
+      requesterBranchId: req.user?.branchId,
+    });
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Cập nhật thông tin nhân viên' })
-  async updateEmployee(@Param('id') id: string, @Body() data: any) {
-    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.update', { id, ...data });
+  async updateEmployee(@Param('id') id: string, @Body() data: any, @Request() req: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.update', {
+      id,
+      ...data,
+      requesterRole: req.user?.role,
+      requesterBranchId: req.user?.branchId,
+    });
   }
 
   @Put(':id/ban')
   @ApiOperation({ summary: 'Ban / Unban nhân viên' })
-  async toggleBanEmployee(@Param('id') id: string) {
-    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.ban_unban', { id });
+  async toggleBanEmployee(@Param('id') id: string, @Request() req: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.ban_unban', {
+      id,
+      requesterRole: req.user?.role,
+      requesterBranchId: req.user?.branchId,
+    });
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Xóa tài khoản nhân viên' })
-  async deleteEmployee(@Param('id') id: string) {
-    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.delete', { id });
+  @Roles('admin')
+  @ApiOperation({ summary: 'Xóa tài khoản nhân viên (chỉ Admin)' })
+  async deleteEmployee(@Param('id') id: string, @Request() req: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.delete', {
+      id,
+      requesterRole: req.user?.role,
+      requesterBranchId: req.user?.branchId,
+    });
   }
 
   @Put(':id/approve')
