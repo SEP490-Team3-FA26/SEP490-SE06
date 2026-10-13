@@ -210,11 +210,15 @@ export interface Employee {
 export interface Branch {
   id: string;
   _id?: string;
+  branchCode?: string;
   name: string;
   address: string;
   phone?: string;
   managerName?: string;
   status?: string;
+  latitude?: number;
+  longitude?: number;
+  checkInRadiusMeters?: number;
 }
 
 export interface StockTransferItem {

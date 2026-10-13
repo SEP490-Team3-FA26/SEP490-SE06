@@ -17,7 +17,9 @@
       "bundleIdentifier": "com.abcpharmacy.mobile",
       "infoPlist": {
         "NSCalendarsUsageDescription": "Cho phép ứng dụng thêm sự kiện vào lịch của bạn.",
-        "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc."
+        "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc.",
+        "NSLocationWhenInUseUsageDescription": "Ứng dụng cần quyền vị trí để xác thực điểm danh check-in tại chi nhánh nhà thuốc.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Ứng dụng cần quyền vị trí để xác thực điểm danh check-in tại chi nhánh nhà thuốc."
       }
     },
     "android": {
@@ -41,6 +43,10 @@
         "WAKE_LOCK",
         "DISABLE_KEYGUARD",
         "VIBRATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
       ]
@@ -55,6 +61,12 @@
       "expo-status-bar",
       "expo-font",
       "expo-splash-screen",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Cho phép ứng dụng lấy vị trí GPS để xác nhận điểm danh ca làm việc tại nhà thuốc."
+        }
+      ],
       [
         "react-native-notify-kit",
         {

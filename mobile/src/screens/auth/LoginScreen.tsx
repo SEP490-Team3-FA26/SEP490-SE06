@@ -32,12 +32,12 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [selectedDemoRole, setSelectedDemoRole] = useState<UserRole | null>(null);
 
   const DEMO_USERS = [
-    { role: UserRole.ADMIN, title: 'Admin', email: 'admin@vinapharmacy.com', color: '#EF4444', icon: 'shield-checkmark' },
-    { role: UserRole.HEAD_BRANCH, title: 'Giám Đốc', email: 'director@vinapharmacy.com', color: '#8B5CF6', icon: 'business' },
-    { role: UserRole.WAREHOUSE, title: 'Thủ Kho', email: 'warehouse@vinapharmacy.com', color: '#F59E0B', icon: 'cube' },
-    { role: UserRole.PHARMACIST, title: 'Dược Sĩ', email: 'pharmacist@vinapharmacy.com', color: '#10B981', icon: 'medkit' },
-    { role: UserRole.BRANCH, title: 'Quản Lý', email: 'manager@vinapharmacy.com', color: '#06B6D4', icon: 'storefront' },
-    { role: UserRole.CUSTOMER, title: 'Khách Hàng', email: 'user@vinapharmacy.com', color: '#3B82F6', icon: 'cart' },
+    { role: UserRole.ADMIN, title: 'Admin IT', subtitle: 'Quản trị hệ thống', email: 'admin@vinapharmacy.com', color: '#EF4444', icon: 'shield-checkmark' },
+    { role: UserRole.HEAD_BRANCH, title: 'Giám Đốc', subtitle: 'Ban điều hành chuỗi', email: 'director@vinapharmacy.com', color: '#8B5CF6', icon: 'business' },
+    { role: UserRole.WAREHOUSE, title: 'Kho Tổng', subtitle: 'Xuất nhập & GRN', email: 'warehouse@vinapharmacy.com', color: '#F59E0B', icon: 'cube' },
+    { role: UserRole.PHARMACIST, title: 'Dược Sĩ', subtitle: 'Bán hàng POS quầy', email: 'pharmacist@vinapharmacy.com', color: '#10B981', icon: 'medkit' },
+    { role: UserRole.BRANCH, title: 'Quản Lý', subtitle: 'Cơ sở & Duyệt ca', email: 'manager@vinapharmacy.com', color: '#06B6D4', icon: 'storefront' },
+    { role: UserRole.CUSTOMER, title: 'Khách Hàng', subtitle: 'Mua sắm trực tuyến', email: 'user@vinapharmacy.com', color: '#3B82F6', icon: 'cart' },
   ];
 
   const handleLogin = async () => {
@@ -55,26 +55,19 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
   };
 
-  const handleQuickDemo = async (item: (typeof DEMO_USERS)[0]) => {
+  const handleQuickFillRole = (item: (typeof DEMO_USERS)[0]) => {
     setEmailOrPhone(item.email);
     setPassword('123456');
     setSelectedDemoRole(item.role);
-    setLoading(true);
-    const res = await login(item.email, '123456');
-    setLoading(false);
-    if (!res.success) {
-      showToast.error('Thông báo', res.message || 'Không thể đăng nhập tài khoản demo.');
-    }
+    showToast.info('Đã điền tài khoản', `Tài khoản ${item.title}: ${item.email}`);
   };
 
   const handleGoogleLogin = () => {
-    navigation.navigate('WebViewScreen', {
-      title: 'Đăng nhập với Google',
-      url: 'https://accounts.google.com',
-      onSuccessToken: async (token: string) => {
-        // Token received from OAuth
-      },
-    });
+    Alert.alert(
+      'Đăng Nhập Google (404 Not Configured)',
+      'Hệ thống chưa kích hoạt phương thức Google OAuth 2.0 trên ứng dụng di động.\n\nVui lòng đăng nhập bằng Email/Mật khẩu hoặc nhấn vào các nút Chọn Nhanh Vai Trò Mẫu bên trên.',
+      [{ text: 'Đã Hiểu', style: 'default' }]
+    );
   };
 
   return (
@@ -205,7 +198,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 {/* Glass Divider */}
                 <View style={styles.dividerRow}>
                   <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>HOẶC TRẢI NGHIỆM TÀI KHOẢN DEMO</Text>
+                  <Text style={styles.dividerText}>HOẶC CHỌN NHANH VAI TRÒ MẪU</Text>
                   <View style={styles.dividerLine} />
                 </View>
 
@@ -216,31 +209,33 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     return (
                       <AnimatedTouchable
                         key={d.role}
-                        onPress={() => handleQuickDemo(d)}
+                        onPress={() => handleQuickFillRole(d)}
                         style={[
-                          styles.demoRoleChip,
+                          styles.demoRoleCard,
                           {
-                            borderColor: isSelected ? d.color : 'rgba(226, 232, 240, 0.8)',
-                            backgroundColor: isSelected ? `${d.color}20` : 'rgba(248, 250, 252, 0.7)',
+                            borderColor: isSelected ? d.color : 'rgba(226, 232, 240, 0.9)',
+                            backgroundColor: isSelected ? `${d.color}15` : 'rgba(255, 255, 255, 0.95)',
                           },
-                          isSelected && styles.demoRoleChipSelected,
+                          isSelected && styles.demoRoleCardSelected,
                         ]}
                       >
                         <View style={[styles.demoIconCircle, { backgroundColor: `${d.color}20` }]}>
-                          <Ionicons name={d.icon as any} size={15} color={d.color} />
+                          <Ionicons name={d.icon as any} size={18} color={d.color} />
                         </View>
-                        <Text
-                          style={[
-                            styles.demoRoleText,
-                            {
-                              color: isSelected ? d.color : '#334155',
-                              fontWeight: isSelected ? '700' : '600',
-                            },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {d.title}
-                        </Text>
+                        <View style={styles.demoTextCol}>
+                          <Text
+                            style={[
+                              styles.demoRoleTitle,
+                              { color: isSelected ? d.color : '#0F172A' },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {d.title}
+                          </Text>
+                          <Text style={styles.demoRoleSubtitle} numberOfLines={1}>
+                            {d.subtitle}
+                          </Text>
+                        </View>
                       </AnimatedTouchable>
                     );
                   })}
@@ -257,19 +252,6 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   <Text style={styles.registerPrompt}>Chưa có tài khoản khách hàng? </Text>
                   <AnimatedTouchable onPress={() => navigation.navigate('RegisterScreen')}>
                     <Text style={styles.registerLink}>Đăng ký ngay</Text>
-                  </AnimatedTouchable>
-                </View>
-
-                {/* Glass UI Kit Showcase Link */}
-                <View style={styles.showcaseLinkBox}>
-                  <AnimatedTouchable
-                    onPress={() => navigation.navigate('FlatComponentsShowcase')}
-                    style={styles.showcaseBtn}
-                  >
-                    <Ionicons name="sparkles" size={16} color="#059669" style={{ marginRight: 6 }} />
-                    <Text style={styles.showcaseText}>
-                      Khám phá Glass & Flat UI Components
-                    </Text>
                   </AnimatedTouchable>
                 </View>
               </View>
@@ -506,25 +488,39 @@ const styles = StyleSheet.create({
   demoRoleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    rowGap: 10,
     marginBottom: 20,
   },
-  demoRoleChip: {
-    width: (width - 40 - 48 - 8) / 2, // 2 columns exactly
+  demoRoleCard: {
+    width: '48.5%',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 10,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1.2,
-  },
-  demoRoleChipSelected: {
+    backgroundColor: '#FFFFFF',
     ...Platform.select({
       ios: {
-        shadowColor: '#059669',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1.5,
+      },
+    }),
+  },
+  demoRoleCardSelected: {
+    borderWidth: 1.5,
+    ...Platform.select({
+      ios: {
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
       },
       android: {
         elevation: 3,
@@ -532,16 +528,26 @@ const styles = StyleSheet.create({
     }),
   },
   demoIconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
-  demoRoleText: {
-    fontSize: 12,
+  demoTextCol: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  demoRoleTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  demoRoleSubtitle: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '500',
   },
 
   // Google OAuth

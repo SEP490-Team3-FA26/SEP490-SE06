@@ -3,7 +3,18 @@ import notifee, {
   AndroidCategory,
   EventType,
 } from 'react-native-notify-kit';
-import { Platform, Vibration } from 'react-native';
+import { NativeModules, Platform, Vibration } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+
+// Kiểm tra môi trường: Chỉ kích hoạt native Notifee khi binary thực sự có module và không chạy trên Expo Go
+const isNotifeeAvailable: boolean = Boolean(
+  Platform.OS === 'android' &&
+  NativeModules &&
+  (NativeModules.NotifeeApiModule || (NativeModules as any).Notifee) &&
+  Constants.appOwnership !== 'expo' &&
+  Constants.executionEnvironment !== ExecutionEnvironment.StoreClient
+);
 
 export interface FireAlertPayload {
   title?: string;
@@ -25,7 +36,7 @@ class FireEmergencyNotifeeManager {
 
   // Khởi tạo các notification channel khẩn cấp với mức ưu tiên cao nhất
   public async initChannels(): Promise<void> {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || !isNotifeeAvailable) return;
 
     try {
       // Dọn dẹp triệt để các channel cũ để tránh Android cache cấu hình câm tiếng
@@ -73,6 +84,29 @@ class FireEmergencyNotifeeManager {
     const body =
       payload.body ||
       `KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP TẠI TRẠM ${payload.deviceId || 'ESP32'} (${payload.temp || '65.0'}°C)!`;
+
+    if (!isNotifeeAvailable) {
+      // Chế độ Expo Go: Dùng expo-notifications để hiển thị thông báo khẩn cấp mà không làm văng app
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            data: {
+              type: 'FIRE_EMERGENCY',
+              deviceId: payload.deviceId || '',
+              temp: payload.temp || '',
+            },
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          },
+          trigger: null,
+        });
+      } catch (e) {
+        console.warn('[FireEmergencyNotifee] Expo notification fallback error:', e);
+      }
+      return;
+    }
 
     try {
       await this.initChannels();
@@ -127,6 +161,13 @@ class FireEmergencyNotifeeManager {
 
     Vibration.cancel();
 
+    if (!isNotifeeAvailable) {
+      try {
+        await Notifications.dismissAllNotificationsAsync();
+      } catch (_) {}
+      return;
+    }
+
     try {
       if (Platform.OS === 'android') {
         await notifee.stopForegroundService();
@@ -170,26 +211,35 @@ class FireEmergencyNotifeeManager {
   }
 
   private registerEventHandlers(): void {
-    // Đăng ký Foreground Service duy trì còi hú
-    notifee.registerForegroundService(() => {
-      return new Promise(() => {
-        // Giữ Promise pending để Foreground Service sống liên tục cho đến khi stopAlarm được gọi
+    if (!isNotifeeAvailable) {
+      // Chế độ an toàn cho Expo Go: Không kích hoạt Notifee TurboModule để tránh Invariant Violation
+      return;
+    }
+
+    try {
+      // Đăng ký Foreground Service duy trì còi hú
+      notifee.registerForegroundService(() => {
+        return new Promise(() => {
+          // Giữ Promise pending để Foreground Service sống liên tục cho đến khi stopAlarm được gọi
+        });
       });
-    });
 
-    // Lắng nghe khi người dùng tương tác với notification khi app đang mở
-    notifee.onForegroundEvent(({ type, detail }) => {
-      if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'stop_alarm') {
-        this.stopAlarm();
-      }
-    });
+      // Lắng nghe khi người dùng tương tác với notification khi app đang mở
+      notifee.onForegroundEvent(({ type, detail }) => {
+        if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'stop_alarm') {
+          this.stopAlarm();
+        }
+      });
 
-    // Lắng nghe khi người dùng tương tác khi app chạy ngầm / tắt
-    notifee.onBackgroundEvent(async ({ type, detail }) => {
-      if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'stop_alarm') {
-        await this.stopAlarm();
-      }
-    });
+      // Lắng nghe khi người dùng tương tác khi app chạy ngầm / tắt
+      notifee.onBackgroundEvent(async ({ type, detail }) => {
+        if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'stop_alarm') {
+          await this.stopAlarm();
+        }
+      });
+    } catch (err) {
+      console.warn('[FireEmergencyNotifee] Không thể đăng ký event handler native:', err);
+    }
   }
 }
 

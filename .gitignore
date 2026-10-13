@@ -88,3 +88,4 @@ service_account*.json
 backend/public/uploads/
 public/uploads/
 *.webm
+specs/
