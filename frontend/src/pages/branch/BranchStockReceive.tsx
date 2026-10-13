@@ -104,7 +104,11 @@ export function BranchStockReceive() {
   };
 
   const handleConfirmReceipt = async (transfer: any) => {
-    const transferId = transfer._id;
+    const transferId = transfer._id || transfer.id;
+    if (!transferId) {
+      setErrorMsg("Không tìm thấy mã phiếu chuyển kho hợp lệ.");
+      return;
+    }
     const inspectionItems = (transfer.items || []).map((item: any) => ({
       medicineId: item.medicineId,
       batchNo: item.batchNo,
