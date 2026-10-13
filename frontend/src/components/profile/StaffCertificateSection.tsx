@@ -266,7 +266,9 @@ export function StaffCertificateSection({ userRole }: Props) {
                 Hồ sơ Văn bằng & Chứng chỉ hành nghề (CCHN)
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Khai báo trình độ Dược sĩ để hưởng phụ cấp chuyên môn hoặc đăng ký đứng tên PTCM chi nhánh
+                {userRole === 'branch'
+                  ? 'Khai báo hồ sơ chuyên môn & CCHN của Quản lý phục vụ đăng ký phụ trách chuyên môn GPP hoặc phụ cấp chức danh'
+                  : 'Khai báo trình độ Dược sĩ để hưởng phụ cấp chuyên môn hoặc đăng ký đứng tên PTCM chi nhánh'}
               </p>
             </div>
           </div>
@@ -345,6 +347,8 @@ export function StaffCertificateSection({ userRole }: Props) {
                 <span className="text-emerald-600 inline-flex items-center gap-1">
                   <CheckCircle2 size={14} /> PTCM Chi nhánh
                 </span>
+              ) : userRole === 'branch' ? (
+                <span className="text-slate-700 font-semibold">Quản lý cơ sở</span>
               ) : (
                 <span className="text-slate-500">Dược sĩ chuyên môn</span>
               )}
@@ -363,7 +367,9 @@ export function StaffCertificateSection({ userRole }: Props) {
           <FileText className="w-12 h-12 text-slate-300 mx-auto mb-2" />
           <p className="text-sm font-bold text-slate-600">Chưa có hồ sơ bằng cấp nào được khai báo</p>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            Nhấn nút "Nộp bằng cấp mới" ở trên để gửi hồ sơ cho Quản lý chi nhánh xét duyệt phụ cấp.
+            {userRole === 'branch'
+              ? 'Nhấn nút "Nộp bằng cấp mới" ở trên để cập nhật hồ sơ chuyên môn của Quản lý chi nhánh vào cơ sở dữ liệu hệ thống.'
+              : 'Nhấn nút "Nộp bằng cấp mới" ở trên để gửi hồ sơ cho Quản lý chi nhánh xét duyệt phụ cấp.'}
           </p>
         </div>
       ) : (

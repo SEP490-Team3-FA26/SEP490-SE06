@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Clock, Award } from "lucide-react";
+import { Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Clock, Award, MapPin } from "lucide-react";
 import { employeeService, Employee } from "../../services/admin/employee.service";
+import { BranchLocationModal } from "../../components/branch/BranchLocationModal";
 
 function getBranchIdFromToken() {
   const token = localStorage.getItem("token");
@@ -28,6 +29,7 @@ export function BranchEmployees() {
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   // Form states
@@ -147,6 +149,13 @@ export function BranchEmployees() {
           <p className="text-slate-500 mt-1">Danh sách dược sĩ và nhân viên làm việc tại chi nhánh hiện tại</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsLocationModalOpen(true)}
+            className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-emerald-200 text-sm whitespace-nowrap shadow-sm"
+          >
+            <MapPin size={18} />
+            Cài Đặt Vị Trí GPS
+          </button>
           <Link
             to="/branch/certificates"
             className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-indigo-200 text-sm whitespace-nowrap"
@@ -391,6 +400,13 @@ export function BranchEmployees() {
           </div>
         </div>
       )}
+
+      {/* Branch Location Modal */}
+      <BranchLocationModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        onSuccess={() => fetchData()}
+      />
     </div>
   );
 }

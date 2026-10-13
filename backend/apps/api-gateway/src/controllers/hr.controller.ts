@@ -65,6 +65,25 @@ export class HrController implements OnModuleInit {
       'hr.certificate.approve',
       'hr.certificate.reject',
       'hr.certificate.branch_summary',
+      'hr.attendance.check_in',
+      'hr.attendance.check_out',
+      'hr.attendance.my_current_shift',
+      'hr.attendance.verify_active_shift',
+      'hr.attendance.branch_today',
+      'hr.attendance.history',
+      'hr.payroll.calculate',
+      'hr.payroll.list',
+      'hr.payroll.detail',
+      'hr.payroll.adjust',
+      'hr.payroll.submit',
+      'hr.payroll.approve',
+      'hr.payroll.my_payslip',
+      'hr.leave.balance',
+      'hr.leave.my_list',
+      'hr.leave.branch_list',
+      'hr.leave.create',
+      'hr.leave.respond',
+      'hr.leave.cancel',
     ]);
   }
 
@@ -187,6 +206,113 @@ export class HrController implements OnModuleInit {
       response: data.response, 
       rejectReason: data.rejectReason 
     });
+  }
+
+  // --- HR: LEAVE MANAGEMENT ---
+  @Get('leaves/balance')
+  @Roles('pharmacist', 'branch', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy số dư ngày phép năm của tôi' })
+  async getLeaveBalance(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.balance', { userId: req.user.sub });
+  }
+
+  @Get('leaves/mine')
+  @Roles('pharmacist', 'branch', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy danh sách đơn xin nghỉ của tôi' })
+  async getMyLeaves(@Request() req, @Query('status') status?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.my_list', { userId: req.user.sub, status });
+  }
+
+  @Get('leaves/branch')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Lấy danh sách đơn xin nghỉ của toàn chi nhánh (Quản lý)' })
+  async getBranchLeaves(@Request() req, @Query('status') status?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.branch_list', { branchId: req.user.branchId, status });
+  }
+
+  @Post('leaves')
+  @Roles('pharmacist', 'branch', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Tạo đơn xin nghỉ ca' })
+  async createLeave(@Request() req, @Body() data: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.create', {
+      ...data,
+      requesterId: req.user.sub,
+      requesterName: req.user.fullName,
+      requesterRole: req.user.role,
+      branchId: req.user.branchId,
+    });
+  }
+
+  @Patch('leaves/:id/respond')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý phê duyệt hoặc từ chối đơn xin nghỉ' })
+  async respondLeave(
+    @Request() req,
+    @Param('id') leaveId: string,
+    @Body() data: { action: 'approve' | 'reject'; managerNote?: string },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.respond', {
+      leaveId,
+      managerId: req.user.sub,
+      managerName: req.user.fullName,
+      managerRole: req.user.role,
+      managerBranchId: req.user.branchId,
+      action: data.action,
+      managerNote: data.managerNote,
+    });
+  }
+
+  @Patch('leaves/:id/cancel')
+  @Roles('pharmacist', 'warehouse', 'branch', 'admin')
+  @ApiOperation({ summary: 'Nhân viên hủy đơn xin nghỉ đang chờ duyệt' })
+  async cancelLeave(@Request() req, @Param('id') leaveId: string, @Body() data: { cancelReason?: string }) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.cancel', {
+      leaveId,
+      userId: req.user.sub,
+      cancelReason: data.cancelReason,
+    });
+  }
+
+  @Post('leaves/upload-attachment')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Tải lên tài liệu minh chứng xin nghỉ (giấy ốm, giấy ra viện)' })
+  async uploadLeaveAttachment(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body?: { base64?: string; filename?: string },
+  ) {
+    const userId = req.user?.sub || req.user?.id || 'general';
+    const branchId = req.user?.branchId || 'general';
+
+    if (file) {
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/pdf'];
+      if (!allowedMimes.includes(file.mimetype)) {
+        throw new BadRequestException('Chỉ chấp nhận file ảnh JPEG, PNG, WebP hoặc PDF');
+      }
+      return await this.cloudinaryStorageService.uploadImage({
+        buffer: file.buffer,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        category: 'leave-attachments',
+        userId,
+        branchId,
+        side: 'leave',
+      });
+    }
+
+    if (body?.base64) {
+      return await this.cloudinaryStorageService.uploadImage({
+        base64: body.base64,
+        filename: body.filename,
+        category: 'leave-attachments',
+        userId,
+        branchId,
+        side: 'leave',
+      });
+    }
+
+    throw new BadRequestException('Vui lòng cung cấp file đính kèm hoặc base64');
   }
 
   // --- HR: NOTIFICATION ---
@@ -358,6 +484,194 @@ export class HrController implements OnModuleInit {
       managerId: req.user.sub,
       certificateId: id,
       rejectionReason: body.rejectionReason,
+    });
+  }
+
+  // --- HR: ATTENDANCE & GPS CHECK-IN ---
+  @Post('attendance/check-in')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Nhân viên điểm danh vào ca bằng GPS Geofencing' })
+  async attendanceCheckIn(@Request() req, @Body() data: { latitude: number; longitude: number; shiftId?: string; isMockLocation?: boolean; note?: string }) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.check_in', {
+      employeeId: req.user.sub,
+      branchId: req.user.branchId,
+      ...data,
+    });
+  }
+
+  @Post('attendance/check-out')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Nhân viên check-out kết thúc ca làm việc' })
+  async attendanceCheckOut(@Request() req, @Body() data: { latitude?: number; longitude?: number; note?: string }) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.check_out', {
+      employeeId: req.user.sub,
+      ...data,
+    });
+  }
+
+  @Get('attendance/my-current-shift')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy trạng thái ca trực hiện tại và điểm danh của bản thân' })
+  async getMyCurrentShift(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.my_current_shift', {
+      employeeId: req.user.sub,
+      branchId: req.user.branchId,
+    });
+  }
+
+  @Get('attendance/my-today')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Alias lấy trạng thái điểm danh hôm nay của cá nhân (Dành cho Mobile App)' })
+  async getMyTodayAttendance(@Request() req) {
+    const shiftStatus: any = await sendKafkaMessage(this.kafkaClient, 'hr.attendance.my_current_shift', {
+      employeeId: req.user.sub,
+      branchId: req.user.branchId,
+    });
+    return shiftStatus?.attendance || shiftStatus;
+  }
+
+  @Get('attendance/history')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy lịch sử điểm danh của cá nhân nhân viên' })
+  async getMyAttendanceHistory(@Request() req, @Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.history', {
+      employeeId: req.user.sub,
+      startDate,
+      endDate,
+    });
+  }
+
+  @Get('attendance/today')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Quản lý xem danh sách điểm danh hôm nay của chi nhánh' })
+  async getBranchTodayAttendance(@Request() req, @Query('date') date?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_today', {
+      branchId: req.user.branchId,
+      date,
+    });
+  }
+
+  // --- HR: PAYROLL MANAGEMENT ---
+  @Post('payroll/calculate')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Tính toán dự thảo bảng lương tháng cho chi nhánh' })
+  async calculateMonthlyPayroll(@Request() req, @Body() data: { month: number; year: number; branchId?: string; mealAllowanceRate?: number }) {
+    // Nếu là Quản lý chi nhánh (role 'branch'), bắt buộc khóa chặt theo chi nhánh của mình (Chống IDOR/BOLA)
+    const branchId = req.user.role === 'branch'
+      ? req.user.branchId
+      : (data.branchId || req.user.branchId || 'BR-001');
+
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.calculate', {
+      branchId,
+      month: Number(data.month),
+      year: Number(data.year),
+      mealAllowanceRate: data.mealAllowanceRate ? Number(data.mealAllowanceRate) : 35000,
+      managerId: req.user.sub,
+      managerName: req.user.fullName,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Get('payroll')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Lấy danh sách bảng lương của chi nhánh' })
+  async listPayrolls(@Request() req, @Query('year') year?: number, @Query('branchId') branchId?: string) {
+    try {
+      const targetBranch = req.user.role === 'branch' ? req.user.branchId : (branchId || req.user.branchId);
+      return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.list', {
+        branchId: targetBranch,
+        year: year ? Number(year) : undefined,
+      });
+    } catch (err: any) {
+      // Khi microservice timeout hoac dang khoi dong lai, tra ve mang rong de UI hien thi trang thai rong an toan
+      if (err?.name === 'TimeoutError' || err?.message?.includes('timeout') || err?.status === 504 || (err?.getStatus && err.getStatus() === 504)) {
+        return [];
+      }
+      throw err;
+    }
+  }
+
+  @Get('payroll/my-payslip')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Nhân viên xem phiếu lương cá nhân của chính mình' })
+  async getMyPayslip(@Request() req, @Query('month') month?: number, @Query('year') year?: number) {
+    try {
+      const employeeId = req.user?.sub || req.user?._id || req.user?.id;
+      return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.my_payslip', {
+        employeeId,
+        month: month ? Number(month) : undefined,
+        year: year ? Number(year) : undefined,
+      });
+    } catch (err: any) {
+      return [];
+    }
+  }
+
+  @Get('payroll/my-payslips')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Alias nhân viên xem phiếu lương cá nhân của chính mình (Cho Mobile App)' })
+  async getMyPayslipsAlias(@Request() req, @Query('month') month?: number, @Query('year') year?: number) {
+    try {
+      const employeeId = req.user?.sub || req.user?._id || req.user?.id;
+      return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.my_payslip', {
+        employeeId,
+        month: month ? Number(month) : undefined,
+        year: year ? Number(year) : undefined,
+      });
+    } catch (err: any) {
+      return [];
+    }
+  }
+
+  @Get('payroll/:id')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Xem chi tiết bảng lương' })
+  async getPayrollDetail(@Request() req, @Param('id') id: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.detail', {
+      payrollId: id,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Patch('payroll/:id/adjust')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý điều chỉnh thủ công thưởng/phạt của nhân viên' })
+  async adjustPayrollItem(
+    @Request() req,
+    @Param('id') payrollId: string,
+    @Body() body: { employeeId: string; manualAdjustment: number; penalties?: number; adjustmentNote?: string },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.adjust', {
+      payrollId,
+      ...body,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Patch('payroll/:id/submit')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý gửi bảng lương lên Ban Giám đốc phê duyệt' })
+  async submitPayroll(@Request() req, @Param('id') payrollId: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.submit', {
+      payrollId,
+      managerId: req.user.sub,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Patch('payroll/:id/approve')
+  @Roles('branch', 'director', 'admin')
+  @ApiOperation({ summary: 'Quản lý chi nhánh / Ban Giám đốc phê duyệt bảng lương cơ sở' })
+  async approvePayroll(@Request() req, @Param('id') payrollId: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.approve', {
+      payrollId,
+      approverId: req.user.sub,
+      approverRole: req.user.role,
+      requesterBranchId: req.user.branchId,
     });
   }
 }
