@@ -366,7 +366,7 @@ export function CustomerCheckout() {
               </div>
               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Điểm Loyalty Có Sẵn</span>
-                <span className="text-lg sm:text-xl font-black text-amber-300 mt-0.5">{userPoints.toLocaleString()}đ</span>
+                <span className="text-lg sm:text-xl font-black text-amber-300 mt-0.5">{userPoints.toLocaleString()}đ</span>4
               </div>
               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col col-span-2 sm:col-span-1">
                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tổng Thanh Toán</span>

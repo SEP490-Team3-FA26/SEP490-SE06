@@ -4,7 +4,7 @@
 
 ---
 
-## 1. TỔNG QUAN ĐIỀU HÀNH (EXECUTIVE SUMMARY)
+1. TỔNG QUAN ĐIỀU HÀNH (EXECUTIVE SUMMARY)
 
 Dự án **PharmaChain** của anh yêu hiện đã sở hữu một kiến trúc phần mềm đồ sộ và hiện đại bậc nhất: phân tách **Microservices qua Kafka**, quản lý **chuỗi cung ứng GDP/GSP**, **kiểm soát Lô/Hạn dùng (FEFO)**, **so sánh chào giá RFQ chống cận date**, và **dashboard đo lường hiệu quả Marketing ROI**.
 
