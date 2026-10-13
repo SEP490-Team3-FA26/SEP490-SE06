@@ -1,4 +1,5 @@
 import os
+import re
 import base64
 import json
 import httpx
@@ -123,9 +124,9 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
             }
         })
 
-    # Giới hạn max_tokens ở mức 1500 vừa đủ cho đơn thuốc JSON và không vượt hạn mức credit
-    current_max_tokens = 1500
-    models_to_try = ["google/gemini-2.5-flash", "google/gemini-2.0-flash-001"]
+    # Giới hạn max_tokens ở mức 1000 vừa đủ cho đơn thuốc JSON và không vượt hạn mức credit tài khoản
+    current_max_tokens = 1000
+    models_to_try = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"]
 
     async with httpx.AsyncClient(timeout=45.0) as client:
         for model in models_to_try:
@@ -162,12 +163,12 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
                         if match:
                             afford = int(match.group(1))
                             if afford > 300:
-                                payload["max_tokens"] = min(afford - 50, 1200)
+                                payload["max_tokens"] = min(afford - 50, 1000)
                                 print(f"OpenRouter tự động hạ max_tokens xuống {payload['max_tokens']} và thử lại...")
                                 continue
-                        # Nếu không parse được afford thì thử hạ xuống 1000
-                        if payload["max_tokens"] > 1000:
-                            payload["max_tokens"] = 1000
+                        # Nếu không parse được afford thì thử hạ xuống 800
+                        if payload["max_tokens"] > 800:
+                            payload["max_tokens"] = 800
                             continue
 
                     print(f"OpenRouter [{model}] attempt {attempt} status {res.status_code}: {res.text[:200]}")
