@@ -21,6 +21,7 @@ export function PharmacistLayout() {
     { name: "Truy xuất Lô & HSD", href: "/pharmacist/lot-tracking", icon: <PackageSearch size={20} /> },
     { name: "Lịch Làm Việc", href: "/pharmacist/schedule", icon: <Calendar size={20} /> },
     { name: "Yêu Cầu Đổi Ca", href: "/pharmacist/shift-swaps", icon: <RefreshCcw size={20} /> },
+    { name: "Đơn Xin Nghỉ Phép", href: "/pharmacist/leave-requests", icon: <Calendar size={20} /> },
     { name: "Báo cáo thống kê", href: "/pharmacist/reports", icon: <BarChart3 size={20} /> },
   ];
 
