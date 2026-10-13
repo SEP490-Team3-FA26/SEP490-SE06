@@ -343,21 +343,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         // Silent error for system notifications
       }
 
-      // 2. Fetch HR notifications
+      // 2. Fetch HR notifications (chỉ fetch khi là tài khoản nhân sự/quản trị)
       try {
-        const hrList = await hrService.listNotifications(50, 0);
-        if (Array.isArray(hrList)) {
-          const hrNotifs: Notification[] = hrList.map((h: any) => ({
-            id: h._id,
-            type: h.type,
-            title: h.title,
-            message: h.message,
-            timestamp: h.createdAt || new Date().toISOString(),
-            read: !!h.isRead,
-            branchId: h.branchId,
-            isHr: true,
-          }));
-          mergedList.push(...hrNotifs);
+        const storedUser = localStorage.getItem('user');
+        const userObj = storedUser ? JSON.parse(storedUser) : null;
+        const role = userObj?.role;
+        const isStaff = role && role !== 'user' && role !== 'customer' && role !== 'guest';
+
+        if (isStaff) {
+          const hrList = await hrService.listNotifications(50, 0);
+          if (Array.isArray(hrList)) {
+            const hrNotifs: Notification[] = hrList.map((h: any) => ({
+              id: h._id,
+              type: h.type,
+              title: h.title,
+              message: h.message,
+              timestamp: h.createdAt || new Date().toISOString(),
+              read: !!h.isRead,
+              branchId: h.branchId,
+              isHr: true,
+            }));
+            mergedList.push(...hrNotifs);
+          }
         }
       } catch (err) {
         // User may not have HR role or HR service unavailable

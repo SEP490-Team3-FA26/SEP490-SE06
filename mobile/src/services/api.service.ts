@@ -1097,6 +1097,22 @@ export class ApiService {
           ...ord,
           id: ord.id || ord._id || ord.orderCode || `order-${idx}`,
           _id: ord._id || ord.id || ord.orderCode || `order-${idx}`,
+          orderCode: ord.orderCode || ord.id || `ORD-${idx}`,
+          customerName: ord.customerName || ord.patientName || 'Khách hàng',
+          phone: ord.phone || ord.patientPhone || '',
+          finalAmount: typeof ord.finalAmount === 'number' ? ord.finalAmount : (ord.totalAmount || 0),
+          totalAmount: typeof ord.totalAmount === 'number' ? ord.totalAmount : (ord.finalAmount || 0),
+          items: (ord.items || []).map((it: any) => ({
+            ...it,
+            cach_dung: it.dosageInstructions || it.cach_dung || it.instructions || '',
+            dosageInstructions: it.dosageInstructions || it.cach_dung || '',
+            so_ngay_dung: it.durationDays || it.so_ngay_dung,
+            durationDays: it.durationDays || it.so_ngay_dung,
+            dosePerTime: it.dosePerTime,
+            timesPerDay: it.timesPerDay,
+            dailyDose: it.dailyDose,
+            baseQuantity: it.baseQuantity,
+          })),
         }));
       }
     } catch (e) {
