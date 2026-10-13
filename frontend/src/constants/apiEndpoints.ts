@@ -305,6 +305,14 @@ export const API_ENDPOINTS = {
     NOTIFICATIONS: '/api/hr/notifications',
     UNREAD_NOTIFICATIONS: '/api/hr/notifications/unread',
     MARK_NOTIFICATION_READ: (id: string) => `/api/hr/notifications/${encodeURIComponent(id)}/mark-read`,
+    CERTIFICATES: '/api/hr/certificates',
+    CERTIFICATES_MINE: '/api/hr/certificates/mine',
+    CERTIFICATES_BRANCH: '/api/hr/certificates/branch',
+    CERTIFICATES_SUMMARY: '/api/hr/certificates/branch/summary',
+    CERTIFICATE_DETAIL: (id: string) => `/api/hr/certificates/${encodeURIComponent(id)}`,
+    CERTIFICATE_APPROVE: (id: string) => `/api/hr/certificates/${encodeURIComponent(id)}/approve`,
+    CERTIFICATE_REJECT: (id: string) => `/api/hr/certificates/${encodeURIComponent(id)}/reject`,
+    CERTIFICATE_UPLOAD: '/api/hr/certificates/upload',
   },
 
   // 📢 Marketing & Campaigns

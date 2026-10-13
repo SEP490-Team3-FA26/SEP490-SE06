@@ -1213,6 +1213,13 @@ export class PurchaseService {
       });
     }
 
+    // Accounts payable must follow quantities actually accepted into stock,
+    // not the quantities originally expected on the PO.
+    grn.totalAmount = grn.items.reduce(
+      (sum, item) => sum + (Number(item.actualQty) || 0) * (Number(item.unitPrice) || 0),
+      0,
+    );
+
     // 2. Record supplier credit if CREDIT
     if (po.paymentType === "CREDIT") {
       try {
@@ -3112,11 +3119,15 @@ export class PurchaseService {
       if (!targetSupplier) {
         throw new RpcException({ message: 'Không tìm thấy thông tin Nhà cung cấp.' });
       }
+      if (targetSupplier.status === 'SUBMITTED') {
+        throw new RpcException({ message: 'Link báo giá đã được sử dụng trước đó.', statusCode: 409 });
+      }
 
       return await this.submitSupplierQuotation(rfq._id.toString(), {
         ...quotationDto,
         supplierId: targetSupplier.supplierId,
         supplierName: targetSupplier.supplierName,
+        submittedViaToken: true,
       });
     } catch (error) {
       throw new RpcException({ message: error.message || 'Lỗi khi gửi báo giá' });
@@ -3166,6 +3177,9 @@ export class PurchaseService {
       // Cập nhật trạng thái targetSupplier tương ứng
       const target = rfq.targetSuppliers.find((s) => s.supplierId === quotationDto.supplierId);
       if (target) {
+        if (quotationDto.submittedViaToken && target.status === 'SUBMITTED') {
+          throw new RpcException({ message: 'Link báo giá đã được sử dụng trước đó.', statusCode: 409 });
+        }
         target.status = 'SUBMITTED';
       }
 

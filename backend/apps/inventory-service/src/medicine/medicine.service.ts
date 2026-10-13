@@ -277,7 +277,7 @@ export class MedicineService implements OnModuleInit {
         stock: totalStock,
         expiry: earliestExpiryStr,
         status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
-        minStock: 50
+        minStock: medicine.safetyStock ?? medicine.reorderPoint ?? 0
       };
       this.logger.log(`[getMedicineById] Returning enriched medicine object: ${JSON.stringify(result)}`);
       return result;
@@ -305,7 +305,7 @@ export class MedicineService implements OnModuleInit {
           initBatch = new this.batchModel({
             medicineId: id,
             batchNo: 'INIT-BATCH',
-            expDate: new Date('2026-12-31'),
+            expDate: medicine.expiry_date ? new Date(medicine.expiry_date) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
             stock: stock,
             status: 'ACTIVE'
           });
@@ -333,7 +333,7 @@ export class MedicineService implements OnModuleInit {
         stock: totalStock,
         expiry: earliestExpiryStr,
         status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
-        minStock: 50
+        minStock: updatedMedicine.safetyStock ?? updatedMedicine.reorderPoint ?? 0
       };
     } catch (error) {
       throw new RpcException(error.message || 'Lỗi cập nhật trạng thái thuốc');
@@ -1103,7 +1103,8 @@ export class MedicineService implements OnModuleInit {
           id: medId,
           stock: totalStock,
           expiry: earliestExpiryStr,
-          status: totalStock > 0 ? 'In Stock' : 'Out of Stock'
+          status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
+          minStock: med.safetyStock ?? med.reorderPoint ?? 0
         };
       });
     } catch (error) {
@@ -1188,17 +1189,18 @@ export class MedicineService implements OnModuleInit {
   }
 
   async completeInventoryCheck(id: string) {
-    const check = await this.checkModel.findById(id).exec();
+    const check = await this.checkModel.findOneAndUpdate(
+      { _id: id, status: { $ne: 'COMPLETED' } },
+      { $set: { status: 'COMPLETED' } },
+      { new: true },
+    ).exec();
     if (!check) {
-      throw new RpcException({ message: `Không tìm thấy biên bản kiểm kê: ${id}` });
-    }
-
-    if (check.status === 'COMPLETED') {
+      const existing = await this.checkModel.findById(id).select('status').lean().exec();
+      if (!existing) {
+        throw new RpcException({ message: `Không tìm thấy biên bản kiểm kê: ${id}` });
+      }
       throw new RpcException({ message: 'Biên bản kiểm kê này đã được hoàn tất trước đó' });
     }
-
-    check.status = 'COMPLETED';
-    await check.save();
 
     await this.applyStockAdjustments(check);
 
@@ -1299,7 +1301,7 @@ export class MedicineService implements OnModuleInit {
       for (const med of medicines) {
         const medId = med._id.toString();
         const stock = stockMap.get(medId) || 0;
-        const minStock = 50;
+        const minStock = (med as any).safetyStock ?? (med as any).reorderPoint ?? 0;
 
         if (stock <= minStock) {
           lowStockMedicines.push({ med, stock, minStock });
@@ -1336,7 +1338,7 @@ export class MedicineService implements OnModuleInit {
           id: medId,
           name: med.name,
           category: med.category || 'Chưa phân loại',
-          price: med.price || 50000,
+          price: med.price ?? 0,
           stock: stock,
           minStock: minStock,
           status: stock > 0 ? 'In Stock' : 'Out of Stock',
@@ -1407,37 +1409,26 @@ export class MedicineService implements OnModuleInit {
         throw new RpcException('Medicine not found');
       }
 
-      let alternatives = [];
-      const orConditions: any[] = [];
-
-      // 1. Điều kiện trùng hoạt chất (kèm dạng bào chế nếu có)
-      if (medicine.active_ingredient) {
-        const activeIngredientCondition: any = { active_ingredient: medicine.active_ingredient };
-        if (medicine.dosage_form) {
-          activeIngredientCondition.dosage_form = medicine.dosage_form;
-        }
-        orConditions.push(activeIngredientCondition);
+      // Theo quy chuẩn Dược lâm sàng & GPP: Thuốc thay thế (Generic substitution) BẮT BUỘC PHẢI CÙNG HOẠT CHẤT (active_ingredient).
+      // Tuyệt đối không gợi ý theo category vì rất nguy hiểm (ví dụ paracetamol thay bằng aspirin/ibuprofen).
+      const rawActive = (medicine.active_ingredient || '').trim();
+      if (!rawActive) {
+        this.logger.warn(`Medicine ${medicine.name} (${medicineId}) does not have active_ingredient. Cannot suggest alternatives.`);
+        return [];
       }
 
-      // 2. Điều kiện trùng danh mục
-      if (medicine.category) {
-        orConditions.push({ category: medicine.category });
-      }
+      const escapedActive = rawActive.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const query: any = {
+        _id: { $ne: medicine._id },
+        active_ingredient: { $regex: new RegExp(`^${escapedActive}$`, 'i') }
+      };
 
-      // Query database 1 lần bằng $or
-      if (orConditions.length > 0) {
-        const query = {
-          _id: { $ne: medicine._id },
-          $or: orConditions
-        };
-        alternatives = await this.medicineModel.find(query).lean().exec();
-      }
-
+      const alternatives = await this.medicineModel.find(query).lean().exec();
       if (alternatives.length === 0) {
         return [];
       }
 
-      // 3. Filter theo tồn kho tại chi nhánh hiện tại (stock > 0)
+      // Filter theo tồn kho tại chi nhánh hiện tại (stock > 0)
       const altIds = alternatives.map(a => a._id.toString());
       const batches = await this.batchModel.find({
         medicineId: { $in: altIds },
@@ -1456,17 +1447,18 @@ export class MedicineService implements OnModuleInit {
         .map(a => ({
           ...a,
           id: a._id.toString(),
+          price: a.price ?? 0,
           stock: stockByMedId.get(a._id.toString())
         }))
         .sort((a, b) => {
-          // 1. Ưu tiên thuốc trùng hoạt chất lên đầu
-          const aMatchesActive = medicine.active_ingredient && a.active_ingredient === medicine.active_ingredient;
-          const bMatchesActive = medicine.active_ingredient && b.active_ingredient === medicine.active_ingredient;
-          if (aMatchesActive && !bMatchesActive) return -1;
-          if (!aMatchesActive && bMatchesActive) return 1;
+          // 1. Ưu tiên thuốc cùng dạng bào chế (dosage_form) lên trước
+          const aMatchesForm = medicine.dosage_form && a.dosage_form && a.dosage_form.toLowerCase() === medicine.dosage_form.toLowerCase();
+          const bMatchesForm = medicine.dosage_form && b.dosage_form && b.dosage_form.toLowerCase() === medicine.dosage_form.toLowerCase();
+          if (aMatchesForm && !bMatchesForm) return -1;
+          if (!aMatchesForm && bMatchesForm) return 1;
 
-          // 2. Nếu cùng mức độ ưu tiên hoạt chất, ưu tiên thuốc có tồn kho nhiều nhất
-          return b.stock - a.stock;
+          // 2. Tiếp theo ưu tiên thuốc có tồn kho nhiều nhất
+          return (b.stock || 0) - (a.stock || 0);
         });
 
       return availableAlternatives;
@@ -1690,7 +1682,7 @@ export class MedicineService implements OnModuleInit {
           branchId: b.branchId || 'CENTRAL_WH',
           batchNo: b.batchNo || 'UNKNOWN-BATCH',
           stock: b.stock || 0,
-          expDate: b.expDate ? new Date(b.expDate).toISOString() : '2026-12-31'
+          expDate: b.expDate ? new Date(b.expDate).toISOString() : null
         }));
 
         data.push({
@@ -2362,17 +2354,6 @@ export class MedicineService implements OnModuleInit {
           { 'units.barcode': { $in: searchCodes } }
         ]
       }).lean().exec();
-
-      // Smart Fallback: Nếu ảnh trên mạng hoặc barcode scan lệch Check Digit ở số cuối, khớp theo tiền tố 12 số GS1
-      if (!medicine && cleanBarcode.length === 13) {
-        const prefix12 = cleanBarcode.slice(0, 12);
-        medicine = await this.medicineModel.findOne({
-          $or: [
-            { barcode: new RegExp(`^${prefix12}`) },
-            { 'units.barcode': new RegExp(`^${prefix12}`) }
-          ]
-        }).lean().exec();
-      }
 
       if (!medicine) {
         return {

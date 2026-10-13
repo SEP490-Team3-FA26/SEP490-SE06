@@ -28,6 +28,30 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   unit?: string;
+
+  @IsNumber()
+  @IsOptional()
+  exchangeValue?: number;
+
+  @IsNumber()
+  @IsOptional()
+  dosePerTime?: number;
+
+  @IsNumber()
+  @IsOptional()
+  timesPerDay?: number;
+
+  @IsNumber()
+  @IsOptional()
+  dailyDose?: number;
+
+  @IsNumber()
+  @IsOptional()
+  durationDays?: number;
+
+  @IsString()
+  @IsOptional()
+  dosageInstructions?: string;
 }
 
 export class CreateOrderDto {
@@ -88,7 +112,7 @@ export class CreateOrderDto {
   @IsOptional()
   cancelUrl?: string;
 
-  // AI-beslissingsondersteuning en auditspoor
+  // AI decision-support audit trail
   @IsBoolean()
   @IsOptional()
   isAiAssisted?: boolean;
@@ -104,6 +128,14 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   pharmacistApprovedBy?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedBy?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedAt?: string;
 }
 
 export class CreatePayOSLinkDto {
@@ -165,7 +197,7 @@ export class CreatePayOSLinkDto {
   @IsOptional()
   cancelUrl?: string;
 
-  // AI-beslissingsondersteuning en auditspoor
+  // AI decision-support audit trail
   @IsBoolean()
   @IsOptional()
   isAiAssisted?: boolean;
@@ -181,4 +213,12 @@ export class CreatePayOSLinkDto {
   @IsString()
   @IsOptional()
   pharmacistApprovedBy?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedBy?: string;
+
+  @IsString()
+  @IsOptional()
+  approvedAt?: string;
 }

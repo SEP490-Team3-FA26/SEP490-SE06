@@ -84,13 +84,32 @@ export class User extends Document {
   @Prop({ default: 'Bronze' })
   tier?: string;
 
-  /** Tiền sử dị ứng thuốc/hoạt chất (dùng cho AI kiểm tra và cảnh báo an toàn lâm sàng) */
+  /** Tiền sử dị ứng thuốc/hoạt chất */
   @Prop({ type: [String], default: [] })
   allergies?: string[];
 
-  /** Tiền sử bệnh mãn tính (tiểu đường, tăng huyết áp... để AI kiểm tra chống chỉ định khi kê đơn) */
+  /** Tiền sử bệnh mãn tính */
   @Prop({ type: [String], default: [] })
   chronicConditions?: string[];
+
+  @Prop({ type: [String], default: [], select: false })
+  loyaltyOperationKeys?: string[];
+
+  /** Trình độ bằng cấp chuyên môn cao nhất được duyệt (VD: Dược sĩ Đại học, Dược sĩ Cao đẳng) */
+  @Prop({ default: null })
+  highestDegree?: string;
+
+  /** Số hiệu Chứng chỉ hành nghề Dược (CCHN) đã được thẩm định */
+  @Prop({ default: null })
+  practiceCertificateNumber?: string;
+
+  /** Tổng mức phụ cấp văn bằng & CCHN hàng tháng (VNĐ) */
+  @Prop({ default: 0 })
+  certificateAllowance?: number;
+
+  /** Xác định Dược sĩ chịu trách nhiệm chuyên môn chính (PTCM) cho Chi nhánh */
+  @Prop({ default: false })
+  isBranchPIC?: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

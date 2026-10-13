@@ -39,6 +39,7 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { GoogleStrategy } from "./strategies/google.strategy";
 import { S3StorageService } from "./storage/s3-storage.service";
+import { CloudinaryStorageService } from "./storage/cloudinary-storage.service";
 import { ReportService } from "./services/report.service";
 import { WebsocketModule } from "./websocket/websocket.module";
 import { NotificationModule } from "./notification/notification.module";
@@ -217,6 +218,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     JwtStrategy,
     GoogleStrategy,
     S3StorageService,
+    CloudinaryStorageService,
     ReportService,
     RedactionService,
     AuditFallbackProcessor,
@@ -380,6 +382,14 @@ export class AppGatewayModule implements OnModuleInit {
       "hr.notification.list",
       "hr.notification.mark_read",
       "hr.notification.unread_count",
+      "hr.certificate.submit",
+      "hr.certificate.my_list",
+      "hr.certificate.update",
+      "hr.certificate.delete",
+      "hr.certificate.branch_list",
+      "hr.certificate.approve",
+      "hr.certificate.reject",
+      "hr.certificate.branch_summary",
     ];
 
     // 4. ORDER_SERVICE Reply Topics

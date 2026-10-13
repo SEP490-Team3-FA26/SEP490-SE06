@@ -10,6 +10,7 @@ process.on('uncaughtException', (err) => {
 });
 
 async function bootstrap() {
+  // Khoi tao User Microservice voi tinh nang tham dinh bang cap
   process.env.KAFKAJS_NO_PARTITIONER_WARNING = '1';
   let retries = 10;
   while (retries > 0) {

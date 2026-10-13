@@ -104,7 +104,7 @@ export class ApiService {
     if (Array.isArray(m.batches)) {
       batchesList = m.batches.map((b: any) => ({
         batchNo: b.batchNo || 'Lô KD',
-        expDate: b.expDate || '2026-12-31',
+        expDate: b.expDate || '',
         stock: typeof b.stock === 'number' ? b.stock : parseInt(b.stock, 10) || 0,
         status: b.status || 'ACTIVE',
       }));
@@ -152,7 +152,7 @@ export class ApiService {
       id: m.id || m._id || '',
       _id: m._id || m.id,
       name: m.name || 'Thuốc chưa đặt tên',
-      price: typeof m.price === 'number' ? m.price : parseInt(m.price, 10) || 50000,
+      price: typeof m.price === 'number' ? m.price : parseInt(m.price, 10) || 0,
       unit: m.unit || 'Hộp',
       sku: m.sku || m.code || '',
       barcode: resolvedBarcode,
@@ -1012,6 +1012,22 @@ export class ApiService {
           ...ord,
           id: ord.id || ord._id || ord.orderCode || `order-${idx}`,
           _id: ord._id || ord.id || ord.orderCode || `order-${idx}`,
+          orderCode: ord.orderCode || ord.id || `ORD-${idx}`,
+          customerName: ord.customerName || ord.patientName || 'Khách hàng',
+          phone: ord.phone || ord.patientPhone || '',
+          finalAmount: typeof ord.finalAmount === 'number' ? ord.finalAmount : (ord.totalAmount || 0),
+          totalAmount: typeof ord.totalAmount === 'number' ? ord.totalAmount : (ord.finalAmount || 0),
+          items: (ord.items || []).map((it: any) => ({
+            ...it,
+            cach_dung: it.dosageInstructions || it.cach_dung || it.instructions || '',
+            dosageInstructions: it.dosageInstructions || it.cach_dung || '',
+            so_ngay_dung: it.durationDays || it.so_ngay_dung,
+            durationDays: it.durationDays || it.so_ngay_dung,
+            dosePerTime: it.dosePerTime,
+            timesPerDay: it.timesPerDay,
+            dailyDose: it.dailyDose,
+            baseQuantity: it.baseQuantity,
+          })),
         }));
       }
     } catch (e) {
