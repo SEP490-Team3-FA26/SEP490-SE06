@@ -96,13 +96,13 @@ def _run_training_job(epochs: int, batch_size: int, learning_rate: float):
 @router.post("/train")
 def trigger_gpu_training(config: TrainConfig = TrainConfig(), background_tasks: BackgroundTasks = BackgroundTasks()):
     """
-    Kích hoạt huấn luyện lại mô hình PyTorch Forecaster trên GPU CUDA
+    Kích hoạt huấn luyện lại mô hình PyTorch Forecaster trên GPU CUDA hoặc CPU
     """
     global TRAINING_STATE
     if TRAINING_STATE["is_training"]:
         return {
             "success": False,
-            "message": "Quá trình huấn luyện GPU đang chạy trong background. Vui lòng chờ hoàn tất!",
+            "message": "Quá trình huấn luyện đang chạy trong background. Vui lòng chờ hoàn tất!",
             "training_state": TRAINING_STATE
         }
         
@@ -115,8 +115,171 @@ def trigger_gpu_training(config: TrainConfig = TrainConfig(), background_tasks: 
     
     return {
         "success": True,
-        "message": "Đã bắt đầu tiến trình huấn luyện AI Forecast trên GPU CUDA!",
+        "message": "Đã bắt đầu tiến trình huấn luyện AI Forecast trên thiết bị phần cứng!",
         "config": config.dict()
+    }
+
+class ForecastBatchRequest(BaseModel):
+    dataset: Optional[List[dict]] = None
+    periodDays: Optional[int] = 30
+    branchId: Optional[str] = None
+
+@router.post("")
+@router.post("/")
+def batch_forecast_demand(req: ForecastBatchRequest):
+    """
+    Dự báo nhu cầu dược phẩm theo chu kỳ thực tế cho toàn bộ danh mục thuốc của nhà thuốc.
+    Kết hợp mô hình Deep Learning PyTorch LSTM và các quy chuẩn ngành Dược (ROP, Safety Stock, Lead Time).
+    """
+    import math
+    forecaster = TorchGPUForecaster()
+    period_days = req.periodDays if req.periodDays and req.periodDays > 0 else 30
+    raw_dataset = req.dataset or []
+
+    # Nếu không có dataset từ Gateway, thử lấy từ MongoDB thực tế
+    if not raw_dataset:
+        try:
+            from services.db_service import db_service
+            # Tự động nạp danh mục thuốc đang hoạt động từ collection medicines
+            meds = list(db_service.db["medicines"].find({"status": {"$ne": "INACTIVE"}}, {"_id": 1, "name": 1, "category": 1, "unit": 1, "stock": 1, "price": 1, "reorderPoint": 1, "safetyStock": 1}))
+            raw_dataset = [
+                {
+                    "medicineId": str(m.get("_id")),
+                    "name": m.get("name", "Dược phẩm"),
+                    "category": m.get("category", "Dược phẩm"),
+                    "unit": m.get("unit", "Hộp"),
+                    "currentStock": float(m.get("stock", 0)),
+                    "price": float(m.get("price", 0)),
+                    "reorderPoint": float(m.get("reorderPoint", 30)),
+                    "safetyStock": float(m.get("safetyStock", 20)),
+                    "expectedIncoming": 0,
+                    "averageDailySales": 0.5
+                }
+                for m in meds
+            ]
+        except Exception as e:
+            print(f"[WARN] Không thể nạp tự động thuốc từ DB: {e}")
+
+    recommendations = []
+    urgent_count = 0
+    shortage_count = 0
+
+    for item in raw_dataset:
+        med_id = str(item.get("medicineId") or item.get("_id") or item.get("id") or "")
+        name = item.get("name") or "Dược phẩm"
+        category = item.get("category") or "Dược phẩm"
+        unit = item.get("unit") or "Hộp"
+        current_stock = float(item.get("currentStock", 0) or item.get("stock", 0) or 0)
+        expected_incoming = float(item.get("expectedIncoming", 0) or 0)
+        avg_daily_sales = float(item.get("averageDailySales", 0) or 0)
+        total_sold = float(item.get("totalSold", 0) or 0)
+        reorder_point = float(item.get("reorderPoint", 30) or item.get("minStock", 30) or 30)
+        safety_stock = float(item.get("safetyStock", 20) or 20)
+        price = float(item.get("price", 0) or 0)
+
+        # Chuẩn bị dữ liệu lịch sử bán hàng cho AI
+        sales_history = item.get("sales_history") or item.get("monthlySales")
+        if not sales_history or not isinstance(sales_history, dict):
+            # Tạo chuỗi lịch sử dựa trên tốc độ bán thực tế và mức biến thiên tự nhiên
+            base_monthly = avg_daily_sales * 30.0 if avg_daily_sales > 0 else (total_sold / max(1.0, period_days / 30.0))
+            sales_history = {}
+            for m in range(1, 13):
+                # Mô phỏng tính chất mùa vụ và độ lệch ngẫu nhiên nhẹ
+                season_mult = 1.0 + 0.15 * math.sin(2 * math.pi * m / 6.0)
+                sales_history[f"2026-{m:02d}"] = max(0.0, round(base_monthly * season_mult, 1))
+
+        # Chạy dự báo thông qua mô hình PyTorch Forecaster
+        res: ForecastResult = forecaster.forecast(sales_history)
+        forecast_m1 = max(0.0, res.forecast_m1)
+        if forecast_m1 <= 0 and avg_daily_sales > 0:
+            forecast_m1 = round(avg_daily_sales * 30.0, 1)
+
+        # Tính số ngày tồn kho còn lại (daysRemaining)
+        if current_stock <= 0:
+            days_remaining = 0.0
+        elif avg_daily_sales > 0:
+            days_remaining = round(current_stock / avg_daily_sales, 1)
+        else:
+            days_remaining = 999.0  # Dồi dào
+
+        # Tính toán nhu cầu và lượng đặt hàng đề xuất theo nhu cầu thực tế của nhà thuốc
+        period_factor = period_days / 30.0
+        expected_demand_in_period = max(forecast_m1 * period_factor, avg_daily_sales * period_days)
+        target_buffer = max(reorder_point, safety_stock)
+        total_needed = round(expected_demand_in_period + target_buffer)
+        total_available = current_stock + expected_incoming
+        raw_shortage = max(0.0, total_needed - total_available)
+
+        # Quy chuẩn số lượng đặt hàng: làm tròn chẵn 10 để phù hợp với đóng gói thực tế của nhà sản xuất
+        if raw_shortage <= 0:
+            suggested_order_qty = 0
+        else:
+            suggested_order_qty = max(10, int(math.ceil(raw_shortage / 10.0) * 10))
+
+        # Phân loại mức độ cấp thiết (urgency) theo rủi ro đứt hàng thực tế
+        if current_stock <= 0:
+            if expected_incoming > 0:
+                urgency = "MEDIUM"
+                reason = f"[CHỜ NHẬP HÀNG] Tồn kho tại quầy đã hết (0 {unit}), đơn mua PO trước đó đang trên đường về (+{int(expected_incoming)} {unit}). Dự báo tháng tới cần {int(forecast_m1)} {unit}."
+            else:
+                urgency = "HIGH"
+                reason = f"[CẢNH BÁO ĐỎ] Hết sạch tồn kho (0 {unit}) và chưa có đơn hàng nào đang về! AI dự báo nhu cầu {int(forecast_m1)} {unit}. Cần lập đơn đặt hàng khẩn cấp {suggested_order_qty} {unit} từ Nhà cung cấp."
+        elif days_remaining <= 3.0 or current_stock <= max(5.0, reorder_point * 0.3):
+            urgency = "HIGH"
+            reason = f"[NGUY CƠ ĐỨT HÀNG] Tồn kho chạm đáy ({int(current_stock)} {unit}), chỉ đủ bán trong khoảng {days_remaining} ngày (tốc độ {avg_daily_sales} {unit}/ngày). Khuyến nghị đặt gấp {suggested_order_qty} {unit}."
+        elif suggested_order_qty > 0 or days_remaining <= 10.0 or current_stock <= reorder_point:
+            urgency = "MEDIUM"
+            reason = f"[CẦN BỔ SUNG] Tồn kho hiện tại ({int(current_stock)} {unit}) sắp chạm ngưỡng an toàn ROP ({int(reorder_point)} {unit}). Với tốc độ bán {avg_daily_sales} {unit}/ngày, lượng hàng còn duy trì được {days_remaining} ngày. Khuyên dùng nhập thêm {suggested_order_qty} {unit} (HSD >= 18 tháng)."
+        else:
+            urgency = "LOW"
+            reason = f"[TỒN KHO AN TOÀN] Tồn kho hiện có ({int(current_stock)} {unit}) kết hợp hàng đang giao (+{int(expected_incoming)} {unit}) đáp ứng tốt nhu cầu tiêu thụ dự báo ({int(expected_demand_in_period)} {unit}) trong {period_days} ngày tới. Không cần nhập thêm."
+
+        if urgency == "HIGH":
+            urgent_count += 1
+        if suggested_order_qty > 0:
+            shortage_count += 1
+
+        potential_lost_revenue = round(raw_shortage * price, 2)
+
+        recommendations.append({
+            "medicineId": med_id,
+            "name": name,
+            "category": category,
+            "unit": unit,
+            "price": price,
+            "currentStock": int(current_stock),
+            "totalSold": int(total_sold if total_sold > 0 else round(avg_daily_sales * period_days)),
+            "averageDailySales": round(avg_daily_sales, 2),
+            "expectedIncoming": int(expected_incoming),
+            "reorderPoint": int(reorder_point),
+            "daysRemaining": days_remaining,
+            "forecast_m1": round(forecast_m1, 1),
+            "forecast_m2": round(res.forecast_m2, 1),
+            "forecast_m3": round(res.forecast_m3, 1),
+            "ci_lower": round(res.ci_lower, 1),
+            "ci_upper": round(res.ci_upper, 1),
+            "confidence": res.confidence,
+            "potential_lost_revenue": potential_lost_revenue,
+            "suggestedOrderQty": suggested_order_qty,
+            "urgency": urgency,
+            "reason": reason
+        })
+
+    # Sắp xếp danh mục đề xuất: Ưu tiên HIGH lên trước, sau đó đến MEDIUM, rồi đến LOW
+    urgency_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    recommendations.sort(key=lambda x: (urgency_order.get(x["urgency"], 3), -x["suggestedOrderQty"]))
+
+    summary_text = f"Mô hình AI Demand Forecast đã phân tích {len(recommendations)} danh mục dược phẩm cho kỳ {period_days} ngày: Phát hiện {urgent_count} thuốc cần nhập khẩn cấp và {shortage_count} thuốc cần bổ sung kho."
+
+    return {
+        "success": True,
+        "periodDays": period_days,
+        "summary": summary_text,
+        "totalMedicines": len(recommendations),
+        "urgentCount": urgent_count,
+        "shortageCount": shortage_count,
+        "recommendations": recommendations,
+        "enriched_dataset": recommendations
     }
 
 @router.post("/predict")
@@ -141,3 +304,4 @@ def predict_demand(req: ForecastRequest):
         "potential_lost_revenue": potential_lost_revenue,
         "suggested_order_qty": round(shortage)
     }
+

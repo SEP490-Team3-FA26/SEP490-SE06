@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
   Send,
@@ -22,7 +23,13 @@ import {
   Package,
   Copy,
   Link,
-  Share2
+  Share2,
+  Filter,
+  Check,
+  Trash2,
+  Warehouse,
+  Zap,
+  RotateCcw
 } from 'lucide-react';
 import {
   rfqService,
@@ -35,6 +42,7 @@ import { supplierService, Supplier } from '../../services/purchase/supplier.serv
 import { medicineService } from '../../services/inventory/medicine.service';
 
 export function RFQManagement() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rfqs, setRfqs] = useState<RequestForQuotationData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -57,10 +65,15 @@ export function RFQManagement() {
   const [formPaymentTerms, setFormPaymentTerms] = useState<number>(30);
   const [formNotes, setFormNotes] = useState<string>('');
   const [selectedMedicineIds, setSelectedMedicineIds] = useState<
-    { medicineId: string; medicineName: string; sku: string; unit: string; quantityRequested: number; targetPrice: number }[]
+    { medicineId: string; medicineName: string; sku: string; unit: string; currentStock?: number; quantityRequested: number; targetPrice: number }[]
   >([]);
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // States bộ lọc & tìm kiếm danh mục dược phẩm đồng bộ bên kho
+  const [medSearchQuery, setMedSearchQuery] = useState<string>('');
+  const [selectedMedCategory, setSelectedMedCategory] = useState<string>('all');
+  const [medStockFilter, setMedStockFilter] = useState<'all' | 'out_of_stock' | 'low_stock'>('all');
 
   // Manual Add Quote State
   const [quoteSupplierId, setQuoteSupplierId] = useState<string>('');
@@ -77,7 +90,7 @@ export function RFQManagement() {
       const [rfqList, suppList, medList] = await Promise.all([
         rfqService.getRfqs(),
         supplierService.getSuppliers().catch(() => []),
-        medicineService.getMedicines({ limit: 100 }).catch(() => ({ data: [] })),
+        medicineService.getMedicines({ limit: 500 }).catch(() => ({ data: [] })),
       ]);
       setRfqs(Array.isArray(rfqList) ? rfqList : []);
       setSuppliers(Array.isArray(suppList) ? suppList : (suppList as any)?.data || []);
@@ -93,6 +106,40 @@ export function RFQManagement() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Xử lý tự động prefill thuốc cần chào giá từ Kho hoặc AI Forecast qua URL query
+  useEffect(() => {
+    const openCreate = searchParams.get('openCreateRFQ');
+    const prefillStr = searchParams.get('prefillMeds');
+    if (openCreate === 'true') {
+      if (prefillStr) {
+        try {
+          const decoded = JSON.parse(decodeURIComponent(prefillStr));
+          if (Array.isArray(decoded) && decoded.length > 0) {
+            const prefillList = decoded.map((d: any) => ({
+              medicineId: d.medicineId || d._id || d.id,
+              medicineName: d.name || d.medicineName,
+              sku: d.sku || d.barcode || '',
+              unit: d.unit || 'Hộp',
+              currentStock: Number(d.currentStock || d.stock || 0),
+              quantityRequested: Number(d.suggestedOrderQty || d.quantityRequested || d.quantity || 100),
+              targetPrice: Number(d.price || d.targetPrice || d.unitPrice || 0),
+            }));
+            setSelectedMedicineIds(prefillList);
+            setFormTitle(`Đợt chào giá nhập bổ sung kho - ${new Date().toLocaleDateString('vi-VN')}`);
+          }
+        } catch (e) {
+          console.error('Failed to parse prefillMeds parameter', e);
+        }
+      }
+      setShowCreateModal(true);
+      setSearchParams((prev) => {
+        prev.delete('openCreateRFQ');
+        prev.delete('prefillMeds');
+        return prev;
+      }, { replace: true });
+    }
+  }, [searchParams, medicines]);
 
   // Filtered RFQs
   const filteredRfqs = useMemo(() => {
@@ -126,23 +173,61 @@ export function RFQManagement() {
     }
   };
 
-  // Open Create Modal
+  // Trích xuất danh sách danh mục (category) từ medicines
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    medicines.forEach((m) => {
+      if (m.category) set.add(m.category.trim());
+    });
+    return Array.from(set).sort();
+  }, [medicines]);
+
+  // Bộ lọc danh mục dược phẩm đồng bộ như bên kho
+  const filteredCatalogMedicines = useMemo(() => {
+    return medicines.filter((m) => {
+      const q = medSearchQuery.toLowerCase().trim();
+      const nameMatch = (m.name || '').toLowerCase().includes(q);
+      const skuMatch = (m.sku || m.barcode || '').toLowerCase().includes(q);
+      const ingredientMatch = (m.ingredient || m.activeIngredient || '').toLowerCase().includes(q);
+      const matchSearch = !q || nameMatch || skuMatch || ingredientMatch;
+
+      const matchCategory = selectedMedCategory === 'all' || (m.category || '').trim() === selectedMedCategory;
+
+      const stock = Number(m.stock || 0);
+      const reorderPoint = Number(m.reorderPoint || m.minStock || 30);
+      let matchStock = true;
+      if (medStockFilter === 'out_of_stock') {
+        matchStock = stock <= 0;
+      } else if (medStockFilter === 'low_stock') {
+        matchStock = stock <= reorderPoint;
+      }
+
+      return matchSearch && matchCategory && matchStock;
+    });
+  }, [medicines, medSearchQuery, selectedMedCategory, medStockFilter]);
+
+  // Mở modal tạo RFQ
   const openCreateModal = () => {
-    setFormTitle('');
+    setFormTitle(`Yêu cầu báo giá dược phẩm - ${new Date().toLocaleDateString('vi-VN')}`);
     setFormDeadline(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-    setFormMinShelfLife(12);
+    setFormMinShelfLife(18);
     setFormPaymentTerms(30);
     setFormNotes('');
+    setMedSearchQuery('');
+    setSelectedMedCategory('all');
+    setMedStockFilter('all');
     setSelectedMedicineIds([]);
     setSelectedSupplierIds([]);
     setShowCreateModal(true);
   };
 
-  // Add Item in Create Form
+  // Thêm thuốc từ danh mục kho vào danh sách chào giá
   const handleAddMedicineToRfq = (medId: string) => {
     const med = medicines.find((m) => (m._id || m.id) === medId);
     if (!med) return;
     if (selectedMedicineIds.some((item) => item.medicineId === medId)) return;
+    const stock = Number(med.stock || 0);
+    const defaultQty = stock <= 0 ? 100 : 50;
     setSelectedMedicineIds((prev) => [
       ...prev,
       {
@@ -150,10 +235,47 @@ export function RFQManagement() {
         medicineName: med.name,
         sku: med.sku || med.barcode || '',
         unit: med.unit || (med.units?.[0]?.unitName) || 'Hộp',
-        quantityRequested: 1,
+        currentStock: stock,
+        quantityRequested: defaultQty,
         targetPrice: med.price || 0,
       },
     ]);
+  };
+
+  // Chọn hàng loạt các thuốc đang thiếu hụt (Hết hàng hoặc Tồn < ROP) vào RFQ
+  const handleAddAllShortageMedicines = () => {
+    const shortageMeds = medicines.filter((m) => {
+      const stock = Number(m.stock || 0);
+      const reorderPoint = Number(m.reorderPoint || m.minStock || 30);
+      return stock <= reorderPoint;
+    });
+
+    if (shortageMeds.length === 0) {
+      alert("Tất cả dược phẩm trong kho hiện tại đều đang ở mức an toàn!");
+      return;
+    }
+
+    const newItems = shortageMeds
+      .filter((m) => !selectedMedicineIds.some((it) => it.medicineId === (m._id || m.id)))
+      .map((m) => {
+        const stock = Number(m.stock || 0);
+        return {
+          medicineId: m._id || m.id,
+          medicineName: m.name,
+          sku: m.sku || m.barcode || '',
+          unit: m.unit || (m.units?.[0]?.unitName) || 'Hộp',
+          currentStock: stock,
+          quantityRequested: stock <= 0 ? 100 : 50,
+          targetPrice: m.price || 0,
+        };
+      });
+
+    if (newItems.length === 0) {
+      alert("Tất cả các thuốc thiếu hụt đã có trong danh sách chào giá.");
+      return;
+    }
+
+    setSelectedMedicineIds((prev) => [...prev, ...newItems]);
   };
 
   // Submit Create RFQ
@@ -527,7 +649,7 @@ export function RFQManagement() {
       {/* MODAL 1: TẠO RFQ MỚI */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
               <div className="flex items-center gap-2">
                 <FileText size={20} className="text-blue-400" />
@@ -589,70 +711,314 @@ export function RFQManagement() {
                 </div>
               </div>
 
-              {/* Danh sách thuốc cần mua */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Package size={14} className="text-blue-600" />
-                    Danh mục thuốc cần chào giá ({selectedMedicineIds.length})
-                  </span>
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleAddMedicineToRfq(e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1 font-semibold text-blue-600 outline-none"
+              {/* DANH MỤC DƯỢC PHẨM ĐỒNG BỘ NHƯ BÊN KHO ĐỂ BÁO GIÁ */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Warehouse size={15} className="text-blue-600" />
+                      Danh Mục Dược Phẩm Bên Kho ({filteredCatalogMedicines.length}/{medicines.length})
+                    </span>
+                    <p className="text-[11px] text-slate-500">Tra cứu tồn kho thực tế và chọn các mặt hàng cần nhà cung cấp gửi báo giá</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddAllShortageMedicines}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                    title="Tự động chọn toàn bộ thuốc đang hết hàng hoặc sắp hết hàng vào danh sách chào giá"
                   >
-                    <option value="">+ Thêm thuốc từ danh mục...</option>
-                    {medicines.map((m) => (
-                      <option key={m._id || m.id} value={m._id || m.id}>
-                        {m.name} ({m.unit || 'Hộp'})
-                      </option>
-                    ))}
-                  </select>
+                    <Zap size={13} className="text-amber-600" />
+                    + Thêm tất cả thuốc thiếu hụt
+                  </button>
                 </div>
 
-                {selectedMedicineIds.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic text-center py-3">
-                    Chưa chọn thuốc nào. Hãy chọn thuốc từ danh mục ở trên.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedMedicineIds.map((item, idx) => (
-                      <div key={item.medicineId} className="flex items-center gap-2 bg-white p-2.5 rounded-lg border border-slate-200 text-xs">
-                        <span className="w-5 text-slate-400 font-bold">{idx + 1}.</span>
-                        <div className="flex-1">
-                          <span className="font-bold text-slate-800 block">{item.medicineName}</span>
-                          <span className="text-[10px] text-slate-400">{item.sku} • {item.unit}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[11px] text-slate-500">SL:</span>
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.quantityRequested}
-                            onChange={(e) => {
-                              const val = Math.max(1, parseInt(e.target.value) || 1);
-                              setSelectedMedicineIds((prev) =>
-                                prev.map((it) => (it.medicineId === item.medicineId ? { ...it, quantityRequested: val } : it))
-                              );
-                            }}
-                            className="w-16 px-2 py-1 text-xs border rounded font-bold"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedMedicineIds((prev) => prev.filter((it) => it.medicineId !== item.medicineId))}
-                          className="text-slate-400 hover:text-red-600 p-1"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
+                {/* Thanh công cụ tìm kiếm và lọc danh mục như bên kho */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs">
+                  <div className="md:col-span-6 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input
+                      type="text"
+                      placeholder="Tìm theo tên thuốc, mã SKU, hoạt chất..."
+                      value={medSearchQuery}
+                      onChange={(e) => setMedSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {medSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setMedSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
-                )}
+
+                  <div className="md:col-span-3">
+                    <select
+                      value={selectedMedCategory}
+                      onChange={(e) => setSelectedMedCategory(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+                    >
+                      <option value="all">Tất cả nhóm dược lý</option>
+                      {availableCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-3 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setMedStockFilter('all')}
+                      className={`flex-1 py-2 text-[11px] font-bold rounded-lg border transition-all ${
+                        medStockFilter === 'all'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      Tất cả
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMedStockFilter('out_of_stock')}
+                      className={`flex-1 py-2 text-[11px] font-bold rounded-lg border transition-all ${
+                        medStockFilter === 'out_of_stock'
+                          ? 'bg-red-600 text-white border-red-600'
+                          : 'bg-white text-red-600 border-slate-200 hover:bg-red-50'
+                      }`}
+                      title="Thuốc có tồn kho bằng 0"
+                    >
+                      Hết hàng
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMedStockFilter('low_stock')}
+                      className={`flex-1 py-2 text-[11px] font-bold rounded-lg border transition-all ${
+                        medStockFilter === 'low_stock'
+                          ? 'bg-amber-600 text-white border-amber-600'
+                          : 'bg-white text-amber-700 border-slate-200 hover:bg-amber-50'
+                      }`}
+                      title="Thuốc có tồn kho dưới ngưỡng an toàn ROP"
+                    >
+                      Sắp hết
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bảng danh mục dược phẩm bên kho */}
+                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                  <div className="max-h-56 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 z-10 text-[11px]">
+                        <tr>
+                          <th className="py-2 px-3">Tên dược phẩm & Hoạt chất</th>
+                          <th className="py-2 px-3">SKU / Nhóm</th>
+                          <th className="py-2 px-3 text-center">ĐVT</th>
+                          <th className="py-2 px-3 text-center">Tồn kho</th>
+                          <th className="py-2 px-3 text-right">Giá tham chiếu</th>
+                          <th className="py-2 px-3 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredCatalogMedicines.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-6 text-slate-400 italic">
+                              Không tìm thấy dược phẩm nào khớp với điều kiện lọc.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredCatalogMedicines.slice(0, 50).map((med) => {
+                            const medId = med._id || med.id;
+                            const isSelected = selectedMedicineIds.some((it) => it.medicineId === medId);
+                            const stock = Number(med.stock || 0);
+                            const reorderPoint = Number(med.reorderPoint || med.minStock || 30);
+
+                            return (
+                              <tr key={medId} className={`hover:bg-blue-50/40 transition-colors ${isSelected ? 'bg-blue-50/20' : ''}`}>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-slate-900 block">{med.name}</span>
+                                  {(med.ingredient || med.activeIngredient) && (
+                                    <span className="text-[10px] text-slate-400 block line-clamp-1">
+                                      {med.ingredient || med.activeIngredient}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className="font-mono text-[10px] text-slate-500 block">{med.sku || med.barcode || 'N/A'}</span>
+                                  <span className="text-[10px] text-blue-600 block line-clamp-1">{med.category || 'Chung'}</span>
+                                </td>
+                                <td className="py-2 px-3 text-center font-medium text-slate-700">
+                                  {med.unit || (med.units?.[0]?.unitName) || 'Hộp'}
+                                </td>
+                                <td className="py-2 px-3 text-center">
+                                  {stock <= 0 ? (
+                                    <span className="bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                      Hết hàng (0)
+                                    </span>
+                                  ) : stock <= reorderPoint ? (
+                                    <span className="bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                      Tồn thấp ({stock})
+                                    </span>
+                                  ) : (
+                                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                      Còn hàng ({stock})
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-right font-semibold text-slate-700">
+                                  {Number(med.price || 0).toLocaleString('vi-VN')} đ
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  {isSelected ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold px-2 py-1 bg-emerald-50 rounded">
+                                      <Check size={13} /> Đã chọn
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddMedicineToRfq(medId)}
+                                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold rounded text-xs transition-colors inline-flex items-center gap-1 shadow-sm"
+                                    >
+                                      <Plus size={12} /> Thêm
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* DANH SÁCH CÁC MẶT HÀNG ĐÃ CHỌN ĐỂ YÊU CẦU BÁO GIÁ */}
+                <div className="border-t border-slate-200 pt-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Package size={14} className="text-indigo-600" />
+                      Danh mục thuốc đã chọn gửi báo giá ({selectedMedicineIds.length} mặt hàng)
+                    </span>
+                    {selectedMedicineIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMedicineIds([])}
+                        className="text-[11px] text-red-600 hover:underline flex items-center gap-0.5"
+                      >
+                        <Trash2 size={11} /> Xóa tất cả
+                      </button>
+                    )}
+                  </div>
+
+                  {selectedMedicineIds.length === 0 ? (
+                    <div className="bg-white p-5 rounded-lg border border-dashed border-slate-300 text-center text-slate-400 text-xs">
+                      Chưa chọn dược phẩm nào. Hãy bấm <strong>"+ Thêm"</strong> từ danh mục kho ở trên.
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
+                          <tr>
+                            <th className="py-2 px-3 w-8">#</th>
+                            <th className="py-2 px-3">Tên thuốc & Quy cách</th>
+                            <th className="py-2 px-3 text-center">Tồn kho</th>
+                            <th className="py-2 px-3 text-center w-28">SL cần chào</th>
+                            <th className="py-2 px-3 text-right w-36">Giá trần mục tiêu</th>
+                            <th className="py-2 px-3 text-right">Dự toán</th>
+                            <th className="py-2 px-2 text-center w-8"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                          {selectedMedicineIds.map((item, idx) => {
+                            const subtotal = (item.quantityRequested || 0) * (item.targetPrice || 0);
+                            return (
+                              <tr key={item.medicineId} className="hover:bg-slate-50">
+                                <td className="py-2.5 px-3 text-slate-400 font-bold">{idx + 1}</td>
+                                <td className="py-2.5 px-3">
+                                  <span className="font-bold text-slate-900 block">{item.medicineName}</span>
+                                  <span className="text-[10px] text-slate-400">{item.sku} • {item.unit}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-600">
+                                  {item.currentStock !== undefined ? item.currentStock : '—'}
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={item.quantityRequested}
+                                      onChange={(e) => {
+                                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                                        setSelectedMedicineIds((prev) =>
+                                          prev.map((it) => (it.medicineId === item.medicineId ? { ...it, quantityRequested: val } : it))
+                                        );
+                                      }}
+                                      className="w-16 px-2 py-1 text-xs border border-slate-300 rounded font-bold text-center focus:ring-1 focus:ring-blue-500"
+                                    />
+                                    <span className="text-[10px] text-slate-400">{item.unit}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={500}
+                                      value={item.targetPrice || ''}
+                                      onChange={(e) => {
+                                        const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                        setSelectedMedicineIds((prev) =>
+                                          prev.map((it) => (it.medicineId === item.medicineId ? { ...it, targetPrice: val } : it))
+                                        );
+                                      }}
+                                      className="w-24 px-2 py-1 text-xs border border-slate-300 rounded font-bold text-right focus:ring-1 focus:ring-blue-500"
+                                      placeholder="0"
+                                    />
+                                    <span className="text-[10px] text-slate-400">đ</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-blue-700">
+                                  {subtotal.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td className="py-2.5 px-2 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedMedicineIds((prev) => prev.filter((it) => it.medicineId !== item.medicineId))}
+                                    className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50"
+                                    title="Xóa khỏi đợt chào giá"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-slate-50 border-t border-slate-200 font-bold text-xs">
+                          <tr>
+                            <td colSpan={3} className="py-2.5 px-3 text-slate-700 uppercase">
+                              Tổng cộng ({selectedMedicineIds.length} loại thuốc):
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-slate-900 font-black">
+                              {selectedMedicineIds.reduce((sum, it) => sum + (it.quantityRequested || 0), 0).toLocaleString('vi-VN')}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-slate-500">Dự toán mục tiêu:</td>
+                            <td className="py-2.5 px-3 text-right text-blue-900 font-black text-sm">
+                              {selectedMedicineIds
+                                .reduce((sum, it) => sum + (it.quantityRequested || 0) * (it.targetPrice || 0), 0)
+                                .toLocaleString('vi-VN')}{' '}
+                              đ
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Danh sách NCC mời thầu */}

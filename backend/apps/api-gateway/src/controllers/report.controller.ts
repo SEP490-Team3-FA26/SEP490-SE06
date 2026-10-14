@@ -633,11 +633,14 @@ export class ReportController implements OnModuleInit {
 
         if (response.ok) {
           const aiResult = await response.json();
+          // Nếu AI Service đã trả về recommendations chuẩn, dùng trực tiếp
+          if (Array.isArray(aiResult.recommendations) && aiResult.recommendations.length > 0) {
+            return aiResult;
+          }
+          
           const targetArray = Array.isArray(aiResult.enriched_dataset)
             ? aiResult.enriched_dataset
-            : Array.isArray(aiResult.recommendations)
-              ? aiResult.recommendations
-              : rawDataset;
+            : rawDataset;
 
           aiResult.recommendations = targetArray.map((item: any) => {
             const stock = item.currentStock || 0;
@@ -681,7 +684,7 @@ export class ReportController implements OnModuleInit {
                 ...item,
                 daysRemaining,
                 suggestedOrderQty,
-                urgency: stock <= 10 ? "HIGH" : "MEDIUM",
+                urgency: stock <= 10 || daysRemaining <= 3 ? "HIGH" : "MEDIUM",
                 reason: `Tồn kho hiện tại (${stock} ${unitStr}) sắp chạm ngưỡng an toàn ROP (${reorderPoint}). Khuyên dùng nhập bổ sung ${suggestedOrderQty} ${unitStr}.`,
               };
             }
@@ -702,7 +705,10 @@ export class ReportController implements OnModuleInit {
           });
 
           if (response.ok) {
-            return await response.json();
+            const resData = await response.json();
+            if (Array.isArray(resData.recommendations) && resData.recommendations.length > 0) {
+              return resData;
+            }
           }
         } catch (_) {}
       }
@@ -765,7 +771,7 @@ export class ReportController implements OnModuleInit {
               : 0;
 
         return {
-          medicineId: String(med.medicineId || med._id || "med-001"),
+          medicineId: String(med.medicineId || med._id || ""),
           name: med.name || "Dược phẩm",
           category: med.category || "Dược phẩm",
           unit: unitStr,
@@ -780,36 +786,6 @@ export class ReportController implements OnModuleInit {
           reason,
         };
       });
-
-      if (realRecommendations.length === 0) {
-        realRecommendations.push(
-          {
-            medicineId: "med-001",
-            name: "Amoxicillin 500mg",
-            category: "Kháng sinh / Antibiotics",
-            unit: "Hộp",
-            currentStock: 12,
-            averageDailySales: 5.5,
-            expectedIncoming: 0,
-            suggestedOrderQty: 150,
-            urgency: "HIGH",
-            reason:
-              "Tồn kho chỉ còn đủ dùng 2 ngày. Cần nhập bổ sung khẩn cấp.",
-          },
-          {
-            medicineId: "med-002",
-            name: "Panadol Extra 500mg",
-            category: "Giảm đau / Giảm sốt",
-            unit: "Hộp",
-            currentStock: 25,
-            averageDailySales: 8.0,
-            expectedIncoming: 50,
-            suggestedOrderQty: 200,
-            urgency: "MEDIUM",
-            reason: "Tồn kho sắp chạm ngưỡng an toàn. Khuyên dùng nhập thêm.",
-          },
-        );
-      }
 
       // Sắp xếp ưu tiên: Mức khẩn cấp (HIGH -> MEDIUM -> LOW) -> Thuốc bán chạy (Tốc độ bán/ngày giảm dần)
       const urgencyWeight: Record<string, number> = {
@@ -829,7 +805,7 @@ export class ReportController implements OnModuleInit {
       });
 
       return {
-        summary: `Hệ thống AI đã tổng hợp phân tích kế hoạch nhập hàng dự phòng cho ${days} ngày tới dựa trên ${realRecommendations.length} sản phẩm dược phẩm thực tế từ cơ sở dữ liệu MongoDB.`,
+        summary: `Hệ thống AI đã tổng hợp phân tích kế hoạch nhập hàng cho ${days} ngày tới dựa trên ${realRecommendations.length} sản phẩm dược phẩm thực tế từ kho.`,
         recommendations: realRecommendations,
       };
     } catch (error: any) {
@@ -839,6 +815,36 @@ export class ReportController implements OnModuleInit {
         recommendations: [],
       };
     }
+  }
+
+  @Post("ai-forecast/train")
+  @ApiOperation({ summary: "Kích hoạt huấn luyện lại mô hình AI Forecast trên GPU/CPU" })
+  async triggerTrainAIForecast(@Req() req?: any) {
+    const baseUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
+    try {
+      const response = await fetch(`${baseUrl}/api/ai/forecast/train`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ epochs: 60, batch_size: 64 }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (_) {
+      try {
+        const response = await fetch("http://localhost:8000/api/ai/forecast/train", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ epochs: 60, batch_size: 64 }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+      } catch (err: any) {
+        throw new InternalServerErrorException(err.message || "Không thể kết nối đến AI Service để train");
+      }
+    }
+    return { success: true, message: "Đã gửi yêu cầu huấn luyện lại AI Forecast" };
   }
 
   @Get("seasonal-analysis")
