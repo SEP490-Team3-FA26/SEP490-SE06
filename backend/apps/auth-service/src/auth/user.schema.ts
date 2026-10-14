@@ -110,6 +110,18 @@ export class User extends Document {
   /** Xác định Dược sĩ chịu trách nhiệm chuyên môn chính (PTCM) cho Chi nhánh */
   @Prop({ default: false })
   isBranchPIC?: boolean;
+
+  /** Mức lương cơ bản hàng tháng (VNĐ) */
+  @Prop({ default: 7500000 })
+  baseSalary?: number;
+
+  /** Quỹ số ngày phép năm khả dụng còn lại */
+  @Prop({ default: 12 })
+  annualLeaveBalance?: number;
+
+  /** Tổng số ngày phép năm đã sử dụng trong năm */
+  @Prop({ default: 0 })
+  usedAnnualLeave?: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

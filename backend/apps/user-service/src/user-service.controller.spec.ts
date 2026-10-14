@@ -5,6 +5,10 @@ import { UserService } from './user-service.service';
 import { BranchService } from './branch.service';
 import { HrService } from './hr.service';
 
+import { CertificateService } from './certificate.service';
+import { AttendanceService } from './attendance.service';
+import { PayrollService } from './payroll.service';
+
 describe('UserServiceController', () => {
   let controller: UserServiceController;
   let userService: UserService;
@@ -21,6 +25,9 @@ describe('UserServiceController', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: BranchService, useValue: mockBranchService },
         { provide: HrService, useValue: {} },
+        { provide: CertificateService, useValue: {} },
+        { provide: AttendanceService, useValue: {} },
+        { provide: PayrollService, useValue: {} },
       ],
     }).compile();
 

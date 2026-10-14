@@ -52,10 +52,11 @@ function getBranchInfoFromToken() {
 }
 
 interface RetailViewProps {
-  showToast: (message: string, type?: "success" | "error" | "warning") => void;
+  showToast: (message: string, type?: "success" | "error" | "warning" | "info") => void;
+  isShiftActive?: boolean;
 }
 
-export default function RetailView({ showToast }: RetailViewProps) {
+export default function RetailView({ showToast, isShiftActive = true }: RetailViewProps) {
   const currentBranch = getBranchInfoFromToken().branchId || "BR-001";
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -207,6 +208,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
   };
 
   const finalizeSalesOrder = async (payload: any) => {
+    if (isShiftActive === false) {
+      showToast("Bạn chưa đến ca làm việc hoặc chưa điểm danh ca trực hôm nay qua ứng dụng di động!", "error");
+      return;
+    }
     setLoading(true);
     setError("");
     try {

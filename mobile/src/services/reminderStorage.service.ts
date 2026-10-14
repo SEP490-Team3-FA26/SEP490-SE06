@@ -3,8 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MedicineReminder, MedicineReminderLog } from '../types/reminder.types';
 
 const STORAGE_KEYS = {
-  REMINDERS: '@vinapharmacy_medicine_reminders',
-  LOGS: '@vinapharmacy_medicine_reminder_logs',
+  REMINDERS: '@abcpharmacy_medicine_reminders',
+  LOGS: '@abcpharmacy_medicine_reminder_logs',
+  LEGACY_REMINDERS: '@vinapharmacy_medicine_reminders',
+  LEGACY_LOGS: '@vinapharmacy_medicine_reminder_logs',
 };
 
 export const ReminderStorageService = {
@@ -13,7 +15,10 @@ export const ReminderStorageService = {
    */
   async getReminders(): Promise<MedicineReminder[]> {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEYS.REMINDERS);
+      let raw = await AsyncStorage.getItem(STORAGE_KEYS.REMINDERS);
+      if (!raw) {
+        raw = await AsyncStorage.getItem(STORAGE_KEYS.LEGACY_REMINDERS);
+      }
       if (!raw) return [];
       return JSON.parse(raw) as MedicineReminder[];
     } catch (e) {
@@ -80,7 +85,10 @@ export const ReminderStorageService = {
    */
   async getLogs(): Promise<MedicineReminderLog[]> {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEYS.LOGS);
+      let raw = await AsyncStorage.getItem(STORAGE_KEYS.LOGS);
+      if (!raw) {
+        raw = await AsyncStorage.getItem(STORAGE_KEYS.LEGACY_LOGS);
+      }
       if (!raw) return [];
       return JSON.parse(raw) as MedicineReminderLog[];
     } catch (e) {

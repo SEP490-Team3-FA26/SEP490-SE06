@@ -67,6 +67,41 @@ export interface StaffNotification {
   createdAt: string;
 }
 
+export type LeaveType = 'ANNUAL_PAID' | 'SICK_LEAVE' | 'UNPAID' | 'SPECIAL_PAID';
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface LeaveRequest {
+  _id: string;
+  branchId: string;
+  requesterId: string;
+  requesterName: string;
+  requesterRole: string;
+  leaveType: LeaveType;
+  shiftDate: string;
+  shiftId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  shiftsCount: number;
+  reason: string;
+  attachmentUrl?: string;
+  status: LeaveStatus;
+  managerId?: string;
+  managerName?: string;
+  managerNote?: string;
+  managerRespondedAt?: string;
+  isWarningGppUnderstaffed?: boolean;
+  cancelReason?: string;
+  cancelledAt?: string;
+  createdAt: string;
+}
+
+export interface LeaveBalanceResponse {
+  leaves: LeaveRequest[];
+  balance: number;
+  used: number;
+}
+
 export const hrService = {
   // --- SHIFTS ---
   listShifts: async () => {
@@ -146,5 +181,81 @@ export const hrService = {
   getColleagues: async () => {
     const response = await api.get(API_ENDPOINTS.HR.COLLEAGUES);
     return response.data;
-  }
+  },
+
+  // --- ATTENDANCE & SHIFT VERIFICATION ---
+  getMyCurrentShift: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_MY_CURRENT_SHIFT);
+    return response.data as {
+      inShift: boolean;
+      isCheckedIn: boolean;
+      currentShift: any;
+      attendance: any;
+      branch: any;
+    };
+  },
+
+  attendanceCheckIn: async (data: { latitude: number; longitude: number; shiftId?: string; note?: string }) => {
+    const response = await api.post(API_ENDPOINTS.HR.ATTENDANCE_CHECK_IN, data);
+    return response.data;
+  },
+
+  attendanceCheckOut: async (data?: { latitude?: number; longitude?: number; note?: string }) => {
+    const response = await api.post(API_ENDPOINTS.HR.ATTENDANCE_CHECK_OUT, data || {});
+    return response.data;
+  },
+
+  getBranchTodayAttendance: async (date?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_TODAY, { params: { date } });
+    return response.data;
+  },
+
+  // --- LEAVE MANAGEMENT ---
+  getLeaveBalance: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.LEAVE_BALANCE);
+    return response.data as { annualLeaveBalance: number; usedAnnualLeave: number };
+  },
+
+  getMyLeaves: async (status?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.LEAVES_MINE, { params: { status } });
+    return response.data as LeaveBalanceResponse;
+  },
+
+  getBranchLeaves: async (status?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.LEAVES_BRANCH, { params: { status } });
+    return response.data as LeaveRequest[];
+  },
+
+  createLeave: async (data: {
+    shiftDate: string;
+    shiftId: string;
+    shiftName: string;
+    startTime: string;
+    endTime: string;
+    leaveType: LeaveType;
+    reason: string;
+    attachmentUrl?: string;
+  }) => {
+    const response = await api.post(API_ENDPOINTS.HR.LEAVES, data);
+    return response.data as LeaveRequest;
+  },
+
+  respondLeave: async (id: string, data: { action: 'approve' | 'reject'; managerNote?: string }) => {
+    const response = await api.patch(API_ENDPOINTS.HR.LEAVE_RESPOND(id), data);
+    return response.data as LeaveRequest;
+  },
+
+  cancelLeave: async (id: string, cancelReason?: string) => {
+    const response = await api.patch(API_ENDPOINTS.HR.LEAVE_CANCEL(id), { cancelReason });
+    return response.data as LeaveRequest;
+  },
+
+  uploadLeaveAttachment: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(API_ENDPOINTS.HR.LEAVE_UPLOAD, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data as { url?: string; secure_url?: string };
+  },
 };

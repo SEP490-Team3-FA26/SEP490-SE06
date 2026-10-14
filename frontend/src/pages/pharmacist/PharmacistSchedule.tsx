@@ -62,6 +62,16 @@ function getIsoDateStr(d: any): string {
   }
 }
 
+// Helper nhan dien thong tin nghi phep tu ghi chu
+export const getLeaveDetails = (note?: string) => {
+  if (!note || !note.includes('[NGHỈ PHÉP')) return null;
+  if (note.includes('ANNUAL_PAID')) return { label: 'Phép năm (Có lương)', shortLabel: 'Phép năm', type: 'ANNUAL_PAID' };
+  if (note.includes('SICK_LEAVE')) return { label: 'Nghỉ ốm (BHXH)', shortLabel: 'Ốm BHXH', type: 'SICK_LEAVE' };
+  if (note.includes('UNPAID')) return { label: 'Nghỉ không lương', shortLabel: 'Không lương', type: 'UNPAID' };
+  if (note.includes('SPECIAL_PAID')) return { label: 'Nghỉ việc riêng', shortLabel: 'Việc riêng', type: 'SPECIAL_PAID' };
+  return { label: 'Đã nghỉ phép', shortLabel: 'Nghỉ phép', type: 'OTHER' };
+};
+
 export function PharmacistSchedule() {
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(formatDate(getMonday(new Date())));
   const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
@@ -178,9 +188,11 @@ export function PharmacistSchedule() {
   }, [shifts, schedule]);
 
   // Thong ke so ca truc cua chinh duoc si trong tuan (khop theo userId hoac userName)
-  const myShiftsCount = (schedule?.assignments || []).filter(
+  const myAllAssignments = (schedule?.assignments || []).filter(
     a => (userId && String(a.employeeId) === String(userId)) || (userName && a.employeeName === userName)
-  ).length;
+  );
+  const myActiveShiftsCount = myAllAssignments.filter(a => !getLeaveDetails(a.note)).length;
+  const myLeaveShiftsCount = myAllAssignments.filter(a => !!getLeaveDetails(a.note)).length;
 
   return (
     <div className="flex flex-col min-h-full bg-[#f8fafc] p-6 lg:p-8 space-y-6">
@@ -250,7 +262,14 @@ export function PharmacistSchedule() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-xl border border-blue-100 text-[#0057cd] font-semibold text-xs">
             <Briefcase size={14} />
-            <span>Bạn có <strong className="font-bold text-slate-900">{myShiftsCount} ca</strong> trực tuần này</span>
+            <span>
+              Bạn có <strong className="font-bold text-slate-900">{myActiveShiftsCount} ca</strong> trực tuần này
+              {myLeaveShiftsCount > 0 && (
+                <span className="text-amber-700 ml-1.5 font-medium">
+                  ({myLeaveShiftsCount} ca đã duyệt nghỉ)
+                </span>
+              )}
+            </span>
           </div>
 
           <button
@@ -383,29 +402,46 @@ export function PharmacistSchedule() {
                           <div className="flex flex-col gap-1.5 min-h-[72px]">
                             {cellAssignments.map(assignment => {
                               const isMine = (userId && String(assignment.employeeId) === String(userId)) || (userName && assignment.employeeName === userName);
+                              const leaveInfo = getLeaveDetails(assignment.note);
+                              const isLeave = Boolean(leaveInfo);
+
                               return (
                                 <div 
                                   key={assignment.employeeId + '_' + assignment.shiftId}
                                   className={`p-2 rounded-xl flex flex-col justify-between border shadow-2xs transition-all relative overflow-hidden ${
-                                    isMine 
-                                      ? 'bg-blue-50/80 border-[#0057cd]/50 ring-2 ring-[#0057cd]/20' 
-                                      : 'bg-white border-slate-200 opacity-80 hover:opacity-100'
+                                    isLeave
+                                      ? isMine
+                                        ? 'bg-amber-50/80 border-amber-300 border-dashed ring-2 ring-amber-400/30'
+                                        : 'bg-slate-100/70 border-slate-300 border-dashed opacity-75'
+                                      : isMine 
+                                        ? 'bg-blue-50/80 border-[#0057cd]/50 ring-2 ring-[#0057cd]/20' 
+                                        : 'bg-white border-slate-200 opacity-80 hover:opacity-100'
                                   }`}
                                 >
                                   <div 
                                     className="absolute left-0 top-0 bottom-0 w-1" 
-                                    style={{ backgroundColor: isMine ? '#0057cd' : (shift.color || '#94a3b8') }}
+                                    style={{ backgroundColor: isLeave ? '#f59e0b' : isMine ? '#0057cd' : (shift.color || '#94a3b8') }}
                                   ></div>
 
                                   <div className="pl-1.5 pr-2 min-w-0">
                                     <div 
-                                      className="text-xs font-medium text-slate-700 leading-tight whitespace-nowrap overflow-hidden text-ellipsis"
+                                      className={`text-xs font-medium leading-tight whitespace-nowrap overflow-hidden text-ellipsis ${
+                                        isLeave ? 'text-slate-500 line-through' : 'text-slate-700'
+                                      }`}
                                       title={assignment.employeeName}
                                     >
                                       {formatEmployeeName(assignment.employeeName)}
                                     </div>
-                                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">
-                                      {isMine ? (
+                                    <div className="text-[10px] font-normal mt-0.5 flex flex-wrap gap-1 items-center">
+                                      {isLeave ? (
+                                        <span className={`px-1.5 py-0.2 rounded font-bold border ${
+                                          isMine
+                                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                            : 'bg-slate-200 text-slate-700 border-slate-300'
+                                        }`}>
+                                          Đã nghỉ: {leaveInfo?.shortLabel}
+                                        </span>
+                                      ) : isMine ? (
                                         <span className="text-[#0057cd] font-semibold px-1.5 py-0.2 bg-blue-100/60 rounded">Ca của bạn</span>
                                       ) : (
                                         <span className="text-slate-500 px-1.5 py-0.2 bg-slate-100 rounded">Nhân sự trực</span>
@@ -413,8 +449,8 @@ export function PharmacistSchedule() {
                                     </div>
                                   </div>
 
-                                  {/* Shift Swap Action (If it's my shift and published) */}
-                                  {isMine && isPublished && (
+                                  {/* Shift Swap Action (Chi cho phep doi ca khi khong phai ca da nghi phep) */}
+                                  {isMine && isPublished && !isLeave && (
                                     <div className="pt-1.5 pl-1.5">
                                       <button 
                                         onClick={() => navigate('/pharmacist/shift-swaps')}
@@ -422,6 +458,12 @@ export function PharmacistSchedule() {
                                       >
                                         <RefreshCw size={10} /> Đổi ca
                                       </button>
+                                    </div>
+                                  )}
+
+                                  {isMine && isLeave && (
+                                    <div className="pt-1 pl-1.5">
+                                      <span className="text-[9px] text-amber-700 italic">Đã duyệt nghỉ phép</span>
                                     </div>
                                   )}
                                 </div>

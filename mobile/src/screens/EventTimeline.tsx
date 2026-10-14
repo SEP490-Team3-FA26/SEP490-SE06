@@ -13,14 +13,7 @@ import { useTheme } from '../context/ThemeContextType';
 const { width } = Dimensions.get('window');
 
 // Dữ liệu mẫu cho Agenda sự kiện
-const MOCK_AGENDA = [
-  { id: '1', time: '18:00', title: 'Mở cửa đón khách', desc: 'Kiểm tra vé và quầy đổi voucher quà tặng.', icon: 'door-front' },
-  { id: '2', time: '19:00', title: 'Khai mạc sự kiện', desc: 'Giới thiệu về nội dung và các nhà tài trợ chính.', icon: 'campaign' },
-  { id: '3', time: '19:30', title: 'Phần 1: Trình diễn Nghệ thuật', desc: 'Các tiết mục mở màn từ ban nhạc Neon.', icon: 'music-note' },
-  { id: '4', time: '20:30', title: 'Tiệc giải lao & Networking', desc: 'Thưởng thức finger food tại quầy VIP.', icon: 'restaurant' },
-  { id: '5', time: '21:00', title: 'Phần 2: Workshop & Mini Game', desc: 'Giao lưu cùng khách mời và nhận quà.', icon: 'videogame-asset' },
-  { id: '6', time: '22:00', title: 'Bế mạc & Quà tặng', desc: 'Cảm ơn và hẹn gặp lại.', icon: 'auto-awesome' },
-];
+const EVENT_AGENDA: any[] = [];
 
 export default function EventTimeline({ navigation, route }: any) {
   const { eventName } = route.params || { eventName: 'Sự kiện âm nhạc Neon' };
@@ -45,14 +38,14 @@ export default function EventTimeline({ navigation, route }: any) {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}>
-        {MOCK_AGENDA.map((item, index) => (
+        {EVENT_AGENDA.map((item, index) => (
           <View key={item.id} style={styles.timelineItem}>
             {/* Left side: Time & Dot */}
             <View style={styles.leftColumn}>
               <Text style={[styles.timeText, { color: colors.text }]}>{item.time}</Text>
               <View style={styles.dotContainer}>
                  <View style={[styles.dot, { backgroundColor: colors.accent }]} />
-                 {index !== MOCK_AGENDA.length - 1 && (
+                 {index !== EVENT_AGENDA.length - 1 && (
                    <View style={[styles.line, { backgroundColor: colors.border }]} />
                  )}
               </View>
