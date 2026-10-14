@@ -15,7 +15,7 @@ Tài liệu này là **Quy trình chuẩn tối cao (Standard Review Protocol)**
 > 1. **Giao tiếp liên dịch vụ:** Tuyệt đối **không** được gọi HTTP trực tiếp giữa các microservices nội bộ; mọi giao tiếp liên dịch vụ **bắt buộc** phải đi qua **Kafka**.
 > 2. **Cổng giao tiếp Client:** Frontend Web và Mobile tuyệt đối **không** kết nối trực tiếp vào Database hoặc Microservice; mọi request **bắt buộc** phải qua **API Gateway** (`/api/...`).
 > 3. **Bản chất Event-Driven Kafka (HTTP 202 Accepted):** Các thao tác Ghi (`POST`, `PUT`, `DELETE`) tại Gateway trả về **HTTP 202 Accepted**. Client **không được re-fetch ngay tức thì** mà phải có độ trễ **Delayed Re-fetch (500ms - 1000ms)** hoặc áp dụng Optimistic UI / Socket.IO để tránh đọc dữ liệu cũ khi Consumer chưa kịp ghi DB / cập nhật Redis.
-> 4. **Ngôn ngữ chú thích mã nguồn:** Toàn bộ code comment (`//`, `/* */`, JSDoc) **bắt buộc viết bằng Tiếng Anh**. Không chấp nhận tiếng Việt trong code comments.
+> 4. **Ngôn ngữ chú thích mã nguồn:** Toàn bộ code comment (`//`, `/* */`, JSDoc) **viết bằng Tiếng Việt 100%** theo quy định chuẩn của dự án WDP301/SEP490 (`.agents/rules/sep.md`).
 > 5. **Git & Dependency Hygiene:** Không commit file `.env`, credentials, secrets, hoặc các thư viện không liên quan đến phạm vi PR trong `package.json` / `package-lock.json`.
 
 ---
@@ -80,7 +80,7 @@ Mọi PR được đánh giá dọc theo 2 trục tách biệt nhằm tránh tì
   - Không dùng `alert()` hoặc `confirm()` gốc của trình duyệt cho luồng nghiệp vụ chính; dùng Modal / Toast / Confirm Dialog tùy chỉnh.
   - Xử lý đầy đủ 3 trạng thái: `loading` (Skeleton/Spinner), `error` (thông báo lỗi thân thiện), `empty` (trạng thái trống).
 - [ ] **Ngôn ngữ chú thích mã nguồn:**
-  - Toàn bộ comment trong code bắt buộc là **English**.
+  - Toàn bộ comment trong code được viết bằng **Tiếng Việt 100%**.
 
 ### 2.3. Clean Code & Phát Hiện Code Smells (Fowler Baseline)
 - [ ] **Mysterious Name:** Tên biến/hàm/interface rõ nghĩa, đúng thuật ngữ ngành dược (SKU, Batch, Shelf, Bin, Requisition, Dispense).

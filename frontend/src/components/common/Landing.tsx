@@ -18,12 +18,12 @@ import { notifyAuthTokenChanged } from "../../utils/authEvents";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { cartService } from "../../services/sales/cart.service";
 import { authService } from "../../services/auth/auth.service";
-import { DoveFloatingWidget } from "../mascot/DoveFloatingWidget";
 import { MascotLogoIcon } from "../ui/Logo";
 import { ChatWidget } from "../chat";
 import { CustomerHeader } from "./CustomerHeader";
 import { PharmaSmartRecommender } from "../customer/PharmaSmartRecommender";
 import { recommendationService } from "../../services/recommendation/recommendation.service";
+import { notifyAuthLoginRequired } from "../../utils/authEvents";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -525,59 +525,15 @@ export function Landing() {
     }
 
     const medId = med.id || med._id;
-    const currentToken = localStorage.getItem("token");
-    if (!currentToken) {
-      try {
-        const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
-        const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
-
-        if (existingItem) {
-          if (existingItem.quantity + qty > (med.stock || 999)) {
-            alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
-            return;
-          }
-          existingItem.quantity += qty;
-        } else {
-          if ((med.stock ?? 1) <= 0) {
-            alert("Sản phẩm đã hết hàng!");
-            return;
-          }
-          cart.push({
-            id: medId,
-            _id: medId,
-            name: med.name,
-            category: med.category,
-            price: med.salePrice || med.price,
-            quantity: qty,
-            unit: med.unit || "Hộp",
-            stock: med.stock || 100,
-            active_ingredient: med.active_ingredient || "",
-            image: med.image || ""
-          });
-        }
-        localStorage.setItem("guest_cart", JSON.stringify(cart));
-        window.dispatchEvent(new Event("cartUpdated"));
-
-        setAddedItems((prev) => ({ ...prev, [medId]: true }));
-        setTimeout(() => {
-          setAddedItems((prev) => ({ ...prev, [medId]: false }));
-        }, 1500);
-      } catch (err) {
-        console.error("Error updating guest cart:", err);
-      }
-      return;
-    }
 
     try {
-      await cartService.addToCart(medId, qty);
+      // Dùng cartService.addProduct: nếu chưa đăng nhập sẽ lưu vào guest_cart, nếu có token sẽ gọi API giỏ hàng
+      await cartService.addProduct(med, qty);
 
-      window.dispatchEvent(new Event("cartUpdated"));
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => {
         setAddedItems((prev) => ({ ...prev, [medId]: false }));
       }, 1500);
-
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ";
       alert(msg);
@@ -1750,10 +1706,7 @@ export function Landing() {
         );
       })()}
 
-      {/* Floating Mascot Companion */}
-      <DoveFloatingWidget />
-
-      {/* Floating AI Pharmacist Chatbot */}
+      {/* Dược sĩ Bồ Câu AI nổi ở góc phải (đã gộp linh vật và khung chat) */}
       <ChatWidget />
     </div>
   );

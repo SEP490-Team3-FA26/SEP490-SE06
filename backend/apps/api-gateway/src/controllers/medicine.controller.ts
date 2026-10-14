@@ -662,6 +662,18 @@ export class MedicineController implements OnModuleInit {
     );
   }
 
+  @Post("subcategories-count")
+  @ApiOperation({ summary: "Đếm số lượng thuốc thực tế theo danh mục con trực tiếp từ MongoDB" })
+  async getSubCategoryCounts(
+    @Body() body: { category?: string; items: { id: string; searchKeyword?: string; categoryValue?: string }[] },
+  ) {
+    return await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.subcategory_counts",
+      body,
+    );
+  }
+
   @Get()
   @ApiOperation({
     summary: "Lấy danh sách thuốc (kết nối Mongoose & Vector DB)",
@@ -671,6 +683,7 @@ export class MedicineController implements OnModuleInit {
   @ApiQuery({ name: "search", required: false, type: String })
   @ApiQuery({ name: "category", required: false, type: String })
   @ApiQuery({ name: "classification", required: false, type: String })
+  @ApiQuery({ name: "drug_classification", required: false, type: String })
   @ApiQuery({ name: "targetGroup", required: false, type: String })
   @ApiQuery({ name: "minPrice", required: false, type: Number })
   @ApiQuery({ name: "maxPrice", required: false, type: Number })
@@ -680,12 +693,15 @@ export class MedicineController implements OnModuleInit {
   @ApiQuery({ name: "indication", required: false, type: String })
   @ApiQuery({ name: "brandOrigin", required: false, type: String })
   @ApiQuery({ name: "branchId", required: false, type: String })
+  @ApiQuery({ name: "bypassAiSearch", required: false, type: Boolean })
+  @ApiQuery({ name: "directDb", required: false, type: Boolean })
   async getMedicines(
     @Query("page") page = 1,
     @Query("limit") limit = 10,
     @Query("search") search = "",
     @Query("category") category = "",
     @Query("classification") classification = "",
+    @Query("drug_classification") drugClassification = "",
     @Query("targetGroup") targetGroup = "",
     @Query("minPrice") minPrice?: number,
     @Query("maxPrice") maxPrice?: number,
@@ -695,11 +711,15 @@ export class MedicineController implements OnModuleInit {
     @Query("indication") indication = "",
     @Query("brandOrigin") brandOrigin = "",
     @Query("branchId") branchId = "",
+    @Query("bypassAiSearch") bypassAiSearch?: string | boolean,
+    @Query("directDb") directDb?: string | boolean,
   ) {
-    const cacheKey = `medicines:list:${page}:${limit}:${search}:${category}:${classification}:${targetGroup}:${minPrice || ""}:${maxPrice || ""}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}`;
+    const effectiveClassification = classification || drugClassification || "";
+    const isDirectDb = bypassAiSearch === true || bypassAiSearch === "true" || directDb === true || directDb === "true";
+    const cacheKey = `medicines:list:${page}:${limit}:${search}:${category}:${effectiveClassification}:${targetGroup}:${minPrice || ""}:${maxPrice || ""}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}:${isDirectDb}`;
 
-    // 1. Kiểm tra cache Redis (Cache Hit)
-    if (this.cacheManager) {
+    // 1. Kiểm tra cache Redis (Nếu không yêu cầu directDb / bypassAiSearch)
+    if (!isDirectDb && this.cacheManager) {
       try {
         const cached = await this.cacheManager.get(cacheKey);
         if (cached) {
@@ -708,7 +728,7 @@ export class MedicineController implements OnModuleInit {
       } catch (e) {}
     }
 
-    // 2. Cache Miss: Gọi sang Microservice qua Kafka
+    // 2. Cache Miss hoặc Direct DB: Gọi sang Microservice qua Kafka
     try {
       const result = await sendKafkaMessage(
         this.inventoryClient,
@@ -718,7 +738,7 @@ export class MedicineController implements OnModuleInit {
           limit: Number(limit),
           search,
           category,
-          classification,
+          classification: effectiveClassification,
           targetGroup,
           minPrice: minPrice ? Number(minPrice) : undefined,
           maxPrice: maxPrice ? Number(maxPrice) : undefined,
@@ -728,11 +748,12 @@ export class MedicineController implements OnModuleInit {
           indication,
           brandOrigin,
           branchId,
+          bypassAiSearch: isDirectDb,
         },
       );
 
-      // 3. Ghi kết quả vào Redis Cache (TTL: 2 phút = 120,000 ms)
-      if (this.cacheManager && result) {
+      // 3. Ghi kết quả vào Redis Cache (TTL: 2 phút = 120,000 ms) nếu không phải directDb
+      if (!isDirectDb && this.cacheManager && result) {
         try {
           await this.cacheManager.set(cacheKey, result, 120000);
         } catch (e) {}

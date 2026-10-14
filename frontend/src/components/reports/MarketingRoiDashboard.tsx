@@ -33,6 +33,8 @@ export function MarketingRoiDashboard() {
   const [loading, setLoading] = useState<boolean>(true);
   const [overviewData, setOverviewData] = useState<MarketingRoiOverviewResponse | null>(null);
   const [vouchersList, setVouchersList] = useState<any[]>([]);
+  // 🛡️ Rủi ro 7 SBA: Dữ liệu kiểm toán Anomaly Detection trục lợi voucher
+  const [auditFlagsData, setAuditFlagsData] = useState<any>(null);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -60,14 +62,16 @@ export function MarketingRoiDashboard() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [resOverview, resVouchers] = await Promise.all([
+      const [resOverview, resVouchers, resAudit] = await Promise.all([
         campaignService.getRoiOverview().catch(() => null),
         voucherService.getVouchers().catch(() => []),
+        voucherService.getVoucherAuditFlags().catch(() => null),
       ]);
       setOverviewData(resOverview);
       setVouchersList(Array.isArray(resVouchers) ? resVouchers : (resVouchers as any)?.data || []);
+      setAuditFlagsData(resAudit);
     } catch (err) {
-      console.error('Lỗi tải dữ liệu Marketing ROI:', err);
+      console.error('Lỗi tải dữ liệu Marketing ROI & Audit:', err);
     } finally {
       setLoading(false);
     }
@@ -395,6 +399,135 @@ export function MarketingRoiDashboard() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* ========================================================
+       * 🛡️ RỦI RO 7 SBA: KIỂM TOÁN GIAN LẬN VOUCHER QUẦY THUỐC (STAFF COUPON EXPLOITATION)
+       * ======================================================== */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-amber-50/70 to-rose-50/50">
+          <div>
+            <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+              <ShieldAlert size={18} className="text-amber-600" />
+              Kiểm Toán Nghi Vấn Trục Lợi Voucher Quầy POS (Staff Coupon Exploitation - Rủi Ro 7 SBA)
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Hệ thống phát hiện bất thường (Anomaly Detection): Tự động gắn cờ <strong>Audit Flag</strong> nếu 1 nhân viên thu ngân áp dụng quá <strong>10 voucher/ngày</strong> cho các đơn hàng tiền mặt khác nhau.
+            </p>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg border border-amber-200 flex items-center gap-1">
+            Ngưỡng kiểm toán: &gt;10 voucher/ngày
+          </span>
+        </div>
+
+        {/* 3 Thẻ thống kê nhanh */}
+        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-100">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+            <div className="p-2.5 bg-rose-100 text-rose-700 rounded-xl">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-rose-700">
+                {auditFlagsData?.summary?.totalFlaggedOrders || 0}
+              </div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Đơn tiền mặt gắn cờ nghi vấn
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+            <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
+              <Users size={20} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-amber-800">
+                {auditFlagsData?.summary?.totalFlaggedCashiers || 0}
+              </div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Thu ngân vượt ngưỡng nghi vấn
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+              <DollarSign size={20} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-900">
+                {(auditFlagsData?.summary?.totalSuspiciousAmount || 0).toLocaleString('vi-VN')}₫
+              </div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Ngân sách voucher nghi vấn rút ruột
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bảng danh sách thu ngân vi phạm */}
+        <div className="p-6">
+          {!auditFlagsData?.flaggedCashiers || auditFlagsData.flaggedCashiers.length === 0 ? (
+            <div className="p-8 text-center bg-emerald-50/50 border border-emerald-100 rounded-xl flex flex-col items-center">
+              <CheckCircle2 size={36} className="text-emerald-500 mb-2" />
+              <h4 className="font-bold text-emerald-900 text-sm">Hệ thống an toàn - Không có ca nghi vấn</h4>
+              <p className="text-xs text-emerald-700 mt-1 max-w-lg">
+                Hiện tại không có nhân viên thu ngân nào áp dụng vượt quá 10 voucher cho các đơn hàng tiền mặt trong ngày hôm nay. Cơ chế hậu kiểm bất thường đang hoạt động hiệu quả.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Nhân viên thu ngân</th>
+                    <th className="py-3 px-4">Chi nhánh</th>
+                    <th className="py-3 px-4">Số đơn tiền mặt dùng voucher</th>
+                    <th className="py-3 px-4">Tổng tiền voucher giảm</th>
+                    <th className="py-3 px-4">Mức độ rủi ro</th>
+                    <th className="py-3 px-4">Lần vi phạm cuối</th>
+                    <th className="py-3 px-4 text-right">Biện pháp xử lý</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {auditFlagsData.flaggedCashiers.map((cashier: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-rose-50/40 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                        {cashier.cashierName}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-600">
+                        {cashier.branchId}
+                      </td>
+                      <td className="py-3.5 px-4 font-black text-rose-600 text-sm">
+                        {cashier.totalFlaggedOrders} đơn / ngày
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-slate-800">
+                        {cashier.totalExploitedDiscount.toLocaleString('vi-VN')}₫
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                          cashier.severity === 'CRITICAL'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}>
+                          {cashier.severity}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500">
+                        {new Date(cashier.lastIncidentAt).toLocaleString('vi-VN')}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <span className="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg">
+                          Yêu cầu giải trình & Soi Camera
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* MODAL 1: TẠO CHIẾN DỊCH MARKETING MỚI */}

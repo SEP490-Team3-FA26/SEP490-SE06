@@ -52,7 +52,7 @@ Khi người dùng gõ lệnh `/abc-frontend-skill` (hoặc yêu cầu phát tri
 - Đảm bảo không sử dụng kiểu dữ liệu `any`.
 - Thêm `aria-label` cho tất cả các nút bấm dạng Icon đơn độc.
 - Gắn kết `id` của `<input>` với `htmlFor` của `<label>`.
-- **QUY TẮC BẮT BUỘC:** Toàn bộ code comments (`//`, `/* */`) **phải viết bằng Tiếng Anh 100%**.
+- **QUY TẮC BẮT BUỘC:** Toàn bộ code comments (`//`, `/* */`) **phải viết bằng Tiếng Việt 100%** theo chuẩn dự án WDP301/SEP490.
 
 ### Bước 5: Kiểm Định Tự Động & Thẩm Tra Lỗi (`FE-QA`)
 - Chạy công cụ kiểm tra tự động:

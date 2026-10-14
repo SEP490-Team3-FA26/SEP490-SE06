@@ -21,6 +21,7 @@ export class VoucherController implements OnModuleInit {
       'vouchers.delete',
       'vouchers.list',
       'vouchers.validate',
+      'vouchers.audit.flags',
     ]);
   }
 
@@ -41,6 +42,12 @@ export class VoucherController implements OnModuleInit {
   @UseGuards(OptionalJwtAuthGuard)
   async listVouchers() {
     return await sendKafkaMessage(this.orderClient, 'vouchers.list', {});
+  }
+
+  @Get('audit-flags')
+  @UseGuards(OptionalJwtAuthGuard)
+  async getVoucherAuditFlags() {
+    return await sendKafkaMessage(this.orderClient, 'vouchers.audit.flags', {});
   }
 
   @Put(':id')
@@ -74,4 +81,5 @@ export class VoucherController implements OnModuleInit {
   async validateVoucher(@Body() data: { code: string; subtotal: number }) {
     return await sendKafkaMessage(this.orderClient, 'vouchers.validate', data);
   }
+
 }
