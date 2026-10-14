@@ -71,11 +71,11 @@ export class Branch {
   @Prop({ type: [BranchAlert], default: [] })
   alerts: BranchAlert[];
 
-  @Prop({ default: 10.7769 })
-  latitude: number;
+  @Prop({ type: Number, required: false })
+  latitude?: number;
 
-  @Prop({ default: 106.7009 })
-  longitude: number;
+  @Prop({ type: Number, required: false })
+  longitude?: number;
 
   @Prop({ default: 200 })
   checkInRadiusMeters: number;

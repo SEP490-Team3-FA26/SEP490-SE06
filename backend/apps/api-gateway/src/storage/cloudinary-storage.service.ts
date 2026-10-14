@@ -184,9 +184,9 @@ export class CloudinaryStorageService {
       fs.writeFileSync(filePath, buffer);
     }
 
-    this.logger.log(`Đã lưu ảnh cục bộ (Local fallback): /public/uploads/certificates/${fileName}`);
+    this.logger.log(`Đã lưu ảnh cục bộ (Local fallback): /public/uploads/${category}/${fileName}`);
     return {
-      url: `/public/uploads/certificates/${fileName}`,
+      url: `/public/uploads/${category}/${fileName}`,
       fileName,
       isCloudinary: false,
     };

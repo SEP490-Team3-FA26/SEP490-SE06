@@ -20,15 +20,7 @@ export class BranchService implements OnModuleInit {
   ) { }
 
   async onModuleInit() {
-    try {
-      // Đảm bảo các chi nhánh đều có tọa độ GPS hợp lệ phục vụ Geofencing check-in
-      await this.branchModel.updateMany(
-        { $or: [{ latitude: { $exists: false } }, { latitude: null }] },
-        { $set: { latitude: 10.7769, longitude: 106.7009, checkInRadiusMeters: 200 } }
-      ).exec();
-    } catch (err) {
-      this.logger.warn('Không thể tự động cập nhật tọa độ GPS cho chi nhánh:', err);
-    }
+    // Không gán tọa độ mặc định; Quản lý chi nhánh phải tự cấu hình vị trí thực tế của cơ sở
   }
 
   async findAll(): Promise<any[]> {

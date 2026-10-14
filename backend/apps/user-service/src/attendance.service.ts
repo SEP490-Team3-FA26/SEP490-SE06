@@ -92,14 +92,29 @@ export class AttendanceService {
       throw new RpcException('Không tìm thấy thông tin nhân viên');
     }
 
-    const branchId = dto.branchId || user.branchId || 'BR-001';
+    const branchId = dto.branchId || user.branchId;
+    if (!branchId) {
+      throw new RpcException('Nhân viên chưa được phân bổ vào chi nhánh cụ thể để điểm danh');
+    }
     let branch: any = await this.branchModel.findOne({ branchCode: branchId })?.lean()?.exec();
     if (!branch && Types.ObjectId.isValid(branchId)) {
       branch = await this.branchModel.findById(branchId)?.lean()?.exec();
     }
 
-    const branchLat = branch?.latitude ?? 10.7769;
-    const branchLng = branch?.longitude ?? 106.7009;
+    if (
+      !branch ||
+      branch.latitude === undefined ||
+      branch.latitude === null ||
+      branch.longitude === undefined ||
+      branch.longitude === null
+    ) {
+      throw new RpcException(
+        'Chi nhánh chưa được thiết lập tọa độ GPS điểm danh. Vui lòng liên hệ Quản lý chi nhánh cấu hình vị trí trước khi điểm danh!',
+      );
+    }
+
+    const branchLat = branch.latitude;
+    const branchLng = branch.longitude;
     const allowedRadius = branch?.checkInRadiusMeters ?? 200;
 
     const distanceMeters = calculateHaversineDistanceMeters(
@@ -250,14 +265,29 @@ export class AttendanceService {
       throw new RpcException('Không tìm thấy thông tin nhân viên');
     }
 
-    const branchId = dto.branchId || user.branchId || 'BR-001';
+    const branchId = dto.branchId || user.branchId;
+    if (!branchId) {
+      throw new RpcException('Nhân viên chưa được phân bổ vào chi nhánh cụ thể');
+    }
     let branch: any = await this.branchModel.findOne({ branchCode: branchId })?.lean()?.exec();
     if (!branch && Types.ObjectId.isValid(branchId)) {
       branch = await this.branchModel.findById(branchId)?.lean()?.exec();
     }
 
-    const branchLat = branch?.latitude ?? 10.7769;
-    const branchLng = branch?.longitude ?? 106.7009;
+    if (
+      !branch ||
+      branch.latitude === undefined ||
+      branch.latitude === null ||
+      branch.longitude === undefined ||
+      branch.longitude === null
+    ) {
+      throw new RpcException(
+        'Chi nhánh chưa được thiết lập tọa độ GPS điểm danh. Vui lòng liên hệ Quản lý chi nhánh cấu hình vị trí trước khi check-out!',
+      );
+    }
+
+    const branchLat = branch.latitude;
+    const branchLng = branch.longitude;
     const allowedRadius = branch?.checkInRadiusMeters ?? 200;
 
     const distanceMeters = calculateHaversineDistanceMeters(
@@ -360,13 +390,14 @@ export class AttendanceService {
       isCompleted,
       currentShift: matchedAssignment || (todayAttendance ? { name: todayAttendance.shiftName, shiftId: todayAttendance.shiftId } : null),
       attendance: todayAttendance,
-      branch: {
-        branchCode: effectiveBranchId,
-        name: branch?.name || 'Chi nhánh ' + effectiveBranchId,
-        latitude: branch?.latitude ?? 10.7769,
-        longitude: branch?.longitude ?? 106.7009,
-        checkInRadiusMeters: branch?.checkInRadiusMeters ?? 200,
-      },
+      branch: branch ? {
+        branchCode: branch.branchCode || effectiveBranchId,
+        name: branch.name || 'Chi nhánh ' + effectiveBranchId,
+        latitude: branch.latitude ?? null,
+        longitude: branch.longitude ?? null,
+        checkInRadiusMeters: branch.checkInRadiusMeters ?? 200,
+        isGpsConfigured: branch.latitude != null && branch.longitude != null,
+      } : null,
     };
   }
 

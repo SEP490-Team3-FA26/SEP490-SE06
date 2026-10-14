@@ -32,8 +32,8 @@ import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
 const getStaffDisplayName = (st: any): string => {
   if (st.fullName && !st.fullName.includes('@')) return st.fullName;
   if (st.name && !st.name.includes('@')) return st.name;
-  if (st.email === 'pharmacist@vinapharmacy.com') return 'Dược Sĩ Trần Thị Mai';
-  if (st.email === 'manager@vinapharmacy.com') return 'Quản Lý Nguyễn Văn An';
+  if (st.email === 'pharmacist@abcpharmacy.com' || st.email === 'pharmacist@vinapharmacy.com') return 'Dược Sĩ Trần Thị Mai';
+  if (st.email === 'manager@abcpharmacy.com' || st.email === 'manager@vinapharmacy.com') return 'Quản Lý Nguyễn Văn An';
   if (st.email === 'phuc2@gmail.com') return 'Dược Sĩ Nguyễn Phúc';
   if (st.email) {
     const rawUser = st.email.split('@')[0];

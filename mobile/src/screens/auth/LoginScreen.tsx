@@ -101,7 +101,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <View style={styles.heroSection}>
               <View style={styles.glassBadgePill}>
                 <Ionicons name="shield-checkmark" size={14} color="#34D399" style={{ marginRight: 6 }} />
-                <Text style={styles.glassBadgeText}>VinaPharmacy Enterprise Cloud</Text>
+                <Text style={styles.glassBadgeText}>ABC Pharmacy Enterprise Cloud</Text>
               </View>
 
               {/* 3D Glowing Glass Logo Container */}
@@ -116,8 +116,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 </View>
               </View>
 
-              <Text style={styles.appTitle}>Pharma ERP</Text>
-              <Text style={styles.appSubtitle}>Hệ Thống Quản Trị & Bán Lẻ Dược Phẩm</Text>
+              <Text style={styles.appTitle}>ABC</Text>
+              <Text style={styles.appSubtitle}>Hệ Thống Quản Trị & Bán Lẻ Dược Phẩm ABC</Text>
             </View>
 
             {/* Master Frosted Glass Card Container */}

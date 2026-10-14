@@ -1,12 +1,17 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "ABC",
     "slug": "mobile",
     "scheme": "wdp301",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#01BAA8"
+    },
     "androidNavigationBar": {
       "visible": "always",
       "barStyle": "dark-content",
@@ -26,7 +31,7 @@
       "package": "com.abcpharmacy.mobile",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#01BAA8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

@@ -106,6 +106,26 @@ describe('AttendanceService (Unit & Security Tests)', () => {
     });
   });
 
+  describe('T-01b: Reject check-in when branch has no GPS configured', () => {
+    it('should throw RpcException when branch latitude or longitude is missing', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: 'emp-1', fullName: 'Dược sĩ A', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+
+      mockBranchModel.findOne.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ branchCode: 'BR-001', latitude: null, longitude: null }) }),
+      });
+
+      await expect(
+        service.checkIn({
+          employeeId: 'emp-1',
+          latitude: 10.7769,
+          longitude: 106.7009,
+        }),
+      ).rejects.toThrow(RpcException);
+    });
+  });
+
   describe('T-03: Check-in outside allowed radius (> 200m)', () => {
     it('should throw RpcException with distance violation message when outside radius', async () => {
       mockUserModel.findById.mockReturnValue({

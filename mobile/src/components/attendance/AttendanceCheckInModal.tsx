@@ -98,11 +98,15 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
       const userLng = location.coords.longitude;
       setCurrentCoords({ latitude: userLat, longitude: userLng });
 
-      // 5. Tính khoảng cách tới chi nhánh nếu có tọa độ chi nhánh
-      const branchLat = branch?.latitude || 10.7769; // Tọa độ fallback Q1
-      const branchLng = branch?.longitude || 106.7009;
-      const dist = calculateDistanceMeters(userLat, userLng, branchLat, branchLng);
-      setDistance(dist);
+      // 5. Tính khoảng cách tới chi nhánh nếu chi nhánh đã cấu hình tọa độ GPS
+      if (branch?.latitude != null && branch?.longitude != null) {
+        const branchLat = Number(branch.latitude);
+        const branchLng = Number(branch.longitude);
+        const dist = calculateDistanceMeters(userLat, userLng, branchLat, branchLng);
+        setDistance(dist);
+      } else {
+        setDistance(null);
+      }
     } catch (err: any) {
       setPermissionError(err.message || 'Không thể xác định vị trí hiện tại của thiết bị');
     } finally {
@@ -124,6 +128,10 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
   const handleCheckIn = async () => {
     if (!currentCoords) {
       showToast.error('Lỗi', 'Chưa xác định được vị trí GPS.');
+      return;
+    }
+    if (branchInfo?.latitude == null || branchInfo?.longitude == null) {
+      showToast.error('Chưa cấu hình vị trí', 'Chi nhánh chưa được cài đặt tọa độ GPS điểm danh. Vui lòng liên hệ Quản lý cấu hình vị trí.');
       return;
     }
     if (!isWithinRadius) {
@@ -152,6 +160,10 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
   const handleCheckOut = async () => {
     if (!currentCoords) {
       showToast.error('Lỗi', 'Chưa xác định được vị trí GPS.');
+      return;
+    }
+    if (branchInfo?.latitude == null || branchInfo?.longitude == null) {
+      showToast.error('Chưa cấu hình vị trí', 'Chi nhánh chưa được cài đặt tọa độ GPS điểm danh. Vui lòng liên hệ Quản lý cấu hình vị trí.');
       return;
     }
 
@@ -249,25 +261,39 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
                     <Text style={styles.coordValue}>{currentCoords?.longitude.toFixed(6)}</Text>
                   </View>
 
-                  <View style={[styles.distanceBox, isWithinRadius ? styles.distanceBoxValid : styles.distanceBoxInvalid]}>
-                    <Ionicons
-                      name={isWithinRadius ? 'checkmark-circle' : 'close-circle'}
-                      size={22}
-                      color={isWithinRadius ? '#16A34A' : '#DC2626'}
-                    />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={[styles.distanceTitle, { color: isWithinRadius ? '#15803D' : '#B91C1C' }]}>
-                        {isWithinRadius
-                          ? `Trong phạm vi chi nhánh (Cách ${distance}m)`
-                          : `Ngoài phạm vi cho phép (Cách ${distance}m)`}
-                      </Text>
-                      <Text style={styles.distanceDesc}>
-                        {isWithinRadius
-                          ? 'Vị trí của bạn hợp lệ để thực hiện điểm danh ca trực.'
-                          : `Bạn phải ở trong bán kính ${maxRadius}m quanh chi nhánh để điểm danh.`}
-                      </Text>
+                  {branchInfo?.latitude == null || branchInfo?.longitude == null ? (
+                    <View style={[styles.distanceBox, styles.distanceBoxInvalid]}>
+                      <Ionicons name="alert-circle" size={22} color="#DC2626" />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={[styles.distanceTitle, { color: '#B91C1C' }]}>
+                          Chi nhánh chưa cấu hình vị trí GPS
+                        </Text>
+                        <Text style={styles.distanceDesc}>
+                          Quản lý chi nhánh cần cài đặt tọa độ cơ sở trước khi nhân viên có thể điểm danh.
+                        </Text>
+                      </View>
                     </View>
-                  </View>
+                  ) : (
+                    <View style={[styles.distanceBox, isWithinRadius ? styles.distanceBoxValid : styles.distanceBoxInvalid]}>
+                      <Ionicons
+                        name={isWithinRadius ? 'checkmark-circle' : 'close-circle'}
+                        size={22}
+                        color={isWithinRadius ? '#16A34A' : '#DC2626'}
+                      />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={[styles.distanceTitle, { color: isWithinRadius ? '#15803D' : '#B91C1C' }]}>
+                          {isWithinRadius
+                            ? `Trong phạm vi chi nhánh (Cách ${distance}m)`
+                            : `Ngoài phạm vi cho phép (Cách ${distance}m)`}
+                        </Text>
+                        <Text style={styles.distanceDesc}>
+                          {isWithinRadius
+                            ? 'Vị trí của bạn hợp lệ để thực hiện điểm danh ca trực.'
+                            : `Bạn phải ở trong bán kính ${maxRadius}m quanh chi nhánh để điểm danh.`}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
               )}
             </View>

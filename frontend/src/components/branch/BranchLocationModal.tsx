@@ -10,8 +10,8 @@ interface BranchLocationModalProps {
 
 export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocationModalProps) {
   const [branchInfo, setBranchInfo] = useState<any>(null);
-  const [latitudeStr, setLatitudeStr] = useState<string>("10.7769");
-  const [longitudeStr, setLongitudeStr] = useState<string>("106.7009");
+  const [latitudeStr, setLatitudeStr] = useState<string>("");
+  const [longitudeStr, setLongitudeStr] = useState<string>("");
   const [radiusMeters, setRadiusMeters] = useState<number>(200);
   const [address, setAddress] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
