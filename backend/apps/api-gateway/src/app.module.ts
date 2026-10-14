@@ -39,6 +39,7 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { GoogleStrategy } from "./strategies/google.strategy";
 import { S3StorageService } from "./storage/s3-storage.service";
+import { CloudinaryStorageService } from "./storage/cloudinary-storage.service";
 import { ReportService } from "./services/report.service";
 import { WebsocketModule } from "./websocket/websocket.module";
 import { NotificationModule } from "./notification/notification.module";
@@ -217,6 +218,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     JwtStrategy,
     GoogleStrategy,
     S3StorageService,
+    CloudinaryStorageService,
     ReportService,
     RedactionService,
     AuditFallbackProcessor,
@@ -379,6 +381,28 @@ export class AppGatewayModule implements OnModuleInit {
       "hr.notification.list",
       "hr.notification.mark_read",
       "hr.notification.unread_count",
+      "hr.certificate.submit",
+      "hr.certificate.my_list",
+      "hr.certificate.update",
+      "hr.certificate.delete",
+      "hr.certificate.branch_list",
+      "hr.certificate.approve",
+      "hr.certificate.reject",
+      "hr.certificate.branch_summary",
+      "user.branch.update_location",
+      "hr.attendance.check_in",
+      "hr.attendance.check_out",
+      "hr.attendance.my_current_shift",
+      "hr.attendance.verify_active_shift",
+      "hr.attendance.branch_today",
+      "hr.attendance.history",
+      "hr.payroll.calculate",
+      "hr.payroll.list",
+      "hr.payroll.detail",
+      "hr.payroll.adjust",
+      "hr.payroll.submit",
+      "hr.payroll.approve",
+      "hr.payroll.my_payslip",
     ];
 
     // 4. ORDER_SERVICE Reply Topics
@@ -421,6 +445,16 @@ export class AppGatewayModule implements OnModuleInit {
       "auth.resend.verification",
     ];
 
+    const { ensureKafkaTopicsExist, connectKafkaClient } = require("./common/kafka.helper");
+    const allTopics = [
+      ...inventoryTopics,
+      ...supplierTopics,
+      ...userTopics,
+      ...orderTopics,
+      ...kafkaTopics,
+    ];
+    await ensureKafkaTopicsExist(allTopics);
+
     for (const t of inventoryTopics)
       this.inventoryClient.subscribeToResponseOf(t);
     for (const t of supplierTopics)
@@ -429,7 +463,6 @@ export class AppGatewayModule implements OnModuleInit {
     for (const t of orderTopics) this.orderClient.subscribeToResponseOf(t);
     for (const t of kafkaTopics) this.kafkaClient.subscribeToResponseOf(t);
 
-    const { connectKafkaClient } = require("./common/kafka.helper");
     await Promise.all([
       connectKafkaClient(this.inventoryClient),
       connectKafkaClient(this.supplierClient),

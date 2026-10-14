@@ -182,41 +182,6 @@ export class ApiService {
     };
   }
 
-  // --- DEMO & OFFLINE FALLBACK USERS ---
-  public static getMockUserForDemo(emailOrPhone: string): { user: UserProfile; token: string; role: string } | null {
-    const term = emailOrPhone.trim().toLowerCase();
-    const demoMap: Record<string, { role: UserRole; name: string; branchId?: string; branchName?: string }> = {
-      'admin@vinapharmacy.com': { role: UserRole.ADMIN, name: 'Quản Trị Viên (Admin)' },
-      'director@vinapharmacy.com': { role: UserRole.HEAD_BRANCH, name: 'Giám Đốc Chi Nhánh', branchId: 'BR-001', branchName: 'Chi Nhánh Trung Tâm' },
-      'warehouse@vinapharmacy.com': { role: UserRole.WAREHOUSE, name: 'Thủ Kho Tổng', branchId: 'WH-001', branchName: 'Kho Dược Trung Tâm GSP' },
-      'pharmacist@vinapharmacy.com': { role: UserRole.PHARMACIST, name: 'Dược Sĩ Bán Hàng', branchId: 'BR-001', branchName: 'Chi Nhánh Q1 - TP.HCM' },
-      'manager@vinapharmacy.com': { role: UserRole.BRANCH, name: 'Quản Lý Cơ Sở', branchId: 'BR-002', branchName: 'Chi Nhánh Q3' },
-      'user@vinapharmacy.com': { role: UserRole.CUSTOMER, name: 'Khách Hàng Thân Thiết' },
-    };
-
-    const matched = demoMap[term];
-    if (matched) {
-      const mockUser: UserProfile = {
-        id: `mock_${matched.role}`,
-        name: matched.name,
-        email: term,
-        phone: '0901234567',
-        role: matched.role,
-        branchId: matched.branchId,
-        branchName: matched.branchName,
-        points: matched.role === UserRole.CUSTOMER ? 1500 : undefined,
-        isActive: true,
-        isVerified: true,
-      };
-      return {
-        user: mockUser,
-        token: `mock_jwt_token_${matched.role}_${Date.now()}`,
-        role: matched.role,
-      };
-    }
-    return null;
-  }
-
   // --- AUTHENTICATION APIS ---
   public static async login(emailOrPhone: string, password: string): Promise<any> {
     const isEmail = emailOrPhone.includes('@');
@@ -256,31 +221,12 @@ export class ApiService {
         };
       }
 
-      // If backend responded with error or not found, check demo fallback
-      const demoData = this.getMockUserForDemo(emailOrPhone);
-      if (demoData && (password === '123456' || password.length > 0)) {
-        this.setToken(demoData.token);
-        return {
-          accessToken: demoData.token,
-          user: demoData.user,
-          role: demoData.role,
-          message: 'Đăng nhập thành công (Demo Mode)',
-        };
-      }
-
-      return data;
+      // Xử lý thông báo lỗi xác thực từ backend
+      const errorMsg =
+        data?.message ||
+        (Array.isArray(data?.message) ? data.message.join(', ') : 'Tài khoản hoặc mật khẩu không chính xác');
+      throw new Error(errorMsg);
     } catch (e: any) {
-      console.warn('Login request error, evaluating demo/offline fallback:', e);
-      const demoData = this.getMockUserForDemo(emailOrPhone);
-      if (demoData) {
-        this.setToken(demoData.token);
-        return {
-          accessToken: demoData.token,
-          user: demoData.user,
-          role: demoData.role,
-          message: 'Đăng nhập thành công (Chế độ Offline/Demo)',
-        };
-      }
       throw new Error(e?.message || 'Không thể kết nối đến máy chủ xác thực');
     }
   }
@@ -816,10 +762,12 @@ export class ApiService {
       if (res.ok) {
         return await res.json();
       }
-    } catch (e) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, message: errData.message || 'Không thể xác nhận nhập kho chuyển' };
+    } catch (e: any) {
       console.warn('[receiveStockTransfer] Error:', e);
+      return { success: false, message: e?.message || 'Lỗi kết nối máy chủ khi nhận hàng chuyển kho' };
     }
-    return { success: true, message: 'Đã xác nhận nhập kho chuyển thành công (Demo mode)' };
   }
 
   public static async traceLot(batchNo: string): Promise<any> {
@@ -911,6 +859,49 @@ export class ApiService {
     return null;
   }
 
+  public static async getGatewayHealth(): Promise<{
+    status: 'ONLINE' | 'OFFLINE';
+    latencyMs: number;
+    timestamp: string;
+    services: Array<{ name: string; port: string; status: 'ACTIVE' | 'STANDBY'; role: string }>;
+  }> {
+    const start = Date.now();
+    try {
+      const res = await fetch(`${this.baseUrl}/health`, {
+        headers: this.authHeaders,
+      });
+      const latencyMs = Math.max(1, Date.now() - start);
+      const isOnline = res.ok;
+      return {
+        status: isOnline ? 'ONLINE' : 'OFFLINE',
+        latencyMs,
+        timestamp: new Date().toISOString(),
+        services: [
+          { name: 'api-gateway', port: '4000', status: isOnline ? 'ACTIVE' : 'STANDBY', role: 'Gateway Routing' },
+          { name: 'auth-service', port: '4001', status: isOnline ? 'ACTIVE' : 'STANDBY', role: 'Authentication & JWT' },
+          { name: 'user-service', port: '4002', status: isOnline ? 'ACTIVE' : 'STANDBY', role: 'HR, Payroll & Attendance' },
+          { name: 'inventory-service', port: '4003', status: isOnline ? 'ACTIVE' : 'STANDBY', role: 'Inventory, GRN & Batches' },
+          { name: 'supplier-service', port: '4004', status: isOnline ? 'ACTIVE' : 'STANDBY', role: 'Vendors, PR & PO' },
+          { name: 'orders-service', port: '4005', status: isOnline ? 'ACTIVE' : 'STANDBY', role: 'POS & Online Checkout' },
+        ],
+      };
+    } catch {
+      return {
+        status: 'OFFLINE',
+        latencyMs: Math.max(1, Date.now() - start),
+        timestamp: new Date().toISOString(),
+        services: [
+          { name: 'api-gateway', port: '4000', status: 'STANDBY', role: 'Gateway Routing' },
+          { name: 'auth-service', port: '4001', status: 'STANDBY', role: 'Authentication & JWT' },
+          { name: 'user-service', port: '4002', status: 'STANDBY', role: 'HR, Payroll & Attendance' },
+          { name: 'inventory-service', port: '4003', status: 'STANDBY', role: 'Inventory, GRN & Batches' },
+          { name: 'supplier-service', port: '4004', status: 'STANDBY', role: 'Vendors, PR & PO' },
+          { name: 'orders-service', port: '4005', status: 'STANDBY', role: 'POS & Online Checkout' },
+        ],
+      };
+    }
+  }
+
   public static async getBranches(): Promise<Branch[]> {
     try {
       const res = await fetch(`${this.baseUrl}/api/branches`, {
@@ -925,6 +916,51 @@ export class ApiService {
       console.warn('Failed to fetch branches:', e);
     }
     return [];
+  }
+
+  public static async getMyBranch(): Promise<Branch | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/branches/my-branch`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Failed to fetch my branch:', e);
+    }
+    return null;
+  }
+
+  public static async updateBranchLocation(
+    branchId: string,
+    data: {
+      latitude: number;
+      longitude: number;
+      checkInRadiusMeters?: number;
+      address?: string;
+    },
+  ): Promise<boolean> {
+    try {
+      const targetUrl = branchId
+        ? `${this.baseUrl}/api/branches/${encodeURIComponent(branchId)}/location`
+        : `${this.baseUrl}/api/branches/my-branch/location`;
+
+      const res = await fetch(targetUrl, {
+        method: 'PATCH',
+        headers: this.authHeaders,
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        return true;
+      }
+      const errRes = await res.json().catch(() => ({}));
+      throw new Error(errRes?.message || 'Không thể cập nhật vị trí chi nhánh');
+    } catch (e: any) {
+      console.warn('Failed to update branch location:', e);
+      throw e;
+    }
   }
 
   public static async getAuditLogs(): Promise<AuditLog[]> {
@@ -1061,6 +1097,22 @@ export class ApiService {
           ...ord,
           id: ord.id || ord._id || ord.orderCode || `order-${idx}`,
           _id: ord._id || ord.id || ord.orderCode || `order-${idx}`,
+          orderCode: ord.orderCode || ord.id || `ORD-${idx}`,
+          customerName: ord.customerName || ord.patientName || 'Khách hàng',
+          phone: ord.phone || ord.patientPhone || '',
+          finalAmount: typeof ord.finalAmount === 'number' ? ord.finalAmount : (ord.totalAmount || 0),
+          totalAmount: typeof ord.totalAmount === 'number' ? ord.totalAmount : (ord.finalAmount || 0),
+          items: (ord.items || []).map((it: any) => ({
+            ...it,
+            cach_dung: it.dosageInstructions || it.cach_dung || it.instructions || '',
+            dosageInstructions: it.dosageInstructions || it.cach_dung || '',
+            so_ngay_dung: it.durationDays || it.so_ngay_dung,
+            durationDays: it.durationDays || it.so_ngay_dung,
+            dosePerTime: it.dosePerTime,
+            timesPerDay: it.timesPerDay,
+            dailyDose: it.dailyDose,
+            baseQuantity: it.baseQuantity,
+          })),
         }));
       }
     } catch (e) {
@@ -1345,6 +1397,39 @@ export class ApiService {
     return [];
   }
 
+  public static async registerDeviceToken(
+    pushToken: string,
+    platform: string = 'android',
+    deviceModel: string = 'Mobile Device',
+  ): Promise<boolean> {
+    try {
+      if (!pushToken) return false;
+      const res = await fetch(`${this.baseUrl}/api/notifications/devices/register`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ pushToken, platform, deviceModel }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('Failed to register device push token:', e);
+      return false;
+    }
+  }
+
+  public static async unregisterDeviceToken(pushToken: string): Promise<boolean> {
+    try {
+      if (!pushToken) return false;
+      const res = await fetch(`${this.baseUrl}/api/notifications/devices/unregister`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ pushToken }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   // --- WAREHOUSE & GOODS RECEIPTS (GRN) ---
   public static async getGoodsReceipts(): Promise<any[]> {
     try {
@@ -1358,56 +1443,7 @@ export class ApiService {
     } catch (e) {
       console.warn('Failed to fetch goods receipts:', e);
     }
-    return [
-      {
-        id: 'GRN-2026-881',
-        poNumber: 'PO-2026-01',
-        supplier: 'Công ty Cổ phần Dược Hậu Giang (DHG)',
-        receivedDate: '2026-09-12',
-        status: 'INSPECTING',
-        items: [
-          {
-            name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu (15 gói x 2 miếng)',
-            expected: 150,
-            actual: 0,
-            unit: 'Hộp',
-            status: 'PENDING',
-            batchNo: 'B007-HIS',
-            expDate: '2027-02-03',
-            image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg',
-          },
-          {
-            name: 'Miếng dán Tiger Balm Plaster - RD Haw Par giảm mỏi cơ (7cm x 10cm)',
-            expected: 100,
-            actual: 0,
-            unit: 'Hộp',
-            status: 'PENDING',
-            batchNo: 'TB-2026-08',
-            expDate: '2027-11-20',
-            image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/00500745_tiger_balm_plaster_rd_7x10cm_4417_62bd_large_4776af9b3f.jpg',
-          },
-        ],
-      },
-      {
-        id: 'GRN-2026-882',
-        poNumber: 'PO-2026-02',
-        supplier: 'Hisamitsu Pharmaceutical Việt Nam',
-        receivedDate: '2026-09-11',
-        status: 'PENDING_APPROVAL',
-        items: [
-          {
-            name: 'Cao dán Salonsip Gel - Patch Hisamitsu giảm đau mỏi cơ (8 gói x 3 miếng)',
-            expected: 80,
-            actual: 80,
-            unit: 'Hộp',
-            status: 'VERIFIED',
-            batchNo: 'SLS-2026-04',
-            expDate: '2027-08-15',
-            image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_00638_2f20f0ff6a.jpg',
-          },
-        ],
-      },
-    ];
+    return [];
   }
 
   public static async inspectReceiptItemAI(
@@ -1633,15 +1669,113 @@ export class ApiService {
         return Array.isArray(decoded) ? decoded : decoded?.data || [];
       }
     } catch (_) {
-      // Fallback service health list
+      // API call failed
     }
-    return [
-      { name: 'auth-service', port: '4001', status: 'ACTIVE', load: '1.2%' },
-      { name: 'user-service', port: '4002', status: 'ACTIVE', load: '0.8%' },
-      { name: 'inventory-service', port: '4003', status: 'ACTIVE', load: '2.5%' },
-      { name: 'order-service', port: '4004', status: 'ACTIVE', load: '3.1%' },
-      { name: 'ai-service', port: '8000', status: 'ACTIVE', load: '5.4%' },
-    ];
+    return [];
+  }
+
+  public static async approvePO(poId: string, approvedBy?: string, paymentType: string = 'DEFERRED'): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/purchase-orders/approve-pay`, {
+      method: 'POST',
+      headers: this.authHeaders,
+      body: JSON.stringify({ poId, action: 'APPROVE', approvedBy, paymentType }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || 'Phê duyệt PO thất bại');
+    return data;
+  }
+
+  public static async rejectPO(poId: string, rejectionReason?: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/purchase-orders/approve-pay`, {
+      method: 'POST',
+      headers: this.authHeaders,
+      body: JSON.stringify({ poId, action: 'REJECT', rejectionReason: rejectionReason || 'Từ chối bởi Giám đốc' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || 'Từ chối PO thất bại');
+    return data;
+  }
+
+  public static async checkInAttendance(latitude: number, longitude: number, shiftId?: string, note?: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/hr/attendance/check-in`, {
+      method: 'POST',
+      headers: this.authHeaders,
+      body: JSON.stringify({ latitude, longitude, shiftId, note }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.message || 'Check-in thất bại');
+    }
+    return data;
+  }
+
+  public static async checkOutAttendance(latitude: number, longitude: number, note?: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/hr/attendance/check-out`, {
+      method: 'POST',
+      headers: this.authHeaders,
+      body: JSON.stringify({ latitude, longitude, note }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.message || 'Check-out thất bại');
+    }
+    return data;
+  }
+
+  public static async getMyTodayAttendance(): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/hr/attendance/my-today`, {
+      headers: this.authHeaders,
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return null;
+  }
+
+  public static async getMyCurrentShift(): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/hr/attendance/my-current-shift`, {
+      headers: this.authHeaders,
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return null;
+  }
+
+  public static async getMyAttendanceHistory(startDate?: string, endDate?: string): Promise<any[]> {
+    let url = `${this.baseUrl}/api/hr/attendance/history`;
+    const params = [];
+    if (startDate) params.push(`startDate=${encodeURIComponent(startDate)}`);
+    if (endDate) params.push(`endDate=${encodeURIComponent(endDate)}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+
+    const res = await fetch(url, { headers: this.authHeaders });
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data) ? data : data?.data || [];
+    }
+    return [];
+  }
+
+  public static async getMyPayslips(): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/api/hr/payroll/my-payslips`, {
+      headers: this.authHeaders,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data) ? data : data?.data || [];
+    }
+    return [];
+  }
+
+  public static async getBranchById(branchId: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/branches/${branchId}`, {
+      headers: this.authHeaders,
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return null;
   }
 
   public static async getVoicePrescription(audioFormData: FormData): Promise<any> {
@@ -1699,6 +1833,128 @@ export class ApiService {
         return { success: true, data: body.data };
       }
       return { success: false, error: body.message || 'Không thể gửi đánh giá' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  // --- LEAVE MANAGEMENT (XIN NGHỈ PHÉP & PHÊ DUYỆT) ---
+  public static async getMyLeaves(status?: string): Promise<{ leaves: any[]; balance: number; used: number }> {
+    try {
+      const url = status
+        ? `${this.baseUrl}/api/hr/leaves/mine?status=${encodeURIComponent(status)}`
+        : `${this.baseUrl}/api/hr/leaves/mine`;
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          leaves: Array.isArray(data?.leaves) ? data.leaves : Array.isArray(data) ? data : [],
+          balance: data?.balance ?? 12,
+          used: data?.used ?? 0,
+        };
+      }
+    } catch (e) {
+      console.warn('Lỗi getMyLeaves:', e);
+    }
+    return { leaves: [], balance: 12, used: 0 };
+  }
+
+  public static async getBranchLeaves(status?: string): Promise<any[]> {
+    try {
+      const url = status
+        ? `${this.baseUrl}/api/hr/leaves/branch?status=${encodeURIComponent(status)}`
+        : `${this.baseUrl}/api/hr/leaves/branch`;
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data?.data || [];
+      }
+    } catch (e) {
+      console.warn('Lỗi getBranchLeaves:', e);
+    }
+    return [];
+  }
+
+  public static async createLeaveRequest(payload: {
+    shiftDate: string;
+    shiftId: string;
+    shiftName: string;
+    startTime: string;
+    endTime: string;
+    leaveType: string;
+    reason: string;
+    attachmentUrl?: string;
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
+
+      const res = await fetch(`${this.baseUrl}/api/hr/leaves`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const body = await res.json();
+      if (res.ok) {
+        return { success: true, data: body };
+      }
+      return { success: false, error: body.message || 'Không thể tạo đơn xin nghỉ' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  public static async respondLeaveRequest(
+    leaveId: string,
+    action: 'approve' | 'reject',
+    managerNote?: string,
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
+
+      const res = await fetch(`${this.baseUrl}/api/hr/leaves/${encodeURIComponent(leaveId)}/respond`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ action, managerNote }),
+      });
+
+      const body = await res.json();
+      if (res.ok) {
+        return { success: true, data: body };
+      }
+      return { success: false, error: body.message || 'Lỗi khi phản hồi đơn' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  public static async cancelLeaveRequest(
+    leaveId: string,
+    cancelReason?: string,
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
+
+      const res = await fetch(`${this.baseUrl}/api/hr/leaves/${encodeURIComponent(leaveId)}/cancel`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ cancelReason }),
+      });
+
+      const body = await res.json();
+      if (res.ok) {
+        return { success: true, data: body };
+      }
+      return { success: false, error: body.message || 'Lỗi khi hủy đơn' };
     } catch (e: any) {
       return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
     }

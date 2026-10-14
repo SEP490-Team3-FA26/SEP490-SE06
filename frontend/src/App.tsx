@@ -74,13 +74,17 @@ import { BranchStockReceive } from "./pages/branch/BranchStockReceive";
 import { BranchInventory } from "./pages/branch/BranchInventory";
 import { BranchTransfer } from "./pages/branch/BranchTransfer";
 import { BranchEmployees } from "./pages/branch/BranchEmployees";
+import { BranchCertificateApproval } from "./pages/branch/BranchCertificateApproval";
 import { BranchShiftManagement } from "./pages/branch/BranchShiftManagement";
 import { BranchSchedule } from "./pages/branch/BranchSchedule";
 import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
+import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
+import BranchPayroll from "./pages/branch/BranchPayroll";
 
 import { Sales } from "./pages/pharmacist/Sales";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
 import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
+import { PharmacistLeaveRequest } from "./pages/pharmacist/PharmacistLeaveRequest";
 import PrescriptionManagement from "./pages/pharmacist/PrescriptionManagement";
 import OcrHistoryPage from "./pages/pharmacist/OcrHistoryPage";
 import VoiceConsultHistoryPage from "./pages/pharmacist/VoiceConsultHistoryPage";
@@ -232,9 +236,11 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
               <Route path="employees" element={<BranchEmployees />} />
+              <Route path="certificates" element={<BranchCertificateApproval />} />
               <Route path="shifts" element={<BranchShiftManagement />} />
               <Route path="schedule" element={<BranchSchedule />} />
               <Route path="shift-swaps" element={<BranchShiftSwap />} />
+              <Route path="leave-approvals" element={<BranchLeaveApproval />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="requisitions" element={<BranchRequisition />} />
               <Route path="receive-transfers" element={<BranchStockReceive />} />
@@ -246,6 +252,7 @@ export default function App() {
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
               <Route path="feedbacks" element={<BranchFeedbackPage />} />
+              <Route path="payroll" element={<BranchPayroll />} />
               <Route path="profile" element={<Profile />} />
             </Route>
           </Route>
@@ -262,6 +269,7 @@ export default function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="schedule" element={<PharmacistSchedule />} />
               <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
+              <Route path="leave-requests" element={<PharmacistLeaveRequest />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
             </Route>

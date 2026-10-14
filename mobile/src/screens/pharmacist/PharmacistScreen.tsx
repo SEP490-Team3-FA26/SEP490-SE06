@@ -24,9 +24,18 @@ import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, SamplePrescription } from '../../types/pharmacy.types';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
+import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
+import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
+import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<'POS' | 'OCR'>('POS');
+
+  // Attendance & Shift State
+  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
+  const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
+  const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
+  const [activeShift, setActiveShift] = useState<any | null>(null);
 
   // POS State
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -62,21 +71,15 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, sampleList] = await Promise.all([
+      const [medList, sampleList, currentShift] = await Promise.all([
         ApiService.getMedicines({ search: searchMed }),
         ApiService.getSamplePrescriptions(),
+        ApiService.getMyCurrentShift(),
       ]);
 
       if (medList) setMedicines(medList);
-      if (sampleList && sampleList.length > 0) {
-        setSamples(sampleList);
-      } else {
-        setSamples([
-          { filename: 'don_thuoc_viem_phe_quan.jpg', title: 'Đơn thuốc Viêm phế quản cấp', doctor: 'BS. Nguyễn Văn Hùng' },
-          { filename: 'don_thuoc_cam_cum.jpg', title: 'Đơn thuốc Cảm cúm & Sốt siêu vi', doctor: 'BS. Lê Thị Mai' },
-          { filename: 'don_thuoc_da_day.jpg', title: 'Đơn thuốc Đau dạ dày & Trào ngược', doctor: 'BS. Trần Tuấn Anh' },
-        ]);
-      }
+      setSamples(sampleList || []);
+      setActiveShift(currentShift);
     } catch (e) {
       console.warn('Error loading pharmacist data:', e);
     } finally {
@@ -220,6 +223,18 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const handleCheckout = () => {
     if (cart.length === 0) {
       showToast.info('Thông báo', 'Giỏ hàng đang trống.');
+      return;
+    }
+
+    if (!activeShift?.isCheckedIn) {
+      Alert.alert(
+        'CHƯA VÀO CA TRỰC (GPP)',
+        'Theo quy chuẩn GPP, Dược sĩ phải điểm danh GPS vào ca trực chi nhánh trước khi được phép xuất bán thuốc và tạo hóa đơn POS.\n\nVui lòng nhấn "Điểm danh vào ca" để tiếp tục.',
+        [
+          { text: 'Đóng', style: 'cancel' },
+          { text: 'Điểm danh ngay', onPress: () => setShowCheckInModal(true) },
+        ]
+      );
       return;
     }
 
@@ -464,6 +479,58 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           onPress: () => navigation.navigate('NotificationListScreen'),
         }}
       />
+
+      {/* Quick Shift & Payslip Action Bar */}
+      <View style={styles.shiftBarContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shiftActionBar}
+        >
+          <AnimatedTouchable
+            onPress={() => setShowCheckInModal(true)}
+            style={[styles.shiftActionBtn, activeShift?.isCheckedIn ? styles.shiftActiveBtn : styles.shiftInactiveBtn]}
+          >
+            <Ionicons
+              name={activeShift?.isCheckedIn ? 'checkmark-circle' : 'location'}
+              size={16}
+              color={activeShift?.isCheckedIn ? '#059669' : '#D97706'}
+            />
+            <Text style={[styles.shiftActionText, { color: activeShift?.isCheckedIn ? '#059669' : '#D97706' }]}>
+              {activeShift?.isCheckedIn ? 'Đã Vào Ca Trực (GPS)' : 'Điểm Danh Vào Ca (GPS)'}
+            </Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowPayslipModal(true)}
+            style={[styles.shiftActionBtn, styles.payslipBtn]}
+          >
+            <Ionicons name="receipt-outline" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowLeaveModal(true)}
+            style={[styles.shiftActionBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+          >
+            <Ionicons name="calendar-outline" size={16} color="#059669" />
+            <Text style={[styles.shiftActionText, { color: '#059669' }]}>Nghỉ Phép</Text>
+          </AnimatedTouchable>
+        </ScrollView>
+      </View>
+
+      {/* Cảnh báo GPP khi chưa vào ca */}
+      {!activeShift?.isCheckedIn && (
+        <AnimatedTouchable
+          onPress={() => setShowCheckInModal(true)}
+          style={styles.gppWarningBanner}
+        >
+          <Ionicons name="warning" size={18} color="#B45309" />
+          <Text style={styles.gppWarningText}>
+            Cảnh báo GPP: Bạn chưa điểm danh vào ca trực. Nhấn vào đây để check-in GPS trước khi bán hàng!
+          </Text>
+        </AnimatedTouchable>
+      )}
 
       {/* Tabs */}
       <View style={styles.tabBar}>
@@ -1207,6 +1274,25 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         medicine={selectedLabelMed}
         onClose={() => setSelectedLabelMed(null)}
       />
+
+      {/* GPS Attendance Modal */}
+      <AttendanceCheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+        onAttendanceSuccess={loadData}
+      />
+
+      {/* Staff Payslip Modal */}
+      <StaffPayslipModal
+        visible={showPayslipModal}
+        onClose={() => setShowPayslipModal(false)}
+      />
+
+      {/* Staff Leave Management Modal */}
+      <StaffLeaveModal
+        visible={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -1215,6 +1301,60 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  shiftBarContainer: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  shiftActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  shiftActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  shiftActiveBtn: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  shiftInactiveBtn: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+  },
+  payslipBtn: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+  },
+  shiftActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  gppWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  gppWarningText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B45309',
+    lineHeight: 16,
   },
   tabBar: {
     flexDirection: 'row',

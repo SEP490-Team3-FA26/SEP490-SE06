@@ -12,6 +12,9 @@ import {
   Activity,
   Layers,
   Radio,
+  Bell,
+  Flame,
+  X,
 } from "lucide-react";
 import {
   AreaChart,
@@ -31,6 +34,7 @@ import {
   SensorStation,
 } from "../../services/inventory/sensorTelemetry.service";
 import { useSocket } from "../../hooks/useSocket";
+import api from "../../services/core/api";
 
 // ── COMPONENT MINI SPARKLINE CANVAS (SIÊU NHẸ, 60 FPS, 0% CPU OVERHEAD) ──
 interface SparklineCanvasProps {
@@ -120,7 +124,7 @@ const METRIC_DEFINITIONS: Record<
   MetricKey,
   { label: string; unit: string; color: string; desc: string; minRange: number }
 > = {
-  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 25°C", minRange: 2.0 },
+  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 40°C", minRange: 2.0 },
   humidity: { label: "Độ Ẩm Không Khí", unit: "%RH", color: "#06b6d4", desc: "Chuẩn GSP ≤ 70%RH", minRange: 5.0 },
   dewPoint: { label: "Điểm Sương (Td)", unit: "°C", color: "#6366f1", desc: "Công thức Magnus Eq", minRange: 2.0 },
   vpd: { label: "Áp Suất Hơi (VPD)", unit: "kPa", color: "#a855f7", desc: "Tốc độ bay hơi ẩm dược phẩm", minRange: 0.5 },
@@ -137,6 +141,12 @@ export function GspTelemetryDashboard() {
   const [range, setRange] = useState<TimeRange>("5m");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Quản lý Modal và trạng thái Test Cảnh Báo IoT
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testAlertType, setTestAlertType] = useState<"GSP_WARNING" | "FIRE_EMERGENCY">("GSP_WARNING");
+  const [testSending, setTestSending] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   // View mode & selected metric
   const [viewMode, setViewMode] = useState<ViewMode>("climate");
@@ -161,6 +171,38 @@ export function GspTelemetryDashboard() {
   const [offlineElapsedSec, setOfflineElapsedSec] = useState<number | null>(null);
 
   const { onEvent, offEvent } = useSocket();
+
+  // Mở modal xác nhận test cảnh báo
+  const handleOpenTestModal = (type: "GSP_WARNING" | "FIRE_EMERGENCY") => {
+    setTestAlertType(type);
+    setTestModalOpen(true);
+  };
+
+  // Thực thi gửi tín hiệu test cảnh báo
+  const handleExecuteTestAlert = async () => {
+    try {
+      setTestSending(true);
+      const targetDeviceId = station?.deviceId || (latestData as any)?.deviceId || "ESP32S3_404CCA44C814";
+      await api.post("/api/notifications/test-iot-alert", {
+        type: testAlertType,
+        deviceId: targetDeviceId,
+      });
+
+      setToastMessage({
+        text: `Đã gửi tín hiệu ${testAlertType === "FIRE_EMERGENCY" ? "Báo Động Hỏa Hoạn" : "Cảnh Báo Quá Nhiệt GSP"} thành công tới điện thoại Thủ kho!`,
+        type: "success",
+      });
+      setTestModalOpen(false);
+    } catch (err: any) {
+      setToastMessage({
+        text: err?.response?.data?.message || err?.message || "Lỗi khi gửi cảnh báo thử nghiệm",
+        type: "error",
+      });
+    } finally {
+      setTestSending(false);
+      setTimeout(() => setToastMessage(null), 5000);
+    }
+  };
 
   // 1. Tải dữ liệu ban đầu
   const fetchAllData = async (isManual = false) => {
@@ -387,7 +429,7 @@ export function GspTelemetryDashboard() {
   const seqVal = latestData?.seq;
 
   // Đánh giá vi phạm chuẩn GSP thực tế
-  const isTempViolated = tempVal !== undefined && (tempVal < 15.0 || tempVal > (station?.tempMax || 25.0));
+  const isTempViolated = tempVal !== undefined && (tempVal < 15.0 || tempVal > (station?.tempMax || 40.0));
   const isHumViolated = humVal !== undefined && humVal > (station?.humMax || 70.0);
   const isGspAlert = isTempViolated || isHumViolated || Boolean(latestData?.status?.alert);
 
@@ -449,7 +491,7 @@ export function GspTelemetryDashboard() {
               }`}
             >
               {isGspAlert ? <AlertTriangle className="w-4 h-4 text-rose-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
-              <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : "ĐẠT CHUẨN GSP (15-25°C, ≤70%RH)"}</span>
+              <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : `ĐẠT CHUẨN GSP (15-${station?.tempMax || 40}°C, ≤70%RH)`}</span>
             </div>
           ) : (
             <div className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 flex items-center gap-2 text-xs font-semibold">
@@ -485,6 +527,26 @@ export function GspTelemetryDashboard() {
                 : "CHỜ KẾT NỐI"}
             </span>
           </div>
+
+          {/* Nút 1: Test Cảnh Báo GSP */}
+          <button
+            onClick={() => handleOpenTestModal("GSP_WARNING")}
+            className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 flex items-center gap-1.5 text-xs font-semibold transition-all shadow-xs hover:shadow cursor-pointer"
+            title="Thử nghiệm gửi cảnh báo nhiệt độ GSP tới điện thoại Thủ kho"
+          >
+            <Bell className="w-3.5 h-3.5 text-amber-600" />
+            <span>Test Cảnh Báo GSP</span>
+          </button>
+
+          {/* Nút 2: Test Báo Động Cháy */}
+          <button
+            onClick={() => handleOpenTestModal("FIRE_EMERGENCY")}
+            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 flex items-center gap-1.5 text-xs font-semibold transition-all shadow-xs hover:shadow cursor-pointer"
+            title="Thử nghiệm chuông báo động hỏa hoạn tới điện thoại Thủ kho"
+          >
+            <Flame className="w-3.5 h-3.5 text-rose-600 animate-bounce" />
+            <span>Test Báo Động Cháy</span>
+          </button>
 
           {/* Nút Làm mới thủ công */}
           <button
@@ -538,18 +600,18 @@ export function GspTelemetryDashboard() {
                 className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
                   tempVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
-                    : tempVal >= 15 && tempVal <= 25
+                    : tempVal >= 15 && tempVal <= (station?.tempMax || 40.0)
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : tempVal > 25
+                    : tempVal > (station?.tempMax || 40.0)
                     ? "bg-rose-50 text-rose-700 border-rose-200"
                     : "bg-cyan-50 text-cyan-700 border-cyan-200"
                 }`}
               >
                 {tempVal === undefined
                   ? "Chờ dữ liệu"
-                  : tempVal >= 15 && tempVal <= 25
+                  : tempVal >= 15 && tempVal <= (station?.tempMax || 40.0)
                   ? "Chuẩn GSP"
-                  : tempVal > 25
+                  : tempVal > (station?.tempMax || 40.0)
                   ? "Vượt chuẩn"
                   : "Thấp"}
               </span>
@@ -567,12 +629,12 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Chuẩn: <strong>15 - 25°C</strong></span>
+              <span>Chuẩn: <strong>15 - {station?.tempMax || 40}°C</strong></span>
               <span
                 className={`font-semibold ${
                   tempVal === undefined
                     ? "text-slate-400"
-                    : tempVal > 25
+                    : tempVal > (station?.tempMax || 40.0)
                     ? "text-rose-600"
                     : tempVal < 15
                     ? "text-cyan-600"
@@ -581,7 +643,7 @@ export function GspTelemetryDashboard() {
               >
                 {tempVal === undefined
                   ? "--"
-                  : tempVal > 25
+                  : tempVal > (station?.tempMax || 40.0)
                   ? "Vượt chuẩn (Quá nóng)"
                   : tempVal < 15
                   ? "Thấp hơn chuẩn"
@@ -1025,7 +1087,7 @@ export function GspTelemetryDashboard() {
                     }}
                   />
                   {/* Ngưỡng GSP */}
-                  <ReferenceLine yAxisId="left" y={25} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Max 25°C", fill: "#ef4444", fontSize: 10 }} />
+                  <ReferenceLine yAxisId="left" y={station?.tempMax || 40} stroke="#ef4444" strokeDasharray="4 4" label={{ value: `Max ${station?.tempMax || 40}°C`, fill: "#ef4444", fontSize: 10 }} />
                   <ReferenceLine yAxisId="left" y={15} stroke="#3b82f6" strokeDasharray="4 4" label={{ value: "Min 15°C", fill: "#3b82f6", fontSize: 10 }} />
                   <ReferenceLine yAxisId="right" y={70} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Max 70%RH", fill: "#f59e0b", fontSize: 10 }} />
 
@@ -1131,7 +1193,7 @@ export function GspTelemetryDashboard() {
                   />
                   {selectedMetric === "temperature" && (
                     <>
-                      <ReferenceLine y={25} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "Max 25°C", fill: "#ef4444", fontSize: 10 }} />
+                      <ReferenceLine y={station?.tempMax || 40} stroke="#ef4444" strokeDasharray="4 4" label={{ value: `Max ${station?.tempMax || 40}°C`, fill: "#ef4444", fontSize: 10 }} />
                       <ReferenceLine y={15} stroke="#3b82f6" strokeDasharray="4 4" label={{ value: "Min 15°C", fill: "#3b82f6", fontSize: 10 }} />
                     </>
                   )}
@@ -1166,6 +1228,107 @@ export function GspTelemetryDashboard() {
           <div>Trung bình: <strong className="text-slate-800 font-semibold">{stats.avg}</strong></div>
         </div>
       </div>
+
+      {/* ── TOAST THÔNG BÁO KẾT QUẢ TEST ── */}
+      {toastMessage && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-3 text-xs font-medium transition-all ${
+            toastMessage.type === "success"
+              ? "bg-emerald-950 text-emerald-100 border-emerald-700"
+              : "bg-rose-950 text-rose-100 border-rose-700"
+          }`}
+        >
+          <div className={`w-2 h-2 rounded-full ${toastMessage.type === "success" ? "bg-emerald-400" : "bg-rose-400"}`} />
+          <span>{toastMessage.text}</span>
+          <button onClick={() => setToastMessage(null)} className="ml-2 hover:opacity-75 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* ── MODAL XÁC NHẬN TEST CẢNH BÁO IOT ── */}
+      {testModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 relative overflow-hidden">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-3 rounded-2xl ${
+                    testAlertType === "FIRE_EMERGENCY" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"
+                  }`}
+                >
+                  {testAlertType === "FIRE_EMERGENCY" ? <Flame className="w-6 h-6" /> : <Bell className="w-6 h-6" />}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {testAlertType === "FIRE_EMERGENCY"
+                      ? "Kích Hoạt Test Chuông Hỏa Hoạn?"
+                      : "Gửi Test Cảnh Báo Quá Nhiệt GSP?"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                    Trạm: {station?.deviceId || "ESP32S3_404CCA44C814"} (Kho Tổng)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setTestModalOpen(false)}
+                disabled={testSending}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-5 text-xs text-slate-600 space-y-2">
+              <p>
+                {testAlertType === "FIRE_EMERGENCY" ? (
+                  <>
+                    Hệ thống sẽ phát tín hiệu <strong className="text-rose-700">Báo Động Hỏa Hoạn (Cấp độ 2)</strong>{" "}
+                    với chuông báo thức giai điệu và popup khẩn cấp tới tất cả điện thoại của Thủ kho.
+                  </>
+                ) : (
+                  <>
+                    Hệ thống sẽ gửi <strong className="text-amber-700">Cảnh Báo Quá Nhiệt GSP (Cấp độ 1)</strong> thử
+                    nghiệm với âm thanh thông báo tiêu chuẩn tới điện thoại của Thủ kho.
+                  </>
+                )}
+              </p>
+              <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
+                <strong>Lưu ý:</strong> Đây là tín hiệu thử nghiệm. Hệ thống <strong>không ghi nhận vào CSDL</strong> để
+                tránh làm sai lệch báo cáo chỉ số vận hành kho thực tế.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setTestModalOpen(false)}
+                disabled={testSending}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleExecuteTestAlert}
+                disabled={testSending}
+                className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-md ${
+                  testAlertType === "FIRE_EMERGENCY"
+                    ? "bg-rose-600 hover:bg-rose-700 shadow-rose-500/20"
+                    : "bg-amber-600 hover:bg-amber-700 shadow-amber-500/20"
+                }`}
+              >
+                {testSending ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang gửi tín hiệu...</span>
+                  </>
+                ) : (
+                  <span>Xác nhận gửi test</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

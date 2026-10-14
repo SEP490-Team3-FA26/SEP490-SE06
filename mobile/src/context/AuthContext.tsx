@@ -7,7 +7,9 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { ApiService } from '../services/api.service';
 import { authApiService } from '../services/authApiService';
 import { SocketService } from '../services/socket.service';
@@ -15,6 +17,49 @@ import { UserRole, UserProfile } from '../types/pharmacy.types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
+const PUSH_TOKEN_KEY = 'device_push_token';
+
+const syncPushTokenToServer = async () => {
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') {
+      return;
+    }
+
+    let token = '';
+    try {
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      token = typeof deviceToken.data === 'string' ? deviceToken.data : String(deviceToken.data);
+    } catch {
+      const expoToken = await Notifications.getExpoPushTokenAsync();
+      token = expoToken.data;
+    }
+
+    if (token) {
+      await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+      await ApiService.registerDeviceToken(token, Platform.OS);
+    }
+  } catch (err) {
+    console.warn('Sync push token warning:', err);
+  }
+};
+
+const unregisterPushTokenFromServer = async () => {
+  try {
+    const token = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if (token) {
+      await ApiService.unregisterDeviceToken(token);
+      await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    }
+  } catch (err) {
+    console.warn('Unregister push token warning:', err);
+  }
+};
 
 export type UserRoleMobile =
   | 'admin'
@@ -57,7 +102,6 @@ type AuthContextValue = {
   resetPassword: (email: string, otp: string, newPass: string) => Promise<boolean>;
   updateProfile: (data: Partial<UserProfile>) => Promise<boolean>;
   logout: () => Promise<void>;
-  switchRole: (role: UserRoleMobile) => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
 };
@@ -141,6 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userProfile));
       setUser(userProfile);
+      void syncPushTokenToServer();
 
       return {
         success: true,
@@ -262,6 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     try {
       setIsLoading(true);
+      await unregisterPushTokenFromServer();
       SocketService.disconnect();
       ApiService.setToken('');
       await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, USER_DATA_KEY]);
@@ -272,33 +318,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   }, []);
-
-  const switchRole = useCallback(async (newRole: UserRoleMobile) => {
-    try {
-      const roleToName: Record<string, string> = {
-        admin: 'Admin Hệ Thống',
-        headBranch: 'Giám Đốc Chuỗi',
-        director: 'Giám Đốc Chuỗi',
-        warehouse: 'Thủ Kho Trung Tâm',
-        pharmacist: 'Dược Sĩ Bán Hàng',
-        branch: 'Quản Lý Chi Nhánh',
-        customer: 'Khách Hàng VIP',
-        user: 'Khách Hàng',
-      };
-      const updatedUser: UserProfile = user
-        ? { ...user, role: newRole as any, name: user.name || roleToName[newRole] || 'Người dùng' }
-        : {
-            id: `usr_${Date.now()}`,
-            name: roleToName[newRole] || 'Người dùng',
-            email: `${newRole}@vinapharmacy.com`,
-            role: newRole as any,
-          };
-      setUser(updatedUser);
-      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(updatedUser));
-    } catch (err) {
-      console.error('Error switching role:', err);
-    }
-  }, [user]);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -338,7 +357,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resetPassword,
       updateProfile,
       logout,
-      switchRole,
       refreshUser,
       clearError,
     }),
@@ -356,7 +374,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resetPassword,
       updateProfile,
       logout,
-      switchRole,
       refreshUser,
       clearError,
     ]

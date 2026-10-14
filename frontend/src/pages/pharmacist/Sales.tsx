@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AlertTriangle,
   XCircle,
   CheckCircle2,
   ShieldCheck,
+  ShieldAlert,
   Sparkles,
   ShoppingCart,
   FileText,
@@ -22,6 +23,7 @@ import ReturnsView from "./components/ReturnsView";
 import GPPView from "./components/GPPView";
 import OcrHistoryView from "./components/OcrHistoryView";
 import VoiceConsultationHistoryView from "./components/VoiceConsultationHistoryView";
+import { hrService } from "../../services/hr/hr.service";
 
 // Helper to decode JWT token to extract branchId and duty pharmacist info
 function getBranchInfoFromToken() {
@@ -113,6 +115,30 @@ export function Sales() {
     { id: string; message: string; type: "success" | "error" | "warning" | "info" }[]
   >([]);
 
+  // State kiểm tra ca trực & điểm danh GPS theo chuẩn GPP
+  const [shiftCheckLoading, setShiftCheckLoading] = useState<boolean>(true);
+  const [shiftCheckedIn, setShiftCheckedIn] = useState<boolean>(true);
+  const [shiftInfo, setShiftInfo] = useState<any>(null);
+
+  const verifyShiftStatus = async () => {
+    setShiftCheckLoading(true);
+    try {
+      const res = await hrService.getMyCurrentShift();
+      setShiftCheckedIn(!!res?.isCheckedIn);
+      setShiftInfo(res);
+    } catch (err) {
+      console.warn("Could not verify shift status:", err);
+      // Quy chuẩn GPP: Fail-closed, khóa quyền bán hàng khi không xác thực được ca trực
+      setShiftCheckedIn(false);
+    } finally {
+      setShiftCheckLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    verifyShiftStatus();
+  }, []);
+
   const branchInfo = getBranchInfoFromToken();
 
   const showToast = (
@@ -128,6 +154,30 @@ export function Sales() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50 font-sans relative">
+      {/* Cảnh báo tuân thủ GPP khi chưa vào ca hoặc chưa điểm danh GPS */}
+      {!shiftCheckLoading && !shiftCheckedIn && (
+        <div className="bg-rose-50 border-b border-rose-200 px-6 py-2.5 flex items-center justify-between gap-4 text-rose-950 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-1.5 bg-rose-100 rounded-lg text-rose-700 shrink-0">
+              <ShieldAlert size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-rose-900">
+                Cảnh báo GPP: Chưa đến ca làm việc hoặc chưa điểm danh
+              </p>
+              <p className="text-xs text-rose-700 truncate">
+                Chức năng tạo đơn bán lẻ đã bị khóa. Vui lòng sử dụng ứng dụng di động để Check-in GPS vào ca trực trước khi bán hàng.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={verifyShiftStatus}
+            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+          >
+            Kiểm tra lại
+          </button>
+        </div>
+      )}
 
       {/* 2. Sleek Clinical Tab Navigation */}
       <div
@@ -179,8 +229,8 @@ export function Sales() {
 
       {/* 3. Main Tab Content */}
       <div className="flex-1 overflow-hidden min-h-0 p-4 sm:p-6">
-        {activeTab === "retail" && <RetailView showToast={showToast} />}
-        {activeTab === "prescription" && <PrescriptionView showToast={showToast} />}
+        {activeTab === "retail" && <RetailView showToast={showToast} isShiftActive={shiftCheckedIn} />}
+        {activeTab === "prescription" && <PrescriptionView showToast={showToast} isShiftActive={shiftCheckedIn} />}
         {activeTab === "ocr-history" && <OcrHistoryView showToast={showToast} />}
         {activeTab === "ai-consult-history" && <VoiceConsultationHistoryView showToast={showToast} />}
         {activeTab === "gpp-sync" && <GPPView showToast={showToast} />}

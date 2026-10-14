@@ -24,20 +24,7 @@ interface BarcodeScannerModalProps {
   title?: string;
   subtitle?: string;
   mode?: 'BARCODE' | 'QR' | 'ALL';
-  demoCodes?: Array<{ label: string; code: string; sub?: string }>;
 }
-
-const DEFAULT_DEMO_CODES = [
-  { label: 'Panadol Extra Đỏ', code: '8935006530010', sub: 'GS1 VN (15 vỉ x 12v)' },
-  { label: 'Salonpas 140s (Nhật)', code: '4987188100325', sub: 'JAN Hisamitsu Japan' },
-  { label: 'Salonpas 20s (VN)', code: '8935001701118', sub: 'Hisamitsu Chính hãng' },
-  { label: 'Efferalgan 500mg', code: '3400932567577', sub: 'UPSA SAS Pháp (Sủi)' },
-  { label: 'Hapacol 650', code: '8935061600109', sub: 'Dược Hậu Giang DHG' },
-  { label: 'Dầu Gió Con Ó', code: '8888062001010', sub: 'Borden Singapore (24ml)' },
-  { label: 'Natri Clorid 0.9%', code: '8934658002012', sub: 'Pharmedic Lọ 10ml' },
-  { label: 'Berberin 100mg', code: '8934812003039', sub: 'Domesco Lọ 100v' },
-  { label: 'Strepsils Cool', code: '8850360000045', sub: 'Reckitt Thái Lan' },
-];
 
 export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   visible,
@@ -47,12 +34,12 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   title = 'Quét Mã Vạch / QR Code',
   subtitle = 'Đưa mã vạch hoặc mã QR vào khung ngắm để nhận diện',
   mode = 'ALL',
-  demoCodes = DEFAULT_DEMO_CODES,
 }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState<boolean>(false);
   const [manualCode, setManualCode] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const isProcessingRef = useRef<boolean>(false);
   const [scanMode, setScanMode] = useState<'BARCODE' | 'QR' | 'ALL'>(mode);
 
   // Animated Laser Line
@@ -60,6 +47,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
 
   useEffect(() => {
     if (visible) {
+      isProcessingRef.current = false;
       setIsProcessing(false);
       setManualCode('');
       Animated.loop(
@@ -76,46 +64,70 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           }),
         ])
       ).start();
+    } else {
+      isProcessingRef.current = false;
     }
   }, [visible, laserAnim]);
 
   const handleBarcodeScanned = (result: BarcodeScanningResult) => {
-    if (isProcessing) return;
+    if (isProcessingRef.current || isProcessing) return;
     const rawData = result.data ? String(result.data).trim() : '';
     if (!rawData) return;
 
+    // Synchronously lock immediately so no subsequent camera frames trigger
+    isProcessingRef.current = true;
     setIsProcessing(true);
+
     let extractedCode = rawData;
 
-    // Try parsing JSON if QR contains structured object
-    if (rawData.startsWith('{') && rawData.endsWith('}')) {
+    // 1. Check if QR code is a Web sync URL (e.g. mobile-inspection?poId=... or grnId=...)
+    if (rawData.includes('mobile-inspection') || rawData.includes('poId=') || rawData.includes('grnId=')) {
+      try {
+        const match = rawData.match(/[?&](poId|grnId|transferId|code)=([^&#]+)/i);
+        if (match && match[2]) {
+          extractedCode = decodeURIComponent(match[2]);
+        }
+      } catch {
+        extractedCode = rawData;
+      }
+    }
+    // 2. Try parsing JSON if QR contains structured object
+    else if (rawData.startsWith('{') && rawData.endsWith('}')) {
       try {
         const parsed = JSON.parse(rawData);
-        extractedCode = parsed.transferCode || parsed.barcode || parsed.code || parsed.ticketId || parsed.orderCode || rawData;
+        extractedCode = parsed.transferCode || parsed.poCode || parsed.poId || parsed.barcode || parsed.code || parsed.ticketId || parsed.orderCode || rawData;
       } catch {
         extractedCode = rawData;
       }
     }
 
-    if (onScanned) onScanned(extractedCode, result.type);
-    if (onScanSuccess) onScanSuccess(extractedCode, result.type);
+    // Dismiss scanner modal FIRST to avoid Android BadTokenException crash with native Alert/Modals
     onClose();
+
+    // Trigger callback after small delay allowing Modal unmount animation to settle
+    setTimeout(() => {
+      if (onScanned) {
+        onScanned(extractedCode, result.type);
+      } else if (onScanSuccess) {
+        onScanSuccess(extractedCode, result.type);
+      }
+    }, 300);
   };
 
   const handleManualSubmit = () => {
     const trimmed = manualCode.trim();
-    if (!trimmed) return;
+    if (!trimmed || isProcessingRef.current) return;
+    isProcessingRef.current = true;
     setIsProcessing(true);
-    if (onScanned) onScanned(trimmed, 'MANUAL');
-    if (onScanSuccess) onScanSuccess(trimmed, 'MANUAL');
-    onClose();
-  };
 
-  const handleSelectDemo = (code: string) => {
-    setIsProcessing(true);
-    if (onScanned) onScanned(code, 'DEMO_QUICK');
-    if (onScanSuccess) onScanSuccess(code, 'DEMO_QUICK');
     onClose();
+    setTimeout(() => {
+      if (onScanned) {
+        onScanned(trimmed, 'MANUAL');
+      } else if (onScanSuccess) {
+        onScanSuccess(trimmed, 'MANUAL');
+      }
+    }, 300);
   };
 
   const laserTranslateY = laserAnim.interpolate({
@@ -242,21 +254,6 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-
-          {/* Demo Quick Barcode Buttons */}
-          <Text style={styles.demoLabel}>Mã test nhanh (Demo):</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.demoScroll}>
-            {demoCodes.map((item, idx) => (
-              <TouchableOpacity
-                key={`demo-${idx}`}
-                onPress={() => handleSelectDemo(item.code)}
-                style={styles.demoPill}
-              >
-                <Text style={styles.demoPillTitle}>{item.label}</Text>
-                <Text style={styles.demoPillCode}>{item.code}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
         </View>
       </View>
     </Modal>

@@ -1,12 +1,17 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "ABC",
     "slug": "mobile",
     "scheme": "wdp301",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#01BAA8"
+    },
     "androidNavigationBar": {
       "visible": "always",
       "barStyle": "dark-content",
@@ -14,15 +19,19 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vinapharmacy.mobile",
+      "bundleIdentifier": "com.abcpharmacy.mobile",
       "infoPlist": {
         "NSCalendarsUsageDescription": "Cho phép ứng dụng thêm sự kiện vào lịch của bạn.",
-        "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc."
+        "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc.",
+        "NSLocationWhenInUseUsageDescription": "Ứng dụng cần quyền vị trí để xác thực điểm danh check-in tại chi nhánh nhà thuốc.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Ứng dụng cần quyền vị trí để xác thực điểm danh check-in tại chi nhánh nhà thuốc."
       }
     },
     "android": {
+      "package": "com.abcpharmacy.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#01BAA8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -34,7 +43,17 @@
         "WRITE_CALENDAR",
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "USE_FULL_SCREEN_INTENT",
+        "WAKE_LOCK",
+        "DISABLE_KEYGUARD",
+        "VIBRATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ]
     },
     "web": {
@@ -48,12 +67,38 @@
       "expo-font",
       "expo-splash-screen",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Cho phép ứng dụng lấy vị trí GPS để xác nhận điểm danh ca làm việc tại nhà thuốc."
+        }
+      ],
+      [
+        "react-native-notify-kit",
+        {
+          "android": {
+            "foregroundService": {
+              "types": ["mediaPlayback"]
+            }
+          }
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#0284C7"
+          "color": "#0284C7",
+          "defaultChannel": "fire_emergency_ring_v8",
+          "sounds": [
+            "./assets/alarm_gentle.wav"
+          ]
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f7db0cf2-e41b-4383-bec8-3a75eb6c12ec"
+      }
+    },
+    "owner": "phuche2004"
   }
 }

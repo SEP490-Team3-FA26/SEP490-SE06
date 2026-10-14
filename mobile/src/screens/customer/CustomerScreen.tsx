@@ -22,6 +22,8 @@ import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { showToast } from '../../components/ui/toastHelper';
 import { Medicine, CartItem, Order, Voucher } from '../../types/pharmacy.types';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
+import { parseOrderToReminder, createRemindersFromOrder } from '../../services/reminderStorage.service';
+import { MedicineReminderService } from '../../services/medicineReminder.service';
 
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
@@ -791,7 +793,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   <View style={styles.voucherCodePill}>
                     <Text style={styles.voucherCodeText}>{v.code}</Text>
                   </View>
-                  <Text style={styles.voucherDesc}>{v.description || 'Ưu đãi dành cho khách hàng VinaPharmacy'}</Text>
+                  <Text style={styles.voucherDesc}>{v.description || 'Ưu đãi dành cho khách hàng ABC Pharmacy'}</Text>
                   <Text style={styles.voucherCondition}>
                     {v.minOrderValue ? `Đơn tối thiểu ${v.minOrderValue.toLocaleString('vi-VN')} ₫` : 'Áp dụng cho mọi đơn hàng'}
                   </Text>
@@ -866,11 +868,82 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   </Text>
 
                   <View style={styles.orderItemsBox}>
-                    {ord.items.map((it, idx) => (
-                      <Text key={idx} style={styles.orderItemRow}>
-                        • {it.name} x {it.quantity} {it.unit} ({it.price.toLocaleString('vi-VN')} ₫)
-                      </Text>
-                    ))}
+                    {ord.items.map((it, idx) => {
+                      const instructionText = it.cach_dung || (it as any).dosageInstructions;
+                      return (
+                        <View key={idx} style={styles.orderItemCardRow}>
+                          <View style={{ flex: 1, marginRight: 8 }}>
+                            <Text style={styles.orderItemTitle}>
+                              • {it.name} x {it.quantity} {it.unit}
+                            </Text>
+                            <Text style={styles.orderItemSub}>
+                              {typeof it.price === 'number' ? `${it.price.toLocaleString('vi-VN')} ₫` : ''}
+                            </Text>
+                            {/* Hiển thị chi tiết cách dùng và liều dùng */}
+                            {instructionText ? (
+                              <View style={styles.instructionBadgeBox}>
+                                <Ionicons name="medical" size={12} color="#0891B2" />
+                                <Text style={styles.instructionBadgeText}>
+                                  {instructionText}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          <AnimatedTouchable
+                            style={styles.setReminderBtn}
+                            onPress={() => {
+                              const parsed = parseOrderToReminder(it, ord.orderCode || ord.id || (ord as any)._id);
+                              navigation.navigate('MedicineReminderScreen', { autoFill: parsed });
+                            }}
+                          >
+                            <Ionicons name="alarm" size={13} color="#0891B2" />
+                            <Text style={styles.setReminderBtnText}>Nhắc Uống</Text>
+                          </AnimatedTouchable>
+                        </View>
+                      );
+                    })}
+
+                    {/* Nút 1-Chạm: Tự Động Tạo Lịch Nhắc Toàn Bộ Đơn Thuốc */}
+                    {ord.items.length > 0 && (
+                      <AnimatedTouchable
+                        style={styles.autoCreateAllRemindersBtn}
+                        onPress={async () => {
+                          try {
+                            const created = await createRemindersFromOrder(ord);
+                            if (created.length > 0) {
+                              // Lên lịch notification báo thức cho từng reminder
+                              for (const rem of created) {
+                                await MedicineReminderService.scheduleReminderSlidingWindow(rem, 7);
+                              }
+                              showToast.success(
+                                'Tạo Lịch Thành Công!',
+                                `Đã tự động tạo lịch và chuông báo thức cho ${created.length} loại thuốc trong đơn ${ord.orderCode || ord.id}!`
+                              );
+                              Alert.alert(
+                                'Đã Tạo Lịch Nhắc Thuốc',
+                                `Hệ thống đã tự động tính liều dùng và hẹn giờ nhắc uống thuốc (08:00 & 20:00 sau ăn) cho toàn bộ đơn hàng ${ord.orderCode || ord.id}. Bạn có muốn chuyển sang màn hình Nhắc Thuốc để xem chi tiết?`,
+                                [
+                                  { text: 'Ở lại đây', style: 'cancel' },
+                                  {
+                                    text: 'Xem Lịch Ngay',
+                                    onPress: () => navigation.navigate('MedicineReminderScreen'),
+                                  },
+                                ]
+                              );
+                            } else {
+                              showToast.info('Thông báo', 'Đơn hàng không có thuốc nào để tạo lịch');
+                            }
+                          } catch (e: any) {
+                            showToast.error('Lỗi', e.message || 'Không thể tạo lịch nhắc');
+                          }
+                        }}
+                      >
+                        <Ionicons name="sparkles" size={14} color="#059669" />
+                        <Text style={styles.autoCreateAllRemindersBtnText}>
+                          Tạo Lịch Nhắc Uống Toàn Bộ Đơn ({ord.items.length} thuốc)
+                        </Text>
+                      </AnimatedTouchable>
+                    )}
                   </View>
 
                   <View style={styles.orderFooter}>
@@ -1771,6 +1844,76 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#475569',
     marginVertical: 2,
+  },
+  orderItemCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  orderItemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  orderItemSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  setReminderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFEFF',
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  setReminderBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0891B2',
+  },
+  instructionBadgeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFEFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+    gap: 4,
+    borderWidth: 0.5,
+    borderColor: '#A5F3FC',
+  },
+  instructionBadgeText: {
+    fontSize: 11,
+    color: '#0E7490',
+    fontWeight: '600',
+    flex: 1,
+  },
+  autoCreateAllRemindersBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    gap: 6,
+  },
+  autoCreateAllRemindersBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
   },
   orderFooter: {
     flexDirection: 'row',

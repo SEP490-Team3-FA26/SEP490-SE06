@@ -94,6 +94,34 @@ export class User extends Document {
 
   @Prop({ type: [String], default: [], select: false })
   loyaltyOperationKeys?: string[];
+
+  /** Trình độ bằng cấp chuyên môn cao nhất được duyệt (VD: Dược sĩ Đại học, Dược sĩ Cao đẳng) */
+  @Prop({ default: null })
+  highestDegree?: string;
+
+  /** Số hiệu Chứng chỉ hành nghề Dược (CCHN) đã được thẩm định */
+  @Prop({ default: null })
+  practiceCertificateNumber?: string;
+
+  /** Tổng mức phụ cấp văn bằng & CCHN hàng tháng (VNĐ) */
+  @Prop({ default: 0 })
+  certificateAllowance?: number;
+
+  /** Xác định Dược sĩ chịu trách nhiệm chuyên môn chính (PTCM) cho Chi nhánh */
+  @Prop({ default: false })
+  isBranchPIC?: boolean;
+
+  /** Mức lương cơ bản hàng tháng (VNĐ) */
+  @Prop({ default: 7500000 })
+  baseSalary?: number;
+
+  /** Quỹ số ngày phép năm khả dụng còn lại */
+  @Prop({ default: 12 })
+  annualLeaveBalance?: number;
+
+  /** Tổng số ngày phép năm đã sử dụng trong năm */
+  @Prop({ default: 0 })
+  usedAnnualLeave?: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
