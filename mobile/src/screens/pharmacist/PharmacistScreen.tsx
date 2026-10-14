@@ -27,6 +27,8 @@ import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
 import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
+import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
+import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<'POS' | 'OCR'>('POS');
@@ -35,6 +37,10 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
   const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
+  const [showSwapModal, setShowSwapModal] = useState<boolean>(false);
+  const [swapPrefillShift, setSwapPrefillShift] = useState<any | null>(null);
+  const [leavePrefillShift, setLeavePrefillShift] = useState<any | null>(null);
   const [activeShift, setActiveShift] = useState<any | null>(null);
 
   // POS State
@@ -502,6 +508,22 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </AnimatedTouchable>
 
           <AnimatedTouchable
+            onPress={() => setShowScheduleModal(true)}
+            style={[styles.shiftActionBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+          >
+            <Ionicons name="calendar" size={16} color="#059669" />
+            <Text style={[styles.shiftActionText, { color: '#059669' }]}>Lịch Làm Việc</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowSwapModal(true)}
+            style={[styles.shiftActionBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
+          >
+            <Ionicons name="swap-horizontal" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Đổi Ca Chéo</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
             onPress={() => setShowPayslipModal(true)}
             style={[styles.shiftActionBtn, styles.payslipBtn]}
           >
@@ -511,10 +533,10 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
           <AnimatedTouchable
             onPress={() => setShowLeaveModal(true)}
-            style={[styles.shiftActionBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+            style={[styles.shiftActionBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
           >
-            <Ionicons name="calendar-outline" size={16} color="#059669" />
-            <Text style={[styles.shiftActionText, { color: '#059669' }]}>Nghỉ Phép</Text>
+            <Ionicons name="airplane-outline" size={16} color="#D97706" />
+            <Text style={[styles.shiftActionText, { color: '#D97706' }]}>Nghỉ Phép</Text>
           </AnimatedTouchable>
         </ScrollView>
       </View>
@@ -1291,7 +1313,37 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       {/* Staff Leave Management Modal */}
       <StaffLeaveModal
         visible={showLeaveModal}
-        onClose={() => setShowLeaveModal(false)}
+        onClose={() => {
+          setShowLeaveModal(false);
+          setLeavePrefillShift(null);
+        }}
+        prefillShift={leavePrefillShift}
+        onSuccess={loadData}
+      />
+
+      {/* Staff Work Schedule Modal */}
+      <StaffScheduleModal
+        visible={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onOpenSwap={(prefill) => {
+          setSwapPrefillShift(prefill);
+          setShowSwapModal(true);
+        }}
+        onOpenLeave={(prefill) => {
+          setLeavePrefillShift(prefill);
+          setShowLeaveModal(true);
+        }}
+      />
+
+      {/* Shift Swap Modal */}
+      <ShiftSwapModal
+        visible={showSwapModal}
+        onClose={() => {
+          setShowSwapModal(false);
+          setSwapPrefillShift(null);
+        }}
+        prefillShift={swapPrefillShift}
+        onSuccess={loadData}
       />
     </SafeAreaView>
   );

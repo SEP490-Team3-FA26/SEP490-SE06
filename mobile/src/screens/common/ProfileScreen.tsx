@@ -22,6 +22,9 @@ import { ApiService } from '../../services/api.service';
 import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
+import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
+import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
+import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, logout, updateProfile, refreshUser } = useAuth();
@@ -42,6 +45,11 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
   const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
+  const [showShiftSwapModal, setShowShiftSwapModal] = useState<boolean>(false);
+  const [showCertModal, setShowCertModal] = useState<boolean>(false);
+  const [initialSwapShift, setInitialSwapShift] = useState<any>(null);
+  const [leavePrefillShift, setLeavePrefillShift] = useState<any | null>(null);
 
   const roleLabel = user?.role ? USER_ROLE_LABELS[user.role] || user.role : 'Thành viên';
 
@@ -259,6 +267,39 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
               </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowScheduleModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="calendar" size={22} color="#0284C7" />
+                  <Text style={styles.menuText}>Lịch làm việc của tôi</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowShiftSwapModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="swap-horizontal" size={22} color="#8B5CF6" />
+                  <Text style={styles.menuText}>Đổi ca làm việc</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowCertModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="ribbon-outline" size={22} color="#D97706" />
+                  <Text style={styles.menuText}>Chứng chỉ & Bằng cấp (CCHN)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
             </>
           )}
         </View>
@@ -365,7 +406,43 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       {/* Staff Leave Management Modal */}
       <StaffLeaveModal
         visible={showLeaveModal}
-        onClose={() => setShowLeaveModal(false)}
+        onClose={() => {
+          setShowLeaveModal(false);
+          setLeavePrefillShift(null);
+        }}
+        prefillShift={leavePrefillShift}
+      />
+
+      {/* Staff Schedule Calendar Modal */}
+      <StaffScheduleModal
+        visible={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onRequestSwap={(shift) => {
+          setShowScheduleModal(false);
+          setInitialSwapShift(shift);
+          setShowShiftSwapModal(true);
+        }}
+        onOpenLeave={(shift) => {
+          setShowScheduleModal(false);
+          setLeavePrefillShift(shift);
+          setShowLeaveModal(true);
+        }}
+      />
+
+      {/* Shift Swap Requests Modal */}
+      <ShiftSwapModal
+        visible={showShiftSwapModal}
+        onClose={() => {
+          setShowShiftSwapModal(false);
+          setInitialSwapShift(null);
+        }}
+        initialShift={initialSwapShift}
+      />
+
+      {/* CCHN Certificate Modal */}
+      <StaffCertificateModal
+        visible={showCertModal}
+        onClose={() => setShowCertModal(false)}
       />
     </SafeAreaView>
   );

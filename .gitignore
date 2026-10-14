@@ -25,6 +25,10 @@ infra/**/.build/
 .deepseek/
 phuc/
 agents.md
+AGENTS.md
+mobile/AGENTS.md
+**/AGENTS.md
+.agents/rules/
 taste-skill/
 
 # Python Virtual Environments & Packages
