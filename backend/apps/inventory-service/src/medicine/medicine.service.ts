@@ -77,8 +77,23 @@ export class MedicineService implements OnModuleInit {
         this.logger.log(`Found ${bulkOps.length} medicines with mismatched stock. Syncing...`);
         await this.medicineModel.bulkWrite(bulkOps);
         this.logger.log(`Bulk stock synchronization completed successfully in ${Date.now() - startTime}ms.`);
-      } else {
-        this.logger.log(`All medicine stocks are already synchronized. Completed in ${Date.now() - startTime}ms.`);
+      }
+
+      // 6. Rà soát và tự động khắc phục các bản ghi tồn kho âm trong BranchStockBalance và Medicines
+      const negativeBalances = await this.balanceModel.updateMany(
+        { totalStock: { $lt: 0 } },
+        { $set: { totalStock: 0, status: 'OUT_OF_STOCK', lastSyncedAt: new Date() } }
+      ).exec();
+      if (negativeBalances.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeBalances.modifiedCount} bản ghi tồn kho chi nhánh bị âm về 0.`);
+      }
+
+      const negativeMedicines = await this.medicineModel.updateMany(
+        { stock: { $lt: 0 } },
+        { $set: { stock: 0, status: 'Out of Stock' } }
+      ).exec();
+      if (negativeMedicines.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeMedicines.modifiedCount} dược phẩm có tồn kho âm về 0.`);
       }
     } catch (error) {
       this.logger.error('Failed to run background stock synchronization:', error);

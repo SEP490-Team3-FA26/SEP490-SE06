@@ -324,18 +324,25 @@ export function BranchInventory() {
                       </div>
                       <div className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden shadow-inner">
                         <div
-                          className={`h-full rounded-full transition-all duration-300 ${item.stock === 0 ? 'bg-rose-500 w-0' :
+                          className={`h-full rounded-full transition-all duration-300 ${item.stock <= 0 ? 'bg-rose-500 w-0' :
                             item.stock <= (item.minStock || 50) ? 'bg-amber-500' : 'bg-emerald-500'
                             }`}
-                          style={{ width: `${Math.min(100, (item.stock / (item.minStock || 50)) * 100)}%` }}
+                          style={{ width: `${Math.min(100, Math.max(0, (item.stock / (item.minStock || 50)) * 100))}%` }}
                         />
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     {(() => {
-                      const isOutOfStock = item.stock === 0;
+                      const isNegative = item.stock < 0;
+                      const isOutOfStock = item.stock <= 0;
                       const isLowStock = item.stock > 0 && item.stock <= (item.minStock || 50);
+                      if (isNegative) return (
+                        <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                          <AlertCircle size={12} className="text-rose-600" />
+                          Lệch kho ({item.stock})
+                        </span>
+                      );
                       if (isOutOfStock) return (
                         <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-100">
                           <AlertCircle size={12} className="text-rose-500" />

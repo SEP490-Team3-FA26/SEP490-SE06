@@ -36,10 +36,10 @@ export const subCategoriesByGroup: {
     items: [
       { id: "dau-ca", name: "Dầu cá - Omega 3", count: 13, image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=60", searchKeyword: "Omega 3" },
       { id: "kem-magie", name: "Kẽm - Magie", count: 7, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Kẽm" },
-      { id: "vitamin-tong-hop", name: "Vitamin tổng hợp", count: 45, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin" },
+      { id: "vitamin-tong-hop", name: "Vitamin tổng hợp", count: 45, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin" },
       { id: "canxi-d", name: "Canxi & Vitamin D", count: 44, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=60", searchKeyword: "Canxi" },
       { id: "vitamin-c", name: "Vitamin C", count: 9, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin C" },
-      { id: "vitamin-e", name: "Vitamin E", count: 3, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin E" },
+      { id: "vitamin-e", name: "Vitamin E", count: 3, image: "https://images.unsplash.com/photo-1585435557343-3b092031a831?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin E" },
       { id: "sat-folic", name: "Sắt - Axit Folic", count: 11, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=200&auto=format&fit=crop&q=60", searchKeyword: "Sắt" },
     ]
   },
@@ -50,9 +50,9 @@ export const subCategoriesByGroup: {
       { id: "sua-rua-mat", name: "Sữa rửa mặt", count: 61, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Sữa rửa mặt" },
       { id: "kem-chong-nang", name: "Kem chống nắng da mặt", count: 28, image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=200&auto=format&fit=crop&q=60", searchKeyword: "Kem chống nắng" },
       { id: "duong-da", name: "Dưỡng da mặt", count: 15, image: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=200&auto=format&fit=crop&q=60", searchKeyword: "Dưỡng da" },
-      { id: "mat-na", name: "Mặt nạ", count: 14, image: "https://images.unsplash.com/photo-1567928815116-248c8c7c9451?w=200&auto=format&fit=crop&q=60", searchKeyword: "Mặt nạ" },
+      { id: "mat-na", name: "Mặt nạ", count: 14, image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=200&auto=format&fit=crop&q=60", searchKeyword: "Mặt nạ" },
       { id: "serum", name: "Serum, Essence, Ampoule", count: 16, image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=200&auto=format&fit=crop&q=60", searchKeyword: "Serum" },
-      { id: "toner", name: "Toner & Lotion", count: 2, image: "https://images.unsplash.com/photo-1608248597359-00994966d5b0?w=200&auto=format&fit=crop&q=60", searchKeyword: "Toner" },
+      { id: "toner", name: "Toner & Lotion", count: 2, image: "https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?w=200&auto=format&fit=crop&q=60", searchKeyword: "Toner" },
       { id: "tay-te-bao-chet", name: "Tẩy tế bào chết mặt", count: 2, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Tẩy tế bào chết" },
       { id: "xit-khoang", name: "Xịt khoáng", count: 3, image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=200&auto=format&fit=crop&q=60", searchKeyword: "Xịt khoáng" },
       { id: "tay-trang", name: "Nước tẩy trang, dầu tẩy trang", count: 19, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Tẩy trang" },
@@ -78,7 +78,7 @@ export const subCategoriesByGroup: {
       { id: "paracetamol", name: "Paracetamol đơn chất", count: 14, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Paracetamol" },
       { id: "giam-dau-ket-hop", name: "Giảm đau kết hợp", count: 10, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", searchKeyword: "Panadol" },
       { id: "khang-viem", name: "Kháng viêm NSAIDs", count: 8, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=60", searchKeyword: "Ibuprofen" },
-      { id: "ha-sot-tre-em", name: "Hạ sốt dành cho trẻ em", count: 6, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Hapacol" },
+      { id: "ha-sot-tre-em", name: "Hạ sốt dành cho trẻ em", count: 6, image: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=200&auto=format&fit=crop&q=60", searchKeyword: "Hapacol" },
       { id: "mieng-dan", name: "Miếng dán giảm đau", count: 5, image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=60", categoryValue: "Miếng dán giảm đau" },
     ]
   },
@@ -465,6 +465,10 @@ export function CustomerShop() {
                   alt={card.name}
                   className="w-full h-full object-contain"
                   loading="lazy"
+                  onError={(e) => {
+                    // Tự động chuyển sang ảnh dự phòng nếu URL bị lỗi mạng hoặc 404
+                    (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60";
+                  }}
                 />
               </div>
 

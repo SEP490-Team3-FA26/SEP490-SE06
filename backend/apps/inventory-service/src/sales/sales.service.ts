@@ -377,13 +377,25 @@ export class SalesService implements OnModuleInit {
         });
       }
 
-      // Đồng bộ ngay bảng số dư tồn kho chi nhánh (BranchStockBalance) để bảo đảm tính toàn vẹn tuyệt đối
+      // Đồng bộ ngay bảng số dư tồn kho chi nhánh (BranchStockBalance) theo chuẩn ACID và tính toàn vẹn
       if (data.branchId && data.branchId !== 'CENTRAL_WH') {
+        // Tính toán tổng tồn kho thực tế từ các lô vật lý còn ACTIVE của chi nhánh để chống âm kho tuyệt đối
+        const activeBranchBatches = await this.branchInvModel.find({
+          branchId: data.branchId,
+          medicineId: medIdStr,
+          status: 'ACTIVE',
+          stock: { $gt: 0 }
+        }).lean().exec();
+        const recalculatedStock = Math.max(0, activeBranchBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0));
+
         await this.balanceModel.findOneAndUpdate(
           { branchId: data.branchId, medicineId: medIdStr },
           {
-            $inc: { totalStock: -baseDeductQty },
-            $set: { lastSyncedAt: new Date() }
+            $set: {
+              totalStock: recalculatedStock,
+              status: recalculatedStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK',
+              lastSyncedAt: new Date()
+            }
           },
           { upsert: true }
         ).exec();
@@ -901,8 +913,17 @@ export class SalesService implements OnModuleInit {
         });
       }
 
-      // Cập nhật tồn kho tổng của thuốc mới đổi
-      await this.medicineModel.updateOne({ _id: medicineId }, { $inc: { stock: -requiredBaseQuantity } }).exec();
+      // Cập nhật tồn kho tổng của thuốc mới đổi theo số dư thực tế từ các lô ACTIVE
+      const activeBatchesRemaining = await this.batchModel.find({
+        medicineId,
+        status: 'ACTIVE',
+        stock: { $gt: 0 }
+      }).lean().exec();
+      const updatedTotalStock = Math.max(0, activeBatchesRemaining.reduce((sum, b) => sum + Number(b.stock || 0), 0));
+      await this.medicineModel.updateOne(
+        { _id: medicineId },
+        { $set: { stock: updatedTotalStock, status: updatedTotalStock > 0 ? 'In Stock' : 'Out of Stock' } }
+      ).exec();
 
       const branchReferencePrice = await this.pricingService.resolvePrice(
         salesOrder.branchId,
