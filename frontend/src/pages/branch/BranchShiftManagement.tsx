@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit2, CheckCircle2, X, AlertTriangle, Clock, Play, Square, Circle } from "lucide-react";
+import { Plus, Edit2, CheckCircle2, X, AlertTriangle, Clock, Play, Square, Circle, MapPin } from "lucide-react";
 import { hrService, WorkShift } from "../../services/hr/hr.service";
+import { BranchLocationModal } from "../../components/branch/BranchLocationModal";
 
 export function BranchShiftManagement() {
   const [shifts, setShifts] = useState<WorkShift[]>([]);
@@ -8,6 +9,7 @@ export function BranchShiftManagement() {
   const [error, setError] = useState<string | null>(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<WorkShift | null>(null);
   
   const [formData, setFormData] = useState({
@@ -100,13 +102,22 @@ export function BranchShiftManagement() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Quản lý Ca Làm Việc</h1>
           <p className="text-slate-500 mt-1">Cấu hình các ca làm việc tại chi nhánh</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Tạo Ca Mới
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsLocationModalOpen(true)}
+            className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-emerald-200 text-sm whitespace-nowrap shadow-sm"
+          >
+            <MapPin size={18} />
+            Cài Đặt Vị Trí GPS
+          </button>
+          <button
+            onClick={() => handleOpenModal()}
+            className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Tạo Ca Mới
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -203,6 +214,13 @@ export function BranchShiftManagement() {
           </div>
         </div>
       )}
+
+      {/* Branch Location Modal */}
+      <BranchLocationModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        onSuccess={() => fetchShifts()}
+      />
     </div>
   );
 }

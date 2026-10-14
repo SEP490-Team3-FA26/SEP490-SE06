@@ -29,6 +29,8 @@ import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModa
 import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
 import { WarehouseShelfModal } from '../../components/warehouse/WarehouseShelfModal';
 import { TransferQRModal } from '../../components/warehouse/TransferQRModal';
+import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
+import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 
 const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; label: string; icon: string }> = {
   A: { bg: 'rgba(2, 132, 199, 0.1)', border: '#0284C7', text: '#0284C7', label: 'Kháng sinh', icon: '💊' },
@@ -42,6 +44,10 @@ const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; la
 export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'MAP' | 'INVENTORY' | 'RECEIPTS' | 'TRANSFERS' | 'EXPIRATION' | 'TRACE' | 'FORECAST'>('MAP');
+
+  // Attendance & Shift Modal
+  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
+  const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
 
   // --- Sơ Đồ Kho Tổng (Warehouse Map) State ---
   const [warehouseZones, setWarehouseZones] = useState<WarehouseZone[]>(DEFAULT_GSP_ZONES);
@@ -67,64 +73,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [transferFilter, setTransferFilter] = useState<string>('ALL');
 
   // --- Goods Receipts state (GRN) ---
-  const [receipts, setReceipts] = useState<any[]>([
-    {
-      id: 'GRN-2026-881',
-      poCode: 'PO-2026-01',
-      supplier: 'Công Ty Cổ Phần Dược Hậu Giang',
-      status: 'INSPECTING',
-      date: '2026-09-12',
-      items: [
-        {
-          name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu (15 gói x 2 miếng)',
-          expected: 150,
-          actual: 0,
-          unit: 'Hộp',
-          status: 'PENDING',
-          batchNo: 'B007-HIS',
-          expDate: '2027-02-03',
-          image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg',
-        },
-        {
-          name: 'Miếng dán Tiger Balm Plaster - RD Haw Par giảm mỏi cơ (7cm x 10cm)',
-          expected: 100,
-          actual: 0,
-          unit: 'Hộp',
-          status: 'PENDING',
-          batchNo: 'TB-2026-08',
-          expDate: '2027-11-20',
-          image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/00500745_tiger_balm_plaster_rd_7x10cm_4417_62bd_large_4776af9b3f.jpg',
-        },
-      ],
-    },
-    {
-      id: 'GRN-2026-882',
-      poCode: 'PO-2026-02',
-      supplier: 'Hisamitsu Pharmaceutical Việt Nam',
-      status: 'PENDING_APPROVAL',
-      date: '2026-09-11',
-      items: [
-        {
-          name: 'Cao dán Salonsip Gel - Patch Hisamitsu giảm đau mỏi cơ (8 gói x 3 miếng)',
-          expected: 80,
-          actual: 80,
-          unit: 'Hộp',
-          status: 'VERIFIED',
-          batchNo: 'SLS-2026-04',
-          expDate: '2027-08-15',
-          image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_00638_2f20f0ff6a.jpg',
-        },
-      ],
-    },
-  ]);
+  const [receipts, setReceipts] = useState<any[]>([]);
 
   // AI Goods Inspection Scanner state
   const [inspectModalVisible, setInspectModalVisible] = useState<boolean>(false);
   const [selectedReceiptForInspection, setSelectedReceiptForInspection] = useState<any | null>(null);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number>(0);
-  const [selectedInspectionImage, setSelectedInspectionImage] = useState<string>(
-    'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg'
-  );
+  const [selectedInspectionImage, setSelectedInspectionImage] = useState<string>('');
   const [isAiScanning, setIsAiScanning] = useState<boolean>(false);
   const [aiScanResult, setAiScanResult] = useState<{
     medName: string;
@@ -144,10 +99,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [traceResult, setTraceResult] = useState<any | null>(null);
 
   // Expiration report state
-  const [expiredList, setExpiredList] = useState<any[]>([
-    { name: 'Cefuroxim 500mg', batchNo: 'Lô D1', expDate: '2026-09-20', stock: 12, unit: 'Hộp', daysLeft: 20 },
-    { name: 'Strepsils Cool', batchNo: 'Lô E1', expDate: '2026-10-01', stock: 40, unit: 'Hộp', daysLeft: 31 },
-  ]);
+  const [expiredList, setExpiredList] = useState<any[]>([]);
 
   // AI Demand Forecast state
   const [forecastPeriod, setForecastPeriod] = useState<number>(30);
@@ -159,49 +111,33 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, mapRes, lowStock, transferList] = await Promise.all([
+      const [medList, mapRes, lowStock, transferList, grnList] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getWarehouseMap(),
         ApiService.getLowStockReport(),
         ApiService.getStockTransfers(),
+        ApiService.getGoodsReceipts(),
       ]);
 
-      if (medList) setMedicines(medList);
-      if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
-      if (transferList && transferList.length > 0) {
-        setTransfers(transferList);
-      } else {
-        // Fallback demo stock transfers
-        setTransfers([
-          {
-            id: 'st_demo_1',
-            transferCode: 'ST-20260920-0001',
-            fromBranchId: 'CENTRAL_WH',
-            fromBranchName: 'Kho Tổng GSP Trung Tâm',
-            toBranchId: 'BR-001',
-            toBranchName: 'Chi Nhánh Q1 - TP.HCM',
-            status: 'SHIPPING',
-            items: [
-              { medicineId: 'fallback_1', name: 'Panadol Extra Đỏ', batchNo: 'BATCH-2026-001', quantity: 50, unit: 'Vỉ' },
-              { medicineId: 'fallback_2', name: 'Amoxicillin 500mg', batchNo: 'AMX-2026-11', quantity: 30, unit: 'Hộp' },
-            ],
-            createdAt: '2026-09-20',
-          },
-          {
-            id: 'st_demo_2',
-            transferCode: 'ST-20260919-0002',
-            fromBranchId: 'CENTRAL_WH',
-            fromBranchName: 'Kho Tổng GSP Trung Tâm',
-            toBranchId: 'BR-002',
-            toBranchName: 'Chi Nhánh Q3 - TP.HCM',
-            status: 'COMPLETED',
-            items: [
-              { medicineId: 'fallback_3', name: 'Decolgen Forte', batchNo: 'DEC-2026-05', quantity: 40, unit: 'Vỉ' },
-            ],
-            createdAt: '2026-09-19',
-          },
-        ]);
+      if (medList) {
+        setMedicines(medList);
+        const nearExpiry = medList
+          .map((m: any) => {
+            const exp = ApiService.getExpiryStatus(m);
+            return {
+              ...m,
+              ...exp,
+              expDate: exp.expDateFormatted,
+              stock: m.stock ?? m.totalStock ?? 0,
+              unit: m.unit || m.baseUnit || 'Đơn vị',
+            };
+          })
+          .filter((item: any) => item.status === 'NEAR_EXPIRY' || item.status === 'EXPIRED');
+        setExpiredList(nearExpiry);
       }
+      if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
+      setTransfers(transferList || []);
+      setReceipts(grnList || []);
     } catch (e) {
       console.warn('Error loading warehouse data:', e);
     } finally {
@@ -250,29 +186,78 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       setBatchNoQuery(code);
       handleTraceLotWithCode(code);
     } else if (scannerPurpose === 'RECEIVE_TRANSFER') {
-      // Find transfer and confirm
-      const transfer = transfers.find((t) => t.transferCode === code || t.id === code || t._id === code);
-      if (transfer) {
-        Alert.alert(
-          'Xác Nhận Nhập Hàng Bằng QR',
-          `Phiếu: ${transfer.transferCode}\nTừ: ${transfer.fromBranchName || transfer.fromBranchId}\nSố lượng: ${transfer.items?.length || 0} loại thuốc.\nBạn muốn xác nhận nhập kho?`,
-          [
-            { text: 'Hủy', style: 'cancel' },
-            {
-              text: 'Xác Nhận Nhập Kho',
-              onPress: async () => {
-                await ApiService.receiveStockTransfer(transfer.id || transfer._id || '', {
-                  receivedBy: 'Thủ kho di động',
-                  inspectionNote: 'Quét mã QR kiện hàng thành công',
-                });
-                showToast.success('Thành công', `Đã nhập kho phiếu ${transfer.transferCode}!`);
-                loadData();
+      try {
+        // 1. Kiểm tra trong danh sách phiếu chuyển kho
+        const transfer = transfers.find((t) => t.transferCode === code || t.id === code || (t as any)._id === code);
+        if (transfer) {
+          Alert.alert(
+            'Xác Nhận Nhập Hàng Bằng QR',
+            `Phiếu: ${transfer.transferCode}\nTừ: ${transfer.fromBranchName || transfer.fromBranchId}\nSố lượng: ${transfer.items?.length || 0} loại thuốc.\nBạn muốn xác nhận nhập kho?`,
+            [
+              { text: 'Hủy', style: 'cancel' },
+              {
+                text: 'Xác Nhận Nhập Kho',
+                onPress: async () => {
+                  try {
+                    const res = await ApiService.receiveStockTransfer(transfer.id || (transfer as any)._id || '', {
+                      receivedBy: 'Thủ kho di động',
+                      inspectionNote: 'Quét mã QR kiện hàng thành công',
+                    });
+                    if (res && res.success !== false) {
+                      showToast.success('Thành công', `Đã nhập kho phiếu ${transfer.transferCode}!`);
+                      loadData();
+                    } else {
+                      showToast.error('Không thành công', res?.message || 'Lỗi nhập kho');
+                    }
+                  } catch (e: any) {
+                    showToast.error('Lỗi', e?.message || 'Không thể xác nhận nhập kho');
+                  }
+                },
               },
-            },
-          ]
-        );
-      } else {
-        showToast.error('Mã phiếu không tồn tại', `Không tìm thấy phiếu chuyển kho: ${code}`);
+            ]
+          );
+          return;
+        }
+
+        // 2. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN
+        const pos = await ApiService.getPurchaseOrders().catch(() => []);
+        const matchedPo = Array.isArray(pos) ? pos.find((p: any) => p._id === code || p.poCode === code || p.id === code || (p._id && code.includes(p._id.slice(-6)))) : null;
+        if (matchedPo) {
+          const poReceipt = {
+            id: `GRN-${matchedPo.poCode || (matchedPo._id ? matchedPo._id.slice(-6).toUpperCase() : 'PO')}`,
+            poCode: matchedPo.poCode || matchedPo._id,
+            poId: matchedPo._id,
+            supplier: matchedPo.supplierName || 'Nhà cung cấp',
+            status: 'INSPECTING',
+            items: (matchedPo.items || []).map((it: any, idx: number) => ({
+              medicineId: it.medicineId || it.id || `item_${idx}`,
+              name: it.medicineName || it.name || `Thuốc #${idx + 1}`,
+              expected: Number(it.quantity) || 100,
+              actual: 0,
+              unit: it.unit || 'Hộp',
+              status: 'PENDING',
+              batchNo: it.batchNo || '',
+              expDate: it.expDate || '',
+            })),
+          };
+          setActiveTab('RECEIPTS');
+          handleStartInspection(poReceipt);
+          showToast.success('Đồng bộ đơn PO', `Mở phiên kiểm đếm kiện hàng cho đơn: ${poReceipt.poCode}`);
+          return;
+        }
+
+        // 3. Kiểm tra phiếu nhập kho trong state
+        const matchedReceipt = receipts.find((r) => r.id === code || r.poCode === code || (r as any)._id === code);
+        if (matchedReceipt) {
+          setActiveTab('RECEIPTS');
+          handleStartInspection(matchedReceipt);
+          showToast.success('Nhận diện phiếu nhập', `Đang mở phiếu: ${matchedReceipt.id}`);
+          return;
+        }
+
+        showToast.error('Mã phiếu không tồn tại', `Không tìm thấy phiếu chuyển kho hoặc đơn PO: ${code}`);
+      } catch (err: any) {
+        showToast.error('Lỗi xử lý mã quét', err?.message || 'Không thể xử lý mã');
       }
     }
   };
@@ -298,19 +283,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       if (res && res.batchNo) {
         setTraceResult(res);
       } else {
-        // Mock fallback trace
-        setTraceResult({
-          batchNo: batchNo.toUpperCase(),
-          medicineName: 'Panadol Extra Đỏ 500mg',
-          supplier: 'Công ty Cổ phần Dược Hậu Giang',
-          expDate: '2027-08-15',
-          currentStock: 320,
-          transactions: [
-            { type: 'Nhập kho tổng', date: '2026-01-10', qty: '+500', note: 'Theo PO-2026-01 (Khu B · Kệ B1 · Tầng 1)' },
-            { type: 'Xuất chuyển kho', date: '2026-02-14', qty: '-100', note: 'Chuyển Chi Nhánh Q1 (ST-20260214-0001)' },
-            { type: 'Xuất chuyển kho', date: '2026-03-01', qty: '-80', note: 'Chuyển Chi Nhánh Q3 (ST-20260301-0002)' },
-          ],
-        });
+        setTraceResult(null);
+        showToast.info('Thông báo', `Không tìm thấy dữ liệu truy vết cho lô ${batchNo}`);
       }
     } catch {
       showToast.error('Lỗi', 'Không thể truy vết lô thuốc.');
@@ -396,21 +370,15 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     try {
       setForecastLoading(true);
       const res = await ApiService.getAIForecast(period);
-      if (res) {
+      if (res && (res.predictedDemand || res.topDemanded)) {
         setForecastData(res);
       } else {
-        setForecastData({
-          predictedDemand: 1240,
-          confidenceScore: 0.94,
-          topDemanded: [
-            { name: 'Panadol Extra', demand: 420, trend: '+15%' },
-            { name: 'Amoxicillin 500mg', demand: 310, trend: '+8%' },
-            { name: 'Decolgen Forte', demand: 250, trend: '+22%' },
-          ],
-        });
+        setForecastData(null);
+        showToast.info('Thông báo', 'Hệ thống chưa đủ dữ liệu bán hàng để tính toán dự báo AI.');
       }
     } catch (e) {
       console.warn('Lỗi dự báo:', e);
+      setForecastData(null);
     } finally {
       setForecastLoading(false);
     }
@@ -433,17 +401,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         setAiScanResult(res);
         setActualCountInput(String(res.aiCount || currentItem.expected || 100));
       } else {
-        // Mock fallback AI vision
-        setAiScanResult({
-          medName: currentItem.name,
-          aiCount: currentItem.expected || 150,
-          batchNo: currentItem.batchNo || 'B007-HIS',
-          expDate: currentItem.expDate || '2027-02-03',
-          integrity: 'Nguyên đai nguyên kiện, bao bì chuẩn GSP',
-          confidence: 96.8,
-          matchPo: true,
-        });
-        setActualCountInput(String(currentItem.expected || 150));
+        setAiScanResult(null);
+        showToast.error('Thông báo', 'Không thể nhận diện hình ảnh từ máy chủ AI.');
       }
     } catch {
       showToast.error('Lỗi', 'AI kiểm định gặp sự cố.');
@@ -523,6 +482,27 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           onPress: () => navigation.navigate('NotificationListScreen'),
         }}
       />
+
+      {/* Quick Shift & Payslip Bar */}
+      <View style={styles.shiftActionBar}>
+        <AnimatedTouchable
+          onPress={() => setShowCheckInModal(true)}
+          style={[styles.shiftActionBtn, styles.checkInBtn]}
+        >
+          <Ionicons name="location" size={16} color="#059669" />
+          <Text style={[styles.shiftActionText, { color: '#059669' }]}>
+            Điểm Danh GPS Kho Tổng
+          </Text>
+        </AnimatedTouchable>
+
+        <AnimatedTouchable
+          onPress={() => setShowPayslipModal(true)}
+          style={[styles.shiftActionBtn, styles.payslipBtn]}
+        >
+          <Ionicons name="receipt-outline" size={16} color="#0284C7" />
+          <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
+        </AnimatedTouchable>
+      </View>
 
       {/* Horizontal Scrollable Tabs Bar */}
       <View style={styles.tabBarWrapper}>
@@ -1029,6 +1009,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </View>
               </View>
             ))}
+
+            {displayedTransfers.length === 0 && (
+              <View style={styles.emptyCard}>
+                <Ionicons name="swap-horizontal-outline" size={42} color="#94A3B8" />
+                <Text style={styles.emptyCardTitle}>Chưa có phiếu chuyển kho</Text>
+                <Text style={styles.emptyCardSub}>Hiện tại không có phiếu điều phối xuất/nhập kho nào cần xử lý.</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -1134,6 +1122,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 )}
               </View>
             ))}
+
+            {receipts.length === 0 && (
+              <View style={styles.emptyCard}>
+                <Ionicons name="document-text-outline" size={42} color="#94A3B8" />
+                <Text style={styles.emptyCardTitle}>Chưa có phiếu nhập kho</Text>
+                <Text style={styles.emptyCardSub}>Quét mã QR từ Web hoặc tạo đơn nhập hàng PO để bắt đầu kiểm đếm.</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -1163,6 +1159,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </Text>
               </View>
             ))}
+
+            {expiredList.length === 0 && (
+              <View style={styles.emptyCard}>
+                <Ionicons name="shield-checkmark-outline" size={42} color="#059669" />
+                <Text style={[styles.emptyCardTitle, { color: '#059669' }]}>Hạn Dùng Đạt Chuẩn GSP</Text>
+                <Text style={styles.emptyCardSub}>Tất cả dược phẩm trong kho đều đảm bảo hạn dùng an toàn theo tiêu chuẩn GSP.</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -1557,6 +1561,19 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Attendance GPS Modal */}
+      <AttendanceCheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+        onAttendanceSuccess={loadData}
+      />
+
+      {/* Staff Payslip Modal */}
+      <StaffPayslipModal
+        visible={showPayslipModal}
+        onClose={() => setShowPayslipModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -1565,6 +1582,36 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  shiftActionBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 10,
+  },
+  shiftActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  checkInBtn: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  payslipBtn: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+  },
+  shiftActionText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   tabBarWrapper: {
     backgroundColor: '#FFFFFF',
@@ -2528,4 +2575,28 @@ const styles = StyleSheet.create({
   unitSuffix: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   finishInspectionBox: { backgroundColor: '#ECFDF5', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 10 },
   finishInspectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#059669', marginTop: 4 },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyCardTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#334155',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptyCardSub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
+  },
 });

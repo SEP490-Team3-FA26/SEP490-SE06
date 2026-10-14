@@ -12,11 +12,19 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
+        "EXPO_PUBLIC_AI_URL": "https://ai-service-v1-production.up.railway.app"
       }
     },
     "production": {
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
+        "EXPO_PUBLIC_AI_URL": "https://ai-service-v1-production.up.railway.app"
       }
     }
   },

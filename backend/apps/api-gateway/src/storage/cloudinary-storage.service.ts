@@ -28,18 +28,24 @@ export class CloudinaryStorageService {
   }
 
   /**
-   * Tải ảnh văn bằng / chứng chỉ lên Cloudinary theo cấu trúc thư mục riêng cho từng nhân viên:
-   * wdp301/certificates/{branchId}/{userId}/
+   * Tải ảnh lên Cloudinary hỗ trợ phân folder theo danh mục nghiệp vụ:
+   * - leaves: wdp301/leaves/{branchId}/{userId}/
+   * - certificates: wdp301/certificates/{branchId}/{userId}/
+   * - prescriptions: wdp301/prescriptions/{branchId}/{userId}/
+   * - medicines: wdp301/medicines/
+   * - avatars: wdp301/avatars/{userId}/
    * Tự động fallback về lưu ổ đĩa local nếu mất mạng hoặc lỗi Cloudinary.
    */
-  async uploadCertificateImage(params: {
+  async uploadImage(params: {
     buffer?: Buffer;
     base64?: string;
     filename?: string;
     mimeType?: string;
+    category?: 'certificates' | 'leave-attachments' | 'medicines' | 'prescriptions' | 'avatars' | string;
+    folder?: string;
     userId?: string;
     branchId?: string;
-    side?: 'front' | 'back';
+    side?: string;
   }): Promise<UploadResult> {
     const cloudName = this.cloudName;
     const apiKey = this.apiKey;
@@ -50,11 +56,24 @@ export class CloudinaryStorageService {
       try {
         const branchFolder = params.branchId ? params.branchId.trim().replace(/[^a-zA-Z0-9_-]/g, '_') : 'general';
         const userFolder = params.userId ? params.userId.trim() : 'unknown';
-        const targetFolder = `wdp301/certificates/${branchFolder}/${userFolder}`;
+        const category = params.category || 'certificates';
+
+        let targetFolder = params.folder;
+        if (!targetFolder) {
+          if (category === 'medicines') {
+            targetFolder = 'wdp301/medicines';
+          } else if (category === 'avatars') {
+            targetFolder = `wdp301/avatars/${userFolder}`;
+          } else if (category === 'leave-attachments') {
+            targetFolder = `wdp301/leaves/${branchFolder}/${userFolder}`;
+          } else {
+            targetFolder = `wdp301/${category}/${branchFolder}/${userFolder}`;
+          }
+        }
 
         const timestamp = Math.floor(Date.now() / 1000);
-        const sidePrefix = params.side || 'cert';
-        const customPublicId = `${sidePrefix}_${Date.now()}_${randomUUID().slice(0, 8)}`;
+        const prefix = params.side || category;
+        const customPublicId = `${prefix}_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
         // Chuẩn bị payload ảnh dưới dạng Data URI
         let dataUri = '';
@@ -112,8 +131,23 @@ export class CloudinaryStorageService {
       }
     }
 
-    // ── FALLBACK AN TOÀN: Lưu vào thư mục ổ cứng local / VPS ──
+    // Fallback an toàn: Lưu vào thư mục ổ cứng local / VPS
     return this.fallbackSaveLocal(params);
+  }
+
+  /**
+   * Tải ảnh văn bằng / chứng chỉ (Tương thích ngược)
+   */
+  async uploadCertificateImage(params: {
+    buffer?: Buffer;
+    base64?: string;
+    filename?: string;
+    mimeType?: string;
+    userId?: string;
+    branchId?: string;
+    side?: 'front' | 'back';
+  }): Promise<UploadResult> {
+    return this.uploadImage({ ...params, category: 'certificates' });
   }
 
   /**
@@ -123,9 +157,11 @@ export class CloudinaryStorageService {
     buffer?: Buffer;
     base64?: string;
     filename?: string;
-    side?: 'front' | 'back';
+    category?: string;
+    side?: string;
   }): UploadResult {
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'certificates');
+    const category = params.category || 'certificates';
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', category);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -148,9 +184,9 @@ export class CloudinaryStorageService {
       fs.writeFileSync(filePath, buffer);
     }
 
-    this.logger.log(`Đã lưu ảnh cục bộ (Local fallback): /public/uploads/certificates/${fileName}`);
+    this.logger.log(`Đã lưu ảnh cục bộ (Local fallback): /public/uploads/${category}/${fileName}`);
     return {
-      url: `/public/uploads/certificates/${fileName}`,
+      url: `/public/uploads/${category}/${fileName}`,
       fileName,
       isCloudinary: false,
     };

@@ -9,7 +9,19 @@ export class StaffNotification extends Document {
   @Prop({ required: true })
   branchId: string;
 
-  @Prop({ required: true, enum: ['shift_swap_request', 'shift_swap_response', 'shift_swap_approved', 'shift_swap_rejected', 'schedule_published'] })
+  @Prop({
+    required: true,
+    enum: [
+      'shift_swap_request',
+      'shift_swap_response',
+      'shift_swap_approved',
+      'shift_swap_rejected',
+      'schedule_published',
+      'leave_request_pending',
+      'leave_request_approved',
+      'leave_request_rejected',
+    ],
+  })
   type: string;
 
   @Prop({ required: true })

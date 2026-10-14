@@ -250,20 +250,37 @@ export class MedicineService implements OnModuleInit {
 
   async getMedicineById(id: string) {
     try {
-      if (!id || typeof id !== 'string' || !id.match(/^[0-9a-fA-F]{24}$/)) {
-        this.logger.warn(`[getMedicineById] Invalid ObjectId string provided: "${id}"`);
+      if (!id || typeof id !== 'string') {
         throw new RpcException(`Mã thuốc "${id}" không hợp lệ`);
       }
-      this.logger.log(`[getMedicineById] Querying medicine by ID from MongoDB: "${id}"`);
-      const medicine = await this.medicineModel.findById(id).exec();
+      this.logger.log(`[getMedicineById] Querying medicine from MongoDB: "${id}"`);
+
+      let medicine: any = null;
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        medicine = await this.medicineModel.findById(id).exec();
+      }
+
+      // Hỗ trợ tra cứu theo SKU, code, barcode nếu id không phải ObjectId hoặc không tìm thấy bằng ObjectId
       if (!medicine) {
-        this.logger.warn(`[getMedicineById] Medicine with ID "${id}" NOT found in MongoDB!`);
+        medicine = await this.medicineModel.findOne({
+          $or: [
+            { sku: id },
+            { code: id },
+            { barcode: id },
+            { national_drug_code: id },
+          ],
+        }).exec();
+      }
+
+      if (!medicine) {
+        this.logger.warn(`[getMedicineById] Medicine with ID/SKU "${id}" NOT found in MongoDB!`);
         throw new RpcException(`Medicine with ID ${id} not found in database`);
       }
-      this.logger.log(`[getMedicineById] Found medicine: "${medicine.name}"`);
+      const actualId = medicine._id.toString();
+      this.logger.log(`[getMedicineById] Found medicine: "${medicine.name}" (ID: ${actualId})`);
 
       // Lấy danh sách lô hàng khả dụng
-      const batches = await this.batchModel.find({ medicineId: id, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
+      const batches = await this.batchModel.find({ medicineId: actualId, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
       const totalStock = batches.reduce((sum, b) => sum + b.stock, 0);
       this.logger.log(`[getMedicineById] Found ${batches.length} active batches. Total stock: ${totalStock}`);
 

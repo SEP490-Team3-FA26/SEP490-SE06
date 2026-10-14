@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, Inject, OnModuleInit, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Inject, OnModuleInit, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ClientKafka, RpcException } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { OptionalJwtAuthGuard } from '../guards/optional-jwt-auth.guard';
@@ -11,6 +11,7 @@ import { Cache } from 'cache-manager';
 export class SalesController implements OnModuleInit {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
+    @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
@@ -21,6 +22,9 @@ export class SalesController implements OnModuleInit {
       'inventory.sale.get',
       'inventory.sale.return',
       'inventory.sale.exchange',
+    ]);
+    await subscribeToKafkaTopics(this.userClient, [
+      'hr.attendance.verify_active_shift',
     ]);
   }
 
@@ -34,9 +38,28 @@ export class SalesController implements OnModuleInit {
   })
   async createSalesOrder(@Body() data: any, @Req() req: any) {
     if (req.user) {
-      if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
-      if (req.user.fullName && !data.soldBy) data.soldBy = req.user.fullName;
+      // Ghi đè tuyệt đối từ JWT claims để chống Parameter Tampering / trục lợi hoa hồng (T-SEC-02)
+      data.soldBy = req.user.fullName || data.soldBy;
+      data.pharmacistId = req.user.sub;
+      if (['pharmacist', 'branch'].includes(req.user.role) && req.user.branchId) {
+        data.branchId = req.user.branchId;
+      }
     }
+
+    // Chốt chặn ca trực và điểm danh cho Dược sĩ (POS Shift Guard)
+    if (req.user?.role === 'pharmacist') {
+      const shiftVerification: any = await sendKafkaMessage(this.userClient, 'hr.attendance.verify_active_shift', {
+        pharmacistId: req.user.sub,
+        branchId: req.user.branchId || data.branchId,
+      });
+      if (!shiftVerification?.allowed) {
+        throw new ForbiddenException(
+          shiftVerification?.reason ||
+            'Dược sĩ chưa đến ca làm việc hoặc chưa điểm danh ca trực hôm nay qua ứng dụng di động. Không thể thực hiện bán hàng!',
+        );
+      }
+    }
+
     if (data.type === 'PRESCRIPTION') {
       if (!req.user?.sub) {
         throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được duyệt đơn kê đơn', statusCode: 403 });

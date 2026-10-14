@@ -5,6 +5,8 @@ import { BranchService } from './branch.service';
 import { ExportJobStatusDto } from './dto/export-job-status.dto';
 import { HrService } from './hr.service';
 import { CertificateService } from './certificate.service';
+import { AttendanceService } from './attendance.service';
+import { PayrollService } from './payroll.service';
 
 @Controller()
 export class UserServiceController {
@@ -13,6 +15,8 @@ export class UserServiceController {
     private readonly branchService: BranchService,
     private readonly hrService: HrService,
     private readonly certService: CertificateService,
+    private readonly attendanceService: AttendanceService,
+    private readonly payrollService: PayrollService,
   ) { }
 
   @MessagePattern('user.edit_profile')
@@ -72,9 +76,19 @@ export class UserServiceController {
     return newBranch;
   }
 
+  @MessagePattern('user.branch.get')
+  handleGetBranch(@Payload() data: { id: string }) {
+    return this.branchService.findById(data.id);
+  }
+
   @MessagePattern('user.branch.update')
   handleUpdateBranch(@Payload() data: { id: string; updateData: any }) {
     return this.branchService.update(data.id, data.updateData);
+  }
+
+  @MessagePattern('user.branch.update_location')
+  handleUpdateBranchLocation(@Payload() data: { id: string; locationData: any }) {
+    return this.branchService.updateLocation(data.id, data.locationData);
   }
 
   @MessagePattern('user.branch.delete')
@@ -308,6 +322,45 @@ export class UserServiceController {
     return this.hrService.getUnreadCount(data.userId);
   }
 
+  // --- HR: LEAVE MANAGEMENT ---
+  @MessagePattern('hr.leave.balance')
+  handleGetLeaveBalance(@Payload() data: { userId: string }) {
+    return this.hrService.getMyLeaveBalance(data.userId);
+  }
+
+  @MessagePattern('hr.leave.my_list')
+  handleGetMyLeaves(@Payload() data: { userId: string; status?: string }) {
+    return this.hrService.getMyLeaves(data.userId, data.status);
+  }
+
+  @MessagePattern('hr.leave.branch_list')
+  handleGetBranchLeaves(@Payload() data: { branchId: string; status?: string }) {
+    return this.hrService.getBranchLeaves(data.branchId, data.status);
+  }
+
+  @MessagePattern('hr.leave.create')
+  handleCreateLeave(@Payload() data: any) {
+    return this.hrService.createLeaveRequest(data);
+  }
+
+  @MessagePattern('hr.leave.respond')
+  handleRespondLeave(@Payload() data: {
+    leaveId: string;
+    managerId: string;
+    managerName: string;
+    managerRole?: string;
+    managerBranchId?: string;
+    action: 'approve' | 'reject';
+    managerNote?: string;
+  }) {
+    return this.hrService.respondLeave(data);
+  }
+
+  @MessagePattern('hr.leave.cancel')
+  handleCancelLeave(@Payload() data: { leaveId: string; userId: string; cancelReason?: string }) {
+    return this.hrService.cancelLeave(data.leaveId, data.userId, data.cancelReason);
+  }
+
   // --- HR: CERTIFICATE & CCHN MANAGEMENT ---
   @MessagePattern('hr.certificate.submit')
   handleSubmitCertificate(@Payload() data: { userId: string; [key: string]: any }) {
@@ -352,5 +405,72 @@ export class UserServiceController {
   @MessagePattern('hr.certificate.branch_summary')
   handleGetBranchCertificateSummary(@Payload() data: { branchId: string }) {
     return this.certService.getBranchCertificateSummary(data.branchId);
+  }
+
+  // --- HR: ATTENDANCE & GPS CHECK-IN ---
+  @MessagePattern('hr.attendance.check_in')
+  handleAttendanceCheckIn(@Payload() data: { employeeId: string; branchId?: string; shiftId?: string; latitude: number; longitude: number; isMockLocation?: boolean; note?: string }) {
+    return this.attendanceService.checkIn(data);
+  }
+
+  @MessagePattern('hr.attendance.check_out')
+  handleAttendanceCheckOut(@Payload() data: { employeeId: string; latitude?: number; longitude?: number; note?: string }) {
+    return this.attendanceService.checkOut(data);
+  }
+
+  @MessagePattern('hr.attendance.my_current_shift')
+  handleGetMyCurrentShiftStatus(@Payload() data: { employeeId: string; branchId?: string }) {
+    return this.attendanceService.getMyCurrentShiftStatus(data.employeeId, data.branchId);
+  }
+
+  @MessagePattern('hr.attendance.verify_active_shift')
+  handleVerifyPharmacistActiveShift(@Payload() data: { pharmacistId: string; branchId?: string }) {
+    return this.attendanceService.verifyPharmacistActiveShift(data.pharmacistId, data.branchId);
+  }
+
+  @MessagePattern('hr.attendance.branch_today')
+  handleGetBranchTodayAttendance(@Payload() data: { branchId: string; date?: string }) {
+    return this.attendanceService.getBranchTodayAttendance(data.branchId, data.date);
+  }
+
+  @MessagePattern('hr.attendance.history')
+  handleGetMyAttendanceHistory(@Payload() data: { employeeId: string; startDate?: string; endDate?: string }) {
+    return this.attendanceService.getMyAttendanceHistory(data.employeeId, data.startDate, data.endDate);
+  }
+
+  // --- HR: PAYROLL MANAGEMENT ---
+  @MessagePattern('hr.payroll.calculate')
+  handleCalculateMonthlyPayroll(@Payload() data: { branchId: string; month: number; year: number; mealAllowanceRate?: number; managerId?: string; managerName?: string; requesterBranchId?: string; requesterRole?: string }) {
+    return this.payrollService.calculateMonthlyPayroll(data);
+  }
+
+  @MessagePattern('hr.payroll.list')
+  handleListPayrolls(@Payload() data: { branchId?: string; year?: number }) {
+    return this.payrollService.listPayrolls(data?.branchId, data?.year);
+  }
+
+  @MessagePattern('hr.payroll.detail')
+  handleGetPayrollDetail(@Payload() data: { payrollId: string; requesterBranchId?: string; requesterRole?: string }) {
+    return this.payrollService.getPayrollDetail(data.payrollId, data.requesterBranchId, data.requesterRole);
+  }
+
+  @MessagePattern('hr.payroll.adjust')
+  handleAdjustPayrollItem(@Payload() data: { payrollId: string; employeeId: string; manualAdjustment: number; penalties?: number; adjustmentNote?: string; requesterBranchId?: string; requesterRole?: string }) {
+    return this.payrollService.adjustPayrollItem(data);
+  }
+
+  @MessagePattern('hr.payroll.submit')
+  handleSubmitPayroll(@Payload() data: { payrollId: string; managerId?: string; requesterBranchId?: string; requesterRole?: string }) {
+    return this.payrollService.submitPayroll(data.payrollId, data.managerId, data.requesterBranchId, data.requesterRole);
+  }
+
+  @MessagePattern('hr.payroll.approve')
+  handleApprovePayroll(@Payload() data: { payrollId: string; approverId?: string; approverRole?: string; requesterBranchId?: string }) {
+    return this.payrollService.approvePayroll(data.payrollId, data.approverId, data.approverRole, data.requesterBranchId);
+  }
+
+  @MessagePattern('hr.payroll.my_payslip')
+  handleGetMyPayslip(@Payload() data: { employeeId: string; month?: number; year?: number }) {
+    return this.payrollService.getMyPayslip(data.employeeId, data.month, data.year);
   }
 }

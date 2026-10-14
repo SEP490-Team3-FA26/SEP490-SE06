@@ -22,15 +22,55 @@ import { showToast } from '../../components/ui/toastHelper';
 import { Employee, Medicine, StockTransfer } from '../../types/pharmacy.types';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
+import { useAuth } from '../../context/AuthContext';
+import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
+import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
+import { BranchLocationModal } from '../../components/branch/BranchLocationModal';
+import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
+
+// Phân giải tên nhân sự chuyên nghiệp, không để lọt email thô
+const getStaffDisplayName = (st: any): string => {
+  if (st.fullName && !st.fullName.includes('@')) return st.fullName;
+  if (st.name && !st.name.includes('@')) return st.name;
+  if (st.email === 'pharmacist@abcpharmacy.com' || st.email === 'pharmacist@vinapharmacy.com') return 'Dược Sĩ Trần Thị Mai';
+  if (st.email === 'manager@abcpharmacy.com' || st.email === 'manager@vinapharmacy.com') return 'Quản Lý Nguyễn Văn An';
+  if (st.email === 'phuc2@gmail.com') return 'Dược Sĩ Nguyễn Phúc';
+  if (st.email) {
+    const rawUser = st.email.split('@')[0];
+    const cleanUser = rawUser.replace(/[0-9_.-]/g, '');
+    const capitalized = cleanUser ? (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)) : 'Dược Sĩ';
+    return `${capitalized} (Dược Sĩ)`;
+  }
+  return 'Nhân Viên Cơ Sở';
+};
+
+const getStaffRoleMeta = (role: string) => {
+  switch (role) {
+    case 'branch':
+      return { label: 'Quản Lý Cơ Sở', color: '#0284C7', bg: '#F0F9FF' };
+    case 'pharmacist':
+      return { label: 'Dược Sĩ Bán Hàng', color: '#059669', bg: '#ECFDF5' };
+    default:
+      return { label: 'Nhân Sự', color: '#64748B', bg: '#F1F5F9' };
+  }
+};
 
 export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'REVENUE' | 'ALERTS' | 'RECEIVE_STOCK'>('REVENUE');
+
+  // Attendance & Shift Modal
+  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
+  const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
+  const [showLocationModal, setShowLocationModal] = useState<boolean>(false);
+  const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
+  const [currentBranchObj, setCurrentBranchObj] = useState<any>(null);
 
   // Staff & Revenue
   const [staffs, setStaffs] = useState<Employee[]>([]);
-  const [branchRevenue, setBranchRevenue] = useState<string>('48,500,000 ₫');
-  const [invoiceCount, setInvoiceCount] = useState<number>(64);
-  const [branchName, setBranchName] = useState<string>('CƠ SỞ CHI NHÁNH QUẬN 1');
+  const [branchRevenue, setBranchRevenue] = useState<string>('0 ₫');
+  const [invoiceCount, setInvoiceCount] = useState<number>(0);
+  const [branchName, setBranchName] = useState<string>(user?.branchName || 'CHI NHÁNH DƯỢC PHẨM');
 
   // Low stock alerts
   const [lowStockItems, setLowStockItems] = useState<any[]>([]);
@@ -60,62 +100,40 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [employees, lowStock, branches, transferList] = await Promise.all([
+      const [employees, lowStock, branches, transferList, summary] = await Promise.all([
         ApiService.getEmployees(),
         ApiService.getLowStockReport(),
         ApiService.getBranches(),
         ApiService.getStockTransfers(),
+        ApiService.getDashboardSummary().catch(() => null),
       ]);
 
       if (employees && employees.length > 0) {
         setStaffs(employees.filter((e) => e.role === 'pharmacist' || e.role === 'branch'));
       } else {
-        setStaffs([
-          { id: '1', name: 'Dược sĩ Nguyễn Thị Mai', email: 'mai.nguyen@vinapharmacy.com', phone: '0901234567', role: 'pharmacist', isActive: true },
-          { id: '2', name: 'Dược sĩ Trần Quốc Bảo', email: 'bao.tran@vinapharmacy.com', phone: '0912345678', role: 'pharmacist', isActive: true },
-        ]);
+        setStaffs([]);
       }
 
-      if (lowStock && lowStock.length > 0) {
-        setLowStockItems(lowStock);
-      } else {
-        setLowStockItems([
-          { id: 'm1', name: 'Amoxicillin 500mg', stock: 5, unit: 'Hộp', supplier: 'Dược Hậu Giang', barcode: '8935001234567', sku: 'MED-AMOX-500' },
-          { id: 'm2', name: 'Cefuroxim 500mg', stock: 2, unit: 'Hộp', supplier: 'Dược TW1', barcode: '8935001234581', sku: 'MED-CEFU-500' },
-          { id: 'm3', name: 'Strepsils Cool', stock: 0, unit: 'Hộp', supplier: 'Reckitt Benckiser', barcode: '8935001234604', sku: 'MED-STREP-C' },
-        ]);
-      }
+      setLowStockItems(lowStock || []);
+      setTransfers(transferList || []);
 
-      if (transferList && transferList.length > 0) {
-        setTransfers(transferList);
-      } else {
-        setTransfers([
-          {
-            id: 'st-01',
-            transferCode: 'ST-20260920-0001',
-            fromBranchId: 'CENTRAL_WH',
-            toBranchId: 'branch_q1',
-            status: 'DISPATCHED',
-            items: [
-              { medicineId: 'm1', name: 'Amoxicillin 500mg', batchNo: 'BATCH-2026-001', quantity: 100, unit: 'Hộp', barcode: '8935001234567' },
-              { medicineId: 'm2', name: 'Panadol Extra', batchNo: 'BATCH-2026-002', quantity: 50, unit: 'Hộp', barcode: '8935001234574' },
-            ],
-            reason: 'Cấp bổ sung định kỳ tuần 3 tháng 9 từ Kho Tổng',
-            createdAt: '2026-09-20T08:30:00Z',
-            shippedBy: 'Thủ kho Nguyễn Văn A',
-          },
-        ]);
+      if (summary) {
+        const rev = Number(summary.todayRevenue || summary.totalRevenue || 0);
+        setBranchRevenue(`${rev.toLocaleString('vi-VN')} ₫`);
+        setInvoiceCount(Number(summary.todayOrders || summary.totalOrders || 0));
       }
 
       if (branches && branches.length > 0) {
-        setBranchName(branches[0].name.toUpperCase());
+        const currentBranch = branches.find((b) => b.id === user?.branchId || (b as any)._id === user?.branchId) || branches[0];
+        setBranchName(currentBranch.name.toUpperCase());
+        setCurrentBranchObj(currentBranch);
       }
     } catch (e) {
       console.warn('Error loading branch data:', e);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [user?.branchId]);
 
   useEffect(() => {
     loadData();
@@ -132,7 +150,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setSubmittingReq(true);
     const ok = await ApiService.createStockTransfer({
       fromBranchId: 'central_warehouse',
-      toBranchId: 'branch_q1',
+      toBranchId: user?.branchId || 'central_warehouse',
       items: [
         {
           medicineId: selectedMedForRequest.id,
@@ -248,6 +266,49 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         }}
       />
 
+      {/* Quick Shift & Payslip Bar */}
+      <View style={styles.shiftBarContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shiftActionBar}
+        >
+          <AnimatedTouchable
+            onPress={() => setShowCheckInModal(true)}
+            style={[styles.shiftActionBtn, styles.checkInBtn]}
+          >
+            <Ionicons name="location" size={16} color="#059669" />
+            <Text style={[styles.shiftActionText, { color: '#059669' }]}>
+              Điểm Danh GPS Chi Nhánh
+            </Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowPayslipModal(true)}
+            style={[styles.shiftActionBtn, styles.payslipBtn]}
+          >
+            <Ionicons name="receipt-outline" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowLocationModal(true)}
+            style={[styles.shiftActionBtn, styles.locationBtn]}
+          >
+            <Ionicons name="map-outline" size={16} color="#D97706" />
+            <Text style={[styles.shiftActionText, { color: '#D97706' }]}>Vị Trí GPS</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowLeaveModal(true)}
+            style={[styles.shiftActionBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+          >
+            <Ionicons name="calendar-outline" size={16} color="#059669" />
+            <Text style={[styles.shiftActionText, { color: '#059669' }]}>Duyệt Nghỉ</Text>
+          </AnimatedTouchable>
+        </ScrollView>
+      </View>
+
       {/* Tabs */}
       <View style={styles.tabBar}>
         <AnimatedTouchable
@@ -318,23 +379,50 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </GradientCard>
 
             <Text style={styles.sectionTitle}>Nhân Sự Trong Ca Trực Hôm Nay</Text>
-            {staffs.map((st, idx) => (
-              <View key={st.id || (st as any)._id || `staff-${idx}`} style={styles.staffCard}>
-                <View style={styles.staffAvatar}>
-                  <Ionicons name="person" size={22} color="#059669" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.staffName}>{st.name}</Text>
-                  <Text style={styles.staffRole}>{st.email} • {st.phone}</Text>
-                  <View style={styles.shiftTag}>
-                    <Text style={styles.shiftTagText}>Ca Sáng (07:30 - 15:30)</Text>
+            {staffs.map((st, idx) => {
+              const displayName = getStaffDisplayName(st);
+              const roleMeta = getStaffRoleMeta(st.role);
+              const initials = displayName.slice(0, 2).toUpperCase();
+              return (
+                <View key={st.id || (st as any)._id || `staff-${idx}`} style={styles.staffCard}>
+                  <View style={[styles.staffAvatar, { backgroundColor: roleMeta.bg }]}>
+                    <Text style={[styles.staffInitialsText, { color: roleMeta.color }]}>{initials}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.staffNameRow}>
+                      <Text style={styles.staffName}>{displayName}</Text>
+                      <View style={[styles.rolePill, { backgroundColor: roleMeta.bg }]}>
+                        <Text style={[styles.rolePillText, { color: roleMeta.color }]}>{roleMeta.label}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.staffRole}>
+                      {st.email}{st.phone ? ` • ${st.phone}` : ''}
+                    </Text>
+                    <View style={styles.shiftTagRow}>
+                      <View style={styles.shiftTag}>
+                        <Ionicons name="time-outline" size={11} color="#059669" style={{ marginRight: 3 }} />
+                        <Text style={styles.shiftTagText}>Ca Sáng (07:30 - 15:30)</Text>
+                      </View>
+                      <View style={styles.gpsBadge}>
+                        <Ionicons name="location" size={11} color="#0284C7" style={{ marginRight: 2 }} />
+                        <Text style={styles.gpsBadgeText}>GPS Chuẩn</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.dutyBadge}>
+                    <Text style={styles.dutyBadgeText}>ĐANG TRỰC</Text>
                   </View>
                 </View>
-                <View style={styles.dutyBadge}>
-                  <Text style={styles.dutyBadgeText}>ĐANG TRỰC</Text>
-                </View>
+              );
+            })}
+
+            {staffs.length === 0 && (
+              <View style={styles.emptyStaffCard}>
+                <Ionicons name="people-outline" size={36} color="#94A3B8" />
+                <Text style={styles.emptyStaffTitle}>Chưa có nhân sự trong ca</Text>
+                <Text style={styles.emptyStaffSub}>Chưa có nhân viên check-in ca trực tại cơ sở này hôm nay.</Text>
               </View>
-            ))}
+            )}
           </View>
         )}
 
@@ -690,6 +778,33 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         medicine={selectedLabelMed}
         onClose={() => setSelectedLabelMed(null)}
       />
+
+      {/* Attendance GPS Modal */}
+      <AttendanceCheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+        onAttendanceSuccess={loadData}
+      />
+
+      {/* Staff Payslip Modal */}
+      <StaffPayslipModal
+        visible={showPayslipModal}
+        onClose={() => setShowPayslipModal(false)}
+      />
+
+      {/* Branch Location Modal */}
+      <BranchLocationModal
+        visible={showLocationModal}
+        branch={currentBranchObj}
+        onClose={() => setShowLocationModal(false)}
+        onSuccess={loadData}
+      />
+
+      {/* Staff Leave Management Modal */}
+      <StaffLeaveModal
+        visible={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -698,6 +813,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  shiftBarContainer: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  shiftActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  shiftActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  checkInBtn: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  payslipBtn: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+  },
+  locationBtn: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  shiftActionText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   tabBar: {
     flexDirection: 'row',
@@ -807,44 +959,105 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  staffInitialsText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  staffNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   staffName: {
     fontSize: 15,
     fontWeight: '700',
     color: '#1E293B',
   },
+  rolePill: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
+  rolePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   staffRole: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
   },
+  shiftTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 5,
+  },
   shiftTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F1F5F9',
     paddingVertical: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 4,
   },
   shiftTagText: {
     fontSize: 10,
     color: '#475569',
     fontWeight: '600',
   },
+  gpsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
+  gpsBadgeText: {
+    fontSize: 10,
+    color: '#0284C7',
+    fontWeight: '700',
+  },
   dutyBadge: {
     backgroundColor: '#F0FDF4',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
   },
   dutyBadgeText: {
     fontSize: 10,
     fontWeight: '800',
     color: '#16A34A',
+  },
+  emptyStaffCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  emptyStaffTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 8,
+  },
+  emptyStaffSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
   },
   searchBox: {
     flexDirection: 'row',

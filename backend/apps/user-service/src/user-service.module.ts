@@ -21,6 +21,12 @@ import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segme
 import { StaffCertificate, StaffCertificateSchema } from './schemas/staff-certificate.schema';
 import { CertificateService } from './certificate.service';
 import { HrService } from './hr.service';
+import { Attendance, AttendanceSchema } from './schemas/attendance.schema';
+import { AttendanceService } from './attendance.service';
+import { Payroll, PayrollSchema } from './schemas/payroll.schema';
+import { PayrollService } from './payroll.service';
+import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
+import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/schemas/sales-order.schema';
 
 @Module({
   imports: [
@@ -46,6 +52,10 @@ import { HrService } from './hr.service';
       { name: StaffNotification.name, schema: StaffNotificationSchema },
       { name: CustomerSegment.name, schema: CustomerSegmentSchema },
       { name: StaffCertificate.name, schema: StaffCertificateSchema },
+      { name: Attendance.name, schema: AttendanceSchema },
+      { name: Payroll.name, schema: PayrollSchema },
+      { name: LeaveRequest.name, schema: LeaveRequestSchema },
+      { name: SalesOrder.name, schema: SalesOrderSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -70,7 +80,7 @@ import { HrService } from './hr.service';
     ]),
   ],
   controllers: [UserServiceController],
-  providers: [UserService, BranchService, HrService, CertificateService],
+  providers: [UserService, BranchService, HrService, CertificateService, AttendanceService, PayrollService],
 })
 export class UserServiceModule {}
 

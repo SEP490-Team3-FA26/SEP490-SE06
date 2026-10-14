@@ -793,7 +793,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   <View style={styles.voucherCodePill}>
                     <Text style={styles.voucherCodeText}>{v.code}</Text>
                   </View>
-                  <Text style={styles.voucherDesc}>{v.description || 'Ưu đãi dành cho khách hàng VinaPharmacy'}</Text>
+                  <Text style={styles.voucherDesc}>{v.description || 'Ưu đãi dành cho khách hàng ABC Pharmacy'}</Text>
                   <Text style={styles.voucherCondition}>
                     {v.minOrderValue ? `Đơn tối thiểu ${v.minOrderValue.toLocaleString('vi-VN')} ₫` : 'Áp dụng cho mọi đơn hàng'}
                   </Text>
