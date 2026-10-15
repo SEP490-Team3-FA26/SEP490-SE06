@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Clipboard,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -45,7 +45,9 @@ import {
 
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, auth } = useAuth();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS'>('STORE');
+  const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
 
   // Products & Categories
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -503,70 +505,46 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     });
   }, [orders, orderStatusTab]);
 
+  // Map category keyword sang Ionicons icon
+  const getCategoryIcon = (label: string): keyof typeof Ionicons.glyphMap => {
+    const l = label.toLowerCase();
+    if (l === 'tất cả') return 'apps';
+    if (l.includes('đau') || l.includes('sốt') || l.includes('hạ nhiệt')) return 'thermometer';
+    if (l.includes('tiêu hóa') || l.includes('dạ dày') || l.includes('gan')) return 'nutrition';
+    if (l.includes('hô hấp') || l.includes('ho') || l.includes('phổi')) return 'cloudy';
+    if (l.includes('vitamin') || l.includes('bổ sung') || l.includes('khoáng')) return 'leaf';
+    if (l.includes('cơ') || l.includes('xương') || l.includes('khớp')) return 'body';
+    if (l.includes('tim') || l.includes('huyết áp') || l.includes('mạch')) return 'heart';
+    if (l.includes('da') || l.includes('derm') || l.includes('ngoài da')) return 'water';
+    if (l.includes('mắt') || l.includes('nhỏ mắt')) return 'eye';
+    if (l.includes('tai') || l.includes('mũi') || l.includes('họng')) return 'ear';
+    if (l.includes('kháng sinh') || l.includes('antibio')) return 'shield';
+    if (l.includes('cá nhân') || l.includes('vệ sinh') || l.includes('chăm sóc')) return 'sparkles';
+    if (l.includes('miếng dán') || l.includes('dán')) return 'bandage';
+    if (l.includes('dầu') || l.includes('xoa') || l.includes('bôi')) return 'flask';
+    return 'medical';
+  };
+
+  const cartTotalCount = cart.reduce((a, b) => a + b.quantity, 0);
+  const hasActiveFilter = selectedRxFilter !== 'ALL' || selectedPriceFilter !== 'ALL';
+  const activeFilterCount = (selectedRxFilter !== 'ALL' ? 1 : 0) + (selectedPriceFilter !== 'ALL' ? 1 : 0);
+
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
         title="ABC Pharmacy"
-        subtitle={user ? `Xin chào, ${user.name || (user as any).fullName || 'Khách hàng'}` : 'Dược phẩm chính hãng • Mua thuốc online'}
+        subtitle={user ? `Xin chào, ${user.name || (user as any).fullName || 'Khách hàng'}` : '100% Thuốc Chính Hãng • Giao Nhanh 2h'}
         gradientVariant="emerald"
         rightAction={{
+          icon: 'cart-outline',
+          onPress: () => setActiveTab('CART'),
+          badgeCount: cartTotalCount,
+        }}
+        secondaryRightAction={{
           icon: user ? 'person-circle-outline' : 'log-in-outline',
           onPress: () => navigation.navigate(user ? 'ProfileScreen' : 'LoginScreen'),
         }}
-        secondaryRightAction={
-          user
-            ? {
-                icon: 'notifications-outline',
-                onPress: () => navigation.navigate('NotificationListScreen'),
-              }
-            : undefined
-        }
       />
-
-      {/* 5 Tabs Bottom / Top Navigation */}
-      <View style={styles.tabBar}>
-        <AnimatedTouchable
-          onPress={() => setActiveTab('STORE')}
-          style={[styles.tabItem, activeTab === 'STORE' && styles.activeTabItem]}
-        >
-          <Ionicons name="storefront" size={16} color={activeTab === 'STORE' ? '#065F46' : '#94A3B8'} />
-          <Text style={[styles.tabText, activeTab === 'STORE' && styles.activeTabText]}>Cửa Hàng</Text>
-        </AnimatedTouchable>
-
-        <AnimatedTouchable
-          onPress={() => setActiveTab('CART')}
-          style={[styles.tabItem, activeTab === 'CART' && styles.activeTabItem]}
-        >
-          <Ionicons name="cart" size={16} color={activeTab === 'CART' ? '#065F46' : '#94A3B8'} />
-          <Text style={[styles.tabText, activeTab === 'CART' && styles.activeTabText]}>
-            Giỏ ({cart.reduce((a, b) => a + b.quantity, 0)})
-          </Text>
-        </AnimatedTouchable>
-
-        <AnimatedTouchable
-          onPress={() => setActiveTab('AI_CHAT')}
-          style={[styles.tabItem, activeTab === 'AI_CHAT' && styles.activeTabItem]}
-        >
-          <Ionicons name="chatbubble-ellipses" size={16} color={activeTab === 'AI_CHAT' ? '#065F46' : '#94A3B8'} />
-          <Text style={[styles.tabText, activeTab === 'AI_CHAT' && styles.activeTabText]}>Dược Sĩ AI</Text>
-        </AnimatedTouchable>
-
-        <AnimatedTouchable
-          onPress={() => setActiveTab('VOUCHERS')}
-          style={[styles.tabItem, activeTab === 'VOUCHERS' && styles.activeTabItem]}
-        >
-          <Ionicons name="pricetags" size={16} color={activeTab === 'VOUCHERS' ? '#065F46' : '#94A3B8'} />
-          <Text style={[styles.tabText, activeTab === 'VOUCHERS' && styles.activeTabText]}>Kho Voucher</Text>
-        </AnimatedTouchable>
-
-        <AnimatedTouchable
-          onPress={() => setActiveTab('ORDERS')}
-          style={[styles.tabItem, activeTab === 'ORDERS' && styles.activeTabItem]}
-        >
-          <Ionicons name="receipt" size={16} color={activeTab === 'ORDERS' ? '#065F46' : '#94A3B8'} />
-          <Text style={[styles.tabText, activeTab === 'ORDERS' && styles.activeTabText]}>Đơn Mua</Text>
-        </AnimatedTouchable>
-      </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -580,7 +558,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <Ionicons name="search" size={18} color="#94A3B8" />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Tìm tên thuốc, hoạt chất, chỉ định..."
+                  placeholder="Tìm thuốc, hoạt chất..."
                   placeholderTextColor="#94A3B8"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -627,22 +605,30 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             )}
 
-            {/* Banner Lịch Nhắc Uống Thuốc Ngoại Tuyến */}
-            <AnimatedTouchable
-              onPress={() => navigation.navigate('MedicineReminderScreen')}
-              style={styles.reminderBanner}
-            >
-              <View style={styles.reminderBannerLeft}>
-                <View style={styles.reminderBannerIcon}>
-                  <Ionicons name="alarm" size={24} color="#0891B2" />
+            {/* Quick Actions: 2 thẻ nổi bật AI + Nhắc Thuốc */}
+            <View style={styles.quickActionsRow}>
+              <AnimatedTouchable
+                onPress={() => setActiveTab('AI_CHAT')}
+                style={[styles.quickActionCard, styles.quickActionCardAI]}
+              >
+                <View style={styles.quickActionIconBox}>
+                  <Ionicons name="chatbubble-ellipses" size={26} color="#059669" />
                 </View>
-                <View style={{ marginLeft: 12, flex: 1 }}>
-                  <Text style={styles.reminderBannerTitle}>Lịch Nhắc Uống Thuốc 🔔</Text>
-                  <Text style={styles.reminderBannerSub}>Báo thức đúng giờ kể cả khi mất mạng (Offline 100%)</Text>
+                <Text style={styles.quickActionTitle}>Dược Sĩ AI</Text>
+                <Text style={styles.quickActionSub}>Tư vấn thuốc tức thì</Text>
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => navigation.navigate('MedicineReminderScreen')}
+                style={[styles.quickActionCard, styles.quickActionCardReminder]}
+              >
+                <View style={styles.quickActionIconBox}>
+                  <Ionicons name="alarm" size={26} color="#0891B2" />
                 </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#0891B2" />
-            </AnimatedTouchable>
+                <Text style={[styles.quickActionTitle, { color: '#0E7490' }]}>Lịch Nhắc Thuốc</Text>
+                <Text style={[styles.quickActionSub, { color: '#0891B2' }]}>Offline 100% — Không mất báo</Text>
+              </AnimatedTouchable>
+            </View>
 
             {/* Banner cảnh báo dữ liệu ngoại tuyến */}
             {isOfflineMode && (
@@ -658,61 +644,60 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             )}
 
-            {/* Category horizontal scroll */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+            {/* Category Icon Grid — từ API, không hardcode */}
+            <View style={styles.categoryGrid}>
               {categoriesList.map((c, idx) => (
                 <AnimatedTouchable
                   key={c.id || `cat-${idx}`}
                   onPress={() => setSelectedCategory(c.id)}
-                  style={[styles.categoryPill, selectedCategory === c.id && styles.activeCatPill]}
+                  style={[
+                    styles.categoryGridItem,
+                    selectedCategory === c.id && styles.categoryGridItemActive,
+                  ]}
                 >
-                  <Text style={[styles.categoryPillText, selectedCategory === c.id && styles.activeCatPillText]}>
+                  <View style={[
+                    styles.categoryGridIconBox,
+                    selectedCategory === c.id && styles.categoryGridIconBoxActive,
+                  ]}>
+                    <Ionicons
+                      name={getCategoryIcon(c.label)}
+                      size={22}
+                      color={selectedCategory === c.id ? '#FFFFFF' : '#059669'}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.categoryGridLabel,
+                      selectedCategory === c.id && styles.categoryGridLabelActive,
+                    ]}
+                    numberOfLines={2}
+                  >
                     {c.label}
                   </Text>
                 </AnimatedTouchable>
               ))}
-            </ScrollView>
+            </View>
 
-            {/* Secondary filter & sort bar */}
+            {/* Filter & Sort bar gọn — Bộ lọc + Sắp xếp */}
             <View style={styles.filterBarRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1, marginRight: 8 }}>
-                <AnimatedTouchable
-                  onPress={() => setSelectedRxFilter('ALL')}
-                  style={[styles.subFilterPill, selectedRxFilter === 'ALL' && styles.activeSubFilterPill]}
-                >
-                  <Text style={[styles.subFilterText, selectedRxFilter === 'ALL' && styles.activeSubFilterText]}>Tất cả loại</Text>
-                </AnimatedTouchable>
-                <AnimatedTouchable
-                  onPress={() => setSelectedRxFilter('RX')}
-                  style={[styles.subFilterPill, selectedRxFilter === 'RX' && styles.activeSubFilterPill]}
-                >
-                  <Text style={[styles.subFilterText, selectedRxFilter === 'RX' && styles.activeSubFilterText]}>Thuốc kê đơn (Rx)</Text>
-                </AnimatedTouchable>
-                <AnimatedTouchable
-                  onPress={() => setSelectedRxFilter('OTC')}
-                  style={[styles.subFilterPill, selectedRxFilter === 'OTC' && styles.activeSubFilterPill]}
-                >
-                  <Text style={[styles.subFilterText, selectedRxFilter === 'OTC' && styles.activeSubFilterText]}>OTC & Bổ sung</Text>
-                </AnimatedTouchable>
-                <AnimatedTouchable
-                  onPress={() => setSelectedPriceFilter((prev) => (prev === 'UNDER_100' ? 'ALL' : 'UNDER_100'))}
-                  style={[styles.subFilterPill, selectedPriceFilter === 'UNDER_100' && styles.activeSubFilterPill]}
-                >
-                  <Text style={[styles.subFilterText, selectedPriceFilter === 'UNDER_100' && styles.activeSubFilterText]}>&lt; 100k</Text>
-                </AnimatedTouchable>
-                <AnimatedTouchable
-                  onPress={() => setSelectedPriceFilter((prev) => (prev === '100_300' ? 'ALL' : '100_300'))}
-                  style={[styles.subFilterPill, selectedPriceFilter === '100_300' && styles.activeSubFilterPill]}
-                >
-                  <Text style={[styles.subFilterText, selectedPriceFilter === '100_300' && styles.activeSubFilterText]}>100k - 300k</Text>
-                </AnimatedTouchable>
-                <AnimatedTouchable
-                  onPress={() => setSelectedPriceFilter((prev) => (prev === 'OVER_300' ? 'ALL' : 'OVER_300'))}
-                  style={[styles.subFilterPill, selectedPriceFilter === 'OVER_300' && styles.activeSubFilterPill]}
-                >
-                  <Text style={[styles.subFilterText, selectedPriceFilter === 'OVER_300' && styles.activeSubFilterText]}>&gt; 300k</Text>
-                </AnimatedTouchable>
-              </ScrollView>
+              <AnimatedTouchable
+                onPress={() => setShowFilterModal(true)}
+                style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]}
+              >
+                <Ionicons
+                  name="options-outline"
+                  size={15}
+                  color={hasActiveFilter ? '#059669' : '#475569'}
+                />
+                <Text style={[styles.filterBtnText, hasActiveFilter && styles.filterBtnTextActive]}>
+                  Bộ lọc
+                </Text>
+                {hasActiveFilter && (
+                  <View style={styles.filterActiveBadge}>
+                    <Text style={styles.filterActiveBadgeText}>{activeFilterCount}</Text>
+                  </View>
+                )}
+              </AnimatedTouchable>
 
               <AnimatedTouchable
                 onPress={() => {
@@ -758,8 +743,8 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           resizeMode="cover"
                         />
                         <View style={{ flex: 1, marginLeft: 12 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={styles.productName} numberOfLines={1}>{med.name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Text style={styles.productName} numberOfLines={2}>{med.name}</Text>
                             {med.isRx ? (
                               <View style={styles.rxBadge}>
                                 <Text style={styles.rxBadgeText}>Rx</Text>
@@ -767,9 +752,8 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                             ) : null}
                           </View>
                           <Text style={styles.productActive} numberOfLines={1}>
-                            Hoạt chất: {med.active || med.active_ingredient || 'Đang cập nhật'}
+                            {med.active || med.active_ingredient || 'Đang cập nhật'}
                           </Text>
-                          <Text style={styles.productCat}>{med.category}</Text>
                           <Text style={[styles.productPrice, TypographyTokens.tabularNums]}>
                             {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
                           </Text>
@@ -781,11 +765,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           addToCart(med);
                           showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
                         }}
-                        style={styles.buyBtn}
-                        pressedScale={0.94}
+                        style={styles.addToCartBtn}
+                        pressedScale={0.90}
                       >
-                        <Ionicons name="cart" size={16} color="#FFFFFF" />
-                        <Text style={styles.buyBtnText}>Chọn Mua</Text>
+                        <Ionicons name="add" size={20} color="#FFFFFF" />
                       </AnimatedPressable>
                     </View>
                   </Animated.View>
@@ -1528,6 +1511,125 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         title="Quét Mã Vạch Hộp Thuốc"
         subtitle="Hướng camera vào mã vạch trên vỏ hộp thuốc tại nhà để tìm sản phẩm chính hãng"
       />
+
+      {/* Filter Modal */}
+      <ClinicalModalSheet
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        title="Bộ Lọc Sản Phẩm"
+        subtitle="Lọc theo loại thuốc và khoảng giá"
+      >
+        <Text style={styles.filterModalSectionTitle}>Loại thuốc</Text>
+        <View style={styles.filterModalOptions}>
+          {([{ id: 'ALL', label: 'Tất cả' }, { id: 'OTC', label: 'Thuốc không kê đơn (OTC)' }, { id: 'RX', label: 'Thuốc kê đơn (Rx)' }] as const).map((opt) => (
+            <AnimatedTouchable
+              key={opt.id}
+              onPress={() => setSelectedRxFilter(opt.id)}
+              style={[
+                styles.filterModalOption,
+                selectedRxFilter === opt.id && styles.filterModalOptionActive,
+              ]}
+            >
+              <Ionicons
+                name={selectedRxFilter === opt.id ? 'radio-button-on' : 'radio-button-off'}
+                size={18}
+                color={selectedRxFilter === opt.id ? '#059669' : '#94A3B8'}
+              />
+              <Text style={[
+                styles.filterModalOptionText,
+                selectedRxFilter === opt.id && styles.filterModalOptionTextActive,
+              ]}>
+                {opt.label}
+              </Text>
+            </AnimatedTouchable>
+          ))}
+        </View>
+
+        <Text style={[styles.filterModalSectionTitle, { marginTop: 16 }]}>Khoảng giá</Text>
+        <View style={styles.filterModalOptions}>
+          {([{ id: 'ALL', label: 'Tất cả mức giá' }, { id: 'UNDER_100', label: 'Dưới 100.000 ₫' }, { id: '100_300', label: '100.000 – 300.000 ₫' }, { id: 'OVER_300', label: 'Trên 300.000 ₫' }] as const).map((opt) => (
+            <AnimatedTouchable
+              key={opt.id}
+              onPress={() => setSelectedPriceFilter(opt.id)}
+              style={[
+                styles.filterModalOption,
+                selectedPriceFilter === opt.id && styles.filterModalOptionActive,
+              ]}
+            >
+              <Ionicons
+                name={selectedPriceFilter === opt.id ? 'radio-button-on' : 'radio-button-off'}
+                size={18}
+                color={selectedPriceFilter === opt.id ? '#059669' : '#94A3B8'}
+              />
+              <Text style={[
+                styles.filterModalOptionText,
+                selectedPriceFilter === opt.id && styles.filterModalOptionTextActive,
+              ]}>
+                {opt.label}
+              </Text>
+            </AnimatedTouchable>
+          ))}
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+          <ClinicalButton
+            title="Xóa bộ lọc"
+            variant="outline"
+            size="md"
+            onPress={() => {
+              setSelectedRxFilter('ALL');
+              setSelectedPriceFilter('ALL');
+              setShowFilterModal(false);
+            }}
+            style={{ flex: 1 }}
+          />
+          <ClinicalButton
+            title="Áp dụng"
+            variant="primary"
+            size="md"
+            onPress={() => setShowFilterModal(false)}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </ClinicalModalSheet>
+
+      {/* Bottom Navigation Bar */}
+      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        {[
+          { id: 'STORE', icon: 'storefront-outline', iconActive: 'storefront', label: 'Cửa Hàng' },
+          { id: 'AI_CHAT', icon: 'chatbubble-ellipses-outline', iconActive: 'chatbubble-ellipses', label: 'Dược Sĩ AI' },
+          { id: 'VOUCHERS', icon: 'pricetags-outline', iconActive: 'pricetags', label: 'Voucher' },
+          { id: 'ORDERS', icon: 'receipt-outline', iconActive: 'receipt', label: 'Đơn Mua' },
+        ].map((tab) => (
+          <AnimatedTouchable
+            key={tab.id}
+            onPress={() => setActiveTab(tab.id as any)}
+            style={styles.bottomNavItem}
+          >
+            <Ionicons
+              name={(activeTab === tab.id ? tab.iconActive : tab.icon) as keyof typeof Ionicons.glyphMap}
+              size={22}
+              color={activeTab === tab.id ? '#059669' : '#94A3B8'}
+            />
+            <Text style={[styles.bottomNavLabel, activeTab === tab.id && styles.bottomNavLabelActive]}>
+              {tab.label}
+            </Text>
+          </AnimatedTouchable>
+        ))}
+
+        {/* Tab Tài khoản */}
+        <AnimatedTouchable
+          onPress={() => navigation.navigate(user ? 'ProfileScreen' : 'LoginScreen')}
+          style={styles.bottomNavItem}
+        >
+          <Ionicons
+            name={user ? 'person-circle' : 'person-circle-outline'}
+            size={22}
+            color="#94A3B8"
+          />
+          <Text style={styles.bottomNavLabel}>Tài khoản</Text>
+        </AnimatedTouchable>
+      </View>
     </SafeAreaView>
   );
 };
@@ -1537,33 +1639,212 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  tabBar: {
+  // Bottom Navigation
+  bottomNav: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  tabItem: {
+  bottomNavItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingVertical: 4,
   },
-  activeTabItem: {
-    backgroundColor: '#ECFDF5',
-  },
-  tabText: {
+  bottomNavLabel: {
     fontSize: 10,
     fontWeight: '600',
     color: '#94A3B8',
     marginTop: 2,
   },
-  activeTabText: {
-    color: '#065F46',
+  bottomNavLabelActive: {
+    color: '#059669',
     fontWeight: '800',
+  },
+  // Quick Actions
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  quickActionCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  quickActionCardAI: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    shadowColor: '#059669',
+  },
+  quickActionCardReminder: {
+    backgroundColor: '#ECFEFF',
+    borderColor: '#A5F3FC',
+    shadowColor: '#0891B2',
+  },
+  quickActionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  quickActionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+    marginBottom: 2,
+  },
+  quickActionSub: {
+    fontSize: 11,
+    color: '#059669',
+    lineHeight: 15,
+  },
+  // Category Icon Grid
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  categoryGridItem: {
+    width: '22%',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  categoryGridItemActive: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  categoryGridIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  categoryGridIconBoxActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  categoryGridLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#334155',
+    textAlign: 'center',
+    paddingHorizontal: 2,
+  },
+  categoryGridLabelActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  // Filter buttons
+  filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 8,
+  },
+  filterBtnActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  filterBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  filterBtnTextActive: {
+    color: '#059669',
+  },
+  filterActiveBadge: {
+    backgroundColor: '#059669',
+    borderRadius: 10,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  filterActiveBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  // Filter Modal content
+  filterModalSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  filterModalOptions: {
+    gap: 8,
+  },
+  filterModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterModalOptionActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  filterModalOptionText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  filterModalOptionTextActive: {
+    color: '#065F46',
+    fontWeight: '700',
+  },
+  // Add to cart icon button
+  addToCartBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+    marginLeft: 8,
+    alignSelf: 'center',
   },
   scrollContent: {
     padding: 16,
@@ -1696,8 +1977,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   productThumb: {
-    width: 68,
-    height: 68,
+    width: 64,
+    height: 64,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
   },
