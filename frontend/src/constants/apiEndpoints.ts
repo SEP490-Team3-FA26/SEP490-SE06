@@ -209,6 +209,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/api/vouchers/${encodeURIComponent(id)}`,
     DELETE: (id: string) => `/api/vouchers/${encodeURIComponent(id)}`,
     VALIDATE: '/api/vouchers/validate',
+    AUDIT_FLAGS: '/api/vouchers/audit-flags',
   },
 
   // 🩺 Prescriptions & AI Consultation

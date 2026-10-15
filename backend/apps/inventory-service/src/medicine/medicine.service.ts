@@ -77,8 +77,23 @@ export class MedicineService implements OnModuleInit {
         this.logger.log(`Found ${bulkOps.length} medicines with mismatched stock. Syncing...`);
         await this.medicineModel.bulkWrite(bulkOps);
         this.logger.log(`Bulk stock synchronization completed successfully in ${Date.now() - startTime}ms.`);
-      } else {
-        this.logger.log(`All medicine stocks are already synchronized. Completed in ${Date.now() - startTime}ms.`);
+      }
+
+      // 6. Rà soát và tự động khắc phục các bản ghi tồn kho âm trong BranchStockBalance và Medicines
+      const negativeBalances = await this.balanceModel.updateMany(
+        { totalStock: { $lt: 0 } },
+        { $set: { totalStock: 0, status: 'OUT_OF_STOCK', lastSyncedAt: new Date() } }
+      ).exec();
+      if (negativeBalances.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeBalances.modifiedCount} bản ghi tồn kho chi nhánh bị âm về 0.`);
+      }
+
+      const negativeMedicines = await this.medicineModel.updateMany(
+        { stock: { $lt: 0 } },
+        { $set: { stock: 0, status: 'Out of Stock' } }
+      ).exec();
+      if (negativeMedicines.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeMedicines.modifiedCount} dược phẩm có tồn kho âm về 0.`);
       }
     } catch (error) {
       this.logger.error('Failed to run background stock synchronization:', error);
@@ -100,6 +115,42 @@ export class MedicineService implements OnModuleInit {
         categories: ['Kháng sinh', 'Hạ sốt & Giảm đau', 'Tim mạch', 'Tiêu hóa', 'Thực phẩm chức năng', 'Vật tư y tế'],
         classifications: ['PRESCRIPTION', 'NON_PRESCRIPTION', 'SUPPLEMENT']
       };
+    }
+  }
+
+  // Truy vấn trực tiếp từ MongoDB để đếm số lượng SKU thực tế của các danh mục con
+  async getSubCategoryCounts(payload: { category?: string; items: { id: string; searchKeyword?: string; categoryValue?: string }[] }) {
+    try {
+      const counts: Record<string, number> = {};
+      const { category, items } = payload || {};
+      if (!Array.isArray(items)) return counts;
+
+      await Promise.all(
+        items.map(async (item) => {
+          if (!item?.id) return;
+          const query: any = {};
+          if (item.categoryValue) {
+            query.category = item.categoryValue;
+          } else {
+            if (category) {
+              query.category = category;
+            }
+            if (item.searchKeyword) {
+              const safeSearch = item.searchKeyword.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+              query.$or = [
+                { name: { $regex: safeSearch, $options: 'i' } },
+                { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+              ];
+            }
+          }
+          const count = await this.medicineModel.countDocuments(query).exec();
+          counts[item.id] = count;
+        })
+      );
+      return counts;
+    } catch (error) {
+      this.logger.error('Lỗi khi đếm số lượng sub-category từ DB:', error);
+      return {};
     }
   }
 

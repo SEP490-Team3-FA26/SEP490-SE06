@@ -10,7 +10,6 @@ import {
   History,
   Plus,
   Trash2,
-  Clock,
   MessageSquare,
   ArrowLeft,
   PanelLeftClose,
@@ -18,7 +17,9 @@ import {
   Edit2,
   Database,
   HardDrive,
-  Sparkles,
+  QrCode,
+  ShoppingBag,
+  LogIn,
 } from "lucide-react";
 import { ChatMessage, MessageItem } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -26,6 +27,9 @@ import { QuickReplies } from "./QuickReplies";
 import { ChatDrugItem } from "./DrugCard";
 import { prescriptionService } from "../../services/sales/prescription.service";
 import { cartService } from "../../services/sales/cart.service";
+import { useChatPayOSCheckout } from "../../hooks/useChatPayOSCheckout";
+import { notifyAuthLoginRequired } from "../../utils/authEvents";
+import { DoveFigure } from "../mascot/DoveFigure";
 import api from "../../services/core/api";
 
 interface ChatWindowProps {
@@ -50,7 +54,7 @@ const STORAGE_FULLSCREEN_KEY = "abc_pharmacy_chat_is_fullscreen";
 const INITIAL_WELCOME_MESSAGE: MessageItem = {
   id: "welcome-1",
   sender: "bot",
-  text: "Xin chào! Tôi là Trợ lý Dược sĩ AI của ABC Pharmacy. Bạn đang gặp triệu chứng gì hoặc cần tư vấn sử dụng thuốc nào hôm nay?",
+  text: "Xin chào! Tôi là Trợ lý Dược sĩ Bồ Câu AI của ABC Pharmacy. Bạn đang gặp triệu chứng gì hoặc cần tư vấn sử dụng thuốc nào hôm nay?",
   timestamp: "Vừa xong",
   disclaimer: "Tư vấn AI mang tính chất tham khảo y khoa, không thay thế chẩn đoán của bác sĩ.",
 };
@@ -72,7 +76,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onMinimize,
   defaultFullscreen = false,
 }) => {
-  // Fullscreen state with persistence
+  // Fullscreen state with persistent storage
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
     if (defaultFullscreen) return true;
     try {
@@ -84,17 +88,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return false;
   });
 
-  // Sidebar toggle state in fullscreen
+  // Sidebar toggle state in fullscreen mode
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Sessions history drawer state for widget mode
   const [showHistory, setShowHistory] = useState(false);
 
-  // Rename session inline state
+  // Inline rename session state
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
 
-  // Sessions state
+  // Sessions collection state
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_SESSIONS_KEY);
@@ -120,8 +124,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return "";
   });
 
-  // Current session messages
-  const activeSession = sessions.find((s) => s.id === currentSessionId) || sessions[0];
+  // Current active session and its messages
+  const activeSession = (sessions || []).find((s) => s.id === currentSessionId) || sessions[0];
   const messages = activeSession ? activeSession.messages : [INITIAL_WELCOME_MESSAGE];
 
   const [isLoading, setIsLoading] = useState(false);
@@ -131,6 +135,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     age_group?: string;
     gender?: string;
     allergies?: string[];
+    fullName?: string;
+    name?: string;
+    phone?: string;
+    address?: string;
+    email?: string;
   }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -139,102 +148,130 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const token = localStorage.getItem("token");
     setIsLoggedIn(Boolean(token));
 
-    if (!currentSessionId && sessions.length > 0) {
+    if (!currentSessionId && (sessions || []).length > 0) {
       setCurrentSessionId(sessions[0].id);
       localStorage.setItem(STORAGE_ACTIVE_ID_KEY, sessions[0].id);
     }
   }, [currentSessionId, sessions]);
 
-  // Persist sessions to localStorage
+  // Load user profile and cloud sessions if logged in
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      try {
+        const profileRes = await api.get("/api/auth/profile");
+        if (profileRes?.data) {
+          const u = profileRes.data;
+          setUserProfile({
+            fullName: u.fullName || u.name,
+            name: u.fullName || u.name,
+            phone: u.phone || u.phoneNumber,
+            address: u.address,
+            email: u.email,
+            age_group: u.age ? (u.age < 18 ? "child" : u.age > 60 ? "elderly" : "adult") : undefined,
+            gender: u.gender,
+            allergies: u.allergies || [],
+          });
+        }
+      } catch {
+        // Fallback silently if offline or token expired
+      }
+
+      try {
+        const cloudSessionsRes = await prescriptionService.getChatSessions();
+        if (cloudSessionsRes?.success && Array.isArray(cloudSessionsRes.sessions) && cloudSessionsRes.sessions.length > 0) {
+          setSessions(cloudSessionsRes.sessions);
+          if (!cloudSessionsRes.sessions.some((s) => s.id === currentSessionId)) {
+            setCurrentSessionId(cloudSessionsRes.sessions[0].id);
+          }
+        }
+      } catch {
+        // Fallback to local storage if cloud fetch fails
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  // Save sessions to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_SESSIONS_KEY, JSON.stringify(sessions));
-    } catch (e) {
-      console.error("Loi luu sessions vao localStorage:", e);
+    } catch {
+      // Storage quota safety fallback
     }
   }, [sessions]);
 
-  // Load user profile and chat sessions from DB if logged in
+  // Scroll to bottom on new messages or loading state
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    // Load profile
-    api
-      .get("/api/users/profile")
-      .then((res) => {
-        if (res.data) {
-          const profile = res.data;
-          let calculatedAgeGroup = "adult";
-          if (profile.age) {
-            const age = Number(profile.age);
-            if (age < 15) calculatedAgeGroup = "child";
-            else if (age > 60) calculatedAgeGroup = "elderly";
-          }
-          setUserProfile({
-            age_group: calculatedAgeGroup,
-            gender: profile.gender,
-            allergies: Array.isArray(profile.allergies) ? profile.allergies : [],
-          });
-        }
-      })
-      .catch(() => {});
-
-    // Sync chat sessions from MongoDB
-    prescriptionService
-      .getChatSessions()
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.sessions) && res.sessions.length > 0) {
-          setSessions(res.sessions);
-          localStorage.setItem(STORAGE_SESSIONS_KEY, JSON.stringify(res.sessions));
-          if (!currentSessionId || !res.sessions.some((s: any) => s.id === currentSessionId)) {
-            setCurrentSessionId(res.sessions[0].id);
-            localStorage.setItem(STORAGE_ACTIVE_ID_KEY, res.sessions[0].id);
-          }
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    if (isOpen && (!showHistory || isFullscreen)) {
-      scrollToBottom();
-    }
-  }, [messages, isLoading, isOpen, showHistory, isFullscreen]);
+  }, [messages, isLoading]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
+    setTimeout(() => setToastMessage(null), 2500);
   };
 
   const toggleFullscreen = () => {
     setIsFullscreen((prev) => {
       const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_FULLSCREEN_KEY, String(next));
-      } catch {}
+      localStorage.setItem(STORAGE_FULLSCREEN_KEY, String(next));
       return next;
     });
   };
 
-  const handleAddToCart = async (drug: ChatDrugItem): Promise<boolean> => {
-    if (!drug.medicine_id || !drug.in_stock) return false;
-    const token = localStorage.getItem("token");
+  // Update messages in the current session
+  const updateCurrentSessionMessages = (newMessages: MessageItem[], autoTitleQuery?: string) => {
+    const now = Date.now();
+    let updatedActiveSession: ChatSession | null = null;
 
+    setSessions((prev) =>
+      (prev || []).map((s) => {
+        if (s.id === currentSessionId) {
+          let title = s.title;
+          if (
+            (!title || title === "Cuộc trò chuyện mới") &&
+            autoTitleQuery &&
+            autoTitleQuery.trim().length > 0
+          ) {
+            const clean = autoTitleQuery.trim();
+            title = clean.length > 30 ? clean.substring(0, 30) + "..." : clean;
+          }
+          const updated = {
+            ...s,
+            title,
+            updatedAt: now,
+            messages: newMessages,
+          };
+          updatedActiveSession = updated;
+          return updated;
+        }
+        return s;
+      })
+    );
+
+    // Sync to backend MongoDB if logged in
+    const token = localStorage.getItem("token");
+    if (token && updatedActiveSession) {
+      prescriptionService.saveChatSession(updatedActiveSession).catch(() => {});
+    }
+  };
+
+  // Add single drug to cart for both guests and authenticated users
+  const addToCartItem = async (drug: ChatDrugItem): Promise<boolean> => {
+    if (!drug.medicine_id || !drug.in_stock) return false;
     try {
+      const token = localStorage.getItem("token");
       if (!token) {
+        // Guest cart in localStorage
         const guestCartStr = localStorage.getItem("guest_cart");
         const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
         const existing = cart.find(
-          (it: any) => it.id === drug.medicine_id || it._id === drug.medicine_id
+          (it: { id?: string; _id?: string; quantity: number }) =>
+            it.id === drug.medicine_id || it._id === drug.medicine_id
         );
-
         if (existing) {
           if (existing.quantity < drug.stock) {
             existing.quantity += 1;
@@ -244,10 +281,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             id: drug.medicine_id,
             _id: drug.medicine_id,
             name: drug.name,
-            category: drug.category || "Duoc pham",
+            category: drug.category || "Dược phẩm",
             price: drug.price,
             quantity: 1,
-            unit: drug.unit || "Hop",
+            unit: drug.unit || "Hộp",
             stock: drug.stock,
             active_ingredient: drug.active_ingredient || "",
             image: drug.image || "",
@@ -261,64 +298,104 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }
 
       window.dispatchEvent(new Event("cartUpdated"));
-      showToast(`Da them "${drug.name}" vao gio hang`);
       return true;
-    } catch (err: any) {
-      console.error("Loi them vao gio hang:", err);
-      showToast("Khong the them vao gio hang, vui long thu lai!");
+    } catch {
       return false;
     }
   };
 
-  const handleAddAllToCart = async (drugs: ChatDrugItem[]) => {
-    let count = 0;
-    for (const drug of drugs) {
-      if (drug.medicine_id && drug.in_stock) {
-        const ok = await handleAddToCart(drug);
-        if (ok) count++;
+  // Add drug to cart with toast notification
+  const handleAddToCart = async (drug: ChatDrugItem): Promise<boolean> => {
+    if (!drug.medicine_id) return false;
+    try {
+      const added = await addToCartItem(drug);
+      if (added) {
+        showToast(`Đã thêm "${drug.name}" vào giỏ hàng`);
+        return true;
       }
-    }
-    if (count > 0) {
-      showToast(`Da them thanh cong ${count} san pham vao gio hang`);
+      return false;
+    } catch {
+      return false;
     }
   };
 
-  const updateCurrentSessionMessages = (newMessages: MessageItem[], userTextPrompt?: string) => {
-    const activeId = currentSessionId || (sessions[0] && sessions[0].id);
-    let sessionToPersist: ChatSession | null = null;
-
-    setSessions((prevSessions) =>
-      prevSessions.map((s) => {
-        if (s.id === activeId) {
-          let newTitle = s.title;
-          if (
-            (newTitle === "Cuộc trò chuyện mới" || newTitle === "Cuoc tro chuyen moi" || !newTitle) &&
-            userTextPrompt &&
-            userTextPrompt.trim().length > 0
-          ) {
-            newTitle =
-              userTextPrompt.trim().length > 36
-                ? `${userTextPrompt.trim().slice(0, 36)}...`
-                : userTextPrompt.trim();
-          }
-          const updated = {
-            ...s,
-            title: newTitle,
-            updatedAt: Date.now(),
-            messages: newMessages,
-          };
-          sessionToPersist = updated;
-          return updated;
+  // Add all suggested drugs to cart
+  const handleAddAllToCart = async (drugs: ChatDrugItem[]): Promise<void> => {
+    try {
+      let count = 0;
+      for (const d of drugs) {
+        if (d.in_stock && d.medicine_id) {
+          const ok = await addToCartItem(d);
+          if (ok) count++;
         }
-        return s;
-      })
-    );
-
-    // Save to Database if logged in
-    const token = localStorage.getItem("token");
-    if (token && sessionToPersist) {
-      prescriptionService.saveChatSession(sessionToPersist).catch(() => {});
+      }
+      if (count > 0) {
+        showToast(`Đã thêm ${count} sản phẩm vào giỏ hàng!`);
+      }
+    } catch {
+      showToast("Lỗi khi thêm danh sách thuốc");
     }
+  };
+
+  // Custom hook managing cart state and PayOS integration
+  const {
+    cartCount,
+    isProcessingOrder,
+    isPaymentIntent,
+    processPayOSOrder,
+    buyNowDrug,
+  } = useChatPayOSCheckout({
+    customerInfo: userProfile,
+    onSuccessMessage: (msg) => {
+      updateCurrentSessionMessages([...messages, msg]);
+    },
+    onEmptyCart: () => {
+      showToast("Giỏ hàng của bạn đang trống!");
+    },
+    onError: (errMsg) => {
+      showToast(errMsg);
+    },
+    onLoginRequired: () => {
+      notifyAuthLoginRequired();
+    },
+  });
+
+  // Action button click handler (e.g. login prompt)
+  const handleMessageAction = (action: string) => {
+    if (action === "LOGIN") {
+      notifyAuthLoginRequired();
+    }
+  };
+
+  // Instant buy single drug via VietQR PayOS
+  const handleBuyNowDrug = async (drug: ChatDrugItem) => {
+    const userPromptMsg: MessageItem = {
+      id: `user-buy-${Date.now()}`,
+      sender: "user",
+      text: `Mua ngay sản phẩm "${drug.name}"`,
+      timestamp: new Date().toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    updateCurrentSessionMessages([...messages, userPromptMsg], userPromptMsg.text);
+    await buyNowDrug(drug);
+  };
+
+  // Callback when PayOS confirms transaction completion
+  const handlePaymentSuccess = (orderCode: number) => {
+    const successMsg: MessageItem = {
+      id: `bot-paid-${Date.now()}`,
+      sender: "bot",
+      text: `🎉 Tuyệt vời! Dược sĩ Bồ Câu xác nhận đã nhận được thanh toán thành công qua PayOS cho đơn hàng #${orderCode}. Đơn hàng đã được ghi nhận trên hệ thống và nhân viên ABC Pharmacy đang chuẩn bị đóng gói để giao đến bạn sớm nhất! Cảm ơn bạn! ❤️`,
+      timestamp: new Date().toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    updateCurrentSessionMessages([...messages, successMsg]);
+    showToast("Thanh toán PayOS thành công!");
   };
 
   const handleSendMessage = async (text: string) => {
@@ -336,6 +413,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     const newMessages = [...messages, userMsg];
     updateCurrentSessionMessages(newMessages, text);
+
+    // Check payment intent via PayOS inside chat prompt
+    if (isPaymentIntent(text)) {
+      await processPayOSOrder();
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -356,11 +440,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         const botMsg: MessageItem = {
           id: `bot-${Date.now()}`,
           sender: "bot",
-          text: res.message,
+          text: res.reply || "Cảm ơn bạn đã chia sẻ, dưới đây là thông tin y khoa từ Dược sĩ.",
           drugs: res.drugs || [],
-          warnings: res.warnings,
-          follow_up_question: res.follow_up_question,
-          disclaimer: res.disclaimer,
+          warnings: res.warnings || "",
+          follow_up_question: res.follow_up_question || "",
+          disclaimer: res.disclaimer || "Tư vấn AI mang tính chất tham khảo, không thay thế khám trực tiếp tại cơ sở y tế.",
           timestamp: new Date().toLocaleTimeString("vi-VN", {
             hour: "2-digit",
             minute: "2-digit",
@@ -368,45 +452,45 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         };
         updateCurrentSessionMessages([...newMessages, botMsg]);
       } else {
-        const errMsg: MessageItem = {
-          id: `bot-${Date.now()}`,
+        const errorMsg: MessageItem = {
+          id: `bot-err-${Date.now()}`,
           sender: "bot",
-          text: "Xin loi ban, he thong AI tam thoi gap su co khi xu ly thong tin. Ban co the gui lai trieu chung de toi tu van lai nhe.",
+          text: res?.reply || "Xin lỗi, hiện tại hệ thống AI đang quá tải. Bạn vui lòng thử lại sau giây lát nhé!",
           timestamp: new Date().toLocaleTimeString("vi-VN", {
             hour: "2-digit",
             minute: "2-digit",
           }),
         };
-        updateCurrentSessionMessages([...newMessages, errMsg]);
+        updateCurrentSessionMessages([...newMessages, errorMsg]);
       }
-    } catch (err: any) {
-      console.error("Loi tu van AI Chatbot:", err);
-      const errMsg: MessageItem = {
-        id: `bot-${Date.now()}`,
+    } catch {
+      const fallbackMsg: MessageItem = {
+        id: `bot-err-${Date.now()}`,
         sender: "bot",
-        text: "Khong the ket noi den may chu AI Duoc si. Vui long kiem tra lai ket noi mang hoac thu lai sau giay lat.",
+        text: "Không thể kết nối đến máy chủ Dược sĩ AI. Vui lòng kiểm tra lại kết nối mạng.",
         timestamp: new Date().toLocaleTimeString("vi-VN", {
           hour: "2-digit",
           minute: "2-digit",
         }),
       };
-      updateCurrentSessionMessages([...newMessages, errMsg]);
+      updateCurrentSessionMessages([...newMessages, fallbackMsg]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Start a new chat session
   const handleStartNewChat = () => {
-    const newSession = createNewSession();
-    setSessions((prev) => [newSession, ...prev]);
-    setCurrentSessionId(newSession.id);
-    localStorage.setItem(STORAGE_ACTIVE_ID_KEY, newSession.id);
+    const newSess = createNewSession();
+    setSessions((prev) => [newSess, ...(prev || [])]);
+    setCurrentSessionId(newSess.id);
+    localStorage.setItem(STORAGE_ACTIVE_ID_KEY, newSess.id);
     setShowHistory(false);
-    showToast("Da bat dau cuoc tro chuyen moi");
+    showToast("Đã tạo cuộc trò chuyện mới");
 
     const token = localStorage.getItem("token");
     if (token) {
-      prescriptionService.saveChatSession(newSession).catch(() => {});
+      prescriptionService.saveChatSession(newSess).catch(() => {});
     }
   };
 
@@ -418,7 +502,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = sessions.filter((s) => s.id !== sessionId);
+    const updated = (sessions || []).filter((s) => s.id !== sessionId);
     if (updated.length === 0) {
       const fresh = createNewSession();
       setSessions([fresh]);
@@ -431,7 +515,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         localStorage.setItem(STORAGE_ACTIVE_ID_KEY, updated[0].id);
       }
     }
-    showToast("Da xoa cuoc tro chuyen");
+    showToast("Đã xóa cuộc trò chuyện");
 
     const token = localStorage.getItem("token");
     if (token) {
@@ -452,7 +536,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
     let renamedSession: ChatSession | null = null;
     setSessions((prev) =>
-      prev.map((s) => {
+      (prev || []).map((s) => {
         if (s.id === sessionId) {
           const updated = { ...s, title: editingTitle.trim() };
           renamedSession = updated;
@@ -462,7 +546,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       })
     );
     setEditingSessionId(null);
-    showToast("Da cap nhat ten cuoc tro chuyen");
+    showToast("Đã cập nhật tên cuộc trò chuyện");
 
     const token = localStorage.getItem("token");
     if (token && renamedSession) {
@@ -478,10 +562,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       },
     ];
     updateCurrentSessionMessages(resetMessages);
-    showToast("Da lam moi cuoc tro chuyen hien tai");
+    showToast("Đã làm mới cuộc trò chuyện");
   };
 
-  // Group sessions by date for professional sidebar display
+  // Group chat sessions by date for organized sidebar listing
   const groupSessions = () => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -493,7 +577,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const previous7Days: ChatSession[] = [];
     const older: ChatSession[] = [];
 
-    sessions.forEach((s) => {
+    (sessions || []).forEach((s) => {
       const time = s.updatedAt || s.createdAt;
       if (time >= todayStart) {
         today.push(s);
@@ -507,16 +591,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     });
 
     return [
-      { title: "Hom nay", items: today },
-      { title: "Hom qua", items: yesterday },
-      { title: "7 ngay truoc", items: previous7Days },
-      { title: "Cu hon", items: older },
+      { title: "Hôm nay", items: today },
+      { title: "Hôm qua", items: yesterday },
+      { title: "7 ngày trước", items: previous7Days },
+      { title: "Cũ hơn", items: older },
     ].filter((group) => group.items.length > 0);
   };
 
   if (!isOpen) return null;
 
-  // Render Sidebar Session Item
+  // Render individual session item in sidebar or history drawer
   const renderSessionItem = (sess: ChatSession) => {
     const isActive = sess.id === currentSessionId;
     const isEditing = editingSessionId === sess.id;
@@ -524,27 +608,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       hour: "2-digit",
       minute: "2-digit",
     });
-    const userMessagesCount = sess.messages.filter((m) => m.sender === "user").length;
+    const userMessagesCount = (sess.messages || []).filter((m) => m.sender === "user").length;
 
     return (
       <div
         key={sess.id}
         onClick={() => !isEditing && handleSelectSession(sess.id)}
-        className={`group relative w-full p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-left select-none ${
+        className={`group relative w-full p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-left select-none ${
           isActive
-            ? "bg-blue-50/90 border-blue-300 text-blue-900 shadow-xs"
-            : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/80 text-slate-700"
+            ? "bg-slate-50 border-slate-300 text-slate-900 shadow-2xs"
+            : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-600"
         }`}
       >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <div
-            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-              isActive
-                ? "bg-blue-600 text-white shadow-xs"
-                : "bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600"
+            className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${
+              isActive ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400 group-hover:text-slate-600"
             }`}
           >
-            <MessageSquare size={14} />
+            <MessageSquare size={13} />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -553,7 +635,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 className="flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
               >
-                <input
+                <input id={`rename-input-${sess.id}`} aria-label="Tên cuộc trò chuyện"
                   type="text"
                   value={editingTitle}
                   onChange={(e) => setEditingTitle(e.target.value)}
@@ -562,31 +644,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     if (e.key === "Escape") setEditingSessionId(null);
                   }}
                   autoFocus
-                  className="w-full text-xs font-semibold px-2 py-0.5 rounded border border-blue-400 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full text-xs font-medium px-2 py-0.5 rounded border border-blue-400 bg-white text-slate-900 focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => handleSaveRename(sess.id)}
+                  aria-label="Lưu tên cuộc trò chuyện"
                   className="p-1 rounded text-emerald-600 hover:bg-emerald-50 cursor-pointer"
-                  title="Luu ten"
+                  title="Lưu tên"
                 >
-                  <Check size={14} />
+                  <Check size={13} />
                 </button>
               </div>
             ) : (
               <>
                 <h4
-                  className={`text-xs font-semibold truncate leading-tight ${
-                    isActive ? "text-blue-950 font-bold" : "text-slate-800"
+                  className={`text-xs truncate leading-tight ${
+                    isActive ? "font-semibold text-slate-900" : "font-medium text-slate-700"
                   }`}
                   title={sess.title}
                 >
-                  {sess.title || "Cuoc tro chuyen"}
+                  {sess.title || "Cuộc trò chuyện"}
                 </h4>
-                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
+                <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-400">
                   <span>{formattedTime}</span>
                   <span>•</span>
-                  <span>{userMessagesCount} cau hoi</span>
+                  <span>{userMessagesCount} tin</span>
                 </div>
               </>
             )}
@@ -599,16 +682,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={(e) => handleStartRename(sess, e)}
-              className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-              title="Doi ten cuoc tro chuyen"
+              aria-label="Đổi tên cuộc trò chuyện"
+              className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+              title="Đổi tên"
             >
               <Edit2 size={12} />
             </button>
             <button
               type="button"
               onClick={(e) => handleDeleteSession(sess.id, e)}
-              className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-              title="Xoa cuoc tro chuyen"
+              aria-label="Xóa cuộc trò chuyện"
+              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Xóa"
             >
               <Trash2 size={12} />
             </button>
@@ -623,32 +708,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       className={`z-50 bg-white font-sans transition-all duration-300 ${
         isFullscreen
           ? "fixed inset-0 w-full h-full flex flex-row overflow-hidden shadow-none"
-          : "fixed bottom-4 sm:bottom-6 right-2 sm:right-6 w-[calc(100vw-1rem)] sm:w-[440px] max-w-[450px] h-[620px] max-h-[85vh] rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+          : "fixed bottom-4 sm:bottom-6 right-2 sm:right-6 w-[calc(100vw-1rem)] sm:w-[420px] max-w-[430px] h-[600px] max-h-[85vh] rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-900/5 flex flex-col overflow-hidden"
       }`}
     >
-      {/* Toast Notification */}
+      {/* Toast Alert Feedback */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-70 bg-slate-900/95 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in duration-200">
-          <Check size={14} className="text-emerald-400 shrink-0" />
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white text-xs font-medium px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5 animate-in fade-in duration-200">
+          <Check size={13} className="text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* ---------------- FULLSCREEN SIDEBAR ---------------- */}
+      {/* Fullscreen Sidebar Navigation */}
       {isFullscreen && isSidebarOpen && (
-        <aside className="w-72 sm:w-80 shrink-0 bg-slate-50/90 border-r border-slate-200 flex flex-col h-full select-none">
-          {/* Sidebar Top: Logo + Brand + Collapse button */}
-          <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-white/70">
+        <aside className="w-72 sm:w-80 shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col h-full select-none">
+          {/* Sidebar Header */}
+          <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between bg-white">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                <Bot size={18} />
+              <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden pt-0.5 shadow-2xs">
+                <DoveFigure size={28} kaal={true} decoratief={true} />
               </div>
               <div className="flex flex-col">
-                <span className="font-extrabold text-sm text-slate-900 tracking-tight">
+                <span className="font-semibold text-xs text-slate-900">
                   ABC Pharmacy
                 </span>
-                <span className="text-[11px] font-medium text-slate-500">
-                  Duoc Si AI Truc Tuyen
+                <span className="text-[11px] text-slate-400">
+                  Dược Sĩ Bồ Câu AI
                 </span>
               </div>
             </div>
@@ -656,263 +741,248 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-              title="Thu gon danh sach"
+              aria-label="Thu gọn danh sách lịch sử"
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Thu gọn"
             >
-              <PanelLeftClose size={18} />
+              <PanelLeftClose size={17} />
             </button>
           </div>
 
-          {/* New Chat Button */}
+          {/* New Chat Action Button */}
           <div className="p-3">
             <button
               type="button"
               onClick={handleStartNewChat}
-              className="w-full py-2.5 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-98 cursor-pointer"
+              aria-label="Tạo cuộc trò chuyện mới"
+              className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-98 cursor-pointer"
             >
-              <Plus size={16} />
-              <span>Cuoc tro chuyen moi</span>
+              <Plus size={14} />
+              <span>Cuộc trò chuyện mới</span>
             </button>
           </div>
 
-          {/* Sessions List Grouped */}
-          <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-4">
-            {groupSessions().map((grp) => (
-              <div key={grp.title} className="space-y-1.5">
-                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider px-2 block">
+          {/* Grouped Sessions List */}
+          <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-3">
+            {(groupSessions() || []).map((grp) => (
+              <div key={grp.title} className="space-y-1">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 block">
                   {grp.title}
                 </span>
                 <div className="space-y-1">
-                  {grp.items.map((sess) => renderSessionItem(sess))}
+                  {(grp.items || []).map((sess) => renderSessionItem(sess))}
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Sidebar Footer: Sync Status */}
-          <div className="p-3.5 border-t border-slate-200 bg-white/60 flex items-center justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-2">
+          {/* Sidebar Footer with Sync Status */}
+          <div className="p-3 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center gap-1.5">
               {isLoggedIn ? (
                 <>
-                  <Database size={14} className="text-emerald-500 shrink-0" />
-                  <span className="text-[11px] font-medium text-slate-600 truncate">
-                    Dong bo Cloud MongoDB
+                  <Database size={13} className="text-emerald-500 shrink-0" />
+                  <span className="text-[11px] text-slate-600 truncate">
+                    Đồng bộ Cloud
                   </span>
                 </>
               ) : (
                 <>
-                  <HardDrive size={14} className="text-amber-500 shrink-0" />
-                  <span className="text-[11px] font-medium text-slate-500 truncate" title="Dang nhap de dong bo tren nhieu thiet bi">
-                    Luu tren trinh duyet
+                  <HardDrive size={13} className="text-amber-500 shrink-0" />
+                  <span className="text-[11px] text-slate-400 truncate">
+                    Lưu trình duyệt
                   </span>
                 </>
               )}
             </div>
-            <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-              {sessions.length} phien
+            <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              {(sessions || []).length} phiên
             </span>
           </div>
         </aside>
       )}
 
-      {/* ---------------- MAIN CHAT CANVAS ---------------- */}
-      <main className="flex-1 flex flex-col h-full bg-slate-50/50 overflow-hidden relative">
-        {/* Main Navbar */}
-        <header
-          className={`flex items-center justify-between shrink-0 select-none ${
-            isFullscreen
-              ? "px-5 py-3.5 bg-white border-b border-slate-200/80 shadow-2xs"
-              : "px-4 py-3 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white shadow-sm"
-          }`}
-        >
-          <div className="flex items-center gap-3">
+      {/* Main Chat Canvas Area */}
+      <main className="flex-1 flex flex-col h-full bg-white overflow-hidden relative">
+        {/* Minimalist Medical Navbar Header */}
+        <header className="flex items-center justify-between shrink-0 select-none px-3.5 py-2.5 bg-white/95 backdrop-blur-md border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
             {/* Toggle Sidebar Button (Fullscreen only) */}
             {isFullscreen && !isSidebarOpen && (
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
-                title="Mo danh sach lich su"
+                aria-label="Mở danh sách lịch sử"
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Mở danh sách"
               >
-                <PanelLeftOpen size={19} />
+                <PanelLeftOpen size={17} />
               </button>
             )}
 
-            {/* Widget Mode Avatar */}
-            {!isFullscreen && (
-              <div className="relative w-9 h-9 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner">
-                <Bot size={20} />
-                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-blue-700"></span>
-              </div>
-            )}
+            {/* Mascot Avatar Figure */}
+            <div className="relative w-8 h-8 rounded-full bg-slate-50 border border-slate-200/80 flex items-center justify-center overflow-hidden pt-0.5 shadow-2xs shrink-0">
+              <DoveFigure size={28} kaal={true} decoratief={true} />
+              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-white"></span>
+            </div>
 
-            {/* Title & Status */}
+            {/* Title & Online Status */}
             <div className="flex flex-col">
-              <span
-                className={`font-extrabold leading-tight tracking-wide ${
-                  isFullscreen ? "text-slate-900 text-sm" : "text-white text-sm"
-                }`}
-              >
+              <span className="font-semibold text-slate-800 text-xs sm:text-[13px] leading-tight">
                 {isFullscreen
-                  ? activeSession?.title || "Dược Sĩ AI ABC Pharmacy"
-                  : "Dược Sĩ AI"}
+                  ? activeSession?.title || "Dược Sĩ Bồ Câu AI"
+                  : "Dược Sĩ Bồ Câu AI"}
               </span>
-              <span
-                className={`text-[11px] flex items-center gap-1 font-medium ${
-                  isFullscreen ? "text-slate-500" : "text-blue-100"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                Truc tuyen 24/7 • ABC Pharmacy
+              <span className="text-[10px] flex items-center gap-1 text-slate-400 font-normal">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Trực tuyến 24/7 • ABC Pharmacy
               </span>
             </div>
           </div>
 
-          {/* Right Action Icons */}
-          <div className="flex items-center gap-1">
-            {/* Lịch sử hội thoại (Widget mode only) */}
+          {/* Header Action Tools */}
+          <div className="flex items-center gap-0.5">
+            {/* History Drawer toggle (Widget mode) */}
             {!isFullscreen && (
               <button
                 type="button"
                 onClick={() => setShowHistory((prev) => !prev)}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                aria-label="Xem lịch sử cuộc trò chuyện"
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
                   showHistory
-                    ? "bg-white text-blue-700 shadow-sm"
-                    : "hover:bg-white/15 text-white/80 hover:text-white"
+                    ? "bg-slate-100 text-slate-900"
+                    : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
                 }`}
-                title="Lich su cuoc tro chuyen"
+                title="Lịch sử trò chuyện"
               >
-                <History size={16} />
+                <History size={14} />
               </button>
             )}
 
-            {/* Làm mới đoạn chat hiện tại */}
+            {/* Clear current session messages */}
             <button
               type="button"
               onClick={handleClearCurrentSession}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-                isFullscreen
-                  ? "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-                  : "hover:bg-white/15 text-white/80 hover:text-white"
-              }`}
-              title="Lam moi cuoc tro chuyen nay"
+              aria-label="Làm mới cuộc trò chuyện này"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Làm mới trò chuyện"
             >
-              <RotateCcw size={15} />
+              <RotateCcw size={14} />
             </button>
 
-            {/* Nút Phóng to / Thu nhỏ toàn màn hình */}
+            {/* Fullscreen Expand / Minimize toggle */}
             <button
               type="button"
               onClick={toggleFullscreen}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-                isFullscreen
-                  ? "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-                  : "hover:bg-white/15 text-white/80 hover:text-white"
-              }`}
-              title={isFullscreen ? "Thu nho cua so" : "Phong to toan man hinh"}
+              aria-label={isFullscreen ? "Thu nhỏ cửa sổ" : "Phóng to toàn màn hình"}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title={isFullscreen ? "Thu nhỏ" : "Toàn màn hình"}
             >
-              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
 
-            {/* Thu nhỏ widget */}
+            {/* Minimize widget down */}
             {onMinimize && !isFullscreen && (
               <button
                 type="button"
                 onClick={onMinimize}
-                className="w-8 h-8 rounded-xl hover:bg-white/15 text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Thu nho xuong goc"
+                aria-label="Thu nhỏ xuống góc"
+                className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                title="Thu nhỏ"
               >
-                <ChevronDown size={18} />
+                <ChevronDown size={16} />
               </button>
             )}
 
-            {/* Đóng cửa sổ */}
+            {/* Close chat window */}
             <button
               type="button"
               onClick={onClose}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-                isFullscreen
-                  ? "hover:bg-rose-50 text-slate-500 hover:text-rose-600"
-                  : "hover:bg-white/15 text-white/80 hover:text-white"
-              }`}
-              title="Dong cua so chat"
+              aria-label="Đóng cửa sổ chat"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Đóng"
             >
-              <X size={18} />
+              <X size={15} />
             </button>
           </div>
         </header>
 
-        {/* ---------------- WIDGET MODE HISTORY DRAWER ---------------- */}
+        {/* Widget Mode History Drawer */}
         {!isFullscreen && showHistory ? (
-          <div className="absolute inset-0 z-30 bg-white flex flex-col animate-in fade-in slide-in-from-left duration-200">
+          <div className="absolute inset-0 z-30 bg-white flex flex-col animate-in fade-in duration-150">
             {/* History Drawer Header */}
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-              <div className="flex items-center gap-2 text-slate-800">
+            <div className="px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-1.5 text-slate-700">
                 <button
                   type="button"
                   onClick={() => setShowHistory(false)}
-                  className="p-1 rounded-lg hover:bg-slate-200/70 text-slate-600 transition-colors cursor-pointer"
-                  title="Quay lai chat"
+                  aria-label="Quay lại cuộc trò chuyện"
+                  className="p-1 rounded-md hover:bg-slate-200/70 text-slate-500 transition-colors cursor-pointer"
+                  title="Quay lại"
                 >
-                  <ArrowLeft size={16} />
+                  <ArrowLeft size={15} />
                 </button>
-                <span className="font-bold text-xs uppercase tracking-wider text-slate-700">
-                  Lich su tu van ({sessions.length})
+                <span className="font-semibold text-xs text-slate-700">
+                  Lịch sử ({ (sessions || []).length })
                 </span>
               </div>
 
               <button
                 type="button"
                 onClick={handleStartNewChat}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                aria-label="Tạo cuộc trò chuyện mới"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors cursor-pointer"
               >
-                <Plus size={14} />
-                <span>Chat moi</span>
+                <Plus size={13} />
+                <span>Mới</span>
               </button>
             </div>
 
-            {/* Sessions List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {sessions.map((sess) => renderSessionItem(sess))}
+            {/* Sessions List in Drawer */}
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+              {(sessions || []).map((sess) => renderSessionItem(sess))}
             </div>
 
-            {/* Sync status footer for drawer */}
-            <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center gap-2 text-[11px] text-slate-500">
+            {/* Sync status footer */}
+            <div className="p-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400">
               {isLoggedIn ? (
                 <>
-                  <Database size={13} className="text-emerald-500" />
-                  <span>Dong bo voi tai khoan MongoDB</span>
+                  <Database size={12} className="text-emerald-500" />
+                  <span>Đồng bộ Cloud</span>
                 </>
               ) : (
                 <>
-                  <HardDrive size={13} className="text-amber-500" />
-                  <span>Luu cuc bo tren may</span>
+                  <HardDrive size={12} className="text-amber-500" />
+                  <span>Lưu trên trình duyệt</span>
                 </>
               )}
             </div>
           </div>
         ) : null}
 
-        {/* ---------------- MESSAGES VIEWPORT ---------------- */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col bg-slate-50/50">
+        {/* Chat Messages Viewport */}
+        <div className="flex-1 overflow-y-auto px-3.5 py-3 flex flex-col bg-slate-50/40">
           <div
             className={`w-full ${
-              isFullscreen ? "max-w-4xl mx-auto py-2" : "max-w-full"
+              isFullscreen ? "max-w-3xl mx-auto py-2" : "max-w-full"
             }`}
           >
-            {messages.map((msg) => (
+            {(messages || []).map((msg) => (
               <ChatMessage
                 key={msg.id}
                 message={msg}
                 onAddToCart={handleAddToCart}
                 onAddAllToCart={handleAddAllToCart}
                 onQuickReplySelect={(text) => handleSendMessage(text)}
+                onBuyNow={handleBuyNowDrug}
+                onPaymentSuccess={handlePaymentSuccess}
+                onActionClick={handleMessageAction}
               />
             ))}
 
-            {/* Quick Replies (show when only welcome message is present) */}
+            {/* Quick Replies prompt (rendered on single initial welcome message) */}
             {messages.length === 1 && (
-              <div className="my-3 animate-in fade-in duration-300">
+              <div className="my-2.5 animate-in fade-in duration-200">
                 <QuickReplies
                   onSelect={(opt) => handleSendMessage(opt)}
                   disabled={isLoading}
@@ -922,18 +992,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Loading Indicator */}
             {isLoading && (
-              <div className="flex items-start gap-2.5 my-3 animate-in fade-in duration-200">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-sky-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                  <Bot size={18} />
+              <div className="flex items-start gap-2 my-2 animate-in fade-in duration-150">
+                <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200 text-slate-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot size={15} />
                 </div>
-                <div className="bg-white border border-slate-200/90 rounded-2xl rounded-tl-xs px-4 py-3 shadow-2xs flex items-center gap-2">
+                <div className="bg-white border border-slate-200/80 rounded-2xl rounded-tl-xs px-3.5 py-2.5 shadow-2xs flex items-center gap-2">
                   <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.3s]"></span>
-                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.15s]"></span>
-                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.3s]"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.15s]"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce"></span>
                   </div>
-                  <span className="text-xs text-slate-500 font-medium ml-1">
-                    Duoc si dang phan tich trieu chung va tim thuoc phu hop...
+                  <span className="text-xs text-slate-400 font-normal ml-0.5">
+                    Dược sĩ đang phân tích triệu chứng...
                   </span>
                 </div>
               </div>
@@ -943,15 +1013,49 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
 
-        {/* ---------------- CHAT INPUT FOOTER ---------------- */}
+        {/* Minimalist Cart Status Banner & VietQR Checkout Button */}
+        {cartCount > 0 && (
+          <div className="w-full bg-slate-50/90 border-t border-slate-100 px-3.5 py-2 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-1.5 text-slate-600 text-xs">
+              <ShoppingBag size={13} className="text-blue-600" />
+              <span>
+                Giỏ hàng: <strong className="font-mono tabular-nums text-slate-900">{cartCount}</strong> món
+              </span>
+            </div>
+            {isLoggedIn ? (
+              <button
+                type="button"
+                onClick={() => processPayOSOrder()}
+                disabled={isLoading || isProcessingOrder}
+                aria-label="Thanh toán VietQR PayOS"
+                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                <QrCode size={12} />
+                <span>{isProcessingOrder ? "Đang tạo..." : "Thanh toán PayOS"}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => notifyAuthLoginRequired()}
+                aria-label="Đăng nhập để thanh toán"
+                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <LogIn size={12} />
+                <span>Đăng nhập thanh toán</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Chat Input Container */}
         <div
           className={`w-full shrink-0 ${
             isFullscreen
-              ? "bg-white border-t border-slate-200/80 p-3 sm:p-4"
-              : "bg-white border-t border-slate-100 p-2 sm:p-3"
+              ? "bg-white border-t border-slate-100 p-3 sm:p-4"
+              : "bg-white border-t border-slate-100 p-2.5"
           }`}
         >
-          <div className={isFullscreen ? "max-w-4xl mx-auto w-full" : "w-full"}>
+          <div className={isFullscreen ? "max-w-3xl mx-auto w-full" : "w-full"}>
             <ChatInput onSend={handleSendMessage} disabled={isLoading} />
           </div>
         </div>

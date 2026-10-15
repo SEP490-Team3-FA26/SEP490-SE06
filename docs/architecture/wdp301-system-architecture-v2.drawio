@@ -1,0 +1,35 @@
+<mxfile host="Electron">
+  <diagram name="WDP301 Architecture v2" id="wdp301-architecture-v2">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="&lt;b&gt;WDP301 — KIẾN TRÚC VPS + CLOUDFLARE (V2)&lt;/b&gt;&lt;br&gt;&lt;font color='#475569'&gt;Cloudflare Rate Limiting → Nginx → API Gateway → Microservices&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=20;fontStyle=1;strokeColor=none;fillColor=none;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="40" y="20" width="1480" height="60" as="geometry" /></mxCell>
+
+        <mxCell id="client" value="&lt;b&gt;CLIENT TIER&lt;/b&gt;&lt;br&gt;Web React • Mobile Expo • POS" style="swimlane;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="120" width="220" height="120" as="geometry" /></mxCell>
+        <mxCell id="cloudflare" value="&lt;b&gt;CLOUDFLARE&lt;/b&gt;&lt;br&gt;DNS • WAF • TLS&lt;br&gt;&lt;b&gt;Rate Limiting&lt;/b&gt; theo IP/route" style="swimlane;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1"><mxGeometry x="320" y="120" width="260" height="120" as="geometry" /></mxCell>
+        <mxCell id="vps" value="&lt;b&gt;CLOUD VPS — 6GB RAM&lt;/b&gt;&lt;br&gt;Ubuntu • Docker Compose • UFW&lt;br&gt;Chỉ public 80/443" style="swimlane;html=1;rounded=1;fillColor=#647687;strokeColor=#314354;fontColor=#ffffff;fontSize=14;" vertex="1" parent="1"><mxGeometry x="640" y="100" width="840" height="720" as="geometry" /></mxCell>
+
+        <mxCell id="nginx" value="&lt;b&gt;Nginx Frontend&lt;/b&gt;&lt;br&gt;React static • /api proxy&lt;br&gt;WebSocket • SSE" style="shape=folder;html=1;rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="vps"><mxGeometry x="30" y="70" width="250" height="90" as="geometry" /></mxCell>
+        <mxCell id="gateway" value="&lt;b&gt;API Gateway :4000&lt;/b&gt;&lt;br&gt;JWT • RBAC • validation&lt;br&gt;&lt;b&gt;Application rate limit&lt;/b&gt;" style="shape=folder;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="vps"><mxGeometry x="320" y="70" width="250" height="90" as="geometry" /></mxCell>
+        <mxCell id="services" value="&lt;b&gt;BOUNDED CONTEXT SERVICES&lt;/b&gt;&lt;br&gt;Auth • User • Inventory • Orders • Supplier&lt;br&gt;AI Service :8000 • National Pharma Simulator :4005" style="shape=folder;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="vps"><mxGeometry x="30" y="210" width="540" height="110" as="geometry" /></mxCell>
+        <mxCell id="kafka" value="&lt;b&gt;Kafka :29092&lt;/b&gt;&lt;br&gt;Event bus / async workflows" style="shape=folder;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="vps"><mxGeometry x="30" y="380" width="250" height="90" as="geometry" /></mxCell>
+        <mxCell id="redis" value="&lt;b&gt;Redis :6379&lt;/b&gt;&lt;br&gt;Cache • app rate counters" style="shape=folder;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="vps"><mxGeometry x="320" y="380" width="250" height="90" as="geometry" /></mxCell>
+        <mxCell id="qdrant" value="&lt;b&gt;Qdrant :6333/6334&lt;/b&gt;&lt;br&gt;Vector search for AI" style="shape=folder;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="vps"><mxGeometry x="30" y="520" width="250" height="90" as="geometry" /></mxCell>
+        <mxCell id="monitor" value="&lt;b&gt;Dozzle + health checks&lt;/b&gt;&lt;br&gt;stdout/stderr • alerts • backups" style="shape=folder;html=1;rounded=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;" vertex="1" parent="vps"><mxGeometry x="320" y="520" width="250" height="90" as="geometry" /></mxCell>
+
+        <mxCell id="external" value="&lt;b&gt;EXTERNAL MANAGED SERVICES&lt;/b&gt;&lt;br&gt;MongoDB Atlas • AWS S3 • SQS + DLQ • Lambda • SES • ECR&lt;br&gt;GitHub Actions CI/CD" style="swimlane;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="300" width="540" height="180" as="geometry" /></mxCell>
+
+        <mxCell id="e1" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#2563eb;fontSize=11;" edge="1" parent="1" source="client" target="cloudflare"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="HTTPS :443" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#2563eb;fontSize=11;" edge="1" parent="1" source="cloudflare" target="vps"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="static / proxy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#d79b00;fontSize=11;" edge="1" parent="1" source="nginx" target="gateway"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="route / events" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#9673a6;fontSize=11;" edge="1" parent="1" source="gateway" target="services"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="events" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#b85450;fontSize=11;" edge="1" parent="1" source="services" target="kafka"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" value="cache / counters" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#b85450;fontSize=11;" edge="1" parent="1" source="services" target="redis"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" value="vector search" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#b85450;fontSize=11;" edge="1" parent="1" source="services" target="qdrant"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" value="DB / files / email" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;dashed=1;strokeColor=#6c8ebf;fontSize=11;" edge="1" parent="1" source="services" target="external"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" value="logs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;dashed=1;strokeColor=#666666;fontSize=11;" edge="1" parent="1" source="monitor" target="services"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -33,5 +33,10 @@ export const voucherService = {
   async validateVoucher(code: string, subtotal: number) {
     const res = await api.post(API_ENDPOINTS.VOUCHERS.VALIDATE, { code, subtotal });
     return res.data;
+  },
+  // 🛡️ Rủi ro 7 SBA: Lấy danh sách kiểm toán nghi vấn trục lợi voucher
+  async getVoucherAuditFlags() {
+    const res = await api.get(API_ENDPOINTS.VOUCHERS.AUDIT_FLAGS);
+    return res.data;
   }
 };

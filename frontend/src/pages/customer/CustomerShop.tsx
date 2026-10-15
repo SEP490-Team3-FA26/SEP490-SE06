@@ -14,12 +14,13 @@ import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRec
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { cartService } from "../../services/sales/cart.service";
+import { notifyAuthLoginRequired } from "../../utils/authEvents";
 
 // Sub-category Card Model
 export interface SubCategoryCard {
   id: string;
   name: string;
-  count: number;
+  count?: number;
   image: string;
   searchKeyword?: string;
   categoryValue?: string;
@@ -35,10 +36,10 @@ export const subCategoriesByGroup: {
     items: [
       { id: "dau-ca", name: "Dầu cá - Omega 3", count: 13, image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=60", searchKeyword: "Omega 3" },
       { id: "kem-magie", name: "Kẽm - Magie", count: 7, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Kẽm" },
-      { id: "vitamin-tong-hop", name: "Vitamin tổng hợp", count: 45, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin" },
+      { id: "vitamin-tong-hop", name: "Vitamin tổng hợp", count: 45, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin" },
       { id: "canxi-d", name: "Canxi & Vitamin D", count: 44, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=60", searchKeyword: "Canxi" },
       { id: "vitamin-c", name: "Vitamin C", count: 9, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin C" },
-      { id: "vitamin-e", name: "Vitamin E", count: 3, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin E" },
+      { id: "vitamin-e", name: "Vitamin E", count: 3, image: "https://images.unsplash.com/photo-1585435557343-3b092031a831?w=200&auto=format&fit=crop&q=60", searchKeyword: "Vitamin E" },
       { id: "sat-folic", name: "Sắt - Axit Folic", count: 11, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=200&auto=format&fit=crop&q=60", searchKeyword: "Sắt" },
     ]
   },
@@ -49,9 +50,9 @@ export const subCategoriesByGroup: {
       { id: "sua-rua-mat", name: "Sữa rửa mặt", count: 61, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Sữa rửa mặt" },
       { id: "kem-chong-nang", name: "Kem chống nắng da mặt", count: 28, image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=200&auto=format&fit=crop&q=60", searchKeyword: "Kem chống nắng" },
       { id: "duong-da", name: "Dưỡng da mặt", count: 15, image: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=200&auto=format&fit=crop&q=60", searchKeyword: "Dưỡng da" },
-      { id: "mat-na", name: "Mặt nạ", count: 14, image: "https://images.unsplash.com/photo-1567928815116-248c8c7c9451?w=200&auto=format&fit=crop&q=60", searchKeyword: "Mặt nạ" },
+      { id: "mat-na", name: "Mặt nạ", count: 14, image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=200&auto=format&fit=crop&q=60", searchKeyword: "Mặt nạ" },
       { id: "serum", name: "Serum, Essence, Ampoule", count: 16, image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=200&auto=format&fit=crop&q=60", searchKeyword: "Serum" },
-      { id: "toner", name: "Toner & Lotion", count: 2, image: "https://images.unsplash.com/photo-1608248597359-00994966d5b0?w=200&auto=format&fit=crop&q=60", searchKeyword: "Toner" },
+      { id: "toner", name: "Toner & Lotion", count: 2, image: "https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?w=200&auto=format&fit=crop&q=60", searchKeyword: "Toner" },
       { id: "tay-te-bao-chet", name: "Tẩy tế bào chết mặt", count: 2, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Tẩy tế bào chết" },
       { id: "xit-khoang", name: "Xịt khoáng", count: 3, image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=200&auto=format&fit=crop&q=60", searchKeyword: "Xịt khoáng" },
       { id: "tay-trang", name: "Nước tẩy trang, dầu tẩy trang", count: 19, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=60", searchKeyword: "Tẩy trang" },
@@ -77,7 +78,7 @@ export const subCategoriesByGroup: {
       { id: "paracetamol", name: "Paracetamol đơn chất", count: 14, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=60", searchKeyword: "Paracetamol" },
       { id: "giam-dau-ket-hop", name: "Giảm đau kết hợp", count: 10, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60", searchKeyword: "Panadol" },
       { id: "khang-viem", name: "Kháng viêm NSAIDs", count: 8, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=60", searchKeyword: "Ibuprofen" },
-      { id: "ha-sot-tre-em", name: "Hạ sốt dành cho trẻ em", count: 6, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=60", searchKeyword: "Hapacol" },
+      { id: "ha-sot-tre-em", name: "Hạ sốt dành cho trẻ em", count: 6, image: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=200&auto=format&fit=crop&q=60", searchKeyword: "Hapacol" },
       { id: "mieng-dan", name: "Miếng dán giảm đau", count: 5, image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=60", categoryValue: "Miếng dán giảm đau" },
     ]
   },
@@ -103,6 +104,8 @@ export function CustomerShop() {
   const [selectedSubCategory, setSelectedSubCategory] = useState(searchParams.get("subCategory") || "");
   const [selectedClassification, setSelectedClassification] = useState("");
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+  // Lưu số lượng thuốc thực tế truy vấn trực tiếp từ MongoDB cho các danh mục con
+  const [realCategoryCounts, setRealCategoryCounts] = useState<Record<string, number>>({});
 
   // Sorting state (Long Châu standard: Bán chạy / Giá thấp / Giá cao)
   const [sortBy, setSortBy] = useState<"bestseller" | "price-asc" | "price-desc">("bestseller");
@@ -202,9 +205,12 @@ export function CustomerShop() {
       const result = await medicineService.getMedicines({
         page: currentPage,
         limit,
-        search: searchQuery || undefined,
+        search: (selectedIngredient || searchQuery) || undefined,
         category: selectedCategory || undefined,
+        classification: selectedClassification || undefined,
         drug_classification: selectedClassification || undefined,
+        bypassAiSearch: true, // Truy vấn trực tiếp DB MongoDB
+        directDb: true,
         targetGroup: selectedTargetGroup || undefined,
         minPrice: minPrice || undefined,
         maxPrice: maxPrice || undefined,
@@ -294,55 +300,13 @@ export function CustomerShop() {
     return () => clearTimeout(delay);
   }, [searchQuery]);
 
-  // Handle add to cart
+  // Xử lý thêm sản phẩm vào giỏ hàng (khách vãng lai và thành viên)
   const handleAddToCart = async (med: any, qty: number = 1) => {
     const medId = med.id || med._id;
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      try {
-        const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
-        const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
-
-        if (existingItem) {
-          if (existingItem.quantity + qty > (med.stock || 999)) {
-            alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
-            return;
-          }
-          existingItem.quantity += qty;
-        } else {
-          if ((med.stock ?? 1) <= 0) {
-            alert("Sản phẩm đã hết hàng!");
-            return;
-          }
-          cart.push({
-            id: medId,
-            _id: medId,
-            name: med.name,
-            category: med.category,
-            price: med.salePrice || med.price,
-            quantity: qty,
-            unit: med.unit || "Hộp",
-            stock: med.stock || 100,
-            active_ingredient: med.active_ingredient || "",
-            image: med.image || ""
-          });
-        }
-        localStorage.setItem("guest_cart", JSON.stringify(cart));
-        window.dispatchEvent(new Event("cartUpdated"));
-
-        setAddedItems((prev) => ({ ...prev, [medId]: true }));
-        setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
-      } catch (err) {
-        console.error("Error updating guest cart:", err);
-      }
-      return;
-    }
 
     try {
-      await cartService.addToCart(medId, qty);
-      window.dispatchEvent(new Event("cartUpdated"));
+      // Dùng cartService.addProduct: nếu chưa đăng nhập sẽ lưu vào guest_cart, nếu có token sẽ gọi API giỏ hàng
+      await cartService.addProduct(med, qty);
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
     } catch (err: any) {
@@ -403,6 +367,20 @@ export function CustomerShop() {
     if (selectedCategory === "Thiết bị y tế") return subCategoriesByGroup["Thiết bị y tế"];
     return subCategoriesByGroup["Thuốc kháng sinh"];
   }, [selectedCategory]);
+
+  // Truy vấn trực tiếp số lượng thuốc thực tế của các danh mục con từ database MongoDB
+  useEffect(() => {
+    if (currentSubGroupData?.items?.length) {
+      medicineService
+        .getSubCategoryCounts(selectedCategory, currentSubGroupData.items)
+        .then((counts) => {
+          if (counts && Object.keys(counts).length > 0) {
+            setRealCategoryCounts(counts);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedCategory, currentSubGroupData]);
 
   // Click on a sub-category card to quick filter
   const handleSubCategoryClick = (card: SubCategoryCard) => {
@@ -487,6 +465,10 @@ export function CustomerShop() {
                   alt={card.name}
                   className="w-full h-full object-contain"
                   loading="lazy"
+                  onError={(e) => {
+                    // Tự động chuyển sang ảnh dự phòng nếu URL bị lỗi mạng hoặc 404
+                    (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=60";
+                  }}
                 />
               </div>
 
@@ -497,9 +479,12 @@ export function CustomerShop() {
                 }`}>
                   {card.name}
                 </span>
-                <span className="text-[11px] text-slate-400 font-medium mt-0.5">
-                  {card.count} sản phẩm
-                </span>
+                {/* Áp dụng Cách 1: Ẩn số cứng hardcode. Chỉ hiển thị khi có số lượng thực tế query trực tiếp từ MongoDB */}
+                {realCategoryCounts[card.id] !== undefined ? (
+                  <span className="text-[11px] text-slate-400 font-medium mt-0.5">
+                    {realCategoryCounts[card.id]} sản phẩm
+                  </span>
+                ) : null}
               </div>
             </div>
           );

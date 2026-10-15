@@ -78,8 +78,8 @@ if [ -f "$APP_DIR/backend/service-account-key.json" ]; then
 fi
 docker compose -f docker-compose.prod.yml restart frontend || true
 
-# 7. Dọn dẹp Docker images rác
-echo "🧹 Dọn dẹp Docker images trung gian..."
+# 7. Dọn dẹp Docker images rác và Build Cache cũ
+echo "🧹 Dọn dẹp Docker images trung gian và Build Cache..."
 docker image prune -f
 docker builder prune -f --keep-storage 2GB
 
