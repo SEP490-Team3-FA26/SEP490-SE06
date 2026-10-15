@@ -645,6 +645,7 @@ export class PurchaseService {
         status: "PENDING_APPROVAL",
         paymentType: "CREDIT",
         createdBy: data.createdBy || "Kho Tổng",
+        branchId: data.receivingBranchId || data.branchId || "CENTRAL_WH",
         linkedPrIds: data.prIds || [],
         linkedPrCodes: prCodes,
         remarks:
@@ -972,6 +973,7 @@ export class PurchaseService {
 
     const grn = new this.grnModel({
       poId: data.poId,
+      branchId: data.branchId || (po as any)?.branchId || "CENTRAL_WH",
       items,
       totalAmount,
       receivedBy: data.receivedBy || "Thủ Kho",
@@ -1269,6 +1271,9 @@ export class PurchaseService {
         if (pr?.branchId) {
           targetBranch = pr.branchId;
         }
+      }
+      if (!targetBranch) {
+        targetBranch = 'CENTRAL_WH';
       }
 
       if (!targetBranch) {
@@ -2980,6 +2985,9 @@ export class PurchaseService {
             targetBranch = pr.branchId;
           }
         }
+        if (!targetBranch) {
+          targetBranch = 'CENTRAL_WH';
+        }
 
         if (!targetBranch) {
           this.logger.error(`[CSDL Dược] Lỗi liên thông: Phiếu nhập ${grn._id} không xác định được mã chi nhánh (branchId), từ chối liên thông!`);
@@ -3049,7 +3057,9 @@ export class PurchaseService {
             const med = await this.medicineModel.findById(it.medicineId).lean().exec();
             if (med) {
               nationalDrugCode = nationalDrugCode || med.national_drug_code || med.registration_number || '';
-              declaredPrice = declaredPrice || med.price || it.targetPrice || 0;
+              // Chỉ sử dụng giá kê khai chính thức BYT / GPP, tuyệt đối không dùng giá bán lẻ cửa hàng làm giá trần kê khai
+              const officialDeclared = (med as any)?.declaredPrice || (med as any)?.declared_price || (med as any)?.gppCeilingPrice;
+              declaredPrice = declaredPrice || officialDeclared || undefined;
               gppCompliant = gppCompliant !== undefined ? gppCompliant : Boolean(med.registration_number || med.national_drug_code);
             }
           } catch (_) {}
@@ -3057,7 +3067,7 @@ export class PurchaseService {
           return {
             ...it,
             nationalDrugCode: nationalDrugCode || '',
-            declaredPrice: declaredPrice || 0,
+            declaredPrice: declaredPrice !== undefined && Number(declaredPrice) > 0 ? Number(declaredPrice) : undefined,
             gppCompliant: gppCompliant !== false,
           };
         }),
@@ -3316,6 +3326,7 @@ export class PurchaseService {
         status: 'PENDING_APPROVAL',
         createdBy: awardDto.createdBy || rfq.createdBy || 'ADMIN',
         paymentType: quotation.paymentTermsDays > 0 ? 'CREDIT' : 'PAID',
+        branchId: (rfq as any).branchId || 'CENTRAL_WH',
         linkedPrCodes: [rfq.rfqCode],
       });
 

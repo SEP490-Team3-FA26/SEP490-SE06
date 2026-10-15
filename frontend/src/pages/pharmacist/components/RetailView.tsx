@@ -2170,7 +2170,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               />
               <button
                 type="button"
-                onClick={handleApplyVoucher}
+                onClick={() => handleApplyVoucher()}
                 disabled={isValidatingVoucher}
                 className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
               >

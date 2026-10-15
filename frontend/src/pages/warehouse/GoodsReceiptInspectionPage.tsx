@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Camera,
@@ -27,11 +28,14 @@ interface InspectionItem {
   medicineId: string;
   sku: string;
   medicineName: string;
-  orderedQty: number;
-  scannedQty: number;
+  orderedQty: number; // Tổng số lượng đặt hàng ban đầu
+  previouslyReceivedQty: number; // Đã nhận từ các đợt trước (giao hàng từng phần)
+  remainingQty: number; // Số lượng còn lại cần giao
+  scannedQty: number; // Số lượng thực tế đã quét đợt này
   unit: string;
+  unitPrice: number;
   batchNo: string;
-  expDate: string;
+  expDate: string; // Chuỗi ngày ISO yyyy-MM-dd
   barcode: string;
 }
 
@@ -44,10 +48,10 @@ export function GoodsReceiptInspectionPage() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [poData, setPoData] = useState<any>(null);
-  const [supplierName, setSupplierName] = useState<string>("Dược Phẩm Hậu Giang (DHG Pharma)");
-  const [deliveryDate, setDeliveryDate] = useState<string>("04/10/2026");
+  const [supplierName, setSupplierName] = useState<string>("Nhà Cung Cấp Dược Phẩm");
+  const [deliveryDate, setDeliveryDate] = useState<string>(new Date().toLocaleDateString("vi-VN"));
 
-  // Dữ liệu quét kiểm nhận hàng
+  // Dữ liệu quét kiểm nhận hàng thực tế
   const [items, setItems] = useState<InspectionItem[]>([]);
   const [lastScanned, setLastScanned] = useState<{
     barcode: string;
@@ -55,10 +59,10 @@ export function GoodsReceiptInspectionPage() {
     batchNo: string;
     expDate: string;
   }>({
-    barcode: "8934567890123",
-    medicineName: "Panadol Extra (Hộp 15 vỉ)",
-    batchNo: "LOT-2026-X9",
-    expDate: "15/09/2028",
+    barcode: "---",
+    medicineName: "Chưa có mặt hàng nào được quét",
+    batchNo: "---",
+    expDate: "---",
   });
 
   const [inputBarcode, setInputBarcode] = useState<string>("");
@@ -84,7 +88,7 @@ export function GoodsReceiptInspectionPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Khởi tạo và tải dữ liệu PO
+  // Khởi tạo và tải dữ liệu đơn PO thực tế từ hệ thống
   useEffect(() => {
     const loadPoDetails = async () => {
       setLoading(true);
@@ -104,7 +108,7 @@ export function GoodsReceiptInspectionPage() {
           } else if (currentPo.supplierId) {
             const supps = await supplierService.getSuppliers().catch(() => []);
             const foundSupp = supps.find((s: any) => (s._id || s.id) === currentPo.supplierId);
-            if (foundSupp) setSupplierName(foundSupp.name);
+            if (foundSupp) setSupplierName(foundSupp.name || foundSupp.companyName);
           }
 
           if (currentPo.expectedDeliveryDate || currentPo.createdAt) {
@@ -113,36 +117,46 @@ export function GoodsReceiptInspectionPage() {
             );
           }
 
-          // Chuyển đổi danh mục thuốc trong PO sang InspectionItem
+          // Chuyển đổi danh mục thuốc trong PO sang InspectionItem với số lượng khởi tạo = 0 thực tế
           const mappedItems: InspectionItem[] = (currentPo.items || []).map((it: any, idx: number) => {
-            const qty = Number(it.quantity || it.orderedQuantity || 50);
-            // Giả lập quét 1 phần cho giống thực tế
-            const scanned = idx === 1 ? Math.max(0, qty - 2) : qty;
+            const totalOrdered = Number(it.quantity || it.orderedQuantity || 0);
+            const received = Number(it.receivedQuantity || 0);
+            const remaining = Math.max(0, totalOrdered - received);
+            // Khởi tạo số lượng đã quét bằng 0 thực tế (hoặc kết quả kiểm đếm lưu sẵn)
+            const initialScanned = Number(it.actualQuantity || 0);
+            
+            // Giữ nguyên chuỗi ngày ISO, không format thành chuỗi hiển thị sai lệch khi gửi lên backend
+            let isoExp = "";
+            if (it.expiryDate || it.expDate) {
+              const d = new Date(it.expiryDate || it.expDate);
+              isoExp = !isNaN(d.getTime()) ? d.toISOString() : "";
+            }
+
             return {
               medicineId: it.medicineId || `med-${idx}`,
               sku: it.sku || `SKU-${idx + 100}`,
               medicineName: it.medicineName || `Dược phẩm #${idx + 1}`,
-              orderedQty: qty,
-              scannedQty: scanned,
+              orderedQty: totalOrdered,
+              previouslyReceivedQty: received,
+              remainingQty: remaining,
+              scannedQty: initialScanned,
               unit: it.unit || "Hộp",
-              batchNo: it.batchNo || `LOT-2026-X${idx + 1}`,
-              expDate: it.expiryDate ? new Date(it.expiryDate).toLocaleDateString("vi-VN") : "15/09/2028",
-              barcode: it.barcode || `893456789012${idx}`,
+              unitPrice: Number(it.unitPrice || 0),
+              batchNo: it.batchNo ? String(it.batchNo).trim() : "",
+              expDate: isoExp,
+              barcode: it.barcode ? String(it.barcode).trim() : "",
             };
           });
 
-          setItems(mappedItems.length > 0 ? mappedItems : getDefaultDemoItems());
+          setItems(mappedItems);
+          if (mappedItems.length === 0) {
+            showToast("Đơn hàng PO này chưa có danh mục sản phẩm nào cần kiểm nhận.", "info");
+          }
         } else {
-          // Dữ liệu mẫu chuẩn xác theo bản thiết kế trong ảnh
-          setPoData({
-            _id: poId || "PO-2026-089",
-            poCode: "PO-2026-089",
-          });
-          setItems(getDefaultDemoItems());
+          showToast("Không tìm thấy thông tin đơn hàng PO tương ứng.", "error");
         }
       } catch (err: any) {
-        showToast("Không thể tải dữ liệu đơn PO, sử dụng dữ liệu mô phỏng chuẩn.", "info");
-        setItems(getDefaultDemoItems());
+        showToast("Lỗi khi tải thông tin đơn hàng PO: " + (err.message || ""), "error");
       } finally {
         setLoading(false);
       }
@@ -151,49 +165,12 @@ export function GoodsReceiptInspectionPage() {
     loadPoDetails();
   }, [poId]);
 
-  // Bộ dữ liệu mẫu theo đúng ảnh thiết kế của dự án
-  const getDefaultDemoItems = (): InspectionItem[] => [
-    {
-      medicineId: "med-1",
-      sku: "SKU-PAN-EX15",
-      medicineName: "Panadol Extra (Hộp 150 viên)",
-      orderedQty: 50,
-      scannedQty: 50,
-      unit: "Hộp",
-      batchNo: "LOT-2026-X9",
-      expDate: "15/09/2028",
-      barcode: "8934567890123",
-    },
-    {
-      medicineId: "med-2",
-      sku: "SKU-AUG-625MG",
-      medicineName: "Augmentin 625mg (Hộp 14 viên)",
-      orderedQty: 50,
-      scannedQty: 48,
-      unit: "Hộp",
-      batchNo: "DHG-AUG-042",
-      expDate: "10/05/2028",
-      barcode: "8934567890124",
-    },
-    {
-      medicineId: "med-3",
-      sku: "SKU-BER-100VI",
-      medicineName: "Berberin Vàng (Lọ 100 viên)",
-      orderedQty: 50,
-      scannedQty: 50,
-      unit: "Hộp",
-      batchNo: "BER-VN-991",
-      expDate: "20/12/2028",
-      barcode: "8934567890125",
-    },
-  ];
-
-  // Tính toán tiến độ
-  const totalOrdered = items.reduce((sum, item) => sum + item.orderedQty, 0);
+  // Tính toán tiến độ kiểm nhận
+  const totalOrdered = items.reduce((sum, item) => sum + (item.remainingQty > 0 ? item.remainingQty : item.orderedQty), 0);
   const totalScanned = items.reduce((sum, item) => sum + item.scannedQty, 0);
-  const progressPercent = totalOrdered > 0 ? ((totalScanned / totalOrdered) * 100).toFixed(1) : "0";
+  const progressPercent = totalOrdered > 0 ? Math.min(100, ((totalScanned / totalOrdered) * 100)).toFixed(1) : "0";
 
-  // Xử lý quét barcode khi nhận tín hiệu từ máy quét hoặc nhấn Enter
+  // Xử lý quét barcode: Khớp chính xác mặt hàng trong đơn PO; Từ chối mã không hợp lệ
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputBarcode.trim() || isPaused) return;
@@ -201,15 +178,17 @@ export function GoodsReceiptInspectionPage() {
     const code = inputBarcode.trim();
     setInputBarcode("");
 
-    // Tìm kiếm sản phẩm tương ứng với barcode hoặc SKU
+    // Tìm kiếm sản phẩm tương ứng với barcode hoặc SKU trong PO
     const foundIdx = items.findIndex(
-      (it) => it.barcode === code || it.sku.toLowerCase() === code.toLowerCase()
+      (it) => (it.barcode && it.barcode === code) || (it.sku && it.sku.toLowerCase() === code.toLowerCase())
     );
 
     if (foundIdx !== -1) {
       const targetItem = items[foundIdx];
-      if (targetItem.scannedQty >= targetItem.orderedQty) {
-        showToast(`Mặt hàng ${targetItem.medicineName} đã quét đủ số lượng đặt!`, "warning");
+      const maxReceivable = targetItem.remainingQty > 0 ? targetItem.remainingQty : targetItem.orderedQty;
+
+      if (targetItem.scannedQty >= maxReceivable) {
+        showToast(`Mặt hàng ${targetItem.medicineName} đã quét đủ số lượng cần nhập (${targetItem.scannedQty}/${maxReceivable})!`, "warning");
         return;
       }
 
@@ -221,80 +200,140 @@ export function GoodsReceiptInspectionPage() {
       setItems(updated);
 
       setLastScanned({
-        barcode: targetItem.barcode,
+        barcode: targetItem.barcode || code,
         medicineName: targetItem.medicineName,
-        batchNo: targetItem.batchNo,
-        expDate: targetItem.expDate,
+        batchNo: targetItem.batchNo || "Chưa có số lô",
+        expDate: targetItem.expDate ? new Date(targetItem.expDate).toLocaleDateString("vi-VN") : "Chưa có HSD",
       });
 
-      showToast(`+1 ${targetItem.medicineName} (Đã quét ${targetItem.scannedQty + 1}/${targetItem.orderedQty})`, "success");
+      showToast(`+1 ${targetItem.medicineName} (Đã quét ${targetItem.scannedQty + 1}/${maxReceivable})`, "success");
     } else {
-      // Nếu quét một mã khác, tự động cộng cho mặt hàng đang quét dở
-      const pendingIdx = items.findIndex((it) => it.scannedQty < it.orderedQty);
-      if (pendingIdx !== -1) {
-        const targetItem = items[pendingIdx];
-        const updated = [...items];
-        updated[pendingIdx] = {
-          ...targetItem,
-          scannedQty: targetItem.scannedQty + 1,
-        };
-        setItems(updated);
-        setLastScanned({
-          barcode: code,
-          medicineName: targetItem.medicineName,
-          batchNo: targetItem.batchNo,
-          expDate: targetItem.expDate,
-        });
-        showToast(`+1 ${targetItem.medicineName} (${targetItem.scannedQty + 1}/${targetItem.orderedQty})`, "success");
-      } else {
-        showToast(`Tất cả mặt hàng trong đơn PO đã được kiểm đếm đủ 100%!`, "info");
-      }
+      // 🚫 TỪ CHỐI MÃ VẠCH LẠ: Tuyệt đối không tự ý cộng vào mặt hàng khác
+      showToast(`Mã vạch "${code}" không thuộc bất kỳ sản phẩm nào trong đơn hàng PO này!`, "error");
     }
   };
 
-  // Quét nhanh giả lập nốt 2 hộp Augmentin đang thiếu
-  const handleSimulateScanRemaining = () => {
-    const updated = items.map((it) => ({
-      ...it,
-      scannedQty: it.orderedQty,
-    }));
-    setItems(updated);
-    setLastScanned({
-      barcode: "8934567890124",
-      medicineName: "Augmentin 625mg (Hộp 14 viên)",
-      batchNo: "DHG-AUG-042",
-      expDate: "10/05/2028",
+  // Tiện ích hỗ trợ quét nhanh các mặt hàng đang cần kiểm đếm
+  const handleScanNextPendingItem = () => {
+    const pendingIdx = items.findIndex((it) => {
+      const maxReceivable = it.remainingQty > 0 ? it.remainingQty : it.orderedQty;
+      return it.scannedQty < maxReceivable;
     });
-    showToast("Đã quét hoàn tất toàn bộ kiện hàng Augmentin 625mg!", "success");
+
+    if (pendingIdx === -1) {
+      showToast("Tất cả mặt hàng trong đơn hàng PO đã được kiểm đếm đủ!", "info");
+      return;
+    }
+
+    const targetItem = items[pendingIdx];
+    const maxReceivable = targetItem.remainingQty > 0 ? targetItem.remainingQty : targetItem.orderedQty;
+
+    const updated = [...items];
+    updated[pendingIdx] = {
+      ...targetItem,
+      scannedQty: targetItem.scannedQty + 1,
+    };
+    setItems(updated);
+
+    setLastScanned({
+      barcode: targetItem.barcode || `SKU-${targetItem.sku}`,
+      medicineName: targetItem.medicineName,
+      batchNo: targetItem.batchNo || "Chưa có số lô",
+      expDate: targetItem.expDate ? new Date(targetItem.expDate).toLocaleDateString("vi-VN") : "Chưa có HSD",
+    });
+
+    showToast(`+1 ${targetItem.medicineName} (${targetItem.scannedQty + 1}/${maxReceivable})`, "success");
   };
 
-  // Hoàn tất & Tạo phiếu GRN
+  // Hoàn tất kiểm nhận: Tạo GRN, lập biên bản kiểm đếm, verify, nộp và duyệt liên thông CSDL Dược
   const handleCompleteAndCreateGrn = async () => {
+    const totalCurrentScanned = items.reduce((sum, it) => sum + it.scannedQty, 0);
+    if (totalCurrentScanned <= 0) {
+      showToast("Vui lòng quét ít nhất một mặt hàng trước khi hoàn tất kiểm nhận!", "warning");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
+      const currentPoId = poData?._id || poId;
+      if (!currentPoId) {
+        throw new Error("Không tìm thấy thông tin đơn PO");
+      }
+
+      // 1. Chuẩn hóa payload GRN theo chuẩn GoodsReceiptPayload (có receivedBy)
+      const grnItems = items
+        .filter((it) => it.scannedQty > 0)
+        .map((it) => {
+          // Tính toán số lượng cần nhập (Hỗ trợ partial delivery: quantity - receivedQuantity)
+          const targetQty = it.remainingQty > 0 ? it.remainingQty : it.orderedQty;
+          // Giữ định dạng ngày ISO chuẩn để backend new Date() không bị lỗi Invalid Date hay đảo ngày/tháng
+          const validExpDate = it.expDate && !isNaN(new Date(it.expDate).getTime())
+            ? new Date(it.expDate).toISOString()
+            : new Date(Date.now() + 730 * 86400000).toISOString();
+
+          return {
+            medicineId: it.medicineId,
+            batchNo: it.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+            expDate: validExpDate,
+            quantity: targetQty,
+            actualQty: it.scannedQty,
+            unitPrice: it.unitPrice || 0,
+          };
+        });
+
       const payload = {
-        poId: poData?._id || poId || "PO-2026-089",
-        receivedDate: new Date().toISOString(),
-        items: items.map((it) => ({
-          medicineId: it.medicineId,
-          medicineName: it.medicineName,
-          quantity: it.orderedQty,
-          actualQty: it.scannedQty,
-          batchNo: it.batchNo,
-          expiryDate: it.expDate,
-          unit: it.unit,
-        })),
-        notes: `Nghiệm thu nhập kho bằng máy quét Honeywell Barcode Scanner tại cửa nhập GSP. Điều kiện xe lạnh 21.4°C đạt chuẩn GDP.`,
+        poId: currentPoId,
+        receivedBy: "Thủ Kho",
+        items: grnItems,
       };
 
-      await goodsReceiptService.createGoodsReceipt(payload);
-      showToast("🎉 Hoàn tất kiểm nhận! Phiếu nhập kho GRN đã được tạo và gửi đồng bộ CSDL Dược Quốc Gia.", "success");
+      // 2. Tạo hoặc mở phiên GRN
+      const grnRes = await goodsReceiptService.createGoodsReceipt(payload);
+      const grnId = grnRes?.data?._id || grnRes?._id;
+
+      if (!grnId) {
+        throw new Error("Không thể khởi tạo phiếu nhập kho GRN");
+      }
+
+      // 3. Tạo biên bản kiểm đếm thực tế
+      const recordRes = await goodsReceiptService.createInspectionRecord(grnId, "Thủ Kho");
+      const recordId = recordRes?.data?._id || recordRes?._id;
+      const inspectionItems = recordRes?.data?.items || recordRes?.items || [];
+
+      // 4. Xác minh (verify) kết quả kiểm đếm cho từng sản phẩm
+      if (recordId && Array.isArray(inspectionItems)) {
+        for (const item of grnItems) {
+          const matchedInspection = inspectionItems.find(
+            (recItem: any) => recItem.medicineId === item.medicineId
+          );
+          if (matchedInspection?._id) {
+            await goodsReceiptService.verifyInspectionItem(
+              recordId,
+              matchedInspection._id,
+              item.actualQty,
+              item.batchNo,
+              item.expDate
+            );
+          }
+        }
+
+        // 5. Nộp báo cáo kiểm đếm
+        await goodsReceiptService.submitInspectionReport(recordId, "Nghiệm thu kiểm đếm bằng máy quét mã vạch Honeywell tại cửa nhập GSP đạt chuẩn.");
+      }
+
+      // 6. Nộp biên bản nghiệm thu GRN
+      await goodsReceiptService.submitInspection(grnId);
+
+      // 7. Duyệt hoàn tất nhập kho và tự động đồng bộ CSDL Dược Quốc Gia
+      await goodsReceiptService.approveGoodsReceipt(grnId);
+
+      showToast("🎉 Hoàn tất kiểm nhận! Phiếu nhập kho GRN đã được duyệt và liên thông CSDL Dược Quốc Gia thành công.", "success");
 
       setTimeout(() => {
         navigate("/warehouse/inventory/import");
       }, 1500);
     } catch (err: any) {
-      showToast(err.response?.data?.message || err.message || "Lỗi tạo phiếu GRN", "error");
+      showToast(err.response?.data?.message || err.message || "Lỗi hoàn tất nghiệm thu nhập kho", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -438,15 +477,15 @@ export function GoodsReceiptInspectionPage() {
             </div>
           </div>
 
-          {/* Nút tiện ích quét nhanh demo nếu còn thuốc dở */}
+          {/* Nút tiện ích quét kiểm đếm các mặt hàng còn đang thiếu */}
           {totalScanned < totalOrdered && (
             <button
               type="button"
-              onClick={handleSimulateScanRemaining}
-              className="w-full py-1.5 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-800/60 text-cyan-300 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5"
+              onClick={handleScanNextPendingItem}
+              className="w-full py-2 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-800/60 text-cyan-300 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Sparkles size={13} />
-              Quét Nhanh Mặt Hàng Còn Thiếu (-2 Hộp)
+              Quét Kiểm Đếm Mặt Hàng Kế Tiếp (+1)
             </button>
           )}
         </div>
@@ -491,7 +530,7 @@ export function GoodsReceiptInspectionPage() {
                 <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">
                   <th className="py-3 px-3.5">Mã SKU</th>
                   <th className="py-3 px-3.5">Tên Thuốc</th>
-                  <th className="py-3 px-3.5 text-center">Số Lượng Đặt</th>
+                  <th className="py-3 px-3.5 text-center">Cần Nhận</th>
                   <th className="py-3 px-3.5 text-center">Đã Quét</th>
                   <th className="py-3 px-3.5">Số Lô & HSD</th>
                   <th className="py-3 px-3.5 text-right">Trạng Thái</th>
@@ -499,8 +538,9 @@ export function GoodsReceiptInspectionPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {items.map((item) => {
-                  const isDone = item.scannedQty >= item.orderedQty;
-                  const diff = item.orderedQty - item.scannedQty;
+                  const targetQty = item.remainingQty > 0 ? item.remainingQty : item.orderedQty;
+                  const isDone = item.scannedQty >= targetQty;
+                  const diff = Math.max(0, targetQty - item.scannedQty);
 
                   return (
                     <tr
@@ -516,7 +556,12 @@ export function GoodsReceiptInspectionPage() {
                         {item.medicineName}
                       </td>
                       <td className="py-3.5 px-3.5 text-center font-bold text-slate-700">
-                        {item.orderedQty} {item.unit}
+                        <span>{targetQty} {item.unit}</span>
+                        {item.previouslyReceivedQty > 0 && (
+                          <span className="block text-[10px] text-slate-400 font-normal">
+                            (Đã nhận trước: {item.previouslyReceivedQty})
+                          </span>
+                        )}
                       </td>
                       <td className="py-3.5 px-3.5 text-center">
                         <span
@@ -524,12 +569,14 @@ export function GoodsReceiptInspectionPage() {
                             isDone ? "text-emerald-700" : "text-amber-700"
                           }`}
                         >
-                          {item.scannedQty} / {item.orderedQty}
+                          {item.scannedQty} / {targetQty}
                         </span>
                       </td>
                       <td className="py-3.5 px-3.5 font-mono text-[11px] text-slate-600">
-                        <span className="font-bold text-slate-800">{item.batchNo}</span>{" "}
-                        <span className="text-slate-400">({item.expDate})</span>
+                        <span className="font-bold text-slate-800">{item.batchNo || "---"}</span>{" "}
+                        <span className="text-slate-400">
+                          ({item.expDate ? new Date(item.expDate).toLocaleDateString("vi-VN") : "Chưa có HSD"})
+                        </span>
                       </td>
                       <td className="py-3.5 px-3.5 text-right">
                         {isDone ? (
@@ -566,40 +613,43 @@ export function GoodsReceiptInspectionPage() {
         </div>
       </div>
 
-      {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ */}
-      <div className="fixed top-6 right-6 z-[99999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
-              t.type === "error"
-                ? "bg-rose-950/95 text-rose-100 border-rose-800"
-                : t.type === "warning"
-                ? "bg-amber-950/95 text-amber-100 border-amber-800"
-                : t.type === "info"
-                ? "bg-blue-950/95 text-blue-100 border-blue-800"
-                : "bg-emerald-950/95 text-emerald-100 border-emerald-800"
-            }`}
-          >
-            <div className="shrink-0 mt-0.5">
-              {t.type === "error" && <AlertCircle size={18} className="text-rose-400" />}
-              {t.type === "warning" && <AlertTriangle size={18} className="text-amber-400" />}
-              {t.type === "info" && <Info size={18} className="text-blue-400" />}
-              {t.type === "success" && <CheckCircle2 size={18} className="text-emerald-400" />}
-            </div>
-            <div className="flex-1 text-xs font-semibold leading-relaxed">
-              {t.message}
-            </div>
-            <button
-              type="button"
-              onClick={() => removeToast(t.id)}
-              className="shrink-0 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5"
+      {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ (Gắn qua createPortal z-[999999] để không bao giờ bị modal che) */}
+      {typeof document !== "undefined" && createPortal(
+        <div className="fixed top-6 right-6 z-[999999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
+                t.type === "error"
+                  ? "bg-rose-950/95 text-rose-100 border-rose-800"
+                  : t.type === "warning"
+                  ? "bg-amber-950/95 text-amber-100 border-amber-800"
+                  : t.type === "info"
+                  ? "bg-blue-950/95 text-blue-100 border-blue-800"
+                  : "bg-emerald-950/95 text-emerald-100 border-emerald-800"
+              }`}
             >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
-      </div>
+              <div className="shrink-0 mt-0.5">
+                {t.type === "error" && <AlertCircle size={18} className="text-rose-400" />}
+                {t.type === "warning" && <AlertTriangle size={18} className="text-amber-400" />}
+                {t.type === "info" && <Info size={18} className="text-blue-400" />}
+                {t.type === "success" && <CheckCircle2 size={18} className="text-emerald-400" />}
+              </div>
+              <div className="flex-1 text-xs font-semibold leading-relaxed">
+                {t.message}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeToast(t.id)}
+                className="shrink-0 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

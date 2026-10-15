@@ -172,11 +172,19 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
       });
     }
 
-    const isMatch = scannedCandidates.some((c) => 
-      validCodes.has(c) || 
-      validCodes.has(c.toUpperCase()) ||
-      [...validCodes].some((v) => clean.includes(v) || v.includes(c))
-    );
+    // So sánh đối soát chính xác mã đầy đủ sau chuẩn hóa, tuyệt đối không dùng so sánh chuỗi con includes()
+    const cleanUpper = clean.toUpperCase();
+    const isMatch = scannedCandidates.some((c) => {
+      const cUpper = c.toUpperCase();
+      return (
+        validCodes.has(c) || 
+        validCodes.has(cUpper) ||
+        [...validCodes].some((v) => {
+          const vUpper = v.toUpperCase();
+          return vUpper === cUpper || vUpper === cleanUpper;
+        })
+      );
+    });
 
     if (isMatch) {
       setIsVerified(true);

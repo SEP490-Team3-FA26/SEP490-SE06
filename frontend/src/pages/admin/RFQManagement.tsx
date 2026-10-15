@@ -337,7 +337,9 @@ export function RFQManagement() {
     if (selectedMedicineIds.some((item) => item.medicineId === medId)) return;
     const stock = Number(med.stock || 0);
     const defaultQty = stock <= 0 ? 100 : 50;
-    const gppCeilingPrice = Number(med.declaredPrice || med.declared_price || med.gppCeilingPrice || med.price || 0);
+    // Chỉ lấy giá kê khai chính thức GPP/BYT, không dùng giá bán lẻ của cửa hàng
+    const declared = med.declaredPrice || med.declared_price || med.gppCeilingPrice;
+    const gppCeilingPrice = declared && Number(declared) > 0 ? Number(declared) : undefined;
     const nationalDrugCode = med.national_drug_code || med.registration_number || '';
 
     setSelectedMedicineIds((prev) => [
@@ -349,7 +351,7 @@ export function RFQManagement() {
         unit: med.unit || (med.units?.[0]?.unitName) || 'Hộp',
         currentStock: stock,
         quantityRequested: defaultQty,
-        targetPrice: gppCeilingPrice,
+        targetPrice: gppCeilingPrice || 0,
         nationalDrugCode: nationalDrugCode,
         declaredPrice: gppCeilingPrice,
       },
@@ -373,7 +375,9 @@ export function RFQManagement() {
       .filter((m) => !selectedMedicineIds.some((it) => it.medicineId === (m._id || m.id)))
       .map((m) => {
         const stock = Number(m.stock || 0);
-        const gppPrice = Number(m.declaredPrice || m.declared_price || m.gppCeilingPrice || m.price || 0);
+        // Chỉ lấy giá kê khai chính thức GPP/BYT, không fallback sang giá bán lẻ
+        const declared = m.declaredPrice || m.declared_price || m.gppCeilingPrice;
+        const gppPrice = declared && Number(declared) > 0 ? Number(declared) : undefined;
         const ndc = m.national_drug_code || m.registration_number || '';
         return {
           medicineId: m._id || m.id,
@@ -382,7 +386,7 @@ export function RFQManagement() {
           unit: m.unit || (m.units?.[0]?.unitName) || 'Hộp',
           currentStock: stock,
           quantityRequested: stock <= 0 ? 100 : 50,
-          targetPrice: gppPrice,
+          targetPrice: gppPrice || 0,
           declaredPrice: gppPrice,
           nationalDrugCode: ndc,
         };
@@ -970,7 +974,8 @@ export function RFQManagement() {
                             const isSelected = selectedMedicineIds.some((it) => it.medicineId === medId);
                             const stock = Number(med.stock || 0);
                             const reorderPoint = Number(med.reorderPoint || med.minStock || 30);
-                            const gppPrice = Number(med.declaredPrice || med.declared_price || med.gppCeilingPrice || med.price || 0);
+                            const declared = med.declaredPrice || med.declared_price || med.gppCeilingPrice;
+                            const gppPrice = declared && Number(declared) > 0 ? Number(declared) : undefined;
 
                             return (
                               <tr key={medId} className={`hover:bg-blue-50/40 transition-colors ${isSelected ? 'bg-blue-50/20' : ''}`}>
@@ -1005,12 +1010,20 @@ export function RFQManagement() {
                                   )}
                                 </td>
                                 <td className="py-2 px-3 text-right">
-                                  <span className="font-bold text-slate-800 block">
-                                    {gppPrice.toLocaleString('vi-VN')} đ
-                                  </span>
-                                  <span className="text-[9px] text-teal-700 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded font-mono font-bold inline-block">
-                                    Trần GPP
-                                  </span>
+                                  {gppPrice ? (
+                                    <>
+                                      <span className="font-bold text-slate-800 block">
+                                        {gppPrice.toLocaleString('vi-VN')} đ
+                                      </span>
+                                      <span className="text-[9px] text-teal-700 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded font-mono font-bold inline-block">
+                                        Trần GPP
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 italic block">
+                                      Chưa xác định
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-2 px-3 text-right">
                                   {isSelected ? (

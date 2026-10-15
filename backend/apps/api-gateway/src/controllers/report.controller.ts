@@ -10,6 +10,8 @@ import {
   InternalServerErrorException,
   BadRequestException,
   ForbiddenException,
+  HttpCode,
+  HttpStatus,
 } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import {
@@ -19,6 +21,8 @@ import {
   ApiBearerAuth,
 } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
+import { RolesGuard } from "../guards/roles.guard";
+import { Roles } from "../decorators/roles.decorator";
 import { S3StorageService } from "../storage/s3-storage.service";
 import { ReportService } from "../services/report.service";
 import {
@@ -818,33 +822,27 @@ export class ReportController implements OnModuleInit {
   }
 
   @Post("ai-forecast/train")
-  @ApiOperation({ summary: "Kích hoạt huấn luyện lại mô hình AI Forecast trên GPU/CPU" })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin", "warehouse_manager")
+  @ApiOperation({ summary: "Kích hoạt huấn luyện lại mô hình AI Forecast trên GPU/CPU (Async Kafka Event - Playbook v2.0)" })
   async triggerTrainAIForecast(@Req() req?: any) {
-    const baseUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
-    try {
-      const response = await fetch(`${baseUrl}/api/ai/forecast/train`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ epochs: 60, batch_size: 64 }),
-      });
-      if (response.ok) {
-        return await response.json();
-      }
-    } catch (_) {
-      try {
-        const response = await fetch("http://localhost:8000/api/ai/forecast/train", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ epochs: 60, batch_size: 64 }),
-        });
-        if (response.ok) {
-          return await response.json();
-        }
-      } catch (err: any) {
-        throw new InternalServerErrorException(err.message || "Không thể kết nối đến AI Service để train");
-      }
-    }
-    return { success: true, message: "Đã gửi yêu cầu huấn luyện lại AI Forecast" };
+    // 🛡️ Tuân thủ Playbook v2.0: Không gọi HTTP trực tiếp giữa microservices, phát sự kiện một chiều qua Kafka
+    const payload = {
+      epochs: 60,
+      batch_size: 64,
+      triggeredBy: req?.user?.id || req?.user?._id || "ADMIN",
+      timestamp: new Date().toISOString(),
+    };
+
+    // Đẩy sự kiện bất đồng bộ vào hàng đợi Kafka của inventory-service
+    this.inventoryClient.emit("ai.forecast.event.train", JSON.stringify(payload));
+
+    return {
+      statusCode: HttpStatus.ACCEPTED,
+      status: "Accepted",
+      message: "Sự kiện yêu cầu huấn luyện lại mô hình AI Forecast đã được gửi vào hàng đợi Kafka để xử lý ngầm!",
+    };
   }
 
   @Get("seasonal-analysis")

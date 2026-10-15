@@ -177,16 +177,18 @@ def batch_forecast_demand(req: ForecastBatchRequest):
         safety_stock = float(item.get("safetyStock", 20) or 20)
         price = float(item.get("price", 0) or 0)
 
-        # Chuẩn bị dữ liệu lịch sử bán hàng cho AI
+        # Chuẩn bị dữ liệu lịch sử bán hàng cho mô hình AI
         sales_history = item.get("sales_history") or item.get("monthlySales")
-        if not sales_history or not isinstance(sales_history, dict):
-            # Tạo chuỗi lịch sử dựa trên tốc độ bán thực tế và mức biến thiên tự nhiên
-            base_monthly = avg_daily_sales * 30.0 if avg_daily_sales > 0 else (total_sold / max(1.0, period_days / 30.0))
-            sales_history = {}
-            for m in range(1, 13):
-                # Mô phỏng tính chất mùa vụ và độ lệch ngẫu nhiên nhẹ
-                season_mult = 1.0 + 0.15 * math.sin(2 * math.pi * m / 6.0)
-                sales_history[f"2026-{m:02d}"] = max(0.0, round(base_monthly * season_mult, 1))
+        has_real_monthly = bool(sales_history and isinstance(sales_history, dict) and len(sales_history) > 0)
+
+        if not has_real_monthly:
+            # Fallback trung bình: Khi không có dữ liệu bán theo tháng thực, giữ chuỗi thời gian phẳng dựa trên tốc độ bán bình quân
+            # Tuyệt đối không tự bịa đặt tính mùa vụ bằng hàm sin giả lập
+            base_monthly = round(avg_daily_sales * 30.0, 1) if avg_daily_sales > 0 else round(total_sold / max(1.0, period_days / 30.0), 1)
+            sales_history = {f"2026-{m:02d}": max(0.0, base_monthly) for m in range(1, 13)}
+            forecast_method_note = "Dự báo dựa trên mức bán bình quân thực tế (Fallback trung bình, không có lịch sử mùa vụ theo tháng)"
+        else:
+            forecast_method_note = "Dự báo chuỗi thời gian theo mùa vụ dựa trên lịch sử bán hàng thực tế qua PyTorch LSTM"
 
         # Chạy dự báo thông qua mô hình PyTorch Forecaster
         res: ForecastResult = forecaster.forecast(sales_history)
@@ -262,7 +264,8 @@ def batch_forecast_demand(req: ForecastBatchRequest):
             "potential_lost_revenue": potential_lost_revenue,
             "suggestedOrderQty": suggested_order_qty,
             "urgency": urgency,
-            "reason": reason
+            "reason": reason,
+            "forecastMethodNote": forecast_method_note
         })
 
     # Sắp xếp danh mục đề xuất: Ưu tiên HIGH lên trước, sau đó đến MEDIUM, rồi đến LOW
