@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { WorkShift } from './schemas/work-shift.schema';
@@ -8,7 +8,7 @@ import { StaffNotification } from './schemas/staff-notification.schema';
 import { LeaveRequest, LeaveType, LeaveStatus } from './schemas/leave-request.schema';
 import { Attendance, AttendanceStatus } from './schemas/attendance.schema';
 import { User } from '../../auth-service/src/auth/user.schema';
-import { RpcException } from '@nestjs/microservices';
+import { RpcException, ClientKafka } from '@nestjs/microservices';
 
 @Injectable()
 export class HrService {
@@ -20,6 +20,7 @@ export class HrService {
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(LeaveRequest.name) private readonly leaveRequestModel: Model<LeaveRequest>,
     @InjectModel(Attendance.name) private readonly attendanceModel: Model<Attendance>,
+    @Inject('AUTH_SERVICE') private readonly authClient: ClientKafka,
   ) {}
 
   // --- Nhóm Ca Làm Việc ---
@@ -86,7 +87,7 @@ export class HrService {
     return schedule;
   }
 
-  async publishSchedule(branchId: string, managerId: string, weekStart: string) {
+  async publishSchedule(branchId: string, managerId: string, weekStart: string, sendEmailNotification: boolean = true) {
     const start = new Date(weekStart);
     const schedule = await this.workScheduleModel.findOne({ branchId, weekStart: start }).exec();
     
@@ -108,6 +109,52 @@ export class HrService {
         'Lịch làm việc tuần mới đã được đăng, vui lòng kiểm tra.',
         schedule._id.toString()
       );
+    }
+
+    // Tu dong gui email lich lam viec tuan cho tung nhan vien
+    if (sendEmailNotification && employeeIds.length > 0) {
+      try {
+        const users = await this.userModel.find({ _id: { $in: employeeIds } }).select('fullName email').lean().exec();
+        const userMap = new Map(users.map(u => [u._id.toString(), u]));
+        const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+
+        const weekStartStr = schedule.weekStart ? new Date(schedule.weekStart).toISOString().split('T')[0] : weekStart;
+        const weekEndStr = schedule.weekEnd ? new Date(schedule.weekEnd).toISOString().split('T')[0] : '';
+
+        for (const empId of employeeIds) {
+          const u = userMap.get(empId.toString());
+          if (!u || !u.email) continue;
+
+          const userAssignments = (schedule.assignments || [])
+            .filter(a => a.employeeId.toString() === empId.toString())
+            .map(a => {
+              const d = new Date(a.date);
+              const dayOfWeek = dayNames[d.getDay()];
+              const dateStr = d.toISOString().split('T')[0];
+              return {
+                date: dateStr,
+                dayOfWeek,
+                shiftName: a.shiftName,
+                time: `${a.shiftStart} - ${a.shiftEnd}`,
+                note: a.note || '',
+              };
+            })
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+          if (userAssignments.length > 0) {
+            this.authClient.emit('hr.schedule.email.send', {
+              recipientEmail: u.email,
+              recipientName: u.fullName,
+              branchId,
+              weekStart: weekStartStr,
+              weekEnd: weekEndStr,
+              shifts: userAssignments,
+            });
+          }
+        }
+      } catch (err: any) {
+        console.warn('[HrService] Loi khi phat su kien gui email lich lam viec:', err.message);
+      }
     }
 
     return schedule.toObject ? schedule.toObject() : schedule;

@@ -132,8 +132,8 @@ export const hrService = {
     const response = await api.post(API_ENDPOINTS.HR.SCHEDULES, data);
     return response.data;
   },
-  publishSchedule: async (weekStart: string) => {
-    const response = await api.post(API_ENDPOINTS.HR.PUBLISH_SCHEDULE, { weekStart });
+  publishSchedule: async (weekStart: string, sendEmailNotification: boolean = true) => {
+    const response = await api.post(API_ENDPOINTS.HR.PUBLISH_SCHEDULE, { weekStart, sendEmailNotification });
     return response.data;
   },
   getMyWeekSchedule: async (weekStart: string) => {

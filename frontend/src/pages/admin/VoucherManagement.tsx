@@ -224,7 +224,7 @@ export function VoucherManagement() {
   const usedTotal = vouchers.reduce((acc, v) => acc + (v.usedCount || 0), 0);
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] p-6 lg:p-8 overflow-y-auto">
+    <div className="flex flex-col min-h-full bg-[#f8fafc] p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

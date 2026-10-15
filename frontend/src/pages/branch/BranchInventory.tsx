@@ -184,7 +184,7 @@ export function BranchInventory() {
   };
 
   return (
-    <div className="flex flex-col gap-4 h-full bg-[#faf8ff] p-6 lg:p-8 overflow-hidden">
+    <div className="flex flex-col gap-4 min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
