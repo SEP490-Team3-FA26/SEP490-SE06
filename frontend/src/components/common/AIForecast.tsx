@@ -25,7 +25,7 @@ import {
   Send
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Pagination } from "../Pagination";
 
 interface ForecastItem {
@@ -55,6 +55,15 @@ interface ForecastResult {
 
 export function AIForecast() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Xác định tiền tố route theo vai trò hiện tại (admin, director, warehouse) để không bị dính Authorization Guard
+  const currentRolePrefix = useMemo(() => {
+    if (location.pathname.startsWith('/director')) return '/director';
+    if (location.pathname.startsWith('/warehouse')) return '/warehouse';
+    return '/admin';
+  }, [location.pathname]);
+
   const [period, setPeriod] = useState<number>(30);
 
   const getPeriodLabel = (p: number) => {
@@ -388,9 +397,9 @@ export function AIForecast() {
 
     // Lưu vào sessionStorage để bảo vệ URL khỏi lỗi HTTP 414 URI Too Long khi chọn nhiều SKU
     try {
-      sessionStorage.setItem('rfq_prefill_meds', JSON.stringify(prefillData));
+      sessionStorage.setItem('rfq_prefill_meds', JSON.stringify(itemsToPrefill));
     } catch (_) {}
-    navigate('/admin/rfq?openCreateRFQ=true');
+    navigate(`${currentRolePrefix}/rfq?openCreateRFQ=true`);
   };
 
   const getUrgencyBadge = (urgency: string) => {
@@ -1082,12 +1091,18 @@ export function AIForecast() {
                     <button
                       onClick={() => {
                         setIsAutoPoModalOpen(false);
-                        navigate('/admin/approvals');
+                        const targetPath =
+                          currentRolePrefix === '/warehouse'
+                            ? '/warehouse/inventory/requisitions'
+                            : `${currentRolePrefix}/approvals`;
+                        navigate(targetPath);
                       }}
-                      className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-2 shadow-md"
+                      className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-2 shadow-md cursor-pointer"
                     >
                       <Building className="w-4 h-4 text-emerald-400" />
-                      Đến Màn Hình Phê Duyệt PO (HQ Approval) ➔
+                      {currentRolePrefix === '/warehouse'
+                        ? 'Đến Danh Sách Đơn Đặt Hàng PO (Kho) ➔'
+                        : 'Đến Màn Hình Phê Duyệt PO (HQ Approval) ➔'}
                     </button>
                   </div>
                 )}

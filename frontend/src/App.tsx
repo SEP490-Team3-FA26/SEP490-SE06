@@ -224,6 +224,7 @@ export default function App() {
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="ai-insights" element={<AIInsights />} />
               <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="rfq" element={<RFQManagement />} />
               <Route path="supply-chain" element={<SupplyChainDashboard />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
