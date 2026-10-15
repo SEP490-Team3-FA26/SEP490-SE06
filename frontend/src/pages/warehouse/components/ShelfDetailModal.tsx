@@ -30,6 +30,19 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
   const [loading, setLoading] = useState(true);
   const [quarantining, setQuarantining] = useState<string | null>(null);
 
+  // Toast thông báo chuyên nghiệp
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "warning";
+  } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "warning" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
+
   // State quản lý Modal Xuất Hủy cho lô hết hạn
   const [disposeModal, setDisposeModal] = useState<{
     isOpen: boolean;
@@ -89,18 +102,17 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
   }, [zone, rack, shelf, bin]);
 
   const handleQuarantine = async (batchId: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn khóa (cách ly) lô thuốc này không? Lô sẽ không được phép xuất bán.")) return;
     try {
       setQuarantining(batchId);
       await inventoryMapService.quarantineBatch(batchId, "Khóa thủ công từ sơ đồ kho (cận date / hết hạn)");
-      alert("Đã gửi yêu cầu cách ly lô thuốc.");
+      showToast("Đã gửi yêu cầu cách ly/khóa lô thuốc thành công!", "success");
       // Delay 1000ms để Kafka consumer ghi DB xong trước khi re-fetch
       setTimeout(() => {
         loadData();
         if (onRefresh) onRefresh();
       }, 1000);
     } catch (err: any) {
-      alert(err.message || "Lỗi khi khóa lô");
+      showToast(err.message || "Lỗi khi khóa lô", "error");
     } finally {
       setQuarantining(null);
     }
@@ -118,7 +130,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
   const handleConfirmDispose = async () => {
     if (!disposeModal.batch) return;
     if (disposeModal.quantity <= 0 || disposeModal.quantity > disposeModal.batch.stock) {
-      alert("Số lượng xuất hủy không hợp lệ!");
+      showToast("Số lượng xuất hủy không hợp lệ!", "warning");
       return;
     }
     try {
@@ -128,14 +140,14 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
         quantity: disposeModal.quantity,
         notes: disposeModal.notes,
       });
-      alert(`Đã xuất hủy thành công lô ${disposeModal.batch.batchNo}!`);
+      showToast(`Đã xuất hủy thành công lô ${disposeModal.batch.batchNo}!`, "success");
       setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" });
       setTimeout(() => {
         loadData();
         if (onRefresh) onRefresh();
       }, 1000);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi khi xuất hủy lô");
+      showToast(err.response?.data?.message || err.message || "Lỗi khi xuất hủy lô", "error");
     } finally {
       setDisposing(false);
     }
@@ -904,6 +916,23 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast thông báo chuyên nghiệp */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-[100] max-w-md animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-auto">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold ${
+              toast.type === "success"
+                ? "bg-emerald-600 text-white border-emerald-700"
+                : toast.type === "warning"
+                ? "bg-amber-600 text-white border-amber-700"
+                : "bg-rose-600 text-white border-rose-700"
+            }`}
+          >
+            <span>{toast.message}</span>
           </div>
         </div>
       )}

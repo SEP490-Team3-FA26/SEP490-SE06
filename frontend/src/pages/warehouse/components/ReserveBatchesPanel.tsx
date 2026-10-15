@@ -71,6 +71,19 @@ export function ReserveBatchesPanel({
   const [searchTerm, setSearchTerm] = useState("");
   const [quarantiningId, setQuarantiningId] = useState<string | null>(null);
 
+  // Toast thông báo chuyên nghiệp thay cho alert/confirm gốc
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "warning";
+  } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "warning" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
+
   // State quản lý Modal Xuất Hủy cho lô hết hạn
   const [disposeModal, setDisposeModal] = useState<{
     isOpen: boolean;
@@ -109,16 +122,15 @@ export function ReserveBatchesPanel({
   }, [viewMode, selectedRack]);
 
   const handleQuarantine = async (batchId: string) => {
-    if (!window.confirm("Khóa (cách ly) lô dự trữ này?")) return;
     try {
       setQuarantiningId(batchId);
       await inventoryMapService.quarantineBatch(batchId, "Khóa từ Khu Dự Trữ (hết hạn / cận date)");
-      alert("Đã gửi yêu cầu khóa lô.");
+      showToast("Đã gửi yêu cầu cách ly/khóa lô thuốc thành công!", "success");
       setTimeout(() => {
         if (onRefresh) onRefresh();
       }, 1000);
     } catch (e: any) {
-      alert(e.message || "Lỗi khóa lô");
+      showToast(e.message || "Lỗi khóa lô", "error");
     } finally {
       setQuarantiningId(null);
     }
@@ -136,7 +148,7 @@ export function ReserveBatchesPanel({
   const handleConfirmDispose = async () => {
     if (!disposeModal.batch) return;
     if (disposeModal.quantity <= 0 || disposeModal.quantity > disposeModal.batch.stock) {
-      alert("Số lượng xuất hủy không hợp lệ!");
+      showToast("Số lượng xuất hủy không hợp lệ!", "warning");
       return;
     }
     try {
@@ -146,13 +158,13 @@ export function ReserveBatchesPanel({
         quantity: disposeModal.quantity,
         notes: disposeModal.notes,
       });
-      alert(`Đã xuất hủy thành công lô ${disposeModal.batch.batchNo}!`);
+      showToast(`Đã xuất hủy thành công lô ${disposeModal.batch.batchNo}!`, "success");
       setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" });
       setTimeout(() => {
         if (onRefresh) onRefresh();
       }, 1000);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi khi xuất hủy lô");
+      showToast(err.response?.data?.message || err.message || "Lỗi khi xuất hủy lô", "error");
     } finally {
       setDisposing(false);
     }
@@ -187,11 +199,11 @@ export function ReserveBatchesPanel({
                 Khu Kệ Dự Trữ — Phân Ô Chuẩn FEFO
               </h3>
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                3 Kệ: RES1 · RES2 · RES3
+                4 Kệ: RES1 · RES2 · RES3 · RES4
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Phân chia thành các dãy Kệ (RES1, RES2, RES3), mỗi kệ 4 Tầng và 10 Ô Thùng (B1..B10) rõ ràng, ngăn nắp.
+              Phân chia thành các dãy Kệ (RES1, RES2, RES3, RES4), mỗi kệ 4 Tầng và 10 Ô Thùng (B1..B10) rõ ràng, ngăn nắp.
             </p>
           </div>
         </div>
@@ -644,6 +656,23 @@ export function ReserveBatchesPanel({
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast thông báo chuyên nghiệp */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-[100] max-w-md animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-auto">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold ${
+              toast.type === "success"
+                ? "bg-emerald-600 text-white border-emerald-700"
+                : toast.type === "warning"
+                ? "bg-amber-600 text-white border-amber-700"
+                : "bg-rose-600 text-white border-rose-700"
+            }`}
+          >
+            <span>{toast.message}</span>
           </div>
         </div>
       )}

@@ -170,7 +170,8 @@ export const inventoryMapService = {
     quantity: number;
     notes?: string;
   }) => {
-    const response = await api.post('/api/medicines/handle-expiration', {
+    // Gọi endpoint chuẩn Gateway: /api/medicines/expiration-action
+    const response = await api.post('/api/medicines/expiration-action', {
       ...dto,
       action: 'DISPOSE',
     });

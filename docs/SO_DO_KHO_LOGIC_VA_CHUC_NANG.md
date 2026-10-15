@@ -161,15 +161,15 @@ Trạng thái của ô thùng B1..B10 phản ánh tình trạng của các lô h
 
 ### 3. Bảng điều khiển Khu Kệ Dự Trữ FEFO (ReserveBatchesPanel)
 * Drawer trượt từ dưới lên, hỗ trợ **2 chế độ xem linh hoạt**:
-  * **Chế độ Bảng Danh Sách (Table View):** Liệt kê chi tiết các lô thuốc với đầy đủ thông tin thuốc, số lô, hạn dùng, số lượng tồn và **cột Vị trí Ô Thùng chuẩn hóa** (`Kệ RES1/RES2/RES3 · Tầng 1..4 · Thùng B1..B10`).
-  * **Chế độ Sơ Đồ Phân Kệ & Ô Thùng (Rack & Bin Grid):** Cho phép chọn từng Kệ Dự Trữ (`RES1`, `RES2`, `RES3`), xem trực quan 4 Tầng và 10 Ô Thùng (B1..B10) của từng tầng với tên thuốc, số lượng tồn và trạng thái FEFO.
+  * **Chế độ Bảng Danh Sách (Table View):** Liệt kê chi tiết các lô thuốc với đầy đủ thông tin thuốc, số lô, hạn dùng, số lượng tồn và **cột Vị trí Ô Thùng chuẩn hóa** (`Kệ RES1/RES2/RES3/RES4 · Tầng 1..4 · Thùng B1..B10`).
+  * **Chế độ Sơ Đồ Phân Kệ & Ô Thùng (Rack & Bin Grid):** Cho phép chọn từng Kệ Dự Trữ (`RES1`, `RES2`, `RES3`, `RES4`), xem trực quan 4 Tầng và 10 Ô Thùng (B1..B10) của từng tầng với tên thuốc, số lượng tồn và trạng thái FEFO.
 * Khi click vào một lô dự trữ hoặc ô thùng dự trữ, hệ thống mở ngay `ShelfDetailModal` hoặc cuộn đến vị trí để kiểm tra và dời ô.
 
 ### 4. Quy Chuẩn Phân Kệ & Ô Thùng Khu Dự Trữ (Reserve Zone Architecture)
-* **Xóa bỏ tình trạng để lộn xộn:** Khu Dự Trữ được quy hoạch chuẩn hóa thành **3 Dãy Kệ (`RES1`, `RES2`, `RES3`)**, mỗi kệ có **4 Tầng (T1..T4)**, mỗi tầng có **10 Ô Thùng (B1..B10)**, tạo ra tổng cộng **120 ô thùng vật lý**.
+* **Xóa bỏ tình trạng để lộn xộn:** Khu Dự Trữ được quy hoạch chuẩn hóa thành **4 Dãy Kệ (`RES1`, `RES2`, `RES3`, `RES4`)**, mỗi kệ có **4 Tầng (T1..T4)**, mỗi tầng có **10 Ô Thùng (B1..B10)**, tạo ra tổng cộng **160 ô thùng vật lý**.
 * **Đặc quyền Lưu trữ Đệm:** Không bị giới hạn bởi quy tắc cứng 1 thùng 1 loại thuốc của các kệ chính A-F. Cho phép lưu trữ hỗn hợp nhiều loại thuốc hoặc nhiều lô hàng khác nhau phục vụ đệm tồn kho và điều chuyển.
-* **Cơ chế Nút Bấm Sổ Kệ Dự Trữ:** Trên bản đồ tổng quan 2D, các kệ dự trữ mặc định được thu gọn để tránh lộn xộn. Chỉ khi người dùng bấm nút **"📂 Bấm để sổ ra các kệ của Khu Dự Trữ (RES1, RES2, RES3)"** thì hệ thống mới bung danh sách các kệ và lưới 10 ô thùng.
-* **Hỗ trợ Dời Ô Toàn Diện (RelocateBinModal):** Khi dời ô sang Khu Dự Trữ, giao diện cho phép chọn chính xác Kệ Dự Trữ (`RES1`, `RES2`, `RES3`), Tầng (1..4) và Ô Thùng (B1..B10) đích, xóa bỏ hoàn toàn lỗi giao diện và tình trạng dồn cục vô định hình.
+* **Cơ chế Nút Bấm Sổ Kệ Dự Trữ:** Trên bản đồ tổng quan 2D, các kệ dự trữ mặc định được thu gọn để tránh lộn xộn. Chỉ khi người dùng bấm nút **"📂 Bấm để sổ ra các kệ của Khu Dự Trữ (RES1, RES2, RES3, RES4)"** thì hệ thống mới bung danh sách các kệ và lưới 10 ô thùng.
+* **Hỗ trợ Dời Ô Toàn Diện (RelocateBinModal):** Khi dời ô sang Khu Dự Trữ, giao diện cho phép chọn chính xác Kệ Dự Trữ (`RES1`, `RES2`, `RES3`, `RES4`), Tầng (1..4) và Ô Thùng (B1..B10) đích, xóa bỏ hoàn toàn lỗi giao diện và tình trạng dồn cục vô định hình.
 
 ---
 
