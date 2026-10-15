@@ -82,6 +82,11 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
               <img 
                 src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
                 alt={med.name}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
+                }}
                 className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
               />
             </div>
