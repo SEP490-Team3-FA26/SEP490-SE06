@@ -715,14 +715,14 @@ export function RFQManagement() {
 
       {/* MODAL 1: TẠO RFQ MỚI */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl my-auto flex flex-col max-h-[88vh] overflow-hidden">
+            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
               <div className="flex items-center gap-2">
                 <FileText size={20} className="text-blue-400" />
                 <h3 className="font-bold text-sm">Tạo Yêu Cầu Báo Giá (RFQ) Hàng Loạt</h3>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -1135,11 +1135,11 @@ export function RFQManagement() {
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
               >
                 Hủy bỏ
               </button>
@@ -1147,7 +1147,7 @@ export function RFQManagement() {
                 type="button"
                 onClick={handleCreateSubmit}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md shadow-blue-500/20"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md shadow-blue-500/20 disabled:opacity-50 transition-all cursor-pointer"
               >
                 {isSubmitting ? 'Đang tạo...' : 'Lưu & Khởi Tạo RFQ'}
               </button>
@@ -1158,9 +1158,9 @@ export function RFQManagement() {
 
       {/* MODAL 2: MA TRẬN SO SÁNH BÁO GIÁ & CHỌN THẦU (QUOTATION MATRIX) */}
       {showMatrixModal && selectedRfq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-900 to-indigo-950 text-white">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl my-auto flex flex-col max-h-[88vh] overflow-hidden">
+            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-900 to-indigo-950 text-white shrink-0">
               <div>
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   Ma Trận So Sánh Báo Giá - {selectedRfq.rfqCode}
@@ -1170,7 +1170,7 @@ export function RFQManagement() {
                 </h3>
                 <p className="text-xs text-slate-300">{selectedRfq.title}</p>
               </div>
-              <button onClick={() => setShowMatrixModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowMatrixModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -1456,11 +1456,11 @@ export function RFQManagement() {
 
       {/* MODAL 3: GHI NHẬN BÁO GIÁ NCC */}
       {showAddQuoteModal && selectedRfq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-2xl my-auto flex flex-col max-h-[88vh] overflow-hidden">
+            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
               <h3 className="font-bold text-sm">Ghi Nhận Báo Giá NCC - {selectedRfq.rfqCode}</h3>
-              <button onClick={() => setShowAddQuoteModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowAddQuoteModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
                 <X size={18} />
               </button>
             </div>
