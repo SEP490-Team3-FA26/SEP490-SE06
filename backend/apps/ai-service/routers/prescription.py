@@ -650,7 +650,7 @@ async def get_medicines_ai(
                 query_filter=query_filter,
                 limit=limit,
                 offset=skip,
-                score_threshold=0.2
+                score_threshold=0.55
             )
             
             mapped_data = []

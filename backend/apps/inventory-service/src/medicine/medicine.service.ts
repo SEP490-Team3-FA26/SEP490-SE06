@@ -624,13 +624,17 @@ export class MedicineService implements OnModuleInit {
           this.logger.log(`Executing fallback Mongoose regex search for "${search}"`);
           const filterQuery: any = {};
           const conditionsCopy = [...conditions];
-          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          // Chuẩn hóa từ khóa tìm kiếm: hỗ trợ tìm đa từ thông minh (ví dụ: "omega 3" khớp "Omega-3", "Omega 3")
+          const searchWords = search.trim().split(/[\s\-]+/).filter(Boolean);
+          const safeSearchPattern = searchWords.length > 0
+            ? searchWords.map(w => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
+            : search.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
           conditionsCopy.push({
             $or: [
-              { name: { $regex: safeSearch, $options: 'i' } },
-              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
-              { sku: { $regex: safeSearch, $options: 'i' } },
-              { barcode: { $regex: safeSearch, $options: 'i' } }
+              { name: { $regex: safeSearchPattern, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearchPattern, $options: 'i' } },
+              { sku: { $regex: safeSearchPattern, $options: 'i' } },
+              { barcode: { $regex: safeSearchPattern, $options: 'i' } }
             ]
           });
           filterQuery.$and = conditionsCopy;
@@ -694,13 +698,17 @@ export class MedicineService implements OnModuleInit {
         const filterQuery: any = {};
         const conditionsCopy = [...conditions];
         if (search) {
-          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          // Chuẩn hóa từ khóa tìm kiếm: hỗ trợ tìm đa từ thông minh (ví dụ: "omega 3" khớp "Omega-3", "Omega 3")
+          const searchWords = search.trim().split(/[\s\-]+/).filter(Boolean);
+          const safeSearchPattern = searchWords.length > 0
+            ? searchWords.map(w => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
+            : search.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
           conditionsCopy.push({
             $or: [
-              { name: { $regex: safeSearch, $options: 'i' } },
-              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
-              { sku: { $regex: safeSearch, $options: 'i' } },
-              { barcode: { $regex: safeSearch, $options: 'i' } }
+              { name: { $regex: safeSearchPattern, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearchPattern, $options: 'i' } },
+              { sku: { $regex: safeSearchPattern, $options: 'i' } },
+              { barcode: { $regex: safeSearchPattern, $options: 'i' } }
             ]
           });
         }
