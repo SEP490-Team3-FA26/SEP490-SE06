@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   X, Loader2, Package, Calendar, AlertTriangle,
   Clock, CheckCircle, MapPin, ShieldAlert, Archive,
-  AlertCircle, ArrowLeftRight
+  AlertCircle, ArrowLeftRight, ChevronDown, Trash2
 } from "lucide-react";
 import { inventoryMapService, BinDetailResponse } from "../../../services/inventory/inventoryMap.service";
 import { RelocateBinModal } from "./RelocateBinModal";
@@ -18,8 +18,8 @@ interface ShelfDetailModalProps {
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string; icon?: React.ReactNode }> = {
   OUT_OF_STOCK: { label: "Hết hàng", bg: "bg-slate-100", text: "text-slate-500", border: "border-slate-200" },
-  EXPIRED: { label: "Hết hạn", bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", icon: <AlertTriangle size={11} /> },
-  NEAR_EXPIRY: { label: "Cận date", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-700/20", icon: <Clock size={11} /> },
+  EXPIRED: { label: "Hết hạn", bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300 font-bold", icon: <AlertTriangle size={11} className="text-rose-600" /> },
+  NEAR_EXPIRY: { label: "Cận date", bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300 font-bold", icon: <Clock size={11} className="text-amber-600" /> },
   LOW_STOCK: { label: "Sắp hết hàng", bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200", icon: <AlertTriangle size={11} /> },
   NORMAL: { label: "An toàn", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle size={11} /> },
   ACTIVE: { label: "An toàn", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle size={11} /> },
@@ -29,6 +29,23 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; b
 export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }: ShelfDetailModalProps) {
   const [loading, setLoading] = useState(true);
   const [quarantining, setQuarantining] = useState<string | null>(null);
+
+  // State quản lý Modal Xuất Hủy cho lô hết hạn
+  const [disposeModal, setDisposeModal] = useState<{
+    isOpen: boolean;
+    batch: any | null;
+    quantity: number;
+    notes: string;
+  }>({
+    isOpen: false,
+    batch: null,
+    quantity: 0,
+    notes: "Thuốc hết hạn sử dụng, xuất hủy theo quy chuẩn GSP/GDP",
+  });
+  const [disposing, setDisposing] = useState(false);
+
+  // Quản lý dropdown mã lô đang mở theo ID của ô thùng
+  const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null);
 
   // Dành cho chế độ xem theo Tầng Kệ (khi không chọn thùng cụ thể)
   const [shelfData, setShelfData] = useState<any[]>([]);
@@ -44,6 +61,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
     currentStock?: number;
     batchId?: string;
     batchNo?: string;
+    batches?: any[];
   }>({
     isOpen: false,
     sourceBin: bin || 1,
@@ -88,14 +106,51 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
     }
   };
 
+  const handleOpenDispose = (batch: any) => {
+    setDisposeModal({
+      isOpen: true,
+      batch,
+      quantity: batch.stock,
+      notes: "Thuốc hết hạn sử dụng, xuất hủy theo quy chuẩn GSP/GDP",
+    });
+  };
+
+  const handleConfirmDispose = async () => {
+    if (!disposeModal.batch) return;
+    if (disposeModal.quantity <= 0 || disposeModal.quantity > disposeModal.batch.stock) {
+      alert("Số lượng xuất hủy không hợp lệ!");
+      return;
+    }
+    try {
+      setDisposing(true);
+      await inventoryMapService.disposeExpiredBatch({
+        batchId: disposeModal.batch._id || disposeModal.batch.id,
+        quantity: disposeModal.quantity,
+        notes: disposeModal.notes,
+      });
+      alert(`Đã xuất hủy thành công lô ${disposeModal.batch.batchNo}!`);
+      setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" });
+      setTimeout(() => {
+        loadData();
+        if (onRefresh) onRefresh();
+      }, 1000);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Lỗi khi xuất hủy lô");
+    } finally {
+      setDisposing(false);
+    }
+  };
+
   // Thống kê chế độ Ô Thùng
-  const unit = binData?.location?.unit || binData?.medicine?.unit || "Hộp";
-  const medicineName = binData?.location?.medicineName || binData?.medicine?.name;
-  const maxCap = binData?.maxCapacity || binData?.location?.maxCapacity || 200;
-  const totalMainStock = binData?.totalMainStock ?? (binData?.mainBatches || []).reduce((s: number, b: any) => s + (b.stock || 0), 0);
-  const percentCap = maxCap > 0 ? Math.min(100, Math.round((totalMainStock / maxCap) * 100)) : 0;
-  const reserveBatches = binData?.reserveBatches || [];
   const mainBatches = binData?.mainBatches || [];
+  const reserveBatches = binData?.reserveBatches || [];
+  const firstBatchMedName = mainBatches[0]?.medicineName;
+  const firstBatchUnit = mainBatches[0]?.unit;
+  const unit = binData?.location?.unit || binData?.medicine?.unit || firstBatchUnit || "Hộp";
+  const medicineName = binData?.location?.medicineName || binData?.medicine?.name || firstBatchMedName;
+  const maxCap = binData?.maxCapacity || binData?.location?.maxCapacity || 200;
+  const totalMainStock = binData?.totalMainStock ?? mainBatches.reduce((s: number, b: any) => s + (b.stock || 0), 0);
+  const percentCap = maxCap > 0 ? Math.min(100, Math.round((totalMainStock / maxCap) * 100)) : 0;
 
   return (
     <>
@@ -117,7 +172,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-bold text-slate-800">
                     {isBinMode 
-                      ? `Thùng ${bin} — ${medicineName || "Chưa gán thuốc"}` 
+                      ? `Thùng ${bin} ${zone === 'RESERVE' ? '(Khu Dự Trữ)' : ''} — ${medicineName || (zone === 'RESERVE' ? 'Ô trống dự trữ' : 'Chưa gán thuốc')}` 
                       : `Chi tiết Kệ ${rack} — Tầng ${shelf}`}
                   </h2>
                   {isBinMode && (
@@ -128,7 +183,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                 </div>
                 <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
                   <MapPin size={12} className="text-sky-500" />
-                  <span>Khu {zone} · Kệ {rack} · Tầng {shelf} {isBinMode ? `· Thùng ${bin}` : ""}</span>
+                  <span>Khu {zone === 'RESERVE' ? 'Dự Trữ (RESERVE)' : zone} · Kệ {rack} · Tầng {shelf} {isBinMode ? `· Thùng ${bin}` : ""}</span>
                   {medicineName && <span className="text-slate-400">• Đơn vị: <b className="text-slate-700">{unit}</b></span>}
                 </div>
               </div>
@@ -143,6 +198,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                     sourceBin: bin as number,
                     medicineName,
                     currentStock: totalMainStock,
+                    batches: mainBatches,
                   })}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition border border-amber-600 cursor-pointer"
                   title="Chuyển thuốc hoặc dồn kho sang thùng khác"
@@ -182,7 +238,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
               <div className="flex items-center gap-3 text-xs font-medium">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>Lô đang bán: <b>{mainBatches.length}</b></span>
+                  <span>{zone === 'RESERVE' ? 'Lô dự trữ:' : 'Lô đang bán:'} <b>{mainBatches.length}</b></span>
                 </div>
                 {reserveBatches.length > 0 && (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-800 animate-pulse">
@@ -277,14 +333,24 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                   </div>
                 )}
 
-                {/* LÔ ĐANG BÁN TRONG THÙNG CHÍNH */}
+                {/* LÔ HÀNG TRONG THÙNG */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-bold text-emerald-700 text-xs uppercase tracking-wider flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" /> Lô đang bán trong thùng chính (MAIN)
+                    <h4 className="font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                      {zone === 'RESERVE' ? (
+                        <>
+                          <Archive size={14} className="text-amber-600" />
+                          <span className="text-amber-900 font-bold">Các lô thuốc trong thùng dự trữ (RESERVE)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span className="text-emerald-700 font-bold">Lô đang bán trong thùng chính (MAIN)</span>
+                        </>
+                      )}
                     </h4>
                     <span className="text-xs text-slate-500 font-medium">
-                      Tổng tồn: <b className="text-slate-800">{totalMainStock}</b> {unit}
+                      Tổng tồn: <b className="text-slate-800 font-bold font-mono">{totalMainStock}</b> {unit}
                     </span>
                   </div>
 
@@ -308,26 +374,69 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {mainBatches.map((mb: any) => {
-                            const sc = STATUS_CONFIG[mb.status] || STATUS_CONFIG.NORMAL;
+                            const isExpired =
+                              mb.status === "EXPIRED" ||
+                              (mb.daysToExpiry != null && mb.daysToExpiry < 0) ||
+                              (mb.expDate ? new Date(mb.expDate) < new Date() : false);
+                            const isNearExpiry =
+                              !isExpired &&
+                              (mb.status === "NEAR_EXPIRY" || (mb.daysToExpiry != null && mb.daysToExpiry <= 90));
+                            const sc = isExpired
+                              ? STATUS_CONFIG.EXPIRED
+                              : isNearExpiry
+                              ? STATUS_CONFIG.NEAR_EXPIRY
+                              : STATUS_CONFIG[mb.status] || STATUS_CONFIG.NORMAL;
+
                             return (
-                              <tr key={mb._id || mb.batchNo} className="hover:bg-slate-50/70 transition-colors">
+                              <tr
+                                key={mb._id || mb.batchNo}
+                                className={`transition-colors ${
+                                  isExpired
+                                    ? "bg-rose-50/50 hover:bg-rose-50/80"
+                                    : isNearExpiry
+                                    ? "bg-amber-50/30 hover:bg-amber-50/60"
+                                    : "hover:bg-slate-50/70"
+                                }`}
+                              >
                                 <td className="px-4 py-3 font-mono font-bold text-sky-700">{mb.batchNo}</td>
                                 <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums text-xs">
                                   {mb.stock?.toLocaleString("vi-VN")}
                                 </td>
                                 <td className="px-4 py-3 text-slate-500">{unit}</td>
                                 <td className="px-4 py-3">
-                                  <div className="flex items-center gap-1.5 text-slate-600">
-                                    <Calendar size={12} className="text-slate-400" />
-                                    <span>
-                                      {mb.expDate ? new Date(mb.expDate).toLocaleDateString("vi-VN") : "—"}
-                                    </span>
-                                    {mb.daysToExpiry != null && (
-                                      <span className={`text-[10px] font-mono font-bold ${mb.daysToExpiry <= 90 ? 'text-amber-600' : 'text-slate-400'}`}>
-                                        ({mb.daysToExpiry}d)
+                                  {isExpired ? (
+                                    <div className="flex items-center gap-1.5 text-rose-600 font-bold">
+                                      <AlertTriangle size={13} className="text-rose-600 shrink-0" />
+                                      <span>
+                                        {mb.expDate ? new Date(mb.expDate).toLocaleDateString("vi-VN") : "—"}
                                       </span>
-                                    )}
-                                  </div>
+                                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 font-bold">
+                                        Quá hạn {mb.overdueDays || Math.abs(mb.daysToExpiry || 0)} ngày
+                                      </span>
+                                    </div>
+                                  ) : isNearExpiry ? (
+                                    <div className="flex items-center gap-1.5 text-amber-700 font-medium">
+                                      <Clock size={12} className="text-amber-600 shrink-0" />
+                                      <span>
+                                        {mb.expDate ? new Date(mb.expDate).toLocaleDateString("vi-VN") : "—"}
+                                      </span>
+                                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 font-bold">
+                                        Cận date ({mb.daysToExpiry}d)
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                      <Calendar size={12} className="text-slate-400 shrink-0" />
+                                      <span>
+                                        {mb.expDate ? new Date(mb.expDate).toLocaleDateString("vi-VN") : "—"}
+                                      </span>
+                                      {mb.daysToExpiry != null && (
+                                        <span className="text-[10px] font-mono text-slate-400">
+                                          ({mb.daysToExpiry}d)
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3">
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
@@ -336,17 +445,29 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="flex items-center justify-end gap-1.5">
+                                    {/* Nút Xuất Hủy màu đỏ rực rỡ chỉ hiển thị cho lô đã hết hạn */}
+                                    {isExpired && (
+                                      <button
+                                        onClick={() => handleOpenDispose(mb)}
+                                        className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1 shadow-2xs border border-rose-700 cursor-pointer"
+                                        title="Xuất hủy lô thuốc đã hết hạn sử dụng (GSP/GDP)"
+                                      >
+                                        <Trash2 size={11} /> Xuất hủy
+                                      </button>
+                                    )}
+
                                     {/* Nút dời riêng 1 lô này sang thùng khác */}
                                     <button
                                       onClick={() => setRelocateState({
                                         isOpen: true,
                                         sourceBin: bin as number,
-                                        medicineName,
+                                        medicineName: mb.medicineName || medicineName,
                                         currentStock: mb.stock,
                                         batchId: mb._id,
                                         batchNo: mb.batchNo,
+                                        batches: mainBatches,
                                       })}
-                                      className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-semibold transition flex items-center gap-1"
+                                      className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
                                       title="Dời riêng lô này sang ô khác"
                                     >
                                       <ArrowLeftRight size={11} /> Dời ô
@@ -356,7 +477,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                     <button
                                       onClick={() => handleQuarantine(mb._id)}
                                       disabled={quarantining === mb._id || mb.status === 'QUARANTINED'}
-                                      className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 text-xs transition disabled:opacity-50 font-medium"
+                                      className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 text-xs transition disabled:opacity-50 font-medium cursor-pointer"
                                       title="Khóa lô (Cách ly không xuất bán)"
                                     >
                                       {quarantining === mb._id ? "Đang khóa..." : mb.status === 'QUARANTINED' ? "Đã khóa" : "Khóa"}
@@ -381,7 +502,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                   <p className="text-xs text-slate-400 mt-0.5">Chưa có lô hàng nào được xếp tại đây</p>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div className="overflow-visible rounded-xl border border-slate-200 bg-white">
                   <table className="w-full text-left text-xs">
                     <thead className="text-[10px] uppercase font-bold tracking-wider bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
                       <tr>
@@ -398,6 +519,10 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                       {shelfData.map((item, idx) => {
                         const sc = STATUS_CONFIG[item.status] || STATUS_CONFIG.NORMAL;
                         const isAlert = ["EXPIRED", "NEAR_EXPIRY"].includes(item.status);
+                        const itemDropdownKey = `${item.bin}_${item.medicineId || idx}`;
+                        const isOpenDropdown = openDropdownKey === itemDropdownKey;
+                        const batchCount = item.batches?.length || item.batchCount || 1;
+
                         return (
                           <tr key={idx} className={`transition-colors hover:bg-slate-50 ${isAlert ? "bg-rose-50/30" : ""}`}>
                             <td className="px-4 py-3">
@@ -413,19 +538,163 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs font-bold text-sky-700">{item.batchNo}</td>
+                            <td className="px-4 py-3 relative">
+                              {/* NÚT DROPDOWN MÃ LÔ KIỂU HÌNH 2 */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenDropdownKey(isOpenDropdown ? null : itemDropdownKey);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 shadow-2xs transition cursor-pointer"
+                                title="Bấm để xem hạn sử dụng chi tiết từng lô"
+                              >
+                                <span>{batchCount} Lô</span>
+                                <ChevronDown
+                                  size={12}
+                                  className={`transition-transform duration-200 text-sky-600 ${isOpenDropdown ? "rotate-180" : ""}`}
+                                />
+                              </button>
+
+                              {/* POPOVER CHI TIẾT CÁC LÔ THEO KIỂU HÌNH 2 */}
+                              {isOpenDropdown && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdownKey(null);
+                                    }}
+                                  />
+
+                                  <div
+                                    className="absolute left-4 top-full mt-1.5 z-50 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 text-left animate-in fade-in zoom-in-95 duration-150"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="text-xs font-bold text-slate-800 pb-2.5 mb-2.5 border-b border-slate-100 flex items-center justify-between">
+                                      <span className="text-slate-800 font-bold">Hạn sử dụng chi tiết:</span>
+                                      {item.bin != null && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                          Thùng B{item.bin}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-1 divide-y divide-slate-100">
+                                      {(item.batches && item.batches.length > 0 ? item.batches : [{
+                                        _id: item._id || item.id,
+                                        batchNo: item.representativeBatchNo || item.batchNo,
+                                        stock: item.stock,
+                                        expDate: item.expDate,
+                                        status: item.status,
+                                        unit: item.unit
+                                      }]).map((b: any, bIdx: number) => {
+                                        const expFormatted = b.expDate
+                                          ? new Date(b.expDate).toLocaleDateString("vi-VN")
+                                          : "—";
+                                        const isExp = b.status === "EXPIRED";
+                                        const isNear = b.status === "NEAR_EXPIRY";
+                                        const statusLabel = isExp
+                                          ? "Hết hạn"
+                                          : isNear
+                                          ? "Cận date"
+                                          : b.status === "QUARANTINED"
+                                          ? "Cách ly"
+                                          : "Hoạt động";
+                                        const statusColor = isExp
+                                          ? "text-rose-600 font-semibold"
+                                          : isNear
+                                          ? "text-amber-600 font-semibold"
+                                          : b.status === "QUARANTINED"
+                                          ? "text-purple-600 font-semibold"
+                                          : "text-emerald-500 font-semibold";
+
+                                        return (
+                                          <div key={bIdx} className={bIdx > 0 ? "pt-2.5" : ""}>
+                                            <div className="flex items-center justify-between">
+                                              <span className="font-bold text-slate-800 text-xs">
+                                                Lô: {b.batchNo}
+                                              </span>
+                                              <span className="font-bold text-slate-800 text-xs tabular-nums">
+                                                {b.stock?.toLocaleString("vi-VN")} {item.unit || "Hộp"}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[11px] mt-0.5">
+                                              <span className="text-slate-500">Hạn: {expFormatted}</span>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className={`text-xs ${statusColor}`}>{statusLabel}</span>
+                                                {isExp && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setOpenDropdownKey(null);
+                                                      handleOpenDispose({
+                                                        ...b,
+                                                        medicineName: item.medicineName,
+                                                        unit: item.unit || "Hộp",
+                                                      });
+                                                    }}
+                                                    className="p-1 rounded-md text-rose-600 hover:bg-rose-100 transition cursor-pointer"
+                                                    title="Xuất hủy lô thuốc hết hạn"
+                                                  >
+                                                    <Trash2 size={11} />
+                                                  </button>
+                                                )}
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdownKey(null);
+                                                    setRelocateState({
+                                                      isOpen: true,
+                                                      sourceBin: item.bin || 1,
+                                                      medicineName: item.medicineName,
+                                                      currentStock: b.stock,
+                                                      batchId: b._id || b.id,
+                                                      batchNo: b.batchNo,
+                                                      batches: item.batches,
+                                                    });
+                                                  }}
+                                                  className="p-1 rounded-md text-sky-600 hover:bg-sky-50 transition cursor-pointer"
+                                                  title="Dời riêng lô này sang ô khác"
+                                                >
+                                                  <ArrowLeftRight size={11} />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums">
                               {item.stock.toLocaleString("vi-VN")}
                             </td>
                             <td className="px-4 py-3 text-xs text-slate-500">{item.unit || "Hộp"}</td>
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                                <Calendar size={12} className="text-slate-400" />
-                                <span className={isAlert ? "text-rose-600 font-semibold" : ""}>{item.expDate}</span>
-                                {item.daysUntilExpiry != null && item.daysUntilExpiry <= 90 && item.daysUntilExpiry >= 0 && (
-                                  <span className="text-[10px] font-bold text-amber-600">({item.daysUntilExpiry}d)</span>
-                                )}
-                              </div>
+                              {item.status === "EXPIRED" ? (
+                                <div className="flex items-center gap-1.5 text-xs text-rose-600 font-bold">
+                                  <AlertTriangle size={12} className="text-rose-600 shrink-0" />
+                                  <span>{item.expDate}</span>
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 font-bold">
+                                    Hết hạn
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                                  <Calendar size={12} className="text-slate-400 shrink-0" />
+                                  <span className={item.status === "NEAR_EXPIRY" ? "text-amber-700 font-medium" : ""}>{item.expDate}</span>
+                                  {item.daysUntilExpiry != null && item.daysUntilExpiry <= 90 && item.daysUntilExpiry >= 0 && (
+                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300">
+                                      ({item.daysUntilExpiry}d)
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
@@ -434,7 +703,25 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
-                                {/* Nút dời ô trong shelf view */}
+                                {/* Nút Xuất hủy nếu ô thùng này hết hạn */}
+                                {item.status === "EXPIRED" && (
+                                  <button
+                                    onClick={() => handleOpenDispose({
+                                      _id: item._id || item.id || item.batchId,
+                                      batchNo: item.representativeBatchNo || item.batchNo,
+                                      stock: item.stock,
+                                      unit: item.unit || "Hộp",
+                                      expDate: item.expDate,
+                                      medicineName: item.medicineName,
+                                    })}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1 shadow-2xs border border-rose-700 cursor-pointer"
+                                    title="Xuất hủy lô thuốc đã hết hạn sử dụng (GSP/GDP)"
+                                  >
+                                    <Trash2 size={11} /> Xuất hủy
+                                  </button>
+                                )}
+
+                                {/* Nút dời ô trong shelf view: mang theo danh sách batches */}
                                 <button
                                   onClick={() => setRelocateState({
                                     isOpen: true,
@@ -442,10 +729,11 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                     medicineName: item.medicineName,
                                     currentStock: item.stock,
                                     batchId: item._id || item.id || item.batchId,
-                                    batchNo: item.batchNo,
+                                    batchNo: item.representativeBatchNo || item.batchNo,
+                                    batches: item.batches,
                                   })}
-                                  className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-semibold transition flex items-center gap-1"
-                                  title="Dời lô này sang ô khác"
+                                  className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
+                                  title="Dời các lô trong thùng sang ô khác"
                                 >
                                   <ArrowLeftRight size={11} /> Dời ô
                                 </button>
@@ -503,12 +791,121 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
           currentStock={relocateState.currentStock}
           batchId={relocateState.batchId}
           batchNo={relocateState.batchNo}
+          batches={relocateState.batches}
           unit={unit}
           onSuccess={() => {
             loadData();
             if (onRefresh) onRefresh();
           }}
         />
+      )}
+
+      {/* MODAL XÁC NHẬN XUẤT HỦY LÔ THUỐC HẾT HẠN */}
+      {disposeModal.isOpen && disposeModal.batch && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+          onClick={() => setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" })}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 pb-3 border-b border-rose-100 text-rose-700">
+              <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-200">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-slate-800">Biên Bản Xuất Hủy Lô Thuốc</h3>
+                <p className="text-xs text-rose-600 font-medium">Quy chuẩn Dược GDP/GSP & Thông tư 11/2025</p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3.5 text-xs text-slate-700">
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Dược phẩm:</span>
+                  <span className="font-bold text-slate-800 text-right">
+                    {disposeModal.batch.medicineName || medicineName}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Mã số lô:</span>
+                  <span className="font-mono font-bold text-rose-700">{disposeModal.batch.batchNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tồn kho hiện tại:</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {disposeModal.batch.stock} {disposeModal.batch.unit || unit}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Hạn sử dụng:</span>
+                  <span className="font-bold text-rose-600">
+                    {disposeModal.batch.expDate ? new Date(disposeModal.batch.expDate).toLocaleDateString("vi-VN") : "—"} (ĐÃ HẾT HẠN)
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Số lượng xuất hủy ({disposeModal.batch.unit || unit}):
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={disposeModal.batch.stock}
+                  value={disposeModal.quantity}
+                  onChange={(e) => setDisposeModal((prev) => ({ ...prev, quantity: Math.max(1, Number(e.target.value)) }))}
+                  className="w-full px-3 py-2 border rounded-xl text-slate-800 font-mono font-bold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Lý do / Căn cứ xuất hủy:
+                </label>
+                <textarea
+                  rows={2}
+                  value={disposeModal.notes}
+                  onChange={(e) => setDisposeModal((prev) => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-xl text-slate-800 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
+                ⚠️ <b>Lưu ý:</b> Thao tác này sẽ trừ số lượng tồn kho của lô, lập phiếu xuất hủy loại <code>DISPOSE</code> và đồng bộ lên CSDL Dược Quốc gia.
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" })}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={disposing}
+                onClick={handleConfirmDispose}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition flex items-center gap-1.5 border border-rose-700 cursor-pointer disabled:opacity-50"
+              >
+                {disposing ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Đang xử lý xuất hủy...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    <span>Xác nhận xuất hủy</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

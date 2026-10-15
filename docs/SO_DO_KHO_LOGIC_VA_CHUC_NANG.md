@@ -26,7 +26,7 @@ graph TD
     WH --> ZD["Khu D: Tiêu hóa & Gan mật"]
     WH --> ZE["Khu E: TPCN, Da liễu & Nội tiết"]
     WH --> ZF["Khu F: Tiểu đường, Thần kinh & Thiết bị y tế"]
-    WH --> ZR["Khu Kệ Dự Trữ FEFO (RESERVE)"]
+    WH --> ZR["Khu Kệ Dự Trữ FEFO (RESERVE: RES1, RES2, RES3, RES4 - 160 Bins)"]
 
     ZA --> R1["Kệ A1 (4 Tầng x 10 Thùng = 40 Bins)"]
     ZA --> R2["Kệ A2 (40 Bins)"]
@@ -160,8 +160,16 @@ Trạng thái của ô thùng B1..B10 phản ánh tình trạng của các lô h
   * Bảng danh sách các lô hàng đang bán tại **Thùng Chính (MAIN)**.
 
 ### 3. Bảng điều khiển Khu Kệ Dự Trữ FEFO (ReserveBatchesPanel)
-* Drawer trượt từ dưới lên, liệt kê toàn bộ các lô thuốc đang nằm tại `slotType: 'RESERVE'`.
-* Khi click vào một lô dự trữ, bản đồ tự động cuộn đến vị trí thùng chính của loại thuốc đó và kích hoạt hiệu ứng nhấp nháy phát sáng (Pulse Highlight).
+* Drawer trượt từ dưới lên, hỗ trợ **2 chế độ xem linh hoạt**:
+  * **Chế độ Bảng Danh Sách (Table View):** Liệt kê chi tiết các lô thuốc với đầy đủ thông tin thuốc, số lô, hạn dùng, số lượng tồn và **cột Vị trí Ô Thùng chuẩn hóa** (`Kệ RES1/RES2/RES3 · Tầng 1..4 · Thùng B1..B10`).
+  * **Chế độ Sơ Đồ Phân Kệ & Ô Thùng (Rack & Bin Grid):** Cho phép chọn từng Kệ Dự Trữ (`RES1`, `RES2`, `RES3`), xem trực quan 4 Tầng và 10 Ô Thùng (B1..B10) của từng tầng với tên thuốc, số lượng tồn và trạng thái FEFO.
+* Khi click vào một lô dự trữ hoặc ô thùng dự trữ, hệ thống mở ngay `ShelfDetailModal` hoặc cuộn đến vị trí để kiểm tra và dời ô.
+
+### 4. Quy Chuẩn Phân Kệ & Ô Thùng Khu Dự Trữ (Reserve Zone Architecture)
+* **Xóa bỏ tình trạng để lộn xộn:** Khu Dự Trữ được quy hoạch chuẩn hóa thành **3 Dãy Kệ (`RES1`, `RES2`, `RES3`)**, mỗi kệ có **4 Tầng (T1..T4)**, mỗi tầng có **10 Ô Thùng (B1..B10)**, tạo ra tổng cộng **120 ô thùng vật lý**.
+* **Đặc quyền Lưu trữ Đệm:** Không bị giới hạn bởi quy tắc cứng 1 thùng 1 loại thuốc của các kệ chính A-F. Cho phép lưu trữ hỗn hợp nhiều loại thuốc hoặc nhiều lô hàng khác nhau phục vụ đệm tồn kho và điều chuyển.
+* **Cơ chế Nút Bấm Sổ Kệ Dự Trữ:** Trên bản đồ tổng quan 2D, các kệ dự trữ mặc định được thu gọn để tránh lộn xộn. Chỉ khi người dùng bấm nút **"📂 Bấm để sổ ra các kệ của Khu Dự Trữ (RES1, RES2, RES3)"** thì hệ thống mới bung danh sách các kệ và lưới 10 ô thùng.
+* **Hỗ trợ Dời Ô Toàn Diện (RelocateBinModal):** Khi dời ô sang Khu Dự Trữ, giao diện cho phép chọn chính xác Kệ Dự Trữ (`RES1`, `RES2`, `RES3`), Tầng (1..4) và Ô Thùng (B1..B10) đích, xóa bỏ hoàn toàn lỗi giao diện và tình trạng dồn cục vô định hình.
 
 ---
 
@@ -313,3 +321,74 @@ TÓM TẮT AUDIT TOÀN BỘ KHO HÀNG GSP (96 TẦNG KỆ)
 1. **Chuẩn hóa GSP triệt để:** Việc phân định rõ ràng 5 cấp bậc lưu trữ (Zone -> Rack -> Shelf -> Bin -> Batch) cùng quy tắc "1 Thùng = 1 Loại Thuốc" giúp hệ thống vận hành chuyên nghiệp, loại bỏ hoàn toàn nguy cơ nhầm lẫn thuốc.
 2. **Nguyên tắc Single Source of Truth:** Bất kỳ thao tác xem sơ đồ kho hay mở modal chi tiết đều truy xuất từ các lô hàng thực tế còn tồn kho, đảm bảo số liệu hiển thị luôn đồng nhất tuyệt đối giữa mọi góc nhìn của người dùng.
 3. **Quy trình giám sát định kỳ:** Khi có đợt nhập kho lớn làm phát sinh số lượng thuốc vượt quá 960 thùng chính, hệ thống tự động đưa vào Khu Dự Trữ và cảnh báo thủ kho trên giao diện để có kế hoạch mở rộng dãy kệ hoặc điều chuyển hàng sang các chi nhánh bán lẻ.
+
+---
+
+## IX. CẬP NHẬT LUỒNG NGHIỆM THU NHẬP KHO (GRN) & ĐỒNG BỘ VỊ TRÍ SƠ ĐỒ KHO (15/10/2026)
+
+### 1. Cơ Chế Auto-Fill Vị Trí Thông Minh Khi Nhập Hàng
+* **Nghiệp vụ:** Khi một loại thuốc đã được quy hoạch vị trí trên kệ chính (`MAIN`), việc nhập thêm lô mới cho thuốc đó sẽ ưu tiên xếp vào đúng ô Thùng (Bin) hiện hữu.
+* **Triển khai:** 
+  * Ngay khi mở Modal Kiểm Đếm Tiếp Nhận (`IncomingOrdersTab.tsx`), hệ thống tự động gọi `inventoryMapService.warehouseSearch(medicineName)` cho từng sản phẩm.
+  * Nếu thuốc đã có vị trí kệ chính, các dropdown `Khu (Zone) → Kệ (Rack) → Tầng (Shelf) → Thùng (Bin)` sẽ được tự động điền sẵn.
+  * UI hiển thị hiệu ứng thông báo trạng thái: `Đang tự động tra cứu vị trí kho cho các thuốc...` kèm spinner.
+
+### 2. Chuẩn Hóa Ánh Xạ Vị Trí (GRN → Sơ Đồ Kho)
+* Khắc phục triệt để lỗi mất dữ liệu vị trí do lệch trường schema:
+  * Trong Schema `GoodsReceiptNoteItem`, trường chuẩn là `shelvedLocation`.
+  * Đã sửa `createGoodsReceiptNote()` và `verifyInspectionItem()` để đồng bộ lưu cả `shelvedLocation` và `location`.
+  * Khi hàm `approveGoodsReceiptNote()` chạy, hệ thống đọc `locSource = item.shelvedLocation || item.location` và gán chính xác 100% vào `MedicineBatch.location`.
+  * Sơ đồ kho 2D/3D lập tức hiển thị lô hàng mới đúng vào ô thùng đã chọn mà không bị rơi về mặc định `A1/1/1`.
+
+### 3. Xử Lý Phê Duyệt Idempotent Chống Lỗi Xung Đột Kafka (HTTP 409)
+* Khi gọi Kafka `inventory.grn.approve`, nếu gặp trễ mạng hoặc cơ chế retry của RxJS, backend xử lý theo hướng Idempotent:
+  * Nếu `grn.status === "COMPLETED"`, backend trả về thành công an toàn (`success: true`) thay vì ném lỗi `RpcException 409`.
+  * Frontend nhận phản hồi thành công, đóng modal kiểm đếm và hiển thị Toast màu xanh hoàn tất.
+
+### 4. Khắc Phục Lỗi Tra Cứu Vị Trí Tự Động & Tối Ưu UX BinLocationPicker (15/10/2026)
+* **Nguyên nhân cốt lõi gây lỗi:**
+  * Trong `warehouseSearch()`, hàm kiểm tra ObjectId dùng cú pháp `mongoose.Types.ObjectId.isValid()`, nhưng file `medicine.service.ts` chỉ import `{ Model }` mà thiếu `Types`. Điều này dẫn đến ngoại lệ Runtime `ReferenceError: mongoose is not defined` (HTTP 500) mỗi khi API tra cứu vị trí được gọi.
+  * Do backend ném lỗi 500, khối `catch(() => [])` ở Frontend rơi vào mảng rỗng, khiến form kiểm đếm luôn fallback về vị trí mặc định ban đầu là `Khu A → Kệ A1 → Tầng 1 → Thùng B1`.
+  * Tại `A1-T1-B1`, hệ thống trong cơ sở dữ liệu thực tế đang chứa 306 hộp thuộc 3 lô thuốc khác (`Dung dịch Ringer Lactate...`), do đó component `BinLocationPicker` phát hiện ô này có 306 hộp cũ và hiển thị cảnh báo.
+* **Biện pháp xử lý toàn diện:**
+  1. **Backend:** Bổ sung `import { Model, Types } from 'mongoose'`, chuẩn hóa `Types.ObjectId` và mở rộng truy vấn `allMedIds` (kết hợp cả dạng string và ObjectId) trong `warehouseSearch()`. Đảm bảo API trả về HTTP 200 tức thì với vị trí chính xác của thuốc (Ví dụ: Siro Bisolvon Kids trả về đúng `Khu B → Kệ B1 → Tầng 1 → Thùng B9`).
+  2. **Frontend `BinLocationPicker`:**
+     - Phân định rõ ràng 2 trường hợp:
+       * **Cùng loại thuốc:** Hiển thị Badge màu xanh xác nhận `📦 Ô thùng chuẩn của thuốc: Hiện có X đơn vị (Y lô cũ, cận date nhất: ...)`, thông báo lô mới sẽ được lưu cùng ô theo chuẩn FEFO.
+       * **Khác loại thuốc:** Hiển thị Cảnh báo màu vàng `⚠️ Chú ý: Thùng ... đang chứa thuốc khác: ...! Chuẩn GSP yêu cầu mỗi ô chỉ chứa 1 loại thuốc`.
+     - Tích hợp trạng thái `isLoading={isFillLocLoading}` để hiển thị skeleton spinner mượt mà trong khi tra cứu, không gây chớp nháy cảnh báo sai.
+
+### 5. Cải Tiến Nghiệp Vụ FEFO: Chỉ Dời Sang Khu Dự Trữ Khi Thùng Bị Quá Tải (maxCapacity)
+* **Thực trạng trước đây:** Hệ thống áp dụng quy tắc đơn nhất (Single Batch per Bin) khắt khe: cứ mỗi khi có 1 lô mới nhập về (dù chỉ 3 chai), toàn bộ các lô cũ trong thùng đó đều bị tự động chuyển sang `slotType = RESERVE` (Khu Dự Trữ). Điều này gây quá tải Khu Dự Trữ một cách không cần thiết và đi ngược lại thực tế vận hành khi ô thùng trên kệ vẫn còn trống đến hơn 90% sức chứa (`18/200 chai`).
+* **Logic cải tiến thông minh:**
+  * Hàm `relocateBatchesToReserve()` trong `purchase.service.ts` được nâng cấp:
+    1. Kiểm tra tổng số lượng tồn dự kiến trong ô thùng: `projectedTotal = currentStock + incomingQty`.
+    2. So sánh với sức chứa tối đa của ô thùng: `maxCapacity = locInfo.maxCapacity || 200`.
+    3. **Nếu `projectedTotal <= maxCapacity`:** Giữ nguyên toàn bộ các lô cũ và lô mới cùng nằm trên Kệ Chính (`MAIN`), sắp xếp xuất kho tự nhiên theo thứ tự FEFO (lô cận date xuất trước).
+    4. **Nếu `projectedTotal > maxCapacity`:** Chỉ tự động dời phần dôi dư (`overflow = projectedTotal - maxCapacity`) sang Khu Dự Trữ để đảm bảo an toàn tải trọng kệ.
+* **Khôi phục dữ liệu:** Đã khôi phục toàn bộ các lô cũ của Siro Bisolvon Kids (`INIT-BATCH`, `TESTT10`, `TEST1510`) cùng với lô mới `LOT-15102026` về lại Kệ Chính ô Thùng `B1-T1-B9` (Tổng tồn 18 chai / sức chứa 200 chai).
+
+### 6. Nâng Cấp Giao Diện Dropdown Mã Lô, Chọn Lô Dời Ô & Chức Năng Chuyển Khu Dự Trữ (15/10/2026)
+* **1. Dropdown Mã Lô Từng Thùng Chuẩn UX:**
+  * **Trước đây:** Cột "MÃ LÔ" tại Modal chi tiết tầng kệ chỉ hiển thị chuỗi text tĩnh như `TEST1-2106 (+5 lo)`.
+  * **Nâng cấp:** Thay thế bằng nút Badge trực quan dạng `X Lô ▼` (`2 Lô ▼`, `6 Lô ▼`).
+  * **Popover Hạn Sử Dụng Chi Tiết:** Khi bấm nút, hiển thị thẻ Popover card gồm:
+    * Tiêu đề: *Hạn sử dụng chi tiết:*
+    * Danh sách từng lô thuốc: `Lô: <Mã Lô>`, Hạn dùng `d/M/yyyy`, Số lượng tồn theo đơn vị (`137 Hộp`), và nhãn trạng thái (`Hoạt động`, `Cận date`, `Hết hạn`, `Cách ly`).
+    * Tích hợp nút tác vụ nhanh "Dời ô" ngay cạnh từng lô trong popup để chuyển nhanh từng lô.
+* **2. Chọn Lô Cụ Thể Khi Dời Ô (Relocate Bin):**
+  * **Trước đây:** Chức năng chuyển vị trí / dồn kho chỉ cho phép dời nguyên cả thùng, không cho phép tách lô.
+  * **Nâng cấp:** Modal `RelocateBinModal` bổ sung bộ chọn lô thông minh:
+    * Cho phép chọn: *Chuyển toàn bộ các lô trong thùng* HOẶC *Chọn riêng một lô cụ thể*.
+    * Hiển thị số lượng chuyển chính xác tương ứng với lô được chọn.
+    * Backend `relocateBin` tiếp nhận `batchId` và chỉ cập nhật tọa độ cho lô được chỉ định.
+* **3. Phân Định Rõ Ràng: Khu F Là Kệ Thông Thường, Khu Dự Trữ Là RESERVE (Reserve Zone):**
+  * **Khu F (Kệ Chính):** Là khu vực chứa thiết bị & vật tư y tế/dược phẩm thông thường (A, B, C, D, E, F). Toàn bộ các kệ F1..F4 và thùng B1..B10 tuân thủ nguyên tắc 1 thùng 1 loại thuốc chuẩn GSP.
+  * **Khu Dự Trữ (`RESERVE`):** Đây mới chính là Khu Dự Trữ thực sự của nhà kho.
+    * Trong `RelocateBinModal`, tùy chọn **"📦 Khu Dự Trữ (Lưu Trữ Đệm Dự Phòng)"** cho phép thủ kho dời bất kỳ loại thuốc nào vào đây để đệm kho.
+    * **Backend:** Khi đích đến là `RESERVE` (`isTargetReserve`), hệ thống miễn trừ kiểm tra xung đột 1 thùng 1 thuốc, gán `slotType = 'RESERVE'` và giữ nguyên vị trí bán chính tại quầy kệ của thuốc.
+    * **Frontend:** Khi chọn Khu Dự Trữ, hệ thống tự động thiết lập tọa độ đệm, hiển thị hướng dẫn chi tiết và cho phép xác nhận chuyển tức thì mà không cần chọn tầng/thùng phức tạp.
+
+
+
+
