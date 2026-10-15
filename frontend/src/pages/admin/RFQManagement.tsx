@@ -7,6 +7,8 @@ import {
   Search,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
+  Info,
   Clock,
   Building2,
   Calendar,
@@ -55,6 +57,26 @@ export function RFQManagement() {
   const [showMatrixModal, setShowMatrixModal] = useState<boolean>(false);
   const [showAddQuoteModal, setShowAddQuoteModal] = useState<boolean>(false);
   const [selectedRfq, setSelectedRfq] = useState<RequestForQuotationData | null>(null);
+
+  // Quản lý thông báo Toast y tế chuẩn UI v2.0
+  const [toasts, setToasts] = useState<
+    { id: string; message: string; type: 'success' | 'error' | 'warning' | 'info' }[]
+  >([]);
+
+  const showToast = (
+    message: string,
+    type: 'success' | 'error' | 'warning' | 'info' = 'success'
+  ) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Create Form State
   const [formTitle, setFormTitle] = useState<string>('');
@@ -199,10 +221,10 @@ export function RFQManagement() {
     if (!window.confirm(`Bạn có chắc chắn muốn gửi RFQ [${code}] đồng loạt đến tất cả NCC được mời?`)) return;
     try {
       await rfqService.sendRfq(id);
-      alert(`✅ Đã gửi RFQ ${code} hàng loạt thành công!`);
+      showToast(`Đã gửi RFQ ${code} hàng loạt thành công!`, 'success');
       loadData();
     } catch (err: any) {
-      alert(`❌ Lỗi gửi RFQ: ${err?.response?.data?.message || err.message}`);
+      showToast(`Lỗi gửi RFQ: ${err?.response?.data?.message || err.message}`, 'error');
     }
   };
 
@@ -286,7 +308,7 @@ export function RFQManagement() {
     });
 
     if (shortageMeds.length === 0) {
-      alert("Tất cả dược phẩm trong kho hiện tại đều đang ở mức an toàn!");
+      showToast('Tất cả dược phẩm trong kho hiện tại đều đang ở mức an toàn!', 'info');
       return;
     }
 
@@ -306,7 +328,7 @@ export function RFQManagement() {
       });
 
     if (newItems.length === 0) {
-      alert("Tất cả các thuốc thiếu hụt đã có trong danh sách chào giá.");
+      showToast('Tất cả các thuốc thiếu hụt đã có trong danh sách chào giá.', 'info');
       return;
     }
 
@@ -315,9 +337,18 @@ export function RFQManagement() {
 
   // Submit Create RFQ
   const handleCreateSubmit = async () => {
-    if (!formTitle.trim()) return alert('Vui lòng nhập tiêu đề RFQ');
-    if (selectedMedicineIds.length === 0) return alert('Vui lòng chọn ít nhất 1 mặt hàng thuốc cần báo giá');
-    if (selectedSupplierIds.length === 0) return alert('Vui lòng chọn ít nhất 1 Nhà cung cấp');
+    if (!formTitle.trim()) {
+      showToast('Vui lòng nhập tiêu đề RFQ', 'warning');
+      return;
+    }
+    if (selectedMedicineIds.length === 0) {
+      showToast('Vui lòng chọn ít nhất 1 mặt hàng thuốc cần báo giá', 'warning');
+      return;
+    }
+    if (selectedSupplierIds.length === 0) {
+      showToast('Vui lòng chọn ít nhất 1 Nhà cung cấp', 'warning');
+      return;
+    }
 
     const targetSuppliers = suppliers
       .filter((s) => selectedSupplierIds.includes(s._id || s.id || ''))
@@ -343,11 +374,11 @@ export function RFQManagement() {
     try {
       setIsSubmitting(true);
       await rfqService.createRfq(payload);
-      alert('✅ Đã tạo thành công Yêu cầu báo giá (RFQ)!');
+      showToast('Đã tạo thành công Yêu cầu báo giá (RFQ)!', 'success');
       setShowCreateModal(false);
       loadData();
     } catch (err: any) {
-      alert(`❌ Lỗi tạo RFQ: ${err?.response?.data?.message || err.message}`);
+      showToast(`Lỗi tạo RFQ: ${err?.response?.data?.message || err.message}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -356,13 +387,14 @@ export function RFQManagement() {
   // Copy Magic Link to clipboard for Sales (Zalo)
   const handleCopyMagicLink = (target: any, rfq: RequestForQuotationData) => {
     if (!target.token) {
-      return alert('Chưa có mã Token liên kết cho NCC này.');
+      showToast('Chưa có mã Token liên kết cho NCC này.', 'warning');
+      return;
     }
     const origin = window.location.origin;
     const link = `${origin}/supplier-quote/${target.token}`;
     const message = `Kính gửi anh/chị ${target.salesRepName || 'đại diện'} (${target.supplierName}),\nChuỗi Nhà thuốc Pharmachain trân trọng gửi lời mời tham gia chào giá cho đợt mua hàng [${rfq.rfqCode} - ${rfq.title}].\n👉 Vui lòng truy cập đường link sau để nhập báo giá trực tiếp (Không cần đăng nhập):\n${link}\n⏰ Hạn chót nhận báo giá: ${new Date(rfq.deadline).toLocaleDateString('vi-VN')}\nTrân trọng!`;
     navigator.clipboard.writeText(message);
-    alert(`✅ Đã sao chép link báo giá Zalo cho [${target.supplierName}]!\nBạn có thể dán (Ctrl+V) vào tin nhắn Zalo gửi cho Sales.`);
+    showToast(`Đã sao chép link báo giá Zalo cho [${target.supplierName}]! Bạn có thể dán (Ctrl+V) vào tin nhắn Zalo gửi cho Sales.`, 'success');
   };
 
   // Open Matrix Comparison
@@ -426,11 +458,11 @@ export function RFQManagement() {
     try {
       setIsSubmitting(true);
       await rfqService.submitQuotation(selectedRfq._id || selectedRfq.id || '', payload);
-      alert('✅ Đã ghi nhận báo giá của NCC thành công!');
+      showToast('Đã ghi nhận báo giá của NCC thành công!', 'success');
       setShowAddQuoteModal(false);
       loadData();
     } catch (err: any) {
-      alert(`❌ Lỗi nộp báo giá: ${err?.response?.data?.message || err.message}`);
+      showToast(`Lỗi nộp báo giá: ${err?.response?.data?.message || err.message}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -449,11 +481,11 @@ export function RFQManagement() {
         supplierId: quotation.supplierId,
         reason: 'Giá cạnh tranh, đáp ứng đầy đủ yêu cầu Hạn dùng và thời hạn công nợ',
       });
-      alert(`🎉 Đã chọn thầu thành công cho ${quotation.supplierName} và phát hành Đơn đặt hàng PO!`);
+      showToast(`Đã chọn thầu thành công cho ${quotation.supplierName} và phát hành Đơn đặt hàng PO!`, 'success');
       setShowMatrixModal(false);
       loadData();
     } catch (err: any) {
-      alert(`❌ Lỗi chọn thầu: ${err?.response?.data?.message || err.message}`);
+      showToast(`Lỗi chọn thầu: ${err?.response?.data?.message || err.message}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1532,6 +1564,41 @@ export function RFQManagement() {
           </div>
         </div>
       )}
+
+      {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ */}
+      <div className="fixed top-6 right-6 z-[99999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
+              t.type === 'error'
+                ? 'bg-rose-950/95 text-rose-100 border-rose-800'
+                : t.type === 'warning'
+                ? 'bg-amber-950/95 text-amber-100 border-amber-800'
+                : t.type === 'info'
+                ? 'bg-blue-950/95 text-blue-100 border-blue-800'
+                : 'bg-emerald-950/95 text-emerald-100 border-emerald-800'
+            }`}
+          >
+            <div className="shrink-0 mt-0.5">
+              {t.type === 'error' && <AlertCircle size={18} className="text-rose-400" />}
+              {t.type === 'warning' && <AlertTriangle size={18} className="text-amber-400" />}
+              {t.type === 'info' && <Info size={18} className="text-blue-400" />}
+              {t.type === 'success' && <CheckCircle2 size={18} className="text-emerald-400" />}
+            </div>
+            <div className="flex-1 text-xs font-semibold leading-relaxed">
+              {t.message}
+            </div>
+            <button
+              type="button"
+              onClick={() => removeToast(t.id)}
+              className="shrink-0 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
