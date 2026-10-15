@@ -71,6 +71,11 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
           src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
           alt={med.name}
           loading="lazy"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.onerror = null;
+            target.src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
+          }}
           className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
         />
 

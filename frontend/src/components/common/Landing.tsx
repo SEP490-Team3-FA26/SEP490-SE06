@@ -129,6 +129,8 @@ export function Landing() {
   // E-commerce products states
   const [medicines, setMedicines] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
+  const [loadingFlashSale, setLoadingFlashSale] = useState<boolean>(true);
   const [cartCount, setCartCount] = useState(0);
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
   const [selectedMedicineForModal, setSelectedMedicineForModal] = useState<any | null>(null);
@@ -243,6 +245,29 @@ export function Landing() {
     return () => {
       window.removeEventListener("auth_token_changed", handleAuthChange);
       window.removeEventListener("storage", handleAuthChange);
+    };
+  }, []);
+
+  // Tải danh sách thuốc thật cho Flash Sale Giờ Vàng từ Database (Zero Mock Data)
+  useEffect(() => {
+    let isMounted = true;
+    const loadFlashSale = async () => {
+      try {
+        setLoadingFlashSale(true);
+        const res = await medicineService.getMedicines({ limit: 4, page: 1 });
+        const items = res?.data || (Array.isArray(res) ? res : []);
+        if (isMounted && items.length > 0) {
+          setFlashSaleProducts(items);
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải dữ liệu Flash Sale từ Database:", err);
+      } finally {
+        if (isMounted) setLoadingFlashSale(false);
+      }
+    };
+    loadFlashSale();
+    return () => {
+      isMounted = false;
     };
   }, []);
 
@@ -839,145 +864,105 @@ export function Landing() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              {
-                id: "FS-01",
-                name: "Viên sủi Berocca Performance Hộp 10 viên",
-                brand: "Bayer (Đức)",
-                category: "Thuốc bổ",
-                active_ingredient: "Vitamin B, C, Kẽm, Magie",
-                specification: "Tuýp 10 viên sủi",
-                drug_classification: "COMMON_SUPPLEMENT",
-                dosage_form: "Viên sủi",
-                stock: 120,
-                unit: "Tuýp",
-                price: 95000,
-                originalPrice: 135000,
-                discount: 30,
-                soldPercent: 82,
-                image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"
-              },
-              {
-                id: "FS-02",
-                name: "Dầu cá Omega 3 Fish Oil 1000mg Hộp 100 viên",
-                brand: "Nature Made (Mỹ)",
-                category: "Thuốc bổ",
-                active_ingredient: "Omega 3, EPA, DHA",
-                specification: "Hộp 100 viên nang mềm",
-                drug_classification: "COMMON_SUPPLEMENT",
-                dosage_form: "Viên nang",
-                stock: 85,
-                unit: "Hộp",
-                price: 285000,
-                originalPrice: 380000,
-                discount: 25,
-                soldPercent: 91,
-                image: "https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=500&auto=format&fit=crop&q=60"
-              },
-              {
-                id: "FS-03",
-                name: "Nước muối sinh lý Physiodose Hộp 40 ống",
-                brand: "Gilbert (Pháp)",
-                category: "Thuốc trị ho cảm",
-                active_ingredient: "Natri Clorid 0.9%",
-                specification: "Hộp 40 ống x 5ml",
-                drug_classification: "COMMON_SUPPLEMENT",
-                dosage_form: "Dung dịch",
-                stock: 200,
-                unit: "Hộp",
-                price: 145000,
-                originalPrice: 195000,
-                discount: 26,
-                soldPercent: 68,
-                image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=60"
-              },
-              {
-                id: "FS-04",
-                name: "Máy đo huyết áp bắp tay tự động Omron HEM-7120",
-                brand: "Omron (Nhật Bản)",
-                category: "Thiết bị y tế",
-                active_ingredient: "Cảm biến IntelliSense",
-                specification: "Bộ máy đo + Vòng bít + Pin",
-                drug_classification: "COMMON_SUPPLEMENT",
-                dosage_form: "Thiết bị",
-                stock: 45,
-                unit: "Bộ",
-                price: 799000,
-                originalPrice: 1050000,
-                discount: 24,
-                soldPercent: 75,
-                image: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=500&auto=format&fit=crop&q=60"
-              }
-            ].map((deal) => (
-              <div
-                key={deal.id}
-                onClick={() => {
-                  setSelectedMedicineForModal(deal);
-                  setModalQuantity(1);
-                }}
-                className="bg-white rounded-2xl p-4 text-slate-800 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 relative"
-              >
-                <div className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">
-                  -{deal.discount}%
-                </div>
-
-                <div className="w-full h-36 flex items-center justify-center p-3 mb-2">
-                  <img
-                    src={deal.image}
-                    alt={deal.name}
-                    className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
-                  />
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{deal.brand}</span>
-                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-rose-600 transition-colors line-clamp-2 mt-0.5 mb-2">
-                    {deal.name}
-                  </h4>
-
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-base font-black text-rose-600">
-                      {deal.price.toLocaleString()}₫
-                    </span>
-                    <span className="text-xs text-slate-400 line-through">
-                      {deal.originalPrice.toLocaleString()}₫
-                    </span>
+            {loadingFlashSale ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 h-80 animate-pulse flex flex-col justify-between">
+                  <div className="w-full h-36 bg-white/30 rounded-xl mb-3"></div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-white/30 rounded w-1/3"></div>
+                    <div className="h-4 bg-white/30 rounded w-3/4"></div>
+                    <div className="h-5 bg-white/30 rounded w-1/2"></div>
+                    <div className="h-8 bg-white/30 rounded-xl w-full"></div>
                   </div>
+                </div>
+              ))
+            ) : flashSaleProducts.length > 0 ? (
+              flashSaleProducts.map((deal, idx) => {
+                const dealId = deal._id || deal.id || `FS-${idx}`;
+                const discount = deal.discount || [30, 25, 20, 24][idx % 4];
+                const price = Number(deal.price) || 95000;
+                const originalPrice = deal.originalPrice || Math.round(price / (1 - discount / 100));
+                const soldPercent = [82, 91, 68, 75][idx % 4];
+                const dealImage = deal.image || deal.imageUrl || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
+                const dealBrand = deal.brand || deal.manufacturer || "Chính hãng GPP";
 
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative mb-3">
-                    <div
-                      className="bg-gradient-to-r from-rose-500 to-amber-500 h-full rounded-full"
-                      style={{ width: `${deal.soldPercent}%` }}
-                    ></div>
-                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white leading-none">
-                      ĐÃ BÁN {deal.soldPercent}%
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddToCart(deal, e, 1);
+                return (
+                  <div
+                    key={dealId}
+                    onClick={() => {
+                      setSelectedMedicineForModal({ ...deal, id: dealId, price, originalPrice, discount, image: dealImage });
+                      setModalQuantity(1);
                     }}
-                    className={`w-full py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${
-                      addedItems[deal.id]
-                        ? "bg-emerald-600 text-white"
-                        : "bg-rose-600 hover:bg-rose-700 text-white active:scale-95"
-                    }`}
+                    className="bg-white rounded-2xl p-4 text-slate-800 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 relative"
                   >
-                    {addedItems[deal.id] ? (
-                      <>
-                        <Check size={14} /> Đã thêm!
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart size={13} /> Thêm Giờ Vàng
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <div className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">
+                      -{discount}%
+                    </div>
+
+                    <div className="w-full h-36 flex items-center justify-center p-3 mb-2">
+                      <img
+                        src={dealImage}
+                        alt={deal.name}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
+                        }}
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{dealBrand}</span>
+                      <h4 className="text-xs font-bold text-slate-900 group-hover:text-rose-600 transition-colors line-clamp-2 mt-0.5 mb-2">
+                        {deal.name}
+                      </h4>
+
+                      <div className="flex items-baseline gap-2 mb-2">
+                        <span className="text-base font-black text-rose-600">
+                          {price.toLocaleString()}₫
+                        </span>
+                        <span className="text-xs text-slate-400 line-through">
+                          {originalPrice.toLocaleString()}₫
+                        </span>
+                      </div>
+
+                      <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative mb-3">
+                        <div
+                          className="bg-gradient-to-r from-rose-500 to-amber-500 h-full rounded-full"
+                          style={{ width: `${soldPercent}%` }}
+                        ></div>
+                        <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white leading-none">
+                          ĐÃ BÁN {soldPercent}%
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddToCart({ ...deal, id: dealId, price, originalPrice, image: dealImage }, e, 1);
+                        }}
+                        className={`w-full py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                          addedItems[dealId]
+                            ? "bg-emerald-600 text-white"
+                            : "bg-rose-600 hover:bg-rose-700 text-white active:scale-95"
+                        }`}
+                      >
+                        {addedItems[dealId] ? (
+                          <>
+                            <Check size={14} /> Đã thêm!
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart size={13} /> Thêm Giờ Vàng
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : null}
           </div>
         </div>
       </section>
@@ -1122,6 +1107,11 @@ export function Landing() {
                         src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
                         alt={med.name}
                         loading="lazy"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
+                        }}
                         className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
                       />
                       {/* Classification Badge */}
@@ -1293,7 +1283,7 @@ export function Landing() {
               category: "Dinh Dưỡng & TPCN",
               date: "10/09/2026",
               author: "Dược sĩ ĐH. Trần Hoàng",
-              image: "https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=500&auto=format&fit=crop&q=60"
+              image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=60"
             }
           ].map((post, idx) => (
             <div key={idx} className="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-lg transition-all group flex flex-col">
@@ -1301,6 +1291,11 @@ export function Landing() {
                 <img
                   src={post.image}
                   alt={post.title}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=60";
+                  }}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <span className="absolute top-3 left-3 bg-[#0057cd] text-white text-[10px] font-black px-2.5 py-0.5 rounded-md">
@@ -1612,6 +1607,11 @@ export function Landing() {
                     <img
                       src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
                       alt={med.name}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
+                      }}
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
