@@ -8,6 +8,12 @@ on:
       - main
   workflow_dispatch:
 
+# All branches deploy to the same checkout and VPS. Finish an active deployment
+# before starting the newest queued run; never interrupt a deployment mid-update.
+concurrency:
+  group: production-inet-vps
+  cancel-in-progress: false
+
 jobs:
   # ============================================================
   # 1. CI: Kiểm tra chất lượng mã nguồn trước khi deploy
@@ -23,6 +29,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies & Test Backend
         working-directory: backend
