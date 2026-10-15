@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
@@ -713,11 +714,11 @@ export function RFQManagement() {
         )}
       </div>
 
-      {/* MODAL 1: TẠO RFQ MỚI */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl my-auto flex flex-col max-h-[88vh] overflow-hidden">
-            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
+      {/* MODAL 1: TẠO RFQ MỚI (Portal gắn trực tiếp vào body, không bị Sidebar/Header che khuất) */}
+      {showCreateModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl my-auto flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
               <div className="flex items-center gap-2">
                 <FileText size={20} className="text-blue-400" />
                 <h3 className="font-bold text-sm">Tạo Yêu Cầu Báo Giá (RFQ) Hàng Loạt</h3>
@@ -1153,14 +1154,15 @@ export function RFQManagement() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 2: MA TRẬN SO SÁNH BÁO GIÁ & CHỌN THẦU (QUOTATION MATRIX) */}
-      {showMatrixModal && selectedRfq && (
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl my-auto flex flex-col max-h-[88vh] overflow-hidden">
-            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-900 to-indigo-950 text-white shrink-0">
+      {showMatrixModal && selectedRfq && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-5xl my-auto flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-900 to-indigo-950 text-white shrink-0">
               <div>
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   Ma Trận So Sánh Báo Giá - {selectedRfq.rfqCode}
@@ -1451,14 +1453,15 @@ export function RFQManagement() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 3: GHI NHẬN BÁO GIÁ NCC */}
-      {showAddQuoteModal && selectedRfq && (
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-2xl my-auto flex flex-col max-h-[88vh] overflow-hidden">
-            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
+      {showAddQuoteModal && selectedRfq && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-2xl my-auto flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
               <h3 className="font-bold text-sm">Ghi Nhận Báo Giá NCC - {selectedRfq.rfqCode}</h3>
               <button onClick={() => setShowAddQuoteModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
                 <X size={18} />
@@ -1562,7 +1565,8 @@ export function RFQManagement() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ */}
