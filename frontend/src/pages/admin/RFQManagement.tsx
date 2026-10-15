@@ -43,6 +43,7 @@ import {
 } from '../../services/purchase/rfq.service';
 import { supplierService, Supplier } from '../../services/purchase/supplier.service';
 import { medicineService } from '../../services/inventory/medicine.service';
+import { useSocket } from '../../hooks/useSocket';
 
 export function RFQManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -58,6 +59,9 @@ export function RFQManagement() {
   const [showMatrixModal, setShowMatrixModal] = useState<boolean>(false);
   const [showAddQuoteModal, setShowAddQuoteModal] = useState<boolean>(false);
   const [selectedRfq, setSelectedRfq] = useState<RequestForQuotationData | null>(null);
+
+  // Kết nối Realtime Socket.IO
+  const { socket } = useSocket();
 
   // Quản lý thông báo Toast y tế chuẩn UI v2.0
   const [toasts, setToasts] = useState<
@@ -139,6 +143,55 @@ export function RFQManagement() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Lắng nghe sự kiện Realtime Socket.IO khi NCC nộp báo giá để cập nhật ngay lập tức ma trận
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRealtimeQuoteUpdate = async (data: any) => {
+      console.log('⚡ [Realtime RFQ] Nhận thông báo báo giá mới từ server:', data);
+      loadData();
+
+      // Nếu đang xem chi tiết RFQ hoặc mở ma trận so sánh
+      if (selectedRfq) {
+        const currentId = selectedRfq._id || selectedRfq.id;
+        try {
+          const fresh = await rfqService.getRfqById(currentId);
+          if (fresh) {
+            setSelectedRfq(fresh);
+            showToast('🎉 Nhà cung cấp vừa nộp báo giá! Bảng ma trận đã tự động cập nhật.', 'success');
+          }
+        } catch (_) {}
+      }
+    };
+
+    socket.on('rfq_quote_submitted', handleRealtimeQuoteUpdate);
+    socket.on('rfq_updated', handleRealtimeQuoteUpdate);
+    socket.on('rfq_awarded', handleRealtimeQuoteUpdate);
+
+    return () => {
+      socket.off('rfq_quote_submitted', handleRealtimeQuoteUpdate);
+      socket.off('rfq_updated', handleRealtimeQuoteUpdate);
+      socket.off('rfq_awarded', handleRealtimeQuoteUpdate);
+    };
+  }, [socket, selectedRfq]);
+
+  // Polling nhẹ tự động làm tươi dữ liệu mỗi 3.5s khi đang mở Modal Ma Trận để đảm bảo 100% realtime
+  useEffect(() => {
+    if (!showMatrixModal || !selectedRfq) return;
+    const interval = setInterval(async () => {
+      try {
+        const currentId = selectedRfq._id || selectedRfq.id;
+        const fresh = await rfqService.getRfqById(currentId);
+        if (fresh && JSON.stringify(fresh.quotations) !== JSON.stringify(selectedRfq.quotations)) {
+          setSelectedRfq(fresh);
+          loadData();
+        }
+      } catch (_) {}
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [showMatrixModal, selectedRfq]);
 
   // Xử lý tự động prefill thuốc cần chào giá từ Kho hoặc AI Forecast qua sessionStorage hoặc URL query
   useEffect(() => {
@@ -277,13 +330,16 @@ export function RFQManagement() {
     setShowCreateModal(true);
   };
 
-  // Thêm thuốc từ danh mục kho vào danh sách chào giá
+  // Thêm thuốc từ danh mục kho vào danh sách chào giá (Tự động lấy Giá trần chuẩn GPP / BYT)
   const handleAddMedicineToRfq = (medId: string) => {
     const med = medicines.find((m) => (m._id || m.id) === medId);
     if (!med) return;
     if (selectedMedicineIds.some((item) => item.medicineId === medId)) return;
     const stock = Number(med.stock || 0);
     const defaultQty = stock <= 0 ? 100 : 50;
+    const gppCeilingPrice = Number(med.declaredPrice || med.declared_price || med.gppCeilingPrice || med.price || 0);
+    const nationalDrugCode = med.national_drug_code || med.registration_number || '';
+
     setSelectedMedicineIds((prev) => [
       ...prev,
       {
@@ -293,14 +349,14 @@ export function RFQManagement() {
         unit: med.unit || (med.units?.[0]?.unitName) || 'Hộp',
         currentStock: stock,
         quantityRequested: defaultQty,
-        targetPrice: med.price || 0,
-        nationalDrugCode: med.national_drug_code || med.registration_number || '',
-        declaredPrice: med.price || 0,
+        targetPrice: gppCeilingPrice,
+        nationalDrugCode: nationalDrugCode,
+        declaredPrice: gppCeilingPrice,
       },
     ]);
   };
 
-  // Chọn hàng loạt các thuốc đang thiếu hụt (Hết hàng hoặc Tồn < ROP) vào RFQ
+  // Chọn hàng loạt các thuốc đang thiếu hụt (Hết hàng hoặc Tồn < ROP) vào RFQ kèm Giá trần GPP
   const handleAddAllShortageMedicines = () => {
     const shortageMeds = medicines.filter((m) => {
       const stock = Number(m.stock || 0);
@@ -317,6 +373,8 @@ export function RFQManagement() {
       .filter((m) => !selectedMedicineIds.some((it) => it.medicineId === (m._id || m.id)))
       .map((m) => {
         const stock = Number(m.stock || 0);
+        const gppPrice = Number(m.declaredPrice || m.declared_price || m.gppCeilingPrice || m.price || 0);
+        const ndc = m.national_drug_code || m.registration_number || '';
         return {
           medicineId: m._id || m.id,
           medicineName: m.name,
@@ -324,7 +382,9 @@ export function RFQManagement() {
           unit: m.unit || (m.units?.[0]?.unitName) || 'Hộp',
           currentStock: stock,
           quantityRequested: stock <= 0 ? 100 : 50,
-          targetPrice: m.price || 0,
+          targetPrice: gppPrice,
+          declaredPrice: gppPrice,
+          nationalDrugCode: ndc,
         };
       });
 
@@ -458,9 +518,16 @@ export function RFQManagement() {
 
     try {
       setIsSubmitting(true);
-      await rfqService.submitQuotation(selectedRfq._id || selectedRfq.id || '', payload);
+      const rfqId = selectedRfq._id || selectedRfq.id || '';
+      await rfqService.submitQuotation(rfqId, payload);
       showToast('Đã ghi nhận báo giá của NCC thành công!', 'success');
       setShowAddQuoteModal(false);
+
+      // Tự động làm tươi ngay lập tức selectedRfq để bảng ma trận nhảy số realtime không cần F5
+      const freshRfq = await rfqService.getRfqById(rfqId);
+      if (freshRfq) {
+        setSelectedRfq(freshRfq);
+      }
       loadData();
     } catch (err: any) {
       showToast(`Lỗi nộp báo giá: ${err?.response?.data?.message || err.message}`, 'error');
@@ -886,7 +953,7 @@ export function RFQManagement() {
                           <th className="py-2 px-3">SKU / Nhóm</th>
                           <th className="py-2 px-3 text-center">ĐVT</th>
                           <th className="py-2 px-3 text-center">Tồn kho</th>
-                          <th className="py-2 px-3 text-right">Giá tham chiếu</th>
+                          <th className="py-2 px-3 text-right">Giá trần GPP / BYT</th>
                           <th className="py-2 px-3 text-right">Thao tác</th>
                         </tr>
                       </thead>
@@ -903,6 +970,7 @@ export function RFQManagement() {
                             const isSelected = selectedMedicineIds.some((it) => it.medicineId === medId);
                             const stock = Number(med.stock || 0);
                             const reorderPoint = Number(med.reorderPoint || med.minStock || 30);
+                            const gppPrice = Number(med.declaredPrice || med.declared_price || med.gppCeilingPrice || med.price || 0);
 
                             return (
                               <tr key={medId} className={`hover:bg-blue-50/40 transition-colors ${isSelected ? 'bg-blue-50/20' : ''}`}>
@@ -936,8 +1004,13 @@ export function RFQManagement() {
                                     </span>
                                   )}
                                 </td>
-                                <td className="py-2 px-3 text-right font-semibold text-slate-700">
-                                  {Number(med.price || 0).toLocaleString('vi-VN')} đ
+                                <td className="py-2 px-3 text-right">
+                                  <span className="font-bold text-slate-800 block">
+                                    {gppPrice.toLocaleString('vi-VN')} đ
+                                  </span>
+                                  <span className="text-[9px] text-teal-700 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded font-mono font-bold inline-block">
+                                    Trần GPP
+                                  </span>
                                 </td>
                                 <td className="py-2 px-3 text-right">
                                   {isSelected ? (
@@ -1569,40 +1642,43 @@ export function RFQManagement() {
         document.body
       )}
 
-      {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ */}
-      <div className="fixed top-6 right-6 z-[99999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
-              t.type === 'error'
-                ? 'bg-rose-950/95 text-rose-100 border-rose-800'
-                : t.type === 'warning'
-                ? 'bg-amber-950/95 text-amber-100 border-amber-800'
-                : t.type === 'info'
-                ? 'bg-blue-950/95 text-blue-100 border-blue-800'
-                : 'bg-emerald-950/95 text-emerald-100 border-emerald-800'
-            }`}
-          >
-            <div className="shrink-0 mt-0.5">
-              {t.type === 'error' && <AlertCircle size={18} className="text-rose-400" />}
-              {t.type === 'warning' && <AlertTriangle size={18} className="text-amber-400" />}
-              {t.type === 'info' && <Info size={18} className="text-blue-400" />}
-              {t.type === 'success' && <CheckCircle2 size={18} className="text-emerald-400" />}
-            </div>
-            <div className="flex-1 text-xs font-semibold leading-relaxed">
-              {t.message}
-            </div>
-            <button
-              type="button"
-              onClick={() => removeToast(t.id)}
-              className="shrink-0 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5"
+      {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ (Gắn trực tiếp vào body với z-[999999] để không bao giờ bị modal che) */}
+      {typeof document !== 'undefined' && createPortal(
+        <div className="fixed top-6 right-6 z-[999999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
+                t.type === 'error'
+                  ? 'bg-rose-950/95 text-rose-100 border-rose-800'
+                  : t.type === 'warning'
+                  ? 'bg-amber-950/95 text-amber-100 border-amber-800'
+                  : t.type === 'info'
+                  ? 'bg-blue-950/95 text-blue-100 border-blue-800'
+                  : 'bg-emerald-950/95 text-emerald-100 border-emerald-800'
+              }`}
             >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
-      </div>
+              <div className="shrink-0 mt-0.5">
+                {t.type === 'error' && <AlertCircle size={18} className="text-rose-400" />}
+                {t.type === 'warning' && <AlertTriangle size={18} className="text-amber-400" />}
+                {t.type === 'info' && <Info size={18} className="text-blue-400" />}
+                {t.type === 'success' && <CheckCircle2 size={18} className="text-emerald-400" />}
+              </div>
+              <div className="flex-1 text-xs font-semibold leading-relaxed">
+                {t.message}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeToast(t.id)}
+                className="shrink-0 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

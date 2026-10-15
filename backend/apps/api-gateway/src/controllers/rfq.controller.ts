@@ -98,10 +98,18 @@ export class RfqController implements OnModuleInit {
     entityType: 'SupplierQuotation',
   })
   async submitQuotation(@Param('id') id: string, @Body() quotationDto: any) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.rfq.submit_quote', {
+    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.rfq.submit_quote', {
       id,
       quotation: quotationDto,
     });
+    if (this.websocketGateway?.server) {
+      this.websocketGateway.server.emit('rfq_quote_submitted', {
+        rfqId: id,
+        supplierId: quotationDto.supplierId,
+        timestamp: new Date(),
+      });
+    }
+    return result;
   }
 
   @Post(':id/award')
