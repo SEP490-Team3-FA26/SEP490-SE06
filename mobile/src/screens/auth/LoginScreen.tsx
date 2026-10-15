@@ -1,4 +1,4 @@
-// LoginScreen.tsx - Luxury Glassmorphism Pharma Login Screen with Ambient Lighting & Demo Roles
+// LoginScreen.tsx - Modern Medical Light Blue Luxury Glassmorphism Login Screen with Demo Roles & Guest Access
 import React, { useState } from 'react';
 import {
   View,
@@ -17,9 +17,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
-import { FlatButton, FlatBadge } from '../../components/flat';
 import { showToast } from '../../components/ui/toastHelper';
 import { UserRole } from '../../types/pharmacy.types';
+import { ColorTokens, TypographyTokens } from '../../theme/tokens';
 
 const { width } = Dimensions.get('window');
 
@@ -35,9 +35,9 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     { role: UserRole.ADMIN, title: 'Admin IT', subtitle: 'Quản trị hệ thống', email: 'admin@vinapharmacy.com', color: '#EF4444', icon: 'shield-checkmark' },
     { role: UserRole.HEAD_BRANCH, title: 'Giám Đốc', subtitle: 'Ban điều hành chuỗi', email: 'director@vinapharmacy.com', color: '#8B5CF6', icon: 'business' },
     { role: UserRole.WAREHOUSE, title: 'Kho Tổng', subtitle: 'Xuất nhập & GRN', email: 'warehouse@vinapharmacy.com', color: '#F59E0B', icon: 'cube' },
-    { role: UserRole.PHARMACIST, title: 'Dược Sĩ', subtitle: 'Bán hàng POS quầy', email: 'pharmacist@vinapharmacy.com', color: '#10B981', icon: 'medkit' },
-    { role: UserRole.BRANCH, title: 'Quản Lý', subtitle: 'Cơ sở & Duyệt ca', email: 'manager@vinapharmacy.com', color: '#06B6D4', icon: 'storefront' },
-    { role: UserRole.CUSTOMER, title: 'Khách Hàng', subtitle: 'Mua sắm trực tuyến', email: 'user@vinapharmacy.com', color: '#3B82F6', icon: 'cart' },
+    { role: UserRole.PHARMACIST, title: 'Dược Sĩ', subtitle: 'Bán lẻ POS quầy', email: 'pharmacist@vinapharmacy.com', color: '#0284C7', icon: 'medkit' },
+    { role: UserRole.BRANCH, title: 'Quản Lý', subtitle: 'Cơ sở & Duyệt ca', email: 'manager@vinapharmacy.com', color: '#0EA5E9', icon: 'storefront' },
+    { role: UserRole.CUSTOMER, title: 'Khách Hàng', subtitle: 'Mua sắm trực tuyến', email: 'user@vinapharmacy.com', color: '#0284C7', icon: 'cart' },
   ];
 
   const handleLogin = async () => {
@@ -59,30 +59,34 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setEmailOrPhone(item.email);
     setPassword('123456');
     setSelectedDemoRole(item.role);
-    showToast.info('Đã điền tài khoản', `Tài khoản ${item.title}: ${item.email}`);
+    showToast.info('Đã chọn vai trò', `${item.title}: ${item.email}`);
   };
 
   const handleGoogleLogin = () => {
     Alert.alert(
-      'Đăng Nhập Google (404 Not Configured)',
-      'Hệ thống chưa kích hoạt phương thức Google OAuth 2.0 trên ứng dụng di động.\n\nVui lòng đăng nhập bằng Email/Mật khẩu hoặc nhấn vào các nút Chọn Nhanh Vai Trò Mẫu bên trên.',
+      'Đăng Nhập Google',
+      'Hệ thống đang tích hợp Google OAuth 2.0.\n\nVui lòng sử dụng đăng nhập Email/Mật khẩu hoặc chọn nhanh Vai Trò Mẫu bên dưới.',
       [{ text: 'Đã Hiểu', style: 'default' }]
     );
   };
 
+  const handleGuestExplore = () => {
+    navigation.navigate('CustomerScreen');
+  };
+
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-      {/* Ambient Gradient Background */}
+      {/* Light Sky Blue Medical Gradient Background */}
       <LinearGradient
-        colors={['#042F2E', '#064E3B', '#0F172A']}
+        colors={['#E0F2FE', '#F0F9FF', '#FFFFFF']}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        end={{ x: 0.8, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Decorative Floating Glowing Orbs for Glass Refraction */}
+      {/* Ambient Floating Soft Light Blue Orbs */}
       <View style={styles.ambientOrb1} />
       <View style={styles.ambientOrb2} />
       <View style={styles.ambientOrb3} />
@@ -97,45 +101,52 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header Hero Branding */}
+            {/* Header Hero Branding - Medical Light Blue Identity */}
             <View style={styles.heroSection}>
               <View style={styles.glassBadgePill}>
-                <Ionicons name="shield-checkmark" size={14} color="#34D399" style={{ marginRight: 6 }} />
-                <Text style={styles.glassBadgeText}>ABC Pharmacy Enterprise Cloud</Text>
+                <Ionicons name="shield-checkmark" size={14} color="#0284C7" style={{ marginRight: 6 }} />
+                <Text style={styles.glassBadgeText}>ABC Pharmacy • Chuẩn GPP Toàn Quốc</Text>
               </View>
 
-              {/* 3D Glowing Glass Logo Container */}
+              {/* Glowing Medical Cross Logo Container */}
               <View style={styles.logoGlassGlow}>
-                <View style={styles.logoGlassContainer}>
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.35)', 'rgba(255, 255, 255, 0.08)']}
-                    style={styles.logoGlassInner}
-                  >
-                    <Ionicons name="medkit" size={44} color="#34D399" />
-                  </LinearGradient>
-                </View>
+                <LinearGradient
+                  colors={['#0284C7', '#38BDF8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.logoGlassInner}
+                >
+                  <Ionicons name="medkit" size={40} color="#FFFFFF" />
+                </LinearGradient>
               </View>
 
-              <Text style={styles.appTitle}>ABC</Text>
-              <Text style={styles.appSubtitle}>Hệ Thống Quản Trị & Bán Lẻ Dược Phẩm ABC</Text>
+              <Text style={styles.appTitle}>ABC PHARMACY</Text>
+              <Text style={styles.appSubtitle}>Hệ Thống Quản Trị & Bán Lẻ Dược Phẩm Chính Hãng</Text>
+
+              {/* Guest Discovery Button */}
+              <AnimatedTouchable onPress={handleGuestExplore} style={styles.guestPillBtn}>
+                <Ionicons name="storefront-outline" size={15} color="#0284C7" style={{ marginRight: 6 }} />
+                <Text style={styles.guestPillBtnText}>Khám phá nhà thuốc (Khách vãng lai)</Text>
+                <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+              </AnimatedTouchable>
             </View>
 
-            {/* Master Frosted Glass Card Container */}
+            {/* Master Frosted Card Container */}
             <View style={styles.glassCardWrapper}>
               <View style={styles.glassCard}>
-                {/* Top Specular Sheen Reflection Line */}
+                {/* Top Sky Sheen Reflection */}
                 <View style={styles.topSheen} />
 
                 <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>Đăng Nhập</Text>
-                  <Text style={styles.cardSubtitle}>Chào mừng trở lại! Vui lòng nhập thông tin.</Text>
+                  <Text style={styles.cardTitle}>Đăng Nhập Tài Khoản</Text>
+                  <Text style={styles.cardSubtitle}>Đăng nhập để xem lịch sử đơn, tích điểm và quản lý ca trực</Text>
                 </View>
 
                 {/* Email / Phone Input Field */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Tài khoản</Text>
                   <View style={styles.glassInputBox}>
-                    <Ionicons name="mail-outline" size={20} color="#059669" style={styles.inputIcon} />
+                    <Ionicons name="mail-outline" size={20} color="#0284C7" style={styles.inputIcon} />
                     <TextInput
                       style={styles.textInput}
                       placeholder="Email hoặc Số điện thoại"
@@ -160,7 +171,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     </AnimatedTouchable>
                   </View>
                   <View style={styles.glassInputBox}>
-                    <Ionicons name="lock-closed-outline" size={20} color="#059669" style={styles.inputIcon} />
+                    <Ionicons name="lock-closed-outline" size={20} color="#0284C7" style={styles.inputIcon} />
                     <TextInput
                       style={styles.textInput}
                       placeholder="Nhập mật khẩu của bạn"
@@ -182,27 +193,33 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* Primary Glass Action Button */}
-                <FlatButton
-                  title="ĐĂNG NHẬP HỆ THỐNG"
-                  variant="primary"
-                  size="lg"
+                {/* Primary Action Button - Medical Blue Gradient */}
+                <AnimatedTouchable
                   onPress={handleLogin}
-                  loading={loading}
-                  fullWidth
-                  icon="log-in-outline"
-                  iconPosition="right"
-                  style={styles.loginBtn}
-                />
+                  disabled={loading}
+                  style={styles.loginBtnTouch}
+                >
+                  <LinearGradient
+                    colors={['#0284C7', '#0EA5E9']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.loginBtnGradient}
+                  >
+                    <Text style={styles.loginBtnText}>
+                      {loading ? 'ĐANG XÁC THỰC...' : 'ĐĂNG NHẬP HỆ THỐNG'}
+                    </Text>
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                  </LinearGradient>
+                </AnimatedTouchable>
 
-                {/* Glass Divider */}
+                {/* Divider */}
                 <View style={styles.dividerRow}>
                   <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>HOẶC CHỌN NHANH VAI TRÒ MẪU</Text>
+                  <Text style={styles.dividerText}>HOẶC CHỌN VAI TRÒ MẪU 1 CHẠM</Text>
                   <View style={styles.dividerLine} />
                 </View>
 
-                {/* Glass Demo Role Grid */}
+                {/* Demo Role Grid */}
                 <View style={styles.demoRoleGrid}>
                   {DEMO_USERS.map((d) => {
                     const isSelected = selectedDemoRole === d.role;
@@ -213,13 +230,13 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         style={[
                           styles.demoRoleCard,
                           {
-                            borderColor: isSelected ? d.color : 'rgba(226, 232, 240, 0.9)',
-                            backgroundColor: isSelected ? `${d.color}15` : 'rgba(255, 255, 255, 0.95)',
+                            borderColor: isSelected ? d.color : '#E0F2FE',
+                            backgroundColor: isSelected ? `${d.color}12` : '#FFFFFF',
                           },
                           isSelected && styles.demoRoleCardSelected,
                         ]}
                       >
-                        <View style={[styles.demoIconCircle, { backgroundColor: `${d.color}20` }]}>
+                        <View style={[styles.demoIconCircle, { backgroundColor: `${d.color}15` }]}>
                           <Ionicons name={d.icon as any} size={18} color={d.color} />
                         </View>
                         <View style={styles.demoTextCol}>
@@ -241,9 +258,9 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   })}
                 </View>
 
-                {/* Google OAuth Glass Button */}
+                {/* Google OAuth Button */}
                 <AnimatedTouchable onPress={handleGoogleLogin} style={styles.googleGlassBtn}>
-                  <Ionicons name="logo-google" size={20} color="#EA4335" style={{ marginRight: 10 }} />
+                  <Ionicons name="logo-google" size={19} color="#EA4335" style={{ marginRight: 10 }} />
                   <Text style={styles.googleBtnText}>Tiếp tục với tài khoản Google</Text>
                 </AnimatedTouchable>
 
@@ -268,7 +285,7 @@ export default LoginScreen;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#042F2E',
+    backgroundColor: '#F0F9FF',
   },
   safeArea: {
     flex: 1,
@@ -278,39 +295,39 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  // Floating Ambient Orbs for Glass Refraction
+  // Floating Ambient Orbs for Light Sky Blue Refraction
   ambientOrb1: {
     position: 'absolute',
-    top: -60,
-    left: -60,
+    top: -40,
+    left: -40,
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: 'rgba(16, 185, 129, 0.28)',
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
   },
   ambientOrb2: {
     position: 'absolute',
-    top: 240,
-    right: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(6, 182, 212, 0.22)',
+    top: 220,
+    right: -60,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(14, 165, 233, 0.12)',
   },
   ambientOrb3: {
     position: 'absolute',
-    bottom: -40,
-    left: 40,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(5, 150, 105, 0.25)',
+    bottom: 20,
+    left: -20,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(186, 230, 253, 0.35)',
   },
 
   // Hero Section
   heroSection: {
-    paddingTop: 24,
-    paddingBottom: 28,
+    paddingTop: 18,
+    paddingBottom: 22,
     paddingHorizontal: 24,
     alignItems: 'center',
   },
@@ -320,76 +337,92 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#E0F2FE',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    marginBottom: 20,
+    borderColor: '#BAE6FD',
+    marginBottom: 16,
   },
   glassBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#E2E8F0',
+    color: '#0369A1',
     letterSpacing: 0.2,
   },
   logoGlassGlow: {
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.45,
-    shadowRadius: 20,
-    elevation: 8,
-    marginBottom: 16,
-  },
-  logoGlassContainer: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    padding: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 6,
+    marginBottom: 12,
   },
   logoGlassInner: {
-    flex: 1,
-    borderRadius: 41,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
   appTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginBottom: 6,
+    color: '#0F172A',
+    letterSpacing: -0.3,
+    marginBottom: 4,
   },
   appSubtitle: {
-    fontSize: 14,
-    color: '#A7F3D0',
+    fontSize: 13,
+    color: '#0369A1',
     textAlign: 'center',
     fontWeight: '500',
-    maxWidth: 280,
+    maxWidth: 290,
+    marginBottom: 14,
+  },
+  guestPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  guestPillBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284C7',
+    marginRight: 4,
   },
 
-  // Master Glass Card
+  // Master Frosted Card
   glassCardWrapper: {
     paddingHorizontal: 20,
   },
   glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
-    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.65)',
-    padding: 24,
+    borderColor: '#E0F2FE',
+    padding: 22,
     position: 'relative',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 16 },
-        shadowOpacity: 0.15,
-        shadowRadius: 28,
+        shadowColor: '#0284C7',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 8,
+        elevation: 4,
       },
     }),
   },
@@ -398,14 +431,14 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    height: 3,
+    backgroundColor: '#0284C7',
   },
   cardHeader: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   cardTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.4,
@@ -419,34 +452,34 @@ const styles = StyleSheet.create({
 
   // Inputs
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 7,
+    marginBottom: 6,
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: '#1E293B',
-    marginBottom: 7,
+    marginBottom: 6,
   },
   forgotPassLink: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#059669',
+    fontWeight: '700',
+    color: '#0284C7',
   },
   glassInputBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 50,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.2,
+    borderColor: '#BAE6FD',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
   },
   inputIcon: {
     marginRight: 10,
@@ -460,28 +493,48 @@ const styles = StyleSheet.create({
   },
 
   // Action Button
-  loginBtn: {
+  loginBtnTouch: {
     marginTop: 6,
-    marginBottom: 20,
+    marginBottom: 18,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  loginBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  loginBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
 
   // Divider
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(226, 232, 240, 0.8)',
+    backgroundColor: '#E2E8F0',
   },
   dividerText: {
     paddingHorizontal: 10,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#94A3B8',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
 
   // Demo Grid
@@ -490,47 +543,37 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
-    rowGap: 10,
-    marginBottom: 20,
+    rowGap: 9,
+    marginBottom: 16,
   },
   demoRoleCard: {
     width: '48.5%',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 9,
+    borderRadius: 12,
     borderWidth: 1.2,
     backgroundColor: '#FFFFFF',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 1.5,
+        elevation: 1,
       },
     }),
   },
   demoRoleCardSelected: {
     borderWidth: 1.5,
-    ...Platform.select({
-      ios: {
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
   demoIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -540,7 +583,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   demoRoleTitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     marginBottom: 2,
   },
@@ -555,17 +598,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 48,
-    borderRadius: 14,
+    height: 46,
+    borderRadius: 12,
     borderWidth: 1.2,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
-    marginBottom: 18,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
   },
   googleBtnText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '600',
-    color: '#1E293B',
+    color: '#334155',
   },
 
   // Register Row
@@ -573,7 +616,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
   },
   registerPrompt: {
     fontSize: 13,
@@ -582,27 +624,6 @@ const styles = StyleSheet.create({
   registerLink: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#059669',
-  },
-
-  // Showcase Box
-  showcaseLinkBox: {
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(226, 232, 240, 0.6)',
-    paddingTop: 14,
-  },
-  showcaseBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-  },
-  showcaseText: {
-    fontSize: 12,
-    color: '#059669',
-    fontWeight: '700',
+    color: '#0284C7',
   },
 });

@@ -12,6 +12,7 @@ import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
 import { ProfileScreen } from '../screens/common/ProfileScreen';
 import { NotificationListScreen } from '../screens/common/NotificationListScreen';
 import { WebViewScreen } from '../screens/common/WebViewScreen';
+import { SplashScreen } from '../screens/common/SplashScreen';
 
 // Actor Screens
 import { AdminScreen } from '../screens/admin/AdminScreen';
@@ -28,7 +29,12 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { auth, user } = useAuth();
+  const [showSplash, setShowSplash] = React.useState(true);
   const role = user?.role || auth.role;
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   const getInitialActorScreen = () => {
     switch (role) {

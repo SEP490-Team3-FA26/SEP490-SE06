@@ -82,6 +82,20 @@ export const ColorTokens = {
     900: '#0F172A', // Title / Heading Text
   },
 
+  // Sky / Medical Light Blue: Tông xanh dương nhạt chuẩn y tế hiện đại (Pharmacity, Long Châu, An Khang)
+  sky: {
+    50: '#F0F9FF',  // App Background siêu sáng
+    100: '#E0F2FE', // Pill tag / badge / card nhẹ
+    200: '#BAE6FD', // Viền thẻ nhạt
+    300: '#7DD3FC', // Viền active
+    400: '#38BDF8', // Xanh dương tươi sáng
+    500: '#0EA5E9', // Xanh dương chủ đạo nút bấm
+    600: '#0284C7', // Xanh dương thương hiệu chuẩn Y Tế
+    700: '#0369A1', // Xanh dương đậm tiêu đề
+    800: '#075985',
+    900: '#0C4A6E',
+  },
+
   // Semantic Alerts: Cảnh báo dược học & trạng thái
   semantic: {
     danger: '#DC2626',      // Hết hạn / Khẩn cấp / Cấm bán
@@ -101,9 +115,9 @@ export const ColorTokens = {
   // Bề mặt & Nền
   surface: {
     card: '#FFFFFF',
-    background: '#F8FAFC',
+    background: '#F0F9FF',
     overlay: 'rgba(15, 23, 42, 0.45)', // Backdrop mờ
-    border: '#E2E8F0',
+    border: '#E0F2FE',
     divider: '#F1F5F9',
   },
 };

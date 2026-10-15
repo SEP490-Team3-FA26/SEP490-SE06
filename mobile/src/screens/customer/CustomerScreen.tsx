@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,11 @@ import {
   RefreshControl,
   Clipboard,
   Image,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -43,11 +45,60 @@ import {
   MotionTokens,
 } from '../../theme/tokens';
 
+// Sub-component FlashSaleCountdown độc lập, tự quản lý timer đếm giây, không kích hoạt re-render toàn màn hình
+const FlashSaleCountdown: React.FC = React.memo(() => {
+  const [countdown, setCountdown] = useState<{ hours: number; minutes: number; seconds: number }>({
+    hours: 3,
+    minutes: 42,
+    seconds: 18,
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+        if (prev.minutes > 0) return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
+        if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+        return { hours: 3, minutes: 59, seconds: 59 };
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <View style={styles.countdownRow}>
+      <Text style={styles.countdownLabel}>Kết thúc trong: </Text>
+      <View style={styles.timerBox}>
+        <Text style={styles.timerText}>
+          {String(countdown.hours).padStart(2, '0')}
+        </Text>
+      </View>
+      <Text style={styles.timerColon}>:</Text>
+      <View style={styles.timerBox}>
+        <Text style={styles.timerText}>
+          {String(countdown.minutes).padStart(2, '0')}
+        </Text>
+      </View>
+      <Text style={styles.timerColon}>:</Text>
+      <View style={styles.timerBox}>
+        <Text style={styles.timerText}>
+          {String(countdown.seconds).padStart(2, '0')}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, auth } = useAuth();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS'>('STORE');
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
+
+  // Landing Page Tri-Pharmacy States (Pharmacity + Long Châu + An Khang)
+  const [flashSaleSlot, setFlashSaleSlot] = useState<'SLOT_1' | 'SLOT_2' | 'SLOT_3'>('SLOT_1');
+  const [seasonalCategory, setSeasonalCategory] = useState<'FLU' | 'STOMACH' | 'ALLERGY' | 'IMMUNITY'>('FLU');
+  const [showBranchModal, setShowBranchModal] = useState<boolean>(false);
 
   // Products & Categories
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -207,6 +258,47 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       }
     });
   }, []);
+
+  const TRENDING_KEYWORDS = [
+    'Hạ sốt & Cảm cúm',
+    'Khẩu trang 4D',
+    'Men vi sinh Bio',
+    'Đo huyết áp Omron',
+    'Vitamin C sủi',
+    'Dạ dày Gaviscon',
+    'Dầu cá Omega-3',
+    'Xịt mũi thảo dược',
+  ];
+
+  const ABC_BRANCHES = [
+    { id: 'CN-01', name: 'ABC Pharmacy Hai Bà Trưng', address: '120 Hai Bà Trưng, P. Bến Nghé, Q.1, TP.HCM', hotline: '1800 6821', distance: '0.8 km' },
+    { id: 'CN-02', name: 'ABC Pharmacy Nguyễn Trãi', address: '345 Nguyễn Trãi, P.7, Q.5, TP.HCM', hotline: '1800 6822', distance: '2.1 km' },
+    { id: 'CN-03', name: 'ABC Pharmacy Cầu Giấy', address: '68 Cầu Giấy, Quan Hoa, Cầu Giấy, Hà Nội', hotline: '1800 6823', distance: '1.5 km' },
+    { id: 'CN-04', name: 'ABC Pharmacy Trần Phú', address: '88 Trần Phú, Hải Châu, Đà Nẵng', hotline: '1800 6824', distance: '1.2 km' },
+  ];
+
+  const SEASONAL_ADVICE = {
+    FLU: {
+      title: 'Cảm Cúm & Viêm Họng Giao Mùa',
+      desc: 'Thời tiết thay đổi đột ngột làm suy giảm niêm mạc hô hấp. Giữ ấm cổ họng, bổ sung Vitamin C và dùng thuốc giảm đau hạ sốt đúng liều.',
+      tags: ['Sốt nhẹ', 'Đau họng', 'Nghẹt mũi'],
+    },
+    STOMACH: {
+      title: 'Đau Dạ Dày & Trào Ngược Axit',
+      desc: 'Ăn uống thất thường hoặc stress kích thích tăng tiết dịch vị. Khuyến nghị dùng men vi sinh cân bằng hệ tiêu hóa và thuốc kháng acid.',
+      tags: ['Đầy hơi', 'Ợ chua', 'Trào ngược'],
+    },
+    ALLERGY: {
+      title: 'Dị Ứng Thời Tiết & Viêm Da',
+      desc: 'Bụi mịn và phấn hoa gây ngứa mũi, dị ứng mẩn đỏ. Sử dụng nước muối sinh lý xịt rửa hằng ngày và thuốc kháng histamine thế hệ mới.',
+      tags: ['Mẩn ngứa', 'Hắt hơi', 'Khô da'],
+    },
+    IMMUNITY: {
+      title: 'Tăng Đề Kháng & Phòng Ngừa Dịch',
+      desc: 'Bổ sung Kẽm, Vitamin C sủi, Đông trùng hạ thảo giúp củng cố hệ miễn dịch tự nhiên cho người lớn tuổi và trẻ nhỏ.',
+      tags: ['Đề kháng khỏe', 'Vitamin C', 'Kẽm Gluconat'],
+    },
+  };
 
   const handleSaveSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
@@ -457,6 +549,17 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   // Advanced Filter & Sort for Store
   const filteredMedicines = useMemo(() => {
     let list = medicines.filter((m) => {
+      // Search query filter
+      if (searchQuery.trim().length > 0) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = m.name && m.name.toLowerCase().includes(q);
+        const matchesActive =
+          (m.active && m.active.toLowerCase().includes(q)) ||
+          ((m as any).active_ingredient && (m as any).active_ingredient.toLowerCase().includes(q));
+        const matchesCat = m.category && m.category.toLowerCase().includes(q);
+        if (!matchesName && !matchesActive && !matchesCat) return false;
+      }
+
       // Category filter
       if (selectedCategory !== 'ALL' && m.category !== selectedCategory && !m.category.includes(selectedCategory)) {
         return false;
@@ -481,7 +584,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     }
 
     return list;
-  }, [medicines, selectedCategory, selectedRxFilter, selectedPriceFilter, sortBy]);
+  }, [medicines, searchQuery, selectedCategory, selectedRxFilter, selectedPriceFilter, sortBy]);
 
   // Status Filter for Orders
   const filteredOrders = useMemo(() => {
@@ -530,56 +633,153 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const activeFilterCount = (selectedRxFilter !== 'ALL' ? 1 : 0) + (selectedPriceFilter !== 'ALL' ? 1 : 0);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <HeaderBar
-        title="ABC Pharmacy"
-        subtitle={user ? `Xin chào, ${user.name || (user as any).fullName || 'Khách hàng'}` : '100% Thuốc Chính Hãng • Giao Nhanh 2h'}
-        gradientVariant="emerald"
-        rightAction={{
-          icon: 'cart-outline',
-          onPress: () => setActiveTab('CART'),
-          badgeCount: cartTotalCount,
-        }}
-        secondaryRightAction={{
-          icon: user ? 'person-circle-outline' : 'log-in-outline',
-          onPress: () => navigation.navigate(user ? 'ProfileScreen' : 'LoginScreen'),
-        }}
-      />
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* ─── Modern Medical Sky Blue Header (Pharmacity & Long Châu & An Khang) ── */}
+      <LinearGradient
+        colors={['#0369A1', '#0284C7', '#38BDF8']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0.9 }}
+        style={styles.customHeader}
+      >
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+        {/* Top Branding & Auth Action Row */}
+        <View style={styles.headerTopRow}>
+          <View style={styles.brandTitleRow}>
+            <View style={styles.brandIconCircle}>
+              <Ionicons name="medkit" size={14} color="#0284C7" />
+            </View>
+            <Text style={styles.brandTitleText}>ABC PHARMACY</Text>
+          </View>
+
+          <View style={styles.headerActionRow}>
+            {/* Guest / User Profile Pill Button */}
+            {!user ? (
+              <AnimatedTouchable
+                onPress={() => navigation.navigate('LoginScreen')}
+                style={styles.headerLoginPill}
+              >
+                <Ionicons name="person-circle" size={16} color="#0284C7" style={{ marginRight: 4 }} />
+                <Text style={styles.headerLoginPillText}>Đăng nhập</Text>
+              </AnimatedTouchable>
+            ) : (
+              <AnimatedTouchable
+                onPress={() => navigation.navigate('ProfileScreen')}
+                style={styles.headerUserPill}
+              >
+                <Ionicons name="person-circle" size={16} color="#0284C7" style={{ marginRight: 4 }} />
+                <Text style={styles.headerUserPillText} numberOfLines={1}>
+                  {user.name || (user as any).fullName || 'Cá nhân'}
+                </Text>
+              </AnimatedTouchable>
+            )}
+
+            {/* Notification Bell */}
+            <AnimatedTouchable
+              onPress={() => navigation.navigate('NotificationListScreen')}
+              style={styles.headerRoundBtn}
+            >
+              <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
+            </AnimatedTouchable>
+
+            {/* Cart Button with Count Badge */}
+            <AnimatedTouchable
+              onPress={() => setActiveTab('CART')}
+              style={styles.headerRoundBtn}
+            >
+              <Ionicons name="cart-outline" size={20} color="#FFFFFF" />
+              {cartTotalCount > 0 && (
+                <View style={styles.headerCartBadge}>
+                  <Text style={styles.headerCartBadgeText}>
+                    {cartTotalCount > 99 ? '99+' : cartTotalCount}
+                  </Text>
+                </View>
+              )}
+            </AnimatedTouchable>
+          </View>
+        </View>
+
+        {/* Location Delivery Selector Row (Tách riêng hàng độc lập, không bị đè) */}
+        <AnimatedTouchable
+          onPress={() => setShowBranchModal(true)}
+          style={styles.locationBar}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="location-sharp" size={12} color="#BAE6FD" style={{ marginRight: 4 }} />
+          <Text style={styles.locationBarText} numberOfLines={1}>
+            Giao tại: Chi nhánh ABC gần nhất (GPS)
+          </Text>
+          <Ionicons name="chevron-down" size={12} color="#BAE6FD" style={{ marginLeft: 4 }} />
+        </AnimatedTouchable>
+
+        {/* Floating Pill Search Bar */}
+        <View style={styles.floatingSearchContainer}>
+          <View style={styles.floatingSearchBox}>
+            <Ionicons name="search" size={18} color="#0284C7" style={styles.searchIcon} />
+            <TextInput
+              style={styles.floatingSearchInput}
+              placeholder="Tìm thuốc, bệnh lý, vitamin, dược mỹ phẩm..."
+              placeholderTextColor="#94A3B8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={() => handleSaveSearch(searchQuery)}
+              returnKeyType="search"
+            />
+            {searchQuery ? (
+              <AnimatedTouchable onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={16} color="#94A3B8" />
+              </AnimatedTouchable>
+            ) : (
+              <View style={styles.searchActionGroup}>
+                <AnimatedTouchable
+                  onPress={() => setActiveTab('AI_CHAT')}
+                  style={styles.searchSubBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                >
+                  <Ionicons name="mic-outline" size={18} color="#0284C7" />
+                </AnimatedTouchable>
+                <AnimatedTouchable
+                  onPress={() => setShowScanner(true)}
+                  style={styles.searchSubBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                >
+                  <Ionicons name="barcode-outline" size={18} color="#0284C7" />
+                </AnimatedTouchable>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Trending Search Chips (Dải từ khóa tìm kiếm thịnh hành) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.trendingScroll}
+        >
+          {TRENDING_KEYWORDS.map((kw, idx) => (
+            <AnimatedPressable
+              key={`trend-${idx}`}
+              onPress={() => {
+                setSearchQuery(kw);
+                handleSaveSearch(kw);
+              }}
+              style={styles.trendingChip}
+              pressedScale={0.94}
+            >
+              <Ionicons name="trending-up" size={11} color="#BAE6FD" style={{ marginRight: 4 }} />
+              <Text style={styles.trendingChipText}>{kw}</Text>
+            </AnimatedPressable>
+          ))}
+        </ScrollView>
+      </LinearGradient>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#059669']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
-        {/* TAB 1: STORE */}
-        {activeTab === 'STORE' && (
+        {/* TAB 1: STORE - Master Tri-Pharmacy Landing Page */}
+        <View style={{ display: activeTab === 'STORE' ? 'flex' : 'none' }}>
           <View>
-            <View style={styles.searchRow}>
-              <View style={styles.searchBox}>
-                <Ionicons name="search" size={18} color="#94A3B8" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Tìm thuốc, hoạt chất..."
-                  placeholderTextColor="#94A3B8"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onSubmitEditing={() => handleSaveSearch(searchQuery)}
-                  returnKeyType="search"
-                />
-                {searchQuery ? (
-                  <AnimatedTouchable onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                  </AnimatedTouchable>
-                ) : null}
-              </View>
-              <AnimatedTouchable
-                onPress={() => setShowScanner(true)}
-                style={styles.scanBarcodeBtn}
-              >
-                <Ionicons name="barcode-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.scanBarcodeBtnText}>Quét Hộp</Text>
-              </AnimatedTouchable>
-            </View>
-
             {/* 5 Từ Khóa Tìm Kiếm Gần Nhất */}
             {!searchQuery && recentSearches.length > 0 && (
               <View style={styles.recentSearchBox}>
@@ -597,7 +797,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                       style={styles.recentChip}
                       pressedScale={0.94}
                     >
-                      <Ionicons name="time-outline" size={13} color="#64748B" style={{ marginRight: 4 }} />
+                      <Ionicons name="time-outline" size={13} color="#0284C7" style={{ marginRight: 4 }} />
                       <Text style={styles.recentChipText}>{kw}</Text>
                     </AnimatedPressable>
                   ))}
@@ -605,46 +805,292 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             )}
 
-            {/* Quick Actions: 2 thẻ nổi bật AI + Nhắc Thuốc */}
-            <View style={styles.quickActionsRow}>
+            {/* 1. Interactive Callout: Dược Sĩ AI & Tư Vấn 24/7 (Long Châu & An Khang) */}
+            <View style={styles.consultantCalloutCard}>
+              <View style={styles.consultantCalloutLeft}>
+                <View style={styles.consultantAvatarCircle}>
+                  <Ionicons name="headset" size={24} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.consultantCalloutTitle}>
+                    Dược Sĩ ABC & AI Sẵn Sàng 24/7
+                  </Text>
+                  <Text style={styles.consultantCalloutSub}>
+                    Bạn cần hỏi về triệu chứng, đơn thuốc hay cách dùng thuốc an toàn?
+                  </Text>
+                </View>
+              </View>
               <AnimatedTouchable
                 onPress={() => setActiveTab('AI_CHAT')}
-                style={[styles.quickActionCard, styles.quickActionCardAI]}
+                style={styles.consultantCalloutBtn}
               >
-                <View style={styles.quickActionIconBox}>
-                  <Ionicons name="chatbubble-ellipses" size={26} color="#059669" />
+                <Ionicons name="chatbubbles" size={15} color="#0284C7" style={{ marginRight: 4 }} />
+                <Text style={styles.consultantCalloutBtnText}>Tư vấn ngay</Text>
+              </AnimatedTouchable>
+            </View>
+
+            {/* 2. Hai Thẻ Tiện Ích Đột Phá (Chuẩn An Khang) */}
+            <View style={styles.twoPillarsRow}>
+              <AnimatedTouchable
+                onPress={() => setShowScanner(true)}
+                style={[styles.pillarCard, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
+              >
+                <View style={[styles.pillarIconBox, { backgroundColor: '#E0F2FE' }]}>
+                  <Ionicons name="barcode-outline" size={24} color="#0284C7" />
                 </View>
-                <Text style={styles.quickActionTitle}>Dược Sĩ AI</Text>
-                <Text style={styles.quickActionSub}>Tư vấn thuốc tức thì</Text>
+                <Text style={styles.pillarTitle}>Tra cứu toa & Quét mã</Text>
+                <Text style={styles.pillarSub}>Quét mã vạch vỏ hộp thuốc</Text>
               </AnimatedTouchable>
 
               <AnimatedTouchable
                 onPress={() => navigation.navigate('MedicineReminderScreen')}
-                style={[styles.quickActionCard, styles.quickActionCardReminder]}
+                style={[styles.pillarCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
               >
-                <View style={styles.quickActionIconBox}>
-                  <Ionicons name="alarm" size={26} color="#0891B2" />
+                <View style={[styles.pillarIconBox, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="alarm" size={24} color="#16A34A" />
                 </View>
-                <Text style={[styles.quickActionTitle, { color: '#0E7490' }]}>Lịch Nhắc Thuốc</Text>
-                <Text style={[styles.quickActionSub, { color: '#0891B2' }]}>Offline 100% — Không mất báo</Text>
+                <Text style={[styles.pillarTitle, { color: '#15803D' }]}>Nhắc uống thuốc</Text>
+                <Text style={[styles.pillarSub, { color: '#16A34A' }]}>Offline 100% không mất báo</Text>
               </AnimatedTouchable>
             </View>
 
-            {/* Banner cảnh báo dữ liệu ngoại tuyến */}
+            {/* 3. Lưới Hành Động Nhanh (Quick Action Grid 2x4 chuẩn 3 ông lớn) */}
+            <View style={styles.quickActionGridContainer}>
+              {[
+                { id: 'STORE', title: 'Tủ thuốc', sub: 'Toàn diện', icon: 'medkit', color: '#0284C7', bg: '#E0F2FE', action: () => { setSelectedCategory('ALL'); setSearchQuery(''); } },
+                { id: 'AI_CHAT', title: 'Dược sĩ AI', sub: 'Tư vấn 24/7', icon: 'chatbubble-ellipses', color: '#0EA5E9', bg: '#E0F2FE', action: () => setActiveTab('AI_CHAT') },
+                { id: 'REMINDER', title: 'Nhắc thuốc', sub: 'Cữ chuẩn', icon: 'alarm', color: '#F59E0B', bg: '#FEF3C7', action: () => navigation.navigate('MedicineReminderScreen') },
+                { id: 'SCAN', title: 'Quét mã', sub: 'Chính hãng', icon: 'barcode', color: '#8B5CF6', bg: '#EDE9FE', action: () => setShowScanner(true) },
+                { id: 'BRANCHES', title: 'Nhà thuốc', sub: 'Chi nhánh', icon: 'storefront', color: '#0EA5E9', bg: '#E0F2FE', action: () => setShowBranchModal(true) },
+                { id: 'VOUCHERS', title: 'Săn voucher', sub: 'Ưu đãi sốc', icon: 'pricetags', color: '#EC4899', bg: '#FCE7F3', action: () => setActiveTab('VOUCHERS') },
+                { id: 'SEASONAL', title: 'Bệnh mùa', sub: 'Phác đồ', icon: 'fitness', color: '#0284C7', bg: '#E0F2FE', action: () => setSeasonalCategory('FLU') },
+                { id: 'ORDERS', title: 'Đơn của tôi', sub: 'Lịch sử mua', icon: 'receipt', color: '#6366F1', bg: '#E0E7FF', action: () => setActiveTab('ORDERS') },
+              ].map((item) => (
+                <AnimatedTouchable
+                  key={item.id}
+                  onPress={item.action}
+                  style={styles.quickGridItem}
+                >
+                  <View style={[styles.quickGridIconBox, { backgroundColor: item.bg }]}>
+                    <Ionicons name={item.icon as any} size={22} color={item.color} />
+                  </View>
+                  <Text style={styles.quickGridTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.quickGridSub} numberOfLines={1}>
+                    {item.sub}
+                  </Text>
+                </AnimatedTouchable>
+              ))}
+            </View>
+
+            {/* 4. Banner Khuyến Mãi Sức Khỏe Toàn Diện */}
+            <View style={styles.heroPromoBanner}>
+              <LinearGradient
+                colors={['#0284C7', '#0EA5E9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroPromoInner}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={styles.promoBadge}>
+                    <Text style={styles.promoBadgeText}>ƯU ĐÃI THÁNG Y TẾ</Text>
+                  </View>
+                  <Text style={styles.promoMainTitle}>
+                    Sức Khỏe Cả Nhà • Ngàn Deal Cực Xịn
+                  </Text>
+                  <Text style={styles.promoSubTitle}>
+                    Giảm đến 35% Vitamin & Dược mỹ phẩm • Freeship đơn từ 150K
+                  </Text>
+                </View>
+                <View style={styles.promoArtBox}>
+                  <Ionicons name="sparkles" size={32} color="#FDE047" />
+                </View>
+              </LinearGradient>
+            </View>
+
+            {/* 5. Khung Giờ Vàng Flash Sale (Pharmacity & An Khang) */}
+            <View style={styles.flashSaleSection}>
+              {/* Flash sale slots header */}
+              <View style={styles.flashSlotTabsRow}>
+                <AnimatedTouchable
+                  onPress={() => setFlashSaleSlot('SLOT_1')}
+                  style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_1' && styles.flashSlotTabActive]}
+                >
+                  <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_1' && styles.flashSlotTimeActive]}>
+                    08:00 - 12:00
+                  </Text>
+                  <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_1' && styles.flashSlotStatusActive]}>
+                    Đang diễn ra
+                  </Text>
+                </AnimatedTouchable>
+
+                <AnimatedTouchable
+                  onPress={() => setFlashSaleSlot('SLOT_2')}
+                  style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_2' && styles.flashSlotTabActive]}
+                >
+                  <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_2' && styles.flashSlotTimeActive]}>
+                    12:00 - 18:00
+                  </Text>
+                  <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_2' && styles.flashSlotStatusActive]}>
+                    Sắp diễn ra
+                  </Text>
+                </AnimatedTouchable>
+
+                <AnimatedTouchable
+                  onPress={() => setFlashSaleSlot('SLOT_3')}
+                  style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_3' && styles.flashSlotTabActive]}
+                >
+                  <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_3' && styles.flashSlotTimeActive]}>
+                    18:00 - 22:00
+                  </Text>
+                  <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_3' && styles.flashSlotStatusActive]}>
+                    Tối nay
+                  </Text>
+                </AnimatedTouchable>
+              </View>
+
+              {/* Flash sale countdown header bar */}
+              <View style={styles.flashCountdownBar}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="flash" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                  <Text style={styles.flashSaleTitle}>FLASH SALE GIÁ TỐT</Text>
+                </View>
+
+                {/* Countdown Box Numbers */}
+                <FlashSaleCountdown />
+              </View>
+
+              {/* Flash sale horizontal product cards */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.flashProductsScroll}
+              >
+                {(medicines.length > 0 ? medicines.slice(0, 6) : []).map((med, idx) => {
+                  const originalPrice = Math.round((med.price || 50000) * 1.35);
+                  return (
+                    <AnimatedPressable
+                      key={`flash-${med.id || idx}`}
+                      onPress={() => setSelectedMedDetail(med)}
+                      style={styles.flashCard}
+                      pressedScale={0.97}
+                    >
+                      <View style={styles.flashDiscountBadge}>
+                        <Text style={styles.flashDiscountText}>-35%</Text>
+                      </View>
+                      <Image
+                        source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
+                        style={styles.flashThumb}
+                        resizeMode="cover"
+                      />
+                      <Text style={styles.flashMedName} numberOfLines={2}>
+                        {med.name}
+                      </Text>
+                      <Text style={styles.flashOriginalPrice}>
+                        {originalPrice.toLocaleString('vi-VN')} ₫
+                      </Text>
+                      <Text style={[styles.flashSalePrice, TypographyTokens.tabularNums]}>
+                        {med.price.toLocaleString('vi-VN')} ₫
+                      </Text>
+
+                      {/* Stock Progress Bar */}
+                      <View style={styles.flashStockBar}>
+                        <View style={[styles.flashStockProgress, { width: `${60 + (idx * 6) % 35}%` }]} />
+                        <Text style={styles.flashStockText}>
+                          Đã bán {15 + (idx * 3)} suất
+                        </Text>
+                      </View>
+
+                      <AnimatedTouchable
+                        onPress={() => {
+                          addToCart(med);
+                          showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                        }}
+                        style={styles.flashAddToCartBtn}
+                      >
+                        <Text style={styles.flashAddToCartText}>Chọn mua</Text>
+                      </AnimatedTouchable>
+                    </AnimatedPressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* 6. Chuyên Mục Bệnh Theo Mùa (FPT Long Châu) */}
+            <View style={styles.seasonalSection}>
+              <View style={styles.seasonalHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="shield-half-outline" size={18} color="#0284C7" style={{ marginRight: 6 }} />
+                  <Text style={styles.seasonalSectionTitle}>Bệnh Phổ Biến Theo Mùa</Text>
+                </View>
+              </View>
+
+              {/* Seasonal Category Tabs */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.seasonalTabsScroll}>
+                {[
+                  { id: 'FLU', label: 'Cảm cúm & Sốt' },
+                  { id: 'STOMACH', label: 'Dạ dày & Tiêu hóa' },
+                  { id: 'ALLERGY', label: 'Dị ứng & Da liễu' },
+                  { id: 'IMMUNITY', label: 'Tăng sức đề kháng' },
+                ].map((s) => (
+                  <AnimatedTouchable
+                    key={s.id}
+                    onPress={() => setSeasonalCategory(s.id as any)}
+                    style={[
+                      styles.seasonalTabPill,
+                      seasonalCategory === s.id && styles.seasonalTabPillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.seasonalTabPillText,
+                        seasonalCategory === s.id && styles.seasonalTabPillTextActive,
+                      ]}
+                    >
+                      {s.label}
+                    </Text>
+                  </AnimatedTouchable>
+                ))}
+              </ScrollView>
+
+              {/* Seasonal Advice Callout Card */}
+              <View style={styles.seasonalAdviceCard}>
+                <Text style={styles.seasonalAdviceTitle}>
+                  {SEASONAL_ADVICE[seasonalCategory]?.title}
+                </Text>
+                <Text style={styles.seasonalAdviceDesc}>
+                  {SEASONAL_ADVICE[seasonalCategory]?.desc}
+                </Text>
+                <View style={styles.seasonalTagsRow}>
+                  {SEASONAL_ADVICE[seasonalCategory]?.tags.map((t, ti) => (
+                    <View key={`stag-${ti}`} style={styles.seasonalTagPill}>
+                      <Ionicons name="checkmark-circle" size={12} color="#0284C7" style={{ marginRight: 4 }} />
+                      <Text style={styles.seasonalTagText}>{t}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* Banner cảnh báo dữ liệu ngoại tuyến (nếu có) */}
             {isOfflineMode && (
-              <View style={{
-                flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7',
-                borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8,
-                borderLeftWidth: 3, borderLeftColor: '#F59E0B',
-              }}>
+              <View style={styles.offlineBanner}>
                 <Ionicons name="cloud-offline-outline" size={16} color="#B45309" style={{ marginRight: 8 }} />
-                <Text style={{ color: '#B45309', fontSize: 12, flex: 1 }}>
-                  Đang hiển thị dữ liệu mẫu (server đang khởi động). Kéo để làm mới khi sẵn sàng.
+                <Text style={styles.offlineBannerText}>
+                  Đang hiển thị dữ liệu mẫu y tế. Kéo xuống để đồng bộ khi máy chủ sẵn sàng.
                 </Text>
               </View>
             )}
 
-            {/* Category Icon Grid — từ API, không hardcode */}
+            {/* 7. Category Icon Grid */}
+            <View style={styles.categoryHeaderRow}>
+              <Text style={styles.sectionTitle}>Danh Mục Dược Phẩm</Text>
+              <Text style={styles.sectionSubtitle}>
+                {categoriesList.length} nhóm thuốc chuẩn hóa
+              </Text>
+            </View>
+
             <View style={styles.categoryGrid}>
               {categoriesList.map((c, idx) => (
                 <AnimatedTouchable
@@ -662,7 +1108,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     <Ionicons
                       name={getCategoryIcon(c.label)}
                       size={22}
-                      color={selectedCategory === c.id ? '#FFFFFF' : '#059669'}
+                      color={selectedCategory === c.id ? '#FFFFFF' : '#0284C7'}
                     />
                   </View>
                   <Text
@@ -678,7 +1124,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               ))}
             </View>
 
-            {/* Filter & Sort bar gọn — Bộ lọc + Sắp xếp */}
+            {/* 8. Filter & Sort bar */}
             <View style={styles.filterBarRow}>
               <AnimatedTouchable
                 onPress={() => setShowFilterModal(true)}
@@ -687,7 +1133,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <Ionicons
                   name="options-outline"
                   size={15}
-                  color={hasActiveFilter ? '#059669' : '#475569'}
+                  color={hasActiveFilter ? '#0284C7' : '#475569'}
                 />
                 <Text style={[styles.filterBtnText, hasActiveFilter && styles.filterBtnTextActive]}>
                   Bộ lọc
@@ -712,73 +1158,118 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <Ionicons
                   name={sortBy === 'PRICE_ASC' ? 'trending-up' : sortBy === 'PRICE_DESC' ? 'trending-down' : 'swap-vertical'}
                   size={14}
-                  color={sortBy !== 'DEFAULT' ? '#059669' : '#64748B'}
+                  color={sortBy !== 'DEFAULT' ? '#0284C7' : '#64748B'}
                 />
                 <Text style={[styles.sortBtnText, sortBy !== 'DEFAULT' && styles.activeSortBtnText]}>
-                  {sortBy === 'PRICE_ASC' ? 'Giá tăng' : sortBy === 'PRICE_DESC' ? 'Giá giảm' : 'Sắp xếp'}
+                  {sortBy === 'PRICE_ASC' ? 'Giá tăng dần' : sortBy === 'PRICE_DESC' ? 'Giá giảm dần' : 'Sắp xếp giá'}
                 </Text>
               </AnimatedTouchable>
             </View>
 
-            <Text style={styles.sectionTitle}>Danh Mục Sản Phẩm ({filteredMedicines.length})</Text>
+            {/* 9. Danh Sách Sản Phẩm Thuốc Chính Hãng */}
+            <View style={styles.productListHeader}>
+              <Text style={styles.sectionTitle}>
+                Sản Phẩm Thuốc & Dược Phẩm ({filteredMedicines.length})
+              </Text>
+            </View>
 
             {refreshing && medicines.length === 0 ? (
               <ClinicalMedicineSkeletonGrid count={4} />
             ) : (
               filteredMedicines.map((med, idx) => (
-                <Animated.View
+                <View
                   key={med.id || (med as any)._id || (med as any).sku || `med-${idx}`}
-                  entering={FadeIn.duration(200)}
                   style={styles.productCardWrapper}
                 >
-                    <View style={styles.productCard}>
-                      <AnimatedPressable
-                        onPress={() => setSelectedMedDetail(med)}
-                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-                        pressedScale={0.98}
-                      >
-                        <Image
-                          source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
-                          style={styles.productThumb}
-                          resizeMode="cover"
-                        />
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <Text style={styles.productName} numberOfLines={2}>{med.name}</Text>
-                            {med.isRx ? (
-                              <View style={styles.rxBadge}>
-                                <Text style={styles.rxBadgeText}>Rx</Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          <Text style={styles.productActive} numberOfLines={1}>
-                            {med.active || med.active_ingredient || 'Đang cập nhật'}
-                          </Text>
-                          <Text style={[styles.productPrice, TypographyTokens.tabularNums]}>
-                            {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
-                          </Text>
+                  <View style={styles.productCard}>
+                    <AnimatedPressable
+                      onPress={() => setSelectedMedDetail(med)}
+                      style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                      pressedScale={0.98}
+                    >
+                      <Image
+                        source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
+                        style={styles.productThumb}
+                        resizeMode="cover"
+                      />
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Text style={styles.productName} numberOfLines={2}>{med.name}</Text>
+                          {med.isRx ? (
+                            <View style={styles.rxBadge}>
+                              <Text style={styles.rxBadgeText}>Rx</Text>
+                            </View>
+                          ) : (
+                            <View style={styles.otcBadge}>
+                              <Text style={styles.otcBadgeText}>OTC</Text>
+                            </View>
+                          )}
                         </View>
-                      </AnimatedPressable>
+                        <Text style={styles.productActive} numberOfLines={1}>
+                          {med.active || med.active_ingredient || 'Đang cập nhật hoạt chất'}
+                        </Text>
+                        <Text style={[styles.productPrice, TypographyTokens.tabularNums]}>
+                          {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
+                        </Text>
+                      </View>
+                    </AnimatedPressable>
 
-                      <AnimatedPressable
-                        onPress={() => {
-                          addToCart(med);
-                          showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
-                        }}
-                        style={styles.addToCartBtn}
-                        pressedScale={0.90}
-                      >
-                        <Ionicons name="add" size={20} color="#FFFFFF" />
-                      </AnimatedPressable>
-                    </View>
-                  </Animated.View>
-                ))
+                    <AnimatedPressable
+                      onPress={() => {
+                        addToCart(med);
+                        showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                      }}
+                      style={styles.addToCartBtn}
+                      pressedScale={0.90}
+                    >
+                      <Ionicons name="add" size={20} color="#FFFFFF" />
+                    </AnimatedPressable>
+                  </View>
+                </View>
+              ))
             )}
+
+            {/* 10. Bốn Cam Kết Vàng Dịch Vụ Y Tế (FPT Long Châu Footer) */}
+            <View style={styles.trustFooterBox}>
+              <View style={styles.trustGrid}>
+                <View style={styles.trustItem}>
+                  <View style={styles.trustIconCircle}>
+                    <Ionicons name="shield-checkmark" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.trustTitle}>Thuốc chính hãng</Text>
+                  <Text style={styles.trustSub}>100% chuẩn GPP Bộ Y Tế</Text>
+                </View>
+
+                <View style={styles.trustItem}>
+                  <View style={styles.trustIconCircle}>
+                    <Ionicons name="refresh-circle" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.trustTitle}>Đổi trả trong 30 ngày</Text>
+                  <Text style={styles.trustSub}>Kể từ ngày mua hàng</Text>
+                </View>
+
+                <View style={styles.trustItem}>
+                  <View style={styles.trustIconCircle}>
+                    <Ionicons name="ribbon" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.trustTitle}>Dược sĩ tư vấn</Text>
+                  <Text style={styles.trustSub}>Chuyên môn đại học 24/7</Text>
+                </View>
+
+                <View style={styles.trustItem}>
+                  <View style={styles.trustIconCircle}>
+                    <Ionicons name="bicycle" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.trustTitle}>Giao siêu tốc 2H</Text>
+                  <Text style={styles.trustSub}>Giao nhanh tận nhà</Text>
+                </View>
+              </View>
+            </View>
           </View>
-        )}
+        </View>
 
         {/* TAB 2: CART */}
-        {activeTab === 'CART' && (
+        <View style={{ display: activeTab === 'CART' ? 'flex' : 'none' }}>
           <View>
             {cart.length === 0 ? (
               <View style={styles.emptyCart}>
@@ -844,10 +1335,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   </View>
                   {appliedVoucher ? (
                     <View style={styles.summaryRow}>
-                      <Text style={[styles.summaryLabel, { color: '#059669' }]}>
+                      <Text style={[styles.summaryLabel, { color: '#0284C7' }]}>
                         Giảm giá ({appliedVoucher.code}):
                       </Text>
-                      <Text style={[styles.summaryVal, { color: '#059669' }]}>
+                      <Text style={[styles.summaryVal, { color: '#0284C7' }]}>
                         -{discount.toLocaleString('vi-VN')} ₫
                       </Text>
                     </View>
@@ -890,10 +1381,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </>
             )}
           </View>
-        )}
+        </View>
 
         {/* TAB 3: AI CHAT & VOICE CONSULTANT */}
-        {activeTab === 'AI_CHAT' && (
+        <View style={{ display: activeTab === 'AI_CHAT' ? 'flex' : 'none' }}>
           <View>
             <View style={styles.aiHeaderCard}>
               <View style={styles.aiAvatar}>
@@ -986,7 +1477,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <Ionicons
                   name={isRecording ? "stop" : "mic"}
                   size={20}
-                  color={isRecording ? "#DC2626" : "#059669"}
+                  color={isRecording ? "#DC2626" : "#0284C7"}
                 />
               </AnimatedTouchable>
 
@@ -1004,10 +1495,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </AnimatedTouchable>
             </View>
           </View>
-        )}
+        </View>
 
         {/* TAB 4: KHO VOUCHER */}
-        {activeTab === 'VOUCHERS' && (
+        <View style={{ display: activeTab === 'VOUCHERS' ? 'flex' : 'none' }}>
           <View>
             <View style={styles.voucherBanner}>
               <Ionicons name="gift" size={32} color="#D97706" />
@@ -1052,10 +1543,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             ))}
           </View>
-        )}
+        </View>
 
         {/* TAB 5: ORDERS */}
-        {activeTab === 'ORDERS' && (
+        <View style={{ display: activeTab === 'ORDERS' ? 'flex' : 'none' }}>
           <View>
             {/* Phone search bar */}
             <View style={styles.searchBox}>
@@ -1233,7 +1724,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           }
                         }}
                       >
-                        <Ionicons name="sparkles" size={14} color="#059669" />
+                        <Ionicons name="sparkles" size={14} color="#0284C7" />
                         <Text style={styles.autoCreateAllRemindersBtnText}>
                           Tạo Lịch Nhắc Uống Toàn Bộ Đơn ({ord.items.length} thuốc)
                         </Text>
@@ -1252,10 +1743,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <AnimatedTouchable
                         onPress={() => handleOpenFeedback(ord)}
-                        style={[styles.qrOrderBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
+                        style={[styles.qrOrderBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
                       >
-                        <Ionicons name="star" size={15} color="#059669" />
-                        <Text style={[styles.qrOrderBtnText, { color: '#059669', fontWeight: '700' }]}>Đánh Giá</Text>
+                        <Ionicons name="star" size={15} color="#0284C7" />
+                        <Text style={[styles.qrOrderBtnText, { color: '#0284C7', fontWeight: '700' }]}>Đánh Giá</Text>
                       </AnimatedTouchable>
 
                       <AnimatedTouchable
@@ -1271,7 +1762,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               ))
             )}
           </View>
-        )}
+        </View>
       </ScrollView>
 
       {/* Medication Detail Modal with Indications & Dosage */}
@@ -1350,8 +1841,19 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       <Modal visible={selectedOrderQR !== null} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.qrModalCard}>
-            <Text style={styles.qrModalTitle}>Mã QR Đơn Hàng</Text>
-            <Text style={styles.qrModalSub}>Mã đơn: {selectedOrderQR?.orderCode || selectedOrderQR?.id}</Text>
+            <View style={styles.universalModalHeader}>
+              <View style={styles.universalModalTitleCol}>
+                <Text style={styles.qrModalTitle}>Mã QR Đơn Hàng</Text>
+                <Text style={styles.qrModalSub}>Mã đơn: {selectedOrderQR?.orderCode || selectedOrderQR?.id}</Text>
+              </View>
+              <AnimatedTouchable
+                onPress={() => setSelectedOrderQR(null)}
+                style={styles.universalCloseBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={20} color="#334155" />
+              </AnimatedTouchable>
+            </View>
 
             <View style={styles.qrHolder}>
               <QRCode
@@ -1377,15 +1879,19 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       <Modal visible={feedbackOrder !== null} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxHeight: '90%' }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <View>
+            <View style={styles.universalModalHeader}>
+              <View style={styles.universalModalTitleCol}>
                 <Text style={styles.modalTitle}>Đánh Giá Trải Nghiệm</Text>
                 <Text style={styles.modalSub}>
                   Đơn #{feedbackOrder?.orderCode || feedbackOrder?.id}
                 </Text>
               </View>
-              <AnimatedTouchable onPress={() => setFeedbackOrder(null)} style={{ padding: 4 }}>
-                <Ionicons name="close-circle" size={24} color="#94A3B8" />
+              <AnimatedTouchable
+                onPress={() => setFeedbackOrder(null)}
+                style={styles.universalCloseBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={20} color="#334155" />
               </AnimatedTouchable>
             </View>
 
@@ -1396,7 +1902,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={styles.feedbackRewardTitle}>Nhận Ngay Điểm Thưởng & Quà Tặng</Text>
                   <Text style={styles.feedbackRewardSub}>
-                    Cộng ngay <Text style={{ fontWeight: '700', color: '#059669' }}>+1.000đ - 2.000đ</Text> vào điểm tích lũy & Voucher 5.000đ cho đơn sau!
+                    Cộng ngay <Text style={{ fontWeight: '700', color: '#0284C7' }}>+1.000đ - 2.000đ</Text> vào điểm tích lũy & Voucher 5.000đ cho đơn sau!
                   </Text>
                 </View>
               </View>
@@ -1533,7 +2039,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               <Ionicons
                 name={selectedRxFilter === opt.id ? 'radio-button-on' : 'radio-button-off'}
                 size={18}
-                color={selectedRxFilter === opt.id ? '#059669' : '#94A3B8'}
+                color={selectedRxFilter === opt.id ? '#0284C7' : '#94A3B8'}
               />
               <Text style={[
                 styles.filterModalOptionText,
@@ -1559,7 +2065,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               <Ionicons
                 name={selectedPriceFilter === opt.id ? 'radio-button-on' : 'radio-button-off'}
                 size={18}
-                color={selectedPriceFilter === opt.id ? '#059669' : '#94A3B8'}
+                color={selectedPriceFilter === opt.id ? '#0284C7' : '#94A3B8'}
               />
               <Text style={[
                 styles.filterModalOptionText,
@@ -1593,41 +2099,155 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         </View>
       </ClinicalModalSheet>
 
-      {/* Bottom Navigation Bar */}
-      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        {[
-          { id: 'STORE', icon: 'storefront-outline', iconActive: 'storefront', label: 'Cửa Hàng' },
-          { id: 'AI_CHAT', icon: 'chatbubble-ellipses-outline', iconActive: 'chatbubble-ellipses', label: 'Dược Sĩ AI' },
-          { id: 'VOUCHERS', icon: 'pricetags-outline', iconActive: 'pricetags', label: 'Voucher' },
-          { id: 'ORDERS', icon: 'receipt-outline', iconActive: 'receipt', label: 'Đơn Mua' },
-        ].map((tab) => (
-          <AnimatedTouchable
-            key={tab.id}
-            onPress={() => setActiveTab(tab.id as any)}
-            style={styles.bottomNavItem}
-          >
-            <Ionicons
-              name={(activeTab === tab.id ? tab.iconActive : tab.icon) as keyof typeof Ionicons.glyphMap}
-              size={22}
-              color={activeTab === tab.id ? '#059669' : '#94A3B8'}
-            />
-            <Text style={[styles.bottomNavLabel, activeTab === tab.id && styles.bottomNavLabelActive]}>
-              {tab.label}
-            </Text>
-          </AnimatedTouchable>
-        ))}
+      {/* ABC Pharmacy Branches Modal (Hệ thống nhà thuốc) */}
+      <Modal visible={showBranchModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '85%' }]}>
+            <View style={styles.universalModalHeader}>
+              <View style={styles.universalModalTitleCol}>
+                <Text style={styles.modalTitle}>Hệ Thống Nhà Thuốc ABC</Text>
+                <Text style={styles.modalSub}>
+                  Chi nhánh đạt chuẩn GPP & Bán kính Geofencing điểm danh
+                </Text>
+              </View>
+              <AnimatedTouchable
+                onPress={() => setShowBranchModal(false)}
+                style={styles.universalCloseBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={20} color="#334155" />
+              </AnimatedTouchable>
+            </View>
 
-        {/* Tab Tài khoản */}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {ABC_BRANCHES.map((b) => (
+                <View key={b.id} style={styles.branchCardItem}>
+                  <View style={styles.branchIconCol}>
+                    <Ionicons name="storefront" size={22} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.branchNameText}>{b.name}</Text>
+                      <View style={styles.branchDistanceBadge}>
+                        <Text style={styles.branchDistanceText}>{b.distance}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.branchAddressText}>{b.address}</Text>
+                    <View style={styles.branchFooterRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="call-outline" size={13} color="#0284C7" style={{ marginRight: 4 }} />
+                        <Text style={styles.branchHotlineText}>{b.hotline}</Text>
+                      </View>
+                      <AnimatedTouchable
+                        onPress={() => {
+                          showToast.success('Đã chọn cơ sở', `Đang kết nối kho hàng cơ sở ${b.name}`);
+                          setShowBranchModal(false);
+                        }}
+                        style={styles.selectBranchBtn}
+                      >
+                        <Text style={styles.selectBranchBtnText}>Chọn cơ sở</Text>
+                      </AnimatedTouchable>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Elevated 5-Tab Bottom Navigation Bar (Tri-Pharmacy Standard) ── */}
+      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        {/* Tab 1: Trang chủ */}
         <AnimatedTouchable
-          onPress={() => navigation.navigate(user ? 'ProfileScreen' : 'LoginScreen')}
+          onPress={() => setActiveTab('STORE')}
           style={styles.bottomNavItem}
         >
           <Ionicons
-            name={user ? 'person-circle' : 'person-circle-outline'}
+            name={activeTab === 'STORE' ? 'home' : 'home-outline'}
+            size={22}
+            color={activeTab === 'STORE' ? '#0284C7' : '#94A3B8'}
+          />
+          <Text style={[styles.bottomNavLabel, activeTab === 'STORE' && styles.bottomNavLabelActive]}>
+            Trang chủ
+          </Text>
+        </AnimatedTouchable>
+
+        {/* Tab 2: Danh mục */}
+        <AnimatedTouchable
+          onPress={() => {
+            setActiveTab('STORE');
+            setSelectedCategory('ALL');
+          }}
+          style={styles.bottomNavItem}
+        >
+          <Ionicons
+            name="grid-outline"
             size={22}
             color="#94A3B8"
           />
-          <Text style={styles.bottomNavLabel}>Tài khoản</Text>
+          <Text style={styles.bottomNavLabel}>
+            Danh mục
+          </Text>
+        </AnimatedTouchable>
+
+        {/* Tab 3: Raised Center Floating Button - Dược Sĩ AI */}
+        <View style={styles.raisedCenterBtnContainer}>
+          <AnimatedTouchable
+            onPress={() => setActiveTab('AI_CHAT')}
+            style={styles.raisedCenterBtn}
+          >
+            <LinearGradient
+              colors={['#0284C7', '#0EA5E9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.raisedCenterInner}
+            >
+              <Ionicons name="chatbubbles" size={24} color="#FFFFFF" />
+            </LinearGradient>
+          </AnimatedTouchable>
+          <Text style={[styles.bottomNavLabel, activeTab === 'AI_CHAT' && styles.bottomNavLabelActive, { marginTop: 2 }]}>
+            Tư vấn AI
+          </Text>
+        </View>
+
+        {/* Tab 4: Giỏ hàng */}
+        <AnimatedTouchable
+          onPress={() => setActiveTab('CART')}
+          style={styles.bottomNavItem}
+        >
+          <View>
+            <Ionicons
+              name={activeTab === 'CART' ? 'cart' : 'cart-outline'}
+              size={22}
+              color={activeTab === 'CART' ? '#0284C7' : '#94A3B8'}
+            />
+            {cartTotalCount > 0 && (
+              <View style={styles.bottomNavBadge}>
+                <Text style={styles.bottomNavBadgeText}>
+                  {cartTotalCount > 99 ? '99+' : cartTotalCount}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.bottomNavLabel, activeTab === 'CART' && styles.bottomNavLabelActive]}>
+            Giỏ hàng
+          </Text>
+        </AnimatedTouchable>
+
+        {/* Tab 5: Tài khoản / Đơn mua */}
+        <AnimatedTouchable
+          onPress={() => setActiveTab('ORDERS')}
+          style={styles.bottomNavItem}
+        >
+          <Ionicons
+            name={activeTab === 'ORDERS' ? 'receipt' : 'receipt-outline'}
+            size={22}
+            color={activeTab === 'ORDERS' ? '#0284C7' : '#94A3B8'}
+          />
+          <Text style={[styles.bottomNavLabel, activeTab === 'ORDERS' && styles.bottomNavLabelActive]}>
+            Đơn mua
+          </Text>
         </AnimatedTouchable>
       </View>
     </SafeAreaView>
@@ -1637,18 +2257,784 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F0F9FF',
   },
-  // Bottom Navigation
+  // ─── Custom Medical Sky Blue Header ──────────────────────
+  customHeader: {
+    paddingTop: 10,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    marginTop: 2,
+  },
+  brandTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  brandTitleText: {
+    fontSize: 16.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
+  },
+  locationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.20)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+  },
+  locationBarText: {
+    fontSize: 11.5,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    maxWidth: 280,
+  },
+  headerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerLoginPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  headerLoginPillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  headerUserPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    maxWidth: 105,
+  },
+  headerUserPillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  headerRoundBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  headerCartBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#EF4444',
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  headerCartBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  floatingSearchContainer: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  floatingSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    height: 44,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  floatingSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    paddingVertical: 0,
+  },
+  searchActionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  searchSubBtn: {
+    padding: 4,
+  },
+  trendingScroll: {
+    paddingVertical: 2,
+    gap: 6,
+  },
+  trendingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  trendingChipText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+
+  // ─── Interactive Callout & Feature Pillars ────────────────
+  consultantCalloutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  consultantCalloutLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  consultantAvatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#0284C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  consultantCalloutTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  consultantCalloutSub: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
+    marginTop: 1,
+  },
+  consultantCalloutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  consultantCalloutBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  twoPillarsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  pillarCard: {
+    flex: 1,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+  },
+  pillarIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  pillarTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0284C7',
+    marginBottom: 2,
+  },
+  pillarSub: {
+    fontSize: 10.5,
+    color: '#64748B',
+  },
+
+  // ─── Quick Action Grid 2x4 ────────────────────────────────
+  quickActionGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 10,
+    columnGap: 8,
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  quickGridItem: {
+    width: '22.5%',
+    alignItems: 'center',
+  },
+  quickGridIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  quickGridTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  quickGridSub: {
+    fontSize: 9.5,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+
+  // ─── Hero Promo Banner ────────────────────────────────────
+  heroPromoBanner: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  heroPromoInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  promoBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  promoBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  promoMainTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  promoSubTitle: {
+    fontSize: 11,
+    color: '#E0F2FE',
+  },
+  promoArtBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+
+  // ─── Flash Sale Section ───────────────────────────────────
+  flashSaleSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 14,
+  },
+  flashSlotTabsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+  },
+  flashSlotTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  flashSlotTabActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  flashSlotTime: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  flashSlotTimeActive: {
+    color: '#FFFFFF',
+  },
+  flashSlotStatus: {
+    fontSize: 9.5,
+    color: '#94A3B8',
+  },
+  flashSlotStatusActive: {
+    color: '#FEE2E2',
+    fontWeight: '600',
+  },
+  flashCountdownBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FEE2E2',
+  },
+  flashSaleTitle: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#EF4444',
+    letterSpacing: -0.3,
+  },
+  countdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  countdownLabel: {
+    fontSize: 10.5,
+    color: '#64748B',
+  },
+  timerBox: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  timerText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  timerColon: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EF4444',
+    marginHorizontal: 2,
+  },
+  flashProductsScroll: {
+    gap: 10,
+    paddingVertical: 4,
+  },
+  flashCard: {
+    width: 140,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 8,
+    position: 'relative',
+  },
+  flashDiscountBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    zIndex: 2,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  flashDiscountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  flashThumb: {
+    width: '100%',
+    height: 90,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  flashMedName: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    minHeight: 30,
+  },
+  flashOriginalPrice: {
+    fontSize: 10,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+    marginTop: 2,
+  },
+  flashSalePrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  flashStockBar: {
+    height: 14,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 7,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 6,
+    position: 'relative',
+  },
+  flashStockProgress: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#F87171',
+    borderRadius: 7,
+  },
+  flashStockText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#991B1B',
+    textAlign: 'center',
+    zIndex: 1,
+  },
+  flashAddToCartBtn: {
+    backgroundColor: '#0284C7',
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  flashAddToCartText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // ─── Seasonal Illness Section ─────────────────────────────
+  seasonalSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    marginBottom: 14,
+  },
+  seasonalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  seasonalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  seasonalTabsScroll: {
+    marginBottom: 10,
+  },
+  seasonalTabPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    marginRight: 6,
+  },
+  seasonalTabPillActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
+  },
+  seasonalTabPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  seasonalTabPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  seasonalAdviceCard: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  seasonalAdviceTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0369A1',
+    marginBottom: 4,
+  },
+  seasonalAdviceDesc: {
+    fontSize: 11.5,
+    color: '#334155',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  seasonalTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  seasonalTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  seasonalTagText: {
+    fontSize: 10.5,
+    color: '#0284C7',
+    fontWeight: '600',
+  },
+
+  // ─── Category Header & Product Badges ─────────────────────
+  categoryHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  productListHeader: {
+    marginBottom: 8,
+  },
+  otcBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  otcBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+
+  // ─── Trust Footer Box (FPT Long Châu) ──────────────────────
+  trustFooterBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  trustGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 12,
+    justifyContent: 'space-between',
+  },
+  trustItem: {
+    width: '48%',
+    alignItems: 'center',
+  },
+  trustIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  trustTitle: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  trustSub: {
+    fontSize: 10,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+
+  // ─── Raised Center Bottom Navigation Button ───────────────
+  raisedCenterBtnContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    top: -12,
+  },
+  raisedCenterBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  raisedCenterInner: {
+    flex: 1,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomNavBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#EF4444',
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  bottomNavBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // ─── Branch Modal ─────────────────────────────────────────
+  branchModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  branchCardItem: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+  },
+  branchIconCol: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  branchNameText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  branchDistanceBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  branchDistanceText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  branchAddressText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginVertical: 3,
+  },
+  branchFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  branchHotlineText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  selectBranchBtn: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  selectBranchBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // ─── Bottom Navigation ────────────────────────────────────
   bottomNav: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    shadowColor: '#000000',
+    borderTopColor: '#E0F2FE',
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -1665,54 +3051,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   bottomNavLabelActive: {
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '800',
-  },
-  // Quick Actions
-  quickActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  quickActionCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  quickActionCardAI: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-    shadowColor: '#059669',
-  },
-  quickActionCardReminder: {
-    backgroundColor: '#ECFEFF',
-    borderColor: '#A5F3FC',
-    shadowColor: '#0891B2',
-  },
-  quickActionIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  quickActionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#065F46',
-    marginBottom: 2,
-  },
-  quickActionSub: {
-    fontSize: 11,
-    color: '#059669',
-    lineHeight: 15,
   },
   // Category Icon Grid
   categoryGrid: {
@@ -1731,14 +3071,14 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   categoryGridItemActive: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
   },
   categoryGridIconBox: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#E0F2FE',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1767,12 +3107,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#BAE6FD',
     marginRight: 8,
   },
   filterBtnActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    backgroundColor: '#E0F2FE',
+    borderColor: '#0284C7',
   },
   filterBtnText: {
     fontSize: 12,
@@ -1780,10 +3120,10 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   filterBtnTextActive: {
-    color: '#059669',
+    color: '#0284C7',
   },
   filterActiveBadge: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     borderRadius: 10,
     minWidth: 16,
     height: 16,
@@ -1818,8 +3158,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   filterModalOptionActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
   },
   filterModalOptionText: {
     fontSize: 13,
@@ -1827,7 +3167,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterModalOptionTextActive: {
-    color: '#065F46',
+    color: '#075985',
     fontWeight: '700',
   },
   // Add to cart icon button
@@ -1835,10 +3175,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#059669',
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1874,12 +3214,12 @@ const styles = StyleSheet.create({
   scanBarcodeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 14,
     gap: 4,
-    shadowColor: '#059669',
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -1912,8 +3252,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   activeCatPill: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
   },
   categoryPillText: {
     fontSize: 12,
@@ -2025,13 +3365,13 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 4,
   },
   buyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -2077,7 +3417,7 @@ const styles = StyleSheet.create({
   },
   cartItemPrice: {
     fontSize: 13,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '700',
     marginTop: 2,
   },
@@ -2162,34 +3502,34 @@ const styles = StyleSheet.create({
   totalVal: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#059669',
+    color: '#0284C7',
   },
   aiHeaderCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 14,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     marginBottom: 12,
   },
   aiAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   aiHeaderTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#065F46',
+    color: '#075985',
   },
   aiHeaderSub: {
     fontSize: 12,
-    color: '#047857',
+    color: '#0369A1',
     marginTop: 2,
   },
   voiceRecordingBox: {
@@ -2228,12 +3568,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   aiBubble: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignSelf: 'flex-start',
     borderTopLeftRadius: 2,
   },
   userBubble: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     alignSelf: 'flex-end',
     borderTopRightRadius: 2,
   },
@@ -2242,7 +3582,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   aiChatText: {
-    color: '#065F46',
+    color: '#075985',
   },
   userChatText: {
     color: '#FFFFFF',
@@ -2251,12 +3591,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#A7F3D0',
+    borderTopColor: '#BAE6FD',
   },
   medsSuggestTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#047857',
+    color: '#0369A1',
     marginBottom: 6,
   },
   suggestItem: {
@@ -2267,7 +3607,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#D1FAE5',
+    borderColor: '#E0F2FE',
   },
   suggestMedThumb: {
     width: 38,
@@ -2283,13 +3623,13 @@ const styles = StyleSheet.create({
   },
   suggestMedPrice: {
     fontSize: 11,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '600',
   },
   addSuggestBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,
@@ -2309,11 +3649,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
   },
   micBtnActive: {
     backgroundColor: '#FEE2E2',
@@ -2331,7 +3671,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   sendChatBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -2420,7 +3760,7 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
   },
   useVoucherBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -2458,10 +3798,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   statusPaid: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
   },
   statusPaidText: {
-    color: '#059669',
+    color: '#0284C7',
     fontSize: 11,
     fontWeight: '800',
   },
@@ -2546,9 +3886,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     borderRadius: 10,
     paddingVertical: 9,
     paddingHorizontal: 12,
@@ -2558,7 +3898,7 @@ const styles = StyleSheet.create({
   autoCreateAllRemindersBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   orderFooter: {
     flexDirection: 'row',
@@ -2575,7 +3915,7 @@ const styles = StyleSheet.create({
   orderTotalAmount: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 2,
   },
   qrOrderBtn: {
@@ -2620,7 +3960,7 @@ const styles = StyleSheet.create({
   modalPrice: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 4,
     marginBottom: 10,
   },
@@ -2798,8 +4138,8 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
   },
   tagPillSelected: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0EA5E9',
   },
   tagPillText: {
     fontSize: 12,
@@ -2807,7 +4147,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   tagPillTextSelected: {
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '700',
   },
   feedbackInput: {
@@ -2836,8 +4176,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   activeSubFilterPill: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0EA5E9',
   },
   subFilterText: {
     fontSize: 11,
@@ -2845,7 +4185,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeSubFilterText: {
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '700',
   },
   sortBtn: {
@@ -2860,8 +4200,8 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
   },
   activeSortBtn: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   sortBtnText: {
     fontSize: 11,
@@ -2869,7 +4209,7 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   activeSortBtnText: {
-    color: '#059669',
+    color: '#0284C7',
   },
   orderStatusPill: {
     paddingHorizontal: 14,
@@ -2881,8 +4221,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   activeOrderStatusPill: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
   },
   orderStatusPillText: {
     fontSize: 12,
@@ -2892,5 +4232,43 @@ const styles = StyleSheet.create({
   activeOrderStatusPillText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '500',
+    lineHeight: 16,
+  },
+  universalModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  universalModalTitleCol: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  universalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
 });

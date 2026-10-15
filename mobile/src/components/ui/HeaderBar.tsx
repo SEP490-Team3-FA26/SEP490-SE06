@@ -28,10 +28,11 @@ interface HeaderBarProps {
     icon: keyof typeof Ionicons.glyphMap;
     onPress: () => void;
   };
-  gradientVariant?: 'emerald' | 'indigo' | 'ocean' | 'dark';
+  gradientVariant?: 'emerald' | 'indigo' | 'ocean' | 'dark' | 'sky';
 }
 
 const GRADIENTS = {
+  sky: ['#0369A1', '#0284C7', '#38BDF8'] as const,
   emerald: ['#064E3B', '#059669', '#10B981'] as const,
   indigo: ['#1E1B4B', '#3730A3', '#4F46E5'] as const,
   ocean: ['#164E63', '#0891B2', '#06B6D4'] as const,

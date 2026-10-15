@@ -217,12 +217,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: RadiusTokens.full,
     backgroundColor: ColorTokens.slate[100],
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: ColorTokens.slate[200],
   },
   body: {
     paddingHorizontal: SpacingTokens.base,
