@@ -43,6 +43,16 @@ export class AuditLogInterceptor implements NestInterceptor {
     const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
     const recordRead = options?.recordRead === true;
 
+    // Skip audit logging for high-frequency IoT telemetry and health checks
+    const isHighFrequencyEndpoint =
+      url.includes('/api/sensor') ||
+      url.includes('/health') ||
+      url.includes('/metrics');
+
+    if (isHighFrequencyEndpoint) {
+      return next.handle();
+    }
+
     // Skip audit logging if it is just a voucher active status toggle to reduce log noise
     const isVoucherStatusToggle =
       method === 'PUT' &&

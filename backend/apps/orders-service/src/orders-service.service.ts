@@ -270,6 +270,35 @@ export class OrdersServiceService implements OnModuleInit {
     data.totalAmount = serverTotalAmount;
     earnedPoints = Math.round((serverTotalAmount / 100) * loyaltyMultiplier);
 
+    // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+    let auditFlag = false;
+    let flagReason: string | undefined = undefined;
+    let cashierVoucherDailyCount = 0;
+
+    const cashierName = data.soldBy || data.pharmacistApprovedBy || 'Dược sĩ trực quầy';
+
+    if (voucherCode && data.paymentMethod === 'CASH') {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      // Đếm số đơn hàng tiền mặt có dùng voucher của thu ngân này trong ngày hôm nay
+      const dailyCount = await this.orderModel.countDocuments({
+        $or: [{ soldBy: cashierName }, { pharmacistApprovedBy: cashierName }],
+        paymentMethod: 'CASH',
+        voucherCode: { $exists: true, $ne: '' },
+        createdAt: { $gte: startOfToday },
+      }).exec();
+
+      cashierVoucherDailyCount = dailyCount + 1;
+
+      // Nếu áp dụng quá 10 voucher/ngày cho đơn tiền mặt -> Hệ thống tự động gắn cờ nghi vấn (Audit Flag)
+      if (cashierVoucherDailyCount > 10) {
+        auditFlag = true;
+        flagReason = 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION';
+        this.logger.warn(`⚠️ [RỦI RO 7 - AUDIT FLAG] Thu ngân "${cashierName}" đã áp dụng ${cashierVoucherDailyCount} voucher cho các đơn tiền mặt trong ngày hôm nay! Đã tự động gắn cờ nghi vấn trục lợi.`);
+      }
+    }
+
     const newOrder = new this.orderModel({
       orderCode,
       patientName: data.patientName,
@@ -308,6 +337,11 @@ export class OrdersServiceService implements OnModuleInit {
       aiAuditCode: data.aiAuditCode || undefined,
       consultationId: data.consultationId || undefined,
       pharmacistApprovedBy: data.pharmacistApprovedBy || undefined,
+      soldBy: cashierName,
+      // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA)
+      auditFlag,
+      flagReason,
+      cashierVoucherDailyCount,
       approvedBy: data.approvedBy,
       approvedAt: data.approvedAt ? new Date(data.approvedAt) : undefined,
     });
@@ -1641,10 +1675,10 @@ export class OrdersServiceService implements OnModuleInit {
       const DEFAULT_PHARMA_COGS_RATIO = 0.65; // Chuẩn định mức giá vốn trung bình ngành Dược phẩm bán lẻ Việt Nam (65% COGS)
       const campaigns = await this.campaignModel.find().lean().exec();
 
-      // Tối ưu hóa bộ nhớ: chỉ nạp các trường cần thiết phục vụ tính ROI & Attribution thay vì load toàn bộ document
+      // Tối ưu hóa bộ nhớ: nạp các trường cần thiết phục vụ tính ROI & Attribution bao gồm items
       const allOrders = await this.orderModel
         .find({ paymentStatus: 'PAID' })
-        .select('patientPhone totalAmount voucherCode voucherDiscount createdAt')
+        .select('patientPhone totalAmount voucherCode voucherDiscount createdAt items')
         .lean()
         .exec();
 
@@ -1680,8 +1714,23 @@ export class OrdersServiceService implements OnModuleInit {
         const totalOrders = matchedOrders.length;
         const totalRevenue = matchedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         
-        // Biên lợi nhuận gộp thực chất (Doanh thu - Giá vốn COGS định mức)
-        const estimatedCogs = totalRevenue * DEFAULT_PHARMA_COGS_RATIO;
+        // Biên lợi nhuận gộp thực chất: Ưu tiên tính từ giá vốn thực tế của SKU trong đơn hàng
+        let actualItemsCogs = 0;
+        let hasItemCost = false;
+        matchedOrders.forEach((o: any) => {
+          if (Array.isArray(o.items)) {
+            o.items.forEach((it: any) => {
+              if (typeof it.costPrice === 'number' && it.costPrice > 0) {
+                actualItemsCogs += it.costPrice * (it.quantity || 1);
+                hasItemCost = true;
+              }
+            });
+          }
+        });
+
+        const estimatedCogs = hasItemCost && actualItemsCogs > 0
+          ? actualItemsCogs
+          : totalRevenue * DEFAULT_PHARMA_COGS_RATIO;
         const grossProfit = totalRevenue - estimatedCogs;
         const totalCost = c.totalCost || c.budget || 1; // Tránh chia cho 0
         const netProfit = grossProfit - totalCost;
@@ -1758,6 +1807,26 @@ export class OrdersServiceService implements OnModuleInit {
       };
     } catch (error) {
       throw new RpcException(error.message || 'Lỗi phân tích Marketing ROI');
+    }
+  }
+
+  //  Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+  async getVoucherAuditFlags() {
+    try {
+      const flaggedOrders = await this.orderModel
+        .find({ auditFlag: true })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .exec();
+
+      return {
+        success: true,
+        count: flaggedOrders.length,
+        data: flaggedOrders,
+      };
+    } catch (error) {
+      this.logger.error('Lỗi khi lấy danh sách kiểm toán nghi vấn voucher:', error);
+      throw new RpcException(error.message || 'Lỗi khi lấy danh sách kiểm toán nghi vấn voucher');
     }
   }
 }

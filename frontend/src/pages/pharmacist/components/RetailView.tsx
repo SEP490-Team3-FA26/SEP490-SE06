@@ -8,6 +8,9 @@ import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
 import { voucherService } from "../../../services/sales/voucher.service";
+import api from "../../../services/core/api";
+import { useCustomerRFM } from "../../../hooks/useCustomerRFM";
+import { reconciliationService } from "../../../services/sales/reconciliation.service";
 
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
@@ -49,10 +52,11 @@ function getBranchInfoFromToken() {
 }
 
 interface RetailViewProps {
-  showToast: (message: string, type?: "success" | "error" | "warning") => void;
+  showToast: (message: string, type?: "success" | "error" | "warning" | "info") => void;
+  isShiftActive?: boolean;
 }
 
-export default function RetailView({ showToast }: RetailViewProps) {
+export default function RetailView({ showToast, isShiftActive = true }: RetailViewProps) {
   const currentBranch = getBranchInfoFromToken().branchId || "BR-001";
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -204,6 +208,10 @@ export default function RetailView({ showToast }: RetailViewProps) {
   };
 
   const finalizeSalesOrder = async (payload: any) => {
+    if (isShiftActive === false) {
+      showToast("Bạn chưa đến ca làm việc hoặc chưa điểm danh ca trực hôm nay qua ứng dụng di động!", "error");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -968,8 +976,8 @@ export default function RetailView({ showToast }: RetailViewProps) {
     }
   };
 
-  const handleApplyVoucher = async () => {
-    const code = voucherCode.trim().toUpperCase();
+  const handleApplyVoucher = async (overrideCode?: string) => {
+    const code = (typeof overrideCode === 'string' && overrideCode ? overrideCode : voucherCode).trim().toUpperCase();
     setVoucherError("");
 
     if (!code) {
@@ -990,13 +998,15 @@ export default function RetailView({ showToast }: RetailViewProps) {
         return;
       }
 
+      // Áp dụng trực tiếp Voucher (Hệ thống Anomaly Detection sẽ tự động hậu kiểm nếu thu ngân áp dụng > 10 voucher/ngày)
       setAppliedVoucher(result);
       setVoucherCode("");
+      setVoucherError("");
       const maxRedeem = Math.floor(Math.max(0, subtotal - vipDiscount - result.discount) * 0.5);
       if (redeemedPoints > maxRedeem) {
         setRedeemedPoints(maxRedeem);
       }
-      showToast(`Đã áp dụng mã ${result.code}`, "success");
+      showToast(`Đã áp dụng mã giảm giá ${result.code}`, "success");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Không thể áp dụng mã giảm giá";
       setVoucherError(msg);
@@ -1114,14 +1124,24 @@ export default function RetailView({ showToast }: RetailViewProps) {
         patientEmail: patientEmail || undefined,
         userId: loyaltyInfo?.userId || undefined,
         redeemedPoints: usePoints ? redeemedPoints : 0,
+        role: assignedRole,
+        customerRole: assignedRole,
+        patientRole: assignedRole,
+        isGuest: isGuestCustomer,
         remarks: aiPharmacistConfirmation?.confirmed
           ? `[ĐÃ XÁC NHẬN BỞI DS ${aiPharmacistConfirmation.pharmacistName} - MÃ DUYỆT ${aiPharmacistConfirmation.auditCode}]`
           : undefined,
-        aiAssisted: Boolean(aiPharmacistConfirmation?.confirmed),
+        aiAssisted: Boolean(aiPharmacistConfirmation?.confirmed) || hasAiItems,
+        isAiAssisted: hasAiItems || Boolean(aiPharmacistConfirmation?.confirmed),
         pharmacistConfirmed: Boolean(aiPharmacistConfirmation?.confirmed),
         pharmacistConfirmedBy: aiPharmacistConfirmation?.pharmacistName,
         pharmacistConfirmedAt: aiPharmacistConfirmation?.confirmedAt,
-        aiAuditCode: aiPharmacistConfirmation?.auditCode,
+        aiAuditCode: aiPharmacistConfirmation?.auditCode || (hasAiItems ? aiAuditCode : undefined),
+        consultationId: hasAiItems ? consultationId : undefined,
+        pharmacistApprovedBy: hasAiItems ? pharmacistApprovedBy : (aiPharmacistConfirmation?.pharmacistName || undefined),
+        // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+        voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
+        voucherDiscount: appliedVoucher ? appliedVoucher.discount : 0,
       };
 
       if (paymentMethod === "QR_PAY") {
@@ -1135,6 +1155,7 @@ export default function RetailView({ showToast }: RetailViewProps) {
           type: "RETAIL",
           branchId: currentBranchId || undefined,
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
+          voucherDiscount: appliedVoucher ? appliedVoucher.discount : 0,
           redeemedPoints: usePoints ? redeemedPoints : 0,
           items: cart.map(it => ({
             medicineId: it.id || it._id,
@@ -2032,10 +2053,11 @@ export default function RetailView({ showToast }: RetailViewProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setVoucherCode(currentCustomerSegment.recommendedVoucher || '');
-                          showToast(`Đã tự động điền mã ưu đãi ${currentCustomerSegment.recommendedVoucher}`, 'success');
+                          const code = currentCustomerSegment.recommendedVoucher || '';
+                          setVoucherCode(code);
+                          handleApplyVoucher(code);
                         }}
-                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-sm transition-colors"
+                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-sm transition-colors cursor-pointer"
                       >
                         Áp dụng {currentCustomerSegment.recommendedVoucher}
                       </button>
@@ -2106,17 +2128,33 @@ export default function RetailView({ showToast }: RetailViewProps) {
 
         {/* Voucher Box */}
         <div className="bg-white border border-slate-200 rounded-[16px] p-5 shadow-sm flex flex-col gap-2">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ÁP DỤNG MÃ GIẢM GIÁ</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Tag size={13} className="text-[#0057cd]" />
+              ÁP DỤNG MÃ GIẢM GIÁ
+            </span>
+            <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
+              Bảo mật Rủi ro 7 SBA
+            </span>
+          </div>
           {appliedVoucher ? (
-            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-150 p-2.5 rounded-xl text-xs font-semibold text-emerald-800">
+            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs font-semibold text-emerald-800">
               <div>
-                Mã đã dùng: <span className="font-extrabold uppercase">{appliedVoucher.code}</span>
-                <span className="block text-[10px] text-emerald-600 mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  Mã đã dùng: <span className="font-extrabold uppercase font-mono text-emerald-950">{appliedVoucher.code}</span>
+                  {loyaltyInfo && !isWalkIn ? (
+                    <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">
+                      ✓ Thành viên Zalo
+                    </span>
+                  ) : null}
+                </div>
+                <span className="block text-[11px] text-emerald-600 font-bold mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
               </div>
               <button
                 type="button"
                 onClick={handleRemoveVoucher}
-                className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 text-md"
+                className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 text-md cursor-pointer"
+                title="Hủy voucher"
               >
                 ×
               </button>
@@ -2128,13 +2166,13 @@ export default function RetailView({ showToast }: RetailViewProps) {
                 placeholder="Nhập mã voucher..."
                 value={voucherCode}
                 onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white transition-all uppercase"
+                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white transition-all uppercase font-mono"
               />
               <button
                 type="button"
-                onClick={handleApplyVoucher}
+                onClick={() => handleApplyVoucher()}
                 disabled={isValidatingVoucher}
-                className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
               >
                 {isValidatingVoucher ? "..." : "Áp dụng"}
               </button>

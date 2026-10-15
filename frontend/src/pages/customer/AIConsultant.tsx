@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Mic, Square, Sparkles, AlertTriangle, CheckCircle, ShoppingCart, Volume2, Info, ArrowRight, HeartPulse, Brain, RotateCcw, LoaderCircle, X, Send } from "lucide-react";
 import { prescriptionService } from "../../services/sales/prescription.service";
 import { cartService } from "../../services/sales/cart.service";
+import { notifyAuthLoginRequired } from "../../utils/authEvents";
 
 export function AIConsultant() {
   const [recording, setRecording] = useState(false);
@@ -176,69 +177,25 @@ export function AIConsultant() {
       const token = localStorage.getItem("token");
       let addedCount = 0;
 
-      if (!token) {
-        // Guest mode: update guest_cart
-        const guestCartStr = localStorage.getItem("guest_cart");
-        let cart = guestCartStr ? JSON.parse(guestCartStr) : [];
-
-        result.prescription.recommended_drugs.forEach((drug: any) => {
-          const invMatch = availableList.find((av: any) => av.name.toLowerCase() === drug.name.toLowerCase());
-          if (invMatch && invMatch.stock > 0) {
-            const medId = invMatch.id || invMatch._id;
-            if (!medId) return;
-            const existing = cart.find((it: any) => it.id === medId || it._id === medId);
-            if (existing) {
-              if (existing.quantity < invMatch.stock) {
-                existing.quantity += 1;
-                addedCount++;
-              }
-            } else {
-              cart.push({
-                id: medId,
-                _id: medId,
-                name: invMatch.name,
-                category: invMatch.category || "Chưa phân loại",
-                price: invMatch.price,
-                quantity: 1,
-                unit: invMatch.unit || "Viên",
-                stock: invMatch.stock,
-                active_ingredient: drug.active_ingredient || "",
-                image: invMatch.image || ""
-              });
-              addedCount++;
-            }
+      // Thêm các thuốc khả dụng vào giỏ hàng (hỗ trợ cả khách vãng lai và thành viên)
+      for (const drug of result.prescription.recommended_drugs) {
+        const invMatch = availableList.find((av: any) => av.name.toLowerCase() === drug.name.toLowerCase());
+        if (invMatch && invMatch.stock > 0) {
+          const medId = invMatch.id || invMatch._id;
+          if (!medId) continue;
+          try {
+            await cartService.addProduct(invMatch, 1);
+            addedCount++;
+          } catch (err) {
+            console.error("Error adding drug to cart:", err);
           }
-        });
-
-        if (addedCount > 0) {
-          localStorage.setItem("guest_cart", JSON.stringify(cart));
-          window.dispatchEvent(new Event("cartUpdated"));
-          setSuccessMessage(`Đã thêm thành công ${addedCount} loại thuốc khả dụng vào giỏ hàng!`);
-        } else {
-          setError("Không có loại thuốc đề xuất nào khả dụng hoặc còn hàng trong kho.");
         }
+      }
+
+      if (addedCount > 0) {
+        setSuccessMessage(`Đã thêm thành công ${addedCount} loại thuốc khả dụng vào giỏ hàng!`);
       } else {
-        // Logged-in mode: call API POST /api/users/cart for each drug
-        for (const drug of result.prescription.recommended_drugs) {
-          const invMatch = availableList.find((av: any) => av.name.toLowerCase() === drug.name.toLowerCase());
-          if (invMatch && invMatch.stock > 0) {
-            const medId = invMatch.id || invMatch._id;
-            if (!medId) continue;
-            try {
-              await cartService.addToCart(medId, 1);
-              addedCount++;
-            } catch (err) {
-              console.error("Error adding drug to cart:", err);
-            }
-          }
-        }
-
-        if (addedCount > 0) {
-          window.dispatchEvent(new Event("cartUpdated"));
-          setSuccessMessage(`Đã thêm thành công ${addedCount} loại thuốc khả dụng vào giỏ hàng!`);
-        } else {
-          setError("Không thể thêm thuốc đề xuất vào giỏ hàng.");
-        }
+        setError("Không thể thêm thuốc đề xuất vào giỏ hàng.");
       }
     } catch (err) {
       console.error(err);
@@ -611,7 +568,6 @@ export function AIConsultant() {
                                 <button
                                   onClick={async () => {
                                     const medId = stockInfo.id || stockInfo._id;
-                                    const token = localStorage.getItem("token");
 
                                     if (!medId) {
                                       showAlert(
@@ -621,46 +577,13 @@ export function AIConsultant() {
                                       return;
                                     }
 
-                                    if (!token) {
-                                      const guestCartStr = localStorage.getItem("guest_cart");
-                                      let cart = guestCartStr ? JSON.parse(guestCartStr) : [];
-                                      const existing = cart.find((c: any) => c.id === medId || c._id === medId);
-
-                                      if (existing) {
-                                        if (existing.quantity < stockInfo.stock) {
-                                          existing.quantity += 1;
-                                        } else {
-                                          showAlert(`Chỉ còn ${stockInfo.stock} sản phẩm khả dụng trong kho!`);
-                                          return;
-                                        }
-                                      } else {
-                                        cart.push({
-                                          id: medId,
-                                          _id: medId,
-                                          name: stockInfo.name,
-                                          category: stockInfo.category || "Chưa phân loại",
-                                          price: stockInfo.price,
-                                          unit: stockInfo.unit || "Hộp",
-                                          stock: stockInfo.stock,
-                                          quantity: 1,
-                                          active_ingredient: drug.active_ingredient || "",
-                                          image: stockInfo.image || ""
-                                        });
-                                      }
-
-                                      localStorage.setItem("guest_cart", JSON.stringify(cart));
-                                      window.dispatchEvent(new Event("cartUpdated"));
+                                    try {
+                                      await cartService.addProduct(stockInfo, 1);
                                       setSuccessMessage(`Đã thêm thuốc ${drug.name} vào giỏ hàng!`);
-                                    } else {
-                                      try {
-                                        await cartService.addToCart(medId, 1);
-                                        window.dispatchEvent(new Event("cartUpdated"));
-                                        setSuccessMessage(`Đã thêm thuốc ${drug.name} vào giỏ hàng!`);
-                                      } catch (err: any) {
-                                        console.error(err);
-                                        const msg = err.response?.data?.message || err.message || "Không thể thêm thuốc vào giỏ hàng.";
-                                        showAlert(msg);
-                                      }
+                                    } catch (err: any) {
+                                      console.error(err);
+                                      const msg = err.response?.data?.message || err.message || "Không thể thêm thuốc vào giỏ hàng.";
+                                      showAlert(msg);
                                     }
                                   }}
                                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer hover:shadow-md transition-all"

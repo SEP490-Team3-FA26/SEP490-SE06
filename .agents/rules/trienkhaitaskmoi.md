@@ -13,6 +13,7 @@ Tài liệu này là **"công thức nấu ăn" (Recipe Book)** tối cao và to
 > 1. Tuyệt đối **không** được gọi API HTTP trực tiếp giữa các microservice nội bộ, mọi giao tiếp liên dịch vụ **bắt buộc** phải đi qua **Kafka**.
 > 2. Frontend Web và Mobile tuyệt đối **không** kết nối trực tiếp vào Database hoặc Microservice, mọi HTTP request **bắt buộc** phải đi qua **API Gateway** (`/api/...`).
 > 3. Nắm vững bản chất **Event-Driven qua Kafka**: Các tác vụ Ghi (Create, Update, Delete) trả về **HTTP 202 ACCEPTED** - không được giả định là đã ghi xong vào DB ngay trong mili-giây đầu tiên.
+> 4. **Ngôn ngữ chú thích mã nguồn (Code Comments):** Toàn bộ code comments (`//`, `/* */`, JSDoc) **viết bằng Tiếng Việt 100%** theo quy chuẩn dự án WDP301/SEP490 để toàn bộ đội ngũ dễ dàng đọc hiểu, chuyển giao và đối soát nghiệp vụ y tế.
 
 ---
 

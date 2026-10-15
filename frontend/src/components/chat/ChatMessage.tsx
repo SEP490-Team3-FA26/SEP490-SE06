@@ -1,6 +1,15 @@
 import React, { useState } from "react";
-import { Bot, User, ShieldAlert, AlertTriangle, Sparkles, CheckCircle, ShoppingBag, CornerDownRight } from "lucide-react";
+import { AlertTriangle, Sparkles, CheckCircle, ShoppingBag, CornerDownRight, LogIn } from "lucide-react";
 import { DrugCard, ChatDrugItem } from "./DrugCard";
+import { DoveFigure } from "../mascot/DoveFigure";
+import { PayOSCard, PayOSPaymentData } from "./PayOSCard";
+
+export type { PayOSPaymentData } from "./PayOSCard";
+
+export interface MessageActionButton {
+  label: string;
+  action: "LOGIN" | "SHOP" | string;
+}
 
 export interface MessageItem {
   id: string;
@@ -11,6 +20,8 @@ export interface MessageItem {
   follow_up_question?: string;
   disclaimer?: string;
   timestamp: string;
+  payment?: PayOSPaymentData;
+  actionButton?: MessageActionButton;
 }
 
 interface ChatMessageProps {
@@ -18,6 +29,9 @@ interface ChatMessageProps {
   onAddToCart: (drug: ChatDrugItem) => Promise<boolean>;
   onAddAllToCart?: (drugs: ChatDrugItem[]) => Promise<void>;
   onQuickReplySelect?: (text: string) => void;
+  onBuyNow?: (drug: ChatDrugItem) => void;
+  onPaymentSuccess?: (orderCode: number) => void;
+  onActionClick?: (action: string) => void;
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -25,6 +39,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   onAddToCart,
   onAddAllToCart,
   onQuickReplySelect,
+  onBuyNow,
+  onPaymentSuccess,
+  onActionClick,
 }) => {
   const isUser = message.sender === "user";
   const [isAddingAll, setIsAddingAll] = useState(false);
@@ -46,12 +63,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   if (isUser) {
     return (
-      <div className="flex justify-end gap-2 my-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <div className="flex justify-end my-1.5 animate-in fade-in slide-in-from-bottom-1 duration-200">
         <div className="max-w-[85%] sm:max-w-[78%]">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2.5 rounded-2xl rounded-tr-xs shadow-sm">
-            <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>
+          <div className="bg-blue-600 text-white px-3.5 py-2 rounded-2xl rounded-tr-xs shadow-none">
+            <p className="text-xs sm:text-[13px] whitespace-pre-wrap leading-relaxed">{message.text}</p>
           </div>
-          <span className="block text-[10px] text-slate-400 text-right mt-1 px-1">
+          <span className="block text-[10px] text-slate-400 text-right mt-0.5 px-1 font-normal">
             {message.timestamp}
           </span>
         </div>
@@ -60,44 +77,67 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   }
 
   return (
-    <div className="flex items-start gap-2.5 my-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
-      {/* Bot Avatar */}
-      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-sky-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-        <Bot size={18} />
+    <div className="flex items-start gap-2 my-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+      {/* Bot Avatar: Medical Dove Figure */}
+      <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200/80 flex items-center justify-center shrink-0 shadow-2xs mt-0.5 overflow-hidden pt-0.5">
+        <DoveFigure size={24} kaal={true} decoratief={true} />
       </div>
 
-      <div className="flex-1 max-w-[92%] sm:max-w-[85%] flex flex-col gap-2.5">
+      <div className="flex-1 max-w-[92%] sm:max-w-[85%] flex flex-col gap-2">
         {/* Header bot */}
         <div className="flex items-center gap-1.5 px-0.5">
-          <span className="text-xs font-bold text-slate-800">Dược sĩ AI</span>
+          <span className="text-xs font-semibold text-slate-700">Dược sĩ Bồ Câu AI</span>
           <span className="text-[10px] text-slate-400 ml-auto">{message.timestamp}</span>
         </div>
 
-        {/* Text response */}
+        {/* Text response message */}
         {message.text && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl rounded-tl-xs p-3.5 shadow-2xs text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+          <div className="bg-white border border-slate-200/80 rounded-2xl rounded-tl-xs p-3 text-xs sm:text-[13px] text-slate-800 leading-relaxed whitespace-pre-wrap shadow-2xs">
             {message.text}
+
+            {/* Action Call-to-Action button if required (e.g. login to pay) */}
+            {message.actionButton && (
+              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => onActionClick?.(message.actionButton!.action)}
+                  aria-label={message.actionButton.label}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <LogIn size={13} className="stroke-[2.5]" />
+                  <span>{message.actionButton.label}</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Warning callout (if any) */}
+        {/* Safety Warning notice if flagged by AI */}
         {message.warnings && message.warnings.trim().length > 0 && (
-          <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-amber-900 text-xs leading-relaxed">
-            <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="bg-amber-50/60 border border-amber-200/60 rounded-xl p-2.5 flex items-start gap-2 text-amber-900 text-xs leading-relaxed">
+            <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold block text-amber-800 mb-0.5">Lưu ý an toàn:</span>
-              <p className="text-amber-700 font-medium">{message.warnings}</p>
+              <span className="font-semibold block text-amber-800 mb-0.5">Lưu ý an toàn:</span>
+              <p className="text-amber-700">{message.warnings}</p>
             </div>
           </div>
         )}
 
-        {/* Recommended Drugs Section */}
+        {/* VietQR PayOS payment embed if active */}
+        {message.payment && (
+          <PayOSCard
+            payment={message.payment}
+            onPaymentSuccess={onPaymentSuccess}
+          />
+        )}
+
+        {/* Recommended Drugs List */}
         {message.drugs && message.drugs.length > 0 && (
-          <div className="flex flex-col gap-2 bg-slate-50/70 border border-blue-100/80 rounded-2xl p-3">
-            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Sparkles size={14} className="text-blue-600" />
-                Sản phẩm Dược sĩ đề xuất ({message.drugs.length})
+          <div className="flex flex-col gap-2 bg-slate-50/60 border border-slate-200/60 rounded-xl p-2.5">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                <Sparkles size={13} className="text-blue-600" />
+                Dược phẩm đề xuất ({message.drugs.length})
               </span>
 
               {availableDrugs.length >= 2 && onAddAllToCart && (
@@ -105,46 +145,52 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   type="button"
                   onClick={handleAddAll}
                   disabled={isAddingAll}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                  aria-label="Thêm tất cả sản phẩm vào giỏ hàng"
+                  className={`text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 cursor-pointer ${
                     addedAllSuccess
                       ? "bg-emerald-500 text-white"
-                      : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+                      : "bg-white text-blue-700 hover:bg-blue-50 border border-slate-200"
                   }`}
                 >
                   {addedAllSuccess ? (
                     <>
-                      <CheckCircle size={12} /> Đã thêm cả {availableDrugs.length} sản phẩm
+                      <CheckCircle size={11} /> Đã thêm cả {availableDrugs.length}
                     </>
                   ) : isAddingAll ? (
                     "Đang thêm..."
                   ) : (
                     <>
-                      <ShoppingBag size={12} /> Thêm cả {availableDrugs.length} vào giỏ
+                      <ShoppingBag size={11} /> Thêm cả {availableDrugs.length}
                     </>
                   )}
                 </button>
               )}
             </div>
 
-            <div className="flex flex-col gap-2 mt-1">
-              {message.drugs.map((drug, idx) => (
-                <DrugCard key={idx} drug={drug} onAddToCart={onAddToCart} />
+            <div className="flex flex-col gap-1.5 mt-0.5">
+              {(message.drugs || []).map((drug, idx) => (
+                <DrugCard
+                  key={idx}
+                  drug={drug}
+                  onAddToCart={onAddToCart}
+                  onBuyNow={onBuyNow}
+                />
               ))}
             </div>
           </div>
         )}
 
-        {/* Follow-up question (if any) */}
+        {/* Follow-up Question prompt */}
         {message.follow_up_question && (
-          <div className="bg-sky-50/70 border border-sky-200/70 rounded-xl p-2.5 flex items-start gap-2">
-            <CornerDownRight size={14} className="text-sky-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-sky-900 font-semibold leading-relaxed">
+          <div className="bg-sky-50/60 border border-sky-200/60 rounded-xl p-2.5 flex items-start gap-1.5">
+            <CornerDownRight size={13} className="text-sky-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-sky-900 font-medium leading-relaxed">
               {message.follow_up_question}
             </p>
           </div>
         )}
 
-        {/* Medical disclaimer */}
+        {/* Medical disclaimer note */}
         {message.disclaimer && (
           <p className="text-[10px] text-slate-400 italic px-1 leading-tight">
             * {message.disclaimer}
@@ -154,3 +200,5 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     </div>
   );
 };
+
+export default ChatMessage;

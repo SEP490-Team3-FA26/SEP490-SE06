@@ -19,9 +19,12 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { showToast } from '../../components/ui/toastHelper';
 import { USER_ROLE_LABELS } from '../../types/pharmacy.types';
 import { ApiService } from '../../services/api.service';
+import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
+import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
+import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, logout, updateProfile, refreshUser, switchRole } = useAuth();
+  const { user, logout, updateProfile, refreshUser } = useAuth();
 
   const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
   const [name, setName] = useState<string>(user?.name || '');
@@ -34,6 +37,11 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [newPw, setNewPw] = useState<string>('');
   const [confirmPw, setConfirmPw] = useState<string>('');
   const [loadingPw, setLoadingPw] = useState<boolean>(false);
+
+  // Attendance & Payroll Modals
+  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
+  const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
+  const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
 
   const roleLabel = user?.role ? USER_ROLE_LABELS[user.role] || user.role : 'Thành viên';
 
@@ -95,15 +103,6 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       { text: 'Hủy', style: 'cancel' },
       { text: 'Đăng xuất', style: 'destructive', onPress: () => logout() },
     ]);
-  };
-
-  const handleRoleSwitch = async (roleKey: any, screenName: string) => {
-    await switchRole(roleKey);
-    showToast.success(
-      'Chuyển vai trò thành công',
-      `Đã chuyển sang vai trò: ${USER_ROLE_LABELS[roleKey] || roleKey}.`
-    );
-    navigation.navigate(screenName);
   };
 
   return (
@@ -172,73 +171,6 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </View>
 
-        {/* Quick Testing Role Switcher */}
-        <View style={styles.sectionCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Ionicons name="swap-horizontal" size={20} color="#059669" style={{ marginRight: 6 }} />
-            <Text style={styles.sectionTitle}>Chuyển Đổi Nhanh Vai Trò (Testing Hub)</Text>
-          </View>
-          <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
-            Chạm vào bất kỳ vai trò nào để chuyển đổi ngay và trải nghiệm toàn bộ màn hình đã chuyển giao từ Flutter:
-          </Text>
-
-          <View style={styles.roleGrid}>
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'customer' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('customer', 'CustomerScreen')}
-            >
-              <Ionicons name="cart" size={22} color={user?.role === 'customer' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Khách Hàng</Text>
-              <Text style={styles.roleItemSub}>5 Tabs + PayOS</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'warehouse' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('warehouse', 'WarehouseScreen')}
-            >
-              <Ionicons name="cube" size={22} color={user?.role === 'warehouse' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Thủ Kho</Text>
-              <Text style={styles.roleItemSub}>5 Tabs + AI Dự Báo</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, (user?.role === 'director' || user?.role === 'headBranch') && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('director', 'DirectorScreen')}
-            >
-              <Ionicons name="business" size={22} color={(user?.role === 'director' || user?.role === 'headBranch') ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Giám Đốc</Text>
-              <Text style={styles.roleItemSub}>AI Chuỗi & Doanh Thu</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'pharmacist' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('pharmacist', 'PharmacistScreen')}
-            >
-              <Ionicons name="medkit" size={22} color={user?.role === 'pharmacist' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Dược Sĩ</Text>
-              <Text style={styles.roleItemSub}>Kê Đơn Bán Lẻ OCR</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'branch' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('branch', 'BranchScreen')}
-            >
-              <Ionicons name="storefront" size={22} color={user?.role === 'branch' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Quản Lý</Text>
-              <Text style={styles.roleItemSub}>Chi Nhánh & Ca Trực</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'admin' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('admin', 'AdminScreen')}
-            >
-              <Ionicons name="shield-checkmark" size={22} color={user?.role === 'admin' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Admin</Text>
-              <Text style={styles.roleItemSub}>Hệ Thống & Logs</Text>
-            </AnimatedTouchable>
-          </View>
-        </View>
-
         {/* Actions Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Cài Đặt & Bảo Mật</Text>
@@ -291,6 +223,44 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </AnimatedTouchable>
+
+          {/* HR & Attendance for Staff */}
+          {user?.role !== 'customer' && (
+            <>
+              <AnimatedTouchable
+                onPress={() => setShowCheckInModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="location-outline" size={22} color="#059669" />
+                  <Text style={styles.menuText}>Điểm danh ca trực (GPS)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowPayslipModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="receipt-outline" size={22} color="#0284C7" />
+                  <Text style={styles.menuText}>Phiếu lương cá nhân</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowLeaveModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="calendar-outline" size={22} color="#059669" />
+                  <Text style={styles.menuText}>Nghỉ phép & Quỹ phép năm</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+            </>
+          )}
         </View>
 
         {/* Logout Button */}
@@ -379,6 +349,24 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </View>
       </Modal>
+
+      {/* Attendance Check-in Modal */}
+      <AttendanceCheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+      />
+
+      {/* Staff Payslip Modal */}
+      <StaffPayslipModal
+        visible={showPayslipModal}
+        onClose={() => setShowPayslipModal(false)}
+      />
+
+      {/* Staff Leave Management Modal */}
+      <StaffLeaveModal
+        visible={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+      />
     </SafeAreaView>
   );
 };

@@ -77,8 +77,23 @@ export class MedicineService implements OnModuleInit {
         this.logger.log(`Found ${bulkOps.length} medicines with mismatched stock. Syncing...`);
         await this.medicineModel.bulkWrite(bulkOps);
         this.logger.log(`Bulk stock synchronization completed successfully in ${Date.now() - startTime}ms.`);
-      } else {
-        this.logger.log(`All medicine stocks are already synchronized. Completed in ${Date.now() - startTime}ms.`);
+      }
+
+      // 6. Rà soát và tự động khắc phục các bản ghi tồn kho âm trong BranchStockBalance và Medicines
+      const negativeBalances = await this.balanceModel.updateMany(
+        { totalStock: { $lt: 0 } },
+        { $set: { totalStock: 0, status: 'OUT_OF_STOCK', lastSyncedAt: new Date() } }
+      ).exec();
+      if (negativeBalances.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeBalances.modifiedCount} bản ghi tồn kho chi nhánh bị âm về 0.`);
+      }
+
+      const negativeMedicines = await this.medicineModel.updateMany(
+        { stock: { $lt: 0 } },
+        { $set: { stock: 0, status: 'Out of Stock' } }
+      ).exec();
+      if (negativeMedicines.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeMedicines.modifiedCount} dược phẩm có tồn kho âm về 0.`);
       }
     } catch (error) {
       this.logger.error('Failed to run background stock synchronization:', error);
@@ -100,6 +115,42 @@ export class MedicineService implements OnModuleInit {
         categories: ['Kháng sinh', 'Hạ sốt & Giảm đau', 'Tim mạch', 'Tiêu hóa', 'Thực phẩm chức năng', 'Vật tư y tế'],
         classifications: ['PRESCRIPTION', 'NON_PRESCRIPTION', 'SUPPLEMENT']
       };
+    }
+  }
+
+  // Truy vấn trực tiếp từ MongoDB để đếm số lượng SKU thực tế của các danh mục con
+  async getSubCategoryCounts(payload: { category?: string; items: { id: string; searchKeyword?: string; categoryValue?: string }[] }) {
+    try {
+      const counts: Record<string, number> = {};
+      const { category, items } = payload || {};
+      if (!Array.isArray(items)) return counts;
+
+      await Promise.all(
+        items.map(async (item) => {
+          if (!item?.id) return;
+          const query: any = {};
+          if (item.categoryValue) {
+            query.category = item.categoryValue;
+          } else {
+            if (category) {
+              query.category = category;
+            }
+            if (item.searchKeyword) {
+              const safeSearch = item.searchKeyword.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+              query.$or = [
+                { name: { $regex: safeSearch, $options: 'i' } },
+                { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+              ];
+            }
+          }
+          const count = await this.medicineModel.countDocuments(query).exec();
+          counts[item.id] = count;
+        })
+      );
+      return counts;
+    } catch (error) {
+      this.logger.error('Lỗi khi đếm số lượng sub-category từ DB:', error);
+      return {};
     }
   }
 
@@ -214,20 +265,37 @@ export class MedicineService implements OnModuleInit {
 
   async getMedicineById(id: string) {
     try {
-      if (!id || typeof id !== 'string' || !id.match(/^[0-9a-fA-F]{24}$/)) {
-        this.logger.warn(`[getMedicineById] Invalid ObjectId string provided: "${id}"`);
+      if (!id || typeof id !== 'string') {
         throw new RpcException(`Mã thuốc "${id}" không hợp lệ`);
       }
-      this.logger.log(`[getMedicineById] Querying medicine by ID from MongoDB: "${id}"`);
-      const medicine = await this.medicineModel.findById(id).exec();
+      this.logger.log(`[getMedicineById] Querying medicine from MongoDB: "${id}"`);
+
+      let medicine: any = null;
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        medicine = await this.medicineModel.findById(id).exec();
+      }
+
+      // Hỗ trợ tra cứu theo SKU, code, barcode nếu id không phải ObjectId hoặc không tìm thấy bằng ObjectId
       if (!medicine) {
-        this.logger.warn(`[getMedicineById] Medicine with ID "${id}" NOT found in MongoDB!`);
+        medicine = await this.medicineModel.findOne({
+          $or: [
+            { sku: id },
+            { code: id },
+            { barcode: id },
+            { national_drug_code: id },
+          ],
+        }).exec();
+      }
+
+      if (!medicine) {
+        this.logger.warn(`[getMedicineById] Medicine with ID/SKU "${id}" NOT found in MongoDB!`);
         throw new RpcException(`Medicine with ID ${id} not found in database`);
       }
-      this.logger.log(`[getMedicineById] Found medicine: "${medicine.name}"`);
+      const actualId = medicine._id.toString();
+      this.logger.log(`[getMedicineById] Found medicine: "${medicine.name}" (ID: ${actualId})`);
 
       // Lấy danh sách lô hàng khả dụng
-      const batches = await this.batchModel.find({ medicineId: id, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
+      const batches = await this.batchModel.find({ medicineId: actualId, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
       const totalStock = batches.reduce((sum, b) => sum + b.stock, 0);
       this.logger.log(`[getMedicineById] Found ${batches.length} active batches. Total stock: ${totalStock}`);
 
@@ -556,13 +624,17 @@ export class MedicineService implements OnModuleInit {
           this.logger.log(`Executing fallback Mongoose regex search for "${search}"`);
           const filterQuery: any = {};
           const conditionsCopy = [...conditions];
-          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          // Chuẩn hóa từ khóa tìm kiếm: hỗ trợ tìm đa từ thông minh (ví dụ: "omega 3" khớp "Omega-3", "Omega 3")
+          const searchWords = search.trim().split(/[\s\-]+/).filter(Boolean);
+          const safeSearchPattern = searchWords.length > 0
+            ? searchWords.map(w => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
+            : search.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
           conditionsCopy.push({
             $or: [
-              { name: { $regex: safeSearch, $options: 'i' } },
-              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
-              { sku: { $regex: safeSearch, $options: 'i' } },
-              { barcode: { $regex: safeSearch, $options: 'i' } }
+              { name: { $regex: safeSearchPattern, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearchPattern, $options: 'i' } },
+              { sku: { $regex: safeSearchPattern, $options: 'i' } },
+              { barcode: { $regex: safeSearchPattern, $options: 'i' } }
             ]
           });
           filterQuery.$and = conditionsCopy;
@@ -626,13 +698,17 @@ export class MedicineService implements OnModuleInit {
         const filterQuery: any = {};
         const conditionsCopy = [...conditions];
         if (search) {
-          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          // Chuẩn hóa từ khóa tìm kiếm: hỗ trợ tìm đa từ thông minh (ví dụ: "omega 3" khớp "Omega-3", "Omega 3")
+          const searchWords = search.trim().split(/[\s\-]+/).filter(Boolean);
+          const safeSearchPattern = searchWords.length > 0
+            ? searchWords.map(w => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
+            : search.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
           conditionsCopy.push({
             $or: [
-              { name: { $regex: safeSearch, $options: 'i' } },
-              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
-              { sku: { $regex: safeSearch, $options: 'i' } },
-              { barcode: { $regex: safeSearch, $options: 'i' } }
+              { name: { $regex: safeSearchPattern, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearchPattern, $options: 'i' } },
+              { sku: { $regex: safeSearchPattern, $options: 'i' } },
+              { barcode: { $regex: safeSearchPattern, $options: 'i' } }
             ]
           });
         }

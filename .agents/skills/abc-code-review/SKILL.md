@@ -1,6 +1,6 @@
 ---
 name: abc-code-review
-description: "Quy trình và tiêu chuẩn review Pull Request (PR) chuẩn hóa toàn diện cho dự án WDP301/SEP490: kết hợp đánh giá 2 trục (Standards vs Spec), kiểm tra tuân thủ Fullstack Playbook v2.0 (.agents/rules/trienkhaitaskmoi.md: Microservices Event-Driven Kafka 202, Redis Cache-Aside, API Gateway Bounded Context, Frontend 3-Tier, English comments, GSP/GDP/GPP Medical Domain rules), phát hiện Code Smells & Security RBAC, và tự động xuất báo cáo review chuyên nghiệp kèm phán quyết (Approve/Request Changes)."
+description: "Quy trình và tiêu chuẩn review Pull Request (PR) chuẩn hóa toàn diện cho dự án WDP301/SEP490: kết hợp đánh giá 2 trục (Standards vs Spec), kiểm tra tuân thủ Fullstack Playbook v2.0 (.agents/rules/trienkhaitaskmoi.md: Microservices Event-Driven Kafka 202, Redis Cache-Aside, API Gateway Bounded Context, Frontend 3-Tier, Vietnamese comments, GSP/GDP/GPP Medical Domain rules), chính sách nghiêm ngặt Zero Mock Data (tuyệt đối không dùng mock data trong production code), phát hiện Code Smells & Security RBAC, và tự động xuất báo cáo review chuyên nghiệp kèm phán quyết (Approve/Request Changes)."
 ---
 
 # Quy Trình Review Pull Request Toàn Diện (`/abc-code-review`)
@@ -15,8 +15,9 @@ Tài liệu này là **Quy trình chuẩn tối cao (Standard Review Protocol)**
 > 1. **Giao tiếp liên dịch vụ:** Tuyệt đối **không** được gọi HTTP trực tiếp giữa các microservices nội bộ; mọi giao tiếp liên dịch vụ **bắt buộc** phải đi qua **Kafka**.
 > 2. **Cổng giao tiếp Client:** Frontend Web và Mobile tuyệt đối **không** kết nối trực tiếp vào Database hoặc Microservice; mọi request **bắt buộc** phải qua **API Gateway** (`/api/...`).
 > 3. **Bản chất Event-Driven Kafka (HTTP 202 Accepted):** Các thao tác Ghi (`POST`, `PUT`, `DELETE`) tại Gateway trả về **HTTP 202 Accepted**. Client **không được re-fetch ngay tức thì** mà phải có độ trễ **Delayed Re-fetch (500ms - 1000ms)** hoặc áp dụng Optimistic UI / Socket.IO để tránh đọc dữ liệu cũ khi Consumer chưa kịp ghi DB / cập nhật Redis.
-> 4. **Ngôn ngữ chú thích mã nguồn:** Toàn bộ code comment (`//`, `/* */`, JSDoc) **bắt buộc viết bằng Tiếng Anh**. Không chấp nhận tiếng Việt trong code comments.
-> 5. **Git & Dependency Hygiene:** Không commit file `.env`, credentials, secrets, hoặc các thư viện không liên quan đến phạm vi PR trong `package.json` / `package-lock.json`.
+> 4. **Tuyệt đối KHÔNG DÙNG MOCK DATA (Zero Mock Data Policy):** Mã nguồn production (Frontend UI components, Custom Hooks, Service layer, Backend Controllers, Microservices, DB Schemas) **tuyệt đối không được chứa bất kỳ mock data nào**. Cấm mọi hardcoded array/object giả lập (như `MOCK_DATA`, `dummyData`), fake fallback khi API rỗng hoặc lỗi (`catch { return MOCK_... }`), hoặc các hàm trả về dữ liệu mẫu cứng. Mọi dữ liệu phải liên thông thực tế 100% qua API Gateway, Kafka, Redis và Database MongoDB. Mock data chỉ được phép tồn tại duy nhất trong các file unit test biệt lập (`*.spec.ts`, `*.test.ts`). Bất kỳ sự xuất hiện nào của mock data trong production code là lỗi **BLOCKER** và lập tức bị gán nhãn `REQUEST CHANGES`.
+> 5. **Ngôn ngữ chú thích mã nguồn:** Toàn bộ code comment (`//`, `/* */`, JSDoc) **bắt buộc viết bằng Tiếng Việt 100%** theo quy chuẩn dự án (`.agents/rules/sep.md`).
+> 6. **Git & Dependency Hygiene:** Không commit file `.env`, credentials, secrets, hoặc các thư viện không liên quan đến phạm vi PR trong `package.json` / `package-lock.json`.
 
 ---
 
@@ -80,9 +81,23 @@ Mọi PR được đánh giá dọc theo 2 trục tách biệt nhằm tránh tì
   - Không dùng `alert()` hoặc `confirm()` gốc của trình duyệt cho luồng nghiệp vụ chính; dùng Modal / Toast / Confirm Dialog tùy chỉnh.
   - Xử lý đầy đủ 3 trạng thái: `loading` (Skeleton/Spinner), `error` (thông báo lỗi thân thiện), `empty` (trạng thái trống).
 - [ ] **Ngôn ngữ chú thích mã nguồn:**
-  - Toàn bộ comment trong code bắt buộc là **English**.
+<<<<<<< HEAD
+  - Toàn bộ comment trong code bắt buộc là **Tiếng Việt** (`.agents/rules/sep.md`).
+=======
+  - Toàn bộ comment trong code được viết bằng **Tiếng Việt 100%**.
+>>>>>>> fe63c200e41e555b7fcf79f73265ab428bd8de34
 
-### 2.3. Clean Code & Phát Hiện Code Smells (Fowler Baseline)
+### 2.3. Quy Chuẩn Bất Biến Về Dữ Liệu (Zero Mock Data Policy)
+- [ ] **Tuyệt đối không chứa Mock Data cứng:**
+  - Không có mảng, object, hằng số dữ liệu giả lập (như `const MOCK_...`, `const dummy...`, `const fake...`, `const sample...`, `mockMedicines`, `mockOrders`) trong bất kỳ file production nào (components, hooks, services, controllers, microservices).
+- [ ] **Không fallback về Mock Data:**
+  - Nghiêm cấm khối `catch { return MOCK_DATA; }` hoặc toán tử `data || DEFAULT_MOCK` che đậy lỗi kết nối backend. Nếu API lỗi hoặc rỗng, phải hiển thị đúng trạng thái error hoặc empty state trên UI.
+- [ ] **Liên thông API thực tế 100%:**
+  - Toàn bộ dữ liệu hiển thị và thao tác phải đến từ API Gateway (`/api/...`) và ánh xạ từ cơ sở dữ liệu MongoDB thông qua các Microservices.
+- [ ] **Phạm vi cho phép duy nhất của Mock:**
+  - Mock data CHỈ ĐƯỢC PHÉP xuất hiện trong file automated unit test (`*.spec.ts`, `*.test.ts`) hoặc server sandbox độc lập (`backend/mock-csdlduoc/` dành riêng cho cổng CSDL Dược Quốc Gia).
+
+### 2.4. Clean Code & Phát Hiện Code Smells (Fowler Baseline)
 - [ ] **Mysterious Name:** Tên biến/hàm/interface rõ nghĩa, đúng thuật ngữ ngành dược (SKU, Batch, Shelf, Bin, Requisition, Dispense).
 - [ ] **Duplicated Code:** Không copy-paste logic tính toán hạn dùng, tính tồn kho, chuyển đổi đơn vị qua nhiều file.
 - [ ] **Data Clumps:** Nhóm tọa độ vị trí kho `{ zone, rack, shelf, bin }` thành interface chuẩn (`WarehouseLocation`).
@@ -178,9 +193,9 @@ Xuất báo cáo trực tiếp bằng định dạng Markdown theo mẫu chuẩn
 
 | Mức độ (Severity) | Vị trí (Location) | Vấn đề (Issue) | Hướng dẫn xử lý (Action) |
 | :--- | :--- | :--- | :--- |
-| 🔴 **BLOCKER** | `path/to/file.ts` | [Lỗi nghiêm trọng, vi phạm Playbook bất biến] | [Cách sửa] |
-| 🟡 **WARNING** | `path/to/file.tsx` | [Cảnh báo chất lượng, UI/UX, delay timing] | [Cách sửa] |
-| 🔵 **SUGGESTION** | `path/to/file.ts` | [Tối ưu hóa, chuyển comment sang tiếng Anh] | [Cách sửa] |
+| 🔴 **BLOCKER** | `path/to/file.ts` | [Lỗi nghiêm trọng: Dùng Mock Data, vi phạm Playbook bất biến] | [Xóa bỏ mock data, liên thông dữ liệu thực qua Gateway/Kafka/DB] |
+| 🟡 **WARNING** | `path/to/file.tsx` | [Cảnh báo chất lượng, UI/UX, delay timing 1s] | [Cách sửa] |
+| 🔵 **SUGGESTION** | `path/to/file.ts` | [Tối ưu hóa, chuẩn hóa comment sang tiếng Việt] | [Cách sửa] |
 
 ---
 

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { MessageSquare, X, Bot, Sparkles } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { X, Sparkles } from "lucide-react";
 import { ChatWindow } from "./ChatWindow";
+import { DoveFigure, DoveFigureHandle } from "../mascot/DoveFigure";
 
 export const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasUnreadPulse, setHasUnreadPulse] = useState(true);
+  const doveRef = useRef<DoveFigureHandle>(null);
 
-  // Close on Escape key
+  // Close chatbox when pressing Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -21,46 +23,56 @@ export const ChatWidget: React.FC = () => {
     setIsOpen((prev) => !prev);
     if (!isOpen) {
       setHasUnreadPulse(false);
+      doveRef.current?.hup();
     }
   };
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating launcher button for AI Pharmacist Dove */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-auto">
         {!isOpen && (
-          <div className="mb-2 hidden sm:flex items-center gap-1.5 bg-white/95 backdrop-blur-md text-slate-800 text-xs font-bold py-1.5 px-3.5 rounded-full shadow-lg border border-blue-100 animate-bounce duration-1000">
-            <Sparkles size={13} className="text-amber-500 shrink-0" />
-            <span>Tư vấn sức khỏe với Dược sĩ AI</span>
+          <div className="mb-2 hidden sm:flex items-center gap-1.5 bg-white/95 backdrop-blur-md text-slate-700 text-xs font-medium py-1.5 px-3 rounded-full shadow-md border border-slate-100 animate-bounce duration-1000">
+            <Sparkles size={12} className="text-amber-500 shrink-0" />
+            <span>Tư vấn sức khỏe AI</span>
           </div>
         )}
 
         <button
           type="button"
           onClick={handleToggle}
-          className={`relative w-15 h-15 rounded-full flex items-center justify-center shadow-xl shadow-blue-600/30 transition-all duration-300 active:scale-95 cursor-pointer ${
+          onMouseEnter={() => {
+            if (!isOpen) doveRef.current?.hup();
+          }}
+          className={`relative rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer ${
             isOpen
-              ? "bg-slate-800 hover:bg-slate-900 text-white rotate-90"
-              : "bg-gradient-to-tr from-blue-600 via-sky-600 to-indigo-600 text-white hover:scale-105"
+              ? "w-12 h-12 bg-slate-900 hover:bg-slate-800 text-white shadow-lg rotate-90"
+              : "w-14 h-14 bg-white border border-slate-200/80 shadow-lg hover:shadow-xl hover:scale-105 p-0.5"
           }`}
-          aria-label={isOpen ? "Đóng chatbox" : "Mở Dược sĩ AI"}
+          aria-label={isOpen ? "Close AI chat" : "Open AI Pharmacist Dove chat"}
         >
           {isOpen ? (
-            <X size={24} className="stroke-[2.5]" />
+            <X size={20} className="stroke-[2.5]" />
           ) : (
-            <>
-              <Bot size={28} className="stroke-[2]" />
-              {/* Online pulse dot */}
-              <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full"></span>
+            <div className="w-full h-full rounded-full bg-slate-50 flex items-center justify-center overflow-hidden pt-1 relative">
+              <DoveFigure
+                ref={doveRef}
+                size={48}
+                kaal={true}
+                speels={true}
+                paasei={false}
+              />
+              {/* Online status indicator */}
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full z-10"></span>
               {hasUnreadPulse && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full animate-ping opacity-75"></span>
+                <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full animate-ping opacity-75 z-0"></span>
               )}
-            </>
+            </div>
           )}
         </button>
       </div>
 
-      {/* Chat Window */}
+      {/* AI Chat Window Modal / Widget */}
       <ChatWindow
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}

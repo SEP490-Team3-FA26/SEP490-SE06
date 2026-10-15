@@ -3,7 +3,9 @@ import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../guards/optional-jwt-auth.guard';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
 
 @ApiTags('🎟️ Vouchers')
@@ -21,6 +23,7 @@ export class VoucherController implements OnModuleInit {
       'vouchers.delete',
       'vouchers.list',
       'vouchers.validate',
+      'vouchers.audit.flags',
     ]);
   }
 
@@ -41,6 +44,15 @@ export class VoucherController implements OnModuleInit {
   @UseGuards(OptionalJwtAuthGuard)
   async listVouchers() {
     return await sendKafkaMessage(this.orderClient, 'vouchers.list', {});
+  }
+
+  // 🛡️ Kiểm soát truy cập: Chỉ Quản trị viên (admin) hoặc Giám đốc (director) mới được xem danh sách kiểm toán nghi vấn
+  @Get('audit-flags')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'director')
+  @ApiOperation({ summary: 'Lấy danh sách đơn hàng bị gắn cờ kiểm toán voucher (Chỉ Admin / Giám đốc)' })
+  async getVoucherAuditFlags() {
+    return await sendKafkaMessage(this.orderClient, 'vouchers.audit.flags', {});
   }
 
   @Put(':id')
@@ -74,4 +86,5 @@ export class VoucherController implements OnModuleInit {
   async validateVoucher(@Body() data: { code: string; subtotal: number }) {
     return await sendKafkaMessage(this.orderClient, 'vouchers.validate', data);
   }
+
 }

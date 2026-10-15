@@ -14,6 +14,7 @@ export { userService } from './auth/user.service';
 export { branchService } from './admin/branch.service';
 export { employeeService } from './admin/employee.service';
 export { hrService } from './hr/hr.service';
+export { certificateService } from './hr/certificate.service';
 
 // Inventory & Warehouse
 export { medicineService } from './inventory/medicine.service';

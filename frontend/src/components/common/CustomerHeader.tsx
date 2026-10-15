@@ -10,7 +10,13 @@ import {
   Droplets, Wind, Bone, MoreHorizontal, Activity
 } from "lucide-react";
 import { authService, userService, cartService, medicineService } from "../../services";
-import { notifyAuthTokenChanged, AUTH_TOKEN_CHANGED_EVENT } from "../../utils/authEvents";
+import {
+  AUTH_LOGIN_REQUIRED_EVENT,
+  AUTH_TOKEN_CHANGED_EVENT,
+  notifyAuthLoginRequired,
+  notifyAuthTokenChanged,
+} from "../../utils/authEvents";
+import { LoginRequiredModal } from "./LoginRequiredModal";
 import { MascotLogoIcon } from "../ui/Logo";
 import { MedicineDetailModal } from "../MedicineDetailModal";
 
@@ -18,6 +24,50 @@ import { MedicineDetailModal } from "../MedicineDetailModal";
 const headerTrendingTags = [
   "Canxi", "Omega 3", "Kẽm", "Sắt", "Kem chống nắng",
   "Thuốc nhỏ mắt", "Sữa rửa mặt", "Men vi sinh", "Dung dịch vệ sinh", "Vitamin C"
+];
+
+// Danh sách dược phẩm gợi ý mặc định được tin dùng (chuẩn Bộ Y Tế GPP) khi mở ô tìm kiếm
+const DEFAULT_SUGGESTED_MEDICINES = [
+  {
+    id: "sug-1",
+    _id: "sug-1",
+    name: "Panadol Extra Đỏ Giảm Đau Hạ Sốt",
+    price: 36000,
+    unit: "Hộp 15 vỉ",
+    active_ingredient: "Paracetamol 500mg, Caffeine 65mg",
+    drug_classification: "NON_PRESCRIPTION_OTC",
+    image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=60"
+  },
+  {
+    id: "sug-2",
+    _id: "sug-2",
+    name: "Vitamin C Berocca Bổ Sung Đề Kháng",
+    price: 185000,
+    unit: "Tuýp 10 viên",
+    active_ingredient: "Vitamin C, B, Canxi, Magie",
+    drug_classification: "NON_PRESCRIPTION_OTC",
+    image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60"
+  },
+  {
+    id: "sug-3",
+    _id: "sug-3",
+    name: "Dầu Cá Omega-3 Kirkland Tinh Khiết",
+    price: 495000,
+    unit: "Lọ 400 viên",
+    active_ingredient: "DHA, EPA 1000mg",
+    drug_classification: "NON_PRESCRIPTION_OTC",
+    image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"
+  },
+  {
+    id: "sug-4",
+    _id: "sug-4",
+    name: "Men Vi Sinh Bio-acimin Gold Tiêu Hóa",
+    price: 165000,
+    unit: "Hộp 30 gói",
+    active_ingredient: "Bacillus subtilis, Lactobacillus",
+    drug_classification: "NON_PRESCRIPTION_OTC",
+    image: "https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=60"
+  }
 ];
 
 // S3 Public CDN for Mega Menu assets from environment variable
@@ -174,7 +224,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         subCategoryParam: "Sinh lý - Nội tiết tố",
         quickCards: [
           { title: "Tăng sinh lý nam", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Sinh lý nam" },
-          { title: "Cân bằng nội tiết nữ", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Nội tiết tố" },
+          { title: "Cân bằng nội tiết nữ", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Nội tiết tố" },
           { title: "Hỗ trợ tuyến tiền liệt", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Tiền liệt tuyến" },
           { title: "Tinh chất hàu biển", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Hàu biển" },
           { title: "Hoa anh thảo", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Hoa anh thảo" },
@@ -182,7 +232,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         ],
         bestSellers: [
           { id: "sl-1", name: "Viên uống Sâm Angela Gold giúp tăng cường nội tiết tố nữ...", price: 720000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
-          { id: "sl-2", name: "Tinh chất hàu Oyster Plus Goodhealth New Zealand...", price: 420000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
+          { id: "sl-2", name: "Tinh chất hàu Oyster Plus Goodhealth New Zealand...", price: 420000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "sl-3", name: "Viên uống tinh dầu hoa anh thảo Blackmores Evening Primrose...", price: 580000, originalPrice: 650000, discountPercent: 11, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "sl-4", name: "Viên uống mầm đậu nành Non-GMO DHC Soy Isoflavones...", price: 260000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Gói" },
           { id: "sl-5", name: "Alipas New hỗ trợ tăng cường sinh lực phái mạnh...", price: 750000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Lọ" }
@@ -193,7 +243,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         iconName: "Eye",
         subCategoryParam: "Mắt",
         quickCards: [
-          { title: "Lutein & Zeaxanthin", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Lutein" },
+          { title: "Lutein & Zeaxanthin", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Lutein" },
           { title: "Bổ mắt việt quất", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Việt quất" },
           { title: "Dầu cá bổ mắt DHA", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Bổ mắt" },
           { title: "Nước mắt nhân tạo", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Nhỏ mắt" },
@@ -202,7 +252,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         ],
         bestSellers: [
           { id: "ey-1", name: "Viên uống bổ mắt WIT Ecogreen bảo vệ võng mạc và thủy tinh thể...", price: 330000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
-          { id: "ey-2", name: "Dầu cá Blackmores Fish Oil 1000mg không mùi tanh...", price: 490000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
+          { id: "ey-2", name: "Dầu cá Blackmores Fish Oil 1000mg không mùi tanh...", price: 490000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "ey-3", name: "Dung dịch nhỏ mắt Systane Ultra bôi trơn mắt nhân tạo...", price: 110000, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "ey-4", name: "Viên sáng mắt Traphaco giảm cận thị và mỏi mắt...", price: 85000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "ey-5", name: "Ocuvite Lutein Bausch & Lomb chống thoái hóa điểm vàng...", price: 290000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Hộp" }
@@ -216,13 +266,13 @@ export const navigationCategoryGroups: CategoryGroup[] = [
           { title: "Men vi sinh & Probiotic", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Men vi sinh" },
           { title: "Dạ dày & Men tiêu hóa", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Dạ dày" },
           { title: "Nhuận tràng ngừa táo", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Táo bón" },
-          { title: "Bổ gan giải độc", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Bổ gan" },
+          { title: "Bổ gan giải độc", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Bổ gan" },
           { title: "Đại tràng co thắt", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Đại tràng" },
           { title: "Xem thêm", isMore: true }
         ],
         bestSellers: [
           { id: "th-1", name: "Men vi sinh Enterogermina 4 tỷ bào tử sống hỗ trợ đường ruột...", price: 235000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
-          { id: "th-2", name: "Bổ gan Boganic Premium Traphaco giải độc rượu bia...", price: 165000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
+          { id: "th-2", name: "Bổ gan Boganic Premium Traphaco giải độc rượu bia...", price: 165000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "th-3", name: "Men vi sinh BioGaia Protectis dạng giọt cho trẻ sơ sinh...", price: 415000, originalPrice: 450000, discountPercent: 8, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "th-4", name: "Cốm vi sinh Bio-Acimin Gold cân bằng hệ vi sinh đường ruột...", price: 160000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "th-5", name: "Bột dạ dày Nano Curcumin OIC hỗ trợ lành vết loét...", price: 480000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Hộp" }
@@ -234,7 +284,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         subCategoryParam: "Thần kinh não",
         quickCards: [
           { title: "Ginkgo Biloba bổ não", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Ginkgo" },
-          { title: "Hoạt huyết dưỡng não", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Hoạt huyết" },
+          { title: "Hoạt huyết dưỡng não", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Hoạt huyết" },
           { title: "Giúp ngủ ngon Melatonin", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Melatonin" },
           { title: "Phòng ngừa đột quỵ", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Đột quỵ" },
           { title: "Vitamin 3B thần kinh", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Vitamin 3B" },
@@ -242,7 +292,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         ],
         bestSellers: [
           { id: "tk-1", name: "Viên uống OTIV Ecogreen tăng cường trí nhớ, giảm đau đầu...", price: 330000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
-          { id: "tk-2", name: "Ginkgo Biloba 120mg Nature's Bounty cải thiện tuần hoàn não...", price: 290000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
+          { id: "tk-2", name: "Ginkgo Biloba 120mg Nature's Bounty cải thiện tuần hoàn não...", price: 290000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "tk-3", name: "Viên ngủ ngon Natrol Melatonin 5mg hương dâu...", price: 280000, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "tk-4", name: "Cerecaps Hoạt Huyết Đa Năng Traphaco...", price: 82000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "tk-5", name: "Nattokinase 2000FU Noguchi Nhật Bản tan cục máu đông...", price: 540000, originalPrice: 600000, discountPercent: 10, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Lọ" }
@@ -255,7 +305,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         quickCards: [
           { title: "Collagen nước & viên", image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=80", search: "Collagen" },
           { title: "Vitamin E đỏ tự nhiên", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Vitamin E" },
-          { title: "Trắng da Glutathione", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Trắng da" },
+          { title: "Trắng da Glutathione", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Trắng da" },
           { title: "Ngăn rụng & mọc tóc", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Biotin" },
           { title: "Chống lão hóa CoQ10", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Chống lão hóa" },
           { title: "Xem thêm", isMore: true }
@@ -263,7 +313,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         bestSellers: [
           { id: "ld-1", name: "Nước uống Shiseido The Collagen Nhật Bản dưỡng da căng mọng...", price: 590000, image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "ld-2", name: "Vitamin E đỏ Nga Mirrolla 400mg chống oxy hóa toàn diện...", price: 135000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
-          { id: "ld-3", name: "Viên uống mọc tóc Natrol Biotin 10,000mcg làm dày tóc...", price: 310000, originalPrice: 350000, discountPercent: 11, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
+          { id: "ld-3", name: "Viên uống mọc tóc Natrol Biotin 10,000mcg làm dày tóc...", price: 310000, originalPrice: 350000, discountPercent: 11, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "ld-4", name: "Viên uống sáng da DHC Coix Extract hạt ý dĩ...", price: 160000, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Gói" },
           { id: "ld-5", name: "Collagen Youtheory Type 1 2 3 của Mỹ 390 viên...", price: 620000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Lọ" }
         ]
@@ -274,7 +324,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         subCategoryParam: "Tiểu đường",
         quickCards: [
           { title: "Dây thìa canh hạ đường", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Dây thìa canh" },
-          { title: "Đường ăn kiêng", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Đường ăn kiêng" },
+          { title: "Đường ăn kiêng", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Đường ăn kiêng" },
           { title: "Sữa y học tiểu đường", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Tiểu đường" },
           { title: "Que thử đường huyết", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Que thử" },
           { title: "Khổ qua rừng thảo dược", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Khổ qua" },
@@ -282,7 +332,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         ],
         bestSellers: [
           { id: "td-1", name: "Viên uống Diabetna Dây thìa canh chuẩn hóa Nam Dược...", price: 115000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
-          { id: "td-2", name: "Sữa bột Glucerna Abbott 850g kiểm soát đường huyết...", price: 820000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Lon" },
+          { id: "td-2", name: "Sữa bột Glucerna Abbott 850g kiểm soát đường huyết...", price: 820000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Lon" },
           { id: "td-3", name: "Đường ăn kiêng Canderel Stevia tự nhiên không calo...", price: 78000, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "td-4", name: "Advanced Glucose Support ổn định chỉ số HbA1c...", price: 560000, originalPrice: 620000, discountPercent: 10, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "td-5", name: "Trà túi lọc Khổ Qua Rừng Mudaru thanh nhiệt hạ đường...", price: 125000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Hộp" }
@@ -294,7 +344,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         subCategoryParam: "Tim mạch",
         quickCards: [
           { title: "Coenzyme Q10 tim mạch", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "CoQ10" },
-          { title: "Giảm mỡ máu", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Mỡ máu" },
+          { title: "Giảm mỡ máu", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Mỡ máu" },
           { title: "Ổn định huyết áp", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Huyết áp" },
           { title: "Omega 3 tinh khiết", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Omega 3" },
           { title: "Tỏi đen lên men", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Tỏi đen" },
@@ -302,7 +352,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         ],
         bestSellers: [
           { id: "tm-1", name: "CoQ10 150mg Blackmores bảo vệ cơ tim, phòng suy tim...", price: 560000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
-          { id: "tm-2", name: "Tỏi đen Sakura Allium Sativum bền vững thành mạch...", price: 210000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
+          { id: "tm-2", name: "Tỏi đen Sakura Allium Sativum bền vững thành mạch...", price: 210000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "tm-3", name: "Viên hạ mỡ máu Lipixgo giảm cholesterol xấu LDL...", price: 450000, originalPrice: 500000, discountPercent: 10, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "tm-4", name: "Trà Hoa Hòe Thái Bình làm bền mao mạch, ngừa tai biến...", price: 65000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Gói" },
           { id: "tm-5", name: "Nattokinase Doctor's Best 2000FU của Mỹ...", price: 490000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Lọ" }
@@ -314,7 +364,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         subCategoryParam: "Hô hấp",
         quickCards: [
           { title: "Bổ phổi giảm ho", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Siro ho" },
-          { title: "Xịt họng keo ong", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Xịt họng" },
+          { title: "Xịt họng keo ong", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Xịt họng" },
           { title: "Viên ngậm thông họng", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Viên ngậm" },
           { title: "Xịt mũi nước biển sâu", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Xịt mũi" },
           { title: "Xông mũi họng tinh dầu", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Tinh dầu xông" },
@@ -322,7 +372,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         ],
         bestSellers: [
           { id: "hh-1", name: "Siro ho Prospan Engelhard Đức chiết xuất lá thường xuân...", price: 135000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Chai" },
-          { id: "hh-2", name: "Xịt họng Betadine Sore Throat Spray kháng khuẩn sâu...", price: 120000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Chai" },
+          { id: "hh-2", name: "Xịt họng Betadine Sore Throat Spray kháng khuẩn sâu...", price: 120000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Chai" },
           { id: "hh-3", name: "Xịt mũi nước biển sâu Xisat người lớn 75ml...", price: 38000, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Chai" },
           { id: "hh-4", name: "Kẹo ngậm thảo dược Eugica giảm rát họng khản tiếng...", price: 42000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "hh-5", name: "Viên uống Lung Care bổ phổi ngừa viêm đường thở...", price: 490000, originalPrice: 550000, discountPercent: 11, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Lọ" }
@@ -334,7 +384,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         subCategoryParam: "Cơ xương khớp",
         quickCards: [
           { title: "Glucosamine 1500mg", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Glucosamine" },
-          { title: "Canxi Nano & D3 K2", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Canxi" },
+          { title: "Canxi Nano & D3 K2", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Canxi" },
           { title: "Collagen Type 2 sụn khớp", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Khớp" },
           { title: "Sụn vi cá mập", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Sụn vi cá" },
           { title: "Cao dán giảm đau", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Salonpas" },
@@ -342,7 +392,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         ],
         bestSellers: [
           { id: "xk-1", name: "Viên uống Glucosamine Orihiro 1500mg Nhật Bản tái tạo sụn...", price: 610000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
-          { id: "xk-2", name: "Viên bổ khớp JEX Max Peptan giảm đau thoái hóa khớp...", price: 350000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
+          { id: "xk-2", name: "Viên bổ khớp JEX Max Peptan giảm đau thoái hóa khớp...", price: 350000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "xk-3", name: "Canxi hữu cơ sinh học Calci Mk7 Max Ba Lan 60 viên...", price: 390000, originalPrice: 430000, discountPercent: 9, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "xk-4", name: "Sụn vi cá mập Shark Cartilage Costar Úc 365 viên...", price: 680000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Lọ" },
           { id: "xk-5", name: "Cao dán giảm đau Salonpas Diclofenac Hisamitsu Nhật...", price: 55000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Gói" }
@@ -411,7 +461,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         quickCards: [
           { title: "Kháng sinh đường uống", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Kháng sinh" },
           { title: "Thuốc tim mạch huyết áp", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Huyết áp" },
-          { title: "Kháng đông & mạch máu", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Kháng đông" },
+          { title: "Kháng đông & mạch máu", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Kháng đông" },
           { title: "Thuốc hướng thần kinh", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Thần kinh" },
           { title: "Thuốc tiểu đường insulin", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Tiểu đường" },
           { title: "Xem thêm", isMore: true }
@@ -419,7 +469,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
         bestSellers: [
           { id: "rx-1", name: "Augmentin 1g GlaxoSmithKline kháng sinh phổ rộng...", price: 215000, image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "rx-2", name: "Amlor 5mg Pfizer điều trị tăng huyết áp vô căn...", price: 345000, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
-          { id: "rx-3", name: "Glucophage 500mg Merck điều trị đái tháo đường typ 2...", price: 125000, image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
+          { id: "rx-3", name: "Glucophage 500mg Merck điều trị đái tháo đường typ 2...", price: 125000, image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "rx-4", name: "Nexium Mups 40mg AstraZeneca trị trào ngược dạ dày...", price: 380000, image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=300&auto=format&fit=crop&q=80", unit: "Hộp" },
           { id: "rx-5", name: "Lipitor 20mg Pfizer hạ mỡ máu phòng ngừa xơ vữa...", price: 495000, image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=300&auto=format&fit=crop&q=80", unit: "Hộp" }
         ]
@@ -432,7 +482,7 @@ export const navigationCategoryGroups: CategoryGroup[] = [
           { title: "Giảm đau & Hạ sốt", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80", search: "Giảm đau" },
           { title: "Thuốc ho cảm cúm", image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=200&auto=format&fit=crop&q=80", search: "Thuốc ho" },
           { title: "Dạ dày & Tiêu chảy", image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=200&auto=format&fit=crop&q=80", search: "Dạ dày" },
-          { title: "Chống dị ứng mề đay", image: "https://images.unsplash.com/photo-1550572017-ed2364c76b9a?w=200&auto=format&fit=crop&q=80", search: "Dị ứng" },
+          { title: "Chống dị ứng mề đay", image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?w=200&auto=format&fit=crop&q=80", search: "Dị ứng" },
           { title: "Miếng dán Salonpas", image: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=200&auto=format&fit=crop&q=80", search: "Salonpas" },
           { title: "Xem thêm", isMore: true }
         ],
@@ -549,8 +599,10 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
   // Search Auto-complete State
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [suggestedMedicines, setSuggestedMedicines] = useState<any[]>(DEFAULT_SUGGESTED_MEDICINES);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [isSearchingLive, setIsSearchingLive] = useState(false);
+  const searchRequestIdRef = useRef(0);
 
   // Modals State
   const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
@@ -565,6 +617,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
 
   const [selectedMedicineForModal, setSelectedMedicineForModal] = useState<any | null>(null);
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+  const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
 
   // Sync search input if URL changes
   useEffect(() => {
@@ -620,6 +673,8 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     window.addEventListener("cartUpdated", updateCartCount);
     window.addEventListener("loyaltyUpdated", syncAuthState);
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
+    const handleLoginRequired = () => setShowLoginRequiredModal(true);
+    window.addEventListener(AUTH_LOGIN_REQUIRED_EVENT, handleLoginRequired);
 
     const handleClickOutside = (e: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
@@ -632,35 +687,73 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
       window.removeEventListener("cartUpdated", updateCartCount);
       window.removeEventListener("loyaltyUpdated", syncAuthState);
       window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
+      window.removeEventListener(AUTH_LOGIN_REQUIRED_EVENT, handleLoginRequired);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  // Live Auto-complete Search with Debounce
+  // Tải danh sách dược phẩm gợi ý ban đầu (Tin dùng / Bán chạy) khi chưa gõ từ khóa
   useEffect(() => {
+    let isMounted = true;
+    const fetchInitialSuggestions = async () => {
+      try {
+        const resData = await medicineService.getMedicines({ limit: 4 });
+        const items = resData?.data || (Array.isArray(resData) ? resData : []);
+        if (isMounted && items.length > 0) {
+          setSuggestedMedicines(items.slice(0, 4));
+        }
+      } catch (err) {
+        // Giữ DEFAULT_SUGGESTED_MEDICINES nếu xảy ra lỗi
+      }
+    };
+    fetchInitialSuggestions();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Live Auto-complete Search with Debounce & Race-condition Guard
+  useEffect(() => {
+    const currentReqId = ++searchRequestIdRef.current;
+    setSearchResults([]);
     if (!searchQuery.trim()) {
-      setSearchResults([]);
       setIsSearchingLive(false);
       return;
     }
 
+    setIsSearchingLive(true);
+    const queryTerm = searchQuery.trim();
+
     const timer = setTimeout(async () => {
-      setIsSearchingLive(true);
       try {
-        const resData = await medicineService.getMedicines({ limit: 6, search: searchQuery.trim() });
-        if (resData?.data) {
-          setSearchResults(resData.data);
-        } else if (Array.isArray(resData)) {
-          setSearchResults(resData.slice(0, 6));
+        const resData = await medicineService.getMedicines({
+          limit: 6,
+          search: queryTerm,
+          directDb: true,
+          bypassAiSearch: true, // Khớp chính xác từ khóa tìm kiếm (như "omega 3") trên Database Mongoose
+        });
+
+        // Chống race condition: Chỉ lưu kết quả nếu đây là request mới nhất
+        if (currentReqId === searchRequestIdRef.current) {
+          if (resData?.data) {
+            setSearchResults(resData.data);
+          } else if (Array.isArray(resData)) {
+            setSearchResults(resData.slice(0, 6));
+          }
         }
       } catch (err) {
         console.error("Live search error:", err);
       } finally {
-        setIsSearchingLive(false);
+        if (currentReqId === searchRequestIdRef.current) {
+          setIsSearchingLive(false);
+        }
       }
     }, 250);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      searchRequestIdRef.current++;
+    };
   }, [searchQuery]);
 
   // Submit Search
@@ -687,54 +780,12 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     }, 1200);
   };
 
-  // Add to cart from modal
+  // Thêm vào giỏ hàng từ modal chi tiết (hỗ trợ cả khách vãng lai và thành viên)
   const handleAddToCart = async (med: any, qty: number = 1) => {
     const medId = med.id || med._id;
-    const curToken = localStorage.getItem("token");
-
-    if (!curToken) {
-      try {
-        const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
-        const existingItem = cart.find((it: any) => it.id === medId || it._id === medId);
-
-        if (existingItem) {
-          if (existingItem.quantity + qty > (med.stock || 999)) {
-            alert(`Chỉ còn ${med.stock} sản phẩm khả dụng trong kho!`);
-            return;
-          }
-          existingItem.quantity += qty;
-        } else {
-          if ((med.stock ?? 1) <= 0) {
-            alert("Sản phẩm đã hết hàng!");
-            return;
-          }
-          cart.push({
-            id: medId,
-            _id: medId,
-            name: med.name,
-            category: med.category,
-            price: med.salePrice || med.price,
-            quantity: qty,
-            unit: med.unit || "Hộp",
-            stock: med.stock || 100,
-            active_ingredient: med.active_ingredient || "",
-            image: med.image || ""
-          });
-        }
-        localStorage.setItem("guest_cart", JSON.stringify(cart));
-        window.dispatchEvent(new Event("cartUpdated"));
-        setAddedItems((prev) => ({ ...prev, [medId]: true }));
-        setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
-      } catch (err) {
-        console.error("Error updating guest cart:", err);
-      }
-      return;
-    }
 
     try {
-      await cartService.addToCart(medId, qty);
-      window.dispatchEvent(new Event("cartUpdated"));
+      await cartService.addProduct(med, qty);
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
     } catch (err: any) {
@@ -836,8 +887,8 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
           </Link>
 
           {/* Center Smart Live Search Bar with Auto-Complete Dropdown & Trending Tags */}
-          <div className="flex-1 max-w-2xl hidden md:flex flex-col gap-1.5 relative" ref={searchContainerRef}>
-            <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+          <div className="flex-1 min-w-0 max-w-2xl hidden md:flex flex-col gap-1.5 relative z-50" ref={searchContainerRef}>
+            <form onSubmit={handleSearchSubmit} className="relative h-10 shrink-0 flex items-center z-50">
               <input
                 type="text"
                 placeholder="Tìm tên thuốc, bệnh lý, TPCN..."
@@ -847,21 +898,25 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   setSearchQuery(e.target.value);
                   setShowSearchDropdown(true);
                 }}
-                className="w-full pl-5 pr-28 py-2.5 bg-white text-slate-800 rounded-full text-xs font-semibold placeholder:text-slate-400 outline-none shadow-sm focus:ring-2 focus:ring-amber-300 transition-all"
+                className={`w-full h-10 pl-5 pr-36 border-b bg-white text-slate-800 text-xs font-semibold placeholder:text-slate-400 outline-none transition-colors ${
+                  showSearchDropdown
+                    ? "rounded-t-[28px] rounded-b-none border-b border-slate-100 shadow-2xl"
+                    : "rounded-full border-transparent shadow-sm focus:ring-2 focus:ring-amber-300"
+                }`}
               />
               <div className="absolute right-2 flex items-center gap-1.5 text-slate-400">
-                {searchQuery && (
                   <button
                     type="button"
+                    aria-label="Xóa từ khóa tìm kiếm"
+                    disabled={!searchQuery}
                     onClick={() => {
                       setSearchQuery("");
                       setSearchResults([]);
                     }}
-                    className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className={`p-1 text-slate-400 hover:text-slate-600 cursor-pointer ${searchQuery ? "visible" : "invisible"}`}
                   >
                     <X size={14} />
                   </button>
-                )}
                 <button
                   type="button"
                   title="Tìm bằng giọng nói"
@@ -887,36 +942,36 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               </div>
             </form>
 
-            {/* Trending Hot Keywords row directly under search bar (Exact Long Chau style) */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px] text-sky-100 font-medium px-1">
-              {headerTrendingTags.map((tag, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery(tag);
-                    handleSearchSubmit(undefined, tag);
-                  }}
-                  className="hover:text-white hover:underline whitespace-nowrap transition-colors cursor-pointer text-sky-100/90"
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
+            {/* Giữ chỗ hàng từ khóa để header không đổi chiều cao khi mở tìm kiếm. */}
+              <div aria-hidden={showSearchDropdown} className={`h-4 shrink-0 flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px] text-sky-100 font-medium px-1 ${showSearchDropdown ? "invisible pointer-events-none" : "visible"}`}>
+                {headerTrendingTags.map((tag, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery(tag);
+                      handleSearchSubmit(undefined, tag);
+                    }}
+                    className="hover:text-white hover:underline whitespace-nowrap transition-colors cursor-pointer text-sky-100/90"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
 
-            {/* Live Search Auto-Complete Mega Dropdown */}
+            {/* Live Search Auto-Complete Mega Dropdown - Liền mạch tràn màu trắng từ input */}
             {showSearchDropdown && (
-              <div className="absolute top-12 left-0 right-0 bg-white text-slate-800 rounded-3xl shadow-2xl border border-slate-200/90 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-y-auto max-h-[min(540px,calc(100vh-100px))] overscroll-contain text-left custom-scrollbar">
+              <div className="absolute top-10 inset-x-0 w-full bg-white text-slate-800 rounded-b-[28px] rounded-t-none shadow-2xl border border-slate-200/90 border-t-0 z-40 overflow-y-auto overscroll-contain text-left h-[min(560px,calc(100dvh-160px))] [scrollbar-gutter:stable] custom-scrollbar @container">
                 
                 {/* 2-Column Split Grid */}
                 <div className="grid grid-cols-12 min-h-full">
                   
                   {/* Left Column (4/12 cols): Trending keywords, Popular categories, Hotline */}
-                  <div className="col-span-4 bg-slate-50/80 border-r border-slate-100 p-4 flex flex-col justify-between">
-                    <div className="space-y-4">
+                  <div className="hidden @min-[480px]:flex col-span-4 min-w-0 bg-slate-50/80 border-r border-slate-100 p-3.5 pb-4 flex-col justify-between">
+                    <div className="space-y-3.5">
                       {/* Trending Keywords */}
                       <div>
-                        <div className="flex items-center gap-1.5 text-[11px] font-black text-rose-600 uppercase tracking-wider mb-2.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-black text-rose-600 uppercase tracking-wider mb-2">
                           <Flame size={14} className="text-rose-500 fill-rose-500" />
                           <span>Từ khóa tìm kiếm Hot</span>
                         </div>
@@ -939,12 +994,12 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                       </div>
 
                       {/* Quick Category Jump */}
-                      <div className="pt-2.5 border-t border-slate-200/70">
-                        <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-700 uppercase tracking-wider mb-2">
+                      <div className="pt-2 border-t border-slate-200/70">
+                        <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
                           <Pill size={13} className="text-[#0057cd]" />
                           <span>Danh mục nổi bật</span>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           {[
                             { name: "Thuốc Kháng Sinh (Rx)", val: "Thuốc kháng sinh" },
                             { name: "Giảm Đau & Hạ Sốt", val: "Thuốc giảm đau hạ sốt" },
@@ -960,10 +1015,10 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                                 setShowSearchDropdown(false);
                                 navigate(`/customer/shop?category=${encodeURIComponent(cat.val)}`);
                               }}
-                              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-[#0057cd] transition-colors text-left cursor-pointer"
+                              className="w-full flex items-center justify-between px-2 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-[#0057cd] transition-colors text-left cursor-pointer"
                             >
                               <span className="truncate">{cat.name}</span>
-                              <ChevronRight size={12} className="text-slate-400" />
+                              <ChevronRight size={12} className="text-slate-400 shrink-0" />
                             </button>
                           ))}
                         </div>
@@ -971,64 +1026,65 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                     </div>
 
                     {/* Pharmacist Consultation Tile */}
-                    <div className="mt-4 p-3 bg-gradient-to-tr from-[#0057cd] to-sky-600 rounded-2xl text-white text-xs shadow-sm">
-                      <div className="flex items-center gap-1.5 font-bold mb-1">
+                    <div className="mt-3 p-2.5 bg-gradient-to-tr from-[#0057cd] to-sky-600 rounded-2xl text-white text-xs shadow-sm shrink-0">
+                      <div className="flex items-center gap-1.5 font-bold mb-0.5">
                         <span className="text-amber-300">✨</span>
                         <span>Dược sĩ tư vấn 1:1</span>
                       </div>
-                      <p className="text-[11px] text-blue-100 mb-2 leading-relaxed">
+                      <p className="text-[10px] text-blue-100 mb-2 leading-relaxed">
                         Cần tìm thuốc kê đơn đặc trị hoặc hỗ trợ liều dùng?
                       </p>
                       <a
                         href="tel:18006928"
-                        className="inline-flex items-center justify-center w-full py-1.5 bg-white text-[#0057cd] font-black rounded-xl text-[11px] uppercase tracking-wider shadow-sm hover:bg-blue-50 transition-colors"
+                        className="inline-flex items-center justify-center w-full py-1 bg-white text-[#0057cd] font-black rounded-xl text-[10px] uppercase tracking-wider shadow-sm hover:bg-blue-50 transition-colors"
                       >
-                        <PhoneCall size={12} className="mr-1 text-emerald-600" /> Gọi 1800 6928
+                        <PhoneCall size={11} className="mr-1 text-emerald-600" /> Gọi 1800 6928
                       </a>
                     </div>
                   </div>
 
                   {/* Right Column (8/12 cols): Search Results / Product Cards */}
-                  <div className="col-span-8 p-4 flex flex-col justify-between bg-white">
-                    <div>
+                  <div className="col-span-12 @min-[480px]:col-span-8 min-w-0 p-3.5 pb-3 flex flex-col justify-between bg-white @container">
+                    <div className="flex-1 flex flex-col min-h-0">
                       {/* Top bar info */}
-                      <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
-                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                          <PackageSearch size={14} className="text-[#0057cd]" />
+                      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-100">
+                        <span className="min-w-0 text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 break-words [overflow-wrap:anywhere]">
+                          <PackageSearch size={14} className="shrink-0 text-[#0057cd]" />
                           {searchQuery.trim() ? (
                             <span>Kết quả tìm kiếm cho "<strong className="text-slate-900">{searchQuery}</strong>" ({searchResults.length} thuốc)</span>
                           ) : (
                             <span>Gợi ý Dược phẩm được tin dùng</span>
                           )}
                         </span>
-                        <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                        <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1 shrink-0">
                           <CheckCircle2 size={12} /> 100% Chính hãng GPP
                         </span>
                       </div>
 
                       {/* Loading state */}
                       {isSearchingLive ? (
-                        <div className="py-20 text-center text-xs text-slate-400 font-bold flex flex-col items-center justify-center gap-2.5">
-                          <Loader2 size={26} className="animate-spin text-[#0057cd]" />
+                        <div className="py-16 text-center text-xs text-slate-400 font-bold flex flex-col items-center justify-center gap-2.5">
+                          <Loader2 size={24} className="animate-spin text-[#0057cd]" />
                           <span>Đang tra cứu kho dược phẩm và giá bán...</span>
                         </div>
-                      ) : searchResults.length > 0 ? (
-                        /* 2-Column Product Grid */
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {searchResults.map((med) => {
+                      ) : (searchQuery.trim() ? searchResults : suggestedMedicines).length > 0 ? (
+                        /* 2-Column Product Grid with internal scroll */
+                        <div className="grid grid-cols-1 @min-[540px]:grid-cols-2 gap-2.5">
+                          {(searchQuery.trim() ? searchResults : suggestedMedicines).map((med) => {
                             const medId = med.id || med._id;
                             const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
                             return (
-                              <div
+                              <button
+                                type="button"
                                 key={medId}
                                 onClick={() => {
                                   setSelectedMedicineForModal(med);
                                   setShowSearchDropdown(false);
                                 }}
-                                className="group p-3 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-blue-50/40 transition-all cursor-pointer flex gap-3 items-start relative hover:shadow-md bg-white"
+                                className="group min-w-0 p-3 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-blue-50/40 transition-all cursor-pointer flex gap-3 items-center relative hover:shadow-md bg-white text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                               >
                                 {/* Thumbnail */}
-                                <div className="w-16 h-16 rounded-xl bg-slate-50 p-1.5 border border-slate-100 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <div className="w-14 h-14 rounded-xl bg-slate-50 p-1 border border-slate-100 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
                                   <img
                                     src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
                                     alt={med.name}
@@ -1038,37 +1094,39 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
 
                                 {/* Medicine Info */}
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1 mb-1">
+                                  <div className="flex items-center gap-1 mb-0.5">
                                     <span className={`text-[8px] font-black px-1.5 py-0.2 rounded uppercase border shrink-0 ${isRx ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
-                                      {isRx ? "Rx Kê Đơn" : "OTC Không Kê Đơn"}
+                                      {isRx ? "Rx Kê Đơn" : "OTC"}
                                     </span>
                                   </div>
-                                  <h4 className="font-bold text-xs text-slate-900 group-hover:text-[#0057cd] line-clamp-1 leading-snug transition-colors">
+                                  <h4 className="font-bold text-xs text-slate-900 group-hover:text-[#0057cd] line-clamp-1 leading-snug transition-colors" title={med.name}>
                                     {med.name}
                                   </h4>
                                   <p className="text-[10px] text-slate-500 truncate mt-0.5">
                                     {med.active_ingredient ? `Hoạt chất: ${med.active_ingredient}` : (med.specification || "Thuốc chuẩn Bộ Y Tế")}
                                   </p>
 
-                                  <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/80">
-                                    <div className="flex items-baseline gap-1">
-                                      <span className="text-xs font-black text-rose-600">
-                                        {med.price ? med.price.toLocaleString() + "₫" : "Liên hệ"}
+                                  <div className="flex flex-col items-start mt-2 pt-2 border-t border-slate-100/80 gap-2">
+                                    <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 min-w-0 max-w-full">
+                                      <span className="text-xs font-mono tabular-nums font-semibold text-rose-600">
+                                        {med.price ? med.price.toLocaleString("vi-VN") + "₫" : "Liên hệ"}
                                       </span>
-                                      <span className="text-[9px] text-slate-400 font-medium">/ {med.unit || "Hộp"}</span>
+                                      {med.price ? (
+                                        <span className="text-[10px] text-slate-500 font-medium break-words [overflow-wrap:anywhere]">/ {med.unit || "Hộp"}</span>
+                                      ) : null}
                                     </div>
-                                    <span className="text-[10px] font-bold text-[#0057cd] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                                      Xem chi tiết <ChevronRight size={10} />
+                                    <span className="self-end shrink-0 text-[11px] font-bold text-[#0057cd] whitespace-nowrap flex items-center group-hover:translate-x-0.5 transition-transform">
+                                      Chi tiết <ChevronRight size={11} className="ml-0.5" />
                                     </span>
                                   </div>
                                 </div>
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
                       ) : searchQuery.trim() ? (
                         <div className="py-12 text-center text-xs text-slate-500 font-medium flex flex-col items-center justify-center gap-2">
-                          <AlertCircle size={30} className="text-amber-500" />
+                          <AlertCircle size={28} className="text-amber-500" />
                           <p className="text-sm font-bold text-slate-800">Không tìm thấy sản phẩm phù hợp</p>
                           <p className="text-[11px] text-slate-400 max-w-xs">
                             Không tìm thấy thuốc nào khớp với từ khóa "<strong className="text-slate-700">{searchQuery}</strong>".
@@ -1077,26 +1135,26 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                       ) : null}
                     </div>
 
-                    {/* Bottom Action Footer */}
-                    <div className="pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
+                    {/* Bottom Action Footer - 1 hàng ngang duy nhất, tối ưu diện tích */}
+                    <div className="shrink-0 pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-white">
                       <button
                         type="button"
                         onClick={() => {
                           setIsPrescriptionModalOpen(true);
                           setShowSearchDropdown(false);
                         }}
-                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer"
+                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0"
                       >
-                        <UploadCloud size={14} /> Gửi toa thuốc cho Dược sĩ
+                        <UploadCloud size={13} /> Gửi toa thuốc
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleSearchSubmit()}
-                        className="py-2 px-4 bg-[#0057cd] hover:bg-[#0b5ed7] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                        className="min-w-0 max-w-full py-2 px-3.5 bg-[#0057cd] hover:bg-[#0b5ed7] text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                       >
-                        <span>Xem tất cả kết quả {searchQuery ? `cho "${searchQuery}"` : "trong Cửa hàng"}</span>
-                        <ChevronRight size={14} />
+                        <span className="break-words [overflow-wrap:anywhere]">Xem tất cả kết quả {searchQuery ? `"${searchQuery}"` : "trong Cửa hàng"}</span>
+                        <ChevronRight size={13} className="shrink-0" />
                       </button>
                     </div>
                   </div>
@@ -1201,12 +1259,20 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               </Link>
             )}
 
-            {/* Long Chau Pill-shaped Cart Button */}
-            <Link
-              ref={cartIconRef}
+            {/* Nút Giỏ hàng: Nếu chưa đăng nhập thì redirect sang trang đăng nhập */}
+            <button
+              ref={cartIconRef as any}
               id="cart-icon-btn"
-              to="/customer/cart"
-              className="flex items-center gap-2 bg-[#0047a5] hover:bg-[#003c8c] text-white px-4 py-2 rounded-full font-bold text-xs transition-all shadow-sm relative group cursor-pointer"
+              type="button"
+              onClick={() => {
+                const curToken = localStorage.getItem("token");
+                if (!curToken) {
+                  navigate("/auth/login?redirect=/customer/cart");
+                } else {
+                  navigate("/customer/cart");
+                }
+              }}
+              className="flex items-center gap-2 bg-[#0047a5] hover:bg-[#003c8c] text-white px-4 py-2 rounded-full font-bold text-xs transition-all shadow-sm relative group cursor-pointer border-none outline-none"
             >
               <div className="relative">
                 <ShoppingCart size={18} />
@@ -1217,7 +1283,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                 )}
               </div>
               <span className="hidden sm:inline">Giỏ hàng</span>
-            </Link>
+            </button>
 
             {/* Mobile Hamburger Button */}
             <button
@@ -1713,6 +1779,16 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
           addedItems={addedItems}
         />
       )}
+
+      <LoginRequiredModal
+        isOpen={showLoginRequiredModal}
+        onClose={() => setShowLoginRequiredModal(false)}
+        onLogin={() => {
+          setShowLoginRequiredModal(false);
+          const returnUrl = `${location.pathname}${location.search}`;
+          navigate(`/auth/login?redirect=${encodeURIComponent(returnUrl)}`);
+        }}
+      />
     </>
   );
 }

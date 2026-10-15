@@ -21,10 +21,11 @@ import {
   X,
   Building,
   CheckCircle2,
-  Zap
+  Zap,
+  Send
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Pagination } from "../Pagination";
 
 interface ForecastItem {
@@ -54,6 +55,15 @@ interface ForecastResult {
 
 export function AIForecast() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Xác định tiền tố route theo vai trò hiện tại (admin, director, warehouse) để không bị dính Authorization Guard
+  const currentRolePrefix = useMemo(() => {
+    if (location.pathname.startsWith('/director')) return '/director';
+    if (location.pathname.startsWith('/warehouse')) return '/warehouse';
+    return '/admin';
+  }, [location.pathname]);
+
   const [period, setPeriod] = useState<number>(30);
 
   const getPeriodLabel = (p: number) => {
@@ -372,6 +382,24 @@ export function AIForecast() {
 
   const handleCreatePR = () => {
     handleOpenAutoPoModal();
+  };
+
+  // Chuyển danh sách thuốc thiếu hụt từ AI Forecast sang phiên yêu cầu báo giá RFQ
+  const handleCreateRFQFromForecast = () => {
+    if (!forecast?.recommendations) return;
+    const selectedItems = forecast.recommendations.filter((it) => selectedIds.includes(it.medicineId));
+    const itemsToPrefill = selectedItems.length > 0 ? selectedItems : forecast.recommendations.filter(it => it.suggestedOrderQty > 0).slice(0, 10);
+    
+    if (itemsToPrefill.length === 0) {
+      alert("Không có sản phẩm nào cần yêu cầu báo giá.");
+      return;
+    }
+
+    // Lưu vào sessionStorage để bảo vệ URL khỏi lỗi HTTP 414 URI Too Long khi chọn nhiều SKU
+    try {
+      sessionStorage.setItem('rfq_prefill_meds', JSON.stringify(itemsToPrefill));
+    } catch (_) {}
+    navigate(`${currentRolePrefix}/rfq?openCreateRFQ=true`);
   };
 
   const getUrgencyBadge = (urgency: string) => {
@@ -721,13 +749,23 @@ export function AIForecast() {
                     )}
 
                     {selectedIds.length > 0 && (
-                      <button
-                        onClick={handleCreatePR}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md transition-all active:scale-95 ml-auto"
-                      >
-                        <ShoppingCart size={15} />
-                        Tạo Đơn Nhập Hàng Tự Động ({selectedIds.length})
-                      </button>
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button
+                          onClick={handleCreateRFQFromForecast}
+                          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                          title="Gom các mặt hàng đã chọn chuyển sang module Chào Giá RFQ để mời NCC báo giá cạnh tranh"
+                        >
+                          <Send size={14} />
+                          Tạo Chào Giá RFQ ({selectedIds.length})
+                        </button>
+                        <button
+                          onClick={handleCreatePR}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md transition-all active:scale-95"
+                        >
+                          <ShoppingCart size={15} />
+                          Tạo Đơn Nhập Hàng Tự Động ({selectedIds.length})
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1053,12 +1091,18 @@ export function AIForecast() {
                     <button
                       onClick={() => {
                         setIsAutoPoModalOpen(false);
-                        navigate('/admin/approvals');
+                        const targetPath =
+                          currentRolePrefix === '/warehouse'
+                            ? '/warehouse/inventory/requisitions'
+                            : `${currentRolePrefix}/approvals`;
+                        navigate(targetPath);
                       }}
-                      className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-2 shadow-md"
+                      className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-2 shadow-md cursor-pointer"
                     >
                       <Building className="w-4 h-4 text-emerald-400" />
-                      Đến Màn Hình Phê Duyệt PO (HQ Approval) ➔
+                      {currentRolePrefix === '/warehouse'
+                        ? 'Đến Danh Sách Đơn Đặt Hàng PO (Kho) ➔'
+                        : 'Đến Màn Hình Phê Duyệt PO (HQ Approval) ➔'}
                     </button>
                   </div>
                 )}

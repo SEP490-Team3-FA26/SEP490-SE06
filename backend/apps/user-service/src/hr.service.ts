@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { WorkShift } from './schemas/work-shift.schema';
 import { WorkSchedule } from './schemas/work-schedule.schema';
 import { ShiftSwapRequest } from './schemas/shift-swap-request.schema';
 import { StaffNotification } from './schemas/staff-notification.schema';
+import { LeaveRequest, LeaveType, LeaveStatus } from './schemas/leave-request.schema';
+import { Attendance, AttendanceStatus } from './schemas/attendance.schema';
 import { User } from '../../auth-service/src/auth/user.schema';
 import { RpcException } from '@nestjs/microservices';
 
@@ -16,6 +18,8 @@ export class HrService {
     @InjectModel(ShiftSwapRequest.name) private readonly shiftSwapRequestModel: Model<ShiftSwapRequest>,
     @InjectModel(StaffNotification.name) private readonly staffNotificationModel: Model<StaffNotification>,
     @InjectModel(User.name) private readonly userModel: Model<User>,
+    @InjectModel(LeaveRequest.name) private readonly leaveRequestModel: Model<LeaveRequest>,
+    @InjectModel(Attendance.name) private readonly attendanceModel: Model<Attendance>,
   ) {}
 
   // --- Nhóm Ca Làm Việc ---
@@ -273,14 +277,18 @@ export class HrService {
   }
 
   private async sendNotification(recipientId: string, branchId: string, type: string, title: string, message: string, relatedId?: string) {
-    await this.staffNotificationModel.create({
-      recipientId,
-      branchId,
-      type,
-      title,
-      message,
-      relatedId
-    });
+    try {
+      await this.staffNotificationModel.create({
+        recipientId,
+        branchId,
+        type,
+        title,
+        message,
+        relatedId
+      });
+    } catch (err: any) {
+      console.warn(`[HrService] Khong the gui StaffNotification toi ${recipientId}:`, err.message);
+    }
   }
 
   // --- Nhóm Notification ---
@@ -310,4 +318,346 @@ export class HrService {
   async getUnreadCount(userId: string): Promise<number> {
     return this.staffNotificationModel.countDocuments({ recipientId: userId, isRead: false });
   }
+
+  // --- Nhóm Nghỉ Phép & Điều Phối Nhân Sự (Leave Management) ---
+  async getMyLeaveBalance(userId: string) {
+    const user = await this.userModel.findById(userId).lean().exec();
+    return {
+      annualLeaveBalance: user?.annualLeaveBalance ?? 12,
+      usedAnnualLeave: user?.usedAnnualLeave ?? 0,
+    };
+  }
+
+  async getMyLeaves(userId: string, status?: string) {
+    const query: any = { requesterId: new Types.ObjectId(userId) };
+    if (status) query.status = status;
+
+    const [leaves, user] = await Promise.all([
+      this.leaveRequestModel.find(query).sort({ createdAt: -1 }).lean().exec(),
+      this.userModel.findById(userId).lean().exec(),
+    ]);
+
+    return {
+      leaves: leaves || [],
+      balance: user?.annualLeaveBalance ?? 12,
+      used: user?.usedAnnualLeave ?? 0,
+    };
+  }
+
+  async getBranchLeaves(branchId: string, status?: string) {
+    const query: any = { branchId };
+    if (status) query.status = status;
+    return this.leaveRequestModel.find(query).sort({ createdAt: -1 }).lean().exec();
+  }
+
+  async createLeaveRequest(dto: {
+    branchId: string;
+    requesterId: string;
+    requesterName: string;
+    requesterRole: string;
+    leaveType: LeaveType;
+    shiftDate: string;
+    shiftId: string;
+    shiftName: string;
+    startTime: string;
+    endTime: string;
+    reason: string;
+    attachmentUrl?: string;
+  }) {
+    // 1. Kiểm tra không được nộp trùng đơn cho ca đang PENDING hoặc APPROVED
+    const existing = await this.leaveRequestModel.findOne({
+      requesterId: new Types.ObjectId(dto.requesterId),
+      shiftDate: dto.shiftDate,
+      shiftId: dto.shiftId,
+      status: { $in: [LeaveStatus.PENDING, LeaveStatus.APPROVED] },
+    }).lean().exec();
+
+    if (existing) {
+      throw new RpcException('Bạn đã có đơn xin nghỉ cho ca trực này đang chờ duyệt hoặc đã duyệt.');
+    }
+
+    // 2. Kiểm tra nếu là nghỉ phép năm: quỹ phép phải còn >= 1 ngày
+    const user = await this.userModel.findById(dto.requesterId).lean().exec();
+    if (!user) throw new RpcException('Không tìm thấy thông tin nhân viên.');
+
+    const currentBalance = user.annualLeaveBalance ?? 12;
+    if (dto.leaveType === LeaveType.ANNUAL_PAID && currentBalance < 1) {
+      throw new RpcException(`Số dư phép năm khả dụng không đủ (còn ${currentBalance} ngày). Vui lòng chọn loại Nghỉ không lương hoặc lý do khác.`);
+    }
+
+    // 3. Kiểm tra ca trực hợp lệ trong WorkSchedule (Chống nộp đơn nghỉ khống - INV-01)
+    const schedules = await this.workScheduleModel.find({
+      branchId: dto.branchId,
+      'assignments.employeeId': dto.requesterId,
+    }).lean().exec();
+
+    let isAssigned = false;
+    let matchingSchedule: any = null;
+    let assignedShift: any = null;
+
+    for (const sch of schedules) {
+      const found = sch.assignments?.find((a: any) => {
+        const aDateStr = a.date instanceof Date ? a.date.toISOString().slice(0, 10) : new Date(a.date).toISOString().slice(0, 10);
+        const matchEmployee = a.employeeId?.toString() === dto.requesterId?.toString();
+        const matchDate = aDateStr === dto.shiftDate;
+        // Khớp shiftId chính xác hoặc khớp theo tên ca
+        const matchShift =
+          a.shiftId === dto.shiftId ||
+          (dto.shiftName && a.shiftName && a.shiftName.toLowerCase().includes(dto.shiftName.toLowerCase().slice(0, 5)));
+        return matchEmployee && matchDate && matchShift;
+      });
+
+      if (found) {
+        isAssigned = true;
+        matchingSchedule = sch;
+        assignedShift = found;
+        break;
+      }
+    }
+
+    if (!isAssigned) {
+      throw new RpcException('Bạn không có ca trực nào được phân công trong thời gian này để xin nghỉ.');
+    }
+
+    // Tự động chuẩn hóa shiftId và thời gian ca trực theo lịch phân công thực tế
+    if (assignedShift) {
+      dto.shiftId = assignedShift.shiftId;
+      dto.shiftName = assignedShift.shiftName;
+      dto.startTime = assignedShift.shiftStart || dto.startTime;
+      dto.endTime = assignedShift.shiftEnd || dto.endTime;
+    }
+
+    // 4. Kiểm tra cảnh báo định biên GPP (Nếu sau khi nghỉ, ca trực không còn ai)
+    let isWarningGppUnderstaffed = false;
+    if (matchingSchedule && matchingSchedule.assignments) {
+      const remainingAssigned = matchingSchedule.assignments.filter(
+        (a: any) => {
+          const aDateStr = a.date instanceof Date ? a.date.toISOString().slice(0, 10) : new Date(a.date).toISOString().slice(0, 10);
+          return a.shiftId === dto.shiftId && aDateStr === dto.shiftDate && a.employeeId !== dto.requesterId;
+        }
+      );
+      if (remainingAssigned.length === 0) {
+        isWarningGppUnderstaffed = true;
+      }
+    }
+
+    // 5. Tạo bản ghi đơn xin nghỉ
+    const leave = await this.leaveRequestModel.create({
+      ...dto,
+      requesterId: new Types.ObjectId(dto.requesterId),
+      shiftsCount: 1,
+      status: LeaveStatus.PENDING,
+      isWarningGppUnderstaffed,
+    });
+
+    // 6. Gửi thông báo đến Quản lý chi nhánh
+    const managers = await this.userModel.find({ role: 'branch', branchId: dto.branchId }).lean().exec();
+    for (const m of managers) {
+      await this.sendNotification(
+        (m._id as any).toString(),
+        dto.branchId,
+        'leave_request_pending',
+        'Đơn xin nghỉ ca mới',
+        `${dto.requesterName} xin nghỉ ca ${dto.shiftName} ngày ${dto.shiftDate}. Chờ bạn duyệt.`,
+        leave._id.toString()
+      );
+    }
+
+    return leave.toObject ? leave.toObject() : leave;
+  }
+
+  async respondLeave(dto: {
+    leaveId: string;
+    managerId: string;
+    managerName: string;
+    managerRole?: string;
+    managerBranchId?: string;
+    action: 'approve' | 'reject';
+    managerNote?: string;
+  }) {
+    const leave = await this.leaveRequestModel.findById(dto.leaveId).exec();
+    if (!leave) throw new RpcException('Không tìm thấy đơn xin nghỉ.');
+
+    // Kiểm tra IDOR: Quản lý chỉ được duyệt đơn thuộc chi nhánh của mình (INV-03)
+    if (dto.managerRole !== 'admin' && dto.managerBranchId && leave.branchId !== dto.managerBranchId) {
+      throw new RpcException('Bạn không có quyền phê duyệt đơn xin nghỉ của chi nhánh khác.');
+    }
+
+    if (leave.status !== LeaveStatus.PENDING) {
+      throw new RpcException('Đơn xin nghỉ không ở trạng thái chờ duyệt.');
+    }
+
+    if (dto.action === 'reject') {
+      const updatedLeave = await this.leaveRequestModel.findOneAndUpdate(
+        { _id: dto.leaveId, status: LeaveStatus.PENDING },
+        {
+          $set: {
+            status: LeaveStatus.REJECTED,
+            managerId: dto.managerId,
+            managerName: dto.managerName,
+            managerNote: dto.managerNote || '',
+            managerRespondedAt: new Date(),
+          },
+        },
+        { new: true }
+      ).exec();
+
+      if (!updatedLeave) {
+        throw new RpcException('Đơn xin nghỉ đã được xử lý hoặc không còn ở trạng thái chờ duyệt.');
+      }
+
+      await this.sendNotification(
+        updatedLeave.requesterId.toString(),
+        updatedLeave.branchId,
+        'leave_request_rejected',
+        'Đơn xin nghỉ bị từ chối',
+        `Quản lý chi nhánh đã từ chối đơn xin nghỉ ca ${updatedLeave.shiftName} ngày ${updatedLeave.shiftDate}.${dto.managerNote ? ' Lý do: ' + dto.managerNote : ''}`,
+        updatedLeave._id.toString()
+      );
+
+      return updatedLeave.toObject ? updatedLeave.toObject() : updatedLeave;
+    }
+
+    // Trường hợp APPROVE
+    // 1. Trừ phép năm nếu là ANNUAL_PAID
+    if (leave.leaveType === LeaveType.ANNUAL_PAID) {
+      const user = await this.userModel.findById(leave.requesterId).exec();
+      const currentBalance = user?.annualLeaveBalance ?? 12;
+      const currentUsed = user?.usedAnnualLeave ?? 0;
+      const deduct = leave.shiftsCount || 1;
+
+      if (currentBalance < deduct) {
+        throw new RpcException('Nhân viên không còn đủ số dư phép năm để duyệt.');
+      }
+
+      await this.userModel.updateOne(
+        { _id: leave.requesterId },
+        {
+          $set: {
+            annualLeaveBalance: currentBalance - deduct,
+            usedAnnualLeave: currentUsed + deduct,
+          },
+        }
+      ).exec();
+    }
+
+    // 2. Chuyển trạng thái sang APPROVED nguyên tử
+    const updatedLeave = await this.leaveRequestModel.findOneAndUpdate(
+      { _id: dto.leaveId, status: LeaveStatus.PENDING },
+      {
+        $set: {
+          status: LeaveStatus.APPROVED,
+          managerId: dto.managerId,
+          managerName: dto.managerName,
+          managerNote: dto.managerNote || '',
+          managerRespondedAt: new Date(),
+        },
+      },
+      { new: true }
+    ).exec();
+
+    if (!updatedLeave) {
+      // Rollback số dư phép năm nếu trạng thái không còn là PENDING
+      if (leave.leaveType === LeaveType.ANNUAL_PAID) {
+        const user = await this.userModel.findById(leave.requesterId).exec();
+        const currentBalance = user?.annualLeaveBalance ?? 12;
+        const currentUsed = user?.usedAnnualLeave ?? 0;
+        const deduct = leave.shiftsCount || 1;
+        await this.userModel.updateOne(
+          { _id: leave.requesterId },
+          {
+            $set: {
+              annualLeaveBalance: currentBalance + deduct,
+              usedAnnualLeave: Math.max(0, currentUsed - deduct),
+            },
+          }
+        ).exec();
+      }
+      throw new RpcException('Đơn xin nghỉ đã được xử lý hoặc không còn ở trạng thái chờ duyệt.');
+    }
+
+    // 3. Cập nhật ghi chú trên lịch làm việc WorkSchedule
+    const targetDate = new Date(updatedLeave.shiftDate);
+    await this.workScheduleModel.updateMany(
+      { branchId: updatedLeave.branchId },
+      {
+        $set: {
+          'assignments.$[assign].note': `[NGHỈ PHÉP: ${updatedLeave.leaveType}]`,
+        },
+      },
+      {
+        arrayFilters: [
+          {
+            'assign.employeeId': updatedLeave.requesterId.toString(),
+            'assign.shiftId': updatedLeave.shiftId,
+            'assign.date': targetDate,
+          },
+        ],
+      }
+    ).exec();
+
+    // 4. Đồng bộ bản ghi chấm công Attendance
+    const attendanceStatus =
+      updatedLeave.leaveType === LeaveType.ANNUAL_PAID || updatedLeave.leaveType === LeaveType.SPECIAL_PAID
+        ? AttendanceStatus.ON_LEAVE_PAID
+        : AttendanceStatus.ON_LEAVE_UNPAID;
+
+    await this.attendanceModel.findOneAndUpdate(
+      {
+        employeeId: updatedLeave.requesterId,
+        date: updatedLeave.shiftDate,
+        shiftId: updatedLeave.shiftId,
+      },
+      {
+        $set: {
+          employeeName: updatedLeave.requesterName,
+          employeeRole: updatedLeave.requesterRole,
+          branchId: updatedLeave.branchId,
+          shiftName: updatedLeave.shiftName,
+          status: attendanceStatus,
+          note: `Nghỉ phép (${updatedLeave.leaveType}): ${updatedLeave.reason}`,
+        },
+      },
+      { upsert: true, new: true }
+    ).exec();
+
+    // 5. Gửi thông báo đến nhân viên
+    await this.sendNotification(
+      updatedLeave.requesterId.toString(),
+      updatedLeave.branchId,
+      'leave_request_approved',
+      'Đơn xin nghỉ đã được duyệt',
+      `Đơn xin nghỉ ca ${updatedLeave.shiftName} ngày ${updatedLeave.shiftDate} của bạn đã được quản lý phê duyệt.`,
+      updatedLeave._id.toString()
+    );
+
+    return updatedLeave.toObject ? updatedLeave.toObject() : updatedLeave;
+  }
+
+  async cancelLeave(leaveId: string, userId: string, cancelReason?: string) {
+    const leave = await this.leaveRequestModel.findById(leaveId).exec();
+    if (!leave) throw new RpcException('Không tìm thấy đơn xin nghỉ.');
+    if (leave.requesterId.toString() !== userId.toString()) {
+      throw new RpcException('Bạn không có quyền hủy đơn xin nghỉ này.');
+    }
+
+    const cancelledLeave = await this.leaveRequestModel.findOneAndUpdate(
+      { _id: leaveId, status: LeaveStatus.PENDING },
+      {
+        $set: {
+          status: LeaveStatus.CANCELLED,
+          cancelReason: cancelReason || '',
+          cancelledAt: new Date(),
+        },
+      },
+      { new: true }
+    ).exec();
+
+    if (!cancelledLeave) {
+      throw new RpcException('Chỉ có thể hủy đơn đang ở trạng thái chờ duyệt.');
+    }
+
+    return cancelledLeave.toObject ? cancelledLeave.toObject() : cancelledLeave;
+  }
 }
+

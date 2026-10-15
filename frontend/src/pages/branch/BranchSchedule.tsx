@@ -19,6 +19,8 @@ import {
   AlertCircle
 } from "lucide-react";
 
+import { getLeaveDetails } from "../pharmacist/PharmacistSchedule";
+
 // Utilities
 function getMonday(d: Date) {
   d = new Date(d);
@@ -195,11 +197,16 @@ export function BranchSchedule() {
   };
 
   const handleAssign = async (date: Date, shift: WorkShift, empId: string) => {
-    if (!schedule || schedule.status === 'published') return;
+    if (!schedule) return;
+    const targetDateStr = formatDate(date);
+    const cellAssignments = (schedule.assignments || []).filter(
+      a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id
+    );
+    const hasLeave = cellAssignments.some(a => Boolean(getLeaveDetails(a.note)));
+    if (schedule.status === 'published' && !hasLeave) return;
+
     const emp = employees.find(e => String(e._id) === String(empId) || String(e.id) === String(empId));
     if (!emp) return;
-
-    const targetDateStr = formatDate(date);
 
     // Kiểm tra tránh gán trùng chính nhân viên này vào cùng 1 ca
     const alreadyInShift = (schedule.assignments || []).some(
@@ -245,8 +252,14 @@ export function BranchSchedule() {
   };
 
   const handleRemoveAssignment = async (date: Date, shiftId: string, employeeId: string) => {
-    if (!schedule || schedule.status === 'published') return;
+    if (!schedule) return;
     const targetDateStr = formatDate(date);
+    const targetAssign = (schedule.assignments || []).find(
+      a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shiftId && String(a.employeeId) === String(employeeId)
+    );
+    const isLeave = targetAssign ? Boolean(getLeaveDetails(targetAssign.note)) : false;
+    if (schedule.status === 'published' && !isLeave) return;
+
     const newAssignments = (schedule.assignments || []).filter(
       a => !(getIsoDateStr(a.date) === targetDateStr && a.shiftId === shiftId && String(a.employeeId) === String(employeeId))
     );
@@ -488,42 +501,55 @@ export function BranchSchedule() {
                               ) : (
                                 cellAssignments.map(assignment => {
                                   const roleInfo = getEmployeeRoleInfo(assignment.employeeId);
+                                  const leaveInfo = getLeaveDetails(assignment.note);
+                                  const isLeave = Boolean(leaveInfo);
+
                                   return (
                                     <div 
                                       key={assignment.employeeId + '_' + assignment.shiftId}
                                       className={`p-2 rounded-xl border shadow-2xs transition-all relative overflow-hidden group ${
-                                        isPublished 
-                                          ? 'bg-slate-50 border-slate-200' 
-                                          : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-xs'
+                                        isLeave
+                                          ? 'bg-amber-50/80 border-amber-300 border-dashed ring-1 ring-amber-400/30'
+                                          : isPublished 
+                                            ? 'bg-slate-50 border-slate-200' 
+                                            : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-xs'
                                       }`}
                                     >
                                       {/* Left Colored Accent Bar */}
                                       <div 
                                         className="absolute left-0 top-0 bottom-0 w-1" 
-                                        style={{ backgroundColor: shift.color || '#0057cd' }}
+                                        style={{ backgroundColor: isLeave ? '#f59e0b' : (shift.color || '#0057cd') }}
                                       ></div>
 
                                       {/* Tên nhân viên: 1 dòng duy nhất, không ngắt dòng */}
                                       <div className="pl-1 pr-4 min-w-0">
                                         <div 
-                                          className="text-xs font-medium text-slate-700 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" 
+                                          className={`text-xs font-medium leading-tight whitespace-nowrap overflow-hidden text-ellipsis ${
+                                            isLeave ? 'text-slate-500 line-through' : 'text-slate-700'
+                                          }`} 
                                           title={assignment.employeeName}
                                         >
                                           {formatEmployeeName(assignment.employeeName)}
                                         </div>
-                                        <div className="mt-1">
-                                          <span className={`inline-block text-[9px] font-medium px-1.5 py-0.2 rounded ${
-                                            roleInfo.isManager 
-                                              ? 'bg-purple-50 text-purple-700 border border-purple-200/80' 
-                                              : 'bg-slate-100 text-slate-600 border border-slate-200/60'
-                                          }`}>
-                                            {roleInfo.label}
-                                          </span>
+                                        <div className="mt-1 flex flex-wrap gap-1 items-center">
+                                          {isLeave ? (
+                                            <span className="inline-block text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                                              ĐÃ NGHỈ: {leaveInfo?.shortLabel.toUpperCase()}
+                                            </span>
+                                          ) : (
+                                            <span className={`inline-block text-[9px] font-medium px-1.5 py-0.2 rounded ${
+                                              roleInfo.isManager 
+                                                ? 'bg-purple-50 text-purple-700 border border-purple-200/80' 
+                                                : 'bg-slate-100 text-slate-600 border border-slate-200/60'
+                                            }`}>
+                                              {roleInfo.label}
+                                            </span>
+                                          )}
                                         </div>
                                       </div>
 
-                                      {/* Remove Action Button (Absolute góc phải trên, chỉ hiện khi hover, không chiếm chỗ text) */}
-                                      {!isPublished && (
+                                      {/* Remove Action Button (Hiện khi chưa published HOẶC khi nhân viên này đã nghỉ phép để quản lý gỡ ca) */}
+                                      {(!isPublished || isLeave) && (
                                         <button 
                                           onClick={() => handleRemoveAssignment(d, shift._id, assignment.employeeId)} 
                                           title={`Xóa ${assignment.employeeName} khỏi ca này`}
@@ -538,18 +564,22 @@ export function BranchSchedule() {
                               )}
                             </div>
 
-                            {/* Nút thêm nhân sự vào ca: Cố định ở đáy mt-auto, thẳng hàng tăm tắp */}
-                            {!isPublished && (
+                            {/* Nút thêm nhân sự vào ca: Cố định ở đáy mt-auto, cho phép bù khi có người nghỉ */}
+                            {(!isPublished || cellAssignments.some(a => Boolean(getLeaveDetails(a.note)))) && (
                               <button
                                 onClick={() => {
                                   setSearchEmployeeQuery("");
                                   setAssignModal({ isOpen: true, date: d, shift });
                                 }}
-                                className="mt-auto w-full py-1 px-2 rounded-xl border border-dashed border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/60 text-slate-400 hover:text-[#0057cd] flex items-center justify-center gap-1 transition-all group/btn cursor-pointer"
+                                className={`mt-auto w-full py-1 px-2 rounded-xl border border-dashed flex items-center justify-center gap-1 transition-all group/btn cursor-pointer ${
+                                  cellAssignments.some(a => Boolean(getLeaveDetails(a.note)))
+                                    ? 'border-amber-300 bg-amber-50/50 hover:bg-amber-100/60 text-amber-800'
+                                    : 'border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/60 text-slate-400 hover:text-[#0057cd]'
+                                }`}
                               >
-                                <Plus size={12} className="text-slate-400 group-hover/btn:text-[#0057cd] transition-transform" />
-                                <span className="text-[11px] font-medium tracking-tight text-slate-500 group-hover/btn:text-[#0057cd]">
-                                  {cellAssignments.length === 0 ? 'Gán ca' : 'Thêm'}
+                                <Plus size={12} className={cellAssignments.some(a => Boolean(getLeaveDetails(a.note))) ? "text-amber-700" : "text-slate-400 group-hover/btn:text-[#0057cd]"} />
+                                <span className="text-[11px] font-medium tracking-tight">
+                                  {cellAssignments.length === 0 ? 'Gán ca' : cellAssignments.some(a => Boolean(getLeaveDetails(a.note))) ? 'Bù nhân sự' : 'Thêm'}
                                 </span>
                               </button>
                             )}

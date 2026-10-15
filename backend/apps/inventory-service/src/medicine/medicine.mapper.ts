@@ -144,13 +144,13 @@ export class MedicineMapper {
     if (branchId && branchId !== 'CENTRAL_WH') {
       // Chi nhánh bán lẻ: Ưu tiên số dư bảng cân bằng kho -> collection kho vật lý -> lô hàng chi nhánh -> tồn kho tổng
       if (balanceStock !== undefined) {
-        totalStock = balanceStock;
+        totalStock = Math.max(0, Number(balanceStock) || 0);
       } else if (specificBranchInvs.length > 0) {
-        totalStock = specificBranchInvs.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+        totalStock = Math.max(0, specificBranchInvs.reduce((sum, b) => sum + Number(b.stock || 0), 0));
       } else if (activeBatches.length > 0) {
-        totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+        totalStock = Math.max(0, activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0));
       } else {
-        totalStock = context?.dbMed?.stock || med?.stock || 0;
+        totalStock = Math.max(0, Number(context?.dbMed?.stock || med?.stock || 0));
       }
 
       if (specificBranchInvs.length > 0) {
@@ -160,10 +160,12 @@ export class MedicineMapper {
       }
     } else if (branchId === 'CENTRAL_WH') {
       // Kho tổng GSP: Tổng tồn tính theo các lô hàng thuộc kho tổng
-      totalStock =
+      totalStock = Math.max(
+        0,
         activeBatches.length > 0
           ? activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0)
-          : (context?.dbMed?.stock || med?.stock || 0);
+          : Number(context?.dbMed?.stock || med?.stock || 0)
+      );
       earliestExpiryStr = this.calculateEarliestExpiry(activeBatches);
     } else {
       // KHO TỔNG (CENTRAL_WH) mặc định khi không truyền branchId:
@@ -172,7 +174,7 @@ export class MedicineMapper {
       const centralActiveBatches = activeBatches.filter(
         (b) => !b.branchId || b.branchId === 'CENTRAL_WH',
       );
-      totalStock = centralActiveBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+      totalStock = Math.max(0, centralActiveBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0));
       earliestExpiryStr = this.calculateEarliestExpiry(centralActiveBatches);
     }
 

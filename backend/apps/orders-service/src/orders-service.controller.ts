@@ -97,6 +97,16 @@ export class OrdersServiceController {
     }
   }
 
+  @MessagePattern('vouchers.audit.flags')
+  async getVoucherAuditFlags() {
+    try {
+      return await this.ordersServiceService.getVoucherAuditFlags();
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi khi lấy danh sách kiểm toán nghi vấn voucher');
+    }
+  }
+
   @MessagePattern('finance.expense.create')
   async createExpense(@Payload() data: any) {
     try {

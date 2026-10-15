@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Trash2, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Clock, Award, MapPin } from "lucide-react";
 import { employeeService, Employee } from "../../services/admin/employee.service";
+import { BranchLocationModal } from "../../components/branch/BranchLocationModal";
 
 function getBranchIdFromToken() {
   const token = localStorage.getItem("token");
@@ -27,6 +29,7 @@ export function BranchEmployees() {
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   // Form states
@@ -106,9 +109,8 @@ export function BranchEmployees() {
           fullName: formData.fullName,
           role: formData.role,
           branchId: currentBranchId,
-          createdByRole: 'branch', // branch tạo → cần admin duyệt
         });
-        setSuccessMessage("Tài khoản đã được tạo và đang chờ Admin phê duyệt!");
+        setSuccessMessage("Cấp tài khoản nhân viên thành công và đã kích hoạt hoạt động!");
       }
       handleCloseModal();
       fetchData();
@@ -129,16 +131,7 @@ export function BranchEmployees() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa tài khoản nhân viên này? Thao tác không thể hoàn tác.")) {
-      try {
-        await employeeService.deleteEmployee(id);
-        fetchData();
-      } catch (err: any) {
-        setError(err.response?.data?.message || "Xóa thất bại");
-      }
-    }
-  };
+
 
   const roleMap: Record<string, { label: string; color: string }> = {
     pharmacist: { label: "Dược sĩ Chi nhánh", color: "bg-green-100 text-green-800" },
@@ -155,13 +148,29 @@ export function BranchEmployees() {
           </h1>
           <p className="text-slate-500 mt-1">Danh sách dược sĩ và nhân viên làm việc tại chi nhánh hiện tại</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2 whitespace-nowrap"
-        >
-          <Plus size={18} />
-          Cấp Account Nhân viên
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsLocationModalOpen(true)}
+            className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-emerald-200 text-sm whitespace-nowrap shadow-sm"
+          >
+            <MapPin size={18} />
+            Cài Đặt Vị Trí GPS
+          </button>
+          <Link
+            to="/branch/certificates"
+            className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-indigo-200 text-sm whitespace-nowrap"
+          >
+            <Award size={18} />
+            Thẩm định Bằng cấp & CCHN
+          </Link>
+          <button
+            onClick={() => handleOpenModal()}
+            className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2 whitespace-nowrap"
+          >
+            <Plus size={18} />
+            Cấp Account Nhân viên
+          </button>
+        </div>
       </div>
 
       {/* Filter / Search */}
@@ -234,11 +243,7 @@ export function BranchEmployees() {
                         </td>
                         <td className="px-6 py-4 text-slate-600 font-medium">{emp.branchId || currentBranchId}</td>
                         <td className="px-6 py-4">
-                          {emp.isApproved === 'pending' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                              <Clock size={11} /> Chờ Admin duyệt
-                            </span>
-                          ) : emp.isActive ? (
+                          {emp.isActive ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
                               Hoạt động
                             </span>
@@ -265,13 +270,6 @@ export function BranchEmployees() {
                               title={emp.isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                             >
                               {emp.isActive ? <Ban size={18} /> : <CheckCircle2 size={18} />}
-                            </button>
-                            <button
-                              onClick={() => handleDelete(emp._id)}
-                              className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="Xóa tài khoản"
-                            >
-                              <Trash2 size={18} />
                             </button>
                           </div>
                         </td>
@@ -402,6 +400,13 @@ export function BranchEmployees() {
           </div>
         </div>
       )}
+
+      {/* Branch Location Modal */}
+      <BranchLocationModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        onSuccess={() => fetchData()}
+      />
     </div>
   );
 }

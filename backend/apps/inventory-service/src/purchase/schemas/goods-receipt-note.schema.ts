@@ -70,6 +70,9 @@ export class GoodsReceiptNote extends Document {
   supplierName?: string;
 
   @Prop({ type: String })
+  branchId?: string;
+
+  @Prop({ type: String })
   nationalFacilityCode?: string;
 
   @Prop({ type: String })

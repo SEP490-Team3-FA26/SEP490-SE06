@@ -711,15 +711,24 @@ export function IncomingOrdersTab({
                           </button>
                         )}
 
-                        {/* Bước 2: Nút Kiểm đếm khi đã đến kho */}
+                        {/* Bước 2: Nút Kiểm đếm & Quét Barcode khi đã đến kho */}
                         {(isArrived || activeGrn) && !["COMPLETED", "PENDING_APPROVAL"].includes(activeGrn?.status) && (
-                          <button 
-                            onClick={() => setSelectedPo(po)} 
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1"
-                            title="Mở thùng đếm số lượng thực nhận"
-                          >
-                            <PackageCheck size={13} /> Kiểm Đếm
-                          </button>
+                          <>
+                            <button
+                              onClick={() => window.location.href = `/warehouse/goods-receipt/inspection?poId=${po._id}`}
+                              className="px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1"
+                              title="Mở màn hình Quét Barcode Honeywell Live đối chiếu đơn PO"
+                            >
+                              <Scan size={13} /> Quét Barcode
+                            </button>
+                            <button 
+                              onClick={() => setSelectedPo(po)} 
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1"
+                              title="Mở thùng đếm số lượng thực nhận"
+                            >
+                              <PackageCheck size={13} /> Kiểm Đếm
+                            </button>
+                          </>
                         )}
 
                         {/* Chi tiết */}
@@ -1016,6 +1025,14 @@ export function IncomingOrdersTab({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.location.href = `/warehouse/goods-receipt/inspection?poId=${selectedPo._id}`}
+                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    title="Mở màn hình Barcode Live Scanner chuyên dụng"
+                  >
+                    <Scan size={14} /> Barcode Live Scanner
+                  </button>
                   <button
                     type="button"
                     onClick={() => setQrModalPo(selectedPo)}

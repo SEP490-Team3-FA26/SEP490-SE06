@@ -29,6 +29,9 @@ interface QuotationItemInput {
   committedShelfLifeMonths: number;
   availableQuantity: number;
   notes: string;
+  nationalDrugCode?: string;
+  declaredPrice?: number;
+  isExceedingDeclaredPrice?: boolean;
 }
 
 export const SupplierQuotePortal: React.FC = () => {
@@ -62,19 +65,26 @@ export const SupplierQuotePortal: React.FC = () => {
         const data = await rfqService.getRfqByToken(token);
         setRfqData(data);
 
-        // Khởi tạo danh sách mặt hàng cần báo giá
-        const initialItems: QuotationItemInput[] = (data.items || []).map((item: any) => ({
-          medicineId: item.medicineId,
-          medicineName: item.medicineName,
-          sku: item.sku || '',
-          unit: item.unit || 'Hộp',
-          quantityRequested: item.quantityRequested || 100,
-          quotedPrice: item.targetPrice || 0,
-          discountPercent: 0,
-          committedShelfLifeMonths: data.minShelfLifeMonths || 24,
-          availableQuantity: item.quantityRequested || 100,
-          notes: '',
-        }));
+        // Khởi tạo danh sách mặt hàng cần báo giá kèm dữ liệu CSDL Dược Quốc Gia
+        const initialItems: QuotationItemInput[] = (data.items || []).map((item: any) => {
+          const quoted = item.targetPrice || 0;
+          const declared = item.declaredPrice || 0;
+          return {
+            medicineId: item.medicineId,
+            medicineName: item.medicineName,
+            sku: item.sku || '',
+            unit: item.unit || 'Hộp',
+            quantityRequested: item.quantityRequested || 100,
+            quotedPrice: quoted,
+            discountPercent: 0,
+            committedShelfLifeMonths: data.minShelfLifeMonths || 24,
+            availableQuantity: item.quantityRequested || 100,
+            notes: '',
+            nationalDrugCode: item.nationalDrugCode || '',
+            declaredPrice: declared,
+            isExceedingDeclaredPrice: declared > 0 && quoted > declared,
+          };
+        });
         setItems(initialItems);
 
         setPaymentTermsDays(data.requiredPaymentTermDays || 30);
@@ -97,10 +107,13 @@ export const SupplierQuotePortal: React.FC = () => {
   const handleItemChange = (index: number, field: keyof QuotationItemInput, value: any) => {
     setItems((prev) => {
       const updated = [...prev];
-      updated[index] = {
-        ...updated[index],
-        [field]: value,
-      };
+      const targetItem = { ...updated[index], [field]: value };
+      if (field === 'quotedPrice') {
+        const quoted = Number(value);
+        const declared = targetItem.declaredPrice || 0;
+        targetItem.isExceedingDeclaredPrice = declared > 0 && quoted > declared;
+      }
+      updated[index] = targetItem;
       return updated;
     });
   };
@@ -117,7 +130,7 @@ export const SupplierQuotePortal: React.FC = () => {
     e.preventDefault();
     if (!token) return;
 
-    // Validate
+    // Validate các trường bắt buộc
     for (const item of items) {
       if (!item.quotedPrice || item.quotedPrice <= 0) {
         return alert(`Vui lòng nhập đơn giá chào hợp lệ cho thuốc: ${item.medicineName}`);
@@ -125,6 +138,15 @@ export const SupplierQuotePortal: React.FC = () => {
       if (!item.committedShelfLifeMonths || item.committedShelfLifeMonths <= 0) {
         return alert(`Vui lòng nhập hạn sử dụng cam kết cho thuốc: ${item.medicineName}`);
       }
+    }
+
+    // Kiểm tra tuân thủ giá trần kê khai Bộ Y Tế (Nghị định 54/2017/NĐ-CP & QĐ 232/QĐ-TTYQG)
+    const exceedingItems = items.filter((it) => it.isExceedingDeclaredPrice);
+    if (exceedingItems.length > 0) {
+      const confirmExceed = window.confirm(
+        `⚠️ Cảnh báo GPP / Bộ Y Tế:\nCó ${exceedingItems.length} mặt hàng có đơn giá chào vượt mức giá kê khai Cục Quản Lý Dược (Bộ Y Tế)!\nTheo quy định pháp luật và chính sách mua sắm, báo giá vượt trần có thể bị trừ điểm tuân thủ hoặc bị loại khỏi vòng xét duyệt.\n\nQuý đối tác có chắc chắn muốn tiếp tục gửi báo giá này không?`
+      );
+      if (!confirmExceed) return;
     }
 
     try {
@@ -287,7 +309,7 @@ export const SupplierQuotePortal: React.FC = () => {
               </div>
 
               {/* Regulatory & Commercial Constraints Highlight */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/80 border border-amber-200/80 p-3.5 rounded-xl text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-amber-50/80 border border-amber-200/80 p-3.5 rounded-xl text-xs">
                 <div className="flex items-start gap-2">
                   <ShieldCheck size={16} className="text-amber-600 shrink-0 mt-0.5" />
                   <div>
@@ -303,6 +325,15 @@ export const SupplierQuotePortal: React.FC = () => {
                     <span className="font-bold text-amber-900 block">Ràng buộc Công nợ:</span>
                     <span className="text-amber-800">
                       Thời hạn thanh toán yêu cầu từ <strong>{rfqData.requiredPaymentTermDays} ngày</strong>.
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-amber-900 block">Kiểm soát Giá kê khai BYT:</span>
+                    <span className="text-amber-800">
+                      Tuân thủ <strong>NĐ 54/2017/NĐ-CP & QĐ 232 CSDL Dược</strong>. Không chào giá vượt trần kê khai.
                     </span>
                   </div>
                 </div>
@@ -331,14 +362,35 @@ export const SupplierQuotePortal: React.FC = () => {
                   return (
                     <div
                       key={item.medicineId}
-                      className="p-4 rounded-xl border border-slate-200 hover:border-emerald-300 transition-all bg-slate-50/50 space-y-3"
+                      className={`p-4 rounded-xl border transition-all space-y-3 ${
+                        item.isExceedingDeclaredPrice
+                          ? 'border-rose-300 bg-rose-50/20'
+                          : 'border-slate-200 hover:border-emerald-300 bg-slate-50/50'
+                      }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <div>
-                          <span className="text-sm font-bold text-slate-900 block">
-                            {idx + 1}. {item.medicineName}
-                          </span>
-                          <span className="text-[11px] text-slate-400 font-mono">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-slate-900 block">
+                              {idx + 1}. {item.medicineName}
+                            </span>
+                            {item.nationalDrugCode && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                SĐK BYT: {item.nationalDrugCode}
+                              </span>
+                            )}
+                            {item.declaredPrice && item.declaredPrice > 0 ? (
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                item.isExceedingDeclaredPrice
+                                  ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              }`}>
+                                Trần kê khai BYT: {item.declaredPrice.toLocaleString('vi-VN')} đ
+                                {item.isExceedingDeclaredPrice ? ' (⚠️ VƯỢT TRẦN)' : ' (✓ HỢP LỆ)'}
+                              </span>
+                            ) : null}
+                          </div>
+                          <span className="text-[11px] text-slate-400 font-mono mt-0.5 block">
                             Mã: {item.sku || 'N/A'} • Đơn vị tính: <strong>{item.unit}</strong> • Số lượng mua: <strong>{item.quantityRequested.toLocaleString()}</strong>
                           </span>
                         </div>
@@ -353,9 +405,18 @@ export const SupplierQuotePortal: React.FC = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
                         {/* Giá chào */}
                         <div>
-                          <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                            Đơn giá chào (VNĐ/đơn vị) <span className="text-rose-500">*</span>
-                          </label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-bold text-slate-600 block">
+                              Đơn giá chào (VNĐ/{item.unit}) <span className="text-rose-500">*</span>
+                            </label>
+                            {item.declaredPrice && item.declaredPrice > 0 && (
+                              item.isExceedingDeclaredPrice ? (
+                                <span className="text-[10px] text-rose-600 font-bold">⚠️ Vượt trần</span>
+                              ) : (
+                                <span className="text-[10px] text-emerald-600 font-bold">✓ Đạt chuẩn</span>
+                              )
+                            )}
+                          </div>
                           <input
                             type="number"
                             min="0"
@@ -363,9 +424,18 @@ export const SupplierQuotePortal: React.FC = () => {
                             value={item.quotedPrice || ''}
                             onChange={(e) => handleItemChange(idx, 'quotedPrice', Number(e.target.value))}
                             placeholder="Nhập giá..."
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                            className={`w-full px-3 py-2 border rounded-lg text-xs font-bold focus:ring-2 bg-white ${
+                              item.isExceedingDeclaredPrice
+                                ? 'border-rose-400 bg-rose-50/40 text-rose-700 focus:ring-rose-500'
+                                : 'border-slate-300 focus:ring-emerald-500 focus:border-emerald-500'
+                            }`}
                             required
                           />
+                          {item.isExceedingDeclaredPrice && (
+                            <span className="text-[10px] text-rose-600 block mt-0.5 font-medium leading-tight">
+                              Vượt trần kê khai BYT +{(item.quotedPrice - (item.declaredPrice || 0)).toLocaleString('vi-VN')} đ
+                            </span>
+                          )}
                         </div>
 
                         {/* Hạn sử dụng cam kết */}

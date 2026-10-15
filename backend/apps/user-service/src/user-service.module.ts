@@ -17,9 +17,16 @@ import { WorkShift, WorkShiftSchema } from './schemas/work-shift.schema';
 import { WorkSchedule, WorkScheduleSchema } from './schemas/work-schedule.schema';
 import { ShiftSwapRequest, ShiftSwapRequestSchema } from './schemas/shift-swap-request.schema';
 import { StaffNotification, StaffNotificationSchema } from './schemas/staff-notification.schema';
-import { HrService } from './hr.service';
-
 import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segment.schema';
+import { StaffCertificate, StaffCertificateSchema } from './schemas/staff-certificate.schema';
+import { CertificateService } from './certificate.service';
+import { HrService } from './hr.service';
+import { Attendance, AttendanceSchema } from './schemas/attendance.schema';
+import { AttendanceService } from './attendance.service';
+import { Payroll, PayrollSchema } from './schemas/payroll.schema';
+import { PayrollService } from './payroll.service';
+import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
+import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/schemas/sales-order.schema';
 
 @Module({
   imports: [
@@ -44,6 +51,11 @@ import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segme
       { name: ShiftSwapRequest.name, schema: ShiftSwapRequestSchema },
       { name: StaffNotification.name, schema: StaffNotificationSchema },
       { name: CustomerSegment.name, schema: CustomerSegmentSchema },
+      { name: StaffCertificate.name, schema: StaffCertificateSchema },
+      { name: Attendance.name, schema: AttendanceSchema },
+      { name: Payroll.name, schema: PayrollSchema },
+      { name: LeaveRequest.name, schema: LeaveRequestSchema },
+      { name: SalesOrder.name, schema: SalesOrderSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -68,7 +80,7 @@ import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segme
     ]),
   ],
   controllers: [UserServiceController],
-  providers: [UserService, BranchService, HrService],
+  providers: [UserService, BranchService, HrService, CertificateService, AttendanceService, PayrollService],
 })
 export class UserServiceModule {}
 

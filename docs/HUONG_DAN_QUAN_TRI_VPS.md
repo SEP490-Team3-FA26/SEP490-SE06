@@ -171,18 +171,24 @@ docker compose up -d --no-deps backend
 
 ### 5.3 Đọc Log để kiểm tra hoạt động & Gỡ lỗi (Debugging)
 
+**Xem trong Dozzle (production):** Mở `http://<VPS-IP>:8888`, mở nhóm **WDP301 - Full Project** ở thanh bên trái rồi bấm nút gộp log trên tên nhóm để xem log của mọi container theo thời gian. Chọn từng container để xem riêng frontend, API Gateway, Auth, Inventory, Orders, AI, Kafka, Redis, v.v. Ô tìm kiếm của Dozzle có thể lọc theo tên service, đường dẫn API, mã trạng thái hoặc thông báo lỗi.
+
+Dozzle đọc log `stdout/stderr` của Docker. Log Nginx frontend được ghi dạng JSON gồm thời gian, đường dẫn, mã trạng thái và thời gian xử lý; query string (có thể chứa token SSE) không được ghi vào access log. Lỗi JavaScript chạy trong trình duyệt vẫn cần xem ở DevTools của trình duyệt.
+
+Sau khi cập nhật cấu hình production, chạy `docker compose -f docker-compose.prod.yml up -d` để Docker áp dụng nhãn nhóm log cho các container.
+
 ```bash
 # Xem log thời gian thực của toàn bộ hệ thống
-docker compose logs -f --tail 100
+docker compose -f docker-compose.prod.yml logs -f --tail 100
 
 # Chỉ xem log của API Gateway
-docker compose logs -f api-gateway
+docker compose -f docker-compose.prod.yml logs -f api-gateway
 
 # Xem log của Kafka broker
-docker compose logs -f kafka
+docker compose -f docker-compose.prod.yml logs -f kafka
 
 # Xem log của Redis
-docker compose logs -f redis
+docker compose -f docker-compose.prod.yml logs -f redis
 ```
 
 ### 5.4 Quản lý bộ nhớ Docker & Dọn rác định kỳ

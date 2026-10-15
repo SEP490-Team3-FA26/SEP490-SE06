@@ -64,9 +64,10 @@ const specialtyPresets = [
 
 interface PrescriptionViewProps {
   showToast: (message: string, type?: "success" | "error" | "warning") => void;
+  isShiftActive?: boolean;
 }
 
-export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
+export default function PrescriptionView({ showToast, isShiftActive = true }: PrescriptionViewProps) {
   const [prescriptionMode, setPrescriptionMode] = useState<"QR" | "MANUAL">("QR");
   const [prescriptionCode, setPrescriptionCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -572,6 +573,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   };
 
   const finalizeSalesOrder = async (payload: any) => {
+    if (isShiftActive === false) {
+      showToast("Bạn chưa đến ca làm việc hoặc chưa điểm danh ca trực hôm nay qua ứng dụng di động!", "warning");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
