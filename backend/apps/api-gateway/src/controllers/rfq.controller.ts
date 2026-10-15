@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
 
 @ApiTags('📦 RFQ - Yêu cầu báo giá NCC')
-@Controller('api/rfqs')
+@Controller(['api/rfqs', 'api/rfq'])
 @UseGuards(JwtAuthGuard)
 export class RfqController implements OnModuleInit {
   constructor(

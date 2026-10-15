@@ -98,7 +98,7 @@ export function RFQManagement() {
     try {
       setLoading(true);
       const [rfqList, suppList, medList] = await Promise.all([
-        rfqService.getRfqs(),
+        rfqService.getRfqs().catch(() => []),
         supplierService.getSuppliers().catch(() => []),
         medicineService.getMedicines({ limit: 500 }).catch(() => ({ data: [] })),
       ]);
