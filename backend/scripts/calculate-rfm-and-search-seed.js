@@ -4,12 +4,15 @@
  */
 const mongoose = require('mongoose');
 
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  'mongodb+srv://phuocthde180577_db_user:Phuoc12345@cluster0.ruhl6tb.mongodb.net/WDP201?appName=Cluster0&maxPoolSize=10';
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGODB_ATLAS_URI;
+
+if (!MONGODB_URI) {
+  console.error('❌ Lỗi: Vui lòng cung cấp biến môi trường MONGODB_URI hoặc MONGODB_ATLAS_URI trong file .env!');
+  process.exit(1);
+}
 
 async function run() {
-  console.log('🔄 Đang kết nối tới MongoDB Atlas...');
+  console.log('🔄 Đang kết nối tới MongoDB...');
   await mongoose.connect(MONGODB_URI);
   console.log('✅ Đã kết nối thành công tới CSDL!');
 
