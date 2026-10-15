@@ -1155,30 +1155,9 @@ export class ReportController implements OnModuleInit {
           };
         });
 
+        // Tuân thủ chính sách Zero Mock Data: Không sinh dữ liệu giả lập khi kho đã đủ hàng an toàn
         if (realRecommendations.length === 0) {
-          realRecommendations.push(
-            {
-              medicineId: "med-fallback-1",
-              name: "Amoxicillin 500mg",
-              suggestedAction: "Tăng tồn kho",
-              suggestedQty: 300,
-              priority: "HIGH",
-              explainability_confidence: 90,
-              explainability_confidence_level: "High",
-              explainability:
-                "Kháng sinh dự phòng bệnh đường hô hấp mùa mưa ẩm.",
-            },
-            {
-              medicineId: "med-fallback-2",
-              name: "Panadol Extra 500mg",
-              suggestedAction: "Tăng tồn kho",
-              suggestedQty: 500,
-              priority: "MEDIUM",
-              explainability_confidence: 85,
-              explainability_confidence_level: "Medium",
-              explainability: "Dự phòng nhu cầu hạ sốt giảm đau mùa giao mùa.",
-            },
-          );
+          // Giữ nguyên danh sách rỗng nếu toàn bộ thuốc trong kho đều đạt mức an toàn
         }
 
         aiResult = {

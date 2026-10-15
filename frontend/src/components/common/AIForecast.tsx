@@ -386,16 +386,11 @@ export function AIForecast() {
       return;
     }
 
-    const prefillData = itemsToPrefill.map((it) => ({
-      medicineId: it.medicineId,
-      name: it.name,
-      sku: '',
-      unit: it.unit || 'Hộp',
-      currentStock: it.currentStock,
-      suggestedOrderQty: it.suggestedOrderQty > 0 ? it.suggestedOrderQty : 50,
-      price: it.price || 50000,
-    }));
-    navigate(`/admin/rfq?openCreateRFQ=true&prefillMeds=${encodeURIComponent(JSON.stringify(prefillData))}`);
+    // Lưu vào sessionStorage để bảo vệ URL khỏi lỗi HTTP 414 URI Too Long khi chọn nhiều SKU
+    try {
+      sessionStorage.setItem('rfq_prefill_meds', JSON.stringify(prefillData));
+    } catch (_) {}
+    navigate('/admin/rfq?openCreateRFQ=true');
   };
 
   const getUrgencyBadge = (urgency: string) => {

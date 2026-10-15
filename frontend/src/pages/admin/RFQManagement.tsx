@@ -65,7 +65,17 @@ export function RFQManagement() {
   const [formPaymentTerms, setFormPaymentTerms] = useState<number>(30);
   const [formNotes, setFormNotes] = useState<string>('');
   const [selectedMedicineIds, setSelectedMedicineIds] = useState<
-    { medicineId: string; medicineName: string; sku: string; unit: string; currentStock?: number; quantityRequested: number; targetPrice: number }[]
+    {
+      medicineId: string;
+      medicineName: string;
+      sku: string;
+      unit: string;
+      currentStock?: number;
+      quantityRequested: number;
+      targetPrice: number;
+      nationalDrugCode?: string;
+      declaredPrice?: number;
+    }[]
   >([]);
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -107,14 +117,28 @@ export function RFQManagement() {
     loadData();
   }, []);
 
-  // Xử lý tự động prefill thuốc cần chào giá từ Kho hoặc AI Forecast qua URL query
+  // Xử lý tự động prefill thuốc cần chào giá từ Kho hoặc AI Forecast qua sessionStorage hoặc URL query
   useEffect(() => {
     const openCreate = searchParams.get('openCreateRFQ');
-    const prefillStr = searchParams.get('prefillMeds');
+    const urlPrefill = searchParams.get('prefillMeds');
+    let prefillStr = urlPrefill;
+
+    if (!prefillStr) {
+      try {
+        prefillStr = sessionStorage.getItem('rfq_prefill_meds');
+      } catch (_) {}
+    }
+
     if (openCreate === 'true') {
       if (prefillStr) {
         try {
-          const decoded = JSON.parse(decodeURIComponent(prefillStr));
+          const decoded =
+            typeof prefillStr === 'string' && prefillStr.startsWith('%')
+              ? JSON.parse(decodeURIComponent(prefillStr))
+              : typeof prefillStr === 'string'
+              ? JSON.parse(prefillStr)
+              : prefillStr;
+
           if (Array.isArray(decoded) && decoded.length > 0) {
             const prefillList = decoded.map((d: any) => ({
               medicineId: d.medicineId || d._id || d.id,
@@ -124,20 +148,29 @@ export function RFQManagement() {
               currentStock: Number(d.currentStock || d.stock || 0),
               quantityRequested: Number(d.suggestedOrderQty || d.quantityRequested || d.quantity || 100),
               targetPrice: Number(d.price || d.targetPrice || d.unitPrice || 0),
+              nationalDrugCode: d.nationalDrugCode || d.registration_number || '',
+              declaredPrice: Number(d.price || d.declaredPrice || d.targetPrice || 0),
             }));
             setSelectedMedicineIds(prefillList);
-            setFormTitle(`Đợt chào giá nhập bổ sung kho - ${new Date().toLocaleDateString('vi-VN')}`);
+            setFormTitle(`Đợt chào giá nhập bổ sung kho (Chuẩn GPP) - ${new Date().toLocaleDateString('vi-VN')}`);
           }
         } catch (e) {
-          console.error('Failed to parse prefillMeds parameter', e);
+          console.error('Lỗi khi phân tích danh sách thuốc cần chào giá', e);
+        } finally {
+          try {
+            sessionStorage.removeItem('rfq_prefill_meds');
+          } catch (_) {}
         }
       }
       setShowCreateModal(true);
-      setSearchParams((prev) => {
-        prev.delete('openCreateRFQ');
-        prev.delete('prefillMeds');
-        return prev;
-      }, { replace: true });
+      setSearchParams(
+        (prev) => {
+          prev.delete('openCreateRFQ');
+          prev.delete('prefillMeds');
+          return prev;
+        },
+        { replace: true }
+      );
     }
   }, [searchParams, medicines]);
 
@@ -238,6 +271,8 @@ export function RFQManagement() {
         currentStock: stock,
         quantityRequested: defaultQty,
         targetPrice: med.price || 0,
+        nationalDrugCode: med.national_drug_code || med.registration_number || '',
+        declaredPrice: med.price || 0,
       },
     ]);
   };
@@ -938,8 +973,26 @@ export function RFQManagement() {
                               <tr key={item.medicineId} className="hover:bg-slate-50">
                                 <td className="py-2.5 px-3 text-slate-400 font-bold">{idx + 1}</td>
                                 <td className="py-2.5 px-3">
-                                  <span className="font-bold text-slate-900 block">{item.medicineName}</span>
-                                  <span className="text-[10px] text-slate-400">{item.sku} • {item.unit}</span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-slate-900">{item.medicineName}</span>
+                                    {item.nationalDrugCode ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-teal-50 text-teal-700 border border-teal-200" title="Mã Dược Quốc Gia / Số Đăng Ký BYT">
+                                        Mã BYT: {item.nationalDrugCode}
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500">
+                                        Chuẩn GPP
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
+                                    <span>{item.sku ? `SKU: ${item.sku}` : 'SKU: Tự động'} • {item.unit}</span>
+                                    {item.declaredPrice ? (
+                                      <span className="text-emerald-700 font-medium">
+                                        • Giá trần BYT: {item.declaredPrice.toLocaleString('vi-VN')} đ
+                                      </span>
+                                    ) : null}
+                                  </div>
                                 </td>
                                 <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-600">
                                   {item.currentStock !== undefined ? item.currentStock : '—'}
@@ -1202,8 +1255,20 @@ export function RFQManagement() {
                       {selectedRfq.items.map((item) => (
                         <tr key={item.medicineId} className="hover:bg-slate-50">
                           <td className="py-3 px-3 font-bold text-slate-800">
-                            {item.medicineName}
-                            <span className="block text-[10px] text-slate-400 font-normal">{item.unit}</span>
+                            <div>{item.medicineName}</div>
+                            <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                              <span className="text-[10px] text-slate-400 font-normal">{item.unit}</span>
+                              {item.nationalDrugCode && (
+                                <span className="px-1 py-0.2 bg-teal-50 text-teal-700 border border-teal-200 rounded font-mono text-[9px]">
+                                  SĐK BYT: {item.nationalDrugCode}
+                                </span>
+                              )}
+                              {item.declaredPrice ? (
+                                <span className="text-[10px] text-emerald-700 font-semibold block w-full">
+                                  Trần kê khai BYT: {Number(item.declaredPrice).toLocaleString('vi-VN')} đ
+                                </span>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="py-3 px-3 font-semibold text-slate-600">
                             {item.quantityRequested.toLocaleString('vi-VN')}
@@ -1211,15 +1276,24 @@ export function RFQManagement() {
                           {selectedRfq.quotations.map((q) => {
                             const qItem = q.items.find((it) => it.medicineId === item.medicineId);
                             const isCompliant = qItem?.isCompliantShelfLife !== false;
+                            const isOverCeiling = Boolean(
+                              qItem?.isExceedingDeclaredPrice ||
+                              (item.declaredPrice && qItem && Number(qItem.quotedPrice) > item.declaredPrice)
+                            );
 
                             return (
                               <td key={q.quotationId} className="py-3 px-3 border-l border-slate-200">
                                 {qItem ? (
                                   <div>
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between gap-1">
                                       <span className="font-bold text-slate-900 text-sm">
                                         {Number(qItem.quotedPrice).toLocaleString('vi-VN')} đ
                                       </span>
+                                      {isOverCeiling && (
+                                        <span className="text-[9px] bg-rose-100 text-rose-700 border border-rose-200 font-black px-1 rounded" title="Giá chào vượt mức kê khai trần theo Nghị định 54/2017">
+                                          Vượt trần BYT
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-1 mt-0.5">
                                       {isCompliant ? (

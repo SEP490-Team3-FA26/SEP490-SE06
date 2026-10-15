@@ -976,8 +976,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     }
   };
 
-  const handleApplyVoucher = async () => {
-    const code = voucherCode.trim().toUpperCase();
+  const handleApplyVoucher = async (overrideCode?: string) => {
+    const code = (typeof overrideCode === 'string' && overrideCode ? overrideCode : voucherCode).trim().toUpperCase();
     setVoucherError("");
 
     if (!code) {
@@ -2053,10 +2053,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                       <button
                         type="button"
                         onClick={() => {
-                          setVoucherCode(currentCustomerSegment.recommendedVoucher || '');
-                          showToast(`Đã tự động điền mã ưu đãi ${currentCustomerSegment.recommendedVoucher}`, 'success');
+                          const code = currentCustomerSegment.recommendedVoucher || '';
+                          setVoucherCode(code);
+                          handleApplyVoucher(code);
                         }}
-                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-sm transition-colors"
+                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-sm transition-colors cursor-pointer"
                       >
                         Áp dụng {currentCustomerSegment.recommendedVoucher}
                       </button>

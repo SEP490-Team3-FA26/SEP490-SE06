@@ -1675,10 +1675,10 @@ export class OrdersServiceService implements OnModuleInit {
       const DEFAULT_PHARMA_COGS_RATIO = 0.65; // Chuẩn định mức giá vốn trung bình ngành Dược phẩm bán lẻ Việt Nam (65% COGS)
       const campaigns = await this.campaignModel.find().lean().exec();
 
-      // Tối ưu hóa bộ nhớ: chỉ nạp các trường cần thiết phục vụ tính ROI & Attribution thay vì load toàn bộ document
+      // Tối ưu hóa bộ nhớ: nạp các trường cần thiết phục vụ tính ROI & Attribution bao gồm items
       const allOrders = await this.orderModel
         .find({ paymentStatus: 'PAID' })
-        .select('patientPhone totalAmount voucherCode voucherDiscount createdAt')
+        .select('patientPhone totalAmount voucherCode voucherDiscount createdAt items')
         .lean()
         .exec();
 
@@ -1714,8 +1714,23 @@ export class OrdersServiceService implements OnModuleInit {
         const totalOrders = matchedOrders.length;
         const totalRevenue = matchedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         
-        // Biên lợi nhuận gộp thực chất (Doanh thu - Giá vốn COGS định mức)
-        const estimatedCogs = totalRevenue * DEFAULT_PHARMA_COGS_RATIO;
+        // Biên lợi nhuận gộp thực chất: Ưu tiên tính từ giá vốn thực tế của SKU trong đơn hàng
+        let actualItemsCogs = 0;
+        let hasItemCost = false;
+        matchedOrders.forEach((o: any) => {
+          if (Array.isArray(o.items)) {
+            o.items.forEach((it: any) => {
+              if (typeof it.costPrice === 'number' && it.costPrice > 0) {
+                actualItemsCogs += it.costPrice * (it.quantity || 1);
+                hasItemCost = true;
+              }
+            });
+          }
+        });
+
+        const estimatedCogs = hasItemCost && actualItemsCogs > 0
+          ? actualItemsCogs
+          : totalRevenue * DEFAULT_PHARMA_COGS_RATIO;
         const grossProfit = totalRevenue - estimatedCogs;
         const totalCost = c.totalCost || c.budget || 1; // Tránh chia cho 0
         const netProfit = grossProfit - totalCost;

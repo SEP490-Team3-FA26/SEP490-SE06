@@ -124,6 +124,31 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
     }
   }, [barcodeValue, isScreenScanMode]);
 
+  // Trích xuất mã định danh sản phẩm (GTIN / EAN) từ chuỗi GS1 thực tế
+  const extractGtinFromBarcode = (raw: string): string[] => {
+    const cleaned = raw.replace(/[()]/g, '').trim();
+    const candidates = [cleaned];
+
+    // Bóc tách AI (01) - GTIN 14 chữ số theo chuẩn GS1
+    const gs1GtinMatch = cleaned.match(/(?:^|01)(\d{14})/);
+    if (gs1GtinMatch) {
+      const gtin14 = gs1GtinMatch[1];
+      candidates.push(gtin14);
+      // Nếu GTIN-14 có số 0 ở đầu (chuẩn EAN-13 được đệm thêm 0)
+      if (gtin14.startsWith('0')) {
+        candidates.push(gtin14.slice(1));
+      }
+    }
+
+    // Bóc tách EAN-13 nếu nằm trong chuỗi
+    const ean13Match = cleaned.match(/(\d{13})/);
+    if (ean13Match) {
+      candidates.push(ean13Match[1]);
+    }
+
+    return candidates;
+  };
+
   const handleVerifyScan = (val: string) => {
     setVerifyBarcodeScan(val);
     setVerifyError(null);
@@ -132,12 +157,33 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
       return;
     }
     const clean = val.trim();
-    if (clean === barcodeValue || clean === medicine?.sku || clean === medicine?.barcode) {
+    const scannedCandidates = extractGtinFromBarcode(clean);
+
+    // Tập hợp các mã hợp lệ của sản phẩm để đối soát chéo
+    const validCodes = new Set<string>();
+    if (barcodeValue) validCodes.add(barcodeValue.trim());
+    if (medicine?.sku) validCodes.add(medicine.sku.trim());
+    if (medicine?.barcode) validCodes.add(medicine.barcode.trim());
+    if (medicine?.registration_number) validCodes.add(medicine.registration_number.trim().toUpperCase());
+    if (medicine?.units && Array.isArray(medicine.units)) {
+      medicine.units.forEach((u: any) => {
+        if (u.barcode) validCodes.add(u.barcode.trim());
+        if (u.gtin) validCodes.add(u.gtin.trim());
+      });
+    }
+
+    const isMatch = scannedCandidates.some((c) => 
+      validCodes.has(c) || 
+      validCodes.has(c.toUpperCase()) ||
+      [...validCodes].some((v) => clean.includes(v) || v.includes(c))
+    );
+
+    if (isMatch) {
       setIsVerified(true);
       setVerifyError(null);
     } else {
       setIsVerified(false);
-      setVerifyError(`Mã quét [${clean}] không khớp với mã dược phẩm [${barcodeValue}]. Cảnh báo dán nhầm tem!`);
+      setVerifyError(`Mã quét [${clean}] không khớp với bất kỳ mã nhận diện nào của dược phẩm [${barcodeValue}]. Cảnh báo dán nhầm tem!`);
     }
   };
 

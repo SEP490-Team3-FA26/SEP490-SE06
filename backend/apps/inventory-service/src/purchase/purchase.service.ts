@@ -2956,6 +2956,18 @@ export class PurchaseService {
       }
 
       await session.commitTransaction();
+
+      // 🌐 TỰ ĐỘNG LIÊN THÔNG CSDL DƯỢC QUỐC GIA (Mục 5.4 - QĐ 232/QĐ-TTYQG)
+      try {
+        this.nationalPharmaService.syncGoodsReceipt(grn, grn.branchId || 'BR-001')
+          .then((syncRes) => {
+            this.logger.log(`[CSDL Dược] Tự động liên thông phiếu nhập ${grn._id} kết quả: ${syncRes.syncStatus} (Mã: ${syncRes.syncCode})`);
+          })
+          .catch((err) => {
+            this.logger.warn(`[CSDL Dược] Lỗi liên thông phiếu nhập ngầm: ${err.message}`);
+          });
+      } catch (_) {}
+
       return {
         success: true,
         message: "Duyệt thành công và đã nhập kho",
@@ -2994,14 +3006,40 @@ export class PurchaseService {
         sentAt: new Date(),
       }));
 
+      // Tự động liên kết thông tin Pháp chế GPP & CSDL Dược Quốc Gia cho từng mặt hàng RFQ
+      const enrichedItems = await Promise.all(
+        (payload.items || []).map(async (it: any) => {
+          let nationalDrugCode = it.nationalDrugCode;
+          let declaredPrice = it.declaredPrice;
+          let gppCompliant = it.gppCompliant;
+
+          try {
+            const med = await this.medicineModel.findById(it.medicineId).lean().exec();
+            if (med) {
+              nationalDrugCode = nationalDrugCode || med.national_drug_code || med.registration_number || '';
+              declaredPrice = declaredPrice || med.price || it.targetPrice || 0;
+              gppCompliant = gppCompliant !== undefined ? gppCompliant : Boolean(med.registration_number || med.national_drug_code);
+            }
+          } catch (_) {}
+
+          return {
+            ...it,
+            nationalDrugCode: nationalDrugCode || '',
+            declaredPrice: declaredPrice || 0,
+            gppCompliant: gppCompliant !== false,
+          };
+        }),
+      );
+
       const rfq = new this.rfqModel({
         ...payload,
+        items: enrichedItems,
         rfqCode,
         targetSuppliers,
         status: 'DRAFT',
       });
       const saved = await rfq.save();
-      this.logger.log(`Created new RFQ: ${rfqCode}`);
+      this.logger.log(`Created new RFQ: ${rfqCode} with GPP/CSDL Duoc metadata`);
       return saved;
     } catch (error) {
       this.logger.error('Error creating RFQ:', error);
@@ -3144,15 +3182,25 @@ export class PurchaseService {
       const quotationId = `QUOTE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const minShelfLife = rfq.minShelfLifeMonths || 18;
 
-      // Kiểm tra và đánh cờ tuân thủ HSD (Chống bẫy hàng cận date từ Bước 3)
+      // Kiểm tra tuân thủ HSD (FEFO) và Chốt chặn Giá trần kê khai CSDL Dược Quốc gia (NĐ 54/2017)
       const formattedItems = (quotationDto.items || []).map((item: any) => {
         const offeredShelfLife = Number(item.committedShelfLifeMonths || item.offeredShelfLifeMonths || 24);
-        const isCompliant = offeredShelfLife >= minShelfLife;
+        const isCompliantShelfLife = offeredShelfLife >= minShelfLife;
+
+        // Đối chiếu giá kê khai và SĐK từ mặt hàng trong RFQ
+        const rfqItem = (rfq.items || []).find((it: any) => it.medicineId === item.medicineId);
+        const declaredPrice = Number(rfqItem?.declaredPrice || rfqItem?.targetPrice || 0);
+        const nationalDrugCode = rfqItem?.nationalDrugCode || item.nationalDrugCode || '';
+        const isExceedingDeclaredPrice = declaredPrice > 0 && Number(item.quotedPrice) > declaredPrice;
+
         return {
           ...item,
           committedShelfLifeMonths: offeredShelfLife,
           offeredShelfLifeMonths: offeredShelfLife,
-          isCompliantShelfLife: isCompliant,
+          isCompliantShelfLife,
+          declaredPrice,
+          nationalDrugCode,
+          isExceedingDeclaredPrice,
         };
       });
 
