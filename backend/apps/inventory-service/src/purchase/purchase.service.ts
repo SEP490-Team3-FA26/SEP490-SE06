@@ -1263,14 +1263,28 @@ export class PurchaseService {
 
     // 6. Tự động liên thông CSDL Dược Quốc gia (Stock-In Hook theo QĐ 232)
     try {
-      const targetBranch = (grn as any).branchId || (po as any).branchId || 'BR-001';
-      const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
-      grn.nationalFacilityCode = gppSync.facilityCode;
-      grn.nationalSyncCode = gppSync.syncCode;
-      grn.nationalSyncStatus = gppSync.syncStatus;
-      grn.nationalSyncedAt = gppSync.syncedAt;
-      grn.nationalSyncMessage = gppSync.message;
-      await grn.save();
+      let targetBranch = grn.branchId || (po as any)?.branchId;
+      if (!targetBranch && po?.linkedPrIds && po.linkedPrIds.length > 0) {
+        const pr = await this.prModel.findById(po.linkedPrIds[0]).lean().exec();
+        if (pr?.branchId) {
+          targetBranch = pr.branchId;
+        }
+      }
+
+      if (!targetBranch) {
+        this.logger.error(`[CSDL Dược] Không thể liên thông phiếu nhập ${grn._id}: Không tìm thấy thông tin chi nhánh tiếp nhận!`);
+        grn.nationalSyncStatus = 'FAILED';
+        grn.nationalSyncMessage = 'Không thể liên thông CSDL Dược: Phiếu nhập kho thiếu thông tin chi nhánh tiếp nhận';
+        await grn.save();
+      } else {
+        const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+        grn.nationalFacilityCode = gppSync.facilityCode;
+        grn.nationalSyncCode = gppSync.syncCode;
+        grn.nationalSyncStatus = gppSync.syncStatus;
+        grn.nationalSyncedAt = gppSync.syncedAt;
+        grn.nationalSyncMessage = gppSync.message;
+        await grn.save();
+      }
     } catch (gppErr: any) {
       this.logger.warn(`[CSDL Dược GRN Sync Warning] ${gppErr.message}`);
     }
@@ -2959,14 +2973,32 @@ export class PurchaseService {
 
       // 🌐 TỰ ĐỘNG LIÊN THÔNG CSDL DƯỢC QUỐC GIA (Mục 5.4 - QĐ 232/QĐ-TTYQG)
       try {
-        this.nationalPharmaService.syncGoodsReceipt(grn, grn.branchId || 'BR-001')
-          .then((syncRes) => {
-            this.logger.log(`[CSDL Dược] Tự động liên thông phiếu nhập ${grn._id} kết quả: ${syncRes.syncStatus} (Mã: ${syncRes.syncCode})`);
-          })
-          .catch((err) => {
-            this.logger.warn(`[CSDL Dược] Lỗi liên thông phiếu nhập ngầm: ${err.message}`);
-          });
-      } catch (_) {}
+        let targetBranch = grn.branchId || (po as any)?.branchId;
+        if (!targetBranch && po?.linkedPrIds && po.linkedPrIds.length > 0) {
+          const pr = await this.prModel.findById(po.linkedPrIds[0]).lean().exec();
+          if (pr?.branchId) {
+            targetBranch = pr.branchId;
+          }
+        }
+
+        if (!targetBranch) {
+          this.logger.error(`[CSDL Dược] Lỗi liên thông: Phiếu nhập ${grn._id} không xác định được mã chi nhánh (branchId), từ chối liên thông!`);
+          grn.nationalSyncStatus = 'FAILED';
+          grn.nationalSyncMessage = 'Không thể liên thông CSDL Dược: Phiếu nhập kho thiếu thông tin chi nhánh tiếp nhận';
+          await grn.save();
+        } else {
+          const syncRes = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+          grn.nationalFacilityCode = syncRes.facilityCode;
+          grn.nationalSyncCode = syncRes.syncCode;
+          grn.nationalSyncStatus = syncRes.syncStatus;
+          grn.nationalSyncedAt = syncRes.syncedAt;
+          grn.nationalSyncMessage = syncRes.message;
+          await grn.save();
+          this.logger.log(`[CSDL Dược] Tự động liên thông phiếu nhập ${grn._id} kết quả: ${syncRes.syncStatus} (Mã: ${syncRes.syncCode})`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[CSDL Dược] Lỗi liên thông phiếu nhập ngầm: ${err.message}`);
+      }
 
       return {
         success: true,
