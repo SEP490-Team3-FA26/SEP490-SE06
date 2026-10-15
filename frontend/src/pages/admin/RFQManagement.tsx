@@ -1143,7 +1143,8 @@ export function RFQManagement() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            {/* NỘI DUNG MA TRẬN SO SÁNH */}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
               {/* DANH SÁCH NCC & LINK BÁO GIÁ ZALO (MAGIC LINK) */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
@@ -1156,27 +1157,32 @@ export function RFQManagement() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {selectedRfq.targetSuppliers?.map((target) => {
-                    const hasSubmitted = selectedRfq.quotations?.some(
+                    const quotation = selectedRfq.quotations?.find(
                       (q) => q.supplierId === target.supplierId
                     );
+                    const hasSubmitted = Boolean(quotation || target.status === 'SUBMITTED');
                     return (
                       <div
                         key={target.supplierId}
-                        className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between gap-2"
+                        className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 transition-all ${
+                          hasSubmitted
+                            ? 'bg-white border-emerald-200 shadow-xs'
+                            : 'bg-white border-slate-200 shadow-xs'
+                        }`}
                       >
                         <div>
-                          <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center justify-between gap-1.5">
                             <span className="font-bold text-xs text-slate-900 truncate" title={target.supplierName}>
                               {target.supplierName}
                             </span>
                             {hasSubmitted ? (
-                              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded shrink-0">
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full shrink-0">
                                 Đã báo giá
                               </span>
                             ) : (
-                              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded shrink-0">
+                              <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full shrink-0">
                                 Đang chờ
                               </span>
                             )}
@@ -1195,7 +1201,7 @@ export function RFQManagement() {
                           <button
                             type="button"
                             onClick={() => handleCopyMagicLink(target, selectedRfq)}
-                            className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
+                            className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
                             title="Sao chép lời nhắn và link Zalo gửi cho Sales"
                           >
                             <Copy size={12} />
@@ -1206,7 +1212,7 @@ export function RFQManagement() {
                               href={`/supplier-quote/${target.token}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition-colors"
+                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
                               title="Mở cổng báo giá của NCC này"
                             >
                               <ExternalLink size={13} />
@@ -1219,140 +1225,198 @@ export function RFQManagement() {
                 </div>
               </div>
 
-              {(!selectedRfq.quotations || selectedRfq.quotations.length === 0) ? (
-                <div className="p-10 text-center text-slate-400">
-                  <Clock size={36} className="mx-auto text-slate-300 mb-2" />
-                  <p className="text-sm font-bold text-slate-600">Chưa có NCC nào nộp bảng chào giá</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Gửi link Zalo ở trên cho Sales hoặc bấm "+ Báo giá" ở danh sách ngoài để nhập báo giá.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-100 border-b border-slate-200">
-                        <th className="py-3 px-3 font-bold text-slate-700 w-48">Mặt hàng thuốc</th>
-                        <th className="py-3 px-3 font-bold text-slate-500 w-20">Số lượng</th>
-                        {selectedRfq.quotations.map((q) => (
-                          <th key={q.quotationId} className="py-3 px-3 border-l border-slate-200 bg-blue-50/50">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-blue-900 block truncate">{q.supplierName}</span>
-                              {q.isSelected && (
-                                <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded">
+              {/* BẢNG MA TRẬN SO SÁNH GIÁ (TCO MATRIX) ĐỒNG BỘ 1-1 VỚI TẤT CẢ NCC ĐƯỢC MỜI */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                  <thead>
+                    <tr className="bg-slate-100/90 border-b border-slate-200">
+                      <th className="py-3.5 px-4 font-bold text-slate-700 min-w-[240px] w-64">
+                        Mặt hàng thuốc
+                      </th>
+                      <th className="py-3.5 px-3 font-bold text-slate-500 min-w-[90px] w-24 text-center">
+                        Số lượng
+                      </th>
+                      {selectedRfq.targetSuppliers?.map((target) => {
+                        const quotation = selectedRfq.quotations?.find(
+                          (q) => q.supplierId === target.supplierId
+                        );
+                        return (
+                          <th
+                            key={target.supplierId}
+                            className={`py-3.5 px-4 border-l border-slate-200 min-w-[230px] ${
+                              quotation ? 'bg-blue-50/50' : 'bg-slate-50/40'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-bold text-slate-900 block truncate" title={target.supplierName}>
+                                {target.supplierName}
+                              </span>
+                              {quotation?.isSelected && (
+                                <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded shrink-0">
                                   TRÚNG THẦU
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] text-slate-500 font-normal">
-                              Công nợ: {q.paymentTermsDays} ngày • Giao: {q.deliveryDays} ngày
-                            </span>
+                            {quotation ? (
+                              <span className="text-[10px] text-slate-500 font-normal block mt-0.5">
+                                Công nợ: {quotation.paymentTermsDays || 30} ngày • Giao: {quotation.deliveryDays || 2} ngày
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-amber-600 font-medium block mt-0.5 italic">
+                                ⏳ Đang chờ gửi báo giá
+                              </span>
+                            )}
                           </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {selectedRfq.items.map((item) => (
-                        <tr key={item.medicineId} className="hover:bg-slate-50">
-                          <td className="py-3 px-3 font-bold text-slate-800">
-                            <div>{item.medicineName}</div>
-                            <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                              <span className="text-[10px] text-slate-400 font-normal">{item.unit}</span>
-                              {item.nationalDrugCode && (
-                                <span className="px-1 py-0.2 bg-teal-50 text-teal-700 border border-teal-200 rounded font-mono text-[9px]">
-                                  SĐK BYT: {item.nationalDrugCode}
-                                </span>
-                              )}
-                              {item.declaredPrice ? (
-                                <span className="text-[10px] text-emerald-700 font-semibold block w-full">
-                                  Trần kê khai BYT: {Number(item.declaredPrice).toLocaleString('vi-VN')} đ
-                                </span>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-600">
-                            {item.quantityRequested.toLocaleString('vi-VN')}
-                          </td>
-                          {selectedRfq.quotations.map((q) => {
-                            const qItem = q.items.find((it) => it.medicineId === item.medicineId);
-                            const isCompliant = qItem?.isCompliantShelfLife !== false;
-                            const isOverCeiling = Boolean(
-                              qItem?.isExceedingDeclaredPrice ||
-                              (item.declaredPrice && qItem && Number(qItem.quotedPrice) > item.declaredPrice)
-                            );
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedRfq.items.map((item, itemIdx) => (
+                      <tr key={item.medicineId || itemIdx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-800">
+                          <div className="text-slate-900 leading-snug">{item.medicineName}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded">
+                              ĐVT: {item.unit || 'Hộp'}
+                            </span>
+                            {item.nationalDrugCode && (
+                              <span className="px-1.5 py-0.5 bg-teal-50 text-teal-700 border border-teal-200 rounded font-mono text-[9px] font-bold">
+                                SĐK BYT: {item.nationalDrugCode}
+                              </span>
+                            )}
+                            {item.declaredPrice && item.declaredPrice > 0 ? (
+                              <span className="text-[10px] text-emerald-700 font-medium block w-full mt-0.5">
+                                Trần kê khai BYT: {Number(item.declaredPrice).toLocaleString('vi-VN')} đ
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 font-semibold text-slate-700 text-center">
+                          {item.quantityRequested.toLocaleString('vi-VN')}
+                        </td>
+                        {selectedRfq.targetSuppliers?.map((target) => {
+                          const quotation = selectedRfq.quotations?.find(
+                            (q) => q.supplierId === target.supplierId
+                          );
+                          const qItem = quotation?.items?.find((it) => it.medicineId === item.medicineId);
+                          const offeredMonths =
+                            qItem?.offeredShelfLifeMonths ||
+                            (qItem as any)?.committedShelfLifeMonths ||
+                            (qItem as any)?.shelfLife ||
+                            selectedRfq.minShelfLifeMonths ||
+                            24;
+                          const isCompliant = qItem?.isCompliantShelfLife !== false;
+                          const isOverCeiling = Boolean(
+                            qItem?.isExceedingDeclaredPrice ||
+                            (item.declaredPrice && qItem && Number(qItem.quotedPrice) > item.declaredPrice)
+                          );
 
-                            return (
-                              <td key={q.quotationId} className="py-3 px-3 border-l border-slate-200">
-                                {qItem ? (
-                                  <div>
-                                    <div className="flex items-center justify-between gap-1">
-                                      <span className="font-bold text-slate-900 text-sm">
-                                        {Number(qItem.quotedPrice).toLocaleString('vi-VN')} đ
+                          return (
+                            <td
+                              key={target.supplierId}
+                              className={`py-3.5 px-4 border-l border-slate-200 align-middle ${
+                                quotation ? 'bg-white' : 'bg-slate-50/30'
+                              }`}
+                            >
+                              {qItem ? (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                                    <span className="font-extrabold text-slate-900 text-sm">
+                                      {Number(qItem.quotedPrice).toLocaleString('vi-VN')} đ
+                                    </span>
+                                    {isOverCeiling && (
+                                      <span
+                                        className="text-[9px] bg-rose-100 text-rose-700 border border-rose-200 font-black px-1.5 py-0.5 rounded"
+                                        title="Giá chào vượt mức kê khai trần theo Nghị định 54/2017"
+                                      >
+                                        Vượt trần BYT
                                       </span>
-                                      {isOverCeiling && (
-                                        <span className="text-[9px] bg-rose-100 text-rose-700 border border-rose-200 font-black px-1 rounded" title="Giá chào vượt mức kê khai trần theo Nghị định 54/2017">
-                                          Vượt trần BYT
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                      {isCompliant ? (
-                                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium">
-                                          HSD: {qItem.offeredShelfLifeMonths} tháng
-                                        </span>
-                                      ) : (
-                                        <span className="text-[10px] text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.2 rounded font-bold flex items-center gap-0.5">
-                                          <AlertTriangle size={10} /> HSD {qItem.offeredShelfLifeMonths} th (Cận date!)
-                                        </span>
-                                      )}
-                                    </div>
+                                    )}
                                   </div>
-                                ) : (
-                                  <span className="text-slate-400 italic">Không báo giá</span>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-
-                      {/* Hàng tổng tiền & Nút Chọn Thầu */}
-                      <tr className="bg-slate-100/80 font-bold border-t-2 border-slate-300">
-                        <td className="py-4 px-3 text-slate-900 uppercase">TỔNG GIÁ TRỊ</td>
-                        <td className="py-4 px-3 text-slate-500">—</td>
-                        {selectedRfq.quotations.map((q) => (
-                          <td key={q.quotationId} className="py-4 px-3 border-l border-slate-200 bg-blue-50/70">
-                            <div className="font-black text-base text-blue-900">
-                              {Number(q.totalAmount).toLocaleString('vi-VN')} đ
-                            </div>
-                            <div className="mt-2">
-                              {selectedRfq.status === 'AWARDED' ? (
-                                q.isSelected ? (
-                                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-xs">
-                                    <CheckCircle2 size={14} /> Đơn vị trúng thầu
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400 text-xs">Không chọn</span>
-                                )
+                                  <div className="flex items-center gap-1">
+                                    {isCompliant ? (
+                                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
+                                        HSD: {offeredMonths} tháng
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                                        <AlertTriangle size={10} /> HSD {offeredMonths} th (Cận date!)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleAward(q)}
-                                  disabled={isSubmitting}
-                                  className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1"
-                                >
-                                  <Award size={14} />
-                                  Chọn Thầu & Sinh PO
-                                </button>
+                                <span className="text-slate-400 text-xs italic block text-center py-2">
+                                  — Chưa báo giá —
+                                </span>
                               )}
-                            </div>
-                          </td>
-                        ))}
+                            </td>
+                          );
+                        })}
                       </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    ))}
+
+                    {/* HÀNG TỔNG GIÁ TRỊ & NÚT CHỌN THẦU */}
+                    <tr className="bg-slate-100/90 font-bold border-t-2 border-slate-300">
+                      <td className="py-4 px-4 text-slate-900 uppercase tracking-wider font-extrabold">
+                        TỔNG GIÁ TRỊ
+                      </td>
+                      <td className="py-4 px-3 text-slate-400 text-center">—</td>
+                      {selectedRfq.targetSuppliers?.map((target) => {
+                        const quotation = selectedRfq.quotations?.find(
+                          (q) => q.supplierId === target.supplierId
+                        );
+
+                        return (
+                          <td
+                            key={target.supplierId}
+                            className={`py-4 px-4 border-l border-slate-200 ${
+                              quotation ? 'bg-blue-50/70' : 'bg-slate-50/50'
+                            }`}
+                          >
+                            {quotation ? (
+                              <div>
+                                <div className="font-black text-base text-blue-900">
+                                  {Number(quotation.totalAmount).toLocaleString('vi-VN')} đ
+                                </div>
+                                <div className="mt-2.5">
+                                  {selectedRfq.status === 'AWARDED' ? (
+                                    quotation.isSelected ? (
+                                      <span className="inline-flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs bg-emerald-100/80 px-2.5 py-1 rounded-lg">
+                                        <CheckCircle2 size={14} /> Đơn vị trúng thầu
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 text-xs font-medium">Không chọn</span>
+                                    )
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAward(quotation)}
+                                      disabled={isSubmitting}
+                                      className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    >
+                                      <Award size={14} />
+                                      Chọn Thầu & Sinh PO
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center py-2 text-slate-400">
+                                <span className="text-xs font-medium block">—</span>
+                                <span className="text-[10px] text-amber-600 font-semibold block mt-1">
+                                  Đang chờ nộp báo giá
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
