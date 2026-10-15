@@ -11,6 +11,7 @@ import { Medicine } from "../medicine/schemas/medicine.schema";
 import { MedicineBatch } from "../medicine/schemas/medicine-batch.schema";
 import { BranchInventory } from "../medicine/schemas/branch-inventory.schema";
 import { BranchStockBalance } from "../medicine/schemas/branch-stock-balance.schema";
+import { MedicineLocation } from "../medicine/schemas/medicine-location.schema";
 import { firstValueFrom } from "rxjs";
 import {
   subscribeToKafkaTopics,
@@ -52,14 +53,16 @@ export class PurchaseService {
   }
 
   /**
-   * Tự động dời các lô hàng cũ của cùng loại thuốc trong cùng thùng sang Khu Dự Trữ (zone=RESERVE, slotType=RESERVE).
-   * Giúp đảm bảo nguyên tắc FEFO và giải phóng ô thùng chính (MAIN) cho lô mới nhập.
+   * Chỉ dời các lô cũ sang Khu Dự Trữ (zone=RESERVE, slotType=RESERVE)
+   * khi TỔNG số lượng tồn trong thùng (lô cũ + lô mới) VƯỢT QUÁ sức chứa tối đa (maxCapacity).
+   * Nếu thùng vẫn còn sức chứa, tất cả các lô cũ và lô mới cùng nằm trên kệ chính (MAIN).
    */
   private async relocateBatchesToReserve(
     medicineId: string,
     location: { zone: string; rack: string; shelf: number; bin: number; slotType?: string },
     session?: ClientSession | null,
     contextTag: string = 'GRN',
+    incomingQty: number = 0,
   ): Promise<number> {
     if (location.slotType && location.slotType !== 'MAIN') {
       return 0;
@@ -86,6 +89,16 @@ export class PurchaseService {
       });
     }
 
+    // Lấy thông tin quy hoạch và sức chứa tối đa của ô thùng
+    const locInfo = await this.locationModel.findOne({
+      zone: location.zone,
+      rack: location.rack,
+      shelf: location.shelf,
+      bin: location.bin,
+    }).lean().exec();
+
+    const maxCapacity = locInfo?.maxCapacity || 200;
+
     const query = {
       medicineId,
       branchId: 'CENTRAL_WH',
@@ -97,33 +110,60 @@ export class PurchaseService {
       stock: { $gt: 0 },
     };
 
-    let findQuery = this.batchModel.find(query);
+    let findQuery = this.batchModel.find(query).sort({ expDate: 1 });
     if (session) {
       findQuery = findQuery.session(session);
     }
-    const oldMainBatches = await findQuery.exec();
+    const currentMainBatches = await findQuery.exec();
+    const currentStock = currentMainBatches.reduce((acc, b) => acc + (b.stock || 0), 0);
+    const projectedTotal = currentStock + incomingQty;
 
-    if (oldMainBatches.length > 0) {
-      const updateQuery = this.batchModel.updateMany(
-        { _id: { $in: oldMainBatches.map(b => b._id) } },
-        {
-          $set: {
-            'location.zone': 'RESERVE',
-            'location.rack': 'RESERVE',
-            'location.slotType': 'RESERVE',
-            // Giữ nguyên shelf và bin để trace lịch sử vị trí cũ
-          },
-        },
+    // NẾU THÙNG CÒN CHỖ (chưa vượt quá maxCapacity): Giữ nguyên toàn bộ các lô cũ ở Kệ Chính (MAIN)
+    if (projectedTotal <= maxCapacity) {
+      this.logger.log(
+        `[${contextTag}] Thùng ${location.zone}-${location.rack}-T${location.shelf}-B${location.bin} còn đủ sức chứa (${projectedTotal}/${maxCapacity}). Giữ nguyên các lô cũ ở kệ chính.`,
       );
-      if (session) {
-        updateQuery.session(session);
+      return 0;
+    }
+
+    // NẾU BỊ ĐẦY / QUÁ SỨC CHỨA: Chỉ dời các lô thừa sang Khu Dự Trữ
+    let overflow = projectedTotal - maxCapacity;
+    const batchesToRelocate = [];
+
+    for (const b of currentMainBatches) {
+      if (overflow <= 0) break;
+      batchesToRelocate.push(b);
+      overflow -= (b.stock || 0);
+    }
+
+    if (batchesToRelocate.length > 0) {
+      // Phân bổ vào Kệ Dự Trữ (RES1/RES2, Tầng 1..4, Thùng B1..B10)
+      for (let i = 0; i < batchesToRelocate.length; i++) {
+        const b = batchesToRelocate[i];
+        const resShelf = ((i % 4) + 1);
+        const resBin = ((Math.floor(i / 4) % 10) + 1);
+        const resRack = (i >= 40) ? 'RES2' : 'RES1';
+        
+        const updateSingle = this.batchModel.updateOne(
+          { _id: b._id },
+          {
+            $set: {
+              'location.zone': 'RESERVE',
+              'location.rack': resRack,
+              'location.shelf': resShelf,
+              'location.bin': resBin,
+              'location.slotType': 'RESERVE',
+            },
+          },
+        );
+        if (session) updateSingle.session(session);
+        await updateSingle.exec();
       }
-      await updateQuery.exec();
 
       this.logger.log(
-        `[${contextTag}] Đã dời ${oldMainBatches.length} lô cũ của thuốc ${medicineId} sang Khu Dự Trữ (zone=RESERVE)`,
+        `[${contextTag}] Thùng quá sức chứa (${projectedTotal}/${maxCapacity}). Đã dời ${batchesToRelocate.length} lô thừa sang Khu Dự Trữ (kệ RES1/RES2)`,
       );
-      return oldMainBatches.length;
+      return batchesToRelocate.length;
     }
 
     return 0;
@@ -152,6 +192,8 @@ export class PurchaseService {
     private readonly inspectionModel: Model<InspectionRecord>,
     @InjectModel(RequestForQuotation.name)
     private readonly rfqModel: Model<RequestForQuotation>,
+    @InjectModel(MedicineLocation.name)
+    private readonly locationModel: Model<MedicineLocation>,
     private readonly nationalPharmaService: NationalPharmaService,
   ) {}
 
@@ -958,6 +1000,7 @@ export class PurchaseService {
         }
       }
 
+      const loc = item.shelvedLocation || item.location;
       totalAmount += quantity * unitPrice;
       return {
         medicineId: item.medicineId,
@@ -967,6 +1010,13 @@ export class PurchaseService {
         actualQty: null,
         status: "PENDING",
         unitPrice: unitPrice,
+        shelvedLocation: loc ? {
+          zone: loc.zone || 'A',
+          rack: loc.rack || 'A1',
+          shelf: Number(loc.shelf || 1),
+          bin: Number(loc.bin || 1),
+          slotType: loc.slotType ?? 'MAIN',
+        } : undefined,
       };
     });
 
@@ -1038,10 +1088,12 @@ export class PurchaseService {
     }
 
     if (grn.status === "COMPLETED") {
-      throw new RpcException({
+      this.logger.warn(`GRN ${receiptId} đã được phê duyệt hoàn tất từ trước, trả về kết quả thành công.`);
+      return {
+        success: true,
         message: "Tài liệu tiếp nhận này đã được phê duyệt hoàn tất từ trước",
-        statusCode: 409,
-      });
+        data: grn,
+      };
     }
 
     if (grn.status !== "PENDING_APPROVAL") {
@@ -1133,13 +1185,15 @@ export class PurchaseService {
         .exec();
 
       // === TASK 4: Auto-move lô cũ sang Khu Dự Trữ khi lô mới được xếp vào thùng ===
-      // Chỉ thực hiện khi GRN item có shelvedLocation (thủ kho đã chọn vị trí thùng cụ thể)
-      if (item.shelvedLocation) {
+      // Sử dụng shelvedLocation hoặc location nếu có
+      const locSource = item.shelvedLocation || (item as any).location || null;
+      if (locSource) {
         await this.relocateBatchesToReserve(
           item.medicineId,
-          item.shelvedLocation,
+          locSource,
           null,
           'GRN Approve',
+          item.actualQty ?? 0,
         );
       }
 
@@ -1150,25 +1204,25 @@ export class PurchaseService {
 
         batch.status = batch.expDate < new Date() ? 'EXPIRED' : 'ACTIVE';
         // === TASK 3: Copy shelvedLocation → batch.location ===
-        if (item.shelvedLocation) {
+        if (locSource) {
           batch.location = {
-            zone:     item.shelvedLocation.zone,
-            rack:     item.shelvedLocation.rack,
-            shelf:    item.shelvedLocation.shelf,
-            bin:      item.shelvedLocation.bin,
-            slotType: item.shelvedLocation.slotType ?? 'MAIN',
+            zone:     locSource.zone,
+            rack:     locSource.rack,
+            shelf:    locSource.shelf,
+            bin:      locSource.bin,
+            slotType: locSource.slotType ?? 'MAIN',
           };
         }
         await batch.save();
       } else {
         // Xác định location cho batch mới
-        const batchLocation = item.shelvedLocation
+        const batchLocation = locSource
           ? {
-              zone:     item.shelvedLocation.zone,
-              rack:     item.shelvedLocation.rack,
-              shelf:    item.shelvedLocation.shelf,
-              bin:      item.shelvedLocation.bin,
-              slotType: item.shelvedLocation.slotType ?? 'MAIN',
+              zone:     locSource.zone,
+              rack:     locSource.rack,
+              shelf:    locSource.shelf,
+              bin:      locSource.bin,
+              slotType: locSource.slotType ?? 'MAIN',
             }
           : { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const };
 
@@ -2815,7 +2869,17 @@ export class PurchaseService {
         if (normalizedBatchNo) grnItem.batchNo = normalizedBatchNo;
         if (normalizedExpDate && !Number.isNaN(normalizedExpDate.getTime()))
           grnItem.expDate = normalizedExpDate;
-        if (location) (grnItem as any).location = location; // Lưu vị trí xếp hàng
+        if (location) {
+          const locAny = location as any;
+          grnItem.shelvedLocation = {
+            zone: locAny.zone || 'A',
+            rack: locAny.rack || 'A1',
+            shelf: Number(locAny.shelf || 1),
+            bin: Number(locAny.bin || 1),
+            slotType: (locAny.slotType || 'MAIN') as 'MAIN' | 'RESERVE',
+          };
+          (grnItem as any).location = location; // Lưu vị trí xếp hàng
+        }
         grnItem.status = "VERIFIED";
       }
       await grn.save();
@@ -2882,6 +2946,7 @@ export class PurchaseService {
             newLocation,
             session,
             'Inspection Approve',
+            item.actualQty ?? 0,
           );
 
           let batch = await this.batchModel.findOne({

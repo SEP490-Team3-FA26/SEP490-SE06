@@ -40,6 +40,7 @@ import { StatusBadge, GRN_STATUS, PO_STATUS } from "./WarehouseConstants";
 import { purchaseOrderService } from "../../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../../services/purchase/goodsReceipt.service";
 import { BinLocationPicker } from "./BinLocationPicker";
+import { inventoryMapService } from "../../../services/inventory/inventoryMap.service";
 
 interface ShipmentLogisticsInfo {
   carrierName: string;
@@ -141,6 +142,8 @@ export function IncomingOrdersTab({
   const [inspectionErrors, setInspectionErrors] = useState<Record<string, { batchNo?: string; expDate?: string; actualQty?: string; location?: string }>>({});
   const [modalError, setModalError] = useState("");
   const [aiScanning, setAiScanning] = useState<string | null>(null);
+  // Trạng thái đang tra cứu vị trí kho tự động khi mở modal
+  const [isFillLocLoading, setIsFillLocLoading] = useState(false);
 
   // State cho Modal Phân Tích Hình Ảnh (AI Computer Vision & OCR Counting)
   const [imageInspectionItem, setImageInspectionItem] = useState<any | null>(null);
@@ -248,20 +251,74 @@ export function IncomingOrdersTab({
   };
 
   useEffect(() => {
-    if (selectedPo && selectedPo.items) {
-      const initData: Record<string, any> = {};
-      selectedPo.items.forEach((it: any) => {
-        initData[it.medicineId || it.id] = {
-          batchNo: "",
-          expDate: "",
-          actualQty: "", // Empty so they have to input
-          location: { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' } // Default
-        };
-      });
-      setInspectionData(initData);
-      setInspectionErrors({});
-      setModalError("");
-    }
+    if (!selectedPo?.items) return;
+
+    // Khởi tạo dữ liệu mặc định trước
+    const initData: Record<string, any> = {};
+    selectedPo.items.forEach((it: any) => {
+      initData[it.medicineId || it.id] = {
+        batchNo: "",
+        expDate: "",
+        actualQty: "",
+        location: { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const }
+      };
+    });
+    setInspectionData(initData);
+    setInspectionErrors({});
+    setModalError("");
+
+    // Auto-fill vị trí kho hiện tại của từng thuốc bằng warehouseSearch
+    const autoFillLocations = async () => {
+      setIsFillLocLoading(true); // Hiển thị loading khi đang tra cứu
+      const updated: Record<string, any> = { ...initData };
+      await Promise.allSettled(
+        selectedPo.items.map(async (it: any) => {
+          const mId = it.medicineId || it.id;
+          const medicineName = it.medicineName || mId;
+          try {
+            // Tra cứu vị trí: tìm theo mId trước (chính xác tuyệt đối 100%), nếu không ra mới tìm theo tên
+            let hits: any[] = [];
+            if (mId) {
+              hits = await inventoryMapService.warehouseSearch(mId).catch(() => []);
+            }
+            if ((!Array.isArray(hits) || hits.length === 0) && medicineName) {
+              hits = await inventoryMapService.warehouseSearch(medicineName).catch(() => []);
+            }
+            if ((!Array.isArray(hits) || hits.length === 0) && medicineName) {
+              // Rút gọn tìm theo tên thuốc trước dấu ngoặc đơn (VD: "Siro Bisolvon Kids Boehringer")
+              const cleanName = medicineName.split('(')[0].trim();
+              if (cleanName && cleanName !== medicineName) {
+                hits = await inventoryMapService.warehouseSearch(cleanName).catch(() => []);
+              }
+            }
+            if (!Array.isArray(hits) || hits.length === 0) return;
+
+            // Ưu tiên lô MAIN có stock > 0 hoặc vị trí quy hoạch cố định GSP, bỏ qua RESERVE
+            const mainHit = hits.find(
+              h => h.location && h.location.zone && h.location.zone !== 'RESERVE' && !h.unassigned && !h.isReserve
+            ) || hits.find(h => h.location && h.location.zone && h.location.zone !== 'RESERVE');
+
+            if (!mainHit?.location) return; // Thuốc chưa được xếp kệ → dùng default
+
+            const loc = {
+              zone: mainHit.location.zone || 'A',
+              rack: mainHit.location.rack || 'A1',
+              shelf: Number(mainHit.location.shelf || 1),
+              bin: Number(mainHit.location.bin || 1),
+              slotType: 'MAIN' as const,
+            };
+            updated[mId] = { ...updated[mId], location: loc };
+            console.log(`📍 [Auto-fill thành công] ${medicineName} → Khu ${loc.zone} / Kệ ${loc.rack} / Tầng ${loc.shelf} / Thùng B${loc.bin}`);
+          } catch (err) {
+            console.warn(`[Auto-fill lỗi] Không thể tra cứu vị trí cho thuốc ${medicineName}:`, err);
+          }
+        })
+      );
+      setInspectionData({ ...updated });
+      setIsFillLocLoading(false); // Ẩn loading sau khi hoàn tất
+    };
+
+    autoFillLocations();
   }, [selectedPo]);
 
   // Sinh thông tin logistics chuyến hàng thông minh theo từng PO
@@ -409,19 +466,32 @@ export function IncomingOrdersTab({
         };
       });
 
-      // 1. Reuse an unfinished GRN when a previous attempt stopped after GRN creation.
+      // 1. Tái sử dụng GRN còn dang dở (DRAFT hoặc INSPECTING) nếu có.
+      //    KHÔNG bao gồm COMPLETED vì đó là đơn cũ đã xong, không phải lần này.
       const latestGrns = await goodsReceiptService.getGoodsReceipts();
-      const existingGrn = (Array.isArray(latestGrns) ? latestGrns : []).find(
-        (grn: any) => grn.poId === poId && ["DRAFT", "INSPECTING", "PENDING_APPROVAL", "COMPLETED"].includes(grn.status)
+      const allGrnsForPo = (Array.isArray(latestGrns) ? latestGrns : []).filter(
+        (grn: any) => grn.poId === poId
+      );
+
+      // Kiểm tra xem đơn này đã từng được hoàn tất chưa
+      const completedGrn = allGrnsForPo.find((grn: any) => grn.status === "COMPLETED");
+      if (completedGrn) {
+        // Đã có GRN COMPLETED → hỏi lại user thay vì âm thầm chặn
+        setModalError(
+          "⚠️ Đơn hàng này đã có phiếu nhập kho được duyệt trước đó (GRN: " +
+          (completedGrn.grnCode || completedGrn._id?.slice(-6).toUpperCase()) +
+          "). Nếu cần nhập bổ sung, hãy tạo một PO mới hoặc liên hệ Admin."
+        );
+        setActionLoading(false);
+        return;
+      }
+
+      // Tìm GRN chưa hoàn thành để tiếp tục
+      const existingGrn = allGrnsForPo.find(
+        (grn: any) => ["DRAFT", "INSPECTING", "PENDING_APPROVAL"].includes(grn.status)
       );
 
       let grnId = existingGrn?._id;
-      if (existingGrn?.status === "COMPLETED") {
-        onMsg({ type: "success", text: "Đơn hàng này đã được kiểm đếm và nhập kho hoàn tất." });
-        setSelectedPo(null);
-        fetchData();
-        return;
-      }
 
       if (existingGrn?.status === "PENDING_APPROVAL") {
         const existingItemsMatched = existingGrn.items?.every(
@@ -603,7 +673,19 @@ export function IncomingOrdersTab({
 
                     {/* Cột Trạng thái Kho */}
                     <td className="px-4 py-3 text-center">
-                      {activeGrn ? <StatusBadge map={GRN_STATUS} status={activeGrn.status} /> : <StatusBadge map={PO_STATUS} status={po.status} />}
+                      {activeGrn ? (
+                        <StatusBadge map={GRN_STATUS} status={activeGrn.status} />
+                      ) : selectedPo?._id === po._id ? (
+                        <span className="inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold bg-blue-50 text-blue-700 border-blue-200 animate-pulse">
+                          Đang kiểm đếm
+                        </span>
+                      ) : isArrived ? (
+                        <span className="inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold bg-sky-50 text-sky-700 border-sky-200">
+                          Chờ kiểm đếm
+                        </span>
+                      ) : (
+                        <StatusBadge map={PO_STATUS} status={po.status} />
+                      )}
                     </td>
 
                     {/* Cột Hành động */}
@@ -914,12 +996,24 @@ export function IncomingOrdersTab({
             return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedPo(null)} />
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200"
+            >
               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50 shrink-0">
                 <div>
                   <h3 className="font-black text-slate-900 font-mono text-base">Kiểm Đếm Tiếp Nhận: PO-{selectedPo._id.slice(-6).toUpperCase()}</h3>
-                  <p className="text-xs mt-0.5">{activeGrn ? <StatusBadge map={GRN_STATUS} status={activeGrn.status} /> : <StatusBadge map={PO_STATUS} status={selectedPo.status} />}</p>
+                  <p className="text-xs mt-0.5">
+                    {activeGrn ? (
+                      <StatusBadge map={GRN_STATUS} status={activeGrn.status} />
+                    ) : (
+                      <span className="inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold bg-blue-50 text-blue-700 border-blue-200 animate-pulse">
+                        Đang kiểm đếm
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -954,7 +1048,13 @@ export function IncomingOrdersTab({
                     <Package size={14} className="text-indigo-600" />
                     Sản phẩm kiểm đếm thực tế ({selectedPo.items?.length || 0})
                   </h4>
-                  <span className="text-[11px] text-slate-400 font-medium">Hỗ trợ tải ảnh AI Computer Vision hoặc Quét Mobile</span>
+                  {isFillLocLoading ? (
+                    <span className="text-[11px] text-indigo-600 font-bold flex items-center gap-1.5 animate-pulse bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                      <Loader2 size={12} className="animate-spin text-indigo-600" /> Đang tự động tra cứu vị trí kho cho các thuốc...
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 font-medium">Hỗ trợ tải ảnh AI Computer Vision hoặc Quét Mobile</span>
+                  )}
                 </div>
                 
                 <div className="space-y-3">
@@ -1075,6 +1175,7 @@ export function IncomingOrdersTab({
                             medicineName={it.medicineName}
                             unit={it.unit || "Hộp"}
                             value={inspectionData[mId]?.location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' }}
+                            isLoading={isFillLocLoading}
                             onChange={(loc) => {
                               setInspectionData(prev => ({
                                 ...prev,
