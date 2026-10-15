@@ -170,13 +170,13 @@ export const API_ENDPOINTS = {
   },
 
   RFQ: {
-    LIST: '/api/rfq',
-    DETAIL: (id: string) => `/api/rfq/${encodeURIComponent(id)}`,
-    CREATE: '/api/rfq',
-    AWARD: (id: string) => `/api/rfq/${encodeURIComponent(id)}/award`,
-    CLOSE: (id: string) => `/api/rfq/${encodeURIComponent(id)}/close`,
-    PORTAL_GET_BY_TOKEN: (token: string) => `/api/rfq/portal/${encodeURIComponent(token)}`,
-    PORTAL_SUBMIT_QUOTE: (token: string) => `/api/rfq/portal/${encodeURIComponent(token)}/quote`,
+    LIST: '/api/rfqs',
+    DETAIL: (id: string) => `/api/rfqs/${encodeURIComponent(id)}`,
+    CREATE: '/api/rfqs',
+    AWARD: (id: string) => `/api/rfqs/${encodeURIComponent(id)}/award`,
+    CLOSE: (id: string) => `/api/rfqs/${encodeURIComponent(id)}/close`,
+    PORTAL_GET_BY_TOKEN: (token: string) => `/api/rfq-portal/${encodeURIComponent(token)}`,
+    PORTAL_SUBMIT_QUOTE: (token: string) => `/api/rfq-portal/${encodeURIComponent(token)}/quote`,
   },
 
   // 🛒 Orders & Sales & Reconciliation

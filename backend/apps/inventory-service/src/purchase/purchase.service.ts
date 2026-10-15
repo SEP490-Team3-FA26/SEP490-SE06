@@ -645,6 +645,7 @@ export class PurchaseService {
         status: "PENDING_APPROVAL",
         paymentType: "CREDIT",
         createdBy: data.createdBy || "Kho Tổng",
+        branchId: data.receivingBranchId || data.branchId || "CENTRAL_WH",
         linkedPrIds: data.prIds || [],
         linkedPrCodes: prCodes,
         remarks:
@@ -972,6 +973,7 @@ export class PurchaseService {
 
     const grn = new this.grnModel({
       poId: data.poId,
+      branchId: data.branchId || (po as any)?.branchId || "CENTRAL_WH",
       items,
       totalAmount,
       receivedBy: data.receivedBy || "Thủ Kho",
@@ -1263,14 +1265,31 @@ export class PurchaseService {
 
     // 6. Tự động liên thông CSDL Dược Quốc gia (Stock-In Hook theo QĐ 232)
     try {
-      const targetBranch = (grn as any).branchId || (po as any).branchId || 'BR-001';
-      const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
-      grn.nationalFacilityCode = gppSync.facilityCode;
-      grn.nationalSyncCode = gppSync.syncCode;
-      grn.nationalSyncStatus = gppSync.syncStatus;
-      grn.nationalSyncedAt = gppSync.syncedAt;
-      grn.nationalSyncMessage = gppSync.message;
-      await grn.save();
+      let targetBranch = grn.branchId || (po as any)?.branchId;
+      if (!targetBranch && po?.linkedPrIds && po.linkedPrIds.length > 0) {
+        const pr = await this.prModel.findById(po.linkedPrIds[0]).lean().exec();
+        if (pr?.branchId) {
+          targetBranch = pr.branchId;
+        }
+      }
+      if (!targetBranch) {
+        targetBranch = 'CENTRAL_WH';
+      }
+
+      if (!targetBranch) {
+        this.logger.error(`[CSDL Dược] Không thể liên thông phiếu nhập ${grn._id}: Không tìm thấy thông tin chi nhánh tiếp nhận!`);
+        grn.nationalSyncStatus = 'FAILED';
+        grn.nationalSyncMessage = 'Không thể liên thông CSDL Dược: Phiếu nhập kho thiếu thông tin chi nhánh tiếp nhận';
+        await grn.save();
+      } else {
+        const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+        grn.nationalFacilityCode = gppSync.facilityCode;
+        grn.nationalSyncCode = gppSync.syncCode;
+        grn.nationalSyncStatus = gppSync.syncStatus;
+        grn.nationalSyncedAt = gppSync.syncedAt;
+        grn.nationalSyncMessage = gppSync.message;
+        await grn.save();
+      }
     } catch (gppErr: any) {
       this.logger.warn(`[CSDL Dược GRN Sync Warning] ${gppErr.message}`);
     }
@@ -2956,6 +2975,39 @@ export class PurchaseService {
       }
 
       await session.commitTransaction();
+
+      // 🌐 TỰ ĐỘNG LIÊN THÔNG CSDL DƯỢC QUỐC GIA (Mục 5.4 - QĐ 232/QĐ-TTYQG)
+      try {
+        let targetBranch = grn.branchId || (po as any)?.branchId;
+        if (!targetBranch && po?.linkedPrIds && po.linkedPrIds.length > 0) {
+          const pr = await this.prModel.findById(po.linkedPrIds[0]).lean().exec();
+          if (pr?.branchId) {
+            targetBranch = pr.branchId;
+          }
+        }
+        if (!targetBranch) {
+          targetBranch = 'CENTRAL_WH';
+        }
+
+        if (!targetBranch) {
+          this.logger.error(`[CSDL Dược] Lỗi liên thông: Phiếu nhập ${grn._id} không xác định được mã chi nhánh (branchId), từ chối liên thông!`);
+          grn.nationalSyncStatus = 'FAILED';
+          grn.nationalSyncMessage = 'Không thể liên thông CSDL Dược: Phiếu nhập kho thiếu thông tin chi nhánh tiếp nhận';
+          await grn.save();
+        } else {
+          const syncRes = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+          grn.nationalFacilityCode = syncRes.facilityCode;
+          grn.nationalSyncCode = syncRes.syncCode;
+          grn.nationalSyncStatus = syncRes.syncStatus;
+          grn.nationalSyncedAt = syncRes.syncedAt;
+          grn.nationalSyncMessage = syncRes.message;
+          await grn.save();
+          this.logger.log(`[CSDL Dược] Tự động liên thông phiếu nhập ${grn._id} kết quả: ${syncRes.syncStatus} (Mã: ${syncRes.syncCode})`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[CSDL Dược] Lỗi liên thông phiếu nhập ngầm: ${err.message}`);
+      }
+
       return {
         success: true,
         message: "Duyệt thành công và đã nhập kho",
@@ -2994,14 +3046,42 @@ export class PurchaseService {
         sentAt: new Date(),
       }));
 
+      // Tự động liên kết thông tin Pháp chế GPP & CSDL Dược Quốc Gia cho từng mặt hàng RFQ
+      const enrichedItems = await Promise.all(
+        (payload.items || []).map(async (it: any) => {
+          let nationalDrugCode = it.nationalDrugCode;
+          let declaredPrice = it.declaredPrice;
+          let gppCompliant = it.gppCompliant;
+
+          try {
+            const med = await this.medicineModel.findById(it.medicineId).lean().exec();
+            if (med) {
+              nationalDrugCode = nationalDrugCode || med.national_drug_code || med.registration_number || '';
+              // Chỉ sử dụng giá kê khai chính thức BYT / GPP, tuyệt đối không dùng giá bán lẻ cửa hàng làm giá trần kê khai
+              const officialDeclared = (med as any)?.declaredPrice || (med as any)?.declared_price || (med as any)?.gppCeilingPrice;
+              declaredPrice = declaredPrice || officialDeclared || undefined;
+              gppCompliant = gppCompliant !== undefined ? gppCompliant : Boolean(med.registration_number || med.national_drug_code);
+            }
+          } catch (_) {}
+
+          return {
+            ...it,
+            nationalDrugCode: nationalDrugCode || '',
+            declaredPrice: declaredPrice !== undefined && Number(declaredPrice) > 0 ? Number(declaredPrice) : undefined,
+            gppCompliant: gppCompliant !== false,
+          };
+        }),
+      );
+
       const rfq = new this.rfqModel({
         ...payload,
+        items: enrichedItems,
         rfqCode,
         targetSuppliers,
         status: 'DRAFT',
       });
       const saved = await rfq.save();
-      this.logger.log(`Created new RFQ: ${rfqCode}`);
+      this.logger.log(`Created new RFQ: ${rfqCode} with GPP/CSDL Duoc metadata`);
       return saved;
     } catch (error) {
       this.logger.error('Error creating RFQ:', error);
@@ -3144,15 +3224,25 @@ export class PurchaseService {
       const quotationId = `QUOTE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const minShelfLife = rfq.minShelfLifeMonths || 18;
 
-      // Kiểm tra và đánh cờ tuân thủ HSD (Chống bẫy hàng cận date từ Bước 3)
+      // Kiểm tra tuân thủ HSD (FEFO) và Chốt chặn Giá trần kê khai CSDL Dược Quốc gia (NĐ 54/2017)
       const formattedItems = (quotationDto.items || []).map((item: any) => {
         const offeredShelfLife = Number(item.committedShelfLifeMonths || item.offeredShelfLifeMonths || 24);
-        const isCompliant = offeredShelfLife >= minShelfLife;
+        const isCompliantShelfLife = offeredShelfLife >= minShelfLife;
+
+        // Đối chiếu giá kê khai và SĐK từ mặt hàng trong RFQ
+        const rfqItem = (rfq.items || []).find((it: any) => it.medicineId === item.medicineId);
+        const declaredPrice = Number(rfqItem?.declaredPrice || rfqItem?.targetPrice || 0);
+        const nationalDrugCode = rfqItem?.nationalDrugCode || item.nationalDrugCode || '';
+        const isExceedingDeclaredPrice = declaredPrice > 0 && Number(item.quotedPrice) > declaredPrice;
+
         return {
           ...item,
           committedShelfLifeMonths: offeredShelfLife,
           offeredShelfLifeMonths: offeredShelfLife,
-          isCompliantShelfLife: isCompliant,
+          isCompliantShelfLife,
+          declaredPrice,
+          nationalDrugCode,
+          isExceedingDeclaredPrice,
         };
       });
 
@@ -3236,6 +3326,7 @@ export class PurchaseService {
         status: 'PENDING_APPROVAL',
         createdBy: awardDto.createdBy || rfq.createdBy || 'ADMIN',
         paymentType: quotation.paymentTermsDays > 0 ? 'CREDIT' : 'PAID',
+        branchId: (rfq as any).branchId || 'CENTRAL_WH',
         linkedPrCodes: [rfq.rfqCode],
       });
 

@@ -17,20 +17,21 @@ dotenv.config({ path: path.join(__dirname, "../../.env") });
 
 const app = express();
 const PORT = process.env.CSDLDUOC_MOCK_PORT ? parseInt(process.env.CSDLDUOC_MOCK_PORT, 10) : 4005;
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  process.env.MONGODB_ATLAS_URI ||
-  "mongodb+srv://phuocthde180577_db_user:Phuoc12345@cluster0.ruhl6tb.mongodb.net/WDP201?appName=Cluster0";
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGODB_ATLAS_URI;
 
-// Kết nối MongoDB Atlas cho CSDL Dược Quốc Gia
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => {
-    console.log("✅ [CSDL Dược Sandbox v2] Đã kết nối thành công MongoDB Atlas (national_drugs, national_transactions, national_facilities)!");
-  })
-  .catch((err) => {
-    console.warn("⚠️ [CSDL Dược Sandbox v2] Không thể kết nối MongoDB, hoạt động ở chế độ in-memory:", err.message);
-  });
+// Kết nối MongoDB cho CSDL Dược Quốc Gia nếu được cung cấp qua biến môi trường
+if (MONGODB_URI) {
+  mongoose
+    .connect(MONGODB_URI)
+    .then(() => {
+      console.log("✅ [CSDL Dược Sandbox v2] Đã kết nối thành công MongoDB (national_drugs, national_transactions, national_facilities)!");
+    })
+    .catch((err) => {
+      console.warn("⚠️ [CSDL Dược Sandbox v2] Không thể kết nối MongoDB, hoạt động ở chế độ in-memory:", err.message);
+    });
+} else {
+  console.log("ℹ️ [CSDL Dược Sandbox v2] Không tìm thấy MONGODB_URI trong biến môi trường, máy chủ hoạt động ở chế độ in-memory.");
+}
 
 // =========================================================================
 // MIDDLEWARE CƠ BẢN

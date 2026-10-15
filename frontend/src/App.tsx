@@ -52,6 +52,7 @@ import { WarehouseInventoryHub } from "./pages/warehouse/WarehouseInventoryHub";
 import { MobileAIInspection } from "./pages/warehouse/MobileAIInspection";
 import { WarehouseMapPage } from "./pages/warehouse/WarehouseMapPage";
 import { GspTelemetryDashboard } from "./pages/warehouse/GspTelemetryDashboard";
+import { GoodsReceiptInspectionPage } from "./pages/warehouse/GoodsReceiptInspectionPage";
 
 // Admin / HQ Pages
 import { Finance } from "./pages/admin/Finance";
@@ -217,10 +218,13 @@ export default function App() {
               <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
               <Route path="goods-receipt/mobile-inspection" element={<MobileAIInspection />} />
+              <Route path="goods-receipt/inspection" element={<GoodsReceiptInspectionPage />} />
+              <Route path="goods-receipt/scan" element={<GoodsReceiptInspectionPage />} />
               <Route path="mobile-ai-inspection" element={<MobileAIInspection />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="ai-insights" element={<AIInsights />} />
               <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="rfq" element={<RFQManagement />} />
               <Route path="supply-chain" element={<SupplyChainDashboard />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />

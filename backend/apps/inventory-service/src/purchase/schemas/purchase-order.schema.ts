@@ -56,6 +56,9 @@ export class PurchaseOrder extends Document {
   @Prop({ type: String, default: 'PAID', enum: ['PAID', 'CREDIT'] })
   paymentType: string; // Thanh toán ngay (PAID) vs Mua nợ (CREDIT)
 
+  @Prop({ type: String, default: 'CENTRAL_WH' })
+  branchId?: string; // Cơ sở tiếp nhận nhập kho thực tế (mặc định Kho Tổng CENTRAL_WH hoặc chi nhánh nhận)
+
   createdAt: Date;
   updatedAt: Date;
 }

@@ -208,8 +208,35 @@ export class NationalPharmaService {
    * 2. Đồng bộ phiếu nhập kho từ Nhà cung cấp lên CSDL Dược Quốc gia (POST /v2/transactions/stock-in)
    */
   async syncGoodsReceipt(goodsReceipt: any, branchId?: string): Promise<NationalPharmaSyncResult> {
-    const targetBranch = branchId || goodsReceipt.branchId || 'BR-001';
-    const facilityCode = BRANCH_FACILITY_MAP[targetBranch] || '79-001234';
+    const targetBranch = branchId || goodsReceipt.branchId;
+    if (!targetBranch) {
+      this.logger.error(`[CSDL Dược] Lỗi liên thông: Phiếu nhập ${goodsReceipt._id || goodsReceipt.invoiceNo} thiếu branchId, từ chối đồng bộ!`);
+      return {
+        success: false,
+        facilityCode: 'UNKNOWN',
+        syncCode: `ERR-NO-BRANCH-${Date.now().toString().slice(-6)}`,
+        syncStatus: 'FAILED',
+        syncedAt: new Date(),
+        message: 'Lỗi liên thông CSDL Dược: Phiếu nhập kho không xác định được mã chi nhánh (branchId)',
+        payloadSent: null,
+        violationReason: 'Thiếu thông tin chi nhánh tiếp nhận trong phiếu nhập kho',
+      };
+    }
+
+    const facilityCode = BRANCH_FACILITY_MAP[targetBranch];
+    if (!facilityCode) {
+      this.logger.error(`[CSDL Dược] Lỗi liên thông: Chi nhánh '${targetBranch}' chưa được cấp mã cơ sở CSDL Dược hợp lệ!`);
+      return {
+        success: false,
+        facilityCode: 'UNKNOWN',
+        syncCode: `ERR-NO-FACILITY-${Date.now().toString().slice(-6)}`,
+        syncStatus: 'REJECTED',
+        syncedAt: new Date(),
+        message: `Lỗi liên thông: Chi nhánh '${targetBranch}' chưa được cấu hình mã cơ sở cấp phép GPP/GSP`,
+        payloadSent: null,
+        violationReason: `Chi nhánh ${targetBranch} chưa được cấp phép liên thông CSDL Dược Quốc Gia`,
+      };
+    }
     const refNumber = String(goodsReceipt.vatInvoiceNumber || goodsReceipt.invoiceNo || goodsReceipt.poId || goodsReceipt._id || `GRN-${Date.now()}`);
 
     const items = (goodsReceipt.items || []).map((it: any) => {
@@ -462,9 +489,58 @@ export class NationalPharmaService {
   }
 
   /**
+   * Tra cứu thông tin thuốc từ CSDL Dược Quốc Gia theo QĐ 232/QĐ-TTYQG (Bản 1.1)
+   * Hỗ trợ tìm kiếm theo Mã Định Danh Quốc Gia (drug_id) hoặc Số Đăng Ký Lưu Hành (registration_number)
+   */
+  async lookupNationalDrug(idOrRegistrationNumber: string): Promise<any> {
+    try {
+      const token = await this.getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const encodedKey = encodeURIComponent(idOrRegistrationNumber.trim());
+      const url = `${this.baseUrl}/master/drugs/${encodedKey}`;
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        this.logger.warn(`[CSDL Dược] Không tìm thấy thuốc '${idOrRegistrationNumber}' trên CSDL Quốc gia (Status ${res.status})`);
+        return null;
+      }
+      return await res.json();
+    } catch (err: any) {
+      this.logger.error(`[CSDL Dược] Lỗi kết nối tra cứu thuốc: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Lấy danh sách thuốc đã công bố từ CSDL Dược Quốc Gia có phân trang
+   */
+  async getNationalDrugList(params?: { page?: number; pageSize?: number; search?: string }): Promise<any> {
+    try {
+      const token = await this.getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const query = new URLSearchParams();
+      if (params?.page) query.set('page', String(params.page));
+      if (params?.pageSize) query.set('page_size', String(params.pageSize));
+      if (params?.search) query.set('search', params.search);
+
+      const url = `${this.baseUrl}/master/drugs?${query.toString()}`;
+      const res = await fetch(url, { headers });
+      if (!res.ok) return { total: 0, data: [] };
+      return await res.json();
+    } catch (err: any) {
+      this.logger.error(`[CSDL Dược] Lỗi kết nối danh mục thuốc: ${err.message}`);
+      return { total: 0, data: [] };
+    }
+  }
+
+  /**
    * Lấy danh sách cấu hình cơ sở GPP của chuỗi nhà thuốc
    */
   getFacilityMapping() {
     return BRANCH_FACILITY_MAP;
   }
 }
+
