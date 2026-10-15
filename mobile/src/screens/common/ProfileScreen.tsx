@@ -51,6 +51,27 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [initialSwapShift, setInitialSwapShift] = useState<any>(null);
   const [leavePrefillShift, setLeavePrefillShift] = useState<any | null>(null);
 
+  // VIP Loyalty Info
+  const [loyaltyInfo, setLoyaltyInfo] = useState<{
+    points?: number;
+    accumulatedPoints?: number;
+    tier?: string;
+    multiplier?: number;
+    conversionRate?: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    ApiService.getMyLoyalty().then((data) => {
+      if (isMounted && data) {
+        setLoyaltyInfo(data);
+      }
+    }).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const roleLabel = user?.role ? USER_ROLE_LABELS[user.role] || user.role : 'Thành viên';
 
   const handleSaveProfile = async () => {
@@ -142,6 +163,52 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               <Ionicons name="location-outline" size={14} color="#D1FAE5" /> {user.branchName}
             </Text>
           ) : null}
+        </LinearGradient>
+
+        {/* VIP Loyalty Membership Card */}
+        <LinearGradient
+          colors={
+            loyaltyInfo?.tier === 'Diamond'
+              ? ['#0F172A', '#1E293B', '#334155']
+              : loyaltyInfo?.tier === 'Gold'
+              ? ['#78350F', '#B45309', '#D97706']
+              : loyaltyInfo?.tier === 'Silver'
+              ? ['#334155', '#475569', '#64748B']
+              : ['#064E3B', '#047857', '#059669']
+          }
+          style={styles.loyaltyCard}
+        >
+          <View style={styles.loyaltyTopRow}>
+            <View>
+              <Text style={styles.loyaltySubHeader}>THẺ HỘI VIÊN CHUỖI NHÀ THUỐC</Text>
+              <Text style={styles.loyaltyBrandTitle}>ABC Pharmacy Club</Text>
+            </View>
+            <View style={styles.loyaltyTierTag}>
+              <Ionicons name="sparkles" size={12} color="#FEF3C7" />
+              <Text style={styles.loyaltyTierText}>
+                {loyaltyInfo?.tier ? `HẠNG ${String(loyaltyInfo.tier).toUpperCase()}` : 'HẠNG ĐỒNG'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.loyaltyPointsContainer}>
+            <Text style={styles.loyaltyPointsLabel}>Điểm Thưởng Khả Dụng</Text>
+            <Text style={styles.loyaltyPointsNumber}>
+              {(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')}
+              <Text style={styles.loyaltyPointsUnit}> điểm ({(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')} ₫)</Text>
+            </Text>
+          </View>
+
+          <View style={styles.loyaltyBottomRow}>
+            <View style={styles.loyaltyBenefitItem}>
+              <Ionicons name="checkmark-circle" size={14} color="#A7F3D0" />
+              <Text style={styles.loyaltyBenefitText}>Tích 1% mỗi đơn mua</Text>
+            </View>
+            <View style={styles.loyaltyBenefitItem}>
+              <Ionicons name="checkmark-circle" size={14} color="#A7F3D0" />
+              <Text style={styles.loyaltyBenefitText}>Trừ tiền trực tiếp tại POS & App</Text>
+            </View>
+          </View>
         </LinearGradient>
 
         {/* Info Section */}
@@ -649,6 +716,93 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     marginTop: 2,
+    fontWeight: '600',
+  },
+  loyaltyCard: {
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  loyaltyTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  loyaltySubHeader: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: '#A7F3D0',
+    textTransform: 'uppercase',
+  },
+  loyaltyBrandTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  loyaltyTierTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  loyaltyTierText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FEF3C7',
+    letterSpacing: 0.5,
+  },
+  loyaltyPointsContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    borderRadius: 14,
+    padding: 12,
+    marginVertical: 4,
+  },
+  loyaltyPointsLabel: {
+    fontSize: 11,
+    color: '#D1FAE5',
+    fontWeight: '600',
+  },
+  loyaltyPointsNumber: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  loyaltyPointsUnit: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A7F3D0',
+  },
+  loyaltyBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  loyaltyBenefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  loyaltyBenefitText: {
+    fontSize: 11,
+    color: '#D1FAE5',
     fontWeight: '600',
   },
 });

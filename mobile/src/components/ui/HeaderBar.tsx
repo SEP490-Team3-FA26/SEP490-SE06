@@ -15,6 +15,10 @@ interface HeaderBarProps {
   title: string;
   subtitle?: string;
   onBack?: () => void;
+  leftAction?: {
+    icon?: keyof typeof Ionicons.glyphMap;
+    onPress: () => void;
+  };
   rightAction?: {
     icon: keyof typeof Ionicons.glyphMap;
     onPress: () => void;
@@ -38,6 +42,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   title,
   subtitle,
   onBack,
+  leftAction,
   rightAction,
   secondaryRightAction,
   gradientVariant = 'emerald',
@@ -51,7 +56,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     >
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <View style={styles.contentRow}>
-        {onBack ? (
+        {leftAction ? (
+          <AnimatedTouchable onPress={leftAction.onPress} style={styles.iconButton}>
+            <Ionicons name={leftAction.icon || 'menu'} size={24} color="#FFFFFF" />
+          </AnimatedTouchable>
+        ) : onBack ? (
           <AnimatedTouchable onPress={onBack} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </AnimatedTouchable>

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useAuth } from '../../context/AuthContext';
 import { ApiService } from '../../services/api.service';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientCard } from '../../components/ui/GradientCard';
@@ -29,9 +30,12 @@ import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
 import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
 import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
+import { ClinicalSidebarDrawer, DrawerMenuItem } from '../../components/clinical/ClinicalSidebarDrawer';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'POS' | 'OCR'>('POS');
+  const [showDrawer, setShowDrawer] = useState<boolean>(false);
 
   // Attendance & Shift State
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
@@ -473,9 +477,13 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
-        title="Dược Sĩ Bán Hàng"
-        subtitle="POS Bán lẻ & Quét Đơn OCR"
+        title="ABC Pharmacy"
+        subtitle={user?.branchName ? `Quầy POS • ${user.branchName}` : 'Quầy Bán Hàng Dược Sĩ POS'}
         gradientVariant="emerald"
+        leftAction={{
+          icon: 'menu',
+          onPress: () => setShowDrawer(true),
+        }}
         rightAction={{
           icon: 'person-circle-outline',
           onPress: () => navigation.navigate('ProfileScreen'),
@@ -485,61 +493,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           onPress: () => navigation.navigate('NotificationListScreen'),
         }}
       />
-
-      {/* Quick Shift & Payslip Action Bar */}
-      <View style={styles.shiftBarContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.shiftActionBar}
-        >
-          <AnimatedTouchable
-            onPress={() => setShowCheckInModal(true)}
-            style={[styles.shiftActionBtn, activeShift?.isCheckedIn ? styles.shiftActiveBtn : styles.shiftInactiveBtn]}
-          >
-            <Ionicons
-              name={activeShift?.isCheckedIn ? 'checkmark-circle' : 'location'}
-              size={16}
-              color={activeShift?.isCheckedIn ? '#059669' : '#D97706'}
-            />
-            <Text style={[styles.shiftActionText, { color: activeShift?.isCheckedIn ? '#059669' : '#D97706' }]}>
-              {activeShift?.isCheckedIn ? 'Đã Vào Ca Trực (GPS)' : 'Điểm Danh Vào Ca (GPS)'}
-            </Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowScheduleModal(true)}
-            style={[styles.shiftActionBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
-          >
-            <Ionicons name="calendar" size={16} color="#059669" />
-            <Text style={[styles.shiftActionText, { color: '#059669' }]}>Lịch Làm Việc</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowSwapModal(true)}
-            style={[styles.shiftActionBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
-          >
-            <Ionicons name="swap-horizontal" size={16} color="#0284C7" />
-            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Đổi Ca Chéo</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowPayslipModal(true)}
-            style={[styles.shiftActionBtn, styles.payslipBtn]}
-          >
-            <Ionicons name="receipt-outline" size={16} color="#0284C7" />
-            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowLeaveModal(true)}
-            style={[styles.shiftActionBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
-          >
-            <Ionicons name="airplane-outline" size={16} color="#D97706" />
-            <Text style={[styles.shiftActionText, { color: '#D97706' }]}>Nghỉ Phép</Text>
-          </AnimatedTouchable>
-        </ScrollView>
-      </View>
 
       {/* Cảnh báo GPP khi chưa vào ca */}
       {!activeShift?.isCheckedIn && (
@@ -1344,6 +1297,61 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         }}
         prefillShift={swapPrefillShift}
         onSuccess={loadData}
+      />
+
+      {/* Clinical Sidebar Drawer */}
+      <ClinicalSidebarDrawer
+        visible={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        user={user}
+        roleTitle="Dược Sĩ Bán Hàng (GPP)"
+        menuItems={[
+          {
+            id: 'attendance',
+            label: activeShift?.isCheckedIn ? 'Đã Vào Ca Trực (GPS)' : 'Điểm Danh Vào Ca (GPS)',
+            iconName: activeShift?.isCheckedIn ? 'checkmark-circle' : 'location',
+            color: activeShift?.isCheckedIn ? '#059669' : '#D97706',
+            badge: activeShift?.isCheckedIn ? 'HỢP LỆ' : 'CẦN VÀO CA',
+            badgeVariant: activeShift?.isCheckedIn ? 'success' : 'warning',
+            onPress: () => setShowCheckInModal(true),
+          },
+          {
+            id: 'schedule',
+            label: 'Lịch Làm Việc Cơ Sở',
+            iconName: 'calendar',
+            color: '#059669',
+            onPress: () => setShowScheduleModal(true),
+          },
+          {
+            id: 'swap',
+            label: 'Đổi Ca Chéo',
+            iconName: 'swap-horizontal',
+            color: '#0284C7',
+            onPress: () => setShowSwapModal(true),
+          },
+          {
+            id: 'leave',
+            label: 'Đơn Xin Nghỉ Phép',
+            iconName: 'airplane-outline',
+            color: '#D97706',
+            onPress: () => setShowLeaveModal(true),
+          },
+          {
+            id: 'payslip',
+            label: 'Phiếu Lương Cá Nhân',
+            iconName: 'receipt-outline',
+            color: '#0284C7',
+            onPress: () => setShowPayslipModal(true),
+          },
+          {
+            id: 'ocr',
+            label: 'Quét Đơn Thuốc OCR AI',
+            iconName: 'scan-outline',
+            color: '#059669',
+            onPress: () => setActiveTab('OCR'),
+          },
+        ]}
+        onLogout={logout}
       />
     </SafeAreaView>
   );

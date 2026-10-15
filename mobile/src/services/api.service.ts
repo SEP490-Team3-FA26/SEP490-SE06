@@ -341,6 +341,39 @@ export class ApiService {
     return await res.json();
   }
 
+  // --- LOYALTY & CUSTOMER MEMBERSHIP APIS ---
+  public static async getMyLoyalty(): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/loyalty`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch my loyalty:', e);
+    }
+    return null;
+  }
+
+  public static async lookupLoyalty(phone: string): Promise<any> {
+    const cleanPhone = phone ? phone.trim() : '';
+    if (!cleanPhone) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/loyalty/lookup?phone=${encodeURIComponent(cleanPhone)}`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Failed to lookup loyalty by phone:', e);
+    }
+    return null;
+  }
+
   // --- MEDICINES & INVENTORY APIS (Strictly from Database & Backend) ---
   public static async getMedicines(params?: {
     page?: number;

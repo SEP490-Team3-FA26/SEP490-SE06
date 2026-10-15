@@ -31,6 +31,7 @@ import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal
 import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
 import { BranchPayrollModal } from '../../components/payroll/BranchPayrollModal';
+import { ClinicalSidebarDrawer } from '../../components/clinical/ClinicalSidebarDrawer';
 
 // Phân giải tên nhân sự chuyên nghiệp, không để lọt email thô
 const getStaffDisplayName = (st: any): string => {
@@ -60,8 +61,9 @@ const getStaffRoleMeta = (role: string) => {
 };
 
 export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'REVENUE' | 'ALERTS' | 'RECEIVE_STOCK'>('REVENUE');
+  const [showDrawer, setShowDrawer] = useState<boolean>(false);
 
   // Attendance & Shift Modal
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
@@ -266,9 +268,13 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
-        title="Quản Lý Cơ Sở"
-        subtitle="Doanh thu chi nhánh, Ca trực & Nhận hàng QR"
+        title="ABC Pharmacy"
+        subtitle={branchName ? `Quản Lý • ${branchName}` : 'Quản Lý Cơ Sở Chi Nhánh'}
         gradientVariant="emerald"
+        leftAction={{
+          icon: 'menu',
+          onPress: () => setShowDrawer(true),
+        }}
         rightAction={{
           icon: 'person-circle-outline',
           onPress: () => navigation.navigate('ProfileScreen'),
@@ -278,91 +284,6 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           onPress: () => navigation.navigate('NotificationListScreen'),
         }}
       />
-
-      {/* Quick Shift & Management Actions Grid - No Horizontal Scroll */}
-      <View style={styles.shiftBarContainer}>
-        <View style={styles.actionGridContainer}>
-          <AnimatedTouchable
-            onPress={() => setShowCheckInModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, styles.checkInBtn]}>
-              <Ionicons name="location" size={18} color="#059669" />
-            </View>
-            <Text style={styles.gridActionText} numberOfLines={2}>Điểm Danh GPS</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowLocationModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, styles.locationBtn]}>
-              <Ionicons name="map-outline" size={18} color="#D97706" />
-            </View>
-            <Text style={styles.gridActionText} numberOfLines={2}>Vị Trí GPS</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowScheduleModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
-              <Ionicons name="calendar" size={18} color="#0284C7" />
-            </View>
-            <Text style={styles.gridActionText} numberOfLines={2}>Lịch Ca Trực</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowLeaveModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-              <Ionicons name="calendar-outline" size={18} color="#059669" />
-            </View>
-            <Text style={styles.gridActionText} numberOfLines={2}>Duyệt Nghỉ</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowShiftSwapModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, { backgroundColor: '#FDF4FF', borderColor: '#F5D0FE' }]}>
-              <Ionicons name="swap-horizontal" size={18} color="#A855F7" />
-            </View>
-            <Text style={styles.gridActionText} numberOfLines={2}>Duyệt Đổi Ca</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowCertModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-              <Ionicons name="ribbon-outline" size={18} color="#D97706" />
-            </View>
-            <Text style={styles.gridActionText} numberOfLines={2}>Thẩm Định CCHN</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowBranchPayrollModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, { backgroundColor: '#ECFDF5', borderColor: '#6EE7B7' }]}>
-              <Ionicons name="cash-outline" size={18} color="#059669" />
-            </View>
-            <Text style={[styles.gridActionText, { color: '#059669', fontWeight: '800' }]} numberOfLines={2}>Duyệt Lương</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowPayslipModal(true)}
-            style={styles.gridActionItem}
-          >
-            <View style={[styles.gridIconCircle, styles.payslipBtn]}>
-              <Ionicons name="receipt-outline" size={18} color="#0284C7" />
-            </View>
-            <Text style={styles.gridActionText} numberOfLines={2}>Phiếu Lương</Text>
-          </AnimatedTouchable>
-        </View>
-      </View>
 
       {/* Tabs */}
       <View style={styles.tabBar}>
@@ -958,6 +879,82 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <BranchPayrollModal
         visible={showBranchPayrollModal}
         onClose={() => setShowBranchPayrollModal(false)}
+      />
+
+      {/* Clinical Sidebar Drawer for Branch Manager */}
+      <ClinicalSidebarDrawer
+        visible={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        user={user}
+        roleTitle="Quản Lý Cơ Sở Chi Nhánh"
+        menuItems={[
+          {
+            id: 'attendance',
+            label: 'Điểm Danh GPS Cơ Sở',
+            iconName: 'location-outline',
+            color: '#059669',
+            onPress: () => setShowCheckInModal(true),
+          },
+          {
+            id: 'location',
+            label: 'Cài Đặt GPS & Bán Kính',
+            iconName: 'map-outline',
+            color: '#D97706',
+            onPress: () => setShowLocationModal(true),
+          },
+          {
+            id: 'schedule',
+            label: 'Quản Lý Lịch Ca Trực',
+            iconName: 'calendar',
+            color: '#0284C7',
+            onPress: () => setShowScheduleModal(true),
+          },
+          {
+            id: 'leave',
+            label: 'Duyệt Đơn Nghỉ Phép',
+            iconName: 'calendar-outline',
+            color: '#059669',
+            onPress: () => setShowLeaveModal(true),
+          },
+          {
+            id: 'swap',
+            label: 'Duyệt Đổi Ca Nhân Sự',
+            iconName: 'swap-horizontal',
+            color: '#A855F7',
+            onPress: () => setShowShiftSwapModal(true),
+          },
+          {
+            id: 'cert',
+            label: 'Thẩm Định Bằng Cấp CCHN',
+            iconName: 'ribbon-outline',
+            color: '#D97706',
+            onPress: () => setShowCertModal(true),
+          },
+          {
+            id: 'payroll',
+            label: 'Duyệt Bảng Lương Chi Nhánh',
+            iconName: 'cash-outline',
+            color: '#059669',
+            badge: 'TỰ QUYẾT',
+            badgeVariant: 'success',
+            onPress: () => setShowBranchPayrollModal(true),
+          },
+          {
+            id: 'payslip',
+            label: 'Phiếu Lương Cá Nhân',
+            iconName: 'receipt-outline',
+            color: '#0284C7',
+            onPress: () => setShowPayslipModal(true),
+          },
+          {
+            id: 'receiveStock',
+            label: 'Nhận Hàng Chuyển Kho QR',
+            iconName: 'qr-code-outline',
+            color: '#059669',
+            onPress: () => setActiveTab('RECEIVE_STOCK'),
+          },
+        ]}
+        onLogout={logout}
       />
     </SafeAreaView>
   );

@@ -14,6 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiService } from '../../services/api.service';
 import { useAuth } from '../../context/AuthContext';
 import { HeaderBar } from '../../components/ui/HeaderBar';
@@ -24,17 +26,42 @@ import { Medicine, CartItem, Order, Voucher } from '../../types/pharmacy.types';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 import { parseOrderToReminder, createRemindersFromOrder } from '../../services/reminderStorage.service';
 import { MedicineReminderService } from '../../services/medicineReminder.service';
+import {
+  AnimatedPressable,
+  ClinicalButton,
+  ClinicalCard,
+  ClinicalBadge,
+  ClinicalModalSheet,
+  ClinicalSkeleton,
+  ClinicalMedicineSkeletonGrid,
+} from '../../components/clinical';
+import {
+  ColorTokens,
+  TypographyTokens,
+  SpacingTokens,
+  RadiusTokens,
+  MotionTokens,
+} from '../../theme/tokens';
 
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, auth } = useAuth();
   const [activeTab, setActiveTab] = useState<'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS'>('STORE');
 
   // Products & Categories
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedMedDetail, setSelectedMedDetail] = useState<Medicine | null>(null);
   const [showScanner, setShowScanner] = useState<boolean>(false);
+
+  // Advanced Filters & Sorting for Store Tab
+  const [selectedPriceFilter, setSelectedPriceFilter] = useState<'ALL' | 'UNDER_100' | '100_300' | 'OVER_300'>('ALL');
+  const [selectedRxFilter, setSelectedRxFilter] = useState<'ALL' | 'RX' | 'OTC'>('ALL');
+  const [sortBy, setSortBy] = useState<'DEFAULT' | 'PRICE_ASC' | 'PRICE_DESC'>('DEFAULT');
+
+  // Order status filter tab
+  const [orderStatusTab, setOrderStatusTab] = useState<'ALL' | 'PENDING' | 'SHIPPING' | 'COMPLETED' | 'CANCELLED'>('ALL');
 
   // Cart & Vouchers
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -151,6 +178,57 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     loadData();
   }, [loadData]);
 
+  // ─── 5 Recent Searches & Guest Cart Persistence ────────────────────────────
+  const RECENT_SEARCHES_KEY = '@abc_recent_searches_v1';
+  const GUEST_CART_KEY = '@abc_guest_cart';
+
+  useEffect(() => {
+    // Load 5 recent search keywords
+    AsyncStorage.getItem(RECENT_SEARCHES_KEY).then((data) => {
+      if (data) {
+        try {
+          const list = JSON.parse(data);
+          if (Array.isArray(list)) setRecentSearches(list.slice(0, 5));
+        } catch {}
+      }
+    });
+
+    // Load guest cart
+    AsyncStorage.getItem(GUEST_CART_KEY).then((cached) => {
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCart(parsed);
+          }
+        } catch {}
+      }
+    });
+  }, []);
+
+  const handleSaveSearch = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
+      const next = [trimmed, ...filtered].slice(0, 5);
+      AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const handleClearRecentSearches = useCallback(async () => {
+    setRecentSearches([]);
+    await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
+  }, []);
+
+  // Sync cart to storage whenever it changes
+  useEffect(() => {
+    if (cart.length > 0) {
+      AsyncStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart)).catch(() => {});
+    }
+  }, [cart]);
+
   // Voice recording simulation timer
   useEffect(() => {
     let interval: any;
@@ -164,13 +242,19 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     return () => clearInterval(interval);
   }, [isRecording]);
 
-  // Cart operations
+  // Cart operations with stock limit checking
   const addToCart = (med: Medicine) => {
     setCart((prev) => {
       const idx = prev.findIndex((i) => i.medicine.id === med.id);
+      const currentQty = idx >= 0 ? prev[idx].quantity : 0;
+      const maxStock = med.stock || (med as any).totalBranchStock || 999;
+      if (currentQty + 1 > maxStock) {
+        showToast.info('Tồn kho có hạn', `Chỉ còn ${maxStock} sản phẩm khả dụng trong kho.`);
+        return prev;
+      }
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+        next[idx] = { ...next[idx], quantity: currentQty + 1 };
         return next;
       }
       return [...prev, { medicine: med, quantity: 1 }];
@@ -183,6 +267,11 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         .map((item) => {
           if (item.medicine.id === medId) {
             const nextQty = item.quantity + delta;
+            const maxStock = item.medicine.stock || (item.medicine as any).totalBranchStock || 999;
+            if (delta > 0 && nextQty > maxStock) {
+              showToast.info('Tồn kho có hạn', `Chỉ còn ${maxStock} sản phẩm khả dụng trong kho.`);
+              return item;
+            }
             return nextQty > 0 ? { ...item, quantity: nextQty } : null;
           }
           return item;
@@ -363,27 +452,75 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     }
   };
 
-  const filteredMedicines = medicines.filter((m) => {
-    if (selectedCategory !== 'ALL' && m.category !== selectedCategory && !m.category.includes(selectedCategory)) {
-      return false;
+  // Advanced Filter & Sort for Store
+  const filteredMedicines = useMemo(() => {
+    let list = medicines.filter((m) => {
+      // Category filter
+      if (selectedCategory !== 'ALL' && m.category !== selectedCategory && !m.category.includes(selectedCategory)) {
+        return false;
+      }
+      // Rx prescription filter
+      if (selectedRxFilter === 'RX' && !m.isRx) return false;
+      if (selectedRxFilter === 'OTC' && m.isRx) return false;
+
+      // Price range filter
+      const price = m.price || 0;
+      if (selectedPriceFilter === 'UNDER_100' && price >= 100000) return false;
+      if (selectedPriceFilter === '100_300' && (price < 100000 || price > 300000)) return false;
+      if (selectedPriceFilter === 'OVER_300' && price <= 300000) return false;
+
+      return true;
+    });
+
+    if (sortBy === 'PRICE_ASC') {
+      list = [...list].sort((a, b) => (a.price || 0) - (b.price || 0));
+    } else if (sortBy === 'PRICE_DESC') {
+      list = [...list].sort((a, b) => (b.price || 0) - (a.price || 0));
     }
-    return true;
-  });
+
+    return list;
+  }, [medicines, selectedCategory, selectedRxFilter, selectedPriceFilter, sortBy]);
+
+  // Status Filter for Orders
+  const filteredOrders = useMemo(() => {
+    if (orderStatusTab === 'ALL') return orders;
+    return orders.filter((ord) => {
+      const st = String(ord.status || '').toUpperCase();
+      const paySt = String(ord.paymentStatus || '').toUpperCase();
+      if (orderStatusTab === 'PENDING') {
+        return st === 'PENDING' || st === 'SUBMITTED' || paySt === 'PENDING';
+      }
+      if (orderStatusTab === 'SHIPPING') {
+        return st === 'DELIVERING' || st === 'SHIPPING' || st === 'PROCESSING' || st === 'CONFIRMED';
+      }
+      if (orderStatusTab === 'COMPLETED') {
+        return st === 'COMPLETED' || st === 'DELIVERED' || paySt === 'PAID';
+      }
+      if (orderStatusTab === 'CANCELLED') {
+        return st === 'CANCELLED' || st === 'FAILED' || paySt === 'CANCELLED';
+      }
+      return true;
+    });
+  }, [orders, orderStatusTab]);
 
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
-        title="Nhà Thuốc Trực Tuyến"
-        subtitle="Dược phẩm chính hãng & Tư vấn tận tâm"
+        title="ABC Pharmacy"
+        subtitle={user ? `Xin chào, ${user.name || (user as any).fullName || 'Khách hàng'}` : 'Dược phẩm chính hãng • Mua thuốc online'}
         gradientVariant="emerald"
         rightAction={{
-          icon: 'person-circle-outline',
-          onPress: () => navigation.navigate('ProfileScreen'),
+          icon: user ? 'person-circle-outline' : 'log-in-outline',
+          onPress: () => navigation.navigate(user ? 'ProfileScreen' : 'LoginScreen'),
         }}
-        secondaryRightAction={{
-          icon: 'notifications-outline',
-          onPress: () => navigation.navigate('NotificationListScreen'),
-        }}
+        secondaryRightAction={
+          user
+            ? {
+                icon: 'notifications-outline',
+                onPress: () => navigation.navigate('NotificationListScreen'),
+              }
+            : undefined
+        }
       />
 
       {/* 5 Tabs Bottom / Top Navigation */}
@@ -447,6 +584,8 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   placeholderTextColor="#94A3B8"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
+                  onSubmitEditing={() => handleSaveSearch(searchQuery)}
+                  returnKeyType="search"
                 />
                 {searchQuery ? (
                   <AnimatedTouchable onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
@@ -462,6 +601,31 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <Text style={styles.scanBarcodeBtnText}>Quét Hộp</Text>
               </AnimatedTouchable>
             </View>
+
+            {/* 5 Từ Khóa Tìm Kiếm Gần Nhất */}
+            {!searchQuery && recentSearches.length > 0 && (
+              <View style={styles.recentSearchBox}>
+                <View style={styles.recentSearchHeader}>
+                  <Text style={styles.recentSearchTitle}>Tìm kiếm gần đây (5 từ):</Text>
+                  <AnimatedTouchable onPress={handleClearRecentSearches}>
+                    <Text style={styles.clearRecentText}>Xóa tất cả</Text>
+                  </AnimatedTouchable>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentSearchScroll}>
+                  {recentSearches.map((kw, i) => (
+                    <AnimatedPressable
+                      key={`recent-${i}`}
+                      onPress={() => setSearchQuery(kw)}
+                      style={styles.recentChip}
+                      pressedScale={0.94}
+                    >
+                      <Ionicons name="time-outline" size={13} color="#64748B" style={{ marginRight: 4 }} />
+                      <Text style={styles.recentChipText}>{kw}</Text>
+                    </AnimatedPressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Banner Lịch Nhắc Uống Thuốc Ngoại Tuyến */}
             <AnimatedTouchable
@@ -494,7 +658,6 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             )}
 
-
             {/* Category horizontal scroll */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               {categoriesList.map((c, idx) => (
@@ -510,47 +673,124 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               ))}
             </ScrollView>
 
-            <Text style={styles.sectionTitle}>Danh Mục Sản Phẩm ({filteredMedicines.length})</Text>
-            {filteredMedicines.map((med, idx) => (
-              <View key={med.id || (med as any)._id || (med as any).sku || `med-${idx}`} style={styles.productCard}>
+            {/* Secondary filter & sort bar */}
+            <View style={styles.filterBarRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1, marginRight: 8 }}>
                 <AnimatedTouchable
-                  onPress={() => setSelectedMedDetail(med)}
-                  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                  onPress={() => setSelectedRxFilter('ALL')}
+                  style={[styles.subFilterPill, selectedRxFilter === 'ALL' && styles.activeSubFilterPill]}
                 >
-                  <Image
-                    source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
-                    style={styles.productThumb}
-                    resizeMode="cover"
-                  />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={styles.productName} numberOfLines={1}>{med.name}</Text>
-                      {med.isRx ? (
-                        <View style={styles.rxBadge}>
-                          <Text style={styles.rxBadgeText}>Rx</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.productActive} numberOfLines={1}>Hoạt chất: {med.active}</Text>
-                    <Text style={styles.productCat}>{med.category}</Text>
-                    <Text style={styles.productPrice}>
-                      {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
-                    </Text>
-                  </View>
+                  <Text style={[styles.subFilterText, selectedRxFilter === 'ALL' && styles.activeSubFilterText]}>Tất cả loại</Text>
                 </AnimatedTouchable>
+                <AnimatedTouchable
+                  onPress={() => setSelectedRxFilter('RX')}
+                  style={[styles.subFilterPill, selectedRxFilter === 'RX' && styles.activeSubFilterPill]}
+                >
+                  <Text style={[styles.subFilterText, selectedRxFilter === 'RX' && styles.activeSubFilterText]}>Thuốc kê đơn (Rx)</Text>
+                </AnimatedTouchable>
+                <AnimatedTouchable
+                  onPress={() => setSelectedRxFilter('OTC')}
+                  style={[styles.subFilterPill, selectedRxFilter === 'OTC' && styles.activeSubFilterPill]}
+                >
+                  <Text style={[styles.subFilterText, selectedRxFilter === 'OTC' && styles.activeSubFilterText]}>OTC & Bổ sung</Text>
+                </AnimatedTouchable>
+                <AnimatedTouchable
+                  onPress={() => setSelectedPriceFilter((prev) => (prev === 'UNDER_100' ? 'ALL' : 'UNDER_100'))}
+                  style={[styles.subFilterPill, selectedPriceFilter === 'UNDER_100' && styles.activeSubFilterPill]}
+                >
+                  <Text style={[styles.subFilterText, selectedPriceFilter === 'UNDER_100' && styles.activeSubFilterText]}>&lt; 100k</Text>
+                </AnimatedTouchable>
+                <AnimatedTouchable
+                  onPress={() => setSelectedPriceFilter((prev) => (prev === '100_300' ? 'ALL' : '100_300'))}
+                  style={[styles.subFilterPill, selectedPriceFilter === '100_300' && styles.activeSubFilterPill]}
+                >
+                  <Text style={[styles.subFilterText, selectedPriceFilter === '100_300' && styles.activeSubFilterText]}>100k - 300k</Text>
+                </AnimatedTouchable>
+                <AnimatedTouchable
+                  onPress={() => setSelectedPriceFilter((prev) => (prev === 'OVER_300' ? 'ALL' : 'OVER_300'))}
+                  style={[styles.subFilterPill, selectedPriceFilter === 'OVER_300' && styles.activeSubFilterPill]}
+                >
+                  <Text style={[styles.subFilterText, selectedPriceFilter === 'OVER_300' && styles.activeSubFilterText]}>&gt; 300k</Text>
+                </AnimatedTouchable>
+              </ScrollView>
 
-                <AnimatedTouchable
-                  onPress={() => {
-                    addToCart(med);
-                    showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
-                  }}
-                  style={styles.buyBtn}
+              <AnimatedTouchable
+                onPress={() => {
+                  setSortBy((prev) => {
+                    if (prev === 'DEFAULT') return 'PRICE_ASC';
+                    if (prev === 'PRICE_ASC') return 'PRICE_DESC';
+                    return 'DEFAULT';
+                  });
+                }}
+                style={[styles.sortBtn, sortBy !== 'DEFAULT' && styles.activeSortBtn]}
+              >
+                <Ionicons
+                  name={sortBy === 'PRICE_ASC' ? 'trending-up' : sortBy === 'PRICE_DESC' ? 'trending-down' : 'swap-vertical'}
+                  size={14}
+                  color={sortBy !== 'DEFAULT' ? '#059669' : '#64748B'}
+                />
+                <Text style={[styles.sortBtnText, sortBy !== 'DEFAULT' && styles.activeSortBtnText]}>
+                  {sortBy === 'PRICE_ASC' ? 'Giá tăng' : sortBy === 'PRICE_DESC' ? 'Giá giảm' : 'Sắp xếp'}
+                </Text>
+              </AnimatedTouchable>
+            </View>
+
+            <Text style={styles.sectionTitle}>Danh Mục Sản Phẩm ({filteredMedicines.length})</Text>
+
+            {refreshing && medicines.length === 0 ? (
+              <ClinicalMedicineSkeletonGrid count={4} />
+            ) : (
+              filteredMedicines.map((med, idx) => (
+                <Animated.View
+                  key={med.id || (med as any)._id || (med as any).sku || `med-${idx}`}
+                  entering={FadeIn.duration(200)}
+                  style={styles.productCardWrapper}
                 >
-                  <Ionicons name="cart" size={16} color="#FFFFFF" />
-                  <Text style={styles.buyBtnText}>Chọn Mua</Text>
-                </AnimatedTouchable>
-              </View>
-            ))}
+                    <View style={styles.productCard}>
+                      <AnimatedPressable
+                        onPress={() => setSelectedMedDetail(med)}
+                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                        pressedScale={0.98}
+                      >
+                        <Image
+                          source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
+                          style={styles.productThumb}
+                          resizeMode="cover"
+                        />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={styles.productName} numberOfLines={1}>{med.name}</Text>
+                            {med.isRx ? (
+                              <View style={styles.rxBadge}>
+                                <Text style={styles.rxBadgeText}>Rx</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          <Text style={styles.productActive} numberOfLines={1}>
+                            Hoạt chất: {med.active || med.active_ingredient || 'Đang cập nhật'}
+                          </Text>
+                          <Text style={styles.productCat}>{med.category}</Text>
+                          <Text style={[styles.productPrice, TypographyTokens.tabularNums]}>
+                            {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
+                          </Text>
+                        </View>
+                      </AnimatedPressable>
+
+                      <AnimatedPressable
+                        onPress={() => {
+                          addToCart(med);
+                          showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                        }}
+                        style={styles.buyBtn}
+                        pressedScale={0.94}
+                      >
+                        <Ionicons name="cart" size={16} color="#FFFFFF" />
+                        <Text style={styles.buyBtnText}>Chọn Mua</Text>
+                      </AnimatedPressable>
+                    </View>
+                  </Animated.View>
+                ))
+            )}
           </View>
         )}
 
@@ -635,18 +875,33 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   </View>
                 </View>
 
-                <GradientButton
+                <ClinicalButton
                   title="TIẾN HÀNH ĐẶT HÀNG"
-                  onPress={() =>
+                  onPress={() => {
+                    if (!user) {
+                      Alert.alert(
+                        'Yêu Cầu Đăng Nhập',
+                        'Vui lòng đăng nhập hoặc tạo tài khoản để tiến hành đặt hàng và chọn địa chỉ giao nhận thuốc. Giỏ hàng của bạn vẫn được lưu nguyên vẹn!',
+                        [
+                          { text: 'Để Sau', style: 'cancel' },
+                          {
+                            text: 'Đăng Nhập Ngay',
+                            onPress: () => navigation.navigate('LoginScreen'),
+                          },
+                        ]
+                      );
+                      return;
+                    }
                     navigation.navigate('CustomerCheckoutScreen', {
                       cart,
                       appliedVoucher,
                       subtotal,
                       finalTotal,
-                    })
-                  }
-                  gradientVariant="primary"
+                    });
+                  }}
+                  variant="primary"
                   size="lg"
+                  fullWidth
                   style={{ marginTop: 14 }}
                 />
               </>
@@ -836,14 +1091,71 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             </View>
 
             <Text style={styles.sectionTitle}>Lịch Sử Đơn Thuốc ({orders.length})</Text>
-            {orders.length === 0 ? (
+
+            {/* Order status chips scroll */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {[
+                { id: 'ALL', label: 'Tất cả', count: orders.length },
+                {
+                  id: 'PENDING',
+                  label: 'Chờ thanh toán',
+                  count: orders.filter((o) => {
+                    const s = String(o.status || '').toUpperCase();
+                    const p = String(o.paymentStatus || '').toUpperCase();
+                    return s === 'PENDING' || s === 'SUBMITTED' || p === 'PENDING';
+                  }).length,
+                },
+                {
+                  id: 'SHIPPING',
+                  label: 'Đang giao',
+                  count: orders.filter((o) => {
+                    const s = String(o.status || '').toUpperCase();
+                    return s === 'DELIVERING' || s === 'SHIPPING' || s === 'PROCESSING' || s === 'CONFIRMED';
+                  }).length,
+                },
+                {
+                  id: 'COMPLETED',
+                  label: 'Đã hoàn tất',
+                  count: orders.filter((o) => {
+                    const s = String(o.status || '').toUpperCase();
+                    const p = String(o.paymentStatus || '').toUpperCase();
+                    return s === 'COMPLETED' || s === 'DELIVERED' || p === 'PAID';
+                  }).length,
+                },
+                {
+                  id: 'CANCELLED',
+                  label: 'Đã hủy',
+                  count: orders.filter((o) => {
+                    const s = String(o.status || '').toUpperCase();
+                    const p = String(o.paymentStatus || '').toUpperCase();
+                    return s === 'CANCELLED' || s === 'FAILED' || p === 'CANCELLED';
+                  }).length,
+                },
+              ].map((tab) => (
+                <AnimatedTouchable
+                  key={tab.id}
+                  onPress={() => setOrderStatusTab(tab.id as any)}
+                  style={[styles.orderStatusPill, orderStatusTab === tab.id && styles.activeOrderStatusPill]}
+                >
+                  <Text style={[styles.orderStatusPillText, orderStatusTab === tab.id && styles.activeOrderStatusPillText]}>
+                    {tab.label} ({tab.count})
+                  </Text>
+                </AnimatedTouchable>
+              ))}
+            </ScrollView>
+
+            {filteredOrders.length === 0 ? (
               <View style={styles.emptyCart}>
                 <Ionicons name="receipt-outline" size={54} color="#CBD5E1" />
                 <Text style={styles.emptyCartTitle}>Không có đơn hàng nào</Text>
-                <Text style={styles.emptyCartSub}>Hãy đặt các đơn thuốc đầu tiên để theo dõi tại đây.</Text>
+                <Text style={styles.emptyCartSub}>
+                  {orders.length === 0
+                    ? 'Hãy đặt các đơn thuốc đầu tiên để theo dõi tại đây.'
+                    : 'Không tìm thấy đơn hàng nào phù hợp với bộ lọc trạng thái.'}
+                </Text>
               </View>
             ) : (
-              orders.map((ord, idx) => (
+              filteredOrders.map((ord, idx) => (
                 <View key={ord.id || (ord as any)._id || ord.orderCode || `order-${idx}`} style={styles.orderCard}>
                   <View style={styles.orderHeader}>
                     <Text style={styles.orderCode}>{ord.orderCode || ord.id}</Text>
@@ -980,65 +1292,76 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       </ScrollView>
 
       {/* Medication Detail Modal with Indications & Dosage */}
-      <Modal visible={selectedMedDetail !== null} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            {selectedMedDetail?.image ? (
-              <Image
-                source={{ uri: selectedMedDetail.image }}
-                style={styles.detailMedImage}
-                resizeMode="cover"
-              />
-            ) : null}
-            <Text style={styles.modalTitle}>{selectedMedDetail?.name}</Text>
-            <Text style={styles.modalSub}>Hoạt chất: {selectedMedDetail?.active}</Text>
-            <Text style={styles.modalPrice}>
-              {selectedMedDetail?.price.toLocaleString('vi-VN')} ₫ / {selectedMedDetail?.unit}
+      <ClinicalModalSheet
+        visible={selectedMedDetail !== null}
+        onClose={() => setSelectedMedDetail(null)}
+        title={selectedMedDetail?.name || 'Chi Tiết Thuốc'}
+        subtitle={`Hoạt chất: ${selectedMedDetail?.active || selectedMedDetail?.active_ingredient || 'Đang cập nhật'}`}
+      >
+        {selectedMedDetail?.image ? (
+          <Image
+            source={{ uri: selectedMedDetail.image }}
+            style={styles.detailMedImage}
+            resizeMode="cover"
+          />
+        ) : null}
+        <Text style={[styles.modalPrice, TypographyTokens.tabularNums]}>
+          {selectedMedDetail?.price?.toLocaleString('vi-VN')} ₫ / {selectedMedDetail?.unit || 'Hộp'}
+        </Text>
+
+        <ScrollView style={{ maxHeight: 240, marginVertical: 8 }}>
+          <View style={styles.modalSection}>
+            <Text style={styles.secTitle}>Chỉ định & Công dụng:</Text>
+            <Text style={styles.secText}>
+              {selectedMedDetail?.cong_dung || selectedMedDetail?.indications || 'Điều trị các triệu chứng theo chỉ định của bác sĩ/dược sĩ.'}
             </Text>
-
-            <ScrollView style={{ maxHeight: 280, marginVertical: 8 }}>
-              <View style={styles.modalSection}>
-                <Text style={styles.secTitle}>Chỉ định & Công dụng:</Text>
-                <Text style={styles.secText}>{selectedMedDetail?.cong_dung || 'Điều trị các triệu chứng theo chỉ định của bác sĩ/dược sĩ.'}</Text>
-              </View>
-
-              <View style={styles.modalSection}>
-                <Text style={styles.secTitle}>Liều lượng & Cách dùng:</Text>
-                <Text style={styles.secText}>{selectedMedDetail?.cach_dung || 'Uống theo đơn hoặc hướng dẫn trên bao bì thuốc.'}</Text>
-              </View>
-
-              <View style={styles.modalSection}>
-                <Text style={styles.secTitle}>Chống chỉ định & Thận trọng:</Text>
-                <Text style={styles.secText}>{selectedMedDetail?.luu_y || 'Mẫn cảm với bất kỳ thành phần nào của thuốc.'}</Text>
-              </View>
-
-              <View style={styles.modalSection}>
-                <Text style={styles.secTitle}>Tác dụng phụ:</Text>
-                <Text style={styles.secText}>{selectedMedDetail?.tac_dung_phu || 'Buồn nôn, dị ứng nhẹ (ngưng dùng nếu gặp triệu chứng lạ).'}</Text>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalBtnRow}>
-              <AnimatedTouchable onPress={() => setSelectedMedDetail(null)} style={styles.closeBtn}>
-                <Text style={styles.closeBtnText}>Đóng</Text>
-              </AnimatedTouchable>
-              <GradientButton
-                title="THÊM VÀO GIỎ"
-                onPress={() => {
-                  if (selectedMedDetail) {
-                    addToCart(selectedMedDetail);
-                    showToast.success('Thành công', `Đã thêm ${selectedMedDetail.name} vào giỏ hàng!`);
-                  }
-                  setSelectedMedDetail(null);
-                }}
-                gradientVariant="primary"
-                size="md"
-                style={{ flex: 1, marginLeft: 10 }}
-              />
-            </View>
           </View>
+
+          <View style={styles.modalSection}>
+            <Text style={styles.secTitle}>Liều lượng & Cách dùng:</Text>
+            <Text style={styles.secText}>
+              {selectedMedDetail?.cach_dung || selectedMedDetail?.default_dosage || 'Uống theo đơn hoặc hướng dẫn trên bao bì thuốc.'}
+            </Text>
+          </View>
+
+          <View style={styles.modalSection}>
+            <Text style={styles.secTitle}>Chống chỉ định & Thận trọng:</Text>
+            <Text style={styles.secText}>
+              {selectedMedDetail?.luu_y || selectedMedDetail?.contraindications || 'Mẫn cảm với bất kỳ thành phần nào của thuốc.'}
+            </Text>
+          </View>
+
+          <View style={styles.modalSection}>
+            <Text style={styles.secTitle}>Tác dụng phụ:</Text>
+            <Text style={styles.secText}>
+              {selectedMedDetail?.tac_dung_phu || selectedMedDetail?.side_effects || 'Buồn nôn, dị ứng nhẹ (ngưng dùng nếu gặp triệu chứng lạ).'}
+            </Text>
+          </View>
+        </ScrollView>
+
+        <View style={styles.modalBtnRow}>
+          <ClinicalButton
+            title="Đóng"
+            variant="outline"
+            size="md"
+            onPress={() => setSelectedMedDetail(null)}
+            style={{ flex: 1, marginRight: 8 }}
+          />
+          <ClinicalButton
+            title="THÊM VÀO GIỎ"
+            variant="primary"
+            size="md"
+            onPress={() => {
+              if (selectedMedDetail) {
+                addToCart(selectedMedDetail);
+                showToast.success('Thành công', `Đã thêm ${selectedMedDetail.name} vào giỏ hàng!`);
+              }
+              setSelectedMedDetail(null);
+            }}
+            style={{ flex: 2 }}
+          />
         </View>
-      </Modal>
+      </ClinicalModalSheet>
 
       {/* Order QR Code Modal */}
       <Modal visible={selectedOrderQR !== null} animationType="fade" transparent>
@@ -1245,6 +1568,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1314,17 +1643,52 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+  recentSearchBox: {
     marginBottom: 12,
+  },
+  recentSearchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  recentSearchTitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '700',
+  },
+  clearRecentText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  recentSearchScroll: {
+    flexDirection: 'row',
+  },
+  recentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  recentChipText: {
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  productCardWrapper: {
+    marginBottom: 10,
   },
   productCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 14,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     flexDirection: 'row',
@@ -2175,5 +2539,77 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     minHeight: 80,
     marginTop: 6,
+  },
+  filterBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  subFilterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  activeSubFilterPill: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  subFilterText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  activeSubFilterText: {
+    color: '#059669',
+    fontWeight: '700',
+  },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  activeSortBtn: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  sortBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  activeSortBtnText: {
+    color: '#059669',
+  },
+  orderStatusPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 8,
+  },
+  activeOrderStatusPill: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  orderStatusPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  activeOrderStatusPillText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
