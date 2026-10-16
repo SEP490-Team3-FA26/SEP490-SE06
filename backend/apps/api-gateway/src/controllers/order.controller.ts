@@ -74,7 +74,10 @@ export class OrderController implements OnModuleInit {
     if (req.user) {
       const isStaff = ['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role);
       if (!isStaff && req.user.sub && !data.userId) data.userId = req.user.sub;
-      if (req.user.role === 'pharmacist') {
+      if (data.type === 'ONLINE') {
+        // Đơn mua hàng online luôn xuất kho từ Kho Tổng (CENTRAL_WH)
+        data.branchId = 'CENTRAL_WH';
+      } else if (req.user.role === 'pharmacist') {
         if (req.user.branchId) data.branchId = req.user.branchId;
         (data as any).soldBy = req.user.fullName;
         (data as any).pharmacistId = req.user.sub;
@@ -85,6 +88,9 @@ export class OrderController implements OnModuleInit {
         data.approvedBy = req.user.sub;
         data.approvedAt = new Date().toISOString();
       }
+    }
+    if (data.type === 'ONLINE') {
+      data.branchId = 'CENTRAL_WH';
     }
     return await sendKafkaMessage(this.orderClient, 'orders.create', { ...data });
   }

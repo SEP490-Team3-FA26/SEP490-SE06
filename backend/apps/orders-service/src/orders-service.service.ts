@@ -149,12 +149,43 @@ export class OrdersServiceService implements OnModuleInit {
     let voucherDiscount = 0;
 
     if (data.voucherCode) {
-      const valRes = await this.validateVoucher(data.voucherCode, serverSubtotal, data.items || [], data.branchId);
+      let valRes = await this.validateVoucher(data.voucherCode, serverSubtotal, data.items || [], data.branchId);
       if (valRes.error) {
         throw new RpcException(valRes.message);
       }
+
+      // 🎁 Xử lý UC-75: Mua X tặng Y - Đảm bảo thuốc quà tặng Y có trong đơn hàng để trừ kho chính xác
+      if (valRes.ruleType === 'BUY_X_GET_Y' && valRes.giftReward) {
+        const gift = valRes.giftReward;
+        const missingQty = gift.missingGiftQty || 0;
+
+        if (missingQty > 0) {
+          if (gift.isSameMedicine) {
+            // Mua X tặng X: Tăng số lượng thuốc X đã mua thêm số lượng quà tặng miễn phí
+            const foundItem = (data.items || []).find((it: any) => String(it.medicineId) === String(gift.medicineId));
+            if (foundItem) {
+              foundItem.quantity = Number(foundItem.quantity || 1) + missingQty;
+            }
+          } else {
+            // Mua X tặng Y: Tự động đưa thuốc Y vào danh sách items để xuất kho
+            data.items = data.items || [];
+            data.items.push({
+              medicineId: String(gift.medicineId),
+              name: gift.medicineName || 'Quà tặng khuyến mãi',
+              quantity: missingQty,
+              price: 0,
+              unit: 'Hộp',
+              exchangeValue: 1,
+            } as any);
+          }
+
+          // Tính toán lại chiết khấu voucher sau khi đã có đầy đủ sản phẩm quà tặng
+          valRes = await this.validateVoucher(data.voucherCode, serverSubtotal, data.items || [], data.branchId);
+        }
+      }
+
       voucherCode = valRes.code;
-      voucherDiscount = valRes.discount;
+      voucherDiscount = valRes.discount || 0;
     }
 
     let redeemedPoints = data.redeemedPoints || 0;
@@ -328,7 +359,8 @@ export class OrdersServiceService implements OnModuleInit {
       pointsDiscount,
       earnedPoints,
       userId: data.userId,
-      branchId: data.branchId || 'BR-001',
+      // Đơn hàng mua online luôn luôn xuất kho từ Kho Tổng (CENTRAL_WH), không trừ tại chi nhánh lẻ
+      branchId: data.type === 'ONLINE' ? 'CENTRAL_WH' : (data.branchId || 'CENTRAL_WH'),
       customerRole: data.customerRole || data.role || (data.isGuest ? 'guest' : 'customer'),
       role: data.role || data.customerRole || (data.isGuest ? 'guest' : 'customer'),
       isGuest: data.isGuest !== undefined ? Boolean(data.isGuest) : (data.role === 'guest' || !data.patientPhone || data.patientPhone === '0900000000'),
@@ -490,13 +522,22 @@ export class OrdersServiceService implements OnModuleInit {
       newOrder.paymentStatus = 'INVENTORY_FAILED';
       await newOrder.save();
 
-      return {
-        success: false,
-        orderCode,
-        paymentMethod: data.paymentMethod,
-        order: newOrder,
-        warning: `Đã nhận thanh toán nhưng chưa xuất kho được: ${err.message}`,
-      };
+      // Hoàn lại điểm tích lũy và voucher nếu xuất kho thất bại
+      if (redeemedPoints > 0 && data.patientPhone && data.patientPhone !== DEFAULT_PHONE_NUMBER) {
+        await sendKafkaMessage(this.userClient, 'user.loyalty.update_points', {
+          phone: data.patientPhone,
+          pointsDelta: redeemedPoints,
+          operationKey: `ORDER:${orderCode}:REFUND`,
+        }).catch((refundErr: any) => this.logger.error(`Failed to refund reserved points: ${refundErr.message}`));
+      }
+      if (voucherCode) {
+        await this.voucherModel.updateOne({ code: voucherCode, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } }).exec();
+      }
+
+      throw new RpcException({
+        message: `Không thể hoàn tất đơn hàng: ${err.message || 'Kho Tổng (CENTRAL_WH) không đủ tồn kho khả dụng'}`,
+        statusCode: 409,
+      });
     }
   }
 
@@ -743,7 +784,8 @@ export class OrdersServiceService implements OnModuleInit {
       patientName: order.patientName,
       patientPhone: order.patientPhone,
       soldBy: order.type === 'ONLINE' ? 'Khách đặt online' : 'Dược sĩ tại quầy',
-      branchId: order.branchId || null,
+      // Đơn online ưu tiên trừ kho tổng CENTRAL_WH
+      branchId: order.type === 'ONLINE' ? 'CENTRAL_WH' : (order.branchId || 'CENTRAL_WH'),
       approvedBy: order.approvedBy,
       approvedAt: order.approvedAt,
     };

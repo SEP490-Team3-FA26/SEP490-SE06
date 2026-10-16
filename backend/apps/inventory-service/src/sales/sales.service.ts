@@ -280,21 +280,27 @@ export class SalesService implements OnModuleInit {
         }
       }
 
-      // Fallback: Nếu không tìm thấy trong branch_inventories hoặc là Kho Tổng, tra cứu medicinebatches
+      // Fallback: Nếu không tìm thấy trong branch_inventories hoặc là Kho Tổng (CENTRAL_WH / đơn ONLINE)
       if (batches.length === 0) {
-        if (data.branchId) {
+        if (data.branchId && data.branchId !== 'CENTRAL_WH') {
           batchQuery.branchId = data.branchId;
         } else {
-          // Nếu đơn hàng online không gán chi nhánh, ưu tiên trừ kho tổng CENTRAL_WH
-          batchQuery.branchId = 'CENTRAL_WH';
+          // Đối với đơn hàng online hoặc Kho Tổng: Tìm các lô hàng thuộc Kho Tổng (CENTRAL_WH, null, rỗng hoặc chưa set branchId)
+          batchQuery.$or = [
+            { branchId: 'CENTRAL_WH' },
+            { branchId: null },
+            { branchId: '' },
+            { branchId: { $exists: false } }
+          ];
         }
         batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
       }
 
-      // Nếu vẫn không có lô hàng nào hợp lệ tại chi nhánh
-      if (batches.length === 0 && data.branchId) {
+      // Nếu vẫn không có lô hàng nào hợp lệ tại chi nhánh hoặc Kho Tổng
+      if (batches.length === 0) {
+        const warehouseName = (data.branchId && data.branchId !== 'CENTRAL_WH') ? `Chi nhánh ${data.branchId}` : 'Kho Tổng (CENTRAL_WH)';
         throw new RpcException({
-          message: `Chi nhánh ${data.branchId} không có tồn kho khả dụng cho thuốc "${medicine.name}". Vui lòng liên hệ kho tổng để chuyển hàng.`
+          message: `${warehouseName} không có tồn kho khả dụng cho thuốc "${medicine.name}". Vui lòng kiểm tra lại tồn kho hoặc nhập thêm hàng.`
         });
       }
 
@@ -416,10 +422,26 @@ export class SalesService implements OnModuleInit {
           currentOpened = (boxesOpened * boxSize) - needed;
         }
       }
+      // Cập nhật tồn kho tổng của thuốc trong bảng Medicine theo số dư thực tế từ các lô ACTIVE
+      const activeBatchesRemaining = await this.batchModel.find({
+        $or: [
+          { medicineId: medIdStr },
+          { medicineId: medicine._id },
+          { medicineId: item.medicineId }
+        ],
+        status: 'ACTIVE',
+        stock: { $gt: 0 }
+      }).lean().exec();
+      const updatedTotalStock = Math.max(0, activeBatchesRemaining.reduce((sum, b) => sum + Number(b.stock || 0), 0));
+
       await this.medicineModel.updateOne(
         { _id: medicine._id },
         { 
-          $set: { openedBoxUnits: currentOpened }
+          $set: { 
+            stock: updatedTotalStock,
+            status: updatedTotalStock > 0 ? 'In Stock' : 'Out of Stock',
+            openedBoxUnits: currentOpened 
+          }
         }
       ).exec();
 
