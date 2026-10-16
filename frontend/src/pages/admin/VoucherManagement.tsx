@@ -515,7 +515,7 @@ export function VoucherManagement() {
   const usedTotal = vouchers.reduce((acc, v) => acc + (v.usedCount || 0), 0);
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] p-6 lg:p-8 overflow-y-auto">
+    <div className="flex flex-col min-h-full bg-[#f8fafc] p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -971,7 +971,8 @@ export function VoucherManagement() {
                         min={1}
                         max={discountType === "PERCENTAGE" ? 100 : undefined}
                         value={discountValue || ""}
-                        onChange={(e) => setDiscountValue(Number(e.target.value))}
+                        onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                        onChange={(e) => setDiscountValue(discountType === "PERCENTAGE" ? Math.min(100, Math.max(1, Number(e.target.value) || 0)) : Math.max(1, Number(e.target.value) || 0))}
                         placeholder={discountType === "PERCENTAGE" ? "10" : "50000"}
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500"
                       />
@@ -984,9 +985,10 @@ export function VoucherManagement() {
                         </label>
                         <input
                           type="number"
-                          min={1}
+                          min={0}
                           value={maxDiscountValue || ""}
-                          onChange={(e) => setMaxDiscountValue(e.target.value ? Number(e.target.value) : undefined)}
+                          onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                          onChange={(e) => setMaxDiscountValue(e.target.value ? Math.max(0, Number(e.target.value)) : undefined)}
                           placeholder="Không giới hạn"
                           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500"
                         />
@@ -1035,7 +1037,8 @@ export function VoucherManagement() {
                           min={1}
                           required
                           value={buyQuantity}
-                          onChange={(e) => setBuyQuantity(Number(e.target.value))}
+                          onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                          onChange={(e) => setBuyQuantity(Math.max(1, Number(e.target.value) || 0))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -1073,7 +1076,8 @@ export function VoucherManagement() {
                             min={1}
                             required
                             value={giftQuantity}
-                            onChange={(e) => setGiftQuantity(Number(e.target.value))}
+                            onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                            onChange={(e) => setGiftQuantity(Math.max(1, Number(e.target.value) || 0))}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-amber-500"
                           />
                         </div>
@@ -1086,7 +1090,8 @@ export function VoucherManagement() {
                             min={1}
                             max={100}
                             value={giftDiscountPercent}
-                            onChange={(e) => setGiftDiscountPercent(Number(e.target.value))}
+                            onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                            onChange={(e) => setGiftDiscountPercent(Math.min(100, Math.max(1, Number(e.target.value) || 0)))}
                             title="100% là miễn phí hoàn toàn quà tặng"
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-amber-500"
                           />

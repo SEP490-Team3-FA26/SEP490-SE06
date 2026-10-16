@@ -166,7 +166,7 @@ export function BranchStockReceive() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
+    <div className="flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>

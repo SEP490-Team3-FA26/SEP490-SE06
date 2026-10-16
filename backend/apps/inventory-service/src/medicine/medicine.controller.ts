@@ -221,7 +221,7 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.medicine.get_alternatives')
-  async getAlternatives(@Payload() data: { medicineId: string; branchId: string }) {
+  async getAlternatives(@Payload() data: { medicineId: string; branchId: string }): Promise<any> {
     try {
       return await this.medicineService.findAlternatives(data.medicineId, data.branchId);
     } catch (error) {

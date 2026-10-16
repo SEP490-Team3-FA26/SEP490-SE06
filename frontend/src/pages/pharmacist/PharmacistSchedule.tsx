@@ -16,8 +16,12 @@ import {
   Send,
   UserCheck,
   ShieldCheck,
-  Info
+  Info,
+  Check,
+  X,
+  AlertTriangle
 } from "lucide-react";
+import { employeeService, StaffTransferRequest } from "../../services/admin/employee.service";
 
 function getMonday(d: Date) {
   d = new Date(d);
@@ -77,6 +81,12 @@ export function PharmacistSchedule() {
   const [schedule, setSchedule] = useState<WorkSchedule | null>(null);
   const [shifts, setShifts] = useState<WorkShift[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingTransfers, setPendingTransfers] = useState<StaffTransferRequest[]>([]);
+  const [respondingTransferId, setRespondingTransferId] = useState<string | null>(null);
+  const [conflictModalData, setConflictModalData] = useState<{
+    requestId: string;
+    upcomingShifts: any[];
+  } | null>(null);
   const navigate = useNavigate();
 
   const getUserInfo = () => {
@@ -109,9 +119,10 @@ export function PharmacistSchedule() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [schedRes, shRes] = await Promise.allSettled([
+      const [schedRes, shRes, transferRes] = await Promise.allSettled([
         hrService.getMyWeekSchedule(currentWeekStart),
-        hrService.listShifts()
+        hrService.listShifts(),
+        employeeService.getTransferRequests({ status: 'pending' })
       ]);
 
       if (schedRes.status === 'fulfilled') {
@@ -130,10 +141,60 @@ export function PharmacistSchedule() {
         const sh = shRes.value;
         setShifts(Array.isArray(sh) ? sh.filter(s => s.isActive) : []);
       }
+
+      if (transferRes.status === 'fulfilled') {
+        setPendingTransfers(transferRes.value || []);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRespondTransfer = async (
+    requestId: string,
+    action: 'approve' | 'reject',
+    scheduleResolution?: 'cancel_upcoming_shifts' | 'defer'
+  ) => {
+    try {
+      setRespondingTransferId(requestId);
+      const res = await employeeService.respondTransferRequest(requestId, { action, scheduleResolution });
+      if (res?.hasConflict || res?.code === 'HAS_UPCOMING_SHIFTS' || (res?.upcomingShifts && res.upcomingShifts.length > 0)) {
+        setConflictModalData({
+          requestId,
+          upcomingShifts: res.upcomingShifts || [],
+        });
+        return;
+      }
+
+      setConflictModalData(null);
+      if (scheduleResolution === 'defer') {
+        alert('Đã tạm hoãn chuyển cơ sở! Bạn sẽ tiếp tục hoàn thành các ca trực tuần này tại cơ sở hiện tại trước khi chuyển giao.');
+      } else {
+        alert(action === 'approve' ? 'Đã đồng ý tiếp nhận điều chuyển công tác sang cơ sở mới' : 'Đã từ chối yêu cầu điều chuyển');
+        setPendingTransfers(prev => prev.filter(req => req._id !== requestId));
+        if (action === 'approve') {
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      }
+    } catch (err: any) {
+      const resData = err?.response?.data;
+      const errMsg = typeof resData === 'string' ? resData : resData?.message;
+      const isConflict = resData?.code === 'HAS_UPCOMING_SHIFTS' || 
+                         resData?.hasConflict || 
+                         (typeof errMsg === 'string' && (errMsg.includes('ca truc') || errMsg.includes('lich lam viec')));
+
+      if (isConflict) {
+        setConflictModalData({
+          requestId,
+          upcomingShifts: resData?.upcomingShifts || [],
+        });
+        return;
+      }
+      alert(errMsg || 'Có lỗi xảy ra khi xử lý yêu cầu');
+    } finally {
+      setRespondingTransferId(null);
     }
   };
 
@@ -221,6 +282,55 @@ export function PharmacistSchedule() {
           )}
         </div>
       </div>
+
+      {/* Banner Thong bao Yeu cau Dieu chuyen Cong tac */}
+      {pendingTransfers.length > 0 && (
+        <div className="bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 bg-[#0057cd] text-white rounded-xl shadow-xs mt-0.5">
+              <ArrowRightLeft size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-blue-950 text-base">Thông Báo Điều Chuyển Cơ Sở Công Tác</h3>
+                <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-[#0057cd] rounded-full">
+                  {pendingTransfers.length} yêu cầu
+                </span>
+              </div>
+              <p className="text-slate-600 text-sm mt-1">
+                Bạn nhận được yêu cầu tiếp nhận điều chuyển sang làm việc tại chi nhánh:{" "}
+                <span className="font-semibold text-slate-800">
+                  {pendingTransfers[0].toBranchName || pendingTransfers[0].toBranchId || pendingTransfers[0].targetBranchName || pendingTransfers[0].targetBranchId}
+                </span>
+                {pendingTransfers[0].note && (
+                  <span className="italic text-slate-500 block text-xs mt-0.5">
+                    Ghi chú: "{pendingTransfers[0].note}"
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
+            <button
+              onClick={() => handleRespondTransfer(pendingTransfers[0]._id, 'reject')}
+              disabled={respondingTransferId === pendingTransfers[0]._id}
+              className="px-4 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+            >
+              <X size={15} />
+              Từ chối
+            </button>
+            <button
+              onClick={() => handleRespondTransfer(pendingTransfers[0]._id, 'approve')}
+              disabled={respondingTransferId === pendingTransfers[0]._id}
+              className="px-4 py-2 text-xs font-semibold text-white bg-[#0057cd] hover:bg-blue-700 rounded-xl transition-colors shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Check size={15} />
+              Đồng ý chuyển cơ sở
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Control Toolbar */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
@@ -631,6 +741,98 @@ export function PharmacistSchedule() {
           </div>
         </div>
       </div>
+
+      {/* Modal Xu Ly Xung Dot Lich Truc Khi Duoc Si Chap Thuan Dieu Chuyen */}
+      {conflictModalData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="p-5 border-b border-amber-100 bg-amber-50/70 flex justify-between items-start">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-amber-950 text-base">Bạn Đang Có Ca Trực Chưa Hoàn Thành</h3>
+                  <p className="text-xs text-amber-800 mt-1 leading-normal">
+                    Bạn hiện đang có <strong>{conflictModalData.upcomingShifts.length} ca trực sắp tới</strong> trong lịch làm việc tại chi nhánh hiện tại.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConflictModalData(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4">
+              <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Danh sách ca trực sắp tới tại cơ sở hiện tại:
+              </div>
+
+              <div className="max-h-36 overflow-y-auto space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+                {conflictModalData.upcomingShifts.map((sh, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs p-2 bg-white rounded-lg border border-slate-200">
+                    <div className="font-semibold text-slate-800">{sh.dateStr} • {sh.shiftName}</div>
+                    <span className="text-slate-500">{sh.shiftStart} - {sh.shiftEnd}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-xs text-slate-600 leading-normal">
+                Vui lòng chọn cách xử lý để hoàn tất việc chuyển giao cơ sở làm việc mới:
+              </div>
+
+              {/* 2 Lựa chọn */}
+              <div className="space-y-3 pt-1">
+                {/* Lựa chọn 1 */}
+                <button
+                  disabled={respondingTransferId === conflictModalData.requestId}
+                  onClick={() => handleRespondTransfer(conflictModalData.requestId, 'approve', 'defer')}
+                  className="w-full text-left p-3.5 border-2 border-blue-200 hover:border-blue-500 bg-blue-50/40 hover:bg-blue-50 rounded-xl transition-all cursor-pointer group"
+                >
+                  <div className="font-bold text-blue-900 text-xs flex items-center justify-between">
+                    <span>Lựa chọn 1: Tạm thời chưa chuyển (Chờ xong hết lịch)</span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md">Khuyên dùng</span>
+                  </div>
+                  <div className="text-xs text-slate-600 mt-1 leading-normal">
+                    Tiếp tục trực và hoàn thành nốt các ca trực tuần này tại cơ sở hiện tại trước khi chính thức chuyển giao.
+                  </div>
+                </button>
+
+                {/* Lựa chọn 2 */}
+                <button
+                  disabled={respondingTransferId === conflictModalData.requestId}
+                  onClick={() => handleRespondTransfer(conflictModalData.requestId, 'approve', 'cancel_upcoming_shifts')}
+                  className="w-full text-left p-3.5 border-2 border-rose-200 hover:border-rose-500 bg-rose-50/30 hover:bg-rose-50 rounded-xl transition-all cursor-pointer group"
+                >
+                  <div className="font-bold text-rose-900 text-xs flex items-center justify-between">
+                    <span>Lựa chọn 2: Hủy tất cả lịch sắp tới & Chuyển ngay</span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 bg-rose-100 text-rose-800 rounded-md">Chuyển ngay</span>
+                  </div>
+                  <div className="text-xs text-slate-600 mt-1 leading-normal">
+                    Tự động hủy {conflictModalData.upcomingShifts.length} ca trực sắp tới tại cơ sở cũ, hủy các đơn đổi ca pending và chuyển tài khoản sang chi nhánh mới ngay lập tức.
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button
+                disabled={respondingTransferId === conflictModalData.requestId}
+                onClick={() => setConflictModalData(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-200/60 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

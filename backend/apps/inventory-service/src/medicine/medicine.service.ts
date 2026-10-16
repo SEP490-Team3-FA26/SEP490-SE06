@@ -1443,7 +1443,7 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi lấy danh sách chọn thuốc');
     }
   }
-  async findAlternatives(medicineId: string, branchId: string) {
+  async findAlternatives(medicineId: string, branchId: string): Promise<any> {
     try {
       this.logger.log(`Finding alternatives for medicine ${medicineId} at branch ${branchId}`);
       const medicine = await this.medicineModel.findById(medicineId).lean().exec();

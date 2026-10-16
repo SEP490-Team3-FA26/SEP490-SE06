@@ -41,6 +41,9 @@ export const API_ENDPOINTS = {
     DETAIL: (id: string) => `/api/admin/employees/${encodeURIComponent(id)}`,
     BAN: (id: string) => `/api/admin/employees/${encodeURIComponent(id)}/ban`,
     APPROVE: (id: string) => `/api/admin/employees/${encodeURIComponent(id)}/approve`,
+    LOOKUP: '/api/admin/employees/lookup',
+    TRANSFERS: '/api/admin/employees/transfer-requests',
+    TRANSFER_RESPOND: (id: string) => `/api/admin/employees/transfer-requests/${encodeURIComponent(id)}/respond`,
   },
 
   // 🏢 Branch & Facility

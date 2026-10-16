@@ -36,6 +36,10 @@ export class AdminEmployeeController implements OnModuleInit {
       'user.admin.employee.ban_unban',
       'user.admin.employee.delete',
       'user.admin.employee.approve',
+      'user.admin.employee.lookup',
+      'user.admin.employee.transfer.create',
+      'user.admin.employee.transfer.list',
+      'user.admin.employee.transfer.respond',
     ]);
   }
 
@@ -48,6 +52,57 @@ export class AdminEmployeeController implements OnModuleInit {
       filter.branchId = req.user.branchId;
     }
     return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', filter);
+  }
+
+  @Get('lookup')
+  @Roles('admin', 'branch')
+  @ApiOperation({ summary: 'Tra cứu nhân viên theo email hoặc số điện thoại' })
+  async lookupEmployees(@Query('query') query: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.lookup', { query });
+  }
+
+  @Get('transfer-requests')
+  @Roles('admin', 'branch', 'pharmacist')
+  @ApiOperation({ summary: 'Lấy danh sách yêu cầu điều chuyển nhân sự' })
+  async listTransferRequests(@Query('status') status: string, @Request() req: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.transfer.list', {
+      userId: req.user?.sub || req.user?._id,
+      role: req.user?.role,
+      branchId: req.user?.branchId,
+      status,
+    });
+  }
+
+  @Post('transfer-requests')
+  @Roles('branch')
+  @ApiOperation({ summary: 'Tạo yêu cầu điều chuyển nhân sự vào chi nhánh' })
+  async createTransferRequest(@Body() body: { employeeId: string; note?: string }, @Request() req: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.transfer.create', {
+      employeeId: body.employeeId,
+      note: body.note,
+      requesterId: req.user?.sub || req.user?._id,
+      requesterName: req.user?.fullName || req.user?.name || 'Quản lý cơ sở',
+      requesterBranchId: req.user?.branchId,
+    });
+  }
+
+  @Put('transfer-requests/:id/respond')
+  @Roles('admin', 'branch', 'pharmacist')
+  @ApiOperation({ summary: 'Phản hồi yêu cầu điều chuyển nhân sự' })
+  async respondTransferRequest(
+    @Param('id') id: string,
+    @Body() body: { action: 'approve' | 'reject'; responseNote?: string; scheduleResolution?: 'cancel_upcoming_shifts' | 'defer' },
+    @Request() req: any,
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.transfer.respond', {
+      requestId: id,
+      userId: req.user?.sub || req.user?._id,
+      role: req.user?.role,
+      branchId: req.user?.branchId,
+      action: body.action,
+      responseNote: body.responseNote,
+      scheduleResolution: body.scheduleResolution,
+    });
   }
 
   @Get(':id')

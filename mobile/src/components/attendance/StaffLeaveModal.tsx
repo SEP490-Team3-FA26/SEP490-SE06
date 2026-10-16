@@ -15,10 +15,34 @@ import { ApiService } from '../../services/api.service';
 import { showToast } from '../ui/toastHelper';
 import { useAuth } from '../../context/AuthContext';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 interface StaffLeaveModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  prefillShift?: {
+    date?: string;
+    shiftId?: string;
+    shiftName?: string;
+    shiftStart?: string;
+    shiftEnd?: string;
+  } | null;
+}
+
+function getMonday(d: Date) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  return date;
+}
+
+function formatDate(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 const LEAVE_TYPES = [
@@ -38,8 +62,11 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
   visible,
   onClose,
   onSuccess,
+  prefillShift,
 }) => {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const myUserId = user?.id || (user as any)?._id || (user as any)?.sub;
   const isManager = user?.role === 'branch' || user?.role === 'admin';
 
   const [activeTab, setActiveTab] = useState<'CREATE' | 'MINE' | 'APPROVAL'>(
@@ -51,6 +78,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
   const [used, setUsed] = useState<number>(0);
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
   const [loadingLeaves, setLoadingLeaves] = useState<boolean>(false);
+  const [myUpcomingShifts, setMyUpcomingShifts] = useState<any[]>([]);
 
   // Create Form State
   const [shiftDate, setShiftDate] = useState<string>(() => {
@@ -70,16 +98,39 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
   const loadMyData = useCallback(async () => {
     setLoadingLeaves(true);
     try {
-      const res = await ApiService.getMyLeaves();
+      const now = new Date();
+      const thisMon = formatDate(getMonday(now));
+      const nextMonDate = new Date(getMonday(now));
+      nextMonDate.setDate(nextMonDate.getDate() + 7);
+      const nextMon = formatDate(nextMonDate);
+
+      const [res, schedThisWeek, schedNextWeek] = await Promise.all([
+        ApiService.getMyLeaves(),
+        ApiService.getMyWeekSchedule(thisMon),
+        ApiService.getMyWeekSchedule(nextMon),
+      ]);
       setMyLeaves(res.leaves || []);
       setBalance(res.balance ?? 12);
       setUsed(res.used ?? 0);
+
+      // Aggregate upcoming shifts across this week & next week
+      const allAssignments = [
+        ...(schedThisWeek?.assignments || []),
+        ...(schedNextWeek?.assignments || []),
+      ];
+      const todayStr = formatDate(now);
+      const myShifts = allAssignments.filter((a: any) => {
+        const aDate = a.date ? a.date.slice(0, 10) : '';
+        return String(a.employeeId) === String(myUserId) && aDate >= todayStr;
+      });
+      myShifts.sort((a: any, b: any) => (a.date || '').localeCompare(b.date || ''));
+      setMyUpcomingShifts(myShifts);
     } catch (e) {
       console.warn('Lỗi loadMyData:', e);
     } finally {
       setLoadingLeaves(false);
     }
-  }, []);
+  }, [myUserId]);
 
   const loadBranchData = useCallback(async () => {
     if (!isManager) return;
@@ -98,8 +149,30 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
     if (visible) {
       loadMyData();
       if (isManager) loadBranchData();
+
+      if (prefillShift) {
+        if (prefillShift.date) setShiftDate(prefillShift.date);
+        if (prefillShift.shiftId || prefillShift.shiftName) {
+          const found = SHIFT_OPTIONS.find(
+            (s) =>
+              s.id === prefillShift.shiftId ||
+              s.name.toLowerCase() === (prefillShift.shiftName || '').toLowerCase()
+          );
+          if (found) {
+            setSelectedShift(found);
+          } else if (prefillShift.shiftName) {
+            setSelectedShift({
+              id: prefillShift.shiftId || 'custom-shift',
+              name: prefillShift.shiftName,
+              start: prefillShift.shiftStart || '08:00',
+              end: prefillShift.shiftEnd || '16:00',
+            });
+          }
+        }
+        setActiveTab('CREATE');
+      }
     }
-  }, [visible, isManager, loadMyData, loadBranchData]);
+  }, [visible, isManager, prefillShift, loadMyData, loadBranchData]);
 
   const handleCreateSubmit = async () => {
     if (submitting) return;
@@ -349,7 +422,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
 
             {/* TAB 2: TẠO ĐƠN (CREATE) */}
             {activeTab === 'CREATE' && (
-              <View style={{ paddingBottom: 24 }}>
+              <View style={{ paddingBottom: Math.max(insets.bottom + 24, 40) }}>
                 {/* Quota Banner */}
                 <View style={styles.quotaBanner}>
                   <View>
@@ -362,6 +435,52 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
                     <Text style={styles.quotaSub}>{used} ngày</Text>
                   </View>
                 </View>
+
+                {/* Chọn nhanh ca đã xếp lịch tuần này & tuần sau */}
+                {myUpcomingShifts.length > 0 && (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={styles.formSubLabel}>
+                      Chọn nhanh ca trực của bạn (Tuần này & Tuần sau):
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                      {myUpcomingShifts.map((s, idx) => {
+                        const sDate = s.date ? s.date.slice(0, 10) : '';
+                        const isSelected = shiftDate === sDate;
+                        return (
+                          <TouchableOpacity
+                            key={`quick_shift_${idx}`}
+                            onPress={() => {
+                              setShiftDate(sDate);
+                              const found = SHIFT_OPTIONS.find(
+                                (opt) => opt.name.toLowerCase() === (s.shiftName || '').toLowerCase()
+                              );
+                              if (found) setSelectedShift(found);
+                              else {
+                                setSelectedShift({
+                                  id: s.shiftId || `shift-${idx}`,
+                                  name: s.shiftName || 'Ca trực',
+                                  start: s.shiftStart || '08:00',
+                                  end: s.shiftEnd || '16:00',
+                                });
+                              }
+                            }}
+                            style={[styles.quickShiftPill, isSelected && styles.quickShiftPillActive]}
+                          >
+                            <Text style={[styles.quickShiftDate, isSelected && styles.quickShiftDateActive]}>
+                              {sDate}
+                            </Text>
+                            <Text style={[styles.quickShiftName, isSelected && styles.quickShiftNameActive]}>
+                              {s.shiftName || 'Ca trực'}
+                            </Text>
+                            <Text style={[styles.quickShiftTime, isSelected && styles.quickShiftTimeActive]}>
+                              {s.shiftStart} - {s.shiftEnd}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
 
                 {/* Ngày xin nghỉ */}
                 <Text style={styles.formLabel}>Ngày Xin Nghỉ (YYYY-MM-DD) *</Text>
@@ -453,7 +572,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
 
             {/* TAB 3: LỊCH SỬ CỦA TÔI (MINE) */}
             {activeTab === 'MINE' && (
-              <View style={{ paddingBottom: 24 }}>
+              <View style={{ paddingBottom: Math.max(insets.bottom + 24, 40) }}>
                 <Text style={styles.sectionHeader}>Đơn Xin Nghỉ Của Tôi</Text>
                 {loadingLeaves ? (
                   <ActivityIndicator size="small" color="#059669" style={{ marginVertical: 20 }} />
@@ -649,6 +768,51 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#475569',
     marginTop: 2,
+  },
+  formSubLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#059669',
+    marginTop: 6,
+  },
+  quickShiftPill: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    minWidth: 100,
+  },
+  quickShiftPillActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  quickShiftDate: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  quickShiftDateActive: {
+    color: '#059669',
+  },
+  quickShiftName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  quickShiftNameActive: {
+    color: '#059669',
+  },
+  quickShiftTime: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  quickShiftTimeActive: {
+    color: '#059669',
   },
   formLabel: {
     fontSize: 12,

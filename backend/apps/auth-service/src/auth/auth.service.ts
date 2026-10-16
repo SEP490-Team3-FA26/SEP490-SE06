@@ -344,6 +344,99 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   // ============================================================
+  // TỰ ĐỘNG GỬI EMAIL CHÀO MỪNG & THIẾT LẬP MẬT KHẨU NHÂN VIÊN MỚI
+  // ============================================================
+  async generateAndSendWelcomeResetToken(
+    email: string,
+    fullName?: string,
+    branchId?: string,
+    role?: string,
+  ): Promise<{ message: string }> {
+    const userExists = await this.userModel.findOne({ email });
+    if (!userExists) {
+      throw new NotFoundException(`Không tìm thấy tài khoản với email ${email}`);
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    // Hạn dùng 24 giờ cho nhân sự mới kích hoạt
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    await this.tokenModel.deleteMany({ userId: email, type: TokenType.PASSWORD_RESET });
+    await this.tokenModel.create({
+      token: otp,
+      type: TokenType.PASSWORD_RESET,
+      expiresAt,
+      userId: email,
+      isUsed: false,
+    });
+
+    try {
+      if (this.emailService.isEnabled) {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const resetLink = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}&token=${otp}`;
+        const roleName = role === 'pharmacist' ? 'Dược sĩ' : role === 'branch' ? 'Quản lý cơ sở' : 'Nhân sự';
+        const branchLabel = branchId ? `Chi nhánh ${branchId}` : 'Hệ thống ABC Pharmacy';
+
+        await this.emailService.sendEmail({
+          to: email,
+          subject: 'Chào mừng gia nhập ABC Pharmacy - Thiết lập mật khẩu tài khoản',
+          html: `
+            <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+              <div style="max-width: 540px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
+                <div style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); padding: 32px 24px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1px;">ABC Pharmacy</h1>
+                  <p style="color: #e0f2fe; margin: 8px 0 0 0; font-size: 14px;">Hệ thống Quản lý Chuỗi Nhà thuốc Toàn quốc</p>
+                </div>
+                <div style="padding: 36px 32px;">
+                  <h2 style="color: #0f172a; font-size: 20px; font-weight: 700; margin-top: 0; margin-bottom: 16px; text-align: center;">Kích hoạt tài khoản nhân viên</h2>
+                  <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                    Xin chào <strong>${fullName || 'Đồng nghiệp'}</strong>,<br>
+                    Tài khoản nhân sự của bạn đã được quản lý khởi tạo thành công tại <strong>${branchLabel}</strong> với vai trò <strong>${roleName}</strong>.
+                  </p>
+                  <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+                    Để bắt đầu làm việc và bảo mật tài khoản, vui lòng thiết lập mật khẩu cá nhân của bạn bằng mã xác nhận dưới đây hoặc nhấp trực tiếp vào nút thiết lập:
+                  </p>
+                  <div style="text-align: center; margin-bottom: 28px;">
+                    <div style="display: inline-block; padding: 4px; border-radius: 12px; background: #e0f2fe;">
+                      <span style="display: block; letter-spacing: 8px; color: #1d4ed8; font-size: 36px; font-weight: 800; padding: 14px 28px; background-color: #ffffff; border-radius: 10px;">
+                        ${otp}
+                      </span>
+                    </div>
+                  </div>
+                  <div style="text-align: center; margin-bottom: 28px;">
+                    <a href="${resetLink}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 15px; padding: 12px 28px; border-radius: 8px;">
+                      Thiết lập mật khẩu ngay
+                    </a>
+                  </div>
+                  <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 14px; border-radius: 4px; margin-bottom: 28px;">
+                    <p style="color: #166534; font-size: 13px; margin: 0;">
+                      Mã xác nhận kích hoạt này có hiệu lực trong vòng <strong>24 giờ</strong> kể từ thời điểm nhận thư.
+                    </p>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 20px;">
+                  <p style="color: #64748b; font-size: 13px; line-height: 1.6; margin: 0; text-align: center;">
+                    Nếu bạn không làm việc tại ABC Pharmacy hoặc nghi ngờ bị nhầm lẫn, vui lòng liên hệ quản lý cơ sở.<br><br>
+                    Trân trọng,<br>
+                    <strong style="color: #0f172a;">Ban Quản Trị ABC Pharmacy</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`[Email] Da gui email chao mung va OTP thiet lap mat khau den ${email}`);
+      } else {
+        console.warn(`[MOCK EMAIL] Gui email chao mung den ${email}. Ma OTP: ${otp}`);
+      }
+    } catch (error: any) {
+      console.error(`[Email Error] Loi gui mail chao mung: ${error.message}`);
+    }
+
+    return { message: 'Đã gửi email thiết lập mật khẩu đến nhân viên mới' };
+  }
+
+  // ============================================================
   // ĐẶT LẠI MẬT KHẨU
   // ============================================================
   async resetPassword(email: string, token: string, newPassword: string): Promise<{ message: string }> {

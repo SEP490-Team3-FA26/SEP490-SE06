@@ -396,8 +396,11 @@ export default function BranchPayroll() {
                 <label className="font-semibold text-slate-700 block mb-1">Thưởng / Điều Chỉnh Tăng (VNĐ):</label>
                 <input
                   type="number"
+                  min={0}
+                  step={10000}
                   value={adjustmentAmount}
-                  onChange={(e) => setAdjustmentAmount(Number(e.target.value))}
+                  onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                  onChange={(e) => setAdjustmentAmount(Math.max(0, Number(e.target.value) || 0))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 font-bold outline-none focus:border-emerald-500"
                   placeholder="0"
                 />
@@ -407,8 +410,11 @@ export default function BranchPayroll() {
                 <label className="font-semibold text-slate-700 block mb-1">Khấu Trừ Vi Phạm (VNĐ):</label>
                 <input
                   type="number"
+                  min={0}
+                  step={10000}
                   value={penaltiesAmount}
-                  onChange={(e) => setPenaltiesAmount(Number(e.target.value))}
+                  onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                  onChange={(e) => setPenaltiesAmount(Math.max(0, Number(e.target.value) || 0))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-rose-700 font-bold outline-none focus:border-rose-500"
                   placeholder="0"
                 />

@@ -16,7 +16,8 @@ import {
   X, 
   Users, 
   Briefcase,
-  AlertCircle
+  AlertCircle,
+  Mail
 } from "lucide-react";
 
 import { getLeaveDetails } from "../pharmacist/PharmacistSchedule";
@@ -83,6 +84,9 @@ export function BranchSchedule() {
     date: null,
     shift: null,
   });
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [sendEmailNotification, setSendEmailNotification] = useState(true);
+  const [isPublishing, setIsPublishing] = useState(false);
   
   // Lấy chi nhánh an toàn từ localStorage hoặc authService
   const getBranchId = () => {
@@ -283,14 +287,21 @@ export function BranchSchedule() {
     }
   };
 
-  const handlePublish = async () => {
-    if (window.confirm("Bạn có chắc chắn muốn đăng lịch này? Lịch đã đăng sẽ không thể chỉnh sửa tự do và toàn bộ nhân viên sẽ nhận được thông báo.")) {
-      try {
-        await hrService.publishSchedule(currentWeekStart);
-        fetchData();
-      } catch (err: any) {
-        alert(err.response?.data?.message || "Lỗi khi đăng lịch");
-      }
+  const handlePublish = () => {
+    setIsPublishModalOpen(true);
+  };
+
+  const confirmPublish = async () => {
+    try {
+      setIsPublishing(true);
+      await hrService.publishSchedule(currentWeekStart, sendEmailNotification);
+      setIsPublishModalOpen(false);
+      fetchData();
+      alert("Đăng lịch tuần thành công!" + (sendEmailNotification ? " Hệ thống đã phát sự kiện gửi email thông báo ca trực đến từng nhân viên." : ""));
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Lỗi khi đăng lịch");
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -704,6 +715,90 @@ export function BranchSchedule() {
                 className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-200/60 transition-colors"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Modal Xác Nhận Đăng Lịch Tuần & Tùy Chọn Gửi Email */}
+      {isPublishModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0057cd] flex items-center justify-center">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">Xác Nhận Đăng Lịch Tuần</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Tuần bắt đầu từ ngày {currentWeekStart}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => !isPublishing && setIsPublishModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs text-slate-600 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Tổng số ca phân công:</span>
+                  <span className="font-bold text-slate-800">{totalAssignmentsCount} ca</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Số nhân viên có ca trực:</span>
+                  <span className="font-bold text-[#0057cd]">{uniqueEmployeesWorking} nhân sự</span>
+                </div>
+              </div>
+
+              <div className="text-xs text-slate-600 leading-relaxed">
+                Lịch sau khi đăng sẽ chính thức công bố đến toàn bộ nhân sự chi nhánh. Nhân viên có thể theo dõi và thực hiện điểm danh ca làm việc.
+              </div>
+
+              {/* Tùy chọn gửi email */}
+              <label className="flex items-start gap-3 p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl cursor-pointer hover:bg-blue-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={sendEmailNotification}
+                  onChange={e => setSendEmailNotification(e.target.checked)}
+                  disabled={isPublishing}
+                  className="mt-0.5 w-4 h-4 text-[#0057cd] rounded border-slate-300 focus:ring-blue-500"
+                />
+                <div className="text-xs">
+                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Mail size={14} className="text-[#0057cd]" />
+                    Gửi email thông báo cho từng nhân viên
+                  </div>
+                  <div className="text-slate-500 mt-1 leading-normal">
+                    Tự động gửi Gmail tổng hợp toàn bộ các ca trực trong tuần đến từng nhân sự có lịch làm việc.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isPublishing}
+                onClick={() => setIsPublishModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-200/60 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isPublishing}
+                onClick={confirmPublish}
+                className="px-5 py-2 text-xs font-bold bg-[#0057cd] hover:bg-[#00419e] text-white rounded-xl shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isPublishing ? "Đang xử lý..." : "Xác Nhận Đăng Lịch"}
               </button>
             </div>
           </div>

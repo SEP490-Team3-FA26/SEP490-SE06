@@ -138,11 +138,12 @@ export class HrController implements OnModuleInit {
   @Post('schedules/publish')
   @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Publish lịch tuần' })
-  async publishSchedule(@Request() req, @Body() data: { weekStart: string }) {
+  async publishSchedule(@Request() req, @Body() data: { weekStart: string; sendEmailNotification?: boolean }) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.schedule.publish', { 
       branchId: req.user.branchId, 
       managerId: req.user.sub, 
-      weekStart: data.weekStart 
+      weekStart: data.weekStart,
+      sendEmailNotification: data.sendEmailNotification !== false,
     });
   }
 

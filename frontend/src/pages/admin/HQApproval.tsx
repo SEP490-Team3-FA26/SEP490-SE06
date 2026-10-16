@@ -213,7 +213,7 @@ export function HQApproval() {
   );
 
   return (
-    <div className="flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
+    <div className="flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3">
