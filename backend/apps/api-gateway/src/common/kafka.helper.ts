@@ -143,7 +143,7 @@ export async function sendKafkaMessage(client: ClientKafka, topic: string, data:
     const payload = (data && typeof data === 'object') ? JSON.parse(JSON.stringify(data)) : data;
     const result: any = await lastValueFrom(
       client.send(topic, payload).pipe(
-        require('rxjs').timeout(8000),
+        require('rxjs').timeout(15000),
         require('rxjs').retry(1)
       )
     );

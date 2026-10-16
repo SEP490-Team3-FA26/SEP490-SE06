@@ -60,7 +60,11 @@ export class OrdersServiceController {
   @MessagePattern('vouchers.update')
   async updateVoucher(@Payload() data: any) {
     try {
-      return await this.ordersServiceService.updateVoucher(data.id, data.payload);
+      const res: any = await this.ordersServiceService.updateVoucher(data.id, data.payload);
+      if (res && res.error) {
+        throw new RpcException({ message: res.message || 'Lỗi cập nhật voucher', statusCode: res.statusCode || 400 });
+      }
+      return res;
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi cập nhật voucher');

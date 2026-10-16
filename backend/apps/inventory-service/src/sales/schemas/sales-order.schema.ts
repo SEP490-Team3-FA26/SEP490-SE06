@@ -58,6 +58,9 @@ export class SalesOrderItem {
 
   @Prop({ type: Number, default: 0 })
   returnedQuantity: number;
+
+  @Prop({ type: Boolean, default: false })
+  isGiftItem?: boolean; // Đánh dấu sản phẩm quà tặng khuyến mãi (UC-75: Mua X tặng Y)
 }
 export const SalesOrderItemSchema = SchemaFactory.createForClass(SalesOrderItem);
 

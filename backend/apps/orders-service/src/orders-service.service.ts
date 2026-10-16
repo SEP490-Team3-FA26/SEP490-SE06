@@ -882,6 +882,9 @@ export class OrdersServiceService implements OnModuleInit {
     if (payload.code) {
       payload.code = payload.code.toUpperCase().trim();
     }
+    if (payload.endDate && !payload.expiryDate) {
+      payload.expiryDate = payload.endDate;
+    }
 
     // Kiểm tra tính hợp lệ của ngày bắt đầu và kết thúc
     if (payload.startDate || payload.expiryDate) {
@@ -940,7 +943,7 @@ export class OrdersServiceService implements OnModuleInit {
       }
     }
 
-    const updated = await this.voucherModel.findByIdAndUpdate(id, payload, { new: true }).exec();
+    const updated = await this.voucherModel.findByIdAndUpdate(id, { $set: payload }, { new: true }).exec();
     if (!updated) {
       return { error: true, message: 'Không tìm thấy voucher để cập nhật', statusCode: 404 };
     }
@@ -1665,7 +1668,7 @@ export class OrdersServiceService implements OnModuleInit {
     }
 
     // 2. Tìm đơn hàng tương ứng
-    const order = await this.orderModel.findOne({ orderCode });
+    let order = await this.orderModel.findOne({ orderCode });
     if (!order) {
       this.logger.warn(`[Reconciliation] Orphan payment received: orderCode=${orderCode}, amount=${amount}`);
       const orphan = await this.reconciliationModel.create({
@@ -1722,6 +1725,44 @@ export class OrdersServiceService implements OnModuleInit {
     }
 
     await order.save();
+
+    // Tự động xuất kho và cập nhật trạng thái PAID khi thanh toán PayOS thành công
+    if (order.paymentStatus === 'PAYMENT_RECEIVED_INVENTORY_PENDING') {
+      try {
+        const fulfillmentClaim = await this.orderModel.findOneAndUpdate(
+          { _id: order._id, paymentStatus: 'PAYMENT_RECEIVED_INVENTORY_PENDING' },
+          { $set: { paymentStatus: 'INVENTORY_FULFILLING' } },
+          { new: true }
+        ).exec();
+
+        if (fulfillmentClaim) {
+          order = fulfillmentClaim;
+          await this.deductInventory(order);
+          order.paymentStatus = 'PAID';
+          await order.save();
+
+          // Tích điểm thưởng cho khách hàng nếu có số điện thoại
+          if (order.earnedPoints > 0 && order.patientPhone !== '0900000000') {
+            await sendKafkaMessage(
+              this.userClient,
+              'user.loyalty.update_points',
+              {
+                phone: order.patientPhone,
+                pointsDelta: order.earnedPoints,
+                accumulatedDelta: order.earnedPoints,
+                operationKey: `ORDER:${order.orderCode}:EARN`,
+              }
+            ).catch((e: any) => this.logger.warn(`Lỗi cập nhật điểm PayOS: ${e.message}`));
+          }
+
+          this.sendInvoiceEmailAsync(order);
+        }
+      } catch (invErr: any) {
+        this.logger.error(`Webhook PayOS xuất kho thất bại cho đơn #${orderCode}: ${invErr.message}`);
+        order.paymentStatus = 'INVENTORY_FAILED';
+        await order.save();
+      }
+    }
 
     // 3. Lưu bản ghi đối soát
     const rec = await this.reconciliationModel.create({

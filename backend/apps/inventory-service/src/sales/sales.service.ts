@@ -248,29 +248,24 @@ export class SalesService implements OnModuleInit {
       const baseUnit = [...unitOptions].sort((a, b) => getUnitFactor(a) - getUnitFactor(b))[0] || selectedUnit;
       const exchangeValue = getUnitFactor(selectedUnit);
 
-      // Truy cập các lô hoạt động sắp xếp tăng dần hạn sử dụng expDate ASC -> FIFO/FEFO
-      const batchQuery: any = {
-        $or: [
-          { medicineId: medIdStr },
-          { medicineId: medicine._id },
-          { medicineId: item.medicineId }
-        ],
-        status: 'ACTIVE',
-        stock: { $gt: 0 }
-      };
+      // Danh sách các định dạng ID hợp lệ của thuốc
+      const medIds: any[] = [medIdStr, String(medicine._id)];
+      if (item.medicineId && !medIds.includes(String(item.medicineId))) {
+        medIds.push(String(item.medicineId));
+      }
+      if (Types.ObjectId.isValid(medIdStr)) {
+        medIds.push(new Types.ObjectId(medIdStr));
+      }
+
       let batches: any[] = [];
       let isBranchInventoryUsed = false;
 
-      // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ (Phương án 2):
-      // Nếu bán tại chi nhánh cụ thể, truy vấn trực tiếp vào collection vật lý riêng `branch_inventories`
+      // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ:
+      // Nếu bán tại chi nhánh cụ thể (không phải Kho Tổng), truy vấn trực tiếp vào collection riêng `branch_inventories`
       if (data.branchId && data.branchId !== 'CENTRAL_WH') {
         batches = await this.branchInvModel.find({
           branchId: data.branchId,
-          $or: [
-            { medicineId: medIdStr },
-            { medicineId: medicine._id },
-            { medicineId: item.medicineId }
-          ],
+          medicineId: { $in: medIds },
           status: 'ACTIVE',
           stock: { $gt: 0 }
         }).sort({ expDate: 1 }).exec();
@@ -282,18 +277,23 @@ export class SalesService implements OnModuleInit {
 
       // Fallback: Nếu không tìm thấy trong branch_inventories hoặc là Kho Tổng (CENTRAL_WH / đơn ONLINE)
       if (batches.length === 0) {
-        if (data.branchId && data.branchId !== 'CENTRAL_WH') {
-          batchQuery.branchId = data.branchId;
-        } else {
-          // Đối với đơn hàng online hoặc Kho Tổng: Tìm các lô hàng thuộc Kho Tổng (CENTRAL_WH, null, rỗng hoặc chưa set branchId)
-          batchQuery.$or = [
-            { branchId: 'CENTRAL_WH' },
-            { branchId: null },
-            { branchId: '' },
-            { branchId: { $exists: false } }
-          ];
-        }
-        batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
+        const branchCondition = (data.branchId && data.branchId !== 'CENTRAL_WH')
+          ? { branchId: data.branchId }
+          : {
+              $or: [
+                { branchId: 'CENTRAL_WH' },
+                { branchId: null },
+                { branchId: '' },
+                { branchId: { $exists: false } }
+              ]
+            };
+
+        batches = await this.batchModel.find({
+          medicineId: { $in: medIds },
+          ...branchCondition,
+          status: 'ACTIVE',
+          stock: { $gt: 0 }
+        }).sort({ expDate: 1 }).exec();
       }
 
       // Nếu vẫn không có lô hàng nào hợp lệ tại chi nhánh hoặc Kho Tổng
@@ -361,7 +361,6 @@ export class SalesService implements OnModuleInit {
           quantity: deductQty,
           importPrice: batch.importPrice || 0
         });
-        await batch.save();
 
         transactionLogs.push({
           type: 'SALE_EXPORT',
@@ -424,11 +423,7 @@ export class SalesService implements OnModuleInit {
       }
       // Cập nhật tồn kho tổng của thuốc trong bảng Medicine theo số dư thực tế từ các lô ACTIVE
       const activeBatchesRemaining = await this.batchModel.find({
-        $or: [
-          { medicineId: medIdStr },
-          { medicineId: medicine._id },
-          { medicineId: item.medicineId }
-        ],
+        medicineId: { $in: medIds },
         status: 'ACTIVE',
         stock: { $gt: 0 }
       }).lean().exec();
@@ -445,14 +440,18 @@ export class SalesService implements OnModuleInit {
         }
       ).exec();
 
-      // Resolve giá theo chi nhánh và đơn vị đã chọn
-      const branchReferencePrice = await this.pricingService.resolvePrice(
-        data.branchId,
-        medIdStr,
-        data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
-        requestedQuantity,
-      );
-      const resolvedPrice = resolveUnitPrice(medicine, selectedUnit, branchReferencePrice);
+      // Resolve giá theo chi nhánh và đơn vị đã chọn (Nếu là sản phẩm quà tặng khuyến mãi UC-75 thì giá = 0đ)
+      const isGift = Boolean(item.isGiftItem || item.price === 0);
+      let resolvedPrice = 0;
+      if (!isGift) {
+        const branchReferencePrice = await this.pricingService.resolvePrice(
+          data.branchId,
+          medIdStr,
+          data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
+          requestedQuantity,
+        );
+        resolvedPrice = resolveUnitPrice(medicine, selectedUnit, branchReferencePrice);
+      }
       totalAmount += resolvedPrice * requestedQuantity;
 
       const dosePerTime = Number(item.dosePerTime) > 0 ? Number(item.dosePerTime) : 1;
@@ -480,7 +479,9 @@ export class SalesService implements OnModuleInit {
           durationDays,
           baseUnitName: baseUnit.unitName,
         }),
-        batches: allocatedBatches
+        batches: allocatedBatches,
+        returnedQuantity: 0,
+        isGiftItem: isGift,
       });
     }
 
@@ -541,20 +542,31 @@ export class SalesService implements OnModuleInit {
       cashierVoucherDailyCount,
     });
 
-    // Tự động liên thông CSDL Dược Quốc gia (GPP Sandbox)
-    try {
-      const gppSync = await this.nationalPharmaService.syncSaleOrder(salesOrder, data.branchId);
-      salesOrder.nationalFacilityCode = gppSync.facilityCode;
-      salesOrder.nationalSyncStatus = gppSync.syncStatus;
-      salesOrder.nationalSyncCode = gppSync.syncCode;
-      salesOrder.nationalSyncedAt = gppSync.syncedAt;
-      salesOrder.nationalSyncMessage = gppSync.message;
-    } catch (gppErr: any) {
-      this.logger.warn(`[GPP Sync Warning] ${gppErr.message}`);
-      salesOrder.nationalSyncStatus = 'PENDING';
-    }
-
+    // Tự động liên thông CSDL Dược Quốc gia (GPP Sandbox) - Xử lý ngầm không chặn luồng xuất bán
+    salesOrder.nationalSyncStatus = 'PENDING';
     await salesOrder.save();
+
+    // Chạy ngầm việc đồng bộ lên CSDL Dược Quốc Gia và cập nhật lại salesOrder khi hoàn tất
+    this.nationalPharmaService.syncSaleOrder(salesOrder, data.branchId)
+      .then(async (gppSync) => {
+        if (gppSync && gppSync.success) {
+          await this.saleModel.updateOne(
+            { _id: salesOrder._id },
+            {
+              $set: {
+                nationalFacilityCode: gppSync.facilityCode,
+                nationalSyncStatus: gppSync.syncStatus,
+                nationalSyncCode: gppSync.syncCode,
+                nationalSyncedAt: gppSync.syncedAt,
+                nationalSyncMessage: gppSync.message,
+              }
+            }
+          ).exec();
+        }
+      })
+      .catch((gppErr: any) => {
+        this.logger.warn(`[GPP Sync Warning] ${gppErr.message}`);
+      });
 
     // Lưu các transaction log liên kết với mã hóa đơn bán hàng vừa tạo
     for (const log of transactionLogs) {
