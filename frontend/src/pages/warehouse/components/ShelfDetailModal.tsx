@@ -167,7 +167,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
   return (
     <>
       <div 
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
         onClick={onClose}
       >
         <div 
@@ -815,7 +815,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
       {/* MODAL XÁC NHẬN XUẤT HỦY LÔ THUỐC HẾT HẠN */}
       {disposeModal.isOpen && disposeModal.batch && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
           onClick={() => setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" })}
         >
           <div

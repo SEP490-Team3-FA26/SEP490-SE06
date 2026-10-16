@@ -1,17 +1,30 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import {
   Loader2, Boxes, Database, RefreshCw, X,
   Package, AlertTriangle, Layers, Archive,
 } from "lucide-react";
 import { inventoryMapService, ReserveBatch } from "../../services/inventory/inventoryMap.service";
 import { WarehouseMap2D } from "./components/WarehouseMap2D";
-import { WarehouseMap3D } from "./components/WarehouseMap3D";
 import { ShelfDetailModal } from "./components/ShelfDetailModal";
 import { WarehouseFilterBar } from "./components/WarehouseFilterBar";
 import { ReserveBatchesPanel } from "./components/ReserveBatchesPanel";
 
+// Tách chunk Three.js ra khỏi bundle ban đầu
+const WarehouseMap3D = lazy(() => import("./components/WarehouseMap3D"));
+
 export function WarehouseMapPage() {
-  const [viewMode, setViewMode] = useState<"2d" | "3d">("3d");
+  const [viewMode, setViewModeState] = useState<"2d" | "3d">(() => {
+    return (localStorage.getItem("warehouse_view_mode") as "2d" | "3d") || "3d";
+  });
+  const handleSetViewMode = (mode: "2d" | "3d") => {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem("warehouse_view_mode", mode);
+    } catch {
+      // Bỏ qua lỗi storage private browsing
+    }
+  };
+
   const [loading, setLoading] = useState(true);
   const [zones, setZones] = useState<any[]>([]);
   const [selectedShelf, setSelectedShelf] = useState<{ zone: string; rack: string; shelf: number; bin?: number | null } | null>(null);
@@ -19,6 +32,7 @@ export function WarehouseMapPage() {
   const [highlightTargets, setHighlightTargets] = useState<Set<string>>(new Set());
   const [highlightTarget, setHighlightTarget] = useState<string>("");
   const [filterDesc, setFilterDesc] = useState<string>("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Trạng thái các lô Khu Dự Trữ
   const [reserveBatches, setReserveBatches] = useState<ReserveBatch[]>([]);
@@ -128,7 +142,7 @@ export function WarehouseMapPage() {
           <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
             <button
               type="button"
-              onClick={() => setViewMode("2d")}
+              onClick={() => handleSetViewMode("2d")}
               className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === "2d" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
@@ -137,7 +151,7 @@ export function WarehouseMapPage() {
             </button>
             <button
               type="button"
-              onClick={() => setViewMode("3d")}
+              onClick={() => handleSetViewMode("3d")}
               className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === "3d" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
@@ -230,15 +244,27 @@ export function WarehouseMapPage() {
             highlightTarget={highlightTarget}
           />
         ) : (
-          <WarehouseMap3D
-            zones={zones}
-            onShelfSelect={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
-            onBinSelect={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
-            onZoneClick={(zoneData) => setDrawerZone(zoneData)}
-            highlightTargets={highlightTargets}
-            highlightTarget={highlightTarget}
-            onSwitchTo2D={() => setViewMode("2d")}
-          />
+          <Suspense
+            fallback={
+              <div className="w-full h-full flex items-center justify-center bg-[#EEF2F9] text-slate-500 text-xs font-semibold gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                Đang nạp mô hình kho 3D...
+              </div>
+            }
+          >
+            <WarehouseMap3D
+              zones={zones}
+              highlightTarget={highlightTarget}
+              highlightTargets={highlightTargets}
+              refreshKey={refreshKey}
+              keyboardEnabled={!selectedShelf}
+              isModalOpen={!!selectedShelf}
+              onOpenShelfDetail={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
+              onOpenBinDetail={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
+              onOpenReserve={() => setShowReservePanel(true)}
+              onSwitchTo2D={() => handleSetViewMode("2d")}
+            />
+          </Suspense>
         )}
 
         {/* Zone Detail Drawer */}
@@ -325,35 +351,45 @@ export function WarehouseMapPage() {
           onRefresh={fetchReserveBatches}
           onSelectBatch={(batch: any) => {
             const loc = batch.location || {};
-            setSelectedShelf({
-              zone: loc.zone || 'RESERVE',
-              rack: loc.rack || 'RES1',
-              shelf: loc.shelf || 1,
-              bin: loc.bin || 1,
-            });
+            const z = loc.zone || 'RESERVE';
+            const r = loc.rack || 'RES1';
+            const s = loc.shelf || 1;
+            const b = loc.bin || 1;
+
+            if (viewMode === '3d') {
+              setHighlightTarget(`bin-${z}-${r}-${s}-${b}`);
+            } else {
+              setSelectedShelf({ zone: z, rack: r, shelf: s, bin: b });
+            }
           }}
           onSelectShelf={(zone, rack, shelf, bin) => {
-            setSelectedShelf({ zone, rack, shelf, bin });
+            if (viewMode === '3d') {
+              setHighlightTarget(bin ? `bin-${zone}-${rack}-${shelf}-${bin}` : `${zone}-${rack}-${shelf}`);
+            } else {
+              setSelectedShelf({ zone, rack, shelf, bin });
+            }
           }}
           onClose={() => setShowReservePanel(false)}
         />
       )}
 
-      {/* Thanh chú giải trạng thái */}
-      <div className="shrink-0 h-10 bg-white border-t border-slate-200 flex items-center justify-center gap-6 px-4 text-[11px] text-slate-500">
-        {[
-          { color: "#22c55e", label: "Bình thường" },
-          { color: "#facc15", label: "Sắp hết hàng" },
-          { color: "#f97316", label: "Cận date (<90 ngày)" },
-          { color: "#ef4444", label: "Hết hạn" },
-          { color: "#94a3b8", label: "Trống / Hết hàng" },
-        ].map((item) => (
-          <div key={item.label} className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-            {item.label}
-          </div>
-        ))}
-      </div>
+      {/* Thanh chú giải trạng thái (chỉ hiện ở 2D, 3D đã có sẵn trong HUD) */}
+      {viewMode === "2d" && (
+        <div className="shrink-0 h-10 bg-white border-t border-slate-200 flex items-center justify-center gap-6 px-4 text-[11px] text-slate-500">
+          {[
+            { color: "#22c55e", label: "Bình thường" },
+            { color: "#facc15", label: "Sắp hết hàng" },
+            { color: "#f97316", label: "Cận date (<90 ngày)" },
+            { color: "#ef4444", label: "Hết hạn" },
+            { color: "#94a3b8", label: "Trống / Hết hàng" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+              {item.label}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal Chi tiết Tầng Kệ (Hỗ trợ cả chế độ Ô Thùng & Tầng Kệ) */}
       {selectedShelf && (
@@ -366,6 +402,7 @@ export function WarehouseMapPage() {
           onRefresh={() => {
             fetchMapData();
             fetchReserveBatches();
+            setRefreshKey((k) => k + 1);
           }}
         />
       )}

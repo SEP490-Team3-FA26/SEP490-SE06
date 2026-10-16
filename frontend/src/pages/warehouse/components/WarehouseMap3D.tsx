@@ -1,198 +1,276 @@
-import React, { useRef, useEffect } from 'react';
-import * as THREE from 'three';
-import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+// ============================================================================
+// Bộ Điều Khiển Sơ Đồ Kho 3D Trung Tâm (WarehouseMap3D Container)
+// Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
+// Kiến trúc camera cố định 2 cấp: OVERVIEW và RACK
+// Đảm bảo không giật, không tự mở modal, không rò rỉ GPU memory
+// ============================================================================
+
+import React, { useReducer, useState, useEffect, useMemo, useCallback } from 'react';
+import { Canvas } from '@react-three/fiber';
 import {
+  FOV,
+  RACK_ORDER,
+  RACK_TO_ZONE,
   WarehouseMap3DProps,
-  ZoneSummary,
+  parseWarehouseTargetId,
 } from './map3d/constants';
-import {
-  useWarehouse3DState,
-  DEFAULT_CAMERA_POS,
-  DEFAULT_CAMERA_TARGET,
-  CameraGoal,
-} from './map3d/useWarehouse3DState';
-import { SceneEnvironment } from './map3d/SceneEnvironment';
-import { DockStation3D } from './map3d/DockStation3D';
-import { ZoneGroup3D } from './map3d/ZoneGroup3D';
-import { TacticalOverlays3D } from './map3d/TacticalOverlays3D';
-import { AutonomousFleet3D } from './map3d/AutonomousFleet3D';
-import { WarehouseHudOverlay } from './map3d/WarehouseHudOverlay';
+import { viewReducer } from './map3d/store';
+import { CameraRig } from './map3d/CameraRig';
+import { Floor } from './map3d/Floor';
+import { RackModel } from './map3d/RackModel';
+import { RackBins } from './map3d/RackBins';
+import { Hud } from './map3d/Hud';
+import { useRackLayout } from './map3d/useRackLayout';
 
-// Camera Rig xử lý hiệu ứng bay mượt (Fly-to Lerp) tới mục tiêu
-function CameraRig({
-  cameraGoal,
-  controlsRef,
-  isUserInteractingRef,
-}: {
-  cameraGoal: CameraGoal | null;
-  controlsRef: React.RefObject<OrbitControlsImpl | null>;
-  isUserInteractingRef: React.MutableRefObject<boolean>;
-}) {
-  const { camera } = useThree();
+// ============================================================================
+// ErrorBoundary chuyên dụng cho môi trường WebGL / 3D
+// ============================================================================
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
 
-  useFrame((_, delta) => {
-    if (!cameraGoal || isUserInteractingRef.current) return;
+class ThreeErrorBoundary extends React.Component<
+  { children: React.ReactNode; onSwitchTo2D?: () => void },
+  ErrorBoundaryState
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
-    // Di chuyển vị trí camera mượt mà
-    const targetCamPos = new THREE.Vector3(...cameraGoal.position);
-    camera.position.lerp(targetCamPos, Math.min(1, delta * 4.2));
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
 
-    // Di chuyển tâm nhìn của OrbitControls
-    if (controlsRef.current) {
-      const targetLookAt = new THREE.Vector3(...cameraGoal.target);
-      controlsRef.current.target.lerp(targetLookAt, Math.min(1, delta * 4.5));
-      controlsRef.current.update();
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Lỗi khởi tạo đồ họa 3D Three.js:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mb-4 font-bold">
+            3D
+          </div>
+          <h3 className="text-base font-bold text-slate-800 mb-1">
+            Không thể khởi tạo môi trường đồ họa 3D
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mb-4">
+            Trình duyệt của bạn có thể đã tắt tăng tốc phần cứng hoặc thiết bị không hỗ trợ WebGL. Bạn có thể chuyển sang chế độ 2D để tiếp tục thao tác đầy đủ chức năng.
+          </p>
+          {this.props.onSwitchTo2D && (
+            <button
+              type="button"
+              onClick={this.props.onSwitchTo2D}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer"
+            >
+              Chuyển sang Mặt bằng 2D
+            </button>
+          )}
+        </div>
+      );
     }
-  });
-
-  return null;
+    return this.props.children;
+  }
 }
 
-export interface ExtendedWarehouseMap3DProps extends WarehouseMap3DProps {
-  onSwitchTo2D?: () => void;
+// Kiểm tra nhanh hỗ trợ WebGL trên trình duyệt
+function isWebGLAvailable(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+    );
+  } catch {
+    return false;
+  }
 }
 
+// ============================================================================
+// Main WarehouseMap3D Component
+// ============================================================================
 export function WarehouseMap3D({
   zones,
-  onShelfSelect,
-  onBinSelect,
-  onZoneClick,
-  highlightTargets,
   highlightTarget,
+  highlightTargets,
+  refreshKey = 0,
+  keyboardEnabled = true,
+  isModalOpen = false,
+  onOpenShelfDetail,
+  onOpenBinDetail,
+  onOpenReserve,
   onSwitchTo2D,
-}: ExtendedWarehouseMap3DProps) {
-  const controlsRef = useRef<OrbitControlsImpl | null>(null);
+}: WarehouseMap3DProps) {
+  // 1. Kiểm tra WebGL trước khi render Canvas
+  const hasWebGL = useMemo(() => isWebGLAvailable(), []);
 
-  const {
-    selectedEntity,
-    hoveredEntity,
-    setHoveredEntity,
-    focusRack,
-    fefoXrayMode,
-    toggleFefoXray,
-    rackLayoutCache,
-    cameraGoal,
-    isUserInteractingRef,
-    selectZone,
-    selectRack,
-    selectShelf,
-    selectBin,
-    resetCamera,
-    rotateCamera,
-    zoomCamera,
-  } = useWarehouse3DState(
-    zones,
-    highlightTarget,
-    onShelfSelect,
-    onBinSelect,
-    onZoneClick
+  // 2. Reducer quản lý trạng thái góc nhìn (View)
+  const [view, dispatch] = useReducer(viewReducer, { level: 'overview' });
+
+  // 3. State cục bộ phục vụ tương tác UI nhẹ
+  const [hoverRack, setHoverRack] = useState<string | null>(null);
+  const [warnOnly, setWarnOnly] = useState<boolean>(false);
+  const [canvasKey, setCanvasKey] = useState<number>(0);
+
+  // 4. Xác định khu vực và kệ đang chọn
+  const activeRack = view.level === 'rack' ? view.rack : null;
+  const activeZone = activeRack ? RACK_TO_ZONE[activeRack] : null;
+
+  // 5. Nạp layout 40 thùng của kệ đang chọn
+  const { layout, status, errorMessage, retry } = useRackLayout(
+    activeZone,
+    activeRack,
+    refreshKey
   );
 
-  // Khi có cameraGoal mới, mở khóa trạng thái bay mượt
+  // 6. Xử lý khi có mục tiêu tìm kiếm (highlightTarget): Tự động bay tới đích
   useEffect(() => {
-    if (cameraGoal) {
-      isUserInteractingRef.current = false;
+    if (!highlightTarget) return;
+    const p = parseWarehouseTargetId(highlightTarget);
+    if (p) {
+      dispatch({ type: 'GOTO', rack: p.rack, shelf: p.shelf, bin: p.binNo });
     }
-  }, [cameraGoal, isUserInteractingRef]);
+  }, [highlightTarget]);
+
+  // 7. Tạo bản đồ tra cứu nhanh shelves của từng kệ từ props zones
+  const rackShelvesMap = useMemo(() => {
+    const map = new Map<string, any[]>();
+    zones.forEach((z) => {
+      z.racks?.forEach((r: any) => {
+        map.set(r.rack, r.shelves || []);
+      });
+    });
+    return map;
+  }, [zones]);
+
+  const parsedTarget = useMemo(
+    () => parseWarehouseTargetId(highlightTarget),
+    [highlightTarget]
+  );
+
+  // Fallback nếu không hỗ trợ WebGL
+  if (!hasWebGL) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
+        <h3 className="text-base font-bold text-slate-800 mb-2">Trình duyệt không hỗ trợ WebGL</h3>
+        <p className="text-xs text-slate-500 mb-4 max-w-sm">
+          Để xem mô hình 3D, vui lòng bật tăng tốc phần cứng (Hardware Acceleration) trong cài đặt trình duyệt.
+        </p>
+        {onSwitchTo2D && (
+          <button
+            type="button"
+            onClick={onSwitchTo2D}
+            className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl"
+          >
+            Chuyển sang Mặt bằng 2D
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="relative w-full h-full min-h-[640px] overflow-hidden bg-[#EEF2F9] rounded-2xl select-none">
-      {/* 1. THREE.JS REACT THREE FIBER CANVAS */}
-      <Canvas
-        shadows
-        camera={{
-          position: DEFAULT_CAMERA_POS,
-          fov: 42,
-          near: 0.5,
-          far: 350,
-        }}
-        gl={{
-          antialias: true,
-          powerPreference: 'high-performance',
-        }}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-      >
-        {/* Điều khiển Camera bay mượt */}
-        <CameraRig
-          cameraGoal={cameraGoal}
-          controlsRef={controlsRef}
-          isUserInteractingRef={isUserInteractingRef}
-        />
-
-        {/* Orbit Controls giới hạn chống lật sàn */}
-        <OrbitControls
-          ref={controlsRef}
-          makeDefault
-          target={DEFAULT_CAMERA_TARGET}
-          minDistance={6}
-          maxDistance={145}
-          maxPolarAngle={Math.PI / 2 - 0.05}
-          enableDamping
-          dampingFactor={0.06}
-          onStart={() => {
-            isUserInteractingRef.current = true;
+    <ThreeErrorBoundary onSwitchTo2D={onSwitchTo2D}>
+      <div className="w-full h-full relative overflow-hidden bg-[#EEF2F9]">
+        {/* ===================================================== */}
+        {/* 1. THREE.JS CANVAS RENDERER */}
+        {/* ===================================================== */}
+        <Canvas
+          key={canvasKey}
+          flat // Tắt tone mapping để màu sắc hiển thị đồng bộ 100% với bảng màu UI
+          dpr={[1, 1.75]} // Cân bằng độ sắc nét và tiêu thụ RAM/GPU
+          camera={{ fov: FOV, near: 0.5, far: 300 }}
+          gl={{
+            antialias: true,
+            powerPreference: 'high-performance',
           }}
+          onPointerMissed={() => {
+            // Nhấp chuột vào khoảng không: không làm gì, tránh kích hoạt nhầm
+          }}
+          onCreated={({ gl }) => {
+            // Lắng nghe sự kiện mất kết nối WebGL để tự khôi phục
+            const handleContextLost = (e: Event) => {
+              e.preventDefault();
+              console.warn('Cảnh báo: WebGL Context Lost! Đang tự khôi phục Canvas...');
+              setTimeout(() => setCanvasKey((k) => k + 1), 1000);
+            };
+            gl.domElement.addEventListener('webglcontextlost', handleContextLost, false);
+          }}
+        >
+          {/* Màu nền phòng kho sạch */}
+          <color attach="background" args={['#EEF2F9']} />
+
+          {/* Chiếu sáng cố định nhẹ, không sinh bóng đổ tính toán tốn kém */}
+          <ambientLight intensity={1.1} />
+          <directionalLight position={[20, 50, 30]} intensity={1.0} />
+
+          {/* Camera Rig cố định: khóa chuột/lăn/vuốt, chỉ bay theo state `view` */}
+          <CameraRig view={view} />
+
+          {/* Mặt sàn kho phẳng, thảm khu và vạch cửa kho */}
+          <Floor level={view.level} />
+
+          {/* 28 Dãy Kệ tiêu chuẩn */}
+          {RACK_ORDER.map((rackCode) => {
+            const zoneCode = RACK_TO_ZONE[rackCode] || 'A';
+            const shelves = rackShelvesMap.get(rackCode) || [];
+
+            return (
+              <RackModel
+                key={rackCode}
+                rack={rackCode}
+                zone={zoneCode}
+                shelves={shelves}
+                view={view}
+                isHovered={hoverRack === rackCode}
+                onHover={setHoverRack}
+                onSelect={(selectedRack) => dispatch({ type: 'OPEN_RACK', rack: selectedRack })}
+                matchSet={highlightTargets}
+                warnOnly={warnOnly}
+                isSearchTarget={parsedTarget?.rack === rackCode}
+              />
+            );
+          })}
+
+          {/* 40 Thùng hàng của kệ đang chọn (Chỉ render ở RACK view) */}
+          {view.level === 'rack' && (
+            <RackBins
+              rack={view.rack}
+              layout={layout}
+              status={status}
+              errorMessage={errorMessage}
+              retry={retry}
+              shelfFocus={view.shelf}
+              selectedBin={view.bin}
+              highlightTarget={highlightTarget}
+              warnOnly={warnOnly}
+              isModalOpen={isModalOpen}
+              onSelectBin={(shelfNo, binNo) => dispatch({ type: 'SELECT_BIN', shelf: shelfNo, bin: binNo })}
+            />
+          )}
+        </Canvas>
+
+        {/* ===================================================== */}
+        {/* 2. HUD LỚP PHỦ GIAO DIỆN TỐI GIẢN */}
+        {/* ===================================================== */}
+        <Hud
+          view={view}
+          dispatch={dispatch}
+          zones={zones}
+          layout={layout}
+          keyboardEnabled={keyboardEnabled}
+          warnOnly={warnOnly}
+          setWarnOnly={setWarnOnly}
+          onOpenShelfDetail={onOpenShelfDetail}
+          onOpenBinDetail={onOpenBinDetail}
+          onOpenReserve={onOpenReserve}
+          onSwitchTo2D={onSwitchTo2D}
         />
-
-        {/* Ánh sáng & Sàn phòng sạch */}
-        <SceneEnvironment />
-
-        {/* Cửa Nhập & Cửa Xuất Kho */}
-        <DockStation3D />
-
-        {/* Render 7 Phân khu (6 Khu Chính A..F + Khu Dự Trữ RESERVE) */}
-        {zones.map((zoneData: ZoneSummary) => (
-          <ZoneGroup3D
-            key={zoneData.zone}
-            zoneData={zoneData}
-            focusRack={focusRack}
-            rackLayoutCache={rackLayoutCache}
-            highlightTargets={highlightTargets}
-            highlightTarget={highlightTarget}
-            selectedEntity={selectedEntity}
-            fefoXrayMode={fefoXrayMode}
-            onSelectZone={selectZone}
-            onSelectRack={selectRack}
-            onSelectShelf={selectShelf}
-            onSelectBin={selectBin}
-            onHover={setHoveredEntity}
-            onUnhover={() => setHoveredEntity(null)}
-          />
-        ))}
-
-        {/* Lớp phủ Chiến thuật: Cung FEFO sang Reserve & Đường dẫn Wayfinding */}
-        <TacticalOverlays3D
-          selectedEntity={selectedEntity}
-          highlightTarget={highlightTarget}
-          rackLayoutCache={rackLayoutCache}
-        />
-
-        {/* Đội xe AGV tự hành tuần hoàn dọc hành lang */}
-        <AutonomousFleet3D />
-      </Canvas>
-
-      {/* 2. HỆ THỐNG HUD KÍNH MỜ 4 GÓC (WARETRACK TACTICAL OVERLAY) */}
-      <WarehouseHudOverlay
-        zones={zones}
-        selectedEntity={selectedEntity}
-        hoveredEntity={hoveredEntity}
-        fefoXrayMode={fefoXrayMode}
-        highlightTarget={highlightTarget}
-        onSelectZone={selectZone}
-        onSelectRack={selectRack}
-        onSelectShelf={selectShelf}
-        onSelectBin={selectBin}
-        onToggleFefoXray={toggleFefoXray}
-        onResetCamera={resetCamera}
-        onRotateCamera={rotateCamera}
-        onZoomCamera={zoomCamera}
-        onShelfSelectModal={onShelfSelect}
-        onBinSelectModal={onBinSelect}
-        onSwitchTo2D={onSwitchTo2D}
-      />
-    </div>
+      </div>
+    </ThreeErrorBoundary>
   );
 }
 
