@@ -5,11 +5,13 @@ import {
 } from "lucide-react";
 import { inventoryMapService, ReserveBatch } from "../../services/inventory/inventoryMap.service";
 import { WarehouseMap2D } from "./components/WarehouseMap2D";
+import { WarehouseMap3D } from "./components/WarehouseMap3D";
 import { ShelfDetailModal } from "./components/ShelfDetailModal";
 import { WarehouseFilterBar } from "./components/WarehouseFilterBar";
 import { ReserveBatchesPanel } from "./components/ReserveBatchesPanel";
 
 export function WarehouseMapPage() {
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("3d");
   const [loading, setLoading] = useState(true);
   const [zones, setZones] = useState<any[]>([]);
   const [selectedShelf, setSelectedShelf] = useState<{ zone: string; rack: string; shelf: number; bin?: number | null } | null>(null);
@@ -21,7 +23,7 @@ export function WarehouseMapPage() {
   // Trạng thái các lô Khu Dự Trữ
   const [reserveBatches, setReserveBatches] = useState<ReserveBatch[]>([]);
   const [loadingReserve, setLoadingReserve] = useState(false);
-  const [showReservePanel, setShowReservePanel] = useState(true);
+  const [showReservePanel, setShowReservePanel] = useState(false);
 
   useEffect(() => { 
     fetchMapData(); 
@@ -122,6 +124,28 @@ export function WarehouseMapPage() {
             )}
           </div>
 
+          {/* Nút chuyển đổi Mặt bằng 2D / Mô hình 3D */}
+          <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode("2d")}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "2d" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Layers size={13} /> Mặt bằng 2D
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("3d")}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "3d" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Boxes size={13} /> Mô hình 3D
+            </button>
+          </div>
+
           {/* Nút bật/tắt Khu Kệ Dự Trữ FEFO */}
           <button
             onClick={() => setShowReservePanel(!showReservePanel)}
@@ -196,14 +220,26 @@ export function WarehouseMapPage() {
 
       {/* Main */}
       <main className="flex-1 relative flex overflow-hidden">
-        <WarehouseMap2D
-          zones={zones}
-          onShelfSelect={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
-          onBinSelect={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
-          onZoneClick={(zoneData) => setDrawerZone(zoneData)}
-          highlightTargets={highlightTargets}
-          highlightTarget={highlightTarget}
-        />
+        {viewMode === "2d" ? (
+          <WarehouseMap2D
+            zones={zones}
+            onShelfSelect={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
+            onBinSelect={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
+            onZoneClick={(zoneData) => setDrawerZone(zoneData)}
+            highlightTargets={highlightTargets}
+            highlightTarget={highlightTarget}
+          />
+        ) : (
+          <WarehouseMap3D
+            zones={zones}
+            onShelfSelect={(zone, rack, shelf) => setSelectedShelf({ zone, rack, shelf })}
+            onBinSelect={(zone, rack, shelf, bin) => setSelectedShelf({ zone, rack, shelf, bin })}
+            onZoneClick={(zoneData) => setDrawerZone(zoneData)}
+            highlightTargets={highlightTargets}
+            highlightTarget={highlightTarget}
+            onSwitchTo2D={() => setViewMode("2d")}
+          />
+        )}
 
         {/* Zone Detail Drawer */}
         {drawerZone && (
@@ -287,7 +323,7 @@ export function WarehouseMapPage() {
           batches={reserveBatches}
           loading={loadingReserve}
           onRefresh={fetchReserveBatches}
-          onSelectBatch={(batch) => {
+          onSelectBatch={(batch: any) => {
             const loc = batch.location || {};
             setSelectedShelf({
               zone: loc.zone || 'RESERVE',
