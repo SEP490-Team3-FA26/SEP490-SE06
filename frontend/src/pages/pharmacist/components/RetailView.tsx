@@ -991,22 +991,79 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
     setIsValidatingVoucher(true);
     try {
-      const result = await voucherService.validateVoucher(code, subtotal);
+      const cartItemsPayload = cart.map((it: any) => ({
+        medicineId: String(it.medicineId || it.id || it._id),
+        medicineName: it.name || it.medicineName || "",
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || it.salePrice || 0),
+      }));
+      const result = await voucherService.validateVoucher(code, subtotal, cartItemsPayload);
       if (result?.error) {
         setVoucherError(result.message || "Mã giảm giá không hợp lệ");
         setAppliedVoucher(null);
         return;
       }
 
+      // 🎁 Tự động thêm quà tặng Mua X tặng Y vào giỏ hàng POS để đảm bảo trừ kho
+      if (result?.ruleType === 'BUY_X_GET_Y' && result?.giftReward) {
+        const gift = result.giftReward;
+        const missingQty = gift.missingGiftQty || (!gift.inCart ? gift.quantity : 0);
+        const giftMedId = gift.giftMedicineId || gift.medicineId;
+
+        if (missingQty > 0 && giftMedId) {
+          try {
+            const giftMed = await medicineService.getMedicineById(giftMedId).catch(() => null);
+            if (giftMed) {
+              const existingIndex = cart.findIndex(it => String(it.id || it._id) === String(giftMedId));
+              let nextCart = [...cart];
+              if (existingIndex > -1) {
+                nextCart[existingIndex] = {
+                  ...nextCart[existingIndex],
+                  quantity: nextCart[existingIndex].quantity + missingQty,
+                  isGiftItem: true,
+                };
+              } else {
+                const unitOptions = buildUnitOptions(giftMed);
+                const defaultUnit = getDefaultUnitOption(giftMed);
+                const baseUnit = giftMed.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
+                nextCart.push({
+                  ...giftMed,
+                  id: giftMedId,
+                  _id: giftMedId,
+                  baseUnit,
+                  unitOptions,
+                  selectedUnit: defaultUnit.unitName,
+                  unit: defaultUnit.unitName,
+                  exchangeValue: getUnitFactor(defaultUnit),
+                  price: getUnitPrice(giftMed, defaultUnit),
+                  quantity: missingQty,
+                  isGiftItem: true,
+                });
+              }
+              setCart(nextCart);
+
+              // Tính lại discount chính xác sau khi đã chèn quà vào giỏ
+              const giftUnitPrice = existingIndex > -1 ? nextCart[existingIndex].price : getUnitPrice(giftMed, getDefaultUnitOption(giftMed));
+              result.discount = Math.round(giftUnitPrice * (gift.quantity || missingQty) * ((gift.discountPercent ?? 100) / 100));
+              result.giftReward.inCart = true;
+              result.giftReward.missingGiftQty = 0;
+              showToast(`🎁 Đã tự động thêm ${missingQty}x ${gift.medicineName || giftMed.name} vào đơn hàng để xuất kho!`, "success");
+            }
+          } catch (giftErr) {
+            console.warn("Không thể tự động thêm quà tặng vào POS:", giftErr);
+          }
+        }
+      }
+
       // Áp dụng trực tiếp Voucher (Hệ thống Anomaly Detection sẽ tự động hậu kiểm nếu thu ngân áp dụng > 10 voucher/ngày)
       setAppliedVoucher(result);
       setVoucherCode("");
       setVoucherError("");
-      const maxRedeem = Math.floor(Math.max(0, subtotal - vipDiscount - result.discount) * 0.5);
+      const maxRedeem = Math.floor(Math.max(0, subtotal - vipDiscount - (result.discount || 0)) * 0.5);
       if (redeemedPoints > maxRedeem) {
         setRedeemedPoints(maxRedeem);
       }
-      showToast(`Đã áp dụng mã giảm giá ${result.code}`, "success");
+      showToast(result.message || `Đã áp dụng mã giảm giá ${result.code}`, "success");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Không thể áp dụng mã giảm giá";
       setVoucherError(msg);
@@ -1019,6 +1076,33 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const handleRemoveVoucher = () => {
     setAppliedVoucher(null);
     setVoucherError("");
+  };
+
+  // Tự động kiểm tra lại Voucher tại POS khi giỏ hàng thay đổi
+  const revalidatePosVoucher = async (nextCart: any[]) => {
+    if (!appliedVoucher?.code) return;
+    if (nextCart.length === 0) {
+      setAppliedVoucher(null);
+      return;
+    }
+    const curSubtotal = nextCart.reduce((sum, it) => sum + (it.price || 0) * (it.quantity || 1), 0);
+    const cartPayload = nextCart.map((it: any) => ({
+      medicineId: String(it.medicineId || it.id || it._id),
+      medicineName: it.name || it.medicineName || "",
+      quantity: Number(it.quantity || 1),
+      price: Number(it.price || it.salePrice || 0),
+    }));
+    try {
+      const res = await voucherService.validateVoucher(appliedVoucher.code, curSubtotal, cartPayload);
+      if (res?.error) {
+        setAppliedVoucher(null);
+        showToast(`Voucher ${appliedVoucher.code} đã tự động gỡ bỏ do giỏ hàng không còn đủ điều kiện`, "warning");
+      } else {
+        setAppliedVoucher(res);
+      }
+    } catch (e) {
+      // Bỏ qua lỗi kết nối tạm thời
+    }
   };
 
   const handleAdjustToMaxStock = (medId: string) => {
@@ -1056,8 +1140,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     const item = cart.find(it => (it.id || it._id) === id);
     if (!item) return;
     const newQty = item.quantity + change;
+    let nextCart = cart;
     if (newQty <= 0) {
-      setCart(cart.filter(it => (it.id || it._id) !== id));
+      nextCart = cart.filter(it => (it.id || it._id) !== id);
     } else {
       const factor = item.exchangeValue || 1;
       const requiredBase = newQty * factor;
@@ -1066,7 +1151,12 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         showToast(`Đã vượt quá tồn kho khả dụng (${availableStock} ${item.baseUnit || 'đơn vị'})!`, "warning");
         return;
       }
-      setCart(cart.map(it => (it.id || it._id) === id ? { ...it, quantity: newQty } : it));
+      nextCart = cart.map(it => (it.id || it._id) === id ? { ...it, quantity: newQty } : it);
+    }
+    setCart(nextCart);
+
+    if (appliedVoucher) {
+      revalidatePosVoucher(nextCart);
     }
   };
 
@@ -1099,6 +1189,12 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       const generatedOrderCode = Math.floor(10000000 + Math.random() * 90000000);
       const patientName = loyaltyInfo ? loyaltyInfo.fullName : "Khách lẻ vãng lai";
       const patientPhone = loyaltyInfo ? loyaltyInfo.phone : "0900000000";
+      const isGuestCustomer = !loyaltyInfo || !patientPhone || patientPhone === "0900000000";
+      const assignedRole = isGuestCustomer ? 'guest' : (loyaltyInfo?.role || 'customer');
+      const hasAiItems = cart.some(it => it.aiSuggested);
+      const aiAuditCode = cart.find(it => it.aiAuditCode)?.aiAuditCode;
+      const consultationId = cart.find(it => it.consultationId)?.consultationId;
+      const pharmacistApprovedBy = currentUserName;
 
       const payload = {
         type: "RETAIL",
@@ -1756,6 +1852,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                               <Sparkles size={10} className="text-emerald-600" /> AI Tư vấn • Đã duyệt GPP
                             </span>
                           )}
+                          {((appliedVoucher?.giftReward && String(it.id || it._id) === String(appliedVoucher.giftReward.medicineId)) || it.isGiftItem) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
+                              <Gift size={10} className="text-emerald-700" /> 🎁 Quà tặng Voucher {appliedVoucher?.code || ''}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
@@ -2142,7 +2243,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   Mã đã dùng: <span className="font-extrabold uppercase font-mono text-emerald-950">{appliedVoucher.code}</span>
-                  {loyaltyInfo && !isWalkIn ? (
+                  {loyaltyInfo ? (
                     <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">
                       ✓ Thành viên Zalo
                     </span>

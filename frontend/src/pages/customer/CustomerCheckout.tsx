@@ -228,7 +228,13 @@ export function CustomerCheckout() {
     setIsValidatingVoucher(true);
     setVoucherError("");
     try {
-      const res = await voucherService.validateVoucher(voucherCode.trim(), subtotal);
+      const itemsPayload = cartItems.map((it: any) => ({
+        medicineId: String(it.medicineId || it.id || it._id),
+        medicineName: it.name || it.medicineName || "",
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || it.salePrice || 0),
+      }));
+      const res = await voucherService.validateVoucher(voucherCode.trim(), subtotal, itemsPayload);
       if (res.error) {
         setVoucherError(res.message);
         setAppliedVoucher(null);

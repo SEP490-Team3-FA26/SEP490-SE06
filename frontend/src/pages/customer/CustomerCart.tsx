@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, Info } from "lucide-react";
+import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, Info, Gift, Sparkles } from "lucide-react";
 import { cartService } from "../../services/sales/cart.service";
 import { voucherService } from "../../services/sales/voucher.service";
+import { medicineService } from "../../services/inventory/medicine.service";
 
 export function CustomerCart() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export function CustomerCart() {
   const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
   const [voucherError, setVoucherError] = useState("");
   const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
+  const [isAddingGift, setIsAddingGift] = useState(false);
 
   const showAlert = (message: string, title = "Thông báo", onConfirm?: () => void) => {
     setAlertModal({ message, title, onConfirm });
@@ -132,6 +134,9 @@ export function CustomerCart() {
         await cartService.updateCartItem(id, numericQty);
         await loadCart();
         window.dispatchEvent(new Event("cartUpdated"));
+        if (appliedVoucher) {
+          handleRevalidateVoucher(appliedVoucher.code);
+        }
       } catch (err: any) {
         // Rollback nếu có lỗi
         await loadCart();
@@ -162,9 +167,85 @@ export function CustomerCart() {
 
       await loadCart();
       window.dispatchEvent(new Event("cartUpdated"));
+      if (appliedVoucher) {
+        handleRevalidateVoucher(appliedVoucher.code);
+      }
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Lỗi xóa sản phẩm";
       showAlert(msg);
+    }
+  };
+
+  // Tự động kiểm tra lại tính hợp lệ của Voucher khi giỏ hàng thay đổi
+  const handleRevalidateVoucher = async (codeToRevalidate?: string, currentItems?: any[]) => {
+    const code = codeToRevalidate || appliedVoucher?.code;
+    if (!code) return;
+    const itemsToCheck = currentItems || cartItems;
+    if (itemsToCheck.length === 0) {
+      setAppliedVoucher(null);
+      return;
+    }
+    const currentSubtotal = itemsToCheck.reduce((acc: number, item: any) => acc + (item.price || 0) * (Number(item.quantity) || 0), 0);
+    const itemsPayload = itemsToCheck.map((it: any) => ({
+      medicineId: String(it.medicineId || it.id || it._id),
+      medicineName: it.name || it.medicineName || "",
+      quantity: Number(it.quantity || 1),
+      price: Number(it.price || it.salePrice || 0),
+    }));
+
+    try {
+      const res = await voucherService.validateVoucher(code.trim(), currentSubtotal, itemsPayload);
+      if (res.error) {
+        setAppliedVoucher(null);
+        setVoucherError(`Mã giảm giá "${code}" không còn đủ điều kiện và đã được gỡ bỏ.`);
+      } else {
+        setAppliedVoucher(res);
+        setVoucherError("");
+      }
+    } catch (e) {
+      setAppliedVoucher(null);
+    }
+  };
+
+  // 🎁 Nhận quà tặng khuyến mãi Mua X tặng Y tự động vào giỏ
+  const handleClaimGift = async () => {
+    if (!appliedVoucher?.giftReward?.medicineId) return;
+    const giftReward = appliedVoucher.giftReward;
+    const giftQty = giftReward.missingGiftQty || giftReward.quantity || 1;
+    setIsAddingGift(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        await cartService.addToCart(giftReward.medicineId, giftQty);
+      } else {
+        const medInfo = await medicineService.getMedicineById(giftReward.medicineId).catch(() => null);
+        cartService.addGuestItem({
+          id: giftReward.medicineId,
+          _id: giftReward.medicineId,
+          medicineId: giftReward.medicineId,
+          name: giftReward.medicineName || medInfo?.name || "Quà tặng khuyến mãi",
+          price: medInfo?.price || 0,
+          unit: medInfo?.unit || "Hộp",
+          image: medInfo?.image || "",
+          stock: 999,
+        }, giftQty);
+      }
+
+      await loadCart();
+      window.dispatchEvent(new Event("cartUpdated"));
+
+      // Re-validate lại voucher để tính tiền chiết khấu quà tặng ngay lập tức
+      setTimeout(async () => {
+        const updatedCart = await cartService.getCart().catch(() => null);
+        const finalItems = updatedCart?.items || cartItems;
+        handleRevalidateVoucher(appliedVoucher.code, finalItems);
+      }, 500);
+    } catch (err: any) {
+      console.error("Lỗi thêm quà tặng:", err);
+      showAlert(err.response?.data?.message || err.message || "Lỗi khi thêm quà tặng vào giỏ hàng");
+    } finally {
+      setIsAddingGift(false);
     }
   };
 
@@ -176,7 +257,13 @@ export function CustomerCart() {
     setIsValidatingVoucher(true);
     setVoucherError("");
     try {
-      const res = await voucherService.validateVoucher(voucherCode.trim(), subtotal);
+      const itemsPayload = cartItems.map((it: any) => ({
+        medicineId: String(it.medicineId || it.id || it._id),
+        medicineName: it.name || it.medicineName || "",
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || it.salePrice || 0),
+      }));
+      const res = await voucherService.validateVoucher(voucherCode.trim(), subtotal, itemsPayload);
       if (res.error) {
         setVoucherError(res.message);
         setAppliedVoucher(null);
@@ -289,6 +376,37 @@ export function CustomerCart() {
 
 
 
+            {/* Banner Nhận Quà Tặng Mua X Tặng Y */}
+            {appliedVoucher?.giftReward && (!appliedVoucher.giftReward.inCart || (appliedVoucher.giftReward.missingGiftQty && appliedVoucher.giftReward.missingGiftQty > 0)) && (
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 rounded-[20px] p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 shadow-inner">
+                    <Gift size={24} className="animate-bounce" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-black text-emerald-950 text-sm">Ưu Đãi Quà Tặng Mua X Tặng Y</h4>
+                      <span className="text-[10px] bg-emerald-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        Tặng Miễn Phí
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-emerald-800 font-medium mt-1 leading-relaxed">
+                      Bạn đủ điều kiện nhận <strong className="font-extrabold text-emerald-950">{appliedVoucher.giftReward.missingGiftQty || appliedVoucher.giftReward.quantity}x {appliedVoucher.giftReward.medicineName}</strong> kèm theo đơn hàng!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClaimGift}
+                  disabled={isAddingGift}
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  <Sparkles size={15} />
+                  {isAddingGift ? "Đang thêm quà..." : "Nhận Quà Tặng Ngay"}
+                </button>
+              </div>
+            )}
+
             {/* Cart Items Table container */}
             <div className="bg-white border border-slate-200 rounded-[20px] shadow-sm overflow-hidden">
               <table className="w-full text-left border-collapse text-sm">
@@ -311,6 +429,12 @@ export function CustomerCart() {
                           <div className="text-[11px] text-slate-400 font-medium mt-0.5">{item.category}</div>
                           {item.active_ingredient && (
                             <div className="text-[10px] font-semibold text-[#0d6efd] mt-1">Hoạt chất: {item.active_ingredient}</div>
+                          )}
+                          {appliedVoucher?.giftReward && (String(itemId) === String(appliedVoucher.giftReward.medicineId)) && (
+                            <div className="inline-flex items-center gap-1.5 text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5 mt-1.5">
+                              <Gift size={12} className="text-emerald-600" />
+                              Quà tặng Voucher {appliedVoucher.code} (-{appliedVoucher.discount?.toLocaleString()}₫)
+                            </div>
                           )}
                           {item.priceChanged && (
                             <div className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5 inline-block">
