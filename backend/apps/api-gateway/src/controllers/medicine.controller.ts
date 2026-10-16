@@ -116,7 +116,8 @@ export class MedicineController implements OnModuleInit {
     );
   }
 
-  @Post("expiration-action")
+  // Hỗ trợ cả 2 alias endpoint để đảm bảo tương thích ngược 100%
+  @Post(["expiration-action", "handle-expiration"])
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({

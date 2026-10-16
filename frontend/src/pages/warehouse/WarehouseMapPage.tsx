@@ -288,17 +288,16 @@ export function WarehouseMapPage() {
           loading={loadingReserve}
           onRefresh={fetchReserveBatches}
           onSelectBatch={(batch) => {
-            if (batch.location?.zone && batch.location.zone !== 'RESERVE') {
-              setSelectedShelf({
-                zone: batch.location.zone,
-                rack: batch.location.rack,
-                shelf: batch.location.shelf,
-                bin: batch.location.bin,
-              });
-            } else {
-              // Làm sáng vị trí hoặc thông báo
-              setHighlightTarget(batch.medicineName);
-            }
+            const loc = batch.location || {};
+            setSelectedShelf({
+              zone: loc.zone || 'RESERVE',
+              rack: loc.rack || 'RES1',
+              shelf: loc.shelf || 1,
+              bin: loc.bin || 1,
+            });
+          }}
+          onSelectShelf={(zone, rack, shelf, bin) => {
+            setSelectedShelf({ zone, rack, shelf, bin });
           }}
           onClose={() => setShowReservePanel(false)}
         />

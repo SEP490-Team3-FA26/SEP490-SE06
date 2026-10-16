@@ -21,6 +21,7 @@ const ZONE_CONFIG: Record<string, {
   D: { label: "Khu D", bgColor: "#f0fdf4", headerBg: "#dcfce7", borderColor: "#86efac", textColor: "#15803d", badgeBg: "#bbf7d0", badgeText: "#166534", accentColor: "#22c55e" },
   E: { label: "Khu E", bgColor: "#faf5ff", headerBg: "#f3e8ff", borderColor: "#d8b4fe", textColor: "#7e22ce", badgeBg: "#e9d5ff", badgeText: "#6b21a8", accentColor: "#a855f7" },
   F: { label: "Khu F", bgColor: "#f8fafc", headerBg: "#f1f5f9", borderColor: "#cbd5e1", textColor: "#475569", badgeBg: "#e2e8f0", badgeText: "#334155", accentColor: "#64748b" },
+  RESERVE: { label: "Khu Dự Trữ", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#f59e0b", textColor: "#92400e", badgeBg: "#fde68a", badgeText: "#78350f", accentColor: "#d97706" },
 };
 
 const BIN_STATUS: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
@@ -223,6 +224,8 @@ export function WarehouseMap2D({
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
   // Theo dõi kệ nào đang được mở rộng (hiển thị lưới thùng)
   const [expandedRack, setExpandedRack] = useState<string | null>(null);
+  // Theo dõi mở / đóng danh sách kệ của Khu Dự Trữ (mặc định đóng, bấm nút mới sổ ra)
+  const [showReserveRacks, setShowReserveRacks] = useState<boolean>(false);
 
   const handleRackToggle = useCallback((rackKey: string) => {
     setExpandedRack(prev => prev === rackKey ? null : rackKey);
@@ -242,6 +245,10 @@ export function WarehouseMap2D({
       if (element) element.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [highlightTarget, highlightTargets]);
+
+  // Phân tách các khu kệ chính A-F và Khu Dự Trữ RESERVE
+  const normalZones = zones.filter((z) => z.zone !== "RESERVE");
+  const reserveZone = zones.find((z) => z.zone === "RESERVE");
 
   return (
     <div className="flex-1 h-full overflow-auto p-5 flex flex-col bg-slate-100">
@@ -271,9 +278,9 @@ export function WarehouseMap2D({
         <span className="font-mono text-[10px] text-emerald-500">Luồng một chiều → GSP</span>
       </div>
 
-      {/* Lưới các khu vực (Zone) */}
+      {/* Lưới các khu vực Kệ Chính (Zone A - F) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 flex-1">
-        {zones.map((zoneData) => {
+        {normalZones.map((zoneData) => {
           const cfg = ZONE_CONFIG[zoneData.zone] || ZONE_CONFIG.F;
           const totalStock = zoneData.racks.reduce((a: number, r: any) =>
             a + r.shelves.reduce((s: number, sh: any) => s + sh.totalStock, 0), 0);
@@ -435,6 +442,147 @@ export function WarehouseMap2D({
           );
         })}
       </div>
+
+      {/* KHỐI KHU DỰ TRỮ (RESERVE ZONE) — CÓ NÚT BẤM SỔ RA CÁC KỆ DỰ TRỮ */}
+      {reserveZone && (
+        <div className="mt-4 rounded-2xl overflow-hidden bg-amber-50/70 border-2 border-amber-300 shadow-sm transition-all">
+          <div className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 bg-amber-100/70 border-b border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                <Archive size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-amber-950">
+                    Khu Dự Trữ (Reserve Zone) — Kho Đệm FEFO
+                  </h3>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                    Phân kệ chuẩn
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800/80 mt-0.5">
+                  Gồm các dãy Kệ RES1, RES2, RES3, RES4 &middot; {reserveZone.racks?.length || 0} dãy kệ &middot; {reserveZone.racks?.reduce((a: number, r: any) => a + r.shelves.length, 0) || 0} tầng &middot; Sức chứa 160 ô thùng
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-amber-200/80 text-amber-900 border border-amber-300">
+                {reserveZone.racks?.reduce((a: number, r: any) => a + r.shelves.reduce((s: number, sh: any) => s + sh.totalStock, 0), 0).toLocaleString("vi-VN")} đơn vị tồn
+              </span>
+
+              {/* NÚT BẤM SỔ RA CÁC KỆ CỦA KHU DỰ TRỮ */}
+              <button
+                type="button"
+                onClick={() => setShowReserveRacks(!showReserveRacks)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs border cursor-pointer ${
+                  showReserveRacks
+                    ? "bg-amber-600 text-white border-amber-700"
+                    : "bg-white hover:bg-amber-100 text-amber-900 border-amber-300"
+                }`}
+              >
+                <Layers size={14} className={showReserveRacks ? "text-white" : "text-amber-600"} />
+                <span>
+                  {showReserveRacks
+                    ? "🔼 Thu gọn kệ dự trữ"
+                    : "📂 Bấm để sổ ra các kệ của Khu Dự Trữ (RES1, RES2, RES3, RES4)"}
+                </span>
+                {showReserveRacks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Khi bấm nút thì mới sổ ra các kệ của khu dự trữ */}
+          {showReserveRacks && (
+            <div className="p-4 bg-white/60 animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                {reserveZone.racks.map((rackData: any) => {
+                  const rackStatus = getRackWorstStatus(rackData.shelves);
+                  const rackStyle = STATUS_SHELF[rackStatus] || STATUS_SHELF.EMPTY;
+                  const rackKey = `RESERVE-${rackData.rack}`;
+                  const isExpanded = expandedRack === rackKey;
+
+                  return (
+                    <div
+                      key={rackData.rack}
+                      className="rounded-xl bg-white border border-amber-200 shadow-xs overflow-hidden"
+                    >
+                      {/* Tiêu đề Kệ Dự Trữ — click để mở/đóng lưới thùng */}
+                      <div
+                        className="flex items-center justify-between p-2.5 cursor-pointer hover:bg-amber-50/50 transition-colors"
+                        onClick={() => handleRackToggle(rackKey)}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                          <Layers size={12} className="text-amber-600" />
+                          Kệ Dự Trữ {rackData.rack}
+                          <span className="font-mono text-[10px] text-amber-700 font-normal">
+                            &middot; {rackData.shelves.reduce((a: number, s: any) => a + s.batchCount, 0)} lô
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs"
+                            style={{ backgroundColor: rackStyle.dot }}
+                            title={`Trạng thái: ${rackStatus}`}
+                          />
+                          {isExpanded
+                            ? <ChevronDown size={13} className="text-amber-600" />
+                            : <ChevronRight size={13} className="text-amber-600" />
+                          }
+                        </div>
+                      </div>
+
+                      {/* Tóm tắt 4 tầng (hiển thị khi thu gọn) */}
+                      {!isExpanded && (
+                        <div className="flex flex-col-reverse gap-1 px-2.5 pb-2.5">
+                          {rackData.shelves.map((shelfData: any) => {
+                            const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
+                            const targetId = `RESERVE-${rackData.rack}-${shelfData.shelf}`;
+                            const isHighlighted = (highlightTargets?.has(targetId) ?? false) || highlightTarget === targetId;
+
+                            return (
+                              <button
+                                key={shelfData.shelf}
+                                id={targetId}
+                                onClick={() => onShelfSelect("RESERVE", rackData.rack, shelfData.shelf)}
+                                className={`shelf-btn w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer ${isHighlighted ? "highlighted-shelf" : ""}`}
+                                style={{
+                                  backgroundColor: isHighlighted ? "#fef3c7" : ss.bg,
+                                  border: `1px solid ${isHighlighted ? "#f59e0b" : ss.border}`,
+                                  color: isHighlighted ? "#92400e" : ss.text,
+                                }}
+                                title={`Tầng ${shelfData.shelf} · Tồn: ${shelfData.totalStock}`}
+                              >
+                                <span>Tầng {shelfData.shelf}</span>
+                                <span className="tabular-nums font-mono">
+                                  {shelfData.totalStock.toLocaleString("vi-VN")} đv
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Mở rộng: Lưới 4 Tầng x 10 Thùng của Kệ Dự Trữ */}
+                      {isExpanded && (
+                        <div className="px-2 pb-2">
+                          <RackBinGrid
+                            zone="RESERVE"
+                            rack={rackData.rack}
+                            highlightTargets={highlightTargets}
+                            highlightTarget={highlightTarget}
+                            onBinSelect={onBinSelect}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Khu vực xuất hàng */}
       <div className="w-full mt-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-sky-50 border border-dashed border-sky-300">
