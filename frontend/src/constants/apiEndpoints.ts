@@ -205,6 +205,7 @@ export const API_ENDPOINTS = {
   VOUCHERS: {
     LIST: '/api/vouchers',
     CREATE: '/api/vouchers',
+    ADVANCED_RULES: '/api/vouchers/advanced-rules',
     DETAIL: (id: string) => `/api/vouchers/${encodeURIComponent(id)}`,
     UPDATE: (id: string) => `/api/vouchers/${encodeURIComponent(id)}`,
     DELETE: (id: string) => `/api/vouchers/${encodeURIComponent(id)}`,
