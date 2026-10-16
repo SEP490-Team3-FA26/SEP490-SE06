@@ -1,11 +1,15 @@
-import { Controller, Get, Put, Post, Delete, Param, Body, Query, Inject, OnModuleInit, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Post, Delete, Param, Body, Query, Inject, OnModuleInit, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
+import { UpsertBranchPriceDto, BulkUpsertBranchPriceDto, CopyPriceListDto, SyncAllPriceListDto } from '../dto/pricing.dto';
 
 @ApiTags('💰 Pricing')
+@ApiBearerAuth()
 @Controller('api/pricing')
 @UseGuards(JwtAuthGuard)
 export class PricingGatewayController implements OnModuleInit {
@@ -27,6 +31,29 @@ export class PricingGatewayController implements OnModuleInit {
     await subscribeToKafkaTopics(this.userClient, [
       'user.branch.list',
     ]);
+  }
+
+  /**
+   * Helper kiểm tra quyền truy cập chi nhánh (chống IDOR / BOLA)
+   */
+  private checkBranchAccess(req: any, targetBranchId: string) {
+    const user = req.user;
+    if (!user) return;
+    const userRole = (user.role || '').toLowerCase();
+    
+    // Admin toàn quyền truy cập mọi chi nhánh
+    if (userRole === 'admin') return;
+
+    // Quản lý chi nhánh chỉ được thao tác trên chi nhánh của mình
+    if (userRole === 'branch') {
+      const userBranchId = user.branchId || user.branch?._id || user.branch?.id;
+      if (!userBranchId) {
+        throw new ForbiddenException('Tài khoản quản lý chi nhánh chưa được gắn với cơ sở nào.');
+      }
+      if (userBranchId !== targetBranchId) {
+        throw new ForbiddenException('Bạn chỉ có quyền quản lý bảng giá tại chi nhánh được phân công.');
+      }
+    }
   }
 
   @Get('summary')
@@ -56,6 +83,8 @@ export class PricingGatewayController implements OnModuleInit {
   }
 
   @Post('copy')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'branch')
   @ApiOperation({ summary: 'Sao chép bảng giá từ chi nhánh này sang chi nhánh khác' })
   @AuditLogAction({
     actionCode: 'PRICING_COPY',
@@ -64,13 +93,24 @@ export class PricingGatewayController implements OnModuleInit {
     eventType: 'UPDATE',
     entityType: 'BranchPriceList',
   })
-  async copyPriceList(@Body() data: { fromBranchId: string; toBranchId: string; updatedBy?: string }) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.pricing.copy', data);
+  async copyPriceList(@Body() data: CopyPriceListDto, @Req() req: any) {
+    // Chi nhánh đích bắt buộc phải thuộc quyền sở hữu của user nếu là vai trò branch
+    this.checkBranchAccess(req, data.toBranchId);
+
+    const user = req.user;
+    const updatedBy = user?.id || user?._id || user?.sub || 'system';
+
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.pricing.copy', {
+      ...data,
+      updatedBy,
+    });
   }
 
   @Post('sync-all')
+  @UseGuards(RolesGuard)
+  @Roles('admin') // Chỉ duy nhất Admin IT mới có quyền đồng bộ giá sang toàn bộ hệ thống
   @ApiOperation({ summary: 'Đồng bộ bảng giá từ 1 chi nhánh sang TẤT CẢ các chi nhánh khác' })
-  async syncPriceListToAll(@Body() data: { fromBranchId: string; updatedBy?: string }) {
+  async syncPriceListToAll(@Body() data: SyncAllPriceListDto, @Req() req: any) {
     // 1. Lấy danh sách tất cả chi nhánh
     const branches = await sendKafkaMessage(this.userClient, 'user.branch.list', {});
     
@@ -81,12 +121,15 @@ export class PricingGatewayController implements OnModuleInit {
       return { status: 'Success', message: 'Không có chi nhánh đích nào để đồng bộ.' };
     }
 
+    const user = req.user;
+    const updatedBy = user?.id || user?._id || user?.sub || 'system';
+
     // 3. Gửi lệnh copy song song cho tất cả chi nhánh đích
     const promises = targetBranches.map((branch: any) => 
       sendKafkaMessage(this.inventoryClient, 'inventory.pricing.copy', {
         fromBranchId: data.fromBranchId,
         toBranchId: branch._id || branch.id,
-        updatedBy: data.updatedBy,
+        updatedBy,
       })
     );
 
@@ -119,6 +162,8 @@ export class PricingGatewayController implements OnModuleInit {
   }
 
   @Put(':branchId/:medicineId')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'branch')
   @ApiOperation({ summary: 'Tạo/cập nhật giá 1 thuốc tại 1 chi nhánh' })
   @AuditLogAction({
     actionCode: 'PRICING_UPSERT',
@@ -130,16 +175,24 @@ export class PricingGatewayController implements OnModuleInit {
   async upsertPrice(
     @Param('branchId') branchId: string,
     @Param('medicineId') medicineId: string,
-    @Body() data: any,
+    @Body() data: UpsertBranchPriceDto,
+    @Req() req: any,
   ) {
+    this.checkBranchAccess(req, branchId);
+    const user = req.user;
+    const updatedBy = user?.id || user?._id || user?.sub || 'system';
+
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pricing.upsert', {
       branchId,
       medicineId,
       ...data,
+      updatedBy,
     });
   }
 
   @Post(':branchId/bulk')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'branch')
   @ApiOperation({ summary: 'Import hàng loạt giá cho chi nhánh' })
   @AuditLogAction({
     actionCode: 'PRICING_BULK_UPSERT',
@@ -150,15 +203,23 @@ export class PricingGatewayController implements OnModuleInit {
   })
   async bulkUpsertPrices(
     @Param('branchId') branchId: string,
-    @Body() data: any,
+    @Body() data: BulkUpsertBranchPriceDto,
+    @Req() req: any,
   ) {
+    this.checkBranchAccess(req, branchId);
+    const user = req.user;
+    const updatedBy = user?.id || user?._id || user?.sub || 'system';
+
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pricing.bulk_upsert', {
       branchId,
-      ...data,
+      items: data.items,
+      updatedBy,
     });
   }
 
   @Delete(':branchId/:medicineId')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'branch')
   @ApiOperation({ summary: 'Xóa override giá (chi nhánh dùng giá mặc định)' })
   @AuditLogAction({
     actionCode: 'PRICING_DELETE',
@@ -170,7 +231,10 @@ export class PricingGatewayController implements OnModuleInit {
   async deletePrice(
     @Param('branchId') branchId: string,
     @Param('medicineId') medicineId: string,
+    @Req() req: any,
   ) {
+    this.checkBranchAccess(req, branchId);
+
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pricing.delete', {
       branchId,
       medicineId,

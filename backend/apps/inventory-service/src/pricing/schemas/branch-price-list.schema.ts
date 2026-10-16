@@ -19,13 +19,13 @@ export class BranchPriceList extends Document {
   @Prop({ type: String, required: true })
   medicineId: string; // Ref tới medicines._id
 
-  @Prop({ type: Number, default: 0 })
+  @Prop({ type: Number, default: 0, min: [0, 'Mức tồn kho tối thiểu không được âm'] })
   minStock: number; // Mức tồn kho tối thiểu cảnh báo
 
-  @Prop({ type: Number, default: null })
+  @Prop({ type: Number, default: null, min: [0, 'Giá bán lẻ tại chi nhánh không được âm'] })
   retailPrice: number; // Giá bán lẻ tại chi nhánh (null → fallback medicine.price)
 
-  @Prop({ type: Number, default: null })
+  @Prop({ type: Number, default: null, min: [0, 'Giá bán sỉ cơ bản không được âm'] })
   wholesalePrice: number; // Giá bán sỉ cơ bản
 
   @Prop({ type: [WholesaleTierSchema], default: [] })

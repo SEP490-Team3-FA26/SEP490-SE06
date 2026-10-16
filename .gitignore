@@ -74,6 +74,10 @@ start-dev.bat
 start-dev.ps1
 stop-dev.bat
 stop-dev.ps1
+start-emulator.bat
+mode-eco.bat
+mode-full.bat
+capture-screen.bat
 
 # Flutter ephemeral & build artifacts
 **/.dart_tool/
