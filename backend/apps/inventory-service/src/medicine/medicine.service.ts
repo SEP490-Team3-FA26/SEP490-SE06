@@ -1412,7 +1412,7 @@ export class MedicineService implements OnModuleInit {
       }
 
       const [medicines, batches] = await Promise.all([
-        this.medicineModel.find().select('name unit price supplierId').lean().exec(),
+        this.medicineModel.find().select('name unit price supplierId registration_number').lean().exec(),
         this.batchModel.find(batchFilter).select('medicineId batchNo stock').lean().exec()
       ]);
 
@@ -1429,8 +1429,10 @@ export class MedicineService implements OnModuleInit {
       return medicines.map(med => {
         const medId = med._id.toString();
         return {
+          _id: medId,
           id: medId,
           name: med.name,
+          registrationNumber: (med as any).registration_number || '',
           unit: med.unit || 'Hộp',
           price: med.price || 0,
           supplierId: med.supplierId || '',
