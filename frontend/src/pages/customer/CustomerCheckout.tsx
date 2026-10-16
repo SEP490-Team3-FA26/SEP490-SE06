@@ -375,12 +375,11 @@ export function CustomerCheckout() {
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
           redeemedPoints: usePoints ? redeemedPoints : 0,
           items: cartItems.map(it => ({
-            medicineId: it.id || it._id,
+            medicineId: String(it.medicineId || it.id || it._id),
             name: it.name,
-            quantity: it.quantity,
-            price: it.price,
+            quantity: Number(it.quantity || 1),
+            price: Number(it.price || 0),
             unit: it.unit || "Hộp",
-            isGiftItem: Boolean(it.isGiftItem),
           }))
         };
 
