@@ -24,7 +24,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { showToast } from '../../components/ui/toastHelper';
-import { Medicine, CartItem, Order, Voucher } from '../../types/pharmacy.types';
+import { Medicine, CartItem, Order, Voucher, Branch } from '../../types/pharmacy.types';
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 import { parseOrderToReminder, createRemindersFromOrder } from '../../services/reminderStorage.service';
 import { MedicineReminderService } from '../../services/medicineReminder.service';
@@ -99,6 +99,9 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [flashSaleSlot, setFlashSaleSlot] = useState<'SLOT_1' | 'SLOT_2' | 'SLOT_3'>('SLOT_1');
   const [seasonalCategory, setSeasonalCategory] = useState<'FLU' | 'STOMACH' | 'ALLERGY' | 'IMMUNITY'>('FLU');
   const [showBranchModal, setShowBranchModal] = useState<boolean>(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [loadingBranches, setLoadingBranches] = useState<boolean>(false);
 
   // Products & Categories
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -206,10 +209,11 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, voucherList, orderList] = await Promise.all([
+      const [medList, voucherList, orderList, branchList] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getVouchers(),
         ApiService.getMyOrders(searchPhone || user?.phone),
+        ApiService.getBranches(),
       ]);
 
       if (medList && medList.length > 0) {
@@ -220,6 +224,9 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       }
       setVouchers(voucherList || []);
       setOrders(orderList || []);
+      if (branchList && Array.isArray(branchList) && branchList.length > 0) {
+        setBranches(branchList);
+      }
     } catch (e) {
       console.warn('Error loading customer data:', e);
     } finally {
@@ -234,6 +241,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   // ─── 5 Recent Searches & Guest Cart Persistence ────────────────────────────
   const RECENT_SEARCHES_KEY = '@abc_recent_searches_v1';
   const GUEST_CART_KEY = '@abc_guest_cart';
+  const SELECTED_BRANCH_KEY = '@abc_selected_branch';
 
   useEffect(() => {
     // Load 5 recent search keywords
@@ -257,6 +265,25 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         } catch {}
       }
     });
+
+    // Load persisted selected branch
+    AsyncStorage.getItem(SELECTED_BRANCH_KEY).then((data) => {
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && (parsed.id || parsed._id)) {
+            setSelectedBranch(parsed);
+          }
+        } catch {}
+      }
+    });
+  }, []);
+
+  const handleSelectBranch = useCallback((branch: Branch) => {
+    setSelectedBranch(branch);
+    AsyncStorage.setItem(SELECTED_BRANCH_KEY, JSON.stringify(branch)).catch(() => {});
+    showToast.success('Đã chọn cơ sở', `Đang kết nối kho hàng cơ sở ${branch.name}`);
+    setShowBranchModal(false);
   }, []);
 
   const TRENDING_KEYWORDS = [
@@ -268,13 +295,6 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     'Dạ dày Gaviscon',
     'Dầu cá Omega-3',
     'Xịt mũi thảo dược',
-  ];
-
-  const ABC_BRANCHES = [
-    { id: 'CN-01', name: 'ABC Pharmacy Hai Bà Trưng', address: '120 Hai Bà Trưng, P. Bến Nghé, Q.1, TP.HCM', hotline: '1800 6821', distance: '0.8 km' },
-    { id: 'CN-02', name: 'ABC Pharmacy Nguyễn Trãi', address: '345 Nguyễn Trãi, P.7, Q.5, TP.HCM', hotline: '1800 6822', distance: '2.1 km' },
-    { id: 'CN-03', name: 'ABC Pharmacy Cầu Giấy', address: '68 Cầu Giấy, Quan Hoa, Cầu Giấy, Hà Nội', hotline: '1800 6823', distance: '1.5 km' },
-    { id: 'CN-04', name: 'ABC Pharmacy Trần Phú', address: '88 Trần Phú, Hải Châu, Đà Nẵng', hotline: '1800 6824', distance: '1.2 km' },
   ];
 
   const SEASONAL_ADVICE = {
@@ -707,7 +727,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         >
           <Ionicons name="location-sharp" size={12} color="#BAE6FD" style={{ marginRight: 4 }} />
           <Text style={styles.locationBarText} numberOfLines={1}>
-            Giao tại: Chi nhánh ABC gần nhất (GPS)
+            {selectedBranch ? `Giao tại: ${selectedBranch.name}` : 'Giao tại: Chọn chi nhánh ABC'}
           </Text>
           <Ionicons name="chevron-down" size={12} color="#BAE6FD" style={{ marginLeft: 4 }} />
         </AnimatedTouchable>
@@ -2120,37 +2140,58 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {ABC_BRANCHES.map((b) => (
-                <View key={b.id} style={styles.branchCardItem}>
-                  <View style={styles.branchIconCol}>
-                    <Ionicons name="storefront" size={22} color="#0284C7" />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={styles.branchNameText}>{b.name}</Text>
-                      <View style={styles.branchDistanceBadge}>
-                        <Text style={styles.branchDistanceText}>{b.distance}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.branchAddressText}>{b.address}</Text>
-                    <View style={styles.branchFooterRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Ionicons name="call-outline" size={13} color="#0284C7" style={{ marginRight: 4 }} />
-                        <Text style={styles.branchHotlineText}>{b.hotline}</Text>
-                      </View>
-                      <AnimatedTouchable
-                        onPress={() => {
-                          showToast.success('Đã chọn cơ sở', `Đang kết nối kho hàng cơ sở ${b.name}`);
-                          setShowBranchModal(false);
-                        }}
-                        style={styles.selectBranchBtn}
-                      >
-                        <Text style={styles.selectBranchBtnText}>Chọn cơ sở</Text>
-                      </AnimatedTouchable>
-                    </View>
-                  </View>
+              {loadingBranches && branches.length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#64748B' }}>Đang tải danh sách chi nhánh...</Text>
                 </View>
-              ))}
+              ) : branches.length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#64748B' }}>Chưa có chi nhánh nào khả dụng</Text>
+                </View>
+              ) : (
+                branches.map((b) => {
+                  const bId = b.id || b._id || b.branchCode || '';
+                  const isSelected = selectedBranch && (selectedBranch.id === bId || selectedBranch._id === bId);
+                  return (
+                    <View
+                      key={bId}
+                      style={[
+                        styles.branchCardItem,
+                        isSelected && { borderColor: '#0284C7', backgroundColor: '#F0F9FF' },
+                      ]}
+                    >
+                      <View style={[styles.branchIconCol, isSelected && { backgroundColor: '#0284C7' }]}>
+                        <Ionicons name="storefront" size={22} color={isSelected ? '#FFFFFF' : '#0284C7'} />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={[styles.branchNameText, isSelected && { color: '#0284C7' }]}>{b.name}</Text>
+                          <View style={styles.branchDistanceBadge}>
+                            <Text style={styles.branchDistanceText}>
+                              {b.checkInRadiusMeters ? `${b.checkInRadiusMeters}m` : 'Chuẩn GPP'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.branchAddressText}>{b.address}</Text>
+                        <View style={styles.branchFooterRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="call-outline" size={13} color="#0284C7" style={{ marginRight: 4 }} />
+                            <Text style={styles.branchHotlineText}>{b.phone || '1800 6821'}</Text>
+                          </View>
+                          <AnimatedTouchable
+                            onPress={() => handleSelectBranch(b)}
+                            style={[styles.selectBranchBtn, isSelected && { backgroundColor: '#059669' }]}
+                          >
+                            <Text style={styles.selectBranchBtnText}>
+                              {isSelected ? 'Đang chọn' : 'Chọn cơ sở'}
+                            </Text>
+                          </AnimatedTouchable>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
             </ScrollView>
           </View>
         </View>

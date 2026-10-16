@@ -28,7 +28,7 @@ agents.md
 AGENTS.md
 mobile/AGENTS.md
 **/AGENTS.md
-.agents/rules/
+.agents/rules/mobile.md
 taste-skill/
 
 # Python Virtual Environments & Packages
