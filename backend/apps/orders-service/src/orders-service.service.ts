@@ -149,7 +149,7 @@ export class OrdersServiceService implements OnModuleInit {
     let voucherDiscount = 0;
 
     if (data.voucherCode) {
-      const valRes = await this.validateVoucher(data.voucherCode, serverSubtotal);
+      const valRes = await this.validateVoucher(data.voucherCode, serverSubtotal, data.items || [], data.branchId);
       if (valRes.error) {
         throw new RpcException(valRes.message);
       }
@@ -352,19 +352,9 @@ export class OrdersServiceService implements OnModuleInit {
 
     // Step 1: Claim Voucher atomically
     if (newOrder.voucherCode) {
-      const voucherDoc = await this.voucherModel.findOne({ code: newOrder.voucherCode }).exec();
-      const usageLimitFilter = (voucherDoc?.usageLimit !== null && voucherDoc?.usageLimit !== undefined)
-        ? { usedCount: { $lt: voucherDoc.usageLimit } }
-        : {};
-
-      const claimed = await this.voucherModel.findOneAndUpdate(
-        { code: newOrder.voucherCode, isActive: true, ...usageLimitFilter },
-        { $inc: { usedCount: 1 } },
-        { new: true }
-      ).exec();
-
-      if (!claimed) {
-        throw new RpcException({ message: 'Mã giảm giá đã hết lượt sử dụng hoặc không còn hiệu lực' });
+      const claimResult = await this.claimVoucher(newOrder.voucherCode);
+      if (!claimResult.success) {
+        throw new RpcException({ message: claimResult.message || 'Mã giảm giá đã hết lượt sử dụng hoặc không còn hiệu lực' });
       }
     }
 
@@ -773,13 +763,13 @@ export class OrdersServiceService implements OnModuleInit {
   }
 
   // ============================
-  // VOUCHER MANAGEMENT LOGIC
+  // VOUCHER MANAGEMENT LOGIC (UC-75: Mua X tặng Y & Combo)
   // ============================
 
   async createVoucher(data: any) {
     const code = data.code.toUpperCase().trim();
 
-    // Check start and expiry date validity
+    // Kiểm tra tính hợp lệ của ngày bắt đầu và kết thúc
     const start = new Date(data.startDate);
     const expiry = new Date(data.expiryDate);
     if (isNaN(start.getTime()) || isNaN(expiry.getTime())) {
@@ -789,21 +779,45 @@ export class OrdersServiceService implements OnModuleInit {
       return { error: true, message: 'Ngày kết thúc phải lớn hơn ngày bắt đầu', statusCode: 400 };
     }
 
-    // Check numerical fields validity
+    // Kiểm tra giới hạn lượt dùng
     if (data.usageLimit !== undefined && data.usageLimit !== null && data.usageLimit <= 0) {
       return { error: true, message: 'Tổng lượt dùng phải lớn hơn hoặc bằng 1', statusCode: 400 };
     }
-    if (data.discountValue <= 0) {
-      return { error: true, message: 'Giá trị giảm phải lớn hơn 0', statusCode: 400 };
-    }
-    if (data.discountType === 'PERCENTAGE' && (data.discountValue <= 0 || data.discountValue > 100)) {
-      return { error: true, message: 'Phần trăm giảm giá phải từ 1 đến 100', statusCode: 400 };
-    }
-    if (data.minOrderValue < 0) {
+    if (data.minOrderValue !== undefined && data.minOrderValue < 0) {
       return { error: true, message: 'Giá trị đơn hàng tối thiểu không được âm', statusCode: 400 };
     }
     if (data.maxDiscountValue !== undefined && data.maxDiscountValue !== null && data.maxDiscountValue <= 0) {
       return { error: true, message: 'Giá trị giảm tối đa phải lớn hơn 0', statusCode: 400 };
+    }
+
+    const ruleType = data.ruleType || 'STANDARD';
+
+    // Kiểm tra tính hợp lệ theo từng loại khuyến mãi (UC-75)
+    if (ruleType === 'BUY_X_GET_Y') {
+      if (!data.buyCondition?.buyMedicineId || !data.buyCondition?.buyQuantity || data.buyCondition.buyQuantity <= 0) {
+        return { error: true, message: 'Vui lòng chọn thuốc cần mua và số lượng yêu cầu tối thiểu lớn hơn 0', statusCode: 400 };
+      }
+      if (!data.giftReward?.giftMedicineId || !data.giftReward?.giftQuantity || data.giftReward.giftQuantity <= 0) {
+        return { error: true, message: 'Vui lòng chọn thuốc quà tặng và số lượng tặng lớn hơn 0', statusCode: 400 };
+      }
+    } else if (ruleType === 'COMBO') {
+      if (!data.comboCondition?.comboMedicines || data.comboCondition.comboMedicines.length < 2) {
+        return { error: true, message: 'Gói khuyến mãi Combo cần tối thiểu 2 loại thuốc trở lên', statusCode: 400 };
+      }
+      if (!data.comboCondition?.comboDiscountValue || data.comboCondition.comboDiscountValue <= 0) {
+        return { error: true, message: 'Mức giảm giá của gói Combo phải lớn hơn 0', statusCode: 400 };
+      }
+      if (data.comboCondition?.comboDiscountType === 'PERCENTAGE' && (data.comboCondition.comboDiscountValue <= 0 || data.comboCondition.comboDiscountValue > 100)) {
+        return { error: true, message: 'Phần trăm giảm giá của Combo phải từ 1 đến 100%', statusCode: 400 };
+      }
+    } else {
+      // STANDARD: Giảm giá hóa đơn truyền thống
+      if (data.discountValue <= 0) {
+        return { error: true, message: 'Giá trị giảm phải lớn hơn 0', statusCode: 400 };
+      }
+      if (data.discountType === 'PERCENTAGE' && (data.discountValue <= 0 || data.discountValue > 100)) {
+        return { error: true, message: 'Phần trăm giảm giá phải từ 1 đến 100', statusCode: 400 };
+      }
     }
 
     const existing = await this.voucherModel.findOne({ code }).exec();
@@ -814,6 +828,7 @@ export class OrdersServiceService implements OnModuleInit {
     const newVoucher = new this.voucherModel({
       ...data,
       code,
+      ruleType,
       usedCount: 0,
       isActive: data.isActive !== undefined ? data.isActive : true,
     });
@@ -826,7 +841,7 @@ export class OrdersServiceService implements OnModuleInit {
       payload.code = payload.code.toUpperCase().trim();
     }
 
-    // Check start and expiry date validity
+    // Kiểm tra tính hợp lệ của ngày bắt đầu và kết thúc
     if (payload.startDate || payload.expiryDate) {
       const voucher = await this.voucherModel.findById(id).exec();
       if (voucher) {
@@ -841,12 +856,9 @@ export class OrdersServiceService implements OnModuleInit {
       }
     }
 
-    // Check numerical fields validity
+    // Kiểm tra các trường số học
     if (payload.usageLimit !== undefined && payload.usageLimit !== null && payload.usageLimit <= 0) {
       return { error: true, message: 'Tổng lượt dùng phải lớn hơn hoặc bằng 1', statusCode: 400 };
-    }
-    if (payload.discountValue !== undefined && payload.discountValue <= 0) {
-      return { error: true, message: 'Giá trị giảm phải lớn hơn 0', statusCode: 400 };
     }
     if (payload.minOrderValue !== undefined && payload.minOrderValue < 0) {
       return { error: true, message: 'Giá trị đơn hàng tối thiểu không được âm', statusCode: 400 };
@@ -855,14 +867,33 @@ export class OrdersServiceService implements OnModuleInit {
       return { error: true, message: 'Giá trị giảm tối đa phải lớn hơn 0', statusCode: 400 };
     }
 
-    // Validate final percentage constraint
-    if (payload.discountType !== undefined || payload.discountValue !== undefined) {
-      const voucher = await this.voucherModel.findById(id).exec();
-      if (voucher) {
-        const finalType = payload.discountType !== undefined ? payload.discountType : voucher.discountType;
-        const finalValue = payload.discountValue !== undefined ? payload.discountValue : voucher.discountValue;
-        if (finalType === 'PERCENTAGE' && (finalValue <= 0 || finalValue > 100)) {
-          return { error: true, message: 'Phần trăm giảm giá phải từ 1 đến 100', statusCode: 400 };
+    // Kiểm tra điều kiện theo từng loại quy tắc (UC-75)
+    if (payload.ruleType === 'BUY_X_GET_Y' || payload.buyCondition || payload.giftReward) {
+      if (payload.buyCondition && (!payload.buyCondition.buyMedicineId || payload.buyCondition.buyQuantity <= 0)) {
+        return { error: true, message: 'Vui lòng chọn thuốc cần mua và số lượng yêu cầu hợp lệ', statusCode: 400 };
+      }
+      if (payload.giftReward && (!payload.giftReward.giftMedicineId || payload.giftReward.giftQuantity <= 0)) {
+        return { error: true, message: 'Vui lòng chọn thuốc tặng kèm và số lượng quà tặng hợp lệ', statusCode: 400 };
+      }
+    } else if (payload.ruleType === 'COMBO' || payload.comboCondition) {
+      if (payload.comboCondition?.comboMedicines && payload.comboCondition.comboMedicines.length < 2) {
+        return { error: true, message: 'Gói Combo cần tối thiểu 2 loại thuốc', statusCode: 400 };
+      }
+      if (payload.comboCondition?.comboDiscountValue !== undefined && payload.comboCondition.comboDiscountValue <= 0) {
+        return { error: true, message: 'Mức giảm giá của gói Combo phải lớn hơn 0', statusCode: 400 };
+      }
+    } else {
+      if (payload.discountValue !== undefined && payload.discountValue <= 0) {
+        return { error: true, message: 'Giá trị giảm phải lớn hơn 0', statusCode: 400 };
+      }
+      if (payload.discountType !== undefined || payload.discountValue !== undefined) {
+        const voucher = await this.voucherModel.findById(id).exec();
+        if (voucher) {
+          const finalType = payload.discountType !== undefined ? payload.discountType : voucher.discountType;
+          const finalValue = payload.discountValue !== undefined ? payload.discountValue : voucher.discountValue;
+          if (finalType === 'PERCENTAGE' && (finalValue <= 0 || finalValue > 100)) {
+            return { error: true, message: 'Phần trăm giảm giá phải từ 1 đến 100', statusCode: 400 };
+          }
         }
       }
     }
@@ -886,7 +917,41 @@ export class OrdersServiceService implements OnModuleInit {
     return this.voucherModel.find().sort({ createdAt: -1 }).exec();
   }
 
-  async validateVoucher(code: string, subtotal: number) {
+  /**
+   * Khóa và trừ lượt dùng Voucher nguyên tử (Dùng cho cả POS và Web Order)
+   */
+  async claimVoucher(code: string) {
+    if (!code) return { success: false, message: 'Chưa có mã voucher' };
+    const cleanCode = code.toUpperCase().trim();
+    const voucherDoc = await this.voucherModel.findOne({ code: cleanCode }).exec();
+    if (!voucherDoc || !voucherDoc.isActive) {
+      return { success: false, message: 'Mã giảm giá không tồn tại hoặc đã bị vô hiệu hóa' };
+    }
+    const usageLimitFilter = (voucherDoc.usageLimit !== null && voucherDoc.usageLimit !== undefined)
+      ? { usedCount: { $lt: voucherDoc.usageLimit } }
+      : {};
+
+    const claimed = await this.voucherModel.findOneAndUpdate(
+      { code: cleanCode, isActive: true, ...usageLimitFilter },
+      { $inc: { usedCount: 1 } },
+      { new: true }
+    ).exec();
+
+    if (!claimed) {
+      return { success: false, message: 'Mã giảm giá đã hết lượt sử dụng' };
+    }
+    return { success: true, message: 'Đã ghi nhận sử dụng voucher thành công', voucher: claimed };
+  }
+
+  /**
+   * Xác thực và tính toán mức giảm giá của Voucher (Hỗ trợ chuẩn đơn hàng, Mua X tặng Y và Combo - UC-75)
+   */
+  async validateVoucher(
+    code: string,
+    subtotal: number,
+    items: Array<{ medicineId: string; medicineName?: string; quantity: number; price: number }> = [],
+    branchId?: string,
+  ) {
     if (!code) {
       return { error: true, message: 'Chưa nhập mã giảm giá', statusCode: 400 };
     }
@@ -910,14 +975,195 @@ export class OrdersServiceService implements OnModuleInit {
       return { error: true, message: 'Mã giảm giá đã hết lượt sử dụng', statusCode: 400 };
     }
 
-    if (subtotal < voucher.minOrderValue) {
+    if (subtotal < (voucher.minOrderValue || 0)) {
       return {
         error: true,
         message: `Mã giảm giá chỉ áp dụng cho đơn hàng từ ${voucher.minOrderValue.toLocaleString('vi-VN')}₫ trở lên`,
-        statusCode: 400
+        statusCode: 400,
       };
     }
 
+    const ruleType = voucher.ruleType || 'STANDARD';
+
+    // 🎁 Xử lý UC-75: Mua X tặng Y (BUY_X_GET_Y)
+    if (ruleType === 'BUY_X_GET_Y') {
+      const condition = voucher.buyCondition;
+      const gift = voucher.giftReward;
+
+      if (!condition || !condition.buyMedicineId) {
+        return { error: true, message: 'Cấu hình quy tắc Mua X tặng Y không hợp lệ', statusCode: 500 };
+      }
+
+      const isSameMedicine = String(condition.buyMedicineId) === String(gift?.giftMedicineId);
+      const buyQtyReq = condition.buyQuantity || 1;
+      const giftQtyReq = gift?.giftQuantity || 1;
+      const percent = ((gift?.giftDiscountPercent ?? 100) / 100);
+
+      // Tìm sản phẩm thuốc X trong giỏ hàng
+      const boughtItem = items.find(
+        (it) => String(it.medicineId) === String(condition.buyMedicineId),
+      );
+      const totalBoughtQty = boughtItem ? Number(boughtItem.quantity) || 0 : 0;
+
+      // TRƯỜNG HỢP 1: Mua X tặng X (Cùng 1 loại thuốc)
+      if (isSameMedicine) {
+        if (totalBoughtQty < buyQtyReq) {
+          return {
+            error: true,
+            message: `Đơn hàng cần mua tối thiểu ${buyQtyReq} ${condition.buyMedicineName || 'sản phẩm chỉ định'} để nhận quà khuyến mãi (hiện có: ${totalBoughtQty})`,
+            statusCode: 400,
+          };
+        }
+
+        // Nếu khách mới chỉ có số lượng mua mà chưa thêm quà vào giỏ (VD: Cần mua 2 tặng 1, nhưng giỏ mới có 2)
+        if (totalBoughtQty < buyQtyReq + giftQtyReq) {
+          return {
+            success: true,
+            code: voucher.code,
+            ruleType: 'BUY_X_GET_Y',
+            discount: 0,
+            giftReward: gift ? {
+              medicineId: gift.giftMedicineId,
+              medicineName: gift.giftMedicineName,
+              quantity: giftQtyReq,
+              eligibleQuantity: 0,
+              missingGiftQty: giftQtyReq,
+              discountPercent: gift.giftDiscountPercent ?? 100,
+              inCart: false,
+              isSameMedicine: true,
+            } : null,
+            message: `Bạn đủ điều kiện nhận thêm ${giftQtyReq} ${gift.giftMedicineName || 'sản phẩm'} miễn phí! Vui lòng thêm quà vào giỏ để nhận ưu đãi.`,
+          };
+        }
+
+        // Đã có cả hàng mua lẫn quà tặng trong giỏ (VD: giỏ có >= 3 sản phẩm)
+        const packageSize = buyQtyReq + giftQtyReq;
+        const multiplier = Math.floor(totalBoughtQty / packageSize);
+        const eligibleGiftQty = multiplier * giftQtyReq;
+        const discount = Math.round((boughtItem?.price || 0) * eligibleGiftQty * percent);
+
+        return {
+          success: true,
+          code: voucher.code,
+          ruleType: 'BUY_X_GET_Y',
+          discount,
+          giftReward: gift ? {
+            medicineId: gift.giftMedicineId,
+            medicineName: gift.giftMedicineName,
+            quantity: eligibleGiftQty,
+            eligibleQuantity: eligibleGiftQty,
+            missingGiftQty: 0,
+            discountPercent: gift.giftDiscountPercent ?? 100,
+            inCart: true,
+            isSameMedicine: true,
+          } : null,
+          message: `Áp dụng thành công: Mua ${buyQtyReq} tặng ${giftQtyReq} ${condition.buyMedicineName} (Đã tặng ${eligibleGiftQty} sản phẩm miễn phí)!`,
+        };
+      }
+
+      // TRƯỜNG HỢP 2: Mua X tặng Y (Hai loại thuốc khác nhau)
+      if (totalBoughtQty < buyQtyReq) {
+        return {
+          error: true,
+          message: `Đơn hàng cần mua tối thiểu ${buyQtyReq} ${condition.buyMedicineName || 'sản phẩm chỉ định'} để nhận quà khuyến mãi (hiện có: ${totalBoughtQty})`,
+          statusCode: 400,
+        };
+      }
+
+      // Tính số lượng quà tối đa được hưởng theo cấp số nhân số lượng mua X
+      const multiplier = Math.floor(totalBoughtQty / buyQtyReq);
+      const totalAllowedGifts = multiplier * giftQtyReq;
+
+      // Tìm thuốc quà tặng Y trong giỏ hàng
+      const giftItemInCart = items.find(
+        (it) => String(it.medicineId) === String(gift?.giftMedicineId),
+      );
+      const giftQtyInCart = giftItemInCart ? Number(giftItemInCart.quantity) || 0 : 0;
+
+      let discount = 0;
+      let eligibleGiftQty = 0;
+      let missingGiftQty = totalAllowedGifts;
+
+      if (giftItemInCart && giftQtyInCart > 0) {
+        eligibleGiftQty = Math.min(giftQtyInCart, totalAllowedGifts);
+        discount = Math.round((giftItemInCart.price || 0) * eligibleGiftQty * percent);
+        missingGiftQty = Math.max(0, totalAllowedGifts - giftQtyInCart);
+      }
+
+      return {
+        success: true,
+        code: voucher.code,
+        ruleType: 'BUY_X_GET_Y',
+        discount,
+        giftReward: gift ? {
+          medicineId: gift.giftMedicineId,
+          medicineName: gift.giftMedicineName,
+          quantity: totalAllowedGifts,
+          eligibleQuantity: eligibleGiftQty,
+          missingGiftQty,
+          discountPercent: gift.giftDiscountPercent ?? 100,
+          inCart: eligibleGiftQty > 0,
+          isSameMedicine: false,
+        } : null,
+        message: eligibleGiftQty > 0
+          ? `Áp dụng thành công: Tặng ${eligibleGiftQty} ${gift?.giftMedicineName || 'quà tặng'} (Trị giá -${discount.toLocaleString('vi-VN')}₫)!`
+          : `Bạn đủ điều kiện nhận ${totalAllowedGifts} ${gift?.giftMedicineName || 'quà tặng'} miễn phí! Vui lòng thêm quà vào giỏ để nhận ưu đãi.`,
+      };
+    }
+
+    // 📦 Xử lý UC-75: Combo ưu đãi (COMBO)
+    if (ruleType === 'COMBO') {
+      const combo = voucher.comboCondition;
+      if (!combo || !combo.comboMedicines || combo.comboMedicines.length === 0) {
+        return { error: true, message: 'Cấu hình quy tắc Combo không hợp lệ', statusCode: 500 };
+      }
+
+      const missingMedicines: string[] = [];
+      let totalComboPrice = 0;
+
+      for (const requiredItem of combo.comboMedicines) {
+        const found = items.find(
+          (it) => String(it.medicineId) === String(requiredItem.medicineId),
+        );
+        if (!found || found.quantity < requiredItem.minQuantity) {
+          missingMedicines.push(`${requiredItem.minQuantity}x ${requiredItem.medicineName}`);
+        } else {
+          totalComboPrice += found.price * requiredItem.minQuantity;
+        }
+      }
+
+      if (missingMedicines.length > 0) {
+        return {
+          error: true,
+          message: `Chưa đủ sản phẩm trong Combo! Giỏ hàng cần thêm: ${missingMedicines.join(', ')}`,
+          statusCode: 400,
+        };
+      }
+
+      let discount = 0;
+      if (combo.comboDiscountType === 'PERCENTAGE') {
+        discount = Math.round(totalComboPrice * (combo.comboDiscountValue / 100));
+        if (voucher.maxDiscountValue && discount > voucher.maxDiscountValue) {
+          discount = voucher.maxDiscountValue;
+        }
+      } else {
+        discount = combo.comboDiscountValue;
+        if (discount > subtotal) {
+          discount = subtotal;
+        }
+      }
+
+      return {
+        success: true,
+        code: voucher.code,
+        ruleType: 'COMBO',
+        discount,
+        comboCondition: combo,
+        message: `Đã áp dụng ưu đãi Combo thành công (Giảm ${discount.toLocaleString('vi-VN')}₫)!`,
+      };
+    }
+
+    // 🏷️ Xử lý STANDARD: Voucher giảm giá hóa đơn thông thường
     let discount = 0;
     if (voucher.discountType === 'PERCENTAGE') {
       discount = Math.round(subtotal * (voucher.discountValue / 100));
@@ -934,9 +1180,11 @@ export class OrdersServiceService implements OnModuleInit {
     return {
       success: true,
       code: voucher.code,
+      ruleType: 'STANDARD',
       discountType: voucher.discountType,
       discountValue: voucher.discountValue,
       discount,
+      message: `Đã áp dụng mã giảm giá ${voucher.code} (Giảm ${discount.toLocaleString('vi-VN')}₫)`,
     };
   }
 
