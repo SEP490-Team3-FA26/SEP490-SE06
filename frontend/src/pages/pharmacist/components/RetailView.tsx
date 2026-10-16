@@ -2104,9 +2104,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                           min={0}
                           max={Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5)}
                           value={redeemedPoints}
+                          onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
                           onChange={(e) => {
-                            const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
-                            const pts = Math.min(loyaltyInfo.points, maxRedeem, Number(e.target.value));
+                            const rawVal = Math.max(0, Number(e.target.value) || 0);
+                            const maxRedeem = Math.max(0, Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5));
+                            const pts = Math.min(loyaltyInfo.points, maxRedeem, rawVal);
                             setRedeemedPoints(pts);
                           }}
                           className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"

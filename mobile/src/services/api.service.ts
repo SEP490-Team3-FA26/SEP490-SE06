@@ -341,6 +341,39 @@ export class ApiService {
     return await res.json();
   }
 
+  // --- LOYALTY & CUSTOMER MEMBERSHIP APIS ---
+  public static async getMyLoyalty(): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/loyalty`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch my loyalty:', e);
+    }
+    return null;
+  }
+
+  public static async lookupLoyalty(phone: string): Promise<any> {
+    const cleanPhone = phone ? phone.trim() : '';
+    if (!cleanPhone) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/loyalty/lookup?phone=${encodeURIComponent(cleanPhone)}`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Failed to lookup loyalty by phone:', e);
+    }
+    return null;
+  }
+
   // --- MEDICINES & INVENTORY APIS (Strictly from Database & Backend) ---
   public static async getMedicines(params?: {
     page?: number;
@@ -1757,6 +1790,21 @@ export class ApiService {
     return [];
   }
 
+  public static async getBranchTodayAttendance(date?: string): Promise<any[]> {
+    let url = `${this.baseUrl}/api/hr/attendance/today`;
+    if (date) url += `?date=${encodeURIComponent(date)}`;
+    try {
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data?.data || [];
+      }
+    } catch (e) {
+      console.warn('Lỗi getBranchTodayAttendance:', e);
+    }
+    return [];
+  }
+
   public static async getMyPayslips(): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/hr/payroll/my-payslips`, {
       headers: this.authHeaders,
@@ -1957,6 +2005,349 @@ export class ApiService {
       return { success: false, error: body.message || 'Lỗi khi hủy đơn' };
     } catch (e: any) {
       return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  // --- WORK SCHEDULE (LỊCH LÀM VIỆC) ---
+  public static async getMyWeekSchedule(weekStart: string): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/api/hr/schedules/my-week?weekStart=${encodeURIComponent(weekStart)}`;
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Lỗi getMyWeekSchedule:', e);
+    }
+    return null;
+  }
+
+  public static async getWeekSchedule(weekStart: string, branchId?: string): Promise<any> {
+    try {
+      let url = `${this.baseUrl}/api/hr/schedules/week?weekStart=${encodeURIComponent(weekStart)}`;
+      if (branchId && branchId !== 'all') {
+        url += `&branchId=${encodeURIComponent(branchId)}`;
+      }
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Lỗi getWeekSchedule:', e);
+    }
+    return null;
+  }
+
+  public static async listWorkShifts(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/shifts`, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi listWorkShifts:', e);
+    }
+    return [];
+  }
+
+  // --- SHIFT SWAP (ĐỔI CA CHÉO 2 BƯỚC) ---
+  public static async listMySwaps(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/swaps/mine`, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi listMySwaps:', e);
+    }
+    return [];
+  }
+
+  public static async listBranchSwaps(status?: string): Promise<any[]> {
+    try {
+      let url = `${this.baseUrl}/api/hr/swaps`;
+      if (status && status !== 'all') {
+        url += `?status=${encodeURIComponent(status)}`;
+      }
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi listBranchSwaps:', e);
+    }
+    return [];
+  }
+
+  public static async getColleagues(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/colleagues`, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi getColleagues:', e);
+    }
+    return [];
+  }
+
+  public static async createShiftSwap(payload: {
+    requesterShiftDate: string;
+    requesterShiftId: string;
+    requesterShiftName: string;
+    targetId: string;
+    targetName: string;
+    targetShiftDate: string;
+    targetShiftId: string;
+    targetShiftName: string;
+    reason: string;
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/swaps`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return { success: true, data };
+      }
+      return { success: false, error: data?.message || 'Không thể tạo yêu cầu đổi ca' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  public static async targetRespondSwap(
+    swapId: string,
+    response: 'approved' | 'rejected',
+    rejectReason?: string,
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/swaps/${encodeURIComponent(swapId)}/target-respond`, {
+        method: 'PATCH',
+        headers: this.authHeaders,
+        body: JSON.stringify({ response, rejectReason }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return { success: true, data };
+      }
+      return { success: false, error: data?.message || 'Lỗi khi phản hồi đổi ca' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  public static async managerRespondSwap(
+    swapId: string,
+    response: 'approved' | 'rejected',
+    rejectReason?: string,
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/swaps/${encodeURIComponent(swapId)}/manager-respond`, {
+        method: 'PATCH',
+        headers: this.authHeaders,
+        body: JSON.stringify({ response, rejectReason }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return { success: true, data };
+      }
+      return { success: false, error: data?.message || 'Lỗi khi quản lý duyệt đổi ca' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  // --- STAFF CERTIFICATES (VĂN BẰNG & CCHN) ---
+  public static async getMyCertificates(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/certificates/mine`, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi getMyCertificates:', e);
+    }
+    return [];
+  }
+
+  public static async getBranchCertificates(status?: string): Promise<any[]> {
+    try {
+      let url = `${this.baseUrl}/api/hr/certificates/branch`;
+      if (status && status !== 'all') {
+        url += `?status=${encodeURIComponent(status)}`;
+      }
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi getBranchCertificates:', e);
+    }
+    return [];
+  }
+
+  public static async getBranchCertificateSummary(): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/certificates/branch/summary`, { headers: this.authHeaders });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Lỗi getBranchCertificateSummary:', e);
+    }
+    return null;
+  }
+
+  public static async uploadCertificateImage(
+    base64: string,
+    filename?: string,
+    side?: 'front' | 'back',
+  ): Promise<{ url: string; fileName: string } | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/certificates/upload`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ base64, filename, side: side || 'front' }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Lỗi uploadCertificateImage:', e);
+    }
+    return null;
+  }
+
+  public static async submitCertificate(payload: {
+    certificateType: string;
+    certificateNumber: string;
+    issuedBy: string;
+    issueDate: string;
+    expiryDate?: string;
+    purpose?: string;
+    frontImageUrl: string;
+    backImageUrl?: string;
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/certificates`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return { success: true, data };
+      }
+      return { success: false, error: data?.message || 'Không thể nộp hồ sơ văn bằng' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  public static async approveCertificate(
+    id: string,
+    payload: { monthlyAllowance?: number; isBranchPIC?: boolean },
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/certificates/${encodeURIComponent(id)}/approve`, {
+        method: 'PATCH',
+        headers: this.authHeaders,
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return { success: true, data };
+      }
+      return { success: false, error: data?.message || 'Lỗi khi phê duyệt văn bằng' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  public static async rejectCertificate(
+    id: string,
+    payload: { rejectionReason: string },
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/certificates/${encodeURIComponent(id)}/reject`, {
+        method: 'PATCH',
+        headers: this.authHeaders,
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return { success: true, data };
+      }
+      return { success: false, error: data?.message || 'Lỗi khi từ chối văn bằng' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Lỗi kết nối máy chủ' };
+    }
+  }
+
+  // --- BRANCH PAYROLL (BẢNG LƯƠNG CHI NHÁNH) ---
+  public static async calculateBranchPayroll(
+    month: number,
+    year: number,
+    mealAllowanceRate?: number,
+    branchId?: string,
+  ): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/payroll/calculate`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ month, year, mealAllowanceRate, branchId }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      const data = await res.json();
+      throw new Error(data?.message || 'Không thể tính bảng lương');
+    } catch (e: any) {
+      throw e;
+    }
+  }
+
+  public static async getBranchPayrolls(year?: number, branchId?: string): Promise<any[]> {
+    try {
+      let url = `${this.baseUrl}/api/hr/payroll`;
+      const params = [];
+      if (year) params.push(`year=${year}`);
+      if (branchId && branchId !== 'all') params.push(`branchId=${encodeURIComponent(branchId)}`);
+      if (params.length > 0) url += `?${params.join('&')}`;
+
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi getBranchPayrolls:', e);
+    }
+    return [];
+  }
+
+  public static async approveBranchPayroll(payrollId: string): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/hr/payroll/${encodeURIComponent(payrollId)}/approve`, {
+        method: 'PATCH',
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      const data = await res.json();
+      throw new Error(data?.message || 'Lỗi khi phê duyệt bảng lương cơ sở');
+    } catch (e: any) {
+      throw e;
     }
   }
 }

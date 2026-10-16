@@ -152,7 +152,7 @@ export async function sendKafkaMessage(client: ClientKafka, topic: string, data:
       console.log(`[API-Gateway][sendKafkaMessage] Received response from topic "${topic}"`);
     }
     if (result?.error) {
-      throw new HttpException(result.message || 'Internal Microservice Error', result.statusCode || 500);
+      throw new HttpException(typeof result === 'object' ? result : { message: result }, result.statusCode || 500);
     }
 
     if (typeof result === 'string') {

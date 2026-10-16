@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiService } from '../../services/api.service';
 import { GradientButton } from '../ui/GradientButton';
 import { AnimatedTouchable } from '../ui/AnimatedTouchable';
@@ -30,6 +31,7 @@ export const BranchLocationModal: React.FC<BranchLocationModalProps> = ({
   branch,
   onSuccess,
 }) => {
+  const insets = useSafeAreaInsets();
   const [latitudeStr, setLatitudeStr] = useState<string>('');
   const [longitudeStr, setLongitudeStr] = useState<string>('');
   const [radiusMeters, setRadiusMeters] = useState<number>(200);
@@ -235,7 +237,7 @@ export const BranchLocationModal: React.FC<BranchLocationModalProps> = ({
           </ScrollView>
 
           {/* Footer Actions */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <AnimatedTouchable onPress={onClose} style={styles.cancelBtn}>
               <Text style={styles.cancelBtnText}>Hủy</Text>
             </AnimatedTouchable>
@@ -267,7 +269,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
-    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',

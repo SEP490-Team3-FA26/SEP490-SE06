@@ -224,7 +224,7 @@ export function VoucherManagement() {
   const usedTotal = vouchers.reduce((acc, v) => acc + (v.usedCount || 0), 0);
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] p-6 lg:p-8 overflow-y-auto">
+    <div className="flex flex-col min-h-full bg-[#f8fafc] p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -524,7 +524,8 @@ export function VoucherManagement() {
                         min={1}
                         max={100}
                         value={discountValue || ""}
-                        onChange={(e) => setDiscountValue(Number(e.target.value))}
+                        onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                        onChange={(e) => setDiscountValue(Math.min(100, Math.max(1, Number(e.target.value) || 0)))}
                         placeholder="Ví dụ: 10"
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
                       />
@@ -533,9 +534,10 @@ export function VoucherManagement() {
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Giảm tối đa (đ)</label>
                       <input
                         type="number"
-                        min={1}
+                        min={0}
                         value={maxDiscountValue || ""}
-                        onChange={(e) => setMaxDiscountValue(e.target.value ? Number(e.target.value) : undefined)}
+                        onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                        onChange={(e) => setMaxDiscountValue(e.target.value ? Math.max(0, Number(e.target.value)) : undefined)}
                         placeholder="Không giới hạn"
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
                       />
@@ -548,7 +550,8 @@ export function VoucherManagement() {
                       required
                       min={0}
                       value={minOrderValue}
-                      onChange={(e) => setMinOrderValue(Number(e.target.value))}
+                      onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                      onChange={(e) => setMinOrderValue(Math.max(0, Number(e.target.value) || 0))}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
                     />
                   </div>
@@ -562,7 +565,8 @@ export function VoucherManagement() {
                       required
                       min={1}
                       value={discountValue || ""}
-                      onChange={(e) => setDiscountValue(Number(e.target.value))}
+                      onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                      onChange={(e) => setDiscountValue(Math.max(1, Number(e.target.value) || 0))}
                       placeholder="Ví dụ: 30000"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
                     />
@@ -574,7 +578,8 @@ export function VoucherManagement() {
                       required
                       min={0}
                       value={minOrderValue}
-                      onChange={(e) => setMinOrderValue(Number(e.target.value))}
+                      onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
+                      onChange={(e) => setMinOrderValue(Math.max(0, Number(e.target.value) || 0))}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
                     />
                   </div>

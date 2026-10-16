@@ -145,7 +145,7 @@ export function BranchTransfer() {
   );
 
   return (
-    <div className="flex flex-col gap-4 h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
+    <div className="flex flex-col gap-4 min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">

@@ -103,7 +103,7 @@ export function Finance() {
       : `Gộp tháng ${selectedDate.slice(5, 7)}/${selectedDate.slice(0, 4)}`;
 
   return (
-    <div className="space-y-6 flex flex-col h-full bg-slate-50/50 p-6 lg:p-8 overflow-y-auto print:bg-white print:p-0">
+    <div className="space-y-6 flex flex-col min-h-full bg-slate-50/50 p-6 lg:p-8 pb-12 print:bg-white print:p-0">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
         <div>

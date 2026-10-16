@@ -110,136 +110,181 @@ export const StaffPayslipModal: React.FC<StaffPayslipModalProps> = ({ visible, o
             <ScrollView contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
               {/* Selector tháng */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthScroll}>
-                {payslips.map((slip) => {
-                  const isSelected = selectedSlip?._id === slip._id || selectedSlip?.monthYear === slip.monthYear;
+                {payslips.map((slip, index) => {
+                  const label = slip.month && slip.year ? `${slip.month}/${slip.year}` : (slip.monthYear || `Kỳ ${index + 1}`);
+                  const isSelected = (selectedSlip?._id && selectedSlip._id === slip._id) ||
+                    (selectedSlip?.payrollId && selectedSlip.payrollId === slip.payrollId) ||
+                    (selectedSlip?.month === slip.month && selectedSlip?.year === slip.year);
                   return (
                     <TouchableOpacity
-                      key={slip._id || slip.monthYear}
+                      key={slip._id || slip.payrollId || `${slip.month}_${slip.year}_${index}`}
                       onPress={() => setSelectedSlip(slip)}
                       style={[styles.monthTab, isSelected && styles.monthTabActive]}
                     >
                       <Text style={[styles.monthTabText, isSelected && styles.monthTabTextActive]}>
-                        Tháng {slip.monthYear}
+                        Tháng {label}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
 
-              {selectedSlip && (
-                <View style={styles.slipCard}>
-                  {/* Top card */}
-                  <View style={styles.topCard}>
-                    <View>
-                      <Text style={styles.netTitle}>THỰC LĨNH THÁNG {selectedSlip.monthYear}</Text>
-                      <Text style={styles.netAmount}>{formatVnd(selectedSlip.netSalary)}</Text>
-                    </View>
-                    {renderStatusBadge(selectedSlip.status)}
-                  </View>
+              {selectedSlip && (() => {
+                const item = selectedSlip.item || selectedSlip;
+                const monthLabel = selectedSlip.month && selectedSlip.year
+                  ? `${selectedSlip.month}/${selectedSlip.year}`
+                  : (selectedSlip.monthYear || '');
+                const netSalary = item.netSalary ?? selectedSlip.netSalary ?? 0;
+                const baseSalary = item.baseSalary ?? selectedSlip.baseSalary ?? 0;
+                const actualShifts = item.actualShifts ?? selectedSlip.actualShifts ?? 0;
+                const standardShifts = item.standardShifts ?? 26;
+                const lateInfo = item.lateMinutes ? `${item.lateMinutes} phút` : (selectedSlip.lateCount ? `${selectedSlip.lateCount} lần` : '0');
+                const shiftSalary = item.standardSalary ?? selectedSlip.calculatedShiftSalary ?? 0;
+                const cchn = item.certificateAllowance ?? selectedSlip.cchnAllowance ?? 0;
+                const ptcm = item.picAllowance ?? selectedSlip.ptcmAllowance ?? 0;
+                const meal = item.mealAllowance ?? selectedSlip.lunchAllowance ?? 0;
+                const nightShift = item.nightShiftAllowance ?? 0;
+                const commission = item.commissionAmount ?? selectedSlip.posCommission ?? 0;
+                const posRevenue = item.personalSalesRevenue ?? 0;
+                const bonus = item.branchBonus ?? selectedSlip.targetBonus ?? 0;
+                const penalty = item.penalties ?? selectedSlip.latePenalty ?? 0;
+                const adjustment = item.manualAdjustment ?? selectedSlip.manualAdjustment ?? 0;
+                const adjNote = item.adjustmentNote || selectedSlip.adjustmentNote || '';
 
-                  {/* Summary row */}
-                  <View style={styles.summaryRow}>
-                    <View style={styles.summaryCol}>
-                      <Text style={styles.summaryLabel}>Lương cơ bản</Text>
-                      <Text style={styles.summaryVal}>{formatVnd(selectedSlip.baseSalary)}</Text>
-                    </View>
-                    <View style={styles.summaryCol}>
-                      <Text style={styles.summaryLabel}>Số ca thực tế</Text>
-                      <Text style={styles.summaryVal}>{selectedSlip.actualShifts} ca</Text>
-                    </View>
-                    <View style={styles.summaryCol}>
-                      <Text style={styles.summaryLabel}>Đi muộn</Text>
-                      <Text style={styles.summaryVal}>{selectedSlip.lateCount || 0} lần</Text>
-                    </View>
-                  </View>
-
-                  {/* Detailed breakdown */}
-                  <View style={styles.breakdownBox}>
-                    <Text style={styles.sectionHeader}>CHI TIẾT THU NHẬP & PHỤ CẤP</Text>
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Tiền lương theo số ca làm:</Text>
-                      <Text style={styles.lineValue}>{formatVnd(selectedSlip.calculatedShiftSalary)}</Text>
-                    </View>
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Phụ cấp Chứng chỉ hành nghề (CCHN):</Text>
-                      <Text style={[styles.lineValue, styles.bonusText]}>
-                        +{formatVnd(selectedSlip.cchnAllowance)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Phụ cấp Phụ trách chuyên môn (PTCM):</Text>
-                      <Text style={[styles.lineValue, styles.bonusText]}>
-                        +{formatVnd(selectedSlip.ptcmAllowance)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Phụ cấp ăn trưa (35k/ca):</Text>
-                      <Text style={[styles.lineValue, styles.bonusText]}>
-                        +{formatVnd(selectedSlip.lunchAllowance)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Hoa hồng doanh số POS (1.0%):</Text>
-                      <Text style={[styles.lineValue, styles.bonusText]}>
-                        +{formatVnd(selectedSlip.posCommission)}
-                      </Text>
-                    </View>
-
-                    {selectedSlip.personalPosRevenue > 0 && (
-                      <Text style={styles.subNote}>
-                        Doanh số bán lẻ tại quầy: {formatVnd(selectedSlip.personalPosRevenue)}
-                      </Text>
-                    )}
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Thưởng hoàn thành chỉ tiêu:</Text>
-                      <Text style={[styles.lineValue, styles.bonusText]}>
-                        +{formatVnd(selectedSlip.targetBonus)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <Text style={styles.sectionHeader}>CÁC KHOẢN GIẢM TRỪ</Text>
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Phạt đi muộn (50k/lần):</Text>
-                      <Text style={[styles.lineValue, styles.deductText]}>
-                        -{formatVnd(selectedSlip.latePenalty)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.lineItem}>
-                      <Text style={styles.lineLabel}>Bảo hiểm & Giảm trừ khác:</Text>
-                      <Text style={[styles.lineValue, styles.deductText]}>
-                        -{formatVnd(selectedSlip.otherDeductions)}
-                      </Text>
-                    </View>
-
-                    {selectedSlip.manualAdjustment !== 0 && (
-                      <View style={styles.lineItem}>
-                        <Text style={styles.lineLabel}>Điều chỉnh thủ công từ quản lý:</Text>
-                        <Text style={styles.lineValue}>
-                          {selectedSlip.manualAdjustment > 0 ? '+' : ''}
-                          {formatVnd(selectedSlip.manualAdjustment)}
-                        </Text>
+                return (
+                  <View style={styles.slipCard}>
+                    {/* Top card */}
+                    <View style={styles.topCard}>
+                      <View>
+                        <Text style={styles.netTitle}>THỰC LĨNH THÁNG {monthLabel}</Text>
+                        <Text style={styles.netAmount}>{formatVnd(netSalary)}</Text>
                       </View>
-                    )}
+                      {renderStatusBadge(selectedSlip.status)}
+                    </View>
 
-                    <View style={styles.divider} />
+                    {/* Summary row */}
+                    <View style={styles.summaryRow}>
+                      <View style={styles.summaryCol}>
+                        <Text style={styles.summaryLabel}>Lương cơ bản</Text>
+                        <Text style={styles.summaryVal}>{formatVnd(baseSalary)}</Text>
+                      </View>
+                      <View style={styles.summaryCol}>
+                        <Text style={styles.summaryLabel}>Số ca thực tế</Text>
+                        <Text style={styles.summaryVal}>{actualShifts} / {standardShifts} ca</Text>
+                      </View>
+                      <View style={styles.summaryCol}>
+                        <Text style={styles.summaryLabel}>Đi muộn</Text>
+                        <Text style={styles.summaryVal}>{lateInfo}</Text>
+                      </View>
+                    </View>
 
-                    <View style={styles.totalRow}>
-                      <Text style={styles.totalLabel}>TỔNG CỘNG THỰC LĨNH:</Text>
-                      <Text style={styles.totalValue}>{formatVnd(selectedSlip.netSalary)}</Text>
+                    {/* Detailed breakdown */}
+                    <View style={styles.breakdownBox}>
+                      <Text style={styles.sectionHeader}>CHI TIẾT THU NHẬP & PHỤ CẤP</Text>
+
+                      <View style={styles.lineItem}>
+                        <Text style={styles.lineLabel}>Tiền lương theo ca trực ({actualShifts} ca):</Text>
+                        <Text style={styles.lineValue}>{formatVnd(shiftSalary)}</Text>
+                      </View>
+
+                      {cchn > 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>Phụ cấp Chứng chỉ hành nghề (CCHN):</Text>
+                          <Text style={[styles.lineValue, styles.bonusText]}>
+                            +{formatVnd(cchn)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {ptcm > 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>Phụ cấp Phụ trách chuyên môn (PTCM):</Text>
+                          <Text style={[styles.lineValue, styles.bonusText]}>
+                            +{formatVnd(ptcm)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {meal > 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>Phụ cấp ăn trưa ({actualShifts} ca):</Text>
+                          <Text style={[styles.lineValue, styles.bonusText]}>
+                            +{formatVnd(meal)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {nightShift > 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>Phụ cấp ca đêm:</Text>
+                          <Text style={[styles.lineValue, styles.bonusText]}>
+                            +{formatVnd(nightShift)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {commission > 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>Hoa hồng doanh số bán hàng POS:</Text>
+                          <Text style={[styles.lineValue, styles.bonusText]}>
+                            +{formatVnd(commission)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {posRevenue > 0 && (
+                        <Text style={styles.subNote}>
+                          Doanh số bán lẻ tại quầy: {formatVnd(posRevenue)}
+                        </Text>
+                      )}
+
+                      {bonus > 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>Thưởng hiệu suất cơ sở:</Text>
+                          <Text style={[styles.lineValue, styles.bonusText]}>
+                            +{formatVnd(bonus)}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.divider} />
+
+                      <Text style={styles.sectionHeader}>CÁC KHOẢN GIẢM TRỪ & ĐIỀU CHỈNH</Text>
+
+                      {penalty > 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>Phạt đi muộn / vi phạm:</Text>
+                          <Text style={[styles.lineValue, styles.deductText]}>
+                            -{formatVnd(penalty)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {adjustment !== 0 && (
+                        <View style={styles.lineItem}>
+                          <Text style={styles.lineLabel}>
+                            Điều chỉnh từ Quản lý {adjNote ? `(${adjNote})` : ''}:
+                          </Text>
+                          <Text style={[styles.lineValue, adjustment > 0 ? styles.bonusText : styles.deductText]}>
+                            {adjustment > 0 ? '+' : ''}{formatVnd(adjustment)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {penalty === 0 && adjustment === 0 && (
+                        <Text style={styles.subNote}>Không có khoản giảm trừ vi phạm trong kỳ.</Text>
+                      )}
+
+                      <View style={styles.divider} />
+
+                      <View style={styles.totalRow}>
+                        <Text style={styles.totalLabel}>TỔNG CỘNG THỰC LĨNH:</Text>
+                        <Text style={styles.totalValue}>{formatVnd(netSalary)}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              )}
+                );
+              })()}
             </ScrollView>
           )}
         </View>
