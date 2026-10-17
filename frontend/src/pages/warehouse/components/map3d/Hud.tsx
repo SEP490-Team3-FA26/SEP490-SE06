@@ -1,10 +1,9 @@
 // ============================================================================
-// Giao Diện Lớp Phủ Tối Giản (Minimal HUD Overlay - Đúng 5 Vùng)
+// Giao Diện Lớp Phủ Tối Giản (Minimal HUD Overlay)
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
-// Không có dữ liệu giả (bỏ nhiệt độ/độ ẩm/KPI ribbon/chu trình 5 bước)
 // ============================================================================
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   AlertTriangle,
   X,
@@ -48,7 +47,6 @@ export const Hud: React.FC<HudProps> = ({
   onOpenShelfDetail,
   onOpenBinDetail,
   onOpenReserve,
-  onSwitchTo2D,
 }) => {
   const [showLegend, setShowLegend] = useState(false);
   const [showAlertsDrawer, setShowAlertsDrawer] = useState(false);
@@ -58,15 +56,12 @@ export const Hud: React.FC<HudProps> = ({
   const activeZone = activeRack ? RACK_TO_ZONE[activeRack] : null;
   const activeZoneMeta = activeZone ? ZONE_METAS[activeZone] : null;
 
-
-  // Thông tin ô thùng đang được chọn (nếu có)
   const selectedBinItem: BinItem | null = useMemo(() => {
     if (view.level !== 'rack' || !view.shelf || !view.bin || !layout) return null;
     const sh = layout.find((s) => s.shelfNo === view.shelf);
     return sh?.bins.find((b) => b.binNo === view.bin) || null;
   }, [view, layout]);
 
-  // Danh sách toàn bộ cảnh báo kho (sắp xếp EXPIRED > NEAR_EXPIRY > LOW_STOCK)
   const warningList = useMemo(() => {
     const list: Array<{
       zone: string;
@@ -96,14 +91,10 @@ export const Hud: React.FC<HudProps> = ({
     return list.sort((a, b) => rank[b.status] - rank[a.status]);
   }, [zones]);
 
-  // ==========================================
-  // Xử lý Phím Tắt (Keyboard Navigation)
-  // ==========================================
   useEffect(() => {
     if (!keyboardEnabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Bỏ qua nếu người dùng đang gõ trong ô input hoặc select
       const activeEl = document.activeElement;
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
         return;
@@ -148,30 +139,23 @@ export const Hud: React.FC<HudProps> = ({
   return (
     <div className="absolute inset-0 pointer-events-none select-none z-10 flex flex-col justify-between p-4 overflow-hidden">
       {/* ========================================================= */}
-      {/* 1. THANH ĐỈNH TRÊN (TOP BAR): Breadcrumb & Nút Điều Khiển */}
+      {/* 1. THANH ĐỈNH TRÊN (TOP BAR)                              */}
       {/* ========================================================= */}
       <div className="flex items-start justify-between w-full pointer-events-auto">
-        {/* Vùng Trên - Trái: Thu gọn tối đa, xóa chữ Khu và chữ Dãy */}
         {!isOverview && activeRack ? (
-          <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-sm text-xs">
+          <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-sm text-xs">
             <button
               type="button"
               onClick={() => dispatch({ type: 'OVERVIEW' })}
-              className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-              title="Quay lại tổng quan kho (Phím Esc)"
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+              title="Quay lại tổng quan kho (Esc)"
             >
-              <ArrowLeft size={12} />
+              <ArrowLeft size={13} />
               <span>Tổng quan</span>
             </button>
+
             <span className="text-slate-300">|</span>
-            <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md font-mono text-xs flex items-center gap-1">
-              <span
-                className="w-2 h-2 rounded-full inline-block shrink-0"
-                style={{ backgroundColor: activeZoneMeta?.hex || '#3b82f6' }}
-              />
-              {activeRack}
-            </span>
-            <span className="text-slate-300">|</span>
+
             <button
               type="button"
               onClick={() => {
@@ -179,20 +163,19 @@ export const Hud: React.FC<HudProps> = ({
                   onOpenShelfDetail(activeZone, activeRack, view.shelf || 1);
                 }
               }}
-              className="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs whitespace-nowrap"
-              title="Mở chi tiết tầng (Enter)"
+              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs whitespace-nowrap"
+              title="Mở bảng chi tiết tầng (Enter)"
             >
               <ExternalLink size={11} />
-              <span>Chi tiết T{view.shelf || 1}</span>
+              <span>Chi tiết kệ {activeRack}</span>
             </button>
           </div>
         ) : (
           <div />
         )}
 
-        {/* Vùng Trên - Phải: Bộ Lọc Cảnh Báo & Chú Giải (đã xóa nút Xem 2D) */}
-        <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-200/80 shadow-sm text-xs">
-          {/* Công tắc Chỉ hiện cảnh báo */}
+        {/* Bộ Lọc Cảnh Báo & Chú Giải */}
+        <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-200 shadow-sm text-xs">
           <button
             type="button"
             onClick={() => setWarnOnly(!warnOnly)}
@@ -206,7 +189,6 @@ export const Hud: React.FC<HudProps> = ({
             <span>Chỉ cảnh báo</span>
           </button>
 
-          {/* Nút bật Chú giải màu */}
           <div className="relative">
             <button
               type="button"
@@ -240,11 +222,10 @@ export const Hud: React.FC<HudProps> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* 2. SIDE PANEL (CHỈ HIỆN KHI NGƯỜI DÙNG CLICK VÀO 1 THÙNG)  */}
-      {/* Đã xóa hẳn ô "Thông tin Dãy" cồng kềnh che mất không gian   */}
+      {/* 2. SIDE PANEL KHI CHỌN 1 THÙNG THUỐC                      */}
       {/* ========================================================= */}
       {!isOverview && activeRack && selectedBinItem && (
-        <div className="absolute top-16 right-4 w-72 max-h-[calc(100vh-140px)] bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-xl p-3.5 flex flex-col pointer-events-auto overflow-y-auto">
+        <div className="absolute top-16 right-4 w-72 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl p-3.5 flex flex-col pointer-events-auto">
           <div className="space-y-2.5">
             <div className="flex items-start justify-between pb-2 border-b border-slate-100">
               <div>
@@ -264,13 +245,11 @@ export const Hud: React.FC<HudProps> = ({
                 type="button"
                 onClick={() => dispatch({ type: 'SELECT_SHELF', shelf: view.shelf })}
                 className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                title="Đóng chi tiết thùng"
               >
                 <X size={13} />
               </button>
             </div>
 
-            {/* Thông số tồn kho */}
             <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 space-y-1 text-[11px]">
               <div className="flex justify-between">
                 <span className="text-slate-500">Tồn kho:</span>
@@ -309,11 +288,10 @@ export const Hud: React.FC<HudProps> = ({
               )}
             </div>
 
-            {/* Cảnh báo lô cũ ở Khu Dự Trữ */}
             {selectedBinItem.hasReserveBatch && (
               <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2 rounded-xl text-[11px] space-y-1">
                 <div className="font-bold flex items-center gap-1 text-amber-800">
-                  <AlertTriangle size={13} className="text-amber-600 shrink-0" />
+                  <AlertTriangle className="text-amber-600 shrink-0" size={13} />
                   <span>Có lô cũ tại Khu Dự Trữ</span>
                 </div>
                 {onOpenReserve && (
@@ -328,7 +306,6 @@ export const Hud: React.FC<HudProps> = ({
               </div>
             )}
 
-            {/* Nút mở Modal Quản lý Lô thuốc */}
             <button
               type="button"
               onClick={() => {
@@ -346,12 +323,11 @@ export const Hud: React.FC<HudProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* 3. ĐIỀU HƯỚNG DƯỚI (BOTTOM BAR): Đã xóa thanh chuyển khu nhanh */}
+      {/* 3. ĐIỀU HƯỚNG DƯỚI (BOTTOM BAR)                           */}
       {/* ========================================================= */}
       <div className="flex items-end justify-between w-full pointer-events-auto">
-        {/* Vùng Dưới - Trái: Bảng phân khu mini khi ở Overview (nhỏ gọn, không che thanh tìm kiếm) */}
         {isOverview ? (
-          <div className="bg-white/95 backdrop-blur-md rounded-xl border border-slate-200/90 shadow-md p-1.5 text-xs">
+          <div className="bg-white/95 backdrop-blur-md rounded-xl border border-slate-200 shadow-md p-1.5 text-xs">
             <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">
               Phân khu kho GSP
             </div>
@@ -428,22 +404,20 @@ export const Hud: React.FC<HudProps> = ({
           <div />
         )}
 
-        {/* Vùng Dưới - Phải (Chỉ hiện khi ở Overview): Nút danh sách cảnh báo */}
         {isOverview && (
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowAlertsDrawer(!showAlertsDrawer)}
-              className="bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-200/80 shadow-md text-xs font-bold flex items-center gap-2 hover:bg-slate-50 transition cursor-pointer text-slate-800"
+              className="bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-200 shadow-md text-xs font-bold flex items-center gap-2 hover:bg-slate-50 transition cursor-pointer text-slate-800"
             >
-              <AlertTriangle size={15} className="text-amber-500" />
+              <AlertTriangle className="text-amber-500" size={15} />
               <span>Cảnh báo</span>
               <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
                 {warningList.length}
               </span>
             </button>
 
-            {/* Danh sách cảnh báo trượt */}
             {showAlertsDrawer && (
               <div className="absolute right-0 bottom-full mb-2 w-72 max-h-80 overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 text-xs space-y-2">
                 <div className="font-bold text-slate-800 pb-1 border-b border-slate-100 flex justify-between items-center">

@@ -1,10 +1,11 @@
 // ============================================================================
 // Mô Hình 40 Thùng Hàng Của Dãy Kệ Đang Xem (RackBins - 4 Tầng x 10 Thùng)
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
-// Chỉ render cho đúng 1 kệ đang xem. Thùng thật, không bịa dữ liệu khi lỗi.
+// Giải pháp: Native Three.js Mesh + Dynamic Canvas Texture (Khít 100% mọi zoom)
 // ============================================================================
 
-import React from 'react';
+import React, { useMemo, useEffect } from 'react';
+import * as THREE from 'three';
 import { Html } from '@react-three/drei';
 import {
   RACK_DIMENSIONS,
@@ -12,16 +13,363 @@ import {
   STATUS_COLORS,
   ShelfBinLayout,
   BinItem,
+  WarehouseStatus,
   parseWarehouseTargetId,
 } from './constants';
 import type { RackLayoutStatus } from './useRackLayout';
 import {
   binUnitGeometry,
+  binEdgesGeometry,
   binHitboxGeometry,
+  binFacePlaneGeometry,
+  binEdgeLineMaterial,
   statusNormalMaterials,
-  statusDimMaterials,
 } from './materials';
 
+// ============================================================================
+// HÀM HELPER: Ngắt dòng thông minh trên Canvas 2D (Tối ưu tên thuốc to)
+// ============================================================================
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number = 4
+): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const testWidth = ctx.measureText(testLine).width;
+
+    if (testWidth > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+      if (lines.length === maxLines - 1) {
+        const remaining = words.slice(i).join(' ');
+        let lastLine = remaining;
+        while (ctx.measureText(`${lastLine}...`).width > maxWidth && lastLine.length > 0) {
+          lastLine = lastLine.slice(0, -1).trimEnd();
+        }
+        lines.push(lastLine ? `${lastLine}...` : '...');
+        return lines;
+      }
+    } else {
+      currentLine = testLine;
+    }
+  }
+
+  if (currentLine && lines.length < maxLines) {
+    lines.push(currentLine);
+  }
+
+  return lines;
+}
+
+// ============================================================================
+// HÀM HELPER: Vẽ nhãn thuốc y tế siêu to rõ, tối ưu hiệu năng GPU và bộ nhớ
+// ============================================================================
+function createBinTexture(
+  binItem: BinItem,
+  binNo: number,
+  shelfNo: number,
+  binStatus: WarehouseStatus,
+  capacity: number,
+  fillPercent: number,
+  isSelected: boolean,
+  isHighlighted: boolean
+): THREE.CanvasTexture {
+  // Kích thước 384x366 tối ưu tỷ lệ 0.82:0.78, giảm 44% dung lượng pixel so với 512x488
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 366;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  const isEmpty = binStatus === 'EMPTY' || (binItem.currentStock || 0) === 0;
+  const statusHex = STATUS_COLORS[binStatus]?.hex || '#cbd5e1';
+  const hasHsd = (binStatus === 'NEAR_EXPIRY' || binStatus === 'EXPIRED') && !!binItem.nearestExpDate;
+
+  // 1. Nền bo góc của nhãn thuốc
+  const padding = 4;
+  const w = 384 - padding * 2;
+  const h = 366 - padding * 2;
+  const r = 14;
+
+  ctx.beginPath();
+  ctx.roundRect(padding, padding, w, h, r);
+
+  if (isSelected) {
+    ctx.fillStyle = '#1d4ed8'; // blue-700
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+  } else if (isHighlighted) {
+    ctx.fillStyle = '#fef08a'; // yellow-200
+    ctx.fill();
+    ctx.strokeStyle = '#d97706'; // amber-600
+    ctx.lineWidth = 6;
+    ctx.stroke();
+  } else if (isEmpty) {
+    ctx.fillStyle = '#f8fafc'; // slate-50
+    ctx.fill();
+    ctx.strokeStyle = '#cbd5e1'; // slate-300
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // 2. Header tinh gọn: Mã ô (B1..B10) + FEFO Badge bên trái | Tồn kho + Chấm trạng thái bên phải
+  const textColor = isSelected
+    ? '#ffffff'
+    : isHighlighted
+    ? '#0f172a'
+    : isEmpty
+    ? '#94a3b8'
+    : '#0f172a';
+
+  // Mã ô B1..B10
+  ctx.fillStyle = textColor;
+  ctx.font = '900 38px monospace, sans-serif';
+  const codeText = `B${binNo}`;
+  ctx.fillText(codeText, 20, 48);
+  const codeWidth = ctx.measureText(codeText).width;
+
+  // Badge FEFO nhỏ gọn
+  if (binItem.hasReserveBatch) {
+    const badgeX = 20 + codeWidth + 10;
+    const badgeY = 22;
+    const badgeW = 56;
+    const badgeH = 26;
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
+    ctx.fillStyle = isSelected ? '#3b82f6' : '#fef3c7';
+    ctx.fill();
+
+    ctx.fillStyle = isSelected ? '#ffffff' : '#92400e';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('FEFO', badgeX + 8, badgeY + 18);
+  }
+
+  // Góc phải Header: Chấm trạng thái tròn + Tồn kho
+  const dotX = 384 - 20 - 11;
+  const dotY = 38;
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, 11, 0, Math.PI * 2);
+  ctx.fillStyle = statusHex;
+  ctx.fill();
+  ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Số lượng tồn kho bên cạnh chấm tròn
+  const stockStr = `${binItem.currentStock || 0}/${capacity}`;
+  ctx.font = 'bold 22px monospace, sans-serif';
+  ctx.fillStyle = isSelected ? 'rgba(255,255,255,0.85)' : '#475569';
+  const stockW = ctx.measureText(stockStr).width;
+  ctx.fillText(stockStr, dotX - 16 - stockW, 45);
+
+  // Đường kẻ phân cách Header mỏng
+  ctx.beginPath();
+  ctx.moveTo(16, 62);
+  ctx.lineTo(384 - 16, 62);
+  ctx.strokeStyle = isSelected ? 'rgba(255,255,255,0.25)' : '#e2e8f0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 3. VÙNG TÊN THUỐC SIÊU TO: Chiếm trọn 75% diện tích mặt hộp
+  const maxWidth = 384 - 40;
+  const maxLines = hasHsd ? 4 : 5;
+  const fontSize = hasHsd ? 34 : 36;
+  const lineHeight = hasHsd ? 42 : 46;
+
+  ctx.font = isEmpty
+    ? `italic ${fontSize}px sans-serif`
+    : `900 ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+  ctx.fillStyle = textColor;
+
+  const medName = binItem.medicineName || (isEmpty ? 'Ô Trống' : 'Chưa đặt tên');
+  const lines = wrapText(ctx, medName, maxWidth, maxLines);
+
+  // Căn giữa dọc để tên thuốc hiển thị cân đối và nổi bật nhất
+  const topBound = 64;
+  const bottomBound = hasHsd ? 312 : 350;
+  const availableHeight = bottomBound - topBound;
+  const totalTextHeight = lines.length * lineHeight;
+  const startY = topBound + Math.max(8, (availableHeight - totalTextHeight) / 2) + fontSize * 0.82;
+
+  lines.forEach((line, idx) => {
+    ctx.fillText(line, 20, startY + idx * lineHeight);
+  });
+
+  // 4. Đáy hộp: Cảnh báo HSD nếu cận hạn/hết hạn, hoặc vạch màu trạng thái tinh tế
+  if (hasHsd) {
+    const hsdY = 318;
+    const hsdH = 36;
+    ctx.beginPath();
+    ctx.roundRect(16, hsdY, 384 - 32, hsdH, 6);
+    ctx.fillStyle = isSelected ? '#ef4444' : '#fee2e2';
+    ctx.fill();
+    ctx.strokeStyle = isSelected ? '#b91c1c' : '#fca5a5';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = isSelected ? '#ffffff' : '#b91c1c';
+    ctx.font = 'bold 20px sans-serif';
+    const hsdText = `HSD: ${binItem.nearestExpDate!.slice(0, 7)}`;
+    const hsdW = ctx.measureText(hsdText).width;
+    ctx.fillText(hsdText, 192 - hsdW / 2, hsdY + 25);
+  } else {
+    // Vạch mảnh tinh tế chỉ thị màu trạng thái ở đáy
+    ctx.beginPath();
+    ctx.roundRect(16, 356, 384 - 32, 5, 2);
+    ctx.fillStyle = isSelected ? '#ffffff' : statusHex;
+    ctx.fill();
+  }
+
+  // Tạo CanvasTexture tối ưu: Tắt generateMipmaps để nạp VRAM tức thì, không frame drop
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+
+  return texture;
+}
+
+// ============================================================================
+// COMPONENT CON: Ô Thùng Thuốc 3D Đơn Vị (BinUnit)
+// ============================================================================
+interface BinUnitProps {
+  binItem: BinItem;
+  binNo: number;
+  shelfNo: number;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  boxHeight: number;
+  binDepth: number;
+  onSelect: () => void;
+}
+
+const BinUnit: React.FC<BinUnitProps> = React.memo(({
+  binItem,
+  binNo,
+  shelfNo,
+  isSelected,
+  isHighlighted,
+  boxHeight,
+  binDepth,
+  onSelect,
+}) => {
+  const binStatus = binItem.status || 'EMPTY';
+  const capacity = binItem.maxCapacity || 200;
+  const fillPercent = Math.min(100, Math.round(((binItem.currentStock || 0) / capacity) * 100));
+
+  // Luôn dùng vật liệu chuẩn sáng rõ, không làm mờ các thùng khác khi click chọn thuốc
+  const mat = statusNormalMaterials[binStatus] || statusNormalMaterials.EMPTY;
+
+  // Tạo Canvas Texture sắc nét cho mặt trước
+  const texture = useMemo(() => {
+    return createBinTexture(
+      binItem,
+      binNo,
+      shelfNo,
+      binStatus,
+      capacity,
+      fillPercent,
+      isSelected,
+      isHighlighted
+    );
+  }, [
+    binItem.medicineName,
+    binItem.currentStock,
+    binItem.hasReserveBatch,
+    binItem.nearestExpDate,
+    binStatus,
+    capacity,
+    fillPercent,
+    isSelected,
+    isHighlighted,
+    shelfNo,
+    binNo,
+  ]);
+
+  // Giải phóng texture khi unmount hoặc texture thay đổi để chống leak RAM/VRAM
+  useEffect(() => {
+    return () => {
+      texture.dispose();
+    };
+  }, [texture]);
+
+  // Vị trí mặt trước: z = binDepth / 2 + 0.002 để nằm sát khít mặt hộp, tránh z-fighting
+  const faceZ = binDepth / 2 + 0.002;
+
+  return (
+    <>
+      {/* 1. Khối hộp 3D của thùng thuốc */}
+      <mesh
+        position={[0, boxHeight / 2, 0]}
+        scale={[1, boxHeight, 1]}
+        geometry={binUnitGeometry}
+        material={mat}
+        raycast={() => null}
+      />
+
+      {/* 2. Đường viền mảnh định hình khối hộp */}
+      <lineSegments
+        position={[0, boxHeight / 2, 0]}
+        geometry={binEdgesGeometry}
+        material={binEdgeLineMaterial}
+        raycast={() => null}
+      />
+
+      {/* 3. Mặt trước: Three.js Mesh với CanvasTexture dán khít 100% - luôn sáng rõ 100% */}
+      <mesh
+        position={[0, boxHeight / 2, faceZ]}
+        geometry={binFacePlaneGeometry}
+        raycast={() => null}
+      >
+        <meshBasicMaterial
+          map={texture}
+        />
+      </mesh>
+
+      {/* 4. Hitbox bắt click chuẩn xác tại đúng vị trí ô thùng */}
+      <mesh
+        position={[0, boxHeight / 2, 0]}
+        geometry={binHitboxGeometry}
+        visible={false}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = 'auto';
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
+      />
+    </>
+  );
+});
+
+// ============================================================================
+// COMPONENT CHÍNH: RackBins (4 Tầng x 10 Thùng)
+// ============================================================================
 interface RackBinsProps {
   rack: string;
   layout?: ShelfBinLayout[];
@@ -46,7 +394,6 @@ export const RackBins: React.FC<RackBinsProps> = React.memo(({
   selectedBin,
   highlightTarget,
   warnOnly = false,
-  isModalOpen = false,
   onSelectBin,
 }) => {
   const placement = RACK_PLACEMENTS[rack];
@@ -55,7 +402,13 @@ export const RackBins: React.FC<RackBinsProps> = React.memo(({
   const parsedHighlight = parseWarehouseTargetId(highlightTarget);
   const isTargetThisRack = parsedHighlight?.rack === rack;
 
-  const { shelfHeights, binSpacing, maxBinHeight } = RACK_DIMENSIONS;
+  const {
+    shelfHeights,
+    shelfThickness,
+    binSpacing,
+    binDepth,
+    uniformBinHeight,
+  } = RACK_DIMENSIONS;
 
   return (
     <group
@@ -64,19 +417,19 @@ export const RackBins: React.FC<RackBinsProps> = React.memo(({
     >
       {/* 1. Trạng thái Đang tải Layout */}
       {status === 'loading' && (
-        <Html position={[0, 2.4, 1.2]} center style={{ pointerEvents: 'none' }}>
-          <div className="bg-slate-900/90 text-white px-4 py-2 rounded-xl text-xs font-semibold backdrop-blur-md shadow-xl flex items-center gap-2 border border-slate-700 animate-pulse">
+        <Html position={[0, 2.2, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
+          <div className="bg-slate-900/90 text-white px-4 py-2 rounded-xl text-xs font-semibold backdrop-blur-md shadow-xl flex items-center gap-2 border border-slate-700">
             <span className="w-2.5 h-2.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
             Đang tải sơ đồ 40 thùng kệ {rack}...
           </div>
         </Html>
       )}
 
-      {/* 2. Trạng thái Lỗi tải - Tuyệt đối KHÔNG hiển thị thùng trống giả */}
+      {/* 2. Trạng thái Lỗi tải */}
       {status === 'error' && (
-        <Html position={[0, 2.4, 1.2]} center>
+        <Html position={[0, 2.2, 0]} center zIndexRange={[10, 0]}>
           <div className="bg-red-50 text-red-900 p-4 rounded-2xl text-xs font-semibold shadow-xl border border-red-200 flex flex-col items-center gap-2 max-w-xs text-center">
-            <div className="text-red-600 font-bold">Không thể tải dữ liệu thùng kệ {rack}</div>
+            <div className="text-red-600 font-bold">Không thể tải dữ liệu kệ {rack}</div>
             <div className="text-[11px] text-red-500 font-normal">{errorMessage || 'Lỗi kết nối máy chủ'}</div>
             {retry && (
               <button
@@ -91,19 +444,23 @@ export const RackBins: React.FC<RackBinsProps> = React.memo(({
         </Html>
       )}
 
-      {/* 3. Trạng thái Đã sẵn sàng (Ready): Vẽ 4 Tầng x 10 Thùng */}
+      {/* 3. Trạng thái Đã sẵn sàng (Ready): Vẽ chính xác 4 Tầng x 10 Thùng */}
       {status === 'ready' && layout && (
         <group>
           {layout.map((sh) => {
             const shelfNo = sh.shelfNo;
-            const yBase = shelfHeights[shelfNo - 1] + 0.12;
-            const isShelfDim = shelfFocus !== null && shelfFocus !== shelfNo;
+            const shelfY = shelfHeights[shelfNo - 1];
+            if (shelfY === undefined) return null;
+
+            // Đáy thùng nằm sát khít mặt trên của thanh kệ (shelfY + shelfThickness / 2)
+            const yBase = shelfY + shelfThickness / 2;
 
             return (
               <group key={shelfNo}>
                 {sh.bins.map((binItem: BinItem) => {
                   const binNo = binItem.binNo;
-                  const xPos = -4.05 + (binNo - 0.5) * binSpacing;
+                  // Công thức đối xứng tâm kệ X = 0: binNo từ 1..10 -> hệ số từ -4.5 đến +4.5
+                  const xPos = (binNo - 5.5) * binSpacing;
 
                   const isSelected = shelfFocus === shelfNo && selectedBin === binNo;
                   const isHighlighted =
@@ -112,131 +469,25 @@ export const RackBins: React.FC<RackBinsProps> = React.memo(({
                     parsedHighlight?.binNo === binNo;
 
                   const binStatus = binItem.status || 'EMPTY';
-                  const isEmpty = binStatus === 'EMPTY' || binItem.currentStock === 0;
 
-                  // Cố định chiều cao đồng nhất cho mọi thùng có hàng (an toàn = hết hạn)
-                  const UNIFORM_BIN_HEIGHT = 0.45;
-                  const boxHeight = isEmpty ? 0.04 : UNIFORM_BIN_HEIGHT;
-                  const capacity = binItem.maxCapacity || 200;
-
-                  // Vật liệu khối hàng
-                  const mat = isShelfDim
-                    ? statusDimMaterials[binStatus] || statusDimMaterials.EMPTY
-                    : statusNormalMaterials[binStatus] || statusNormalMaterials.EMPTY;
-
-                  // Ẩn nếu bật chế độ "Chỉ hiện cảnh báo" mà thùng an toàn/trống
                   if (warnOnly && (binStatus === 'NORMAL' || binStatus === 'EMPTY') && !isHighlighted && !isSelected) {
                     return null;
                   }
 
                   return (
                     <group key={binNo} position={[xPos, yBase, 0]}>
-                      {/* Khối hàng thực tế - kích thước đồng nhất */}
-                      <mesh
-                        position={[0, boxHeight / 2, 0]}
-                        scale={[1, boxHeight, 1]}
-                        geometry={binUnitGeometry}
-                        material={mat}
-                        raycast={() => null}
+                      <BinUnit
+                        binItem={binItem}
+                        binNo={binNo}
+                        shelfNo={shelfNo}
+                        isSelected={isSelected}
+                        isHighlighted={isHighlighted}
+                        boxHeight={uniformBinHeight}
+                        binDepth={binDepth}
+                        onSelect={() => onSelectBin(shelfNo, binNo)}
                       />
-
-                      {/* Hitbox bắt click trên toàn bộ không gian ô thùng */}
-                      <mesh
-                        position={[0, 0.45, 0]}
-                        geometry={binHitboxGeometry}
-                        visible={false}
-                        onPointerOver={(e) => {
-                          e.stopPropagation();
-                          document.body.style.cursor = 'pointer';
-                        }}
-                        onPointerOut={() => {
-                          document.body.style.cursor = 'auto';
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectBin(shelfNo, binNo);
-                        }}
-                      />
-
-                      {/* Thẻ nhãn thông tin mặt trước - ẩn hoàn toàn khi modal mở, z-index tối đa 10 */}
-                      {!isModalOpen && (
-                        <Html
-                          position={[0, 0.40, 0.72]}
-                          zIndexRange={[10, 0]}
-                          center
-                          style={{ pointerEvents: 'none' }}
-                        >
-                          <div
-                            className={`w-[84px] min-h-[58px] p-1 rounded-lg text-[9px] border backdrop-blur-xs shadow-xs transition-all select-none leading-tight flex flex-col justify-between ${
-                            isSelected
-                              ? 'bg-blue-600 text-white border-blue-400 ring-2 ring-blue-300 shadow-md scale-105'
-                              : isHighlighted
-                              ? 'bg-amber-400 text-slate-950 border-amber-500 ring-4 ring-amber-300 animate-pulse font-bold'
-                              : 'bg-white/95 text-slate-800 border-slate-200'
-                          } ${isShelfDim ? 'opacity-40' : 'opacity-100'}`}
-                        >
-                          <div>
-                            {/* Hàng 1: Mã thùng + Cờ FEFO + Chấm trạng thái */}
-                            <div className="flex items-center justify-between font-mono font-bold text-[10px]">
-                              <span className="flex items-center gap-0.5">
-                                <span>B{binNo}</span>
-                                {binItem.hasReserveBatch && (
-                                  <span title="Có lô cũ ở Khu Dự Trữ" className="text-amber-500">⚡</span>
-                                )}
-                              </span>
-                              <span
-                                className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
-                                style={{ backgroundColor: STATUS_COLORS[binStatus]?.hex || '#94a3b8' }}
-                              />
-                            </div>
-
-                            {/* Hàng 2: Tên thuốc */}
-                            <div
-                              className={`font-semibold text-[9px] my-0.5 line-clamp-1 ${
-                                isSelected ? 'text-white' : 'text-slate-900'
-                              }`}
-                              title={binItem.medicineName || 'Thùng trống'}
-                            >
-                              {binItem.medicineName ? binItem.medicineName : 'Trống'}
-                            </div>
-                          </div>
-
-                          <div>
-                            {/* Hàng 3: Tồn kho & Thanh tiến trình */}
-                            <div className="text-[8px] flex justify-between font-mono">
-                              <span>{binItem.currentStock}</span>
-                              <span className="opacity-70">/{capacity}</span>
-                            </div>
-                            <div className="w-full bg-slate-200/80 rounded-full h-1 mt-0.5 overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all"
-                                style={{
-                                  width: `${Math.min(100, (binItem.currentStock / capacity) * 100)}%`,
-                                  backgroundColor: isSelected ? '#ffffff' : STATUS_COLORS[binStatus]?.hex || '#94a3b8',
-                                }}
-                              />
-                            </div>
-
-                            {/* Hàng 4: Hạn dùng gần nhất nếu cận hạn hoặc hết hạn */}
-                            {(binStatus === 'NEAR_EXPIRY' || binStatus === 'EXPIRED') && binItem.nearestExpDate ? (
-                              <div
-                                className={`text-[8px] font-bold mt-0.5 truncate ${
-                                  isSelected ? 'text-amber-200' : 'text-orange-600'
-                                }`}
-                              >
-                                HSD: {binItem.nearestExpDate.slice(0, 7)}
-                              </div>
-                            ) : (
-                              <div className="text-[8px] opacity-40 mt-0.5 truncate font-mono">
-                                FEFO OK
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </Html>
-                    )}
-                  </group>
-                );
+                    </group>
+                  );
                 })}
               </group>
             );

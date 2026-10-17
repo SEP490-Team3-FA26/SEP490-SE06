@@ -1,51 +1,50 @@
 // ============================================================================
-// Hằng số không gian, Bảng màu GSP/FEFO và Định nghĩa Kiểu cho Sơ Đồ Kho 3D
-// Dự án: WDP301 - Quản lý Kho Dược Phẩm Trung Tâm (CENTRAL_WH)
-// Camera cố định: OVERVIEW (~65°) và RACK (chính diện ~4°)
+// Hằng Số Cố Định Hệ Thống Sơ Đồ Kho Dược 3D (Constants)
+// Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
+// Chuẩn hóa kích thước hình học để 10 thùng/tầng khớp tuyệt đối trong lòng kệ
 // ============================================================================
 
 export type WarehouseStatus = 'NORMAL' | 'LOW_STOCK' | 'NEAR_EXPIRY' | 'EXPIRED' | 'EMPTY';
 
 export interface ShelfSummary {
-  shelf: number; // 1..4 (1 dưới cùng, 4 trên cùng)
-  status: WarehouseStatus;
+  shelf: number;
   totalStock: number;
-  batchCount: number;
+  status: WarehouseStatus;
+  batchCount?: number;
   categories?: string[];
   minExpDate?: string;
 }
 
 export interface RackSummary {
-  rack: string; // 'A1'..'A4', ..., 'RES1'..'RES4'
+  rack: string;
   shelves: ShelfSummary[];
 }
 
 export interface ZoneSummary {
-  zone: string; // 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'RESERVE'
-  label: string;
+  zone: string;
+  label?: string;
   racks: RackSummary[];
   icon?: string;
   description?: string;
 }
 
 export interface BinItem {
-  binNo: number; // 1..10 (B1..B10)
+  binNo: number;
   medicineId?: string | null;
   medicineName?: string | null;
-  unit?: string | null;
   currentStock: number;
-  maxCapacity: number;
+  maxCapacity?: number;
   status: WarehouseStatus;
   nearestExpDate?: string | null;
+  unit?: string | null;
   hasReserveBatch?: boolean;
 }
 
 export interface ShelfBinLayout {
-  shelfNo: number; // 1..4
+  shelfNo: number;
   bins: BinItem[];
 }
 
-// Contract mới cho WarehouseMap3D: tách biệt rõ chọn xem vs mở modal
 export interface WarehouseMap3DProps {
   zones: ZoneSummary[];
   highlightTarget?: string;
@@ -59,10 +58,8 @@ export interface WarehouseMap3DProps {
   onSwitchTo2D?: () => void;
 }
 
-// FOV chuẩn cho phối cảnh 3D kho
-export const FOV = 40;
+export const FOV = 38;
 
-// Bảng màu trạng thái chuẩn GSP & FEFO
 export const STATUS_COLORS: Record<WarehouseStatus, {
   hex: string;
   num: number;
@@ -74,7 +71,7 @@ export const STATUS_COLORS: Record<WarehouseStatus, {
   NORMAL: {
     hex: '#22c55e',
     num: 0x22c55e,
-    label: 'An toàn',
+    label: 'An toàn (Đủ tồn)',
     badgeBg: '#DCFCE7',
     badgeText: '#15803D',
     border: '#86efac',
@@ -82,7 +79,7 @@ export const STATUS_COLORS: Record<WarehouseStatus, {
   LOW_STOCK: {
     hex: '#eab308',
     num: 0xeab308,
-    label: 'Sắp hết',
+    label: 'Sắp hết hàng',
     badgeBg: '#FEF9C3',
     badgeText: '#A16207',
     border: '#fde047',
@@ -104,8 +101,8 @@ export const STATUS_COLORS: Record<WarehouseStatus, {
     border: '#fca5a5',
   },
   EMPTY: {
-    hex: '#94a3b8',
-    num: 0x94a3b8,
+    hex: '#cbd5e1',
+    num: 0xcbd5e1,
     label: 'Trống / Hết hàng',
     badgeBg: '#F1F5F9',
     badgeText: '#475569',
@@ -113,15 +110,14 @@ export const STATUS_COLORS: Record<WarehouseStatus, {
   },
 };
 
-// Bảng thông số định danh 7 Phân khu (6 Khu Chính + 1 Khu Dự Trữ FEFO)
 export interface ZoneMeta {
   code: string;
   name: string;
   categoryDesc: string;
   hex: string;
   num: number;
-  center: [number, number]; // [X, Z]
-  size: [number, number];   // [Width X, Depth Z]
+  center: [number, number];
+  size: [number, number];
   racks: string[];
 }
 
@@ -193,12 +189,11 @@ export const ZONE_METAS: Record<string, ZoneMeta> = {
     hex: '#d97706',
     num: 0xd97706,
     center: [0, 20.5],
-    size: [40, 11], // Mở rộng lên 40m để chứa đủ 4 dãy kệ không chồng lấn
+    size: [42, 11],
     racks: ['RES1', 'RES2', 'RES3', 'RES4'],
   },
 };
 
-// Thứ tự 28 dãy kệ duyệt tuần tự theo vòng tròn
 export const RACK_ORDER = [
   'A1', 'A2', 'A3', 'A4',
   'B1', 'B2', 'B3', 'B4',
@@ -209,108 +204,72 @@ export const RACK_ORDER = [
   'RES1', 'RES2', 'RES3', 'RES4',
 ];
 
-// Ánh xạ từ mã kệ sang mã khu vực tương ứng
-export const RACK_TO_ZONE: Record<string, string> = Object.fromEntries(
-  Object.entries(ZONE_METAS).flatMap(([zoneCode, meta]) => meta.racks.map((r) => [r, zoneCode]))
-);
+export const RACK_TO_ZONE: Record<string, string> = {};
+Object.entries(ZONE_METAS).forEach(([zoneKey, meta]) => {
+  meta.racks.forEach((r) => {
+    RACK_TO_ZONE[r] = zoneKey;
+  });
+});
 
-// Tọa độ chi tiết của 28 dãy kệ trong không gian 3D
 export interface RackPlacement {
-  zone: string;
-  rack: string;
-  position: [number, number, number]; // [X, Y, Z]
+  position: [number, number, number];
   rotationY: number;
 }
 
-export function computeRackPlacements(): Record<string, RackPlacement> {
-  const placements: Record<string, RackPlacement> = {
-    // Khu A: Tây Bắc
-    A1: { zone: 'A', rack: 'A1', position: [-21, 0, -16.2], rotationY: 0 },
-    A2: { zone: 'A', rack: 'A2', position: [-21, 0, -13.4], rotationY: 0 },
-    A3: { zone: 'A', rack: 'A3', position: [-21, 0, -10.6], rotationY: 0 },
-    A4: { zone: 'A', rack: 'A4', position: [-21, 0, -7.8], rotationY: 0 },
+export const RACK_PLACEMENTS: Record<string, RackPlacement> = {
+  A1: { position: [-21, 0, -16.5], rotationY: 0 },
+  A2: { position: [-21, 0, -13.5], rotationY: 0 },
+  A3: { position: [-21, 0, -10.5], rotationY: 0 },
+  A4: { position: [-21, 0, -7.5], rotationY: 0 },
 
-    // Khu B: Bắc Trung Tâm
-    B1: { zone: 'B', rack: 'B1', position: [0, 0, -16.2], rotationY: 0 },
-    B2: { zone: 'B', rack: 'B2', position: [0, 0, -13.4], rotationY: 0 },
-    B3: { zone: 'B', rack: 'B3', position: [0, 0, -10.6], rotationY: 0 },
-    B4: { zone: 'B', rack: 'B4', position: [0, 0, -7.8], rotationY: 0 },
+  B1: { position: [0, 0, -16.5], rotationY: 0 },
+  B2: { position: [0, 0, -13.5], rotationY: 0 },
+  B3: { position: [0, 0, -10.5], rotationY: 0 },
+  B4: { position: [0, 0, -7.5], rotationY: 0 },
 
-    // Khu C: Đông Bắc
-    C1: { zone: 'C', rack: 'C1', position: [21, 0, -16.2], rotationY: 0 },
-    C2: { zone: 'C', rack: 'C2', position: [21, 0, -13.4], rotationY: 0 },
-    C3: { zone: 'C', rack: 'C3', position: [21, 0, -10.6], rotationY: 0 },
-    C4: { zone: 'C', rack: 'C4', position: [21, 0, -7.8], rotationY: 0 },
+  C1: { position: [21, 0, -16.5], rotationY: 0 },
+  C2: { position: [21, 0, -13.5], rotationY: 0 },
+  C3: { position: [21, 0, -10.5], rotationY: 0 },
+  C4: { position: [21, 0, -7.5], rotationY: 0 },
 
-    // Khu D: Tây Nam
-    D1: { zone: 'D', rack: 'D1', position: [-21, 0, 1.8], rotationY: 0 },
-    D2: { zone: 'D', rack: 'D2', position: [-21, 0, 4.6], rotationY: 0 },
-    D3: { zone: 'D', rack: 'D3', position: [-21, 0, 7.4], rotationY: 0 },
-    D4: { zone: 'D', rack: 'D4', position: [-21, 0, 10.2], rotationY: 0 },
+  D1: { position: [-21, 0, 1.5], rotationY: 0 },
+  D2: { position: [-21, 0, 4.5], rotationY: 0 },
+  D3: { position: [-21, 0, 7.5], rotationY: 0 },
+  D4: { position: [-21, 0, 10.5], rotationY: 0 },
 
-    // Khu E: Nam Trung Tâm
-    E1: { zone: 'E', rack: 'E1', position: [0, 0, 1.8], rotationY: 0 },
-    E2: { zone: 'E', rack: 'E2', position: [0, 0, 4.6], rotationY: 0 },
-    E3: { zone: 'E', rack: 'E3', position: [0, 0, 7.4], rotationY: 0 },
-    E4: { zone: 'E', rack: 'E4', position: [0, 0, 10.2], rotationY: 0 },
+  E1: { position: [0, 0, 1.5], rotationY: 0 },
+  E2: { position: [0, 0, 4.5], rotationY: 0 },
+  E3: { position: [0, 0, 7.5], rotationY: 0 },
+  E4: { position: [0, 0, 10.5], rotationY: 0 },
 
-    // Khu F: Đông Nam
-    F1: { zone: 'F', rack: 'F1', position: [21, 0, 1.8], rotationY: 0 },
-    F2: { zone: 'F', rack: 'F2', position: [21, 0, 4.6], rotationY: 0 },
-    F3: { zone: 'F', rack: 'F3', position: [21, 0, 7.4], rotationY: 0 },
-    F4: { zone: 'F', rack: 'F4', position: [21, 0, 10.2], rotationY: 0 },
+  F1: { position: [21, 0, 1.5], rotationY: 0 },
+  F2: { position: [21, 0, 4.5], rotationY: 0 },
+  F3: { position: [21, 0, 7.5], rotationY: 0 },
+  F4: { position: [21, 0, 10.5], rotationY: 0 },
 
-    // Khu RESERVE: Chạy ngang ở phía Nam (x = -14.4, -4.8, 4.8, 14.4; spacing 9.6m tránh va chạm)
-    RES1: { zone: 'RESERVE', rack: 'RES1', position: [-14.4, 0, 18.5], rotationY: 0 },
-    RES2: { zone: 'RESERVE', rack: 'RES2', position: [-4.8, 0, 18.5], rotationY: 0 },
-    RES3: { zone: 'RESERVE', rack: 'RES3', position: [4.8, 0, 18.5], rotationY: 0 },
-    RES4: { zone: 'RESERVE', rack: 'RES4', position: [14.4, 0, 18.5], rotationY: 0 },
-  };
+  RES1: { position: [-15, 0, 20.5], rotationY: 0 },
+  RES2: { position: [-5, 0, 20.5], rotationY: 0 },
+  RES3: { position: [5, 0, 20.5], rotationY: 0 },
+  RES4: { position: [15, 0, 20.5], rotationY: 0 },
+};
 
-  return placements;
-}
-
-export const RACK_PLACEMENTS = computeRackPlacements();
-
-// Thông số hình học chuẩn cho Dãy Kệ
+// Kích thước chuẩn: chiều cao 4.30m bao trọn tầng 4 (3.35m + 0.78m thùng + 0.17m khung đỡ)
 export const RACK_DIMENSIONS = {
-  width: 9.2,   // Dài theo trục X (m)
-  depth: 1.6,   // Sâu theo trục Z (m)
-  height: 4.8,  // Cao theo trục Y (m)
-  shelfHeights: [0.75, 1.85, 2.95, 4.05], // Độ cao mặt đỡ 4 tầng T1, T2, T3, T4
-  shelfThickness: 0.12,
-  shelfDepth: 1.45,
-  shelfWidth: 9.0,
+  width: 9.2,
+  depth: 1.40,
+  height: 4.30,
+  levels: 4,
+  shelfHeights: [0.35, 1.35, 2.35, 3.35],
+  shelfThickness: 0.10,
+  shelfDepth: 1.36,
+  shelfWidth: 9.04,
   binsPerShelf: 10,
   binWidth: 0.82,
-  binDepth: 1.25,
-  binSpacing: 0.90,
-  maxBinHeight: 0.75,
+  binDepth: 1.20,
+  binSpacing: 0.88,
+  uniformBinHeight: 0.78,
 };
 
-// Thông số Cửa Kho
-export const DOCKS_CONFIG = {
-  inbound: {
-    code: 'INBOUND',
-    title: 'CỬA NHẬP HÀNG (Inbound Docks)',
-    subtitle: 'Khu Tiếp Nhận & Kiểm Đếm GSP',
-    hex: '#10b981',
-    num: 0x10b981,
-    position: [-20, 0, -26] as [number, number, number],
-    size: [32, 2.8, 6] as [number, number, number],
-  },
-  outbound: {
-    code: 'OUTBOUND',
-    title: 'CỬA XUẤT HÀNG (Outbound Docks)',
-    subtitle: 'Khu Soạn Đơn & Đóng Gói FEFO/FIFO',
-    hex: '#0284c7',
-    num: 0x0284c7,
-    position: [20, 0, 26] as [number, number, number],
-    size: [32, 2.8, 6] as [number, number, number],
-  },
-};
-
-// Parser phân tích mã mục tiêu tìm kiếm
 export interface ParsedTargetId {
   kind: 'shelf' | 'bin';
   zone: string;
@@ -324,7 +283,6 @@ export function parseWarehouseTargetId(id: string | null | undefined): ParsedTar
   if (!id) return null;
   const trimmed = id.trim();
 
-  // Định dạng cấp thùng: bin-${zone}-${rack}-${shelf}-${binNo} (ví dụ: "bin-A-A1-4-1" hoặc "bin-RESERVE-RES1-2-5")
   if (trimmed.startsWith('bin-')) {
     const parts = trimmed.split('-');
     if (parts.length >= 5) {
@@ -338,7 +296,6 @@ export function parseWarehouseTargetId(id: string | null | undefined): ParsedTar
     }
   }
 
-  // Định dạng cấp tầng: ${zone}-${rack}-${shelf} (ví dụ: "A-A1-4" hoặc "RESERVE-RES1-2")
   const parts = trimmed.split('-');
   if (parts.length >= 3) {
     const shelf = Number(parts[parts.length - 1]);

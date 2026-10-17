@@ -1,11 +1,9 @@
 // ============================================================================
 // Bộ Điều Khiển Sơ Đồ Kho 3D Trung Tâm (WarehouseMap3D Container)
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
-// Kiến trúc camera cố định 2 cấp: OVERVIEW và RACK
-// Đảm bảo không giật, không tự mở modal, không rò rỉ GPU memory
 // ============================================================================
 
-import React, { useReducer, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useReducer, useState, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
   FOV,
@@ -20,11 +18,8 @@ import { Floor } from './map3d/Floor';
 import { RackModel } from './map3d/RackModel';
 import { RackBins } from './map3d/RackBins';
 import { Hud } from './map3d/Hud';
-import { useRackLayout } from './map3d/useRackLayout';
+import { useRackLayout, prefetchRackLayout } from './map3d/useRackLayout';
 
-// ============================================================================
-// ErrorBoundary chuyên dụng cho môi trường WebGL / 3D
-// ============================================================================
 interface ErrorBoundaryState {
   hasError: boolean;
   error?: Error;
@@ -58,7 +53,7 @@ class ThreeErrorBoundary extends React.Component<
             Không thể khởi tạo môi trường đồ họa 3D
           </h3>
           <p className="text-xs text-slate-500 max-w-md mb-4">
-            Trình duyệt của bạn có thể đã tắt tăng tốc phần cứng hoặc thiết bị không hỗ trợ WebGL. Bạn có thể chuyển sang chế độ 2D để tiếp tục thao tác đầy đủ chức năng.
+            Trình duyệt của bạn có thể đã tắt tăng tốc phần cứng hoặc thiết bị không hỗ trợ WebGL.
           </p>
           {this.props.onSwitchTo2D && (
             <button
@@ -76,7 +71,6 @@ class ThreeErrorBoundary extends React.Component<
   }
 }
 
-// Kiểm tra nhanh hỗ trợ WebGL trên trình duyệt
 function isWebGLAvailable(): boolean {
   try {
     const canvas = document.createElement('canvas');
@@ -89,9 +83,6 @@ function isWebGLAvailable(): boolean {
   }
 }
 
-// ============================================================================
-// Main WarehouseMap3D Component
-// ============================================================================
 export function WarehouseMap3D({
   zones,
   highlightTarget,
@@ -104,38 +95,63 @@ export function WarehouseMap3D({
   onOpenReserve,
   onSwitchTo2D,
 }: WarehouseMap3DProps) {
-  // 1. Kiểm tra WebGL trước khi render Canvas
   const hasWebGL = useMemo(() => isWebGLAvailable(), []);
-
-  // 2. Reducer quản lý trạng thái góc nhìn (View)
   const [view, dispatch] = useReducer(viewReducer, { level: 'overview' });
 
-  // 3. State cục bộ phục vụ tương tác UI nhẹ
   const [hoverRack, setHoverRack] = useState<string | null>(null);
   const [warnOnly, setWarnOnly] = useState<boolean>(false);
   const [canvasKey, setCanvasKey] = useState<number>(0);
 
-  // 4. Xác định khu vực và kệ đang chọn
   const activeRack = view.level === 'rack' ? view.rack : null;
   const activeZone = activeRack ? RACK_TO_ZONE[activeRack] : null;
 
-  // 5. Nạp layout 40 thùng của kệ đang chọn
   const { layout, status, errorMessage, retry } = useRackLayout(
     activeZone,
     activeRack,
     refreshKey
   );
 
-  // 6. Xử lý khi có mục tiêu tìm kiếm (highlightTarget): Tự động bay tới đích
-  useEffect(() => {
-    if (!highlightTarget) return;
-    const p = parseWarehouseTargetId(highlightTarget);
-    if (p) {
-      dispatch({ type: 'GOTO', rack: p.rack, shelf: p.shelf, bin: p.binNo });
-    }
-  }, [highlightTarget]);
+  // Phân tích toàn bộ mục tiêu tìm kiếm / bộ lọc thành danh sách các kệ và khu khớp
+  const { matchingRacks, matchingZones } = useMemo(() => {
+    const racks = new Set<string>();
+    const zonesSet = new Set<string>();
 
-  // 7. Tạo bản đồ tra cứu nhanh shelves của từng kệ từ props zones
+    const addTarget = (raw: string) => {
+      if (!raw) return;
+      const p = parseWarehouseTargetId(raw);
+      if (p?.rack) {
+        racks.add(p.rack);
+        if (p.zone) zonesSet.add(p.zone);
+        const z = RACK_TO_ZONE[p.rack];
+        if (z) zonesSet.add(z);
+      } else if (raw.includes('-')) {
+        const parts = raw.split('-');
+        if (parts.length >= 2) {
+          const possibleRack = parts[1];
+          if (RACK_PLACEMENTS[possibleRack]) {
+            racks.add(possibleRack);
+            const z = RACK_TO_ZONE[possibleRack];
+            if (z) zonesSet.add(z);
+          }
+        }
+      } else if (RACK_PLACEMENTS[raw]) {
+        racks.add(raw);
+        const z = RACK_TO_ZONE[raw];
+        if (z) zonesSet.add(z);
+      }
+    };
+
+    if (highlightTarget) {
+      addTarget(highlightTarget);
+    }
+
+    if (highlightTargets && highlightTargets.size > 0) {
+      highlightTargets.forEach(addTarget);
+    }
+
+    return { matchingRacks: racks, matchingZones: zonesSet };
+  }, [highlightTarget, highlightTargets]);
+
   const rackShelvesMap = useMemo(() => {
     const map = new Map<string, any[]>();
     zones.forEach((z) => {
@@ -151,14 +167,10 @@ export function WarehouseMap3D({
     [highlightTarget]
   );
 
-  // Fallback nếu không hỗ trợ WebGL
   if (!hasWebGL) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
         <h3 className="text-base font-bold text-slate-800 mb-2">Trình duyệt không hỗ trợ WebGL</h3>
-        <p className="text-xs text-slate-500 mb-4 max-w-sm">
-          Để xem mô hình 3D, vui lòng bật tăng tốc phần cứng (Hardware Acceleration) trong cài đặt trình duyệt.
-        </p>
         {onSwitchTo2D && (
           <button
             type="button"
@@ -174,49 +186,37 @@ export function WarehouseMap3D({
 
   return (
     <ThreeErrorBoundary onSwitchTo2D={onSwitchTo2D}>
-      <div className="w-full h-full relative overflow-hidden bg-[#EEF2F9]">
-        {/* ===================================================== */}
-        {/* 1. THREE.JS CANVAS RENDERER */}
-        {/* ===================================================== */}
+      <div className="w-full h-full relative overflow-hidden bg-[#E2E8F0]">
         <Canvas
           key={canvasKey}
-          flat // Tắt tone mapping để màu sắc hiển thị đồng bộ 100% với bảng màu UI
-          dpr={[1, 1.75]} // Cân bằng độ sắc nét và tiêu thụ RAM/GPU
+          flat
+          dpr={[1, 1.75]}
           camera={{ fov: FOV, near: 0.5, far: 300 }}
           gl={{
             antialias: true,
             powerPreference: 'high-performance',
           }}
-          onPointerMissed={() => {
-            // Nhấp chuột vào khoảng không: không làm gì, tránh kích hoạt nhầm
-          }}
+          onPointerMissed={() => {}}
           onCreated={({ gl }) => {
-            // Lắng nghe sự kiện mất kết nối WebGL để tự khôi phục
             const handleContextLost = (e: Event) => {
               e.preventDefault();
-              console.warn('Cảnh báo: WebGL Context Lost! Đang tự khôi phục Canvas...');
               setTimeout(() => setCanvasKey((k) => k + 1), 1000);
             };
             gl.domElement.addEventListener('webglcontextlost', handleContextLost, false);
           }}
         >
-          {/* Màu nền phòng kho sạch */}
-          <color attach="background" args={['#EEF2F9']} />
+          <color attach="background" args={['#E2E8F0']} />
 
-          {/* Chiếu sáng cố định nhẹ, không sinh bóng đổ tính toán tốn kém */}
-          <ambientLight intensity={1.1} />
-          <directionalLight position={[20, 50, 30]} intensity={1.0} />
+          <ambientLight intensity={1.15} />
+          <directionalLight position={[20, 50, 30]} intensity={0.95} />
 
-          {/* Camera Rig cố định: khóa chuột/lăn/vuốt, chỉ bay theo state `view` */}
           <CameraRig view={view} />
+          <Floor level={view.level} highlightZones={matchingZones} />
 
-          {/* Mặt sàn kho phẳng, thảm khu và vạch cửa kho */}
-          <Floor level={view.level} />
-
-          {/* 28 Dãy Kệ tiêu chuẩn */}
           {RACK_ORDER.map((rackCode) => {
             const zoneCode = RACK_TO_ZONE[rackCode] || 'A';
             const shelves = rackShelvesMap.get(rackCode) || [];
+            const isMatchedRack = matchingRacks.has(rackCode) || parsedTarget?.rack === rackCode;
 
             return (
               <RackModel
@@ -226,16 +226,20 @@ export function WarehouseMap3D({
                 shelves={shelves}
                 view={view}
                 isHovered={hoverRack === rackCode}
-                onHover={setHoverRack}
+                onHover={(rc) => {
+                  setHoverRack(rc);
+                  if (rc && view.level === 'overview') {
+                    prefetchRackLayout(zoneCode, rc);
+                  }
+                }}
                 onSelect={(selectedRack) => dispatch({ type: 'OPEN_RACK', rack: selectedRack })}
-                matchSet={highlightTargets}
+                matchSet={matchingRacks}
                 warnOnly={warnOnly}
-                isSearchTarget={parsedTarget?.rack === rackCode}
+                isSearchTarget={isMatchedRack}
               />
             );
           })}
 
-          {/* 40 Thùng hàng của kệ đang chọn (Chỉ render ở RACK view) */}
           {view.level === 'rack' && (
             <RackBins
               rack={view.rack}
@@ -253,9 +257,6 @@ export function WarehouseMap3D({
           )}
         </Canvas>
 
-        {/* ===================================================== */}
-        {/* 2. HUD LỚP PHỦ GIAO DIỆN TỐI GIẢN */}
-        {/* ===================================================== */}
         <Hud
           view={view}
           dispatch={dispatch}

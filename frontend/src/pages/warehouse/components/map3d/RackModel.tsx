@@ -1,7 +1,6 @@
 // ============================================================================
 // Mô Hình Dãy Kệ Chuẩn (RackModel - Khung Thép + 4 Dải Tầng + 1 Hitbox)
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
-// Không có hitbox tầng/thùng ở Overview. Tối ưu hiệu năng bằng vật liệu dùng chung.
 // ============================================================================
 
 import React, { useMemo } from 'react';
@@ -16,11 +15,15 @@ import {
 import type { View } from './store';
 import {
   uprightGeometry,
+  topBeamLongGeometry,
+  topBeamSideGeometry,
   shelfBandGeometry,
   rackHitboxGeometry,
   shadowPlateGeometry,
   beaconCylinderGeometry,
+  beaconHaloGeometry,
   beaconColumnMaterial,
+  beaconHaloMaterial,
   steelNormalMaterial,
   steelGhostMaterial,
   shadowPlateMaterial,
@@ -43,8 +46,7 @@ interface RackModelProps {
 
 export type RackVisual = 'normal' | 'ghost' | 'hidden';
 
-// Hàm xác định trạng thái hiển thị của kệ theo Mục 4.6
-export function getRackVisual(
+function getRackVisual(
   rack: string,
   view: View,
   ctx: {
@@ -60,21 +62,22 @@ export function getRackVisual(
     const t = RACK_PLACEMENTS[view.rack]?.position || [0, 0, 0];
     const p = RACK_PLACEMENTS[rack]?.position || [0, 0, 0];
 
-    // Kiểm tra xem kệ này có nằm chắn trực diện giữa camera và kệ đích không
-    // Kệ chắn: cùng cột X xấp xỉ, và nằm phía trước kệ đích (Z lớn hơn đích nhưng nhỏ hơn vị trí camera)
-    const isSameColumn = Math.abs(p[0] - t[0]) < RACK_DIMENSIONS.width / 2 + 1;
-    const isInFrontOfTarget = p[2] > t[2] && p[2] < t[2] + ctx.D + 1;
+    const dx = p[0] - t[0];
+    const dz = p[2] - t[2];
+    const distSq = dx * dx + dz * dz;
 
-    if (isSameColumn && isInFrontOfTarget) {
-      return 'hidden'; // Ẩn hẳn kệ chắn phía trước để không che tầm nhìn
+    const isSameColumn = Math.abs(dx) < RACK_DIMENSIONS.width / 2 + 1.5;
+    const isInFrontOfTarget = p[2] > t[2] && p[2] < t[2] + ctx.D + 2;
+
+    // Ẩn hoàn toàn kệ che camera phía trước hoặc các kệ ở quá xa (> 22m) để tối ưu render
+    if ((isSameColumn && isInFrontOfTarget) || distSq > 484) {
+      return 'hidden';
     }
-    return 'ghost'; // Các kệ còn lại hiển thị dạng bóng ma mờ để giữ cảm nhận không gian
-  }
-
-  // Ở chế độ Tổng quan (Overview)
-  if (ctx.matchSet && !ctx.matchSet.has(rack)) {
     return 'ghost';
   }
+
+  // Chế độ Tổng quan (Overview): KHÔNG làm mờ cả kho khi search
+  // Giữ nguyên các kệ khác sắc nét, kệ khớp sẽ phát sáng nổi bật
   if (ctx.warnOnly && !ctx.rackHasWarning) {
     return 'ghost';
   }
@@ -96,7 +99,6 @@ export const RackModel: React.FC<RackModelProps> = React.memo(({
   const placement = RACK_PLACEMENTS[rack];
   if (!placement) return null;
 
-  // Tính trạng thái xấu nhất và tổng số cảnh báo của kệ
   const { worstStatus, warningCount, totalStock } = useMemo(() => {
     let worst: WarehouseStatus = 'EMPTY';
     let warnCount = 0;
@@ -127,16 +129,15 @@ export const RackModel: React.FC<RackModelProps> = React.memo(({
   const isOverview = view.level === 'overview';
   const isCurrentRack = view.level === 'rack' && view.rack === rack;
 
-  // Khoảng cách D dự kiến của camera khi ở RACK view (~8.5m)
   const visual = getRackVisual(rack, view, {
     matchSet,
     warnOnly,
     rackHasWarning,
-    D: 8.5,
+    D: 9.5,
   });
 
   if (visual === 'hidden') {
-    return null; // Ẩn hoàn toàn khỏi scene
+    return null;
   }
 
   const isGhost = visual === 'ghost';
@@ -188,13 +189,42 @@ export const RackModel: React.FC<RackModelProps> = React.memo(({
         raycast={() => null}
       />
 
-      {/* 3. Bốn dải tầng màu thể hiện trạng thái (T1..T4) */}
+      {/* 2.1. Khung giằng thép đỉnh kệ kết nối 4 cột trụ */}
+      <mesh
+        position={[0, height, -halfD]}
+        geometry={topBeamLongGeometry}
+        material={steelMat}
+        raycast={() => null}
+      />
+      <mesh
+        position={[0, height, halfD]}
+        geometry={topBeamLongGeometry}
+        material={steelMat}
+        raycast={() => null}
+      />
+      <mesh
+        position={[-halfW, height, 0]}
+        geometry={topBeamSideGeometry}
+        material={steelMat}
+        raycast={() => null}
+      />
+      <mesh
+        position={[halfW, height, 0]}
+        geometry={topBeamSideGeometry}
+        material={steelMat}
+        raycast={() => null}
+      />
+
+      {/* 3. Bốn dải tầng kệ */}
       {shelfHeights.map((yPos, idx) => {
         const shelfNo = idx + 1;
         const sh = shelves.find((s) => s.shelf === shelfNo);
         const status = sh ? sh.status : 'EMPTY';
+
         const shelfMat = isGhost
           ? statusGhostMaterials[status] || statusGhostMaterials.EMPTY
+          : isCurrentRack
+          ? steelNormalMaterial
           : statusNormalMaterials[status] || statusNormalMaterials.EMPTY;
 
         return (
@@ -208,14 +238,25 @@ export const RackModel: React.FC<RackModelProps> = React.memo(({
         );
       })}
 
-      {/* 4. Cột Beacon tĩnh khi kệ được tìm kiếm đích */}
+      {/* 4. Cột Beacon vươn cao + Hào quang phát sáng khi kệ được tìm kiếm đích */}
       {isSearchTarget && isOverview && (
-        <mesh
-          position={[0, height + 4.5, 0]}
-          geometry={beaconCylinderGeometry}
-          material={beaconColumnMaterial}
-          raycast={() => null}
-        />
+        <group position={[0, height, 0]}>
+          {/* Cột sáng vươn cao 14m phát sáng vàng hổ phách */}
+          <mesh
+            position={[0, 7.0, 0]}
+            geometry={beaconCylinderGeometry}
+            material={beaconColumnMaterial}
+            raycast={() => null}
+          />
+          {/* Vòng hào quang phát sáng ở nóc kệ */}
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0.05, 0]}
+            geometry={beaconHaloGeometry}
+            material={beaconHaloMaterial}
+            raycast={() => null}
+          />
+        </group>
       )}
 
       {/* 5. Hitbox duy nhất cho cả kệ ở Overview mode */}
@@ -240,44 +281,39 @@ export const RackModel: React.FC<RackModelProps> = React.memo(({
         />
       )}
 
-      {/* 6. Thẻ nhãn trên nóc kệ */}
-      {(isOverview || isCurrentRack) && (
+      {/* 6. Nhãn tên kệ trên nóc: Kích thước tĩnh chuẩn, không nhấp nháy, không đè kệ khác */}
+      {isOverview && !isGhost && (
         <Html
-          position={[0, height + 0.35, 0]}
+          position={[0, height + 0.25, 0]}
           zIndexRange={[10, 0]}
           center
           style={{ pointerEvents: 'none' }}
         >
           <div
-            className={`transition-all duration-200 select-none flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border backdrop-blur-xs shadow-xs ${
-              isCurrentRack
-                ? 'bg-blue-600 text-white border-blue-400 ring-2 ring-blue-300'
+            className={`transition-all duration-150 select-none flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold border shadow-xs ${
+              isSearchTarget
+                ? 'bg-amber-300 text-slate-950 border-amber-500 font-black shadow-sm'
                 : isHovered
-                ? 'bg-white text-slate-900 border-blue-500 scale-110 shadow-md ring-2 ring-blue-400'
-                : 'bg-white/95 text-slate-700 border-slate-300'
+                ? 'bg-slate-900 text-white border-sky-400 scale-110 shadow-md ring-2 ring-sky-300'
+                : 'bg-white/95 text-slate-800 border-slate-300'
             }`}
           >
-            {/* Chấm màu trạng thái xấu nhất */}
             <span
               className="w-2 h-2 rounded-full inline-block shrink-0"
-              style={{ backgroundColor: STATUS_COLORS[worstStatus]?.hex || '#94a3b8' }}
+              style={{ backgroundColor: isSearchTarget ? '#d97706' : STATUS_COLORS[worstStatus]?.hex || '#94a3b8' }}
             />
-
-            {/* Tên dãy kệ */}
             <span className="font-mono">{rack}</span>
 
-            {/* Số lượng cảnh báo nếu có */}
             {warningCount > 0 && (
-              <span className="bg-red-500 text-white text-[10px] px-1 rounded-full leading-tight font-semibold">
+              <span className="bg-red-500 text-white text-[9px] px-1 rounded-full leading-tight font-semibold">
                 {warningCount}
               </span>
             )}
 
-            {/* Hover preview tooltip chi tiết */}
-            {isHovered && isOverview && (
+            {isHovered && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-44 bg-slate-900/95 text-white p-2 rounded-lg text-[10px] shadow-xl border border-slate-700 pointer-events-none text-left font-normal leading-normal z-50">
                 <div className="font-bold text-sky-400 text-xs mb-0.5">
-                  Khu {zone} · Dãy {rack}
+                  Khu {zone} · Kệ {rack}
                 </div>
                 <div className="flex justify-between text-slate-300">
                   <span>Tổng tồn:</span>
@@ -289,11 +325,6 @@ export const RackModel: React.FC<RackModelProps> = React.memo(({
                     {STATUS_COLORS[worstStatus]?.label}
                   </span>
                 </div>
-                {warningCount > 0 && (
-                  <div className="text-amber-400 font-semibold mt-0.5">
-                    Có {warningCount} tầng cần lưu ý
-                  </div>
-                )}
               </div>
             )}
           </div>

@@ -1,7 +1,6 @@
 // ============================================================================
-// Vật liệu & Hình học Dùng Chung (Module-Scope Shared Geometries & Materials)
+// Vật Liệu & Hình Học Dùng Chung (Module-Scope Shared Geometries & Materials)
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
-// Không khởi tạo mới trong vòng render (Không rò rỉ GPU memory)
 // ============================================================================
 
 import * as THREE from 'three';
@@ -12,10 +11,13 @@ import { STATUS_COLORS, WarehouseStatus, RACK_DIMENSIONS } from './constants';
 // ==========================================
 
 // Cột trụ đứng kệ (4 cột thép mỗi kệ)
-export const uprightGeometry = new THREE.BoxGeometry(0.08, RACK_DIMENSIONS.height, 0.08);
+export const uprightGeometry = new THREE.BoxGeometry(0.10, RACK_DIMENSIONS.height, 0.10);
 
-// Xà ngang chịu lực của kệ
-export const shelfBeamGeometry = new THREE.BoxGeometry(RACK_DIMENSIONS.shelfWidth, 0.06, 0.06);
+// Thanh giằng đỉnh kệ mặt trước và mặt sau (dài theo trục X)
+export const topBeamLongGeometry = new THREE.BoxGeometry(RACK_DIMENSIONS.width, 0.08, 0.08);
+
+// Thanh giằng đỉnh kệ mặt bên (ngang theo trục Z)
+export const topBeamSideGeometry = new THREE.BoxGeometry(0.08, 0.08, RACK_DIMENSIONS.depth);
 
 // Khay/dải tầng chịu tải chứa 10 ô thùng (4 tầng mỗi kệ)
 export const shelfBandGeometry = new THREE.BoxGeometry(
@@ -31,73 +33,92 @@ export const rackHitboxGeometry = new THREE.BoxGeometry(
   RACK_DIMENSIONS.depth + 0.2
 );
 
-// Khối hàng thùng thuốc (Unit box, scale theo số lượng tồn kho)
+// Khối hàng thùng thuốc chuẩn (chiều cao cơ sở 1.0, scale theo boxHeight)
 export const binUnitGeometry = new THREE.BoxGeometry(
   RACK_DIMENSIONS.binWidth,
   1.0,
   RACK_DIMENSIONS.binDepth
 );
 
-// Hitbox bao phủ toàn bộ ô thùng để click mượt ở RACK view
-export const binHitboxGeometry = new THREE.BoxGeometry(0.86, 0.98, 1.3);
+// Viền khung mảnh cho thùng thuốc để phân tách rõ từng ô trên kệ
+export const binEdgesGeometry = new THREE.EdgesGeometry(
+  new THREE.BoxGeometry(
+    RACK_DIMENSIONS.binWidth,
+    RACK_DIMENSIONS.uniformBinHeight,
+    RACK_DIMENSIONS.binDepth
+  )
+);
 
-// Tấm giả bóng dưới chân kệ (tạo chiều sâu mà không tốn shadow map)
+// Hitbox bao phủ chính xác không gian ô thùng
+export const binHitboxGeometry = new THREE.BoxGeometry(
+  RACK_DIMENSIONS.binSpacing - 0.02,
+  0.85,
+  RACK_DIMENSIONS.binDepth + 0.1
+);
+
+// Mặt phẳng nhãn thuốc phủ kín 100% mặt trước thùng thuốc (Mesh Native)
+export const binFacePlaneGeometry = new THREE.PlaneGeometry(
+  RACK_DIMENSIONS.binWidth,
+  RACK_DIMENSIONS.uniformBinHeight
+);
+
+// Tấm giả bóng dưới chân kệ
 export const shadowPlateGeometry = new THREE.PlaneGeometry(
   RACK_DIMENSIONS.width + 0.4,
   RACK_DIMENSIONS.depth + 0.4
 );
 
-// Cột trụ Beacon định vị mục tiêu tìm kiếm (tĩnh, không animation nặng)
-export const beaconCylinderGeometry = new THREE.CylinderGeometry(0.3, 0.3, 9.0, 16);
-export const beaconRingGeometry = new THREE.RingGeometry(0.6, 0.9, 24);
+// Cột trụ Beacon định vị mục tiêu tìm kiếm (cao 14m, phát sáng hổ phách amber/gold)
+export const beaconCylinderGeometry = new THREE.CylinderGeometry(0.35, 0.65, 14.0, 16);
+export const beaconHaloGeometry = new THREE.RingGeometry(0.4, 2.4, 32);
 
 // ==========================================
 // 2. VẬT LIỆU DÙNG CHUNG (MATERIALS)
 // ==========================================
 
-// Vật liệu khung thép bình thường
 export const steelNormalMaterial = new THREE.MeshLambertMaterial({
-  color: 0x475569, // slate-600
+  color: 0x334155, // slate-700 cứng cáp, rõ nét
 });
 
-// Vật liệu khung thép mờ ma (Ghost mode khi focus kệ khác hoặc lọc)
 export const steelGhostMaterial = new THREE.MeshLambertMaterial({
-  color: 0x94a3b8,
+  color: 0xcbd5e1,
   transparent: true,
-  opacity: 0.12,
+  opacity: 0.10,
   depthWrite: false,
 });
 
-// Vật liệu giả bóng đổ tiếp xúc sàn
 export const shadowPlateMaterial = new THREE.MeshBasicMaterial({
   color: 0x94a3b8,
   transparent: true,
-  opacity: 0.22,
+  opacity: 0.18,
   depthWrite: false,
 });
 
-// Vật liệu sàn kho epoxy phòng sạch
 export const floorEpoxyMaterial = new THREE.MeshLambertMaterial({
-  color: 0xf1f5f9, // slate-100 sáng sạch
+  color: 0xe2e8f0, // Sàn phẳng đồng nhất, dịu mắt
 });
 
-// Vật liệu cột Beacon tìm kiếm tĩnh
 export const beaconColumnMaterial = new THREE.MeshBasicMaterial({
-  color: 0x38bdf8, // sky-400
+  color: 0xfbbf24, // amber-400 vàng hổ phách phát sáng rực rỡ
   transparent: true,
-  opacity: 0.3,
+  opacity: 0.55,
   depthWrite: false,
 });
 
-export const beaconRingMaterial = new THREE.MeshBasicMaterial({
-  color: 0x0284c7, // sky-600
-  side: THREE.DoubleSide,
+export const beaconHaloMaterial = new THREE.MeshBasicMaterial({
+  color: 0xf59e0b, // amber-500
   transparent: true,
-  opacity: 0.8,
+  opacity: 0.60,
+  side: THREE.DoubleSide,
+  depthWrite: false,
 });
 
-// 5 trạng thái kho GSP (NORMAL, LOW_STOCK, NEAR_EXPIRY, EXPIRED, EMPTY)
-// Mỗi trạng thái có 3 biến thể: normal (rõ), dim (mờ khi focus tầng khác), ghost (mờ ma)
+export const binEdgeLineMaterial = new THREE.LineBasicMaterial({
+  color: 0x1e293b,
+  transparent: true,
+  opacity: 0.22,
+});
+
 const statuses: WarehouseStatus[] = ['NORMAL', 'LOW_STOCK', 'NEAR_EXPIRY', 'EXPIRED', 'EMPTY'];
 
 export const statusNormalMaterials: Record<WarehouseStatus, THREE.MeshLambertMaterial> = {} as any;
@@ -107,23 +128,20 @@ export const statusGhostMaterials: Record<WarehouseStatus, THREE.MeshLambertMate
 statuses.forEach((status) => {
   const col = STATUS_COLORS[status].num;
 
-  // Bản hiển thị bình thường
   statusNormalMaterials[status] = new THREE.MeshLambertMaterial({
     color: col,
   });
 
-  // Bản làm mờ 30% khi người dùng chọn xem 1 tầng cụ thể
   statusDimMaterials[status] = new THREE.MeshLambertMaterial({
     color: col,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0.28,
   });
 
-  // Bản mờ ma 12% khi kệ không nằm trong bộ lọc tìm kiếm
   statusGhostMaterials[status] = new THREE.MeshLambertMaterial({
     color: col,
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.10,
     depthWrite: false,
   });
 });

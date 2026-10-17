@@ -1,7 +1,6 @@
 // ============================================================================
 // Tính Toán Vị Trí Camera Thuần Túy (Pure Camera Poses)
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
-// Không phụ thuộc state phức tạp, tính trực tiếp từ view và tỉ lệ màn hình
 // ============================================================================
 
 import { FOV, RACK_DIMENSIONS, RACK_PLACEMENTS } from './constants';
@@ -11,18 +10,16 @@ const rad = (d: number) => (d * Math.PI) / 180;
 export type Vec3 = [number, number, number];
 
 // ----- OVERVIEW CONFIG -----
-// Góc nâng 65° nhìn từ phía Nam (+Z) về phía Bắc (-Z)
-// Đảm bảo hàng kệ trước không che khuất màu tầng của hàng kệ sau
-const OV_ELEV = rad(65);
-const OV_TARGET: Vec3 = [0, 0, 3]; // Tâm hình học của kho (x: -28..28, z: -19..26)
+const OV_ELEV = rad(62);
+const OV_TARGET: Vec3 = [0, 0, 2.5];
 const OV_W = 58;
-const OV_DEPTH = 46;
-const OV_MARGIN = 1.1;
+const OV_DEPTH = 45;
+const OV_MARGIN = 1.12;
 
 // ----- RACK VIEW CONFIG -----
-// Góc nghiêng nhẹ 4° để người nhìn cảm nhận được chiều sâu khay thùng
-const RACK_PITCH = rad(4);
-const RACK_FILL = 1.12; // Kệ rộng 9.2m chiếm ~89% chiều ngang khung hình
+// Góc nhìn trực diện vuông góc (1.0 độ) vào đúng tâm dọc của 4 tầng (2.15m)
+const RACK_PITCH = rad(1.0);
+const RACK_FILL = 1.12;
 
 export function getPose(view: View, aspect: number): { pos: Vec3; target: Vec3 } {
   const safeAspect = aspect > 0 ? aspect : 16 / 9;
@@ -45,15 +42,15 @@ export function getPose(view: View, aspect: number): { pos: Vec3; target: Vec3 }
     };
   }
 
-  // Chế độ RACK: Bay trực diện vào kệ
+  // Chế độ RACK: Bay trực diện vào chính tâm kệ
   const placement = RACK_PLACEMENTS[view.rack];
   const [rx, , rz] = placement ? placement.position : [0, 0, 0];
   const { width, height, depth } = RACK_DIMENSIONS;
 
   const byW = (width * RACK_FILL) / 2 / tanH;
-  const byH = (height * 1.25) / 2 / tanV; // Dành khoảng trống hiển thị nhãn nóc kệ
+  const byH = (height * 1.16) / 2 / tanV;
   const D = Math.max(byW, byH) + depth / 2;
-  const targetY = 2.4; // Tâm chiều cao của kệ (kệ cao 4.8m)
+  const targetY = 2.25; // Tâm đối xứng dọc chuẩn xác của 4 tầng kệ (cao 4.30m)
 
   return {
     target: [rx, targetY, rz],
