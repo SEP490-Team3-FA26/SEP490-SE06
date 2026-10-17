@@ -1406,7 +1406,7 @@ async def scan_sample_prescription(req: ScanSampleRequest):
 
 
 from services.cache_service import prescription_cache
-from services.gemini_vision_service import analyze_prescription_images, VisionProviderError
+from services.gemini_vision_service import analyze_prescription_images
 from services.drug_normalizer import normalize_extracted_items
 from services.business_validator import validate_and_consolidate
 from services.medicine_matcher import match_medicines_with_db
@@ -1497,8 +1497,6 @@ async def scan_prescription_v2(
         return final_payload
     except HTTPException:
         raise
-    except VisionProviderError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except Exception:
+    except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Lỗi xử lý quét đơn thuốc AI.")
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý quét đơn thuốc AI: {str(e)}")
