@@ -70,6 +70,22 @@ export class MedicineController implements OnModuleInit {
     ]);
   }
 
+  // Helper xóa cache liên quan đến danh mục thuốc, dropdown và thống kê khi có thay đổi dữ liệu
+  private async invalidateMedicineCaches() {
+    if (!this.cacheManager) return;
+    try {
+      await Promise.all([
+        this.cacheManager.del("medicines:dropdown:all"),
+        this.cacheManager.del("medicines:dropdown:CENTRAL_WH"),
+        this.cacheManager.del("medicines:stats:all"),
+        this.cacheManager.del("medicines:stats:CENTRAL_WH"),
+        this.cacheManager.del("medicines:expiration_report:all"),
+        this.cacheManager.del("medicines:expiration_report:CENTRAL_WH"),
+        this.cacheManager.del("medicines:filters:all"),
+      ]);
+    } catch (e) {}
+  }
+
   @Get("filters")
   @ApiOperation({ summary: "Lấy danh sách các bộ lọc có sẵn" })
   async getFilters() {
@@ -193,18 +209,7 @@ export class MedicineController implements OnModuleInit {
     );
 
     // Xóa cache khi có thao tác xuất hủy/giảm giá/trả NCC
-    if (this.cacheManager) {
-      try {
-        await Promise.all([
-          this.cacheManager.del("medicines:stats:all"),
-          this.cacheManager.del("medicines:stats:CENTRAL_WH"),
-          this.cacheManager.del("medicines:expiration_report:all"),
-          this.cacheManager.del("medicines:expiration_report:CENTRAL_WH"),
-          this.cacheManager.del("medicines:dropdown:all"),
-          this.cacheManager.del("medicines:dropdown:CENTRAL_WH"),
-        ]);
-      } catch (e) {}
-    }
+    await this.invalidateMedicineCaches();
 
     return res;
   }
@@ -661,11 +666,13 @@ export class MedicineController implements OnModuleInit {
     @Body("status") status: string,
     @Body("stock") stock?: number,
   ) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update_status",
       { id, status, stock },
     );
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Patch(":id/price-tiers")
@@ -683,11 +690,13 @@ export class MedicineController implements OnModuleInit {
     @Param("id") id: string,
     @Body("priceTiers") priceTiers: { minQuantity: number; price: number }[],
   ) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update_price_tiers",
       { id, priceTiers },
     );
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Patch(":id/price")
@@ -699,11 +708,13 @@ export class MedicineController implements OnModuleInit {
     @Param("id") id: string,
     @Body("price") price: number,
   ) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update_price",
       { id, price },
     );
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Post()
@@ -719,11 +730,14 @@ export class MedicineController implements OnModuleInit {
     entityType: "Medicine",
   })
   async createMedicine(@Body() body: any) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.create",
       body,
     );
+    // Xóa cache dropdown, stats và filters khi tạo thuốc mới
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Put(":id")
@@ -739,11 +753,14 @@ export class MedicineController implements OnModuleInit {
     entityType: "Medicine",
   })
   async updateMedicine(@Param("id") id: string, @Body() body: any) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update",
       { id, updateData: body },
     );
+    // Xóa cache dropdown, stats và filters khi cập nhật thuốc
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Post("subcategories-count")
