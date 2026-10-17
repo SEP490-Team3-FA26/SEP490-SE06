@@ -67,14 +67,16 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
     >
       {/* Image Area */}
       <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 h-40 flex items-center justify-center p-4 overflow-hidden">
+        {/* Khối hiển thị ảnh sản phẩm thực tế, có referrerPolicy để tránh bị CDN chặn hotlink */}
         <img
-          src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
+          src={med.image || (Array.isArray(med.images) && med.images.length > 0 ? med.images[0] : "") || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60"}
           alt={med.name}
           loading="lazy"
+          referrerPolicy="no-referrer"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.onerror = null;
-            target.src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
+            target.src = "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60";
           }}
           className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
         />

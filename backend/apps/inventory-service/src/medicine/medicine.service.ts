@@ -1424,8 +1424,13 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
+      // Truy vấn danh mục thuốc kèm hình ảnh và thông tin chi tiết phục vụ hiển thị thẻ thuốc
       const [medicines, batches] = await Promise.all([
-        this.medicineModel.find().select('name unit price supplierId registration_number').lean().exec(),
+        this.medicineModel
+          .find()
+          .select('name unit price supplierId registration_number image images thong_tin_chi_tiet category drug_classification barcode country brand targetGroup packaging')
+          .lean()
+          .exec(),
         this.batchModel.find(batchFilter).select('medicineId batchNo stock').lean().exec()
       ]);
 
@@ -1441,14 +1446,25 @@ export class MedicineService implements OnModuleInit {
 
       return medicines.map(med => {
         const medId = med._id.toString();
+        const details = (med as any).thong_tin_chi_tiet || {};
+        const img = (med as any).image || ((med as any).images && (med as any).images.length > 0 ? (med as any).images[0] : '');
         return {
           _id: medId,
           id: medId,
           name: med.name,
-          registrationNumber: (med as any).registration_number || '',
+          registrationNumber: (med as any).registration_number || details['Số đăng ký'] || '',
           unit: med.unit || 'Hộp',
           price: med.price || 0,
           supplierId: med.supplierId || '',
+          image: img,
+          images: (med as any).images || (img ? [img] : []),
+          thong_tin_chi_tiet: details,
+          category: (med as any).category || details['Danh mục'] || '',
+          drug_classification: (med as any).drug_classification || '',
+          barcode: (med as any).barcode || '',
+          country: (med as any).country || details['Nước sản xuất'] || details['Xuất xứ'] || '',
+          brand: (med as any).brand || details['Nhà sản xuất'] || details['Thương hiệu'] || '',
+          targetGroup: (med as any).targetGroup || details['Đối tượng sử dụng'] || '',
           batches: batchesByMedId.get(medId) || []
         };
       });
