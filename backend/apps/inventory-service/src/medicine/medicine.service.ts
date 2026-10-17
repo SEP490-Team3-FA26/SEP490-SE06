@@ -1448,6 +1448,10 @@ export class MedicineService implements OnModuleInit {
         const medId = med._id.toString();
         const details = (med as any).thong_tin_chi_tiet || {};
         const img = (med as any).image || ((med as any).images && (med as any).images.length > 0 ? (med as any).images[0] : '');
+        const packSpec = details['Quy cách'] || details['Quy cách đóng gói'] || '';
+        const country = (med as any).country || details['Nước sản xuất'] || details['Xuất xứ'] || '';
+        const brand = (med as any).brand || details['Nhà sản xuất'] || details['Thương hiệu'] || '';
+        const targetGroup = (med as any).targetGroup || details['Đối tượng sử dụng'] || '';
         return {
           _id: medId,
           id: medId,
@@ -1457,14 +1461,12 @@ export class MedicineService implements OnModuleInit {
           price: med.price || 0,
           supplierId: med.supplierId || '',
           image: img,
-          images: (med as any).images || (img ? [img] : []),
-          thong_tin_chi_tiet: details,
+          thong_tin_chi_tiet: (packSpec || country) ? { 'Quy cách': packSpec, 'Nước sản xuất': country } : undefined,
           category: (med as any).category || details['Danh mục'] || '',
           drug_classification: (med as any).drug_classification || '',
-          barcode: (med as any).barcode || '',
-          country: (med as any).country || details['Nước sản xuất'] || details['Xuất xứ'] || '',
-          brand: (med as any).brand || details['Nhà sản xuất'] || details['Thương hiệu'] || '',
-          targetGroup: (med as any).targetGroup || details['Đối tượng sử dụng'] || '',
+          country,
+          brand,
+          targetGroup,
           batches: batchesByMedId.get(medId) || []
         };
       });
