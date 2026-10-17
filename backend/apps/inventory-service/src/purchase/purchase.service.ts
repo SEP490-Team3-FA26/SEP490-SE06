@@ -1497,6 +1497,7 @@ export class PurchaseService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .lean()
         .exec(),
       this.txnModel.countDocuments(filter).exec(),
     ]);

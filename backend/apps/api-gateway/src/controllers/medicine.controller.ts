@@ -48,7 +48,26 @@ export class MedicineController implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Topics are already subscribed globally in AppGatewayModule
+    // Đăng ký đầy đủ các reply topic cho ClientKafka trước khi nhận request
+    await subscribeToKafkaTopics(this.inventoryClient, [
+      "inventory.medicine.list",
+      "inventory.medicine.get_by_id",
+      "inventory.medicine.stats",
+      "inventory.medicine.dropdown_list",
+      "inventory.medicine.expiration_report",
+      "inventory.medicine.low_stock_report",
+      "inventory.medicine.get_filters",
+      "inventory.medicine.branch_list",
+      "inventory.medicine.create",
+      "inventory.medicine.update",
+      "inventory.medicine.handle_expiration_action",
+      "inventory.medicine.get_by_barcode",
+      "inventory.medicine.generate_barcode",
+      "inventory.medicine.subcategory_counts",
+      "inventory.medicine.get_alternatives",
+      "inventory.medicine.warehouse_map",
+      "inventory.medicine.warehouse_search",
+    ]);
   }
 
   @Get("filters")
@@ -95,11 +114,27 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({ summary: "Lấy thống kê tồn kho" })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getStats(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:stats:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.stats",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 60000); // Cache 60 giây
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   // Hỗ trợ cả 2 endpoint báo cáo hết hạn và cảnh báo hết hạn
@@ -109,11 +144,27 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({ summary: "Lấy báo cáo hết hạn của các lô hàng" })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getExpirationReport(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:expiration_report:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.expiration_report",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 60000); // Cache 60 giây
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   @Post("expiration-action")
@@ -134,11 +185,27 @@ export class MedicineController implements OnModuleInit {
       performedBy?: string;
     },
   ) {
-    return await sendKafkaMessage(
+    const res = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.handle_expiration_action",
       body,
     );
+
+    // Xóa cache khi có thao tác xuất hủy/giảm giá/trả NCC
+    if (this.cacheManager) {
+      try {
+        await Promise.all([
+          this.cacheManager.del("medicines:stats:all"),
+          this.cacheManager.del("medicines:stats:CENTRAL_WH"),
+          this.cacheManager.del("medicines:expiration_report:all"),
+          this.cacheManager.del("medicines:expiration_report:CENTRAL_WH"),
+          this.cacheManager.del("medicines:dropdown:all"),
+          this.cacheManager.del("medicines:dropdown:CENTRAL_WH"),
+        ]);
+      } catch (e) {}
+    }
+
+    return res;
   }
 
   @Get("low-stock-report")
@@ -164,11 +231,27 @@ export class MedicineController implements OnModuleInit {
   })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getMedicinesDropdown(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:dropdown:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.dropdown_list",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 300000); // Cache 5 phút
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   @Get("warehouse-map")
