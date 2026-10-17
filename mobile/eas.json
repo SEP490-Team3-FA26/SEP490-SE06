@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 18.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -10,8 +10,10 @@
     },
     "preview": {
       "distribution": "internal",
+      "credentialsSource": "local",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
@@ -19,8 +21,10 @@
       }
     },
     "production": {
+      "credentialsSource": "local",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",

@@ -163,6 +163,26 @@ export class UserServiceController {
     return this.userService.approveEmployee(data.id, data.action);
   }
 
+  @MessagePattern('user.admin.employee.lookup')
+  handleLookupEmployee(@Payload() data: { query: string }) {
+    return this.userService.lookupEmployees(data.query);
+  }
+
+  @MessagePattern('user.admin.employee.transfer.create')
+  handleCreateTransferRequest(@Payload() data: any) {
+    return this.userService.createTransferRequest(data);
+  }
+
+  @MessagePattern('user.admin.employee.transfer.list')
+  handleListTransferRequests(@Payload() data: any) {
+    return this.userService.listTransferRequests(data);
+  }
+
+  @MessagePattern('user.admin.employee.transfer.respond')
+  handleRespondTransferRequest(@Payload() data: any) {
+    return this.userService.respondTransferRequest(data);
+  }
+
   @EventPattern('user.branch.alert.low_stock')
   handleLowStockAlertEvent(@Payload() data: any) {
     return this.branchService.handleLowStockAlert(data);
@@ -271,8 +291,8 @@ export class UserServiceController {
   }
 
   @MessagePattern('hr.schedule.publish')
-  handlePublishSchedule(@Payload() data: { branchId: string; managerId: string; weekStart: string }) {
-    return this.hrService.publishSchedule(data.branchId, data.managerId, data.weekStart);
+  handlePublishSchedule(@Payload() data: { branchId: string; managerId: string; weekStart: string; sendEmailNotification?: boolean }) {
+    return this.hrService.publishSchedule(data.branchId, data.managerId, data.weekStart, data.sendEmailNotification !== false);
   }
 
   @MessagePattern('hr.schedule.my_week')

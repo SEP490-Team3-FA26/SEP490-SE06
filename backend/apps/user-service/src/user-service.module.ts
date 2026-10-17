@@ -27,6 +27,7 @@ import { Payroll, PayrollSchema } from './schemas/payroll.schema';
 import { PayrollService } from './payroll.service';
 import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
 import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/schemas/sales-order.schema';
+import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staff-transfer-request.schema';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/
       { name: Payroll.name, schema: PayrollSchema },
       { name: LeaveRequest.name, schema: LeaveRequestSchema },
       { name: SalesOrder.name, schema: SalesOrderSchema },
+      { name: StaffTransferRequest.name, schema: StaffTransferRequestSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -72,6 +74,25 @@ import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/
               logLevel: 0,
             },
             consumer: { groupId: 'user-service-inventory-group' },
+            producer: { allowAutoTopicCreation: true },
+          },
+        }),
+        inject: [ConfigService],
+      },
+      {
+        name: 'AUTH_SERVICE',
+        imports: [ConfigModule],
+        useFactory: async (config: ConfigService) => ({
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'user-to-auth-client',
+              brokers: (config.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+              connectionTimeout: 10000,
+              retry: { initialRetryTime: 1000, retries: 10 },
+              logLevel: 0,
+            },
+            consumer: { groupId: 'user-to-auth-group' },
             producer: { allowAutoTopicCreation: true },
           },
         }),

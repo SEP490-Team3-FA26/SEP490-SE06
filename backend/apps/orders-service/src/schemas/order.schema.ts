@@ -35,6 +35,9 @@ export class OrderItem {
 
   @Prop({ type: String })
   dosageInstructions?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isGiftItem?: boolean;
 }
 export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 

@@ -27,6 +27,11 @@ import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCh
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 import { BranchLocationModal } from '../../components/branch/BranchLocationModal';
 import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
+import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
+import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
+import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
+import { BranchPayrollModal } from '../../components/payroll/BranchPayrollModal';
+import { ClinicalSidebarDrawer } from '../../components/clinical/ClinicalSidebarDrawer';
 
 // Phân giải tên nhân sự chuyên nghiệp, không để lọt email thô
 const getStaffDisplayName = (st: any): string => {
@@ -56,15 +61,23 @@ const getStaffRoleMeta = (role: string) => {
 };
 
 export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'REVENUE' | 'ALERTS' | 'RECEIVE_STOCK'>('REVENUE');
+  const [showDrawer, setShowDrawer] = useState<boolean>(false);
 
   // Attendance & Shift Modal
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
   const [showLocationModal, setShowLocationModal] = useState<boolean>(false);
   const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
+  const [showShiftSwapModal, setShowShiftSwapModal] = useState<boolean>(false);
+  const [showCertModal, setShowCertModal] = useState<boolean>(false);
+  const [showBranchPayrollModal, setShowBranchPayrollModal] = useState<boolean>(false);
+  const [initialSwapShift, setInitialSwapShift] = useState<any>(null);
   const [currentBranchObj, setCurrentBranchObj] = useState<any>(null);
+  const [todayAttendances, setTodayAttendances] = useState<any[]>([]);
+  const [leavePrefillShift, setLeavePrefillShift] = useState<any | null>(null);
 
   // Staff & Revenue
   const [staffs, setStaffs] = useState<Employee[]>([]);
@@ -100,12 +113,13 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [employees, lowStock, branches, transferList, summary] = await Promise.all([
+      const [employees, lowStock, branches, transferList, summary, attendances] = await Promise.all([
         ApiService.getEmployees(),
         ApiService.getLowStockReport(),
         ApiService.getBranches(),
         ApiService.getStockTransfers(),
         ApiService.getDashboardSummary().catch(() => null),
+        ApiService.getBranchTodayAttendance().catch(() => []),
       ]);
 
       if (employees && employees.length > 0) {
@@ -114,6 +128,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         setStaffs([]);
       }
 
+      setTodayAttendances(attendances || []);
       setLowStockItems(lowStock || []);
       setTransfers(transferList || []);
 
@@ -253,9 +268,13 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
-        title="Quản Lý Cơ Sở"
-        subtitle="Doanh thu chi nhánh, Ca trực & Nhận hàng QR"
+        title="ABC Pharmacy"
+        subtitle={branchName ? `Quản Lý • ${branchName}` : 'Quản Lý Cơ Sở Chi Nhánh'}
         gradientVariant="emerald"
+        leftAction={{
+          icon: 'menu',
+          onPress: () => setShowDrawer(true),
+        }}
         rightAction={{
           icon: 'person-circle-outline',
           onPress: () => navigation.navigate('ProfileScreen'),
@@ -265,49 +284,6 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           onPress: () => navigation.navigate('NotificationListScreen'),
         }}
       />
-
-      {/* Quick Shift & Payslip Bar */}
-      <View style={styles.shiftBarContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.shiftActionBar}
-        >
-          <AnimatedTouchable
-            onPress={() => setShowCheckInModal(true)}
-            style={[styles.shiftActionBtn, styles.checkInBtn]}
-          >
-            <Ionicons name="location" size={16} color="#059669" />
-            <Text style={[styles.shiftActionText, { color: '#059669' }]}>
-              Điểm Danh GPS Chi Nhánh
-            </Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowPayslipModal(true)}
-            style={[styles.shiftActionBtn, styles.payslipBtn]}
-          >
-            <Ionicons name="receipt-outline" size={16} color="#0284C7" />
-            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowLocationModal(true)}
-            style={[styles.shiftActionBtn, styles.locationBtn]}
-          >
-            <Ionicons name="map-outline" size={16} color="#D97706" />
-            <Text style={[styles.shiftActionText, { color: '#D97706' }]}>Vị Trí GPS</Text>
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setShowLeaveModal(true)}
-            style={[styles.shiftActionBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
-          >
-            <Ionicons name="calendar-outline" size={16} color="#059669" />
-            <Text style={[styles.shiftActionText, { color: '#059669' }]}>Duyệt Nghỉ</Text>
-          </AnimatedTouchable>
-        </ScrollView>
-      </View>
 
       {/* Tabs */}
       <View style={styles.tabBar}>
@@ -383,6 +359,46 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               const displayName = getStaffDisplayName(st);
               const roleMeta = getStaffRoleMeta(st.role);
               const initials = displayName.slice(0, 2).toUpperCase();
+              const empId = String(st.id || (st as any)._id || '');
+              const att = todayAttendances.find((a: any) => String(a.employeeId) === empId);
+
+              let dutyText = 'CHƯA VÀO CA';
+              let dutyBadgeBg = '#F1F5F9';
+              let dutyTextColor = '#64748B';
+              let shiftLabel = 'Chưa điểm danh';
+              let showGps = false;
+              let isGpsValid = true;
+
+              if (att) {
+                shiftLabel = att.shiftName || 'Ca trực';
+                if (att.checkInTime) {
+                  const timeStr = new Date(att.checkInTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                  shiftLabel += ` (Vào ${timeStr})`;
+                }
+                showGps = true;
+                isGpsValid = att.isLocationValid !== false;
+
+                if (att.status === 'CHECKED_IN') {
+                  dutyText = 'ĐANG TRỰC';
+                  dutyBadgeBg = '#ECFDF5';
+                  dutyTextColor = '#059669';
+                } else if (att.status === 'CHECKED_OUT') {
+                  dutyText = 'ĐÃ TAN CA';
+                  dutyBadgeBg = '#F1F5F9';
+                  dutyTextColor = '#64748B';
+                  showGps = false;
+                } else if (att.status === 'LATE') {
+                  dutyText = 'ĐI MUỘN';
+                  dutyBadgeBg = '#FEF3C7';
+                  dutyTextColor = '#D97706';
+                } else if (att.status === 'ON_LEAVE') {
+                  dutyText = 'NGHỈ PHÉP';
+                  dutyBadgeBg = '#EDE9FE';
+                  dutyTextColor = '#7C3AED';
+                  showGps = false;
+                }
+              }
+
               return (
                 <View key={st.id || (st as any)._id || `staff-${idx}`} style={styles.staffCard}>
                   <View style={[styles.staffAvatar, { backgroundColor: roleMeta.bg }]}>
@@ -400,17 +416,33 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     </Text>
                     <View style={styles.shiftTagRow}>
                       <View style={styles.shiftTag}>
-                        <Ionicons name="time-outline" size={11} color="#059669" style={{ marginRight: 3 }} />
-                        <Text style={styles.shiftTagText}>Ca Sáng (07:30 - 15:30)</Text>
+                        <Ionicons
+                          name="time-outline"
+                          size={11}
+                          color={att?.status === 'CHECKED_IN' ? '#059669' : '#94A3B8'}
+                          style={{ marginRight: 3 }}
+                        />
+                        <Text style={[styles.shiftTagText, att?.status !== 'CHECKED_IN' && { color: '#64748B' }]}>
+                          {shiftLabel}
+                        </Text>
                       </View>
-                      <View style={styles.gpsBadge}>
-                        <Ionicons name="location" size={11} color="#0284C7" style={{ marginRight: 2 }} />
-                        <Text style={styles.gpsBadgeText}>GPS Chuẩn</Text>
-                      </View>
+                      {showGps && (
+                        <View style={[styles.gpsBadge, !isGpsValid && { backgroundColor: '#FEF3C7' }]}>
+                          <Ionicons
+                            name="location"
+                            size={11}
+                            color={isGpsValid ? '#0284C7' : '#D97706'}
+                            style={{ marginRight: 2 }}
+                          />
+                          <Text style={[styles.gpsBadgeText, !isGpsValid && { color: '#D97706' }]}>
+                            {isGpsValid ? 'GPS Chuẩn' : 'Ngoài vị trí'}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
-                  <View style={styles.dutyBadge}>
-                    <Text style={styles.dutyBadgeText}>ĐANG TRỰC</Text>
+                  <View style={[styles.dutyBadge, { backgroundColor: dutyBadgeBg }]}>
+                    <Text style={[styles.dutyBadgeText, { color: dutyTextColor }]}>{dutyText}</Text>
                   </View>
                 </View>
               );
@@ -803,7 +835,126 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       {/* Staff Leave Management Modal */}
       <StaffLeaveModal
         visible={showLeaveModal}
-        onClose={() => setShowLeaveModal(false)}
+        onClose={() => {
+          setShowLeaveModal(false);
+          setLeavePrefillShift(null);
+        }}
+        prefillShift={leavePrefillShift}
+        onSuccess={loadData}
+      />
+
+      {/* Staff Schedule Calendar Modal */}
+      <StaffScheduleModal
+        visible={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onRequestSwap={(shift) => {
+          setShowScheduleModal(false);
+          setInitialSwapShift(shift);
+          setShowShiftSwapModal(true);
+        }}
+        onOpenLeave={(shift) => {
+          setShowScheduleModal(false);
+          setLeavePrefillShift(shift);
+          setShowLeaveModal(true);
+        }}
+      />
+
+      {/* Shift Swap Requests Modal */}
+      <ShiftSwapModal
+        visible={showShiftSwapModal}
+        onClose={() => {
+          setShowShiftSwapModal(false);
+          setInitialSwapShift(null);
+        }}
+        initialShift={initialSwapShift}
+      />
+
+      {/* CCHN Certificate & Allowance Review Modal */}
+      <StaffCertificateModal
+        visible={showCertModal}
+        onClose={() => setShowCertModal(false)}
+      />
+
+      {/* Branch Direct Payroll Approval Modal */}
+      <BranchPayrollModal
+        visible={showBranchPayrollModal}
+        onClose={() => setShowBranchPayrollModal(false)}
+      />
+
+      {/* Clinical Sidebar Drawer for Branch Manager */}
+      <ClinicalSidebarDrawer
+        visible={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        user={user}
+        roleTitle="Quản Lý Cơ Sở Chi Nhánh"
+        menuItems={[
+          {
+            id: 'attendance',
+            label: 'Điểm Danh GPS Cơ Sở',
+            iconName: 'location-outline',
+            color: '#059669',
+            onPress: () => setShowCheckInModal(true),
+          },
+          {
+            id: 'location',
+            label: 'Cài Đặt GPS & Bán Kính',
+            iconName: 'map-outline',
+            color: '#D97706',
+            onPress: () => setShowLocationModal(true),
+          },
+          {
+            id: 'schedule',
+            label: 'Quản Lý Lịch Ca Trực',
+            iconName: 'calendar',
+            color: '#0284C7',
+            onPress: () => setShowScheduleModal(true),
+          },
+          {
+            id: 'leave',
+            label: 'Duyệt Đơn Nghỉ Phép',
+            iconName: 'calendar-outline',
+            color: '#059669',
+            onPress: () => setShowLeaveModal(true),
+          },
+          {
+            id: 'swap',
+            label: 'Duyệt Đổi Ca Nhân Sự',
+            iconName: 'swap-horizontal',
+            color: '#A855F7',
+            onPress: () => setShowShiftSwapModal(true),
+          },
+          {
+            id: 'cert',
+            label: 'Thẩm Định Bằng Cấp CCHN',
+            iconName: 'ribbon-outline',
+            color: '#D97706',
+            onPress: () => setShowCertModal(true),
+          },
+          {
+            id: 'payroll',
+            label: 'Duyệt Bảng Lương Chi Nhánh',
+            iconName: 'cash-outline',
+            color: '#059669',
+            badge: 'TỰ QUYẾT',
+            badgeVariant: 'success',
+            onPress: () => setShowBranchPayrollModal(true),
+          },
+          {
+            id: 'payslip',
+            label: 'Phiếu Lương Cá Nhân',
+            iconName: 'receipt-outline',
+            color: '#0284C7',
+            onPress: () => setShowPayslipModal(true),
+          },
+          {
+            id: 'receiveStock',
+            label: 'Nhận Hàng Chuyển Kho QR',
+            iconName: 'qr-code-outline',
+            color: '#059669',
+            onPress: () => setActiveTab('RECEIVE_STOCK'),
+          },
+        ]}
+        onLogout={logout}
       />
     </SafeAreaView>
   );
@@ -818,6 +969,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  actionGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  gridActionItem: {
+    width: '25%',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
+  gridIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 5,
+  },
+  gridActionText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#334155',
+    textAlign: 'center',
+    lineHeight: 13,
   },
   shiftActionBar: {
     flexDirection: 'row',

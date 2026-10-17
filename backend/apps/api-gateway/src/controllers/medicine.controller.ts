@@ -167,7 +167,8 @@ export class MedicineController implements OnModuleInit {
     return result;
   }
 
-  @Post("expiration-action")
+  // Hỗ trợ cả 2 alias endpoint để đảm bảo tương thích ngược 100%
+  @Post(["expiration-action", "handle-expiration"])
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
@@ -444,8 +445,8 @@ export class MedicineController implements OnModuleInit {
       {
         branchId,
         branchStockOnly,
-        page: Number(page),
-        limit: Number(limit),
+        page: Math.max(Number(page) || 1, 1),
+        limit: Math.min(Math.max(Number(limit) || 10, 1), 100),
         search,
         category,
         classification,
@@ -797,9 +798,11 @@ export class MedicineController implements OnModuleInit {
     @Query("bypassAiSearch") bypassAiSearch?: string | boolean,
     @Query("directDb") directDb?: string | boolean,
   ) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const safePage = Math.max(Number(page) || 1, 1);
     const effectiveClassification = classification || drugClassification || "";
     const isDirectDb = bypassAiSearch === true || bypassAiSearch === "true" || directDb === true || directDb === "true";
-    const cacheKey = `medicines:list:${page}:${limit}:${search}:${category}:${effectiveClassification}:${targetGroup}:${minPrice || ""}:${maxPrice || ""}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}:${isDirectDb}`;
+    const cacheKey = `medicines:list:${safePage}:${safeLimit}:${search}:${category}:${effectiveClassification}:${targetGroup}:${minPrice || ""}:${maxPrice || ""}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}:${isDirectDb}`;
 
     // 1. Kiểm tra cache Redis (Nếu không yêu cầu directDb / bypassAiSearch)
     if (!isDirectDb && this.cacheManager) {
@@ -817,8 +820,8 @@ export class MedicineController implements OnModuleInit {
         this.inventoryClient,
         "inventory.medicine.list",
         {
-          page: Number(page),
-          limit: Number(limit),
+          page: safePage,
+          limit: safeLimit,
           search,
           category,
           classification: effectiveClassification,
@@ -835,10 +838,12 @@ export class MedicineController implements OnModuleInit {
         },
       );
 
-      // 3. Ghi kết quả vào Redis Cache (TTL: 2 phút = 120,000 ms) nếu không phải directDb
+      // 3. Ghi kết quả vào Redis Cache (Landing page mặc định: 10 phút, còn lại: 2 phút)
       if (!isDirectDb && this.cacheManager && result) {
         try {
-          await this.cacheManager.set(cacheKey, result, 120000);
+          const isLandingDefault = safePage === 1 && safeLimit <= 12 && !search && !category;
+          const ttl = isLandingDefault ? 600000 : 120000;
+          await this.cacheManager.set(cacheKey, result, ttl);
         } catch (e) {}
       }
 

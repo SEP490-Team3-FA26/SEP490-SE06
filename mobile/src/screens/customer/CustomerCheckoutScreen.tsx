@@ -17,11 +17,13 @@ import {
   TouchableOpacity,
   Modal,
   Linking,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiService } from '../../services/api.service';
 import { useAuth } from '../../context/AuthContext';
 import { HeaderBar } from '../../components/ui/HeaderBar';
@@ -104,6 +106,40 @@ export const CustomerCheckoutScreen: React.FC<{
     };
   }, []);
 
+  // ─── Loyalty Points state ───────────────────────────────────────────────────
+  const [loyaltyData, setLoyaltyData] = useState<{
+    points?: number;
+    accumulatedPoints?: number;
+    tier?: string;
+    multiplier?: number;
+  } | null>(null);
+  const [usePoints, setUsePoints] = useState<boolean>(false);
+  const [loadingLoyalty, setLoadingLoyalty] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLoyalty = async () => {
+      setLoadingLoyalty(true);
+      try {
+        let res = await ApiService.getMyLoyalty();
+        if ((!res || !res.points) && patientPhone) {
+          res = await ApiService.lookupLoyalty(patientPhone);
+        }
+        if (isMounted && res) {
+          setLoyaltyData(res);
+        }
+      } catch (err) {
+        console.warn('[Checkout] Failed to fetch loyalty info:', err);
+      } finally {
+        if (isMounted) setLoadingLoyalty(false);
+      }
+    };
+    fetchLoyalty();
+    return () => {
+      isMounted = false;
+    };
+  }, [patientPhone]);
+
   // ─── Discount calculation (port từ Flutter _discountAmount) ─────────────────
   const discountAmount = useMemo<number>(() => {
     if (!appliedVoucher) return 0;
@@ -126,9 +162,20 @@ export const CustomerCheckoutScreen: React.FC<{
     return val;
   }, [appliedVoucher, subtotal]);
 
+  // Điểm tích lũy: 1 điểm = 1đ, không được giảm vượt quá số tiền sau voucher
+  const availablePoints = loyaltyData?.points ?? 0;
+  const pointsDiscount = usePoints
+    ? Math.min(availablePoints, Math.max(0, subtotal - discountAmount))
+    : 0;
+
   const finalTotal = useMemo<number>(
-    () => Math.max(0, subtotal - discountAmount),
-    [subtotal, discountAmount]
+    () => Math.max(0, subtotal - discountAmount - pointsDiscount),
+    [subtotal, discountAmount, pointsDiscount]
+  );
+
+  const earnedPoints = useMemo<number>(
+    () => Math.round(finalTotal / 100),
+    [finalTotal]
   );
 
   // ─── Validate Voucher via API (port từ Flutter _applyVoucherCode) ────────────
@@ -364,6 +411,7 @@ export const CustomerCheckoutScreen: React.FC<{
       paymentMethod,        // 'QR_PAY' hoặc 'CASH'
       type: 'ONLINE',       // Flutter dùng field này
       totalAmount: Math.round(finalTotal),
+      redeemedPoints: usePoints ? pointsDiscount : 0,
       items: (cart as CartItem[]).map((i) => ({
         medicineId: i.medicine.id,
         name: i.medicine.name,
@@ -378,6 +426,8 @@ export const CustomerCheckoutScreen: React.FC<{
     try {
       // 1) Tạo đơn hàng
       const createdOrder = await ApiService.createOrder(orderPayload);
+      // Xóa giỏ hàng local sau khi đơn đã được lưu vào hệ thống
+      await AsyncStorage.removeItem('@abc_guest_cart').catch(() => {});
       const orderId: string =
         createdOrder?.id || createdOrder?._id || createdOrder?.orderCode?.toString() || `ORD-${Date.now()}`;
       const orderCode = createdOrder?.orderCode || orderId;
@@ -640,6 +690,45 @@ export const CustomerCheckoutScreen: React.FC<{
             )}
           </View>
 
+          {/* ── Điểm Tích Lũy Thành Viên ABC ── */}
+          <View style={styles.sectionCard}>
+            <View style={styles.loyaltyHeaderRow}>
+              <View style={styles.loyaltyTitleLeft}>
+                <Ionicons name="sparkles" size={18} color="#D97706" />
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Điểm Tích Lũy ABC</Text>
+              </View>
+              {loyaltyData?.tier ? (
+                <View style={styles.tierBadge}>
+                  <Text style={styles.tierBadgeText}>{loyaltyData.tier}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.loyaltyActionRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.availablePointsText}>
+                  Khả dụng: <Text style={styles.pointsHighlight}>{(availablePoints || 0).toLocaleString('vi-VN')} điểm</Text>
+                </Text>
+                <Text style={styles.loyaltyHelpText}>
+                  1 điểm = 1 ₫ • Giảm tối đa {Math.min(availablePoints, Math.max(0, subtotal - discountAmount)).toLocaleString('vi-VN')} ₫
+                </Text>
+              </View>
+              <Switch
+                value={usePoints}
+                onValueChange={(val) => {
+                  if (val && availablePoints <= 0) {
+                    showToast.info('Thông báo', 'Bạn chưa có điểm tích lũy khả dụng.');
+                    return;
+                  }
+                  setUsePoints(val);
+                }}
+                disabled={availablePoints <= 0}
+                trackColor={{ false: '#CBD5E1', true: '#10B981' }}
+                thumbColor={usePoints ? '#059669' : '#F8FAFC'}
+              />
+            </View>
+          </View>
+
           {/* ── Tổng kết & Đặt hàng ── */}
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
@@ -658,6 +747,17 @@ export const CustomerCheckoutScreen: React.FC<{
               </View>
             )}
 
+            {pointsDiscount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: '#D97706' }]}>
+                  Trừ điểm tích lũy:
+                </Text>
+                <Text style={[styles.summaryVal, { color: '#D97706' }]}>
+                  -{pointsDiscount.toLocaleString('vi-VN')} ₫
+                </Text>
+              </View>
+            )}
+
             <View style={[styles.summaryRow, styles.totalRow]}>
               <Text style={styles.totalLabel}>Tổng Thanh Toán:</Text>
               <Text style={styles.totalVal}>{finalTotal.toLocaleString('vi-VN')} ₫</Text>
@@ -666,6 +766,13 @@ export const CustomerCheckoutScreen: React.FC<{
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
                 Tổng sản phẩm: {(cart as CartItem[]).reduce((a, b) => a + b.quantity, 0)} hộp/sản phẩm
+              </Text>
+            </View>
+
+            <View style={styles.earnedPointsRow}>
+              <Ionicons name="gift-outline" size={15} color="#059669" />
+              <Text style={styles.earnedPointsText}>
+                Tích luỹ dự kiến: <Text style={{ fontWeight: '800' }}>+{earnedPoints.toLocaleString('vi-VN')} điểm</Text> sau khi hoàn tất
               </Text>
             </View>
 
@@ -1097,5 +1204,67 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94A3B8',
     fontWeight: '600',
+  },
+  loyaltyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  loyaltyTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  tierBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  tierBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+    textTransform: 'uppercase',
+  },
+  loyaltyActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  availablePointsText: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  pointsHighlight: {
+    color: '#D97706',
+    fontWeight: '800',
+  },
+  loyaltyHelpText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  earnedPointsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  earnedPointsText: {
+    fontSize: 12,
+    color: '#065F46',
   },
 });

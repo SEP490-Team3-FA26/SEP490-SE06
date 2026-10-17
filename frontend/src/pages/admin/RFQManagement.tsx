@@ -127,7 +127,7 @@ export function RFQManagement() {
       const [rfqList, suppList, medList] = await Promise.all([
         rfqService.getRfqs().catch(() => []),
         supplierService.getSuppliers().catch(() => []),
-        medicineService.getMedicines({ limit: 500 }).catch(() => ({ data: [] })),
+        medicineService.getMedicinesDropdown().catch(() => ({ data: [] })),
       ]);
       setRfqs(Array.isArray(rfqList) ? rfqList : []);
       setSuppliers(Array.isArray(suppList) ? suppList : (suppList as any)?.data || []);

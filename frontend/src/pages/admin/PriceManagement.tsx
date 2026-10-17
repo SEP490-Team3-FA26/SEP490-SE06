@@ -35,7 +35,8 @@ interface Branch {
 }
 
 interface Medicine {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
   sku?: string;
   price: number;
@@ -134,7 +135,7 @@ export function PriceManagement() {
         limit: 50,
         search: q,
       });
-      setMedicines(data.data || []);
+      setMedicines((data.data as unknown as Medicine[]) || []);
     } catch {
       setMedicines([]);
     }
@@ -162,21 +163,74 @@ export function PriceManagement() {
     setShowAddModal(true);
   };
 
+  // Ngăn chặn nhập ký tự âm, ký hiệu toán học
+  const handleNumberKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (["-", "+", "e", "E"].includes(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  // Helper parse số an toàn
+  const parsePositiveIntOrNull = (val: string): number | null => {
+    if (val === "" || val == null) return null;
+    const num = Number(val);
+    if (isNaN(num) || num < 0) return null;
+    return Math.round(num);
+  };
+
   // Save price (upsert)
   const handleSavePrice = async (medicineId: string) => {
     if (!selectedBranch || !medicineId) return;
+
+    // Validate logic
+    const retailNum = formRetailPrice !== "" ? Number(formRetailPrice) : null;
+    const wholesaleNum = formWholesalePrice !== "" ? Number(formWholesalePrice) : null;
+
+    if (retailNum !== null && (isNaN(retailNum) || retailNum < 0)) {
+      alert("Giá bán lẻ không được là số âm (>= 0 đ)!");
+      return;
+    }
+    if (wholesaleNum !== null && (isNaN(wholesaleNum) || wholesaleNum < 0)) {
+      alert("Giá bán sỉ cơ bản không được là số âm (>= 0 đ)!");
+      return;
+    }
+
+    // Validate tiers
+    for (const t of formTiers) {
+      if (isNaN(t.minQuantity) || t.minQuantity < 1) {
+        alert("Số lượng tối thiểu của bậc sỉ phải từ 1 trở lên!");
+        return;
+      }
+      if (isNaN(t.price) || t.price < 0) {
+        alert("Đơn giá bậc sỉ không được là số âm (>= 0 đ)!");
+        return;
+      }
+    }
+
+    const tierQtys = formTiers.map((t) => t.minQuantity);
+    if (new Set(tierQtys).size !== tierQtys.length) {
+      alert("Số lượng của các bậc sỉ không được trùng lặp!");
+      return;
+    }
+
     try {
       const body: any = { isActive: formIsActive };
-      if (formRetailPrice !== "") body.retailPrice = Number(formRetailPrice);
-      if (formWholesalePrice !== "") body.wholesalePrice = Number(formWholesalePrice);
-      if (formTiers.length > 0) body.wholesaleTiers = formTiers;
+      if (retailNum !== null) body.retailPrice = Math.round(retailNum);
+      if (wholesaleNum !== null) body.wholesalePrice = Math.round(wholesaleNum);
+      if (formTiers.length > 0) {
+        body.wholesaleTiers = formTiers.map((t) => ({
+          minQuantity: Math.max(1, Math.round(t.minQuantity)),
+          price: Math.max(0, Math.round(t.price)),
+        }));
+      }
 
       await pricingService.saveBranchPrice(selectedBranch, medicineId, body);
       setShowEditModal(false);
       setShowAddModal(false);
       fetchPriceList();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Lỗi lưu bảng giá", err);
+      alert(err?.response?.data?.message || err?.message || "Lỗi lưu bảng giá");
     }
   };
 
@@ -186,8 +240,9 @@ export function PriceManagement() {
     try {
       await pricingService.deleteBranchPrice(selectedBranch, medicineId);
       fetchPriceList();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Lỗi xóa bảng giá", err);
+      alert(err?.response?.data?.message || err?.message || "Lỗi xóa bảng giá");
     }
   };
 
@@ -206,8 +261,9 @@ export function PriceManagement() {
         alert("Sao chép bảng giá thành công!");
       }
       setShowCopyModal(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Lỗi sao chép bảng giá", err);
+      alert(err?.response?.data?.message || err?.message || "Lỗi sao chép bảng giá");
     } finally {
       setCopyLoading(false);
     }
@@ -218,7 +274,8 @@ export function PriceManagement() {
   const removeTier = (idx: number) => setFormTiers(formTiers.filter((_, i) => i !== idx));
   const updateTier = (idx: number, field: keyof WholesaleTier, val: number) => {
     const updated = [...formTiers];
-    updated[idx] = { ...updated[idx], [field]: val };
+    const safeVal = Math.max(0, isNaN(val) ? 0 : val);
+    updated[idx] = { ...updated[idx], [field]: field === "minQuantity" ? Math.max(1, safeVal) : safeVal };
     setFormTiers(updated);
   };
 
@@ -508,30 +565,82 @@ export function PriceManagement() {
 
                 {/* Retail Price */}
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                    Giá bán lẻ (VNĐ)
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                      Giá bán lẻ (VNĐ)
+                    </label>
+                    {formRetailPrice !== "" && Number(formRetailPrice) >= 0 && (
+                      <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formRetailPrice))}</span>
+                    )}
+                  </div>
                   <input
                     type="number"
+                    min="0"
+                    step="1000"
                     value={formRetailPrice}
-                    onChange={(e) => setFormRetailPrice(e.target.value)}
+                    onKeyDown={handleNumberKeyDown}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, "");
+                      setFormRetailPrice(val);
+                    }}
                     placeholder="Để trống = dùng giá gốc"
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                    className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                      formRetailPrice !== "" && Number(formRetailPrice) < 0
+                        ? "border-red-400 focus:ring-red-200"
+                        : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                    }`}
                   />
+                  {formRetailPrice !== "" && Number(formRetailPrice) < 0 && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle size={14} /> Giá bán lẻ không được là số âm (tối thiểu 0 đ).
+                    </p>
+                  )}
+                  {formRetailPrice !== "" && Number(formRetailPrice) >= 0 && editingItem && Number(formRetailPrice) < editingItem.defaultPrice && (
+                    <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-1.5 font-medium">
+                      <AlertCircle size={14} className="shrink-0 text-amber-600" />
+                      <span>Cảnh báo: Giá bán lẻ đang thấp hơn giá niêm yết hệ thống ({formatVND(editingItem.defaultPrice)}).</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Wholesale Price */}
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                    Giá bán sỉ cơ bản (VNĐ)
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                      Giá bán sỉ cơ bản (VNĐ)
+                    </label>
+                    {formWholesalePrice !== "" && Number(formWholesalePrice) >= 0 && (
+                      <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formWholesalePrice))}</span>
+                    )}
+                  </div>
                   <input
                     type="number"
+                    min="0"
+                    step="1000"
                     value={formWholesalePrice}
-                    onChange={(e) => setFormWholesalePrice(e.target.value)}
+                    onKeyDown={handleNumberKeyDown}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, "");
+                      setFormWholesalePrice(val);
+                    }}
                     placeholder="Giá sỉ mặc định"
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                    className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                      formWholesalePrice !== "" && Number(formWholesalePrice) < 0
+                        ? "border-red-400 focus:ring-red-200"
+                        : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                    }`}
                   />
+                  {formWholesalePrice !== "" && Number(formWholesalePrice) < 0 && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle size={14} /> Giá bán sỉ cơ bản không được là số âm (tối thiểu 0 đ).
+                    </p>
+                  )}
+                  {formWholesalePrice !== "" && formRetailPrice !== "" && Number(formWholesalePrice) > Number(formRetailPrice) && (
+                    <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-1.5 font-medium">
+                      <AlertCircle size={14} className="shrink-0 text-amber-600" />
+                      <span>Lưu ý: Giá bán sỉ ({formatVND(Number(formWholesalePrice))}) đang cao hơn giá bán lẻ ({formatVND(Number(formRetailPrice))}).</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Wholesale Tiers */}
@@ -554,19 +663,25 @@ export function PriceManagement() {
                     {formTiers.map((tier, idx) => (
                       <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-lg p-2.5">
                         <div className="flex-1">
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Từ (SL)</label>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Từ (SL từ 1)</label>
                           <input
                             type="number"
+                            min="1"
+                            step="1"
                             value={tier.minQuantity}
+                            onKeyDown={handleNumberKeyDown}
                             onChange={(e) => updateTier(idx, "minQuantity", Number(e.target.value))}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd]/20"
                           />
                         </div>
                         <div className="flex-1">
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Giá (VNĐ)</label>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Đơn giá sỉ (VNĐ)</label>
                           <input
                             type="number"
+                            min="0"
+                            step="1000"
                             value={tier.price}
+                            onKeyDown={handleNumberKeyDown}
                             onChange={(e) => updateTier(idx, "price", Number(e.target.value))}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd]/20"
                           />
@@ -605,8 +720,13 @@ export function PriceManagement() {
                   Hủy
                 </button>
                 <button
+                  disabled={
+                    (formRetailPrice !== "" && Number(formRetailPrice) < 0) ||
+                    (formWholesalePrice !== "" && Number(formWholesalePrice) < 0) ||
+                    formTiers.some((t) => t.minQuantity < 1 || t.price < 0)
+                  }
                   onClick={() => handleSavePrice(editingItem.medicineId)}
-                  className="px-6 py-2.5 text-sm font-medium text-white bg-[#0057cd] hover:bg-[#004bb1] rounded-lg transition-colors flex items-center gap-2"
+                  className="px-6 py-2.5 text-sm font-medium text-white bg-[#0057cd] hover:bg-[#004bb1] rounded-lg transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Save size={16} />
                   Lưu thay đổi
@@ -679,82 +799,156 @@ export function PriceManagement() {
                   </div>
                 </div>
 
-                {addMedicineId && (
-                  <>
-                    {/* Retail Price */}
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        Giá bán lẻ (VNĐ)
-                      </label>
-                      <input
-                        type="number"
-                        value={formRetailPrice}
-                        onChange={(e) => setFormRetailPrice(e.target.value)}
-                        placeholder="Để trống = dùng giá gốc"
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
-                      />
-                    </div>
-
-                    {/* Wholesale Price */}
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        Giá bán sỉ cơ bản (VNĐ)
-                      </label>
-                      <input
-                        type="number"
-                        value={formWholesalePrice}
-                        onChange={(e) => setFormWholesalePrice(e.target.value)}
-                        placeholder="Giá sỉ mặc định"
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
-                      />
-                    </div>
-
-                    {/* Wholesale Tiers */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Bậc thang giá sỉ
-                        </label>
-                        <button
-                          onClick={addTier}
-                          className="text-xs text-[#0057cd] hover:text-[#004bb1] font-medium flex items-center gap-1"
-                        >
-                          <Plus size={14} /> Thêm bậc
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {formTiers.map((tier, idx) => (
-                          <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-lg p-2.5">
-                            <div className="flex-1">
-                              <label className="text-[10px] text-slate-400 block mb-0.5">Từ (SL)</label>
-                              <input
-                                type="number"
-                                value={tier.minQuantity}
-                                onChange={(e) => updateTier(idx, "minQuantity", Number(e.target.value))}
-                                className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd]/20"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <label className="text-[10px] text-slate-400 block mb-0.5">Giá (VNĐ)</label>
-                              <input
-                                type="number"
-                                value={tier.price}
-                                onChange={(e) => updateTier(idx, "price", Number(e.target.value))}
-                                className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd]/20"
-                              />
-                            </div>
-                            <button
-                              onClick={() => removeTier(idx)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-4"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                {addMedicineId && (() => {
+                  const selectedMed = medicines.find((m) => (m._id || m.id) === addMedicineId);
+                  return (
+                    <>
+                      {selectedMed && (
+                        <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3 flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 block">{selectedMed.name}</span>
+                            <span className="text-[11px] text-slate-500">Đơn vị: {selectedMed.unit || "Hộp"} {selectedMed.sku ? `• SKU: ${selectedMed.sku}` : ""}</span>
                           </div>
-                        ))}
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 block uppercase font-semibold">Giá gốc niêm yết</span>
+                            <span className="font-extrabold text-[#0057cd] text-sm">{formatVND(selectedMed.price)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Retail Price */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                            Giá bán lẻ (VNĐ)
+                          </label>
+                          {formRetailPrice !== "" && Number(formRetailPrice) >= 0 && (
+                            <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formRetailPrice))}</span>
+                          )}
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={formRetailPrice}
+                          onKeyDown={handleNumberKeyDown}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, "");
+                            setFormRetailPrice(val);
+                          }}
+                          placeholder="Để trống = dùng giá gốc"
+                          className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                            formRetailPrice !== "" && Number(formRetailPrice) < 0
+                              ? "border-red-400 focus:ring-red-200"
+                              : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                          }`}
+                        />
+                        {formRetailPrice !== "" && Number(formRetailPrice) < 0 && (
+                          <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
+                            <AlertCircle size={14} /> Giá bán lẻ không được là số âm (tối thiểu 0 đ).
+                          </p>
+                        )}
+                        {formRetailPrice !== "" && Number(formRetailPrice) >= 0 && selectedMed && Number(formRetailPrice) < selectedMed.price && (
+                          <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-1.5 font-medium">
+                            <AlertCircle size={14} className="shrink-0 text-amber-600" />
+                            <span>Cảnh báo: Giá bán lẻ đang thấp hơn giá niêm yết hệ thống ({formatVND(selectedMed.price)}).</span>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </>
-                )}
+
+                      {/* Wholesale Price */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                            Giá bán sỉ cơ bản (VNĐ)
+                          </label>
+                          {formWholesalePrice !== "" && Number(formWholesalePrice) >= 0 && (
+                            <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formWholesalePrice))}</span>
+                          )}
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={formWholesalePrice}
+                          onKeyDown={handleNumberKeyDown}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, "");
+                            setFormWholesalePrice(val);
+                          }}
+                          placeholder="Giá sỉ mặc định"
+                          className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                            formWholesalePrice !== "" && Number(formWholesalePrice) < 0
+                              ? "border-red-400 focus:ring-red-200"
+                              : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                          }`}
+                        />
+                        {formWholesalePrice !== "" && Number(formWholesalePrice) < 0 && (
+                          <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
+                            <AlertCircle size={14} /> Giá bán sỉ cơ bản không được là số âm (tối thiểu 0 đ).
+                          </p>
+                        )}
+                        {formWholesalePrice !== "" && formRetailPrice !== "" && Number(formWholesalePrice) > Number(formRetailPrice) && (
+                          <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-1.5 font-medium">
+                            <AlertCircle size={14} className="shrink-0 text-amber-600" />
+                            <span>Lưu ý: Giá bán sỉ ({formatVND(Number(formWholesalePrice))}) đang cao hơn giá bán lẻ ({formatVND(Number(formRetailPrice))}).</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Wholesale Tiers */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                            Bậc thang giá sỉ
+                          </label>
+                          <button
+                            onClick={addTier}
+                            className="text-xs text-[#0057cd] hover:text-[#004bb1] font-medium flex items-center gap-1"
+                          >
+                            <Plus size={14} /> Thêm bậc
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {formTiers.map((tier, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-lg p-2.5">
+                              <div className="flex-1">
+                                <label className="text-[10px] text-slate-400 block mb-0.5">Từ (SL từ 1)</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={tier.minQuantity}
+                                  onKeyDown={handleNumberKeyDown}
+                                  onChange={(e) => updateTier(idx, "minQuantity", Number(e.target.value))}
+                                  className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd]/20"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <label className="text-[10px] text-slate-400 block mb-0.5">Đơn giá sỉ (VNĐ)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1000"
+                                  value={tier.price}
+                                  onKeyDown={handleNumberKeyDown}
+                                  onChange={(e) => updateTier(idx, "price", Number(e.target.value))}
+                                  className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd]/20"
+                                />
+                              </div>
+                              <button
+                                onClick={() => removeTier(idx)}
+                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-4"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Footer */}
@@ -766,7 +960,12 @@ export function PriceManagement() {
                   Hủy
                 </button>
                 <button
-                  disabled={!addMedicineId}
+                  disabled={
+                    !addMedicineId ||
+                    (formRetailPrice !== "" && Number(formRetailPrice) < 0) ||
+                    (formWholesalePrice !== "" && Number(formWholesalePrice) < 0) ||
+                    formTiers.some((t) => t.minQuantity < 1 || t.price < 0)
+                  }
                   onClick={() => handleSavePrice(addMedicineId)}
                   className="px-6 py-2.5 text-sm font-medium text-white bg-[#0057cd] hover:bg-[#004bb1] rounded-lg transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -812,16 +1011,18 @@ export function PriceManagement() {
                   <strong>Lưu ý:</strong> Các bảng giá đã tồn tại ở chi nhánh đích sẽ bị ghi đè.
                 </div>
                 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="syncAll"
-                    checked={syncAll}
-                    onChange={(e) => setSyncAll(e.target.checked)}
-                    className="w-4 h-4 text-[#0057cd] border-slate-300 rounded focus:ring-[#0057cd]"
-                  />
-                  <label htmlFor="syncAll" className="text-sm text-slate-700 font-medium">Đồng bộ cho TẤT CẢ chi nhánh</label>
-                </div>
+                {userRole !== "branch" && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="syncAll"
+                      checked={syncAll}
+                      onChange={(e) => setSyncAll(e.target.checked)}
+                      className="w-4 h-4 text-[#0057cd] border-slate-300 rounded focus:ring-[#0057cd]"
+                    />
+                    <label htmlFor="syncAll" className="text-sm text-slate-700 font-medium">Đồng bộ cho TẤT CẢ chi nhánh (Chỉ Admin)</label>
+                  </div>
+                )}
 
                 {!syncAll && (
                   <div>

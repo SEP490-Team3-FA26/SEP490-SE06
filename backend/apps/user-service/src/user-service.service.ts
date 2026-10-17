@@ -10,6 +10,11 @@ import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema';
 import { Branch, BranchDocument } from './schemas/branch.schema';
 import { BranchFeedback, BranchFeedbackDocument } from './schemas/branch-feedback.schema';
 import { CustomerSegment, CustomerSegmentDocument } from './schemas/customer-segment.schema';
+import { StaffTransferRequest } from './schemas/staff-transfer-request.schema';
+import { StaffNotification } from './schemas/staff-notification.schema';
+import { WorkSchedule } from './schemas/work-schedule.schema';
+import { ShiftSwapRequest } from './schemas/shift-swap-request.schema';
+import { LeaveRequest, LeaveStatus } from './schemas/leave-request.schema';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as zlib from 'zlib';
@@ -50,10 +55,22 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly feedbackModel: Model<BranchFeedbackDocument>,
     @InjectModel(CustomerSegment.name)
     private readonly segmentModel: Model<CustomerSegmentDocument>,
+    @InjectModel(StaffTransferRequest.name)
+    private readonly staffTransferRequestModel: Model<StaffTransferRequest>,
+    @InjectModel(StaffNotification.name)
+    private readonly staffNotificationModel: Model<StaffNotification>,
+    @InjectModel(WorkSchedule.name)
+    private readonly workScheduleModel: Model<WorkSchedule>,
+    @InjectModel(ShiftSwapRequest.name)
+    private readonly shiftSwapRequestModel: Model<ShiftSwapRequest>,
+    @InjectModel(LeaveRequest.name)
+    private readonly leaveRequestModel: Model<LeaveRequest>,
     @InjectConnection()
     private readonly connection: Connection,
     @Inject('INVENTORY_SERVICE')
     private readonly inventoryClient: ClientKafka,
+    @Inject('AUTH_SERVICE')
+    private readonly authClient: ClientKafka,
   ) { }
 
   async onModuleInit() {
@@ -841,7 +858,8 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       data.role = 'pharmacist';
     }
 
-    const passwordHash = await bcrypt.hash(data.password, 12);
+    const rawPassword = data.password && data.password.trim().length > 0 ? data.password.trim() : randomUUID().replace(/-/g, '').slice(0, 16);
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
 
     const newUser = new this.userModel({
       email: data.email,
@@ -862,9 +880,372 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       await this.syncManagerToBranch(data.branchId, data.fullName);
     }
 
+    // Phat su kien gui email chao mung va OTP thiet lap mat khau cho nhan vien moi
+    try {
+      this.authClient.emit('auth.employee.welcome_reset_password', {
+        email: data.email,
+        fullName: data.fullName,
+        branchId: data.branchId,
+        role: data.role,
+      });
+    } catch (err: any) {
+      this.logger.warn(`Loi phat su kien gui email chao mung nhan vien: ${err.message}`);
+    }
+
     const result = newUser.toObject();
     delete result.passwordHash;
     return result;
+  }
+
+  // --- DIEU CHUYEN NHAN SU GIUA CAC CHI NHANH ---
+
+  async lookupEmployees(query: string) {
+    if (!query || query.trim().length < 2) return [];
+    const q = query.trim();
+    // Escape ky tu dac biet cua regex de tranh loi cu phap va ReDoS
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    const employees = await this.userModel
+      .find({
+        role: 'pharmacist',
+        $or: [{ email: regex }, { phone: regex }, { fullName: regex }],
+      })
+      .select('_id fullName email phone role branchId isActive isApproved')
+      .limit(15)
+      .lean()
+      .exec();
+    return employees;
+  }
+
+  async getEmployeeUpcomingShifts(employeeId: string, branchId: string) {
+    if (!branchId || !employeeId) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const schedules = await this.workScheduleModel
+      .find({
+        branchId,
+        weekEnd: { $gte: today },
+        status: 'published',
+      })
+      .lean()
+      .exec();
+
+    const upcomingShifts: any[] = [];
+    for (const sched of schedules) {
+      for (const a of (sched.assignments || [])) {
+        if (String(a.employeeId) === String(employeeId)) {
+          const shiftDate = new Date(a.date);
+          if (shiftDate >= today) {
+            upcomingShifts.push({
+              date: a.date,
+              dateStr: shiftDate.toISOString().split('T')[0],
+              shiftId: a.shiftId,
+              shiftName: a.shiftName,
+              shiftStart: a.shiftStart,
+              shiftEnd: a.shiftEnd,
+              scheduleId: (sched as any)._id?.toString(),
+            });
+          }
+        }
+      }
+    }
+    return upcomingShifts;
+  }
+
+  async createTransferRequest(data: {
+    employeeId: string;
+    note?: string;
+    requesterId: string;
+    requesterName: string;
+    requesterBranchId: string;
+  }) {
+    if (!data.requesterBranchId) {
+      return { error: true, message: 'Tai khoan quan ly khong co thong tin chi nhanh', statusCode: 403 };
+    }
+
+    const employee = await this.userModel.findById(data.employeeId).exec();
+    if (!employee) {
+      return { error: true, message: 'Khong tim thay thong tin nhan vien', statusCode: 404 };
+    }
+
+    if (employee.role === 'admin' || employee.role === 'warehouse') {
+      return { error: true, message: 'Khong the tiep nhan nhan su vai tro quan tri he thong hoac thu kho', statusCode: 403 };
+    }
+
+    if (employee.branchId === data.requesterBranchId) {
+      return { error: true, message: 'Nhan vien nay da truc thuoc chi nhanh cua ban', statusCode: 400 };
+    }
+
+    // Kiem tra neu dang co yeu cau pending cho nhan vien nay
+    const existingPending = await this.staffTransferRequestModel.findOne({
+      employeeId: data.employeeId,
+      status: 'pending',
+    }).exec();
+
+    if (existingPending) {
+      return { error: true, message: 'Nhan vien nay dang co mot yeu cau dieu chuyen cho duyet', statusCode: 409 };
+    }
+
+    const newRequest = await this.staffTransferRequestModel.create({
+      employeeId: data.employeeId,
+      employeeName: employee.fullName,
+      employeeEmail: employee.email,
+      fromBranchId: employee.branchId || undefined,
+      toBranchId: data.requesterBranchId,
+      requesterId: data.requesterId,
+      requesterName: data.requesterName,
+      status: 'pending',
+      note: data.note || '',
+    });
+
+    // Thong bao in-app cho nhan vien
+    try {
+      await this.staffNotificationModel.create({
+        recipientId: employee._id.toString(),
+        branchId: data.requesterBranchId,
+        type: 'staff_transfer_request',
+        title: 'Yeu cau dieu chuyen cong tac',
+        message: `Quan ly ${data.requesterName} gui yeu cau tiep nhan ban vao chi nhanh ${data.requesterBranchId}. Vui long phan hoi.`,
+        relatedId: newRequest._id.toString(),
+      });
+    } catch (err: any) {
+      this.logger.warn(`Loi tao thong bao dieu chuyen: ${err.message}`);
+    }
+
+    return newRequest.toObject ? newRequest.toObject() : newRequest;
+  }
+
+  async listTransferRequests(filter: { userId?: string; role?: string; branchId?: string; status?: string }) {
+    const query: any = {};
+    if (filter.status) {
+      query.status = filter.status;
+    }
+
+    if (filter.role === 'pharmacist' && filter.userId) {
+      query.employeeId = filter.userId;
+    } else if (filter.role === 'branch' && filter.branchId) {
+      query.$or = [{ toBranchId: filter.branchId }, { fromBranchId: filter.branchId }];
+    }
+
+    const requests = await this.staffTransferRequestModel.find(query).sort({ createdAt: -1 }).lean().exec();
+    return requests;
+  }
+
+  async respondTransferRequest(data: {
+    requestId: string;
+    userId: string;
+    role: string;
+    branchId?: string;
+    action: 'approve' | 'reject';
+    responseNote?: string;
+    scheduleResolution?: 'cancel_upcoming_shifts' | 'defer';
+  }) {
+    const request = await this.staffTransferRequestModel.findById(data.requestId).exec();
+    if (!request) {
+      return { error: true, message: 'Khong tim thay yeu cau dieu chuyen', statusCode: 404 };
+    }
+
+    if (request.status !== 'pending') {
+      return { error: true, message: 'Yeu cau nay da duoc xu ly truoc do', statusCode: 400 };
+    }
+
+    // Kiem tra quyen: chinh nhan vien do hoac quan ly chi nhanh cu hoac admin
+    const isEmployee = String(request.employeeId) === String(data.userId);
+    const isOldManager = Boolean(request.fromBranchId && request.fromBranchId === data.branchId);
+    const isAdmin = data.role === 'admin';
+
+    if (!isEmployee && !isOldManager && !isAdmin) {
+      return { error: true, message: 'Ban khong co quyen phan hoi yeu cau dieu chuyen nay', statusCode: 403 };
+    }
+
+    if (data.action === 'approve') {
+      const fromBranch = request.fromBranchId;
+      const upcomingShifts = fromBranch ? await this.getEmployeeUpcomingShifts(request.employeeId, fromBranch) : [];
+
+      // Neu con ca truc chua hoan thanh va chua lua chon cach xu ly -> Bat buoc tra ve canh bao de nguoi dung lua chon
+      if (upcomingShifts.length > 0 && !data.scheduleResolution) {
+        return {
+          hasConflict: true,
+          code: 'HAS_UPCOMING_SHIFTS',
+          message: `Nhan vien dang co ${upcomingShifts.length} ca truc sap toi tai chi nhanh cu. Vui long chon giai phap xu ly lich lam viec.`,
+          upcomingShiftsCount: upcomingShifts.length,
+          upcomingShifts,
+        };
+      }
+
+      // LUA CHON 1: Tam thoi khong chuyen cho den khi nhan vien xong het lich
+      if (upcomingShifts.length > 0 && data.scheduleResolution === 'defer') {
+        const deferMsg = data.responseNote || `Tam hoan dieu chuyen: Nhan su se hoan thanh not ${upcomingShifts.length} ca truc tai co so hien tai truoc khi chuyen giao.`;
+        request.responseNote = deferMsg;
+        await request.save();
+
+        try {
+          await this.staffNotificationModel.create({
+            recipientId: request.requesterId,
+            branchId: request.toBranchId,
+            type: 'staff_transfer_deferred',
+            title: 'Tam hoan dieu chuyen cho xong ca truc',
+            message: `Yeu cau tiep nhan nhan vien ${request.employeeName} tam hoan chuyen giao cho den khi nhan vien hoan thanh ${upcomingShifts.length} ca truc con lai tai co so cu.`,
+            relatedId: request._id.toString(),
+          });
+        } catch (err: any) {
+          this.logger.warn(`Loi tao thong bao tam hoan: ${err.message}`);
+        }
+
+        return {
+          success: true,
+          deferred: true,
+          message: `Da tam hoan dieu chuyen. Nhan vien se hoan thanh het ${upcomingShifts.length} ca truc con lai tai chi nhanh cu truoc khi chuyen giao.`,
+          request: request.toObject ? request.toObject() : request,
+        };
+      }
+
+      // LUA CHON 2: Huy tat ca lich sap toi cua nhan vien do va chuyen ngay (Cover tat ca truong hop)
+      if (upcomingShifts.length > 0 && data.scheduleResolution === 'cancel_upcoming_shifts') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // 1. Huy ca truc sap toi trong work_schedules cua fromBranch
+        const schedulesToUpdate = await this.workScheduleModel
+          .find({
+            branchId: fromBranch,
+            weekEnd: { $gte: today },
+          })
+          .exec();
+
+        let cancelledShiftCount = 0;
+        for (const sched of schedulesToUpdate) {
+          let modified = false;
+          const remainingAssignments: any[] = [];
+          for (const a of (sched.assignments || [])) {
+            if (String(a.employeeId) === String(request.employeeId) && new Date(a.date) >= today) {
+              cancelledShiftCount++;
+              modified = true;
+            } else {
+              remainingAssignments.push(a);
+            }
+          }
+          if (modified) {
+            sched.assignments = remainingAssignments;
+            await sched.save();
+          }
+        }
+
+        // 2. Huy cac don doi ca (shift_swap_requests) dang pending cua nhan vien tai fromBranch
+        try {
+          await this.shiftSwapRequestModel
+            .updateMany(
+              {
+                branchId: fromBranch,
+                status: 'pending',
+                $or: [{ requesterId: request.employeeId }, { targetId: request.employeeId }],
+              },
+              {
+                $set: {
+                  status: 'rejected',
+                  responseNote: 'Tu dong huy do nhan su da duoc dieu chuyen sang chi nhanh moi',
+                },
+              }
+            )
+            .exec();
+        } catch (err: any) {
+          this.logger.warn(`Loi huy shift swap: ${err.message}`);
+        }
+
+        // 3. Huy cac don nghi phep (leave_requests) dang PENDING cua nhan vien tu hom nay tro di tai fromBranch
+        try {
+          const todayStr = today.toISOString().split('T')[0];
+          await this.leaveRequestModel
+            .updateMany(
+              {
+                branchId: fromBranch,
+                requesterId: request.employeeId,
+                status: LeaveStatus.PENDING,
+                shiftDate: { $gte: todayStr },
+              },
+              {
+                $set: {
+                  status: LeaveStatus.CANCELLED,
+                  rejectionReason: 'Tu dong huy do nhan su da duoc dieu chuyen sang chi nhanh moi',
+                },
+              }
+            )
+            .exec();
+        } catch (err: any) {
+          this.logger.warn(`Loi huy leave request: ${err.message}`);
+        }
+
+        // 4. Ban thong bao canh bao cho quan ly chi nhanh cu vao xep nguoi thay the
+        try {
+          await this.staffNotificationModel.create({
+            recipientId: request.fromBranchId,
+            branchId: request.fromBranchId,
+            type: 'staff_schedule_alert',
+            title: 'Canh bao khuyet nhan su ca truc',
+            message: `Nhan vien ${request.employeeName} da duoc dieu chuyen sang ${request.toBranchId}. He thong da tu dong huy ${cancelledShiftCount} ca truc sap toi. Vui long vao phan cong nhan su thay the ngay.`,
+            relatedId: request._id.toString(),
+          });
+        } catch (err: any) {
+          this.logger.warn(`Loi tao thong bao canh bao khuyet ca: ${err.message}`);
+        }
+      }
+
+      // Chinh thuc cap nhat branchId sang chi nhanh moi
+      request.status = 'approved';
+      request.resolvedBy = data.userId;
+      request.resolvedAt = new Date();
+      if (data.responseNote) request.responseNote = data.responseNote;
+      await request.save();
+
+      await this.userModel
+        .findByIdAndUpdate(request.employeeId, {
+          $set: {
+            branchId: request.toBranchId,
+            role: 'pharmacist',
+            isActive: true,
+            isApproved: 'approved',
+          },
+        })
+        .exec();
+
+      try {
+        await this.staffNotificationModel.create({
+          recipientId: request.requesterId,
+          branchId: request.toBranchId,
+          type: 'staff_transfer_approved',
+          title: 'Yeu cau tiep nhan duoc chap thuan',
+          message: `Nhan vien ${request.employeeName} da chinh thuc duoc dieu chuyen vao chi nhanh ${request.toBranchId}.`,
+          relatedId: request._id.toString(),
+        });
+      } catch (err: any) {
+        this.logger.warn(`Loi tao thong bao chap thuan: ${err.message}`);
+      }
+
+      return request.toObject ? request.toObject() : request;
+    } else {
+      // Action === 'reject'
+      request.status = 'rejected';
+      request.resolvedBy = data.userId;
+      request.resolvedAt = new Date();
+      if (data.responseNote) request.responseNote = data.responseNote;
+      await request.save();
+
+      try {
+        await this.staffNotificationModel.create({
+          recipientId: request.requesterId,
+          branchId: request.toBranchId,
+          type: 'staff_transfer_rejected',
+          title: 'Yeu cau tiep nhan bi tu choi',
+          message: `Yeu cau tiep nhan nhan vien ${request.employeeName} da bi tu choi.`,
+          relatedId: request._id.toString(),
+        });
+      } catch (err: any) {
+        this.logger.warn(`Loi tao thong bao tu choi: ${err.message}`);
+      }
+
+      return request.toObject ? request.toObject() : request;
+    }
   }
 
   async approveEmployee(id: string, action: 'approve' | 'reject') {
