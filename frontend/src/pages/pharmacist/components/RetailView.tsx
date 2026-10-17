@@ -1432,6 +1432,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         patientPhone,
         patientEmail: patientEmail || undefined,
         userId: loyaltyInfo?.userId || undefined,
+        totalAmount: total,
         redeemedPoints: usePoints ? redeemedPoints : 0,
         role: assignedRole,
         customerRole: assignedRole,
@@ -1500,9 +1501,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     }
   };
 
-  // Tính toán
+  // Tính toán - Ưu đãi VIP 5% chỉ áp dụng cho khách hàng có thẻ thành viên (Loyalty), không áp dụng cho khách lẻ vãng lai
   const subtotal = cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
-  const vipDiscount = Math.round(subtotal * 0.05); // VIP discount
+  const vipDiscount = loyaltyInfo ? Math.round(subtotal * 0.05) : 0; // VIP discount
   const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
 
   // 1 point = 1 VND
@@ -2507,10 +2508,12 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               <span>Tạm tính / Subtotal</span>
               <span className="text-slate-900 font-bold">{subtotal.toLocaleString()}₫</span>
             </div>
-            <div className="flex justify-between items-center text-[#ba1a1a]">
-              <span>Ưu đãi VIP (5%)</span>
-              <span className="font-bold">-{vipDiscount.toLocaleString()}₫</span>
-            </div>
+            {vipDiscount > 0 && (
+              <div className="flex justify-between items-center text-[#ba1a1a]">
+                <span>Ưu đãi VIP (5%)</span>
+                <span className="font-bold">-{vipDiscount.toLocaleString()}₫</span>
+              </div>
+            )}
             {appliedVoucher && (
               <div className="flex justify-between items-center text-[#ba1a1a]">
                 <span>Khuyến mãi Voucher ({appliedVoucher.code})</span>
