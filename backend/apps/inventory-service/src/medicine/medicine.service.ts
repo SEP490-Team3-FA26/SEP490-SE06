@@ -942,7 +942,9 @@ export class MedicineService implements OnModuleInit {
   }
 
   async handleExpirationAction(data: {
-    batchId: string;
+    batchId?: string;
+    medicineId?: string;
+    batchNo?: string;
     action: 'DISPOSE' | 'RETURN_SUPPLIER' | 'DISCOUNT';
     quantity: number;
     notes?: string;
@@ -950,12 +952,23 @@ export class MedicineService implements OnModuleInit {
     performedBy?: string;
   }) {
     try {
-      const { batchId, action, quantity, notes, discountPrice, performedBy } = data;
-      this.logger.log(`Handling expiration action: ${action} for batch ${batchId}`);
+      const { batchId, action, quantity, notes, discountPrice, performedBy, medicineId, batchNo } = data;
+      this.logger.log(`Handling expiration action: ${action} for batch ${batchId || batchNo}`);
 
-      const batch = await this.batchModel.findById(batchId).exec();
+      // Tìm lô thuốc linh hoạt: theo batchId ObjectId hoặc theo medicineId + batchNo
+      let batch: any = null;
+      if (batchId && Types.ObjectId.isValid(batchId)) {
+        batch = await this.batchModel.findById(batchId).exec();
+      }
+      if (!batch && medicineId && batchNo) {
+        batch = await this.batchModel.findOne({ medicineId, batchNo }).exec();
+      }
+      if (!batch && batchNo) {
+        batch = await this.batchModel.findOne({ batchNo }).exec();
+      }
+
       if (!batch) {
-        throw new RpcException('Không tìm thấy lô thuốc này');
+        throw new RpcException('Không tìm thấy lô thuốc này trong kho');
       }
 
       const medicine = await this.medicineModel.findById(batch.medicineId).exec();
