@@ -18,8 +18,14 @@ import {
   ArrowLeft,
   X,
   AlertCircle,
-  Info
+  Info,
+  QrCode,
+  Smartphone,
+  ExternalLink,
+  Copy,
+  Check
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
 import { supplierService } from "../../services/purchase/supplier.service";
@@ -50,6 +56,10 @@ export function GoodsReceiptInspectionPage() {
   const [poData, setPoData] = useState<any>(null);
   const [supplierName, setSupplierName] = useState<string>("Nhà Cung Cấp Dược Phẩm");
   const [deliveryDate, setDeliveryDate] = useState<string>(new Date().toLocaleDateString("vi-VN"));
+
+  // State hiển thị mã QR đơn PO để đồng bộ quét bằng Mobile App
+  const [showMobileQrModal, setShowMobileQrModal] = useState<boolean>(false);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   // Dữ liệu quét kiểm nhận hàng thực tế
   const [items, setItems] = useState<InspectionItem[]>([]);
@@ -364,6 +374,17 @@ export function GoodsReceiptInspectionPage() {
 
         {/* Nút Hành Động Trên Header */}
         <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          {/* Nút Mở QR Đồng Bộ Sang Mobile */}
+          <button
+            type="button"
+            onClick={() => setShowMobileQrModal(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+            title="Mở mã QR đơn PO để quét kiểm đếm trên ứng dụng Mobile"
+          >
+            <QrCode size={15} className="text-indigo-600" />
+            <span>Mã QR Mobile</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsPaused(!isPaused)}
@@ -488,6 +509,27 @@ export function GoodsReceiptInspectionPage() {
               Quét Kiểm Đếm Mặt Hàng Kế Tiếp (+1)
             </button>
           )}
+
+          {/* Banner gợi ý mở quét kiểm đếm bằng Mobile App */}
+          <div className="bg-gradient-to-r from-indigo-950/80 to-slate-900/90 rounded-2xl p-3 border border-indigo-500/30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 shrink-0">
+                <Smartphone size={17} />
+              </div>
+              <div className="text-left">
+                <p className="text-[11px] font-bold text-indigo-100">Đồng bộ kiểm hàng bằng Mobile</p>
+                <p className="text-[10px] text-indigo-300">Quét mã QR đơn PO để AI Vision đếm hàng</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMobileQrModal(true)}
+              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold shrink-0 shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+            >
+              <QrCode size={13} />
+              Mã QR PO
+            </button>
+          </div>
         </div>
 
         {/* CỘT PHẢI (COL-SPAN-7): DANH MỤC MẶT HÀNG CẦN NHẬN & BẢNG TIẾN ĐỘ */}
@@ -612,6 +654,87 @@ export function GoodsReceiptInspectionPage() {
           </div>
         </div>
       </div>
+
+      {/* MODAL MÃ QR ĐƠN HÀNG PO ĐỂ QUÉT BẰNG MOBILE */}
+      {showMobileQrModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden text-center flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/70">
+              <div className="flex items-center gap-2 text-indigo-950">
+                <Smartphone size={20} className="text-indigo-600" />
+                <h3 className="font-extrabold text-sm tracking-tight">Đồng Bộ Phiên Kiểm Đếm Mobile</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMobileQrModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-white/80 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Mở ứng dụng <strong>ABC Pharmacy Mobile</strong> (Tab <strong>Phiếu Nhập Kho</strong> hoặc nút <strong>Quét Đơn PO</strong>) để quét mã QR bên dưới:
+              </p>
+
+              <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border-2 border-dashed border-indigo-200 rounded-2xl">
+                <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-100">
+                  <QRCodeSVG
+                    value={poData?._id || poId || "PO"}
+                    size={200}
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+                <span className="mt-3 font-mono text-xs font-bold text-indigo-900 bg-indigo-100/80 px-3 py-1 rounded-full">
+                  MÃ ĐƠN: #{poData?.poCode || (poData?._id || poId || '').slice(-6).toUpperCase()}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-1 font-mono">
+                  ID: {poData?._id || poId}
+                </span>
+              </div>
+
+              <div className="text-left bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Nhà cung cấp:</span>
+                  <span className="font-bold text-slate-800 truncate ml-2">{supplierName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Danh mục thuốc:</span>
+                  <span className="font-bold text-slate-800">{items.length} mặt hàng ({totalOrdered} hộp)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = `${window.location.origin}/warehouse/goods-receipt/mobile-inspection?poId=${poData?._id || poId}`;
+                    navigator.clipboard.writeText(link);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {copiedLink ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                  {copiedLink ? "Đã Sao Chép!" : "Sao Chép Link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(`/warehouse/goods-receipt/mobile-inspection?poId=${poData?._id || poId}`, "_blank");
+                  }}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <ExternalLink size={14} /> Mở Bản Mobile
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ (Gắn qua createPortal z-[999999] để không bao giờ bị modal che) */}
       {typeof document !== "undefined" && createPortal(

@@ -1633,6 +1633,22 @@ export class ApiService {
     ];
   }
 
+  // Lấy chi tiết đơn hàng PO theo ID trực tiếp từ API Gateway
+  public static async getPurchaseOrderById(id: string): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/purchase-orders/${id}`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const decoded = await res.json();
+        return decoded?.data || decoded;
+      }
+    } catch (e) {
+      console.warn('Lỗi khi tải chi tiết đơn PO:', e);
+    }
+    return null;
+  }
+
   public static async approvePurchaseOrder(data: {
     poId: string;
     action: 'APPROVED' | 'REJECTED';
