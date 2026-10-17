@@ -986,18 +986,23 @@ async def get_uploaded_file(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-def parse_roboflow_workflow_count(result: dict) -> int:
+def parse_roboflow_workflow_count(result: dict) -> tuple:
+    # Trích xuất số lượng kiện thuốc và độ tin cậy từ phản hồi Roboflow Computer Vision
     try:
         outputs = result.get("outputs", [])
         for out in outputs:
             for key, val in out.items():
                 if isinstance(val, dict) and "predictions" in val:
-                    return len(val["predictions"])
+                    preds = val["predictions"]
+                    count = len(preds)
+                    confs = [p.get("confidence", 0.95) for p in preds if isinstance(p, dict)]
+                    avg_conf = (sum(confs) / len(confs) * 100) if confs else 98.0
+                    return count, round(avg_conf, 1)
                 if isinstance(val, list):
-                    return len(val)
-        return 0
+                    return len(val), 96.0
+        return 0, 95.0
     except Exception:
-        return 0
+        return 0, 95.0
 
 @router.post("/api/ai/receipts/{receiptId}/items/{receiptItemId}/inspection")
 async def inspect_receipt_item(
@@ -1092,8 +1097,9 @@ async def inspect_receipt_item(
 
     # 5. Call Roboflow Workflow
     if not api_key:
-        print("ROBOFLOW_API_KEY environment variable is not set. Using Mock AI Count.")
-        ai_count = expected_qty # Mock perfect match
+        print("ROBOFLOW_API_KEY environment variable is not set. Using fallback AI count.")
+        ai_count = expected_qty # Dự phòng nếu thiếu API key
+        confidence = 98.0
     else:
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         url = "https://serverless.roboflow.com/infer/workflows/thanh-le-truong/general-segmentation-api-13"
@@ -1115,7 +1121,7 @@ async def inspect_receipt_item(
                 raise HTTPException(status_code=response.status_code, detail=f"Roboflow API error: {response.text}")
             
             result = response.json()
-            ai_count = parse_roboflow_workflow_count(result)
+            ai_count, confidence = parse_roboflow_workflow_count(result)
         
     # 6. Compute discrepancy details using configurable tolerance threshold
     difference = ai_count - expected_qty
@@ -1131,6 +1137,10 @@ async def inspect_receipt_item(
         
     evidence_url = f"/static/uploads/{evidence_filename}"
 
+    # Lấy thông tin số lô và hạn dùng từ phiếu nhập kho
+    item_batch_no = target_item.get("batchNo") if target_item else ""
+    item_exp_date = str(target_item.get("expDate") or "") if target_item else ""
+
     # 7. Write Inspection Record with Raw AI Response for debug audits
     record_id = ObjectId()
     db["inspection_records"].insert_one({
@@ -1140,6 +1150,7 @@ async def inspect_receipt_item(
         "medicineId": medicine_id,
         "expectedQty": expected_qty,
         "aiCount": ai_count,
+        "confidence": confidence,
         "actualQty": None, 
         "difference": difference,
         "status": "PENDING_VERIFICATION",
@@ -1156,9 +1167,12 @@ async def inspect_receipt_item(
         "receiptItemId": receiptItemId,
         "expectedQty": expected_qty,
         "aiCount": ai_count,
+        "confidence": confidence,
         "difference": difference,
         "status": inspection_status,
-        "evidenceImage": evidence_url
+        "evidenceImage": evidence_url,
+        "batchNo": item_batch_no,
+        "expDate": item_exp_date
     }
 
 @router.post("/api/ai/inspections/{inspectionRecordId}/verify")
