@@ -4,6 +4,8 @@ import { InventoryServiceModule } from './inventory-service.module';
 
 import { TelemetryConsumerModule } from './telemetry/telemetry-consumer.module';
 
+import { CompressionTypes } from 'kafkajs';
+
 process.on('unhandledRejection', (reason) => {
   console.warn('⚠️ [Inventory MS] Unhandled Rejection:', reason);
 });
@@ -44,6 +46,9 @@ async function bootstrap() {
               allowAutoTopicCreation: true,
               maxInFlightRequests: 1,
               maxMessageBytes: 10485760,
+            },
+            send: {
+              compression: CompressionTypes.GZIP,
             },
             subscribe: {
               allowAutoTopicCreation: true,
