@@ -8,9 +8,10 @@ import { medicineService } from "../services";
 export interface CreateDisposalModalProps {
   onClose: () => void;
   onSuccess: (message?: string) => void;
+  prefillItem?: any;
 }
 
-export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalProps) {
+export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateDisposalModalProps) {
   const [medicines, setMedicines] = useState<any[]>([]);
   const [disposalCart, setDisposalCart] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -171,6 +172,73 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
   useEffect(() => {
     loadMedicinesData();
   }, []);
+
+  // Tự động nạp thông tin thuốc và lô cần hủy vào phiếu xuất hủy khi được điều hướng từ Sơ Đồ Kho
+  useEffect(() => {
+    if (!prefillItem) return;
+
+    // Tìm thuốc tương ứng trong danh sách medicines (nếu đã tải xong)
+    const matchedMed = medicines.find((m: any) =>
+      (prefillItem.medicineId && (m.id === prefillItem.medicineId || m._id === prefillItem.medicineId)) ||
+      (prefillItem.medicineName && m.name?.trim().toLowerCase() === prefillItem.medicineName?.trim().toLowerCase())
+    );
+
+    const medId = matchedMed?._id || matchedMed?.id || prefillItem.medicineId || prefillItem.batchId || "med-disposal";
+    const medName = matchedMed?.name || prefillItem.medicineName || "Thuốc cần xuất hủy";
+    const medUnit = matchedMed?.unit || prefillItem.unit || "Hộp";
+
+    // Danh sách các lô hàng của thuốc
+    let batches = matchedMed?.batches || prefillItem.batches || [];
+    if (!Array.isArray(batches) || batches.length === 0) {
+      batches = [{
+        _id: prefillItem.batchId || "batch-exp-1",
+        id: prefillItem.batchId || "batch-exp-1",
+        batchNo: prefillItem.batchNo || "Lô hết hạn",
+        stock: prefillItem.stock || 1,
+        expDate: prefillItem.expDate,
+        status: "EXPIRED",
+      }];
+    }
+
+    // Tìm đúng lô hết hạn cần hủy
+    const targetBatch = batches.find((b: any) =>
+      (prefillItem.batchNo && b.batchNo === prefillItem.batchNo) ||
+      (prefillItem.batchId && (b._id === prefillItem.batchId || b.id === prefillItem.batchId))
+    ) || batches[0];
+
+    const targetStock = prefillItem.stock !== undefined ? prefillItem.stock : (targetBatch?.stock || 1);
+
+    const cartItem = {
+      ...(matchedMed || {}),
+      id: medId,
+      name: medName,
+      unit: medUnit,
+      registrationNumber: matchedMed?.registrationNumber || prefillItem.registrationNumber || "N/A",
+      batches,
+      selectedBatchNo: targetBatch?.batchNo || prefillItem.batchNo || "",
+      selectedBatch: targetBatch || {
+        _id: prefillItem.batchId || "batch-exp-1",
+        id: prefillItem.batchId || "batch-exp-1",
+        batchNo: prefillItem.batchNo || "Lô hết hạn",
+        stock: targetStock,
+        expDate: prefillItem.expDate,
+      },
+      quantity: targetStock, // Tự động điền đầy đủ số lượng tồn kho của lô hết hạn
+      maxStock: targetStock,
+    };
+
+    setDisposalCart(prev => {
+      const exists = prev.some(item => item.id === medId);
+      if (exists) {
+        return prev.map(item => (item.id === medId ? { ...item, ...cartItem } : item));
+      }
+      return [cartItem, ...prev];
+    });
+
+    if (prefillItem.reason) {
+      setDisposalReason(prefillItem.reason);
+    }
+  }, [prefillItem, medicines]);
 
   // Expiry Statistics
   const stats = useMemo(() => {
@@ -558,7 +626,7 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 auto-rows-max">
                 {filteredMedicines.length === 0 ? (
                   <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-8">
                     <Package size={48} className="mb-4 opacity-40 text-slate-300" />

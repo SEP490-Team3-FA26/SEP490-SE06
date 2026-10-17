@@ -64,6 +64,17 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
   // Disposal & Waste Management States (type === "dispose")
   const [disposalTransactions, setDisposalTransactions] = useState<any[]>([]);
   const [isCreateDisposalOpen, setIsCreateDisposalOpen] = useState(false);
+  const [prefillDisposalItem, setPrefillDisposalItem] = useState<any | null>(null);
+
+  // Tự động mở Modal Lập phiếu hủy khi nhận điều hướng từ Sơ Đồ Kho
+  useEffect(() => {
+    if (location.state?.autoOpenCreate) {
+      setIsCreateDisposalOpen(true);
+      if (location.state.prefillItem) {
+        setPrefillDisposalItem(location.state.prefillItem);
+      }
+    }
+  }, [location.state]);
   const [disposalSearchMedQuery, setDisposalSearchMedQuery] = useState("");
   const [selectedDisposalMedId, setSelectedDisposalMedId] = useState("");
   const [selectedDisposalBatchNo, setSelectedDisposalBatchNo] = useState("");
@@ -1429,9 +1440,16 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
         {/* CREATE DISPOSAL MODAL - 3-COLUMN RICH SELECTOR MATCHING CREATE PO */}
         {isCreateDisposalOpen && (
           <CreateDisposalModal
-            onClose={() => setIsCreateDisposalOpen(false)}
+            prefillItem={prefillDisposalItem}
+            onClose={() => {
+              setIsCreateDisposalOpen(false);
+              setPrefillDisposalItem(null);
+              navigate(location.pathname, { replace: true, state: {} });
+            }}
             onSuccess={(msg) => {
               setIsCreateDisposalOpen(false);
+              setPrefillDisposalItem(null);
+              navigate(location.pathname, { replace: true, state: {} });
               setApprovalNotice({
                 type: "success",
                 title: "Xuất Hủy Thành Công",

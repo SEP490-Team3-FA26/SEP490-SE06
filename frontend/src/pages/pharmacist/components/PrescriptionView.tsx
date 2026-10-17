@@ -791,9 +791,9 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
     }
   };
 
-  // Tinh toan tien don thuoc
+  // Tính toán tiền đơn thuốc (Không áp dụng VIP ảo nếu chưa có hồ sơ thành viên)
   const subtotal = prescriptionItems.reduce((sum: number, it: any) => sum + (it.price * it.quantity), 0);
-  const vipDiscount = Math.round(subtotal * 0.05); // 5% discount
+  const vipDiscount = 0; // Đơn kê đơn không áp dụng VIP tự động
   const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
   const vat = Math.round(Math.max(0, subtotal - vipDiscount - voucherDiscount) * 0.08); // 8% VAT
   const total = Math.max(0, subtotal - vipDiscount - voucherDiscount + vat);
@@ -1479,10 +1479,12 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               <span>Tạm tính / Subtotal</span>
               <span className="font-bold text-slate-900">{subtotal.toLocaleString()}₫</span>
             </div>
-            <div className="flex justify-between items-center font-medium">
-              <span className="text-slate-600">Giảm giá VIP (5%)</span>
-              <span className="font-bold text-[#ba1a1a]">-{vipDiscount.toLocaleString()}₫</span>
-            </div>
+            {vipDiscount > 0 && (
+              <div className="flex justify-between items-center font-medium">
+                <span className="text-slate-600">Giảm giá VIP (5%)</span>
+                <span className="font-bold text-[#ba1a1a]">-{vipDiscount.toLocaleString()}₫</span>
+              </div>
+            )}
             {appliedVoucher && (
               <div className="flex justify-between items-center font-medium">
                 <span className="text-slate-600">Mã giảm giá ({appliedVoucher.code})</span>

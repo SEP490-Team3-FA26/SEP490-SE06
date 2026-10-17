@@ -157,6 +157,19 @@ export class AiClinicalController {
     return this.aiClinicalService.processVoiceConsultation(file, branch, req?.user);
   }
 
+  @Post('transcribe')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Bóc tách âm thanh sang văn bản nhanh phục vụ live dictation' })
+  @UseInterceptors(FileInterceptor('audio'))
+  async quickTranscribeAudio(
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new HttpException('Vui lòng cung cấp file ghi âm', HttpStatus.BAD_REQUEST);
+    }
+    return this.aiClinicalService.quickTranscribe(file);
+  }
+
   @Get('consultations')
   @ApiOperation({ summary: 'Get list of past pharmacist voice consultations' })
   async getConsultations(

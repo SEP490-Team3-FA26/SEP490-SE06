@@ -909,9 +909,7 @@ export class MedicineService implements OnModuleInit {
           const expDate = new Date(b.expDate);
 
           let status = 'ACTIVE';
-          if (b.status === 'QUARANTINED') {
-            status = 'QUARANTINED';
-          } else if (expDate < today) {
+          if (expDate < today) {
             status = 'EXPIRED';
           } else if (expDate <= ninetyDaysFromNow) {
             status = 'SOON_TO_EXPIRE';
@@ -932,7 +930,7 @@ export class MedicineService implements OnModuleInit {
             location: b.location || null,
           };
         })
-        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE' || item.status === 'QUARANTINED')
+        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE')
         .sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
 
       return report;
@@ -1424,8 +1422,13 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
+      // Truy vấn danh mục thuốc kèm hình ảnh và thông tin chi tiết phục vụ hiển thị thẻ thuốc
       const [medicines, batches] = await Promise.all([
-        this.medicineModel.find().select('name unit price supplierId registration_number').lean().exec(),
+        this.medicineModel
+          .find()
+          .select('name unit price supplierId registration_number image images thong_tin_chi_tiet category drug_classification barcode country brand targetGroup packaging')
+          .lean()
+          .exec(),
         this.batchModel.find(batchFilter).select('medicineId batchNo stock').lean().exec()
       ]);
 
@@ -1441,14 +1444,27 @@ export class MedicineService implements OnModuleInit {
 
       return medicines.map(med => {
         const medId = med._id.toString();
+        const details = (med as any).thong_tin_chi_tiet || {};
+        const img = (med as any).image || ((med as any).images && (med as any).images.length > 0 ? (med as any).images[0] : '');
+        const packSpec = details['Quy cách'] || details['Quy cách đóng gói'] || '';
+        const country = (med as any).country || details['Nước sản xuất'] || details['Xuất xứ'] || '';
+        const brand = (med as any).brand || details['Nhà sản xuất'] || details['Thương hiệu'] || '';
+        const targetGroup = (med as any).targetGroup || details['Đối tượng sử dụng'] || '';
         return {
           _id: medId,
           id: medId,
           name: med.name,
-          registrationNumber: (med as any).registration_number || '',
+          registrationNumber: (med as any).registration_number || details['Số đăng ký'] || '',
           unit: med.unit || 'Hộp',
           price: med.price || 0,
           supplierId: med.supplierId || '',
+          image: img,
+          thong_tin_chi_tiet: (packSpec || country) ? { 'Quy cách': packSpec, 'Nước sản xuất': country } : undefined,
+          category: (med as any).category || details['Danh mục'] || '',
+          drug_classification: (med as any).drug_classification || '',
+          country,
+          brand,
+          targetGroup,
           batches: batchesByMedId.get(medId) || []
         };
       });
@@ -1892,11 +1908,15 @@ export class MedicineService implements OnModuleInit {
     try {
       this.logger.log('Fetching warehouse map aggregation...');
       
+      const today = new Date();
+      const ninetyDaysFromNow = new Date();
+      ninetyDaysFromNow.setDate(today.getDate() + 90);
+
       const pipeline: any[] = [
         {
           $match: {
             branchId: 'CENTRAL_WH',
-            status: 'ACTIVE'
+            status: { $in: ['ACTIVE', 'EXPIRED'] }
           }
         },
         {
@@ -1909,6 +1929,91 @@ export class MedicineService implements OnModuleInit {
             totalStock: { $sum: '$stock' },
             batchCount: { $sum: 1 },
             minExpDate: { $min: '$expDate' },
+            expiredBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $lt: ['$expDate', today] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            nearExpiryBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $gte: ['$expDate', today] },
+                      { $lte: ['$expDate', ninetyDaysFromNow] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            lowStockBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $lt: ['$stock', 20] },
+                      {
+                        $or: [
+                          { $eq: ['$expDate', null] },
+                          { $gte: ['$expDate', today] }
+                        ]
+                      }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            expiredStock: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $lt: ['$expDate', today] }
+                    ]
+                  },
+                  '$stock',
+                  0
+                ]
+              }
+            },
+            activeStock: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      {
+                        $or: [
+                          { $eq: ['$expDate', null] },
+                          { $gte: ['$expDate', today] }
+                        ]
+                      }
+                    ]
+                  },
+                  '$stock',
+                  0
+                ]
+              }
+            },
             medicineIds: { $addToSet: '$medicineId' }
           }
         },
@@ -1922,7 +2027,12 @@ export class MedicineService implements OnModuleInit {
               $push: {
                 shelf: '$_id.shelf',
                 totalStock: '$totalStock',
+                activeStock: '$activeStock',
+                expiredStock: '$expiredStock',
                 batchCount: '$batchCount',
+                expiredBatchCount: '$expiredBatchCount',
+                nearExpiryBatchCount: '$nearExpiryBatchCount',
+                lowStockBatchCount: '$lowStockBatchCount',
                 minExpDate: '$minExpDate',
                 medicineIds: '$medicineIds'
               }
@@ -1981,10 +2091,6 @@ export class MedicineService implements OnModuleInit {
         }
       });
 
-      const today = new Date();
-      const ninetyDaysFromNow = new Date();
-      ninetyDaysFromNow.setDate(today.getDate() + 90);
-
       // Định nghĩa tên khu theo chuẩn GSP
       const zoneLabels: Record<string, string> = {
         'A': 'Khu A',
@@ -2004,15 +2110,23 @@ export class MedicineService implements OnModuleInit {
           // Sort shelves
           r.shelves.sort((a: any, b: any) => a.shelf - b.shelf);
           r.shelves.forEach((s: any) => {
+            const hasExpired = (s.expiredBatchCount || 0) > 0;
+            const hasNearExpiry = (s.nearExpiryBatchCount || 0) > 0;
+            const hasLowStock = (s.lowStockBatchCount || 0) > 0;
+            s.hasExpired = hasExpired;
+            s.hasNearExpiry = hasNearExpiry;
+            s.hasLowStock = hasLowStock;
+
+            // Phương án 1: Nếu còn thuốc bình thường thì giữ nền NORMAL, gắn badge cảnh báo
             if (s.totalStock === 0) {
               s.status = 'EMPTY';
-            } else if (new Date(s.minExpDate) < today) {
+            } else if (s.activeStock === 0 && s.expiredStock > 0) {
+              // 100% thuốc trên kệ đã hết hạn -> Nhuộm đỏ
               s.status = 'EXPIRED';
-            } else if (new Date(s.minExpDate) <= ninetyDaysFromNow) {
-              s.status = 'NEAR_EXPIRY';
-            } else if (s.totalStock < 50) { // Giả sử 50 là ngưỡng an toàn chung cho 1 shelf
+            } else if ((s.activeStock || 0) < 50 && s.activeStock > 0) {
               s.status = 'LOW_STOCK';
             } else {
+              // Kệ vẫn còn thuốc khả dụng tốt -> NORMAL (Nền xanh)
               s.status = 'NORMAL';
             }
 
@@ -2039,9 +2153,17 @@ export class MedicineService implements OnModuleInit {
                 shelves: [1, 2, 3, 4].map((shelfNum) => ({
                   shelf: shelfNum,
                   totalStock: 0,
+                  activeStock: 0,
+                  expiredStock: 0,
                   batchCount: 0,
+                  expiredBatchCount: 0,
+                  nearExpiryBatchCount: 0,
+                  lowStockBatchCount: 0,
                   status: 'EMPTY',
                   categories: [],
+                  hasExpired: false,
+                  hasNearExpiry: false,
+                  hasLowStock: false,
                 })),
               });
             }

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Layers, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronRight, Package, Plus, Archive } from "lucide-react";
+import { Layers, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronRight, Package, Plus, Archive, TrendingDown } from "lucide-react";
 import { inventoryMapService, ShelfLayout, BinData } from "../../../services/inventory/inventoryMap.service";
 
 interface WarehouseMap2DProps {
@@ -43,7 +43,7 @@ const STATUS_SHELF: Record<string, { bg: string; border: string; text: string; d
 
 function getRackWorstStatus(shelves: any[]) {
   if (shelves.some((s) => s.status === "EXPIRED")) return "EXPIRED";
-  if (shelves.some((s) => s.status === "NEAR_EXPIRY")) return "NEAR_EXPIRY";
+  if (shelves.some((s) => s.hasExpired || s.status === "NEAR_EXPIRY" || s.hasNearExpiry)) return "NEAR_EXPIRY";
   if (shelves.some((s) => s.status === "LOW_STOCK")) return "LOW_STOCK";
   if (shelves.every((s) => s.status === "EMPTY" || s.status === "OUT_OF_STOCK")) return "EMPTY";
   return "NORMAL";
@@ -231,6 +231,17 @@ export function WarehouseMap2D({
     setExpandedRack(prev => prev === rackKey ? null : rackKey);
   }, []);
 
+  // Tự động mở rộng danh sách kệ Khu Dự Trữ nếu có target highlight nằm trong RESERVE
+  React.useEffect(() => {
+    const hasReserveTarget =
+      (highlightTarget && highlightTarget.startsWith("RESERVE")) ||
+      (highlightTargets && Array.from(highlightTargets).some(t => t.startsWith("RESERVE")));
+
+    if (hasReserveTarget) {
+      setShowReserveRacks(true);
+    }
+  }, [highlightTarget, highlightTargets]);
+
   React.useEffect(() => {
     let targetId: string | null = null;
     if (highlightTarget) {
@@ -396,14 +407,41 @@ export function WarehouseMap2D({
                                   border: `1px solid ${isHighlighted ? "#38bdf8" : ss.border}`,
                                   color: isHighlighted ? "#0284c7" : ss.text,
                                 }}
-                                title={`Tầng ${shelfData.shelf} · Tồn: ${shelfData.totalStock} · ${shelfData.status}`}
+                                title={`Tầng ${shelfData.shelf} · Tổng tồn: ${shelfData.totalStock.toLocaleString("vi-VN")} (${(shelfData.activeStock ?? shelfData.totalStock).toLocaleString("vi-VN")} khả dụng${shelfData.expiredStock ? ` · ${shelfData.expiredStock.toLocaleString("vi-VN")} hết hạn` : ""})`}
                               >
                                 <span>T{shelfData.shelf}</span>
-                                <span className="flex items-center gap-1 tabular-nums">
-                                  {shelfData.totalStock.toLocaleString("vi-VN")}
-                                  {shelfData.status === "EXPIRED" && <AlertTriangle size={9} />}
-                                  {shelfData.status === "NEAR_EXPIRY" && <Clock size={9} />}
-                                  {shelfData.status === "NORMAL" && <CheckCircle size={9} />}
+                                <span className="flex items-center gap-1.5 tabular-nums">
+                                  <span>{shelfData.totalStock.toLocaleString("vi-VN")}</span>
+                                  {/* Phương án 1: Badge cảnh báo đỏ nếu có lô thuốc hết hạn cần nhặt ra */}
+                                  {shelfData.hasExpired || (shelfData.expiredBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-rose-500 text-white shadow-xs animate-pulse"
+                                      title={`Có ${shelfData.expiredBatchCount || 1} lô hết hạn cần nhặt ra`}
+                                    >
+                                      <AlertTriangle size={8} />
+                                      <span>{shelfData.expiredBatchCount || 1}</span>
+                                    </span>
+                                  ) : shelfData.hasNearExpiry || (shelfData.nearExpiryBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-500 text-white shadow-xs"
+                                      title={`Có ${shelfData.nearExpiryBatchCount} lô cận date trong 90 ngày`}
+                                    >
+                                      <Clock size={8} />
+                                      <span>{shelfData.nearExpiryBatchCount}</span>
+                                    </span>
+                                  ) : shelfData.hasLowStock || (shelfData.lowStockBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs"
+                                      title={`Có ${shelfData.lowStockBatchCount || 1} thuốc sắp hết hàng (< 20 hộp)`}
+                                    >
+                                      <TrendingDown size={8} />
+                                      <span>{shelfData.lowStockBatchCount || 1}</span>
+                                    </span>
+                                  ) : shelfData.status === "EXPIRED" ? (
+                                    <AlertTriangle size={9} className="text-rose-600" />
+                                  ) : shelfData.status === "NORMAL" ? (
+                                    <CheckCircle size={9} className="text-emerald-600" />
+                                  ) : null}
                                 </span>
                               </button>
                             );
@@ -551,11 +589,36 @@ export function WarehouseMap2D({
                                   border: `1px solid ${isHighlighted ? "#f59e0b" : ss.border}`,
                                   color: isHighlighted ? "#92400e" : ss.text,
                                 }}
-                                title={`Tầng ${shelfData.shelf} · Tồn: ${shelfData.totalStock}`}
+                                title={`Tầng ${shelfData.shelf} · Tổng tồn: ${shelfData.totalStock.toLocaleString("vi-VN")} (${(shelfData.activeStock ?? shelfData.totalStock).toLocaleString("vi-VN")} khả dụng${shelfData.expiredStock ? ` · ${shelfData.expiredStock.toLocaleString("vi-VN")} hết hạn` : ""})`}
                               >
                                 <span>Tầng {shelfData.shelf}</span>
-                                <span className="tabular-nums font-mono">
-                                  {shelfData.totalStock.toLocaleString("vi-VN")} đv
+                                <span className="flex items-center gap-1.5 tabular-nums font-mono">
+                                  <span>{shelfData.totalStock.toLocaleString("vi-VN")} đv</span>
+                                  {shelfData.hasExpired || (shelfData.expiredBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-rose-500 text-white shadow-xs animate-pulse"
+                                      title={`Có ${shelfData.expiredBatchCount || 1} lô hết hạn cần nhặt ra`}
+                                    >
+                                      <AlertTriangle size={8} />
+                                      <span>{shelfData.expiredBatchCount || 1}</span>
+                                    </span>
+                                  ) : shelfData.hasNearExpiry || (shelfData.nearExpiryBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-500 text-white shadow-xs"
+                                      title={`Có ${shelfData.nearExpiryBatchCount} lô cận date trong 90 ngày`}
+                                    >
+                                      <Clock size={8} />
+                                      <span>{shelfData.nearExpiryBatchCount}</span>
+                                    </span>
+                                  ) : shelfData.hasLowStock || (shelfData.lowStockBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs"
+                                      title={`Có ${shelfData.lowStockBatchCount || 1} thuốc sắp hết hàng (< 20 hộp)`}
+                                    >
+                                      <TrendingDown size={8} />
+                                      <span>{shelfData.lowStockBatchCount || 1}</span>
+                                    </span>
+                                  ) : null}
                                 </span>
                               </button>
                             );
