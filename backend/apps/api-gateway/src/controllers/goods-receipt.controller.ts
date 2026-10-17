@@ -1,4 +1,5 @@
-import { Controller, Post, Patch, Get, Param, Body, Inject, OnModuleInit, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Param, Body, Inject, OnModuleInit, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -205,6 +206,46 @@ export class GoodsReceiptController implements OnModuleInit {
     }
   }
 
+  // Chuyển tiếp hình ảnh chụp kiện hàng sang AI Service để nhận diện và đếm số lượng
+  @Post(':id/items/:itemId/inspection')
+  @UseInterceptors(FileInterceptor('file'))
+  async inspectReceiptItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout cho AI xử lý ảnh
+
+      const aiUrl = process.env.AI_SERVICE_URL || 'http://ai-service:8000';
+      const formData = new FormData();
+      if (file) {
+        const blob = new Blob([new Uint8Array(file.buffer)], {
+          type: file.mimetype || 'image/jpeg',
+        });
+        formData.append('file', blob, file.originalname || 'package.jpg');
+      }
+
+      const response = await fetch(`${aiUrl}/api/ai/receipts/${id}/items/${itemId}/inspection`, {
+        method: 'POST',
+        headers: {
+          'X-Internal-Token': process.env.JWT_SECRET || 'wdp301-super-secret-key-change-in-production',
+        },
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        return await response.json();
+      }
+      return { success: false, message: 'AI inspection call failed.' };
+    } catch (e) {
+      return { success: false, message: 'Failed to process AI inspection.' };
+    }
+  }
 
   // Inspection Endpoints
   @Post('inspections')
