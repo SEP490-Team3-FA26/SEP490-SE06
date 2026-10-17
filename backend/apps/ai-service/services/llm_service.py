@@ -20,13 +20,65 @@ def get_deepseek_api_key() -> str | None:
 async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     """
     Gọi LLM với cơ chế Multi-Tier Fallback tự động:
-    1. Ưu tiên DeepSeek API (deepseek-flash, fallback deepseek-chat)
-    2. Fallback sang Groq API (llama-3.3-70b-versatile, llama-3.1-8b-instant, qwen/qwen3.8-27b)
-    3. Fallback sang OpenRouter (nếu có OPEN_ROUTER_API)
+    1. Ưu tiên Google Gemini 3.8 Flash (tốc độ cao 1-2s, hoàn toàn miễn phí từ key Google AI Studio)
+    2. Fallback sang DeepSeek API (deepseek-flash, deepseek-chat)
+    3. Fallback sang Groq API (llama-3.3-70b-versatile, llama-3.1-8b-instant, qwen/qwen3.8-27b)
+    4. Fallback sang OpenRouter (nếu có OPEN_ROUTER_API)
     """
     errors = []
 
-    # 1. Thử DeepSeek API
+    # 1. Ưu tiên Google Gemini 3.8 Flash
+    google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if google_key and len(google_key) > 10:
+        try:
+            print("[AI Service] Goi Google Gemini API (model: gemini-3.8-flash)...", flush=True)
+            sys_text = ""
+            contents = []
+            for m in messages:
+                role = m.get("role")
+                text = m.get("content", "")
+                if role == "system":
+                    sys_text = (sys_text + "\n" + text).strip()
+                elif role == "user":
+                    contents.append({"role": "user", "parts": [{"text": text}]})
+                elif role == "assistant":
+                    contents.append({"role": "model", "parts": [{"text": text}]})
+
+            if not contents:
+                contents.append({"role": "user", "parts": [{"text": "Phan tich va tra ve ket qua JSON"}]})
+
+            payload = {
+                "contents": contents,
+                "generationConfig": {
+                    "response_mime_type": "application/json",
+                    "temperature": temperature
+                }
+            }
+            if sys_text:
+                payload["system_instruction"] = {"parts": [{"text": sys_text}]}
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={google_key}"
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                if res.status_code == 200:
+                    candidates = res.json().get("candidates", [])
+                    if candidates:
+                        content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        clean_msg = content.strip()
+                        if clean_msg.startswith("```"):
+                            clean_msg = re.sub(r"^```[a-zA-Z]*\n?", "", clean_msg)
+                            clean_msg = re.sub(r"\n?```$", "", clean_msg).strip()
+                        if clean_msg:
+                            print("[AI Service] Google Gemini 3.8 Flash phan hoi thanh cong!", flush=True)
+                            return clean_msg
+                else:
+                    print(f"[AI Service] Gemini 3.8 Flash bao loi ({res.status_code}): {res.text[:300]}", flush=True)
+                    errors.append(f"Gemini 3.8 Flash HTTP {res.status_code}: {res.text[:200]}")
+        except Exception as exc:
+            print(f"[AI Service] Gemini 3.8 Flash ngoai le: {exc}", flush=True)
+            errors.append(f"Gemini 3.8 Flash exception: {exc}")
+
+    # 2. Thử DeepSeek API
     deepseek_key = get_deepseek_api_key()
     if deepseek_key:
         preferred_model = os.getenv("DEEPSEEK_MODEL") or "deepseek-flash"

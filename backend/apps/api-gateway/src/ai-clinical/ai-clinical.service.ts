@@ -46,7 +46,7 @@ export class AiClinicalService {
   }
 
   /**
-   * Save uploaded files to S3 Cloud Storage (with safe local fallback)
+   * Lưu trữ file lên S3 Cloud Storage (Tuyệt đối CẤM fallback về lưu file cục bộ trên ổ đĩa)
    */
   async saveUploadedFiles(
     files: Express.Multer.File[],
@@ -59,16 +59,11 @@ export class AiClinicalService {
         const presigned = await this.s3Storage.getPresignedUrl(key, 86400 * 7);
         savedUrls.push(presigned);
       } catch (err: any) {
-        this.logger.warn(`S3 upload fallback to local storage: ${err.message}`);
-        const targetDir = path.join(process.cwd(), 'public', 'uploads', subDir);
-        if (!fs.existsSync(targetDir)) {
-          fs.mkdirSync(targetDir, { recursive: true });
-        }
-        const ext = (file.originalname?.split('.').pop() || 'jpg').toLowerCase();
-        const fileName = `${Date.now()}_${randomUUID().substring(0, 8)}.${ext}`;
-        const filePath = path.join(targetDir, fileName);
-        fs.writeFileSync(filePath, file.buffer);
-        savedUrls.push(`/public/uploads/${subDir}/${fileName}`);
+        // Tuân thủ quy định dự án: Tuyệt đối CẤM lưu file vật lý vào ổ đĩa cục bộ
+        this.logger.warn(
+          `S3 upload không khả dụng (${err.message}). Bỏ qua lưu trữ cục bộ, xử lý file hoàn toàn trong bộ nhớ RAM.`,
+        );
+        savedUrls.push('');
       }
     }
     return savedUrls;
@@ -357,10 +352,45 @@ export class AiClinicalService {
       success: true,
       consultationId,
       audioUrl,
+      transcribed_text: aiResponseData.transcribed_text || consultRecord.transcription || '',
+      prescription: aiResponseData.prescription || consultRecord.aiOriginalSuggestion || { recommended_drugs: [] },
       aiSuggestion: consultRecord.aiOriginalSuggestion,
+      inventory_status: aiResponseData.inventory_status || {},
       inventoryStatus: aiResponseData.inventory_status || {},
+      branch_id: branchId,
       savedRecordId: consultRecord._id,
     };
+  }
+
+  /**
+   * Bóc tách âm thanh sang chữ siêu tốc cho tính năng Live Transcription như ChatGPT
+   */
+  async quickTranscribe(audioFile: Express.Multer.File) {
+    try {
+      const formData = new FormData();
+      const blob = new Blob([new Uint8Array(audioFile.buffer)], {
+        type: audioFile.mimetype || 'audio/webm',
+      });
+      formData.append('audio', blob, audioFile.originalname || 'audio.webm');
+
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/transcribe`, {
+        method: 'POST',
+        headers: {
+          'X-Internal-Token':
+            process.env.JWT_SECRET || 'wdp301-super-secret-key-change-in-production',
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+      return { success: false, text: '' };
+    } catch (err: any) {
+      this.logger.warn(`Quick transcribe failed: ${err.message}`);
+      return { success: false, text: '' };
+    }
   }
 
   async getConsultations(query: {
