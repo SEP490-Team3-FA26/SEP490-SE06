@@ -1524,7 +1524,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                           {selectedDisposalCert.batchNo || selectedDisposalCert.batchId || "LOT-EXP"}
                         </td>
                         <td className="border border-slate-300 p-2 font-black text-rose-600">
-                          {selectedDisposalCert.quantity?.toLocaleString("vi-VN")} đơn vị
+                          {Math.abs(selectedDisposalCert.quantityChange || selectedDisposalCert.quantity || selectedDisposalCert.amount || 0).toLocaleString("vi-VN")} đơn vị
                         </td>
                         <td className="border border-slate-300 p-2 text-left text-slate-600">
                           {selectedDisposalCert.notes || "Thuốc quá hạn sử dụng theo quy định Dược"}
@@ -1538,7 +1538,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                     - Phương pháp: Đã thực hiện làm biến dạng hoàn toàn (nghiền nhỏ, phân hủy hoặc bàn giao đơn vị xử lý rác y tế chuyên dụng theo đúng cam kết bảo vệ môi trường).
                   </p>
                   <p className="ml-4">
-                    - Số lượng thuốc nêu trên đã được loại bỏ hoàn toàn khỏi hệ thống tồn kho lưu thông.
+                    - Số lượng thuốc nêu trên ({Math.abs(selectedDisposalCert.quantityChange || selectedDisposalCert.quantity || selectedDisposalCert.amount || 0).toLocaleString("vi-VN")} đơn vị) đã được loại bỏ hoàn toàn khỏi hệ thống tồn kho lưu thông.
                   </p>
                 </div>
 
