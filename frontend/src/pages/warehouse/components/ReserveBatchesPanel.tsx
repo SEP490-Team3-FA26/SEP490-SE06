@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Archive,
   AlertTriangle,
@@ -68,8 +69,8 @@ export function ReserveBatchesPanel({
   onSelectShelf,
   onClose,
 }: ReserveBatchesPanelProps) {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
-  const [quarantiningId, setQuarantiningId] = useState<string | null>(null);
 
   // Toast thông báo chuyên nghiệp thay cho alert/confirm gốc
   const [toast, setToast] = useState<{
@@ -83,20 +84,6 @@ export function ReserveBatchesPanel({
       setToast(null);
     }, 3500);
   };
-
-  // State quản lý Modal Xuất Hủy cho lô hết hạn
-  const [disposeModal, setDisposeModal] = useState<{
-    isOpen: boolean;
-    batch: ReserveBatch | null;
-    quantity: number;
-    notes: string;
-  }>({
-    isOpen: false,
-    batch: null,
-    quantity: 0,
-    notes: "Thuốc hết hạn sử dụng, xuất hủy theo quy chuẩn GSP/GDP",
-  });
-  const [disposing, setDisposing] = useState(false);
 
   // Chế độ xem: Bảng danh sách hoặc Sơ đồ phân kệ & ô thùng
   const [viewMode, setViewMode] = useState<"TABLE" | "RACK_GRID">("TABLE");
@@ -121,53 +108,27 @@ export function ReserveBatchesPanel({
       .finally(() => setLoadingLayout(false));
   }, [viewMode, selectedRack]);
 
-  const handleQuarantine = async (batchId: string) => {
-    try {
-      setQuarantiningId(batchId);
-      await inventoryMapService.quarantineBatch(batchId, "Khóa từ Khu Dự Trữ (hết hạn / cận date)");
-      showToast("Đã gửi yêu cầu cách ly/khóa lô thuốc thành công!", "success");
-      setTimeout(() => {
-        if (onRefresh) onRefresh();
-      }, 1000);
-    } catch (e: any) {
-      showToast(e.message || "Lỗi khóa lô", "error");
-    } finally {
-      setQuarantiningId(null);
-    }
-  };
 
-  const handleOpenDispose = (batch: ReserveBatch) => {
-    setDisposeModal({
-      isOpen: true,
-      batch,
-      quantity: batch.stock,
-      notes: "Thuốc hết hạn sử dụng, xuất hủy theo quy chuẩn GSP/GDP",
+
+  // Điều hướng trực tiếp sang phiếu xuất hủy thuốc GSP/GPP và tự động điền thông tin lô dự trữ cần hủy
+  const handleNavigateToDispose = (batch: ReserveBatch) => {
+    const basePath = window.location.pathname.startsWith('/admin') ? '/admin' : '/warehouse';
+    navigate(`${basePath}/inventory/dispose`, {
+      state: {
+        autoOpenCreate: true,
+        prefillItem: {
+          medicineId: batch.medicineId || batch._id,
+          medicineName: batch.medicineName,
+          batchId: batch._id,
+          batchNo: batch.batchNo,
+          stock: batch.stock,
+          unit: batch.unit || "Hộp",
+          expDate: batch.expDate,
+          reason: "Thuốc quá hạn sử dụng theo quy định Dược (Hết date)",
+        },
+      },
     });
-  };
-
-  const handleConfirmDispose = async () => {
-    if (!disposeModal.batch) return;
-    if (disposeModal.quantity <= 0 || disposeModal.quantity > disposeModal.batch.stock) {
-      showToast("Số lượng xuất hủy không hợp lệ!", "warning");
-      return;
-    }
-    try {
-      setDisposing(true);
-      await inventoryMapService.disposeExpiredBatch({
-        batchId: disposeModal.batch._id,
-        quantity: disposeModal.quantity,
-        notes: disposeModal.notes,
-      });
-      showToast(`Đã xuất hủy thành công lô ${disposeModal.batch.batchNo}!`, "success");
-      setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" });
-      setTimeout(() => {
-        if (onRefresh) onRefresh();
-      }, 1000);
-    } catch (err: any) {
-      showToast(err.response?.data?.message || err.message || "Lỗi khi xuất hủy lô", "error");
-    } finally {
-      setDisposing(false);
-    }
+    if (onClose) onClose();
   };
 
   const filteredBatches = batches.filter((b) => {
@@ -514,7 +475,7 @@ export function ReserveBatchesPanel({
                             {/* Nút Xuất Hủy màu đỏ rực cho lô hết hạn */}
                             {isExpired && (
                               <button
-                                onClick={() => handleOpenDispose(b)}
+                                onClick={() => handleNavigateToDispose(b)}
                                 className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1 transition shadow-2xs border border-rose-700 cursor-pointer"
                                 title="Xuất hủy lô thuốc hết hạn sử dụng (GSP/GDP)"
                               >
@@ -534,14 +495,6 @@ export function ReserveBatchesPanel({
                               </button>
                             )}
 
-                            <button
-                              onClick={() => handleQuarantine(b._id)}
-                              disabled={quarantiningId === b._id}
-                              className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 text-xs transition font-medium"
-                              title="Khóa lô (Cách ly)"
-                            >
-                              {quarantiningId === b._id ? "..." : "Khóa"}
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -554,111 +507,7 @@ export function ReserveBatchesPanel({
         )}
       </div>
 
-      {/* MODAL XÁC NHẬN XUẤT HỦY LÔ THUỐC HẾT HẠN */}
-      {disposeModal.isOpen && disposeModal.batch && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
-          onClick={() => setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" })}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 pb-3 border-b border-rose-100 text-rose-700">
-              <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-200">
-                <Trash2 size={20} />
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-slate-800">Biên Bản Xuất Hủy Lô Thuốc</h3>
-                <p className="text-xs text-rose-600 font-medium">Quy chuẩn Dược GDP/GSP & Thông tư 11/2025</p>
-              </div>
-            </div>
 
-            <div className="mt-4 space-y-3.5 text-xs text-slate-700">
-              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Dược phẩm:</span>
-                  <span className="font-bold text-slate-800 text-right">{disposeModal.batch.medicineName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Mã số lô:</span>
-                  <span className="font-mono font-bold text-rose-700">{disposeModal.batch.batchNo}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tồn kho hiện tại:</span>
-                  <span className="font-bold text-slate-800 font-mono">
-                    {disposeModal.batch.stock} {disposeModal.batch.unit || "Hộp"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Hạn sử dụng:</span>
-                  <span className="font-bold text-rose-600">
-                    {disposeModal.batch.expDate ? new Date(disposeModal.batch.expDate).toLocaleDateString("vi-VN") : "—"} (ĐÃ HẾT HẠN)
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Số lượng xuất hủy ({disposeModal.batch.unit || "Hộp"}):
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={disposeModal.batch.stock}
-                  value={disposeModal.quantity}
-                  onChange={(e) => setDisposeModal((prev) => ({ ...prev, quantity: Math.max(1, Number(e.target.value)) }))}
-                  className="w-full px-3 py-2 border rounded-xl text-slate-800 font-mono font-bold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Lý do / Căn cứ xuất hủy:
-                </label>
-                <textarea
-                  rows={2}
-                  value={disposeModal.notes}
-                  onChange={(e) => setDisposeModal((prev) => ({ ...prev, notes: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-xl text-slate-800 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                />
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
-                ⚠️ <b>Lưu ý:</b> Thao tác này sẽ trừ số lượng tồn kho của lô, lập phiếu xuất hủy loại <code>DISPOSE</code> và đồng bộ lên CSDL Dược Quốc gia.
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" })}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
-              >
-                Đóng
-              </button>
-              <button
-                type="button"
-                disabled={disposing}
-                onClick={handleConfirmDispose}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition flex items-center gap-1.5 border border-rose-700 cursor-pointer disabled:opacity-50"
-              >
-                {disposing ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Đang xử lý xuất hủy...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={13} />
-                    <span>Xác nhận xuất hủy</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Toast thông báo chuyên nghiệp */}
       {toast && (
