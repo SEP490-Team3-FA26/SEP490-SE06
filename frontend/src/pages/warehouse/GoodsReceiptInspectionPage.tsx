@@ -188,9 +188,15 @@ export function GoodsReceiptInspectionPage() {
     const code = inputBarcode.trim();
     setInputBarcode("");
 
-    // Tìm kiếm sản phẩm tương ứng với barcode hoặc SKU trong PO
+    // Tìm kiếm sản phẩm tương ứng với barcode, SKU, mã thuốc hoặc tên trong PO
+    const q = code.toLowerCase();
     const foundIdx = items.findIndex(
-      (it) => (it.barcode && it.barcode === code) || (it.sku && it.sku.toLowerCase() === code.toLowerCase())
+      (it) =>
+        (it.barcode && it.barcode.toLowerCase() === q) ||
+        (it.sku && it.sku.toLowerCase() === q) ||
+        (it.medicineId && it.medicineId.toLowerCase() === q) ||
+        (it.medicineName && it.medicineName.toLowerCase() === q) ||
+        (it.medicineName && it.medicineName.toLowerCase().includes(q))
     );
 
     if (foundIdx !== -1) {
@@ -216,11 +222,26 @@ export function GoodsReceiptInspectionPage() {
         expDate: targetItem.expDate ? new Date(targetItem.expDate).toLocaleDateString("vi-VN") : "Chưa có HSD",
       });
 
-      showToast(`+1 ${targetItem.medicineName} (Đã quét ${targetItem.scannedQty + 1}/${maxReceivable})`, "success");
+      showToast(`+1 ${targetItem.medicineName} (${targetItem.scannedQty + 1}/${maxReceivable} ${targetItem.unit})`, "success");
     } else {
       // 🚫 TỪ CHỐI MÃ VẠCH LẠ: Tuyệt đối không tự ý cộng vào mặt hàng khác
       showToast(`Mã vạch "${code}" không thuộc bất kỳ sản phẩm nào trong đơn hàng PO này!`, "error");
     }
+  };
+
+  // Tiện ích hỗ trợ nghiệm thu nhanh toàn bộ đơn hàng (rất hữu ích khi demo)
+  const handleScanAllFull = () => {
+    const updated = items.map((it) => {
+      const maxReceivable = it.remainingQty > 0 ? it.remainingQty : it.orderedQty;
+      return {
+        ...it,
+        scannedQty: maxReceivable,
+        batchNo: it.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}-01`,
+        expDate: it.expDate || new Date("2028-12-31").toISOString(),
+      };
+    });
+    setItems(updated);
+    showToast(`Đã nghiệm thu đủ toàn bộ ${items.length} mặt hàng!`, "success");
   };
 
   // Tiện ích hỗ trợ quét nhanh các mặt hàng đang cần kiểm đếm
@@ -545,11 +566,23 @@ export function GoodsReceiptInspectionPage() {
               </p>
             </div>
 
-            {/* Badge Tiến Độ */}
-            <div className="px-3.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-black shrink-0 flex items-center gap-1.5">
-              <span>Tiến độ:</span>
-              <span className="text-blue-900">{totalScanned} / {totalOrdered} Hộp</span>
-              <span className="text-blue-600 font-bold">({progressPercent}%)</span>
+            {/* Nút Nghiệm Thu Đủ Nhanh & Badge Tiến Độ */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleScanAllFull}
+                className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Tự động nghiệm thu đủ 100% tất cả các mặt hàng phục vụ buổi demo"
+              >
+                <Sparkles size={13} className="text-emerald-600" />
+                <span>Nghiệm Thu Đủ Hàng (+All)</span>
+              </button>
+
+              <div className="px-3.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-black shrink-0 flex items-center gap-1.5">
+                <span>Tiến độ:</span>
+                <span className="text-blue-900">{totalScanned} / {totalOrdered} {items[0]?.unit || "Hộp"}</span>
+                <span className="text-blue-600 font-bold">({progressPercent}%)</span>
+              </div>
             </div>
           </div>
 
@@ -573,7 +606,7 @@ export function GoodsReceiptInspectionPage() {
                   <th className="py-3 px-3.5">Mã SKU</th>
                   <th className="py-3 px-3.5">Tên Thuốc</th>
                   <th className="py-3 px-3.5 text-center">Cần Nhận</th>
-                  <th className="py-3 px-3.5 text-center">Đã Quét</th>
+                  <th className="py-3 px-3.5 text-center min-w-[140px]">Đã Quét / Điều Chỉnh</th>
                   <th className="py-3 px-3.5">Số Lô & HSD</th>
                   <th className="py-3 px-3.5 text-right">Trạng Thái</th>
                 </tr>
@@ -605,14 +638,76 @@ export function GoodsReceiptInspectionPage() {
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-3.5 text-center">
-                        <span
-                          className={`font-black ${
-                            isDone ? "text-emerald-700" : "text-amber-700"
-                          }`}
-                        >
-                          {item.scannedQty} / {targetQty}
-                        </span>
+                      <td className="py-2.5 px-3.5 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (item.scannedQty > 0) {
+                                const updated = items.map((it) =>
+                                  it.medicineId === item.medicineId ? { ...it, scannedQty: it.scannedQty - 1 } : it
+                                );
+                                setItems(updated);
+                              }
+                            }}
+                            disabled={item.scannedQty <= 0}
+                            className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs disabled:opacity-30 cursor-pointer"
+                            title="Giảm 1"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            max={targetQty}
+                            value={item.scannedQty}
+                            onChange={(e) => {
+                              const val = Math.max(0, Math.min(targetQty, parseInt(e.target.value, 10) || 0));
+                              const updated = items.map((it) =>
+                                it.medicineId === item.medicineId ? { ...it, scannedQty: val } : it
+                              );
+                              setItems(updated);
+                            }}
+                            className="w-12 text-center py-1 border border-slate-200 rounded-md font-bold text-xs bg-slate-50 focus:bg-white focus:border-indigo-400 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (item.scannedQty < targetQty) {
+                                const updated = items.map((it) =>
+                                  it.medicineId === item.medicineId ? { ...it, scannedQty: it.scannedQty + 1 } : it
+                                );
+                                setItems(updated);
+                              }
+                            }}
+                            disabled={item.scannedQty >= targetQty}
+                            className="w-6 h-6 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs disabled:opacity-30 cursor-pointer"
+                            title="Tăng 1"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-center gap-1 mt-1">
+                          <span className={`text-[10px] font-bold ${isDone ? "text-emerald-700" : "text-amber-700"}`}>
+                            {item.scannedQty} / {targetQty}
+                          </span>
+                          {!isDone && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = items.map((it) =>
+                                  it.medicineId === item.medicineId ? { ...it, scannedQty: targetQty } : it
+                                );
+                                setItems(updated);
+                                showToast(`Đã nhận đủ ${targetQty} ${item.unit} ${item.medicineName}`, "success");
+                              }}
+                              className="text-[9px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded hover:bg-indigo-200 transition-colors ml-1 cursor-pointer"
+                              title="Nhận đủ cả thùng"
+                            >
+                              Đủ (+{diff})
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-3.5 font-mono text-[11px] text-slate-600">
                         <span className="font-bold text-slate-800">{item.batchNo || "---"}</span>{" "}
