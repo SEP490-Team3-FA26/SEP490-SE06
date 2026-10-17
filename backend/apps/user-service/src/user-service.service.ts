@@ -1688,18 +1688,77 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   // =========================================================================
 
   async calculateRFMSegments() {
-    this.logger.log('Starting Adaptive Pharmacy RFM segmentation calculation...');
+    this.logger.log('Bắt đầu tính toán phân cụm khách hàng RFM Thích Ứng (Adaptive Pharmacy RFM)...');
     const ordersCollection = this.connection.collection('orders');
+    const vouchersCollection = this.connection.collection('vouchers');
 
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
+    // 1. Thu thập danh sách voucher đang hoạt động thực tế trong CSDL
+    let availableVouchers: any[] = [];
+    try {
+      availableVouchers = await vouchersCollection
+        .find({
+          $or: [{ isActive: true }, { isActive: { $exists: false } }],
+        })
+        .toArray();
+    } catch (vErr) {
+      this.logger.warn('Không thể truy vấn bảng vouchers, dùng fallback mặc định:', vErr);
+    }
+    const voucherCodes = availableVouchers.map((v) => v.code).filter(Boolean);
+
+    const pickVoucher = (preferredKeywords: string[], defaultFallback = 'TUVANPOS') => {
+      for (const kw of preferredKeywords) {
+        const found = voucherCodes.find((c: string) => c.toUpperCase().includes(kw.toUpperCase()));
+        if (found) return found;
+      }
+      return voucherCodes[0] || defaultFallback;
+    };
+
+    // 2. Pipeline hợp nhất cả 2 nguồn đơn: đơn online PayOS (orders) VÀ đơn bán tại quầy POS (salesorders)
     const pipeline = [
       {
         $match: {
-          patientPhone: { $exists: true, $ne: '', $nin: ['0900000000', 'GUEST_RETAIL'] },
+          patientPhone: { $exists: true, $ne: '', $nin: ['0', '0900000000', 'GUEST_RETAIL'] },
           paymentStatus: 'PAID',
           createdAt: { $gte: oneYearAgo },
+        },
+      },
+      {
+        $project: {
+          patientPhone: 1,
+          patientName: 1,
+          branchId: 1,
+          createdAt: 1,
+          totalAmount: 1,
+          items: 1,
+          type: 1,
+        },
+      },
+      {
+        $unionWith: {
+          coll: 'salesorders',
+          pipeline: [
+            {
+              $match: {
+                patientPhone: { $exists: true, $ne: '', $nin: ['0', '0900000000', 'GUEST_RETAIL'] },
+                totalAmount: { $gt: 0 },
+                createdAt: { $gte: oneYearAgo },
+              },
+            },
+            {
+              $project: {
+                patientPhone: 1,
+                patientName: 1,
+                branchId: 1,
+                createdAt: 1,
+                totalAmount: 1,
+                items: 1,
+                type: 1,
+              },
+            },
+          ],
         },
       },
       {
@@ -1711,15 +1770,23 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
           totalOrders: { $sum: 1 },
           totalSpent: { $sum: '$totalAmount' },
           itemNames: { $push: '$items.name' },
+          orderTypes: { $push: '$type' },
         },
       },
     ];
 
     const aggregated = await ordersCollection.aggregate(pipeline).toArray();
-    this.logger.log(`Aggregated ${aggregated.length} customers with valid phone numbers.`);
+    this.logger.log(`Đã tổng hợp thành công ${aggregated.length} khách hàng có lịch sử mua hàng từ cả Online lẫn Quầy POS.`);
 
     const now = new Date();
-    const chronicKeywords = ['tiểu đường', 'huyết áp', 'tim mạch', 'mỡ máu', 'gout', 'khớp', 'metformin', 'amlodipine', 'losartan', 'atorvastatin'];
+    // Danh mục từ khóa bệnh mãn tính bao quát (tiếng Việt có dấu, không dấu và tên hoạt chất/biệt dược thông dụng)
+    const chronicKeywords = [
+      'tiểu đường', 'đái tháo đường', 'huyết áp', 'tim mạch', 'mỡ máu', 'lipid', 'gout', 'gút',
+      'hen suyễn', 'copd', 'khớp', 'viêm khớp', 'thoái hóa khớp', 'metformin', 'amlodipine',
+      'losartan', 'atorvastatin', 'glucophage', 'concor', 'lipitor', 'januvia', 'micardis',
+      'plavix', 'crestor', 'rosuvastatin', 'telmisartan', 'gliclazide', 'diamicron',
+      'coversyl', 'bisoprolol', 'allopurinol', 'febuxostat'
+    ];
 
     for (const item of aggregated) {
       const phone = item._id;
@@ -1729,61 +1796,70 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       const totalSpent12M = item.totalSpent || 0;
       const avgOrderValue = Math.round(totalSpent12M / totalOrders12M);
 
-      const flattenedNames = (item.itemNames || []).flat().join(' ').toLowerCase();
-      const isChronic = chronicKeywords.some((kw) => flattenedNames.includes(kw));
+      const flattenedNames = (item.itemNames || []).flat().filter(Boolean).join(' ').toLowerCase();
+      const hasPrescription = (item.orderTypes || []).includes('PRESCRIPTION');
+      const hasChronicKeywords = chronicKeywords.some((kw) => flattenedNames.includes(kw));
+      const isChronic = hasChronicKeywords || (hasPrescription && totalOrders12M >= 2);
       const customerType = isChronic ? 'CHRONIC_PATIENT' : 'GENERAL_RETAIL';
 
+      // 3. Chấm điểm R (Recency) theo đặc thù chu kỳ dùng thuốc ngành Dược
       let rScore = 1;
       if (isChronic) {
         if (recencyDays <= 25) rScore = 5;
         else if (recencyDays <= 35) rScore = 4;
-        else if (recencyDays <= 45) rScore = 3;
-        else if (recencyDays <= 60) rScore = 2;
+        else if (recencyDays <= 50) rScore = 3;
+        else if (recencyDays <= 75) rScore = 2;
         else rScore = 1;
       } else {
-        if (recencyDays <= 15) rScore = 5;
-        else if (recencyDays <= 30) rScore = 4;
-        else if (recencyDays <= 60) rScore = 3;
-        else if (recencyDays <= 90) rScore = 2;
+        if (recencyDays <= 20) rScore = 5;
+        else if (recencyDays <= 45) rScore = 4;
+        else if (recencyDays <= 90) rScore = 3;
+        else if (recencyDays <= 150) rScore = 2;
         else rScore = 1;
       }
 
+      // 4. Chấm điểm F (Frequency) thực tế trong 12 tháng
       let fScore = 1;
-      if (totalOrders12M >= 12) fScore = 5;
-      else if (totalOrders12M >= 6) fScore = 4;
+      if (totalOrders12M >= 8) fScore = 5;
+      else if (totalOrders12M >= 5) fScore = 4;
       else if (totalOrders12M >= 3) fScore = 3;
       else if (totalOrders12M >= 2) fScore = 2;
       else fScore = 1;
 
+      // 5. Chấm điểm M (Monetary) phân vị ngành Dược bán lẻ
       let mScore = 1;
-      if (totalSpent12M >= 8000000) mScore = 5;
-      else if (totalSpent12M >= 4000000) mScore = 4;
-      else if (totalSpent12M >= 1500000) mScore = 3;
-      else if (totalSpent12M >= 500000) mScore = 2;
+      if (totalSpent12M >= 3000000) mScore = 5;
+      else if (totalSpent12M >= 1500000) mScore = 4;
+      else if (totalSpent12M >= 700000) mScore = 3;
+      else if (totalSpent12M >= 300000) mScore = 2;
       else mScore = 1;
 
       const rfmScoreStr = `${rScore}${fScore}${mScore}`;
 
       let segment = 'POTENTIAL_LOYALIST';
-      let recommendedVoucher = 'VOUCHER_NEW_5K';
+      let recommendedVoucher = pickVoucher(['WELCOME', 'TUVANPOS', '30K'], 'TUVANPOS');
       let predictedRefillDate: Date | undefined = undefined;
 
+      // 6. Phân cụm và liên kết voucher thực tế
       if (rScore >= 4 && fScore >= 4 && mScore >= 4) {
         segment = 'CHAMPIONS';
-        recommendedVoucher = 'VOUCHER_VIP_DIAMOND';
-      } else if (isChronic && rScore >= 3 && fScore >= 3) {
+        recommendedVoucher = pickVoucher(['VIP', 'DIAMOND', '50%', 'SUMMER30', '30K'], 'SUMMER30');
+      } else if (isChronic && (rScore >= 3 || fScore >= 3)) {
         segment = 'LOYAL_CHRONIC';
-        recommendedVoucher = 'VOUCHER_REFILL_FREESHIP';
+        recommendedVoucher = pickVoucher(['TIMMACH', 'NGUOICAOTUOI', 'CHRONIC', '30K'], 'TIMMACH2026');
         predictedRefillDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-      } else if (rScore <= 2 && (fScore >= 3 || mScore >= 3)) {
+      } else if (rScore <= 2 && (fScore >= 2 || mScore >= 3 || isChronic)) {
         segment = 'AT_RISK';
-        recommendedVoucher = 'VOUCHER_WINBACK_15PCT';
-      } else if (rScore === 1 && fScore <= 2) {
+        recommendedVoucher = pickVoucher(['NGUOICAOTUOI', '30K', 'TUVANPOS', 'WINBACK'], 'NGUOICAOTUOI');
+        if (isChronic) {
+          predictedRefillDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        }
+      } else if (rScore === 1 && fScore === 1) {
         segment = 'HIBERNATING';
-        recommendedVoucher = 'VOUCHER_COMEBACK_10K';
-      } else if (rScore >= 4 && fScore <= 2) {
+        recommendedVoucher = pickVoucher(['30K', 'TUVANPOS', 'WELCOME'], 'TUVANPOS');
+      } else {
         segment = 'POTENTIAL_LOYALIST';
-        recommendedVoucher = 'VOUCHER_WELCOME_2ND';
+        recommendedVoucher = pickVoucher(['TUVANPOS', '30K', '1710'], 'TUVANPOS');
       }
 
       await this.segmentModel.findOneAndUpdate(
@@ -1812,7 +1888,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       );
     }
 
-    this.logger.log('Adaptive Pharmacy RFM segmentation completed successfully.');
+    this.logger.log('Hoàn thành tính toán phân cụm RFM thích ứng thành công.');
     return { success: true, totalProcessed: aggregated.length };
   }
 
@@ -1823,13 +1899,18 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
 
     return {
       phone,
+      fullName: 'Khách hàng mới',
       segment: 'POTENTIAL_LOYALIST',
       customerType: 'GENERAL_RETAIL',
-      rScore: 5,
+      rScore: 1,
       fScore: 1,
       mScore: 1,
-      rfmScoreStr: '511',
-      recommendedVoucher: 'VOUCHER_WELCOME',
+      rfmScoreStr: '111',
+      totalOrders12M: 0,
+      totalSpent12M: 0,
+      recencyDays: 0,
+      avgOrderValue: 0,
+      recommendedVoucher: 'TUVANPOS',
     };
   }
 

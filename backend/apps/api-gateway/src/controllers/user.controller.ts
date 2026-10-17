@@ -411,7 +411,19 @@ export class UserController implements OnModuleInit {
   @Post("rfm/recalculate")
   @ApiOperation({ summary: "Kích hoạt tính toán lại phân cụm RFM khách hàng" })
   async recalculateRFM() {
-    return await sendKafkaMessage(this.kafkaClient, "user.rfm.recalculate", {});
+    const res = await sendKafkaMessage(this.kafkaClient, "user.rfm.recalculate", {});
+    // Xóa cache overview để dữ liệu mới hiển thị ngay lập tức
+    if (this.cacheManager) {
+      try {
+        await Promise.all([
+          this.cacheManager.del("rfm:overview:chain"),
+          this.cacheManager.del("rfm:overview:all"),
+          this.cacheManager.del("rfm:overview:BR-001"),
+          this.cacheManager.del("rfm:overview:CENTRAL_WH"),
+        ]);
+      } catch (e) {}
+    }
+    return res;
   }
 
   @Get("rfm/at-risk")
