@@ -909,9 +909,7 @@ export class MedicineService implements OnModuleInit {
           const expDate = new Date(b.expDate);
 
           let status = 'ACTIVE';
-          if (b.status === 'QUARANTINED') {
-            status = 'QUARANTINED';
-          } else if (expDate < today) {
+          if (expDate < today) {
             status = 'EXPIRED';
           } else if (expDate <= ninetyDaysFromNow) {
             status = 'SOON_TO_EXPIRE';
@@ -932,7 +930,7 @@ export class MedicineService implements OnModuleInit {
             location: b.location || null,
           };
         })
-        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE' || item.status === 'QUARANTINED')
+        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE')
         .sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
 
       return report;
@@ -1877,11 +1875,15 @@ export class MedicineService implements OnModuleInit {
     try {
       this.logger.log('Fetching warehouse map aggregation...');
       
+      const today = new Date();
+      const ninetyDaysFromNow = new Date();
+      ninetyDaysFromNow.setDate(today.getDate() + 90);
+
       const pipeline: any[] = [
         {
           $match: {
             branchId: 'CENTRAL_WH',
-            status: 'ACTIVE'
+            status: { $in: ['ACTIVE', 'EXPIRED'] }
           }
         },
         {
@@ -1894,6 +1896,91 @@ export class MedicineService implements OnModuleInit {
             totalStock: { $sum: '$stock' },
             batchCount: { $sum: 1 },
             minExpDate: { $min: '$expDate' },
+            expiredBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $lt: ['$expDate', today] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            nearExpiryBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $gte: ['$expDate', today] },
+                      { $lte: ['$expDate', ninetyDaysFromNow] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            lowStockBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $lt: ['$stock', 20] },
+                      {
+                        $or: [
+                          { $eq: ['$expDate', null] },
+                          { $gte: ['$expDate', today] }
+                        ]
+                      }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            expiredStock: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $lt: ['$expDate', today] }
+                    ]
+                  },
+                  '$stock',
+                  0
+                ]
+              }
+            },
+            activeStock: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      {
+                        $or: [
+                          { $eq: ['$expDate', null] },
+                          { $gte: ['$expDate', today] }
+                        ]
+                      }
+                    ]
+                  },
+                  '$stock',
+                  0
+                ]
+              }
+            },
             medicineIds: { $addToSet: '$medicineId' }
           }
         },
@@ -1907,7 +1994,12 @@ export class MedicineService implements OnModuleInit {
               $push: {
                 shelf: '$_id.shelf',
                 totalStock: '$totalStock',
+                activeStock: '$activeStock',
+                expiredStock: '$expiredStock',
                 batchCount: '$batchCount',
+                expiredBatchCount: '$expiredBatchCount',
+                nearExpiryBatchCount: '$nearExpiryBatchCount',
+                lowStockBatchCount: '$lowStockBatchCount',
                 minExpDate: '$minExpDate',
                 medicineIds: '$medicineIds'
               }
@@ -1966,10 +2058,6 @@ export class MedicineService implements OnModuleInit {
         }
       });
 
-      const today = new Date();
-      const ninetyDaysFromNow = new Date();
-      ninetyDaysFromNow.setDate(today.getDate() + 90);
-
       // Định nghĩa tên khu theo chuẩn GSP
       const zoneLabels: Record<string, string> = {
         'A': 'Khu A',
@@ -1989,15 +2077,23 @@ export class MedicineService implements OnModuleInit {
           // Sort shelves
           r.shelves.sort((a: any, b: any) => a.shelf - b.shelf);
           r.shelves.forEach((s: any) => {
+            const hasExpired = (s.expiredBatchCount || 0) > 0;
+            const hasNearExpiry = (s.nearExpiryBatchCount || 0) > 0;
+            const hasLowStock = (s.lowStockBatchCount || 0) > 0;
+            s.hasExpired = hasExpired;
+            s.hasNearExpiry = hasNearExpiry;
+            s.hasLowStock = hasLowStock;
+
+            // Phương án 1: Nếu còn thuốc bình thường thì giữ nền NORMAL, gắn badge cảnh báo
             if (s.totalStock === 0) {
               s.status = 'EMPTY';
-            } else if (new Date(s.minExpDate) < today) {
+            } else if (s.activeStock === 0 && s.expiredStock > 0) {
+              // 100% thuốc trên kệ đã hết hạn -> Nhuộm đỏ
               s.status = 'EXPIRED';
-            } else if (new Date(s.minExpDate) <= ninetyDaysFromNow) {
-              s.status = 'NEAR_EXPIRY';
-            } else if (s.totalStock < 50) { // Giả sử 50 là ngưỡng an toàn chung cho 1 shelf
+            } else if ((s.activeStock || 0) < 50 && s.activeStock > 0) {
               s.status = 'LOW_STOCK';
             } else {
+              // Kệ vẫn còn thuốc khả dụng tốt -> NORMAL (Nền xanh)
               s.status = 'NORMAL';
             }
 
@@ -2024,9 +2120,17 @@ export class MedicineService implements OnModuleInit {
                 shelves: [1, 2, 3, 4].map((shelfNum) => ({
                   shelf: shelfNum,
                   totalStock: 0,
+                  activeStock: 0,
+                  expiredStock: 0,
                   batchCount: 0,
+                  expiredBatchCount: 0,
+                  nearExpiryBatchCount: 0,
+                  lowStockBatchCount: 0,
                   status: 'EMPTY',
                   categories: [],
+                  hasExpired: false,
+                  hasNearExpiry: false,
+                  hasLowStock: false,
                 })),
               });
             }
