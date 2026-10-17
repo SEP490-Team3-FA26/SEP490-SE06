@@ -2474,7 +2474,9 @@ export class MedicineService implements OnModuleInit {
           // Ưu tiên lô còn tồn > 0, nếu không thì lấy lô đầu tiên
           const bestBatch = mainBatches.find(b => (b.stock || 0) > 0) || mainBatches[0];
           const totalStock = mainBatches.reduce((acc, b) => acc + (b.stock || 0), 0);
-          const targetId = `${bestBatch.location.zone}-${bestBatch.location.rack}-${bestBatch.location.shelf}`;
+          const targetId = bestBatch.location?.bin
+            ? `bin-${bestBatch.location.zone}-${bestBatch.location.rack}-${bestBatch.location.shelf}-${bestBatch.location.bin}`
+            : `${bestBatch.location.zone}-${bestBatch.location.rack}-${bestBatch.location.shelf}`;
           const locKey = `${mid}-${targetId}`;
 
           if (!seenLocKeys.has(locKey)) {
@@ -2493,7 +2495,9 @@ export class MedicineService implements OnModuleInit {
           }
         } else if (fixedLoc) {
           // Chưa có lô tồn nhưng đã có vị trí quy hoạch cố định trong kho GSP
-          const targetId = `${fixedLoc.zone}-${fixedLoc.rack}-${fixedLoc.shelf}`;
+          const targetId = fixedLoc.bin
+            ? `bin-${fixedLoc.zone}-${fixedLoc.rack}-${fixedLoc.shelf}-${fixedLoc.bin}`
+            : `${fixedLoc.zone}-${fixedLoc.rack}-${fixedLoc.shelf}`;
           const locKey = `${mid}-${targetId}`;
 
           if (!seenLocKeys.has(locKey)) {
@@ -2520,7 +2524,10 @@ export class MedicineService implements OnModuleInit {
           // Thuốc nằm trong Khu Lưu Trữ Dự Trữ (RESERVE)
           const bestBatch = reserveBatches.find(b => (b.stock || 0) > 0) || reserveBatches[0];
           const totalStock = reserveBatches.reduce((acc, b) => acc + (b.stock || 0), 0);
-          const locKey = `${mid}-RESERVE`;
+          const targetId = bestBatch.location?.bin
+            ? `bin-${bestBatch.location.zone || 'RESERVE'}-${bestBatch.location.rack || 'RES1'}-${bestBatch.location.shelf || 1}-${bestBatch.location.bin}`
+            : 'RESERVE';
+          const locKey = `${mid}-${targetId}`;
 
           if (!seenLocKeys.has(locKey)) {
             seenLocKeys.add(locKey);
@@ -2531,7 +2538,7 @@ export class MedicineService implements OnModuleInit {
               category: med.category,
               unit: med.unit || 'Hộp',
               location: bestBatch.location || { zone: 'RESERVE', rack: 'RES1', shelf: 1, bin: 1, slotType: 'RESERVE' },
-              targetId: 'RESERVE',
+              targetId,
               stock: totalStock,
               status: bestBatch.status || 'ACTIVE',
               isReserve: true
