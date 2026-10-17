@@ -141,6 +141,13 @@ services:
     command: node dist/apps/api-gateway/main.js
     ports:
       - "4000:4000"
+    env_file:
+      - path: .env
+        required: false
+      - path: backend/.env
+        required: false
+      - path: backend/.env.s3-runtime
+        required: false
     environment:
       <<: *backend-env
       PORT: 4000
