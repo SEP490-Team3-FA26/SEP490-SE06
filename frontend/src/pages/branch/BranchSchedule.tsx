@@ -16,10 +16,22 @@ import {
   X, 
   Users, 
   Briefcase,
-  AlertCircle
+  AlertCircle,
+  Repeat,
+  Check
 } from "lucide-react";
 
 import { getLeaveDetails } from "../pharmacist/PharmacistSchedule";
+
+// Interface quản lý trạng thái modal thêm nhân viên vào ca làm cố định
+interface FixedShiftModalState {
+  isOpen: boolean;
+  selectedEmployeeId: string;
+  selectedShiftId: string;
+  selectedDays: number[]; // 0: Thứ 2 -> 6: Chủ Nhật
+  applyNextWeeks: boolean;
+  note: string;
+}
 
 // Utilities
 function getMonday(d: Date) {
@@ -82,6 +94,51 @@ export function BranchSchedule() {
     isOpen: false,
     date: null,
     shift: null,
+  });
+
+  // State cho Modal thêm nhân viên vào ca làm việc cố định
+  const [fixedShiftModal, setFixedShiftModal] = useState<FixedShiftModalState>({
+    isOpen: false,
+    selectedEmployeeId: "",
+    selectedShiftId: "",
+    selectedDays: [0, 1, 2, 3, 4], // Mặc định từ Thứ 2 đến Thứ 6
+    applyNextWeeks: false,
+    note: "Ca làm việc cố định",
+  });
+  const [fixedShiftSearch, setFixedShiftSearch] = useState("");
+  const [submittingFixedShift, setSubmittingFixedShift] = useState(false);
+
+  // Hệ thống Toast thông báo giao diện nội bộ (thay thế alert trình duyệt)
+  interface ToastItem {
+    id: string;
+    type: "success" | "error" | "warning" | "info";
+    message: string;
+  }
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const showToast = (message: string, type: "success" | "error" | "warning" | "info" = "success") => {
+    const id = Date.now().toString() + Math.random().toString();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3500);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Hộp thoại xác nhận tùy chỉnh (thay thế window.confirm)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
   });
   
   // Lấy chi nhánh an toàn từ localStorage hoặc authService
@@ -213,7 +270,7 @@ export function BranchSchedule() {
       a => getIsoDateStr(a.date) === targetDateStr && a.shiftId === shift._id && String(a.employeeId) === String(emp._id)
     );
     if (alreadyInShift) {
-      alert("Nhân viên này đã có tên trong ca trực này rồi.");
+      showToast("Nhân viên này đã có tên trong ca trực này rồi.", "warning");
       return;
     }
 
@@ -244,10 +301,151 @@ export function BranchSchedule() {
       if (updated && typeof updated === "object" && Array.isArray(updated.assignments)) {
         setSchedule(updated);
       }
+      showToast(`Đã gán ca cho ${emp.fullName} thành công!`, "success");
     } catch (err: any) {
       console.error("Lỗi khi gán lịch:", err);
-      alert(err.response?.data?.message || err.message || "Lỗi khi gán lịch nhân viên");
+      showToast(err.response?.data?.message || err.message || "Lỗi khi gán lịch nhân viên", "error");
       fetchData();
+    }
+  };
+
+  // Mở modal thêm nhân viên vào ca làm việc cố định
+  const openFixedShiftModal = (preselectedShiftId?: string) => {
+    setFixedShiftSearch("");
+    const firstEmp = employees.length > 0 ? (employees[0]._id || employees[0].id || "") : "";
+    const chosenShift = preselectedShiftId || (shifts.length > 0 ? shifts[0]._id : "");
+    setFixedShiftModal({
+      isOpen: true,
+      selectedEmployeeId: String(firstEmp),
+      selectedShiftId: chosenShift,
+      selectedDays: [0, 1, 2, 3, 4], // Mặc định từ Thứ 2 đến Thứ 6
+      applyNextWeeks: false,
+      note: "Ca làm việc cố định",
+    });
+  };
+
+  // Xử lý lưu phân công ca làm cố định cho nhân viên
+  const handleSaveFixedShift = async () => {
+    if (!schedule) return;
+    if (!fixedShiftModal.selectedEmployeeId) {
+      showToast("Vui lòng chọn nhân viên cần gán ca cố định.", "warning");
+      return;
+    }
+    if (!fixedShiftModal.selectedShiftId) {
+      showToast("Vui lòng chọn ca làm việc.", "warning");
+      return;
+    }
+    if (fixedShiftModal.selectedDays.length === 0) {
+      showToast("Vui lòng chọn ít nhất một ngày làm việc trong tuần.", "warning");
+      return;
+    }
+
+    const selectedEmp = employees.find(
+      e => String(e._id) === String(fixedShiftModal.selectedEmployeeId) || String(e.id) === String(fixedShiftModal.selectedEmployeeId)
+    );
+    const selectedShift = shifts.find(s => s._id === fixedShiftModal.selectedShiftId);
+    if (!selectedEmp || !selectedShift) {
+      showToast("Không tìm thấy thông tin nhân viên hoặc ca làm việc.", "error");
+      return;
+    }
+
+    try {
+      setSubmittingFixedShift(true);
+
+      // 1. Tạo các bản ghi phân công cho tuần hiện tại
+      const newAssignmentsForCurrentWeek: WorkScheduleAssignment[] = fixedShiftModal.selectedDays.map(dayIdx => {
+        const d = weekDays[dayIdx];
+        const targetDateStr = formatDate(d);
+        return {
+          date: `${targetDateStr}T00:00:00.000Z`,
+          shiftId: selectedShift._id,
+          shiftName: selectedShift.name,
+          shiftStart: selectedShift.startTime,
+          shiftEnd: selectedShift.endTime,
+          employeeId: selectedEmp._id || selectedEmp.id,
+          employeeName: selectedEmp.fullName,
+          note: fixedShiftModal.note || "Ca làm việc cố định",
+        };
+      });
+
+      // Lọc bỏ trùng lặp nếu nhân viên đã có ca này trong các ngày đó
+      let mergedAssignments = [...(schedule.assignments || [])];
+      for (const newA of newAssignmentsForCurrentWeek) {
+        const existsIndex = mergedAssignments.findIndex(
+          a => getIsoDateStr(a.date) === getIsoDateStr(newA.date) &&
+               a.shiftId === newA.shiftId &&
+               String(a.employeeId) === String(newA.employeeId)
+        );
+        if (existsIndex >= 0) {
+          mergedAssignments[existsIndex] = newA;
+        } else {
+          mergedAssignments.push(newA);
+        }
+      }
+
+      // Cập nhật Optimistic UI
+      setSchedule({ ...schedule, assignments: mergedAssignments });
+      await hrService.upsertSchedule({ weekStart: currentWeekStart, assignments: mergedAssignments });
+
+      // 2. Nếu tùy chọn áp dụng cả các tuần tiếp theo trong tháng được chọn
+      if (fixedShiftModal.applyNextWeeks) {
+        const [y, m, d] = currentWeekStart.split('-').map(Number);
+        for (let w = 1; w <= 3; w++) {
+          const nextWeekDate = new Date(y, m - 1, d + w * 7);
+          const nextWeekStartStr = formatDate(nextWeekDate);
+          const nextWeekDays = getWeekDays(nextWeekStartStr);
+
+          try {
+            const nextSchedRes: any = await hrService.getWeekSchedule(nextWeekStartStr);
+            let nextSched: any = nextSchedRes;
+            if (typeof nextSched === "string") {
+              try { nextSched = JSON.parse(nextSched); } catch {}
+            }
+            const existingNextAssigns: WorkScheduleAssignment[] = Array.isArray(nextSched?.assignments) ? nextSched.assignments : [];
+
+            const nextAssignments: WorkScheduleAssignment[] = fixedShiftModal.selectedDays.map(dayIdx => {
+              const nextDay = nextWeekDays[dayIdx];
+              const targetDateStr = formatDate(nextDay);
+              return {
+                date: `${targetDateStr}T00:00:00.000Z`,
+                shiftId: selectedShift._id,
+                shiftName: selectedShift.name,
+                shiftStart: selectedShift.startTime,
+                shiftEnd: selectedShift.endTime,
+                employeeId: selectedEmp._id || selectedEmp.id,
+                employeeName: selectedEmp.fullName,
+                note: fixedShiftModal.note || "Ca làm việc cố định",
+              };
+            });
+
+            const mergedNext = [...existingNextAssigns];
+            for (const newA of nextAssignments) {
+              const exists = mergedNext.findIndex(
+                a => getIsoDateStr(a.date) === getIsoDateStr(newA.date) &&
+                     a.shiftId === newA.shiftId &&
+                     String(a.employeeId) === String(newA.employeeId)
+              );
+              if (exists >= 0) {
+                mergedNext[exists] = newA;
+              } else {
+                mergedNext.push(newA);
+              }
+            }
+            await hrService.upsertSchedule({ weekStart: nextWeekStartStr, assignments: mergedNext });
+          } catch (err) {
+            console.error(`Lỗi gán tuần ${nextWeekStartStr}:`, err);
+          }
+        }
+      }
+
+      setFixedShiftModal(prev => ({ ...prev, isOpen: false }));
+      showToast(`Đã thêm nhân viên ${selectedEmp.fullName} vào ${selectedShift.name} cố định thành công!`, "success");
+      fetchData();
+    } catch (err: any) {
+      console.error("Lỗi khi thêm ca cố định:", err);
+      showToast(err.response?.data?.message || err.message || "Lỗi khi gán ca cố định", "error");
+    } finally {
+      setSubmittingFixedShift(false);
     }
   };
 
@@ -276,31 +474,49 @@ export function BranchSchedule() {
       if (updated && typeof updated === "object" && Array.isArray(updated.assignments)) {
         setSchedule(updated);
       }
+      showToast("Đã xóa nhân viên khỏi ca trực thành công!", "info");
     } catch (err: any) {
       console.error("Lỗi khi xóa phân công:", err);
-      alert(err.response?.data?.message || err.message || "Lỗi khi xóa phân công");
+      showToast(err.response?.data?.message || err.message || "Lỗi khi xóa phân công", "error");
       fetchData();
     }
   };
 
   const handlePublish = async () => {
-    if (window.confirm("Bạn có chắc chắn muốn đăng lịch này? Lịch đã đăng sẽ không thể chỉnh sửa tự do và toàn bộ nhân viên sẽ nhận được thông báo.")) {
-      try {
-        await hrService.publishSchedule(currentWeekStart);
-        fetchData();
-      } catch (err: any) {
-        alert(err.response?.data?.message || "Lỗi khi đăng lịch");
+    setConfirmModal({
+      isOpen: true,
+      title: "Xác Nhận Đăng Lịch Tuần",
+      message: "Bạn có chắc chắn muốn đăng lịch này? Lịch sau khi công bố sẽ chuyển sang trạng thái chính thức và toàn bộ nhân sự chi nhánh sẽ nhận được thông báo phân ca.",
+      onConfirm: async () => {
+        try {
+          await hrService.publishSchedule(currentWeekStart);
+          showToast("Đã công bố lịch làm việc tuần thành công!", "success");
+          fetchData();
+        } catch (err: any) {
+          showToast(err.response?.data?.message || "Lỗi khi đăng lịch", "error");
+        }
       }
-    }
+    });
   };
 
   const isPublished = schedule?.status === 'published';
   const totalAssignmentsCount = schedule?.assignments?.length || 0;
   const uniqueEmployeesWorking = new Set((schedule?.assignments || []).map(a => a.employeeId)).size;
 
-  // Lọc nhân viên trong modal tìm kiếm
+  // Lọc nhân viên trong modal tìm kiếm gán ca đơn lẻ
   const filteredEmployees = employees.filter(e => {
     const q = searchEmployeeQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      e.fullName.toLowerCase().includes(q) ||
+      (e.email && e.email.toLowerCase().includes(q)) ||
+      (e.role && e.role.toLowerCase().includes(q))
+    );
+  });
+
+  // Lọc nhân viên trong modal phân ca làm việc cố định
+  const filteredFixedEmployees = employees.filter(e => {
+    const q = fixedShiftSearch.toLowerCase().trim();
     if (!q) return true;
     return (
       e.fullName.toLowerCase().includes(q) ||
@@ -337,10 +553,19 @@ export function BranchSchedule() {
             </div>
           )}
 
+          {/* NÚT THÊM NHÂN VIÊN VÀO CA LÀM CỐ ĐỊNH */}
+          <button
+            onClick={() => openFixedShiftModal()}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 cursor-pointer"
+          >
+            <Plus size={18} />
+            <span>Thêm Vào Ca Cố Định</span>
+          </button>
+
           <button
             onClick={handlePublish}
             disabled={!schedule || isPublished || totalAssignmentsCount === 0}
-            className="px-5 py-2.5 bg-[#0057cd] hover:bg-[#00419e] text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow flex items-center gap-2"
+            className="px-5 py-2.5 bg-[#0057cd] hover:bg-[#00419e] text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow flex items-center gap-2 cursor-pointer"
           >
             <CheckCircle2 size={18} />
             Đăng Lịch Tuần
@@ -465,14 +690,24 @@ export function BranchSchedule() {
                   <tr key={shift._id} className="hover:bg-slate-50/40 transition-colors">
                     {/* Shift Header Column - Thu gọn kích thước tối đa */}
                     <td className="p-2 border-r border-slate-200 bg-slate-50/30 align-top">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <div 
-                          className="w-2 h-2 rounded-full shrink-0" 
-                          style={{ backgroundColor: shift.color || '#0057cd' }}
-                        ></div>
-                        <span className="font-semibold text-slate-800 text-xs tracking-tight truncate">
-                          {shift.name}
-                        </span>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div 
+                            className="w-2 h-2 rounded-full shrink-0" 
+                            style={{ backgroundColor: shift.color || '#0057cd' }}
+                          ></div>
+                          <span className="font-semibold text-slate-800 text-xs tracking-tight truncate">
+                            {shift.name}
+                          </span>
+                        </div>
+                        {/* Nút thêm nhanh nhân viên vào ca cố định này */}
+                        <button
+                          onClick={() => openFixedShiftModal(shift._id)}
+                          title={`Gán nhân viên vào ca ${shift.name} cố định`}
+                          className="p-1 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                        >
+                          <Plus size={13} />
+                        </button>
                       </div>
                       <div className="text-[10px] text-slate-500 font-normal pl-3.5 whitespace-nowrap">
                         {shift.startTime} - {shift.endTime}
@@ -709,6 +944,359 @@ export function BranchSchedule() {
           </div>
         </div>
       )}
+
+      {/* 5. Modal Phân Ca Làm Việc Cố Định Cho Nhân Viên */}
+      {fixedShiftModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-emerald-50/70 via-slate-50/50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <Repeat size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Thêm Nhân Viên Vào Ca Làm Cố Định</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Tự động phân ca định kỳ cho nhân viên theo các ngày trong tuần</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setFixedShiftModal(prev => ({ ...prev, isOpen: false }))}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-5 flex-1">
+              {/* Bước 1: Chọn Nhân Viên */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center justify-between">
+                  <span>1. Chọn Nhân Viên:</span>
+                  <span className="text-slate-400 font-normal lowercase">({filteredFixedEmployees.length} nhân sự)</span>
+                </label>
+
+                {/* Input tìm kiếm nhanh */}
+                <div className="relative mb-2">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="text"
+                    placeholder="Tìm theo tên, email, chức danh..."
+                    value={fixedShiftSearch}
+                    onChange={(e) => setFixedShiftSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-36 overflow-y-auto">
+                  {filteredFixedEmployees.length === 0 ? (
+                    <div className="py-6 text-center text-slate-400 text-xs">
+                      Không tìm thấy nhân viên phù hợp
+                    </div>
+                  ) : (
+                    filteredFixedEmployees.map(emp => {
+                      const empIdStr = String(emp._id || emp.id);
+                      const isSelected = empIdStr === String(fixedShiftModal.selectedEmployeeId);
+                      const roleInfo = getEmployeeRoleInfo(empIdStr);
+                      const count = getEmployeeWeeklyShiftCount(empIdStr);
+
+                      return (
+                        <div
+                          key={empIdStr}
+                          onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedEmployeeId: empIdStr }))}
+                          className={`p-2.5 flex items-center justify-between cursor-pointer transition-all ${
+                            isSelected ? 'bg-emerald-50/80 border-l-4 border-l-emerald-600' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                              isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {getInitials(emp.fullName)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className={`text-xs font-bold truncate ${isSelected ? 'text-emerald-900' : 'text-slate-800'}`}>
+                                {formatEmployeeName(emp.fullName)}
+                              </div>
+                              <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                                <span className={roleInfo.isManager ? 'text-purple-700 font-semibold' : 'text-slate-600'}>
+                                  {roleInfo.label}
+                                </span>
+                                <span>•</span>
+                                <span>{emp.email}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                              {count} ca/tuần
+                            </span>
+                            {isSelected && (
+                              <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                                <Check size={12} strokeWidth={3} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Bước 2: Chọn Ca Làm Việc */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+                  2. Chọn Ca Làm Việc Cố Định:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {shifts.map(sh => {
+                    const isSelected = sh._id === fixedShiftModal.selectedShiftId;
+                    return (
+                      <div
+                        key={sh._id}
+                        onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedShiftId: sh._id }))}
+                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20' 
+                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div 
+                            className="w-3 h-3 rounded-full shrink-0" 
+                            style={{ backgroundColor: sh.color || '#0057cd' }}
+                          ></div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900">{sh.name}</div>
+                            <div className="text-[11px] text-slate-500 font-medium">{sh.startTime} - {sh.endTime}</div>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                            <Check size={10} strokeWidth={3} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Bước 3: Chọn Các Ngày Áp Dụng Trong Tuần */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    3. Chọn Các Ngày Trực Cố Định:
+                  </label>
+                  {/* Presets */}
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedDays: [0, 1, 2, 3, 4] }))}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 font-medium transition-colors cursor-pointer"
+                    >
+                      T2 - T6
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedDays: [0, 1, 2, 3, 4, 5, 6] }))}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 font-medium transition-colors cursor-pointer"
+                    >
+                      Cả tuần
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedDays: [5, 6] }))}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 font-medium transition-colors cursor-pointer"
+                    >
+                      Cuối tuần
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1.5">
+                  {weekDays.map((d, dayIdx) => {
+                    const isSelected = fixedShiftModal.selectedDays.includes(dayIdx);
+                    const dayName = d.toLocaleDateString('vi-VN', { weekday: 'short' });
+                    const isWeekend = dayIdx === 5 || dayIdx === 6;
+
+                    return (
+                      <button
+                        key={d.toISOString()}
+                        type="button"
+                        onClick={() => {
+                          setFixedShiftModal(prev => {
+                            const exists = prev.selectedDays.includes(dayIdx);
+                            const nextDays = exists 
+                              ? prev.selectedDays.filter(i => i !== dayIdx)
+                              : [...prev.selectedDays, dayIdx].sort((a, b) => a - b);
+                            return { ...prev, selectedDays: nextDays };
+                          });
+                        }}
+                        className={`p-2 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          isSelected 
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                            : isWeekend
+                              ? 'bg-slate-50 text-slate-700 border-slate-200 hover:border-emerald-300'
+                              : 'bg-white text-slate-800 border-slate-200 hover:border-emerald-300'
+                        }`}
+                      >
+                        <span className={`text-[11px] font-extrabold uppercase ${isSelected ? 'text-white' : 'text-slate-600'}`}>
+                          {dayName}
+                        </span>
+                        <span className={`text-[10px] mt-0.5 font-medium ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                          {d.getDate()}/{d.getMonth() + 1}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tùy chọn nâng cao: Áp dụng các tuần tiếp theo */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={fixedShiftModal.applyNextWeeks}
+                    onChange={(e) => setFixedShiftModal(prev => ({ ...prev, applyNextWeeks: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-slate-700">
+                    Áp dụng ca làm việc cố định này cho cả 3 tuần tiếp theo trong tháng
+                  </span>
+                </label>
+                <p className="text-[11px] text-slate-500 pl-6">
+                  Hệ thống sẽ tự động gán ca trực này vào các tuần tiếp theo của chi nhánh mà bạn không cần phải xếp lại thủ công.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                Đã chọn: <strong className="text-slate-900">{fixedShiftModal.selectedDays.length} ngày</strong> trong tuần
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFixedShiftModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-200/60 transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingFixedShift || fixedShiftModal.selectedDays.length === 0}
+                  onClick={handleSaveFixedShift}
+                  className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
+                >
+                  {submittingFixedShift ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} strokeWidth={2.5} />
+                      <span>Xác Nhận & Gán Ca Cố Định</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Hộp thoại xác nhận tùy chỉnh (thay thế window.confirm) */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0057cd] flex items-center justify-center shrink-0 font-bold">
+                <AlertCircle size={22} />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">{confirmModal.title}</h3>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed pl-1">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = confirmModal.onConfirm;
+                  setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                  action();
+                }}
+                className="px-5 py-2 text-xs font-bold bg-[#0057cd] hover:bg-[#00419e] text-white rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Thông báo Toast nội bộ (thay thế hoàn toàn alert trình duyệt) */}
+      <div className="fixed top-5 right-5 z-[60] flex flex-col gap-2.5 max-w-sm pointer-events-none">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto p-3.5 rounded-2xl shadow-xl border flex items-start gap-3 transition-all animate-in slide-in-from-top-3 duration-200 ${
+              toast.type === 'success'
+                ? 'bg-white text-slate-800 border-emerald-200 ring-1 ring-emerald-500/15'
+                : toast.type === 'error'
+                  ? 'bg-white text-slate-800 border-rose-200 ring-1 ring-rose-500/15'
+                  : toast.type === 'warning'
+                    ? 'bg-white text-slate-800 border-amber-200 ring-1 ring-amber-500/15'
+                    : 'bg-white text-slate-800 border-blue-200 ring-1 ring-blue-500/15'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+              toast.type === 'success'
+                ? 'bg-emerald-100 text-emerald-700'
+                : toast.type === 'error'
+                  ? 'bg-rose-100 text-rose-700'
+                  : toast.type === 'warning'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-blue-100 text-blue-700'
+            }`}>
+              {toast.type === 'success' && <CheckCircle2 size={18} />}
+              {toast.type === 'error' && <AlertCircle size={18} />}
+              {toast.type === 'warning' && <AlertCircle size={18} />}
+              {toast.type === 'info' && <CheckCircle2 size={18} />}
+            </div>
+
+            <div className="flex-1 pt-0.5 min-w-0">
+              <div className="text-xs font-semibold leading-relaxed">
+                {toast.message}
+              </div>
+            </div>
+
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors shrink-0 cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

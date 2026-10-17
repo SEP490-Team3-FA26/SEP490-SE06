@@ -256,6 +256,30 @@ async def build_prescription_scan_response(ocr_result: dict, start_time: float):
         "processing_time_sec": round(time.time() - start_time, 2),
     }
 
+@router.post("/api/ai/transcribe")
+async def transcribe_speech_only(
+    audio: UploadFile = File(...)
+):
+    """
+    Endpoint bóc tách âm thanh siêu tốc sang văn bản tiếng Việt (Groq Whisper / Google Gemini)
+    Thời gian phản hồi ~300ms - 600ms, phục vụ live transcription như ChatGPT.
+    """
+    start_time = time.time()
+    try:
+        text = await transcribe_audio(audio)
+        return {
+            "success": bool(text and text.strip()),
+            "text": text or "",
+            "processing_time_sec": round(time.time() - start_time, 2)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "text": "",
+            "error": str(e),
+            "processing_time_sec": round(time.time() - start_time, 2)
+        }
+
 @router.post("/api/prescription")
 async def recommend_prescription(
     audio: UploadFile = File(...),
@@ -264,8 +288,18 @@ async def recommend_prescription(
 ):
     start_time = time.time()
     try:
-        # Step 1: STT - Nhận diện giọng nói
+        # Step 1: STT - Nhận diện giọng nói (Groq Whisper -> Google Gemini Multimodal)
         transcribed_text = await transcribe_audio(audio)
+        if not transcribed_text or not transcribed_text.strip():
+            return {
+                "success": False,
+                "transcribed_text": "",
+                "prescription": {"recommended_drugs": []},
+                "inventory_status": {"available": [], "unavailable": []},
+                "branch_id": branch_id,
+                "message": "Không nhận diện được giọng nói trong file ghi âm.",
+                "processing_time_sec": round(time.time() - start_time, 2)
+            }
         
         # Step 2: Chuẩn hóa lỗi STT trước khi truy vấn vector DB.
         rag_query = await normalize_transcript_for_retrieval(transcribed_text)

@@ -94,6 +94,10 @@ export class CreateOrderDto {
 
   @IsNumber()
   @IsOptional()
+  voucherDiscount?: number;
+
+  @IsNumber()
+  @IsOptional()
   redeemedPoints?: number;
 
   @IsString()
@@ -176,6 +180,10 @@ export class CreatePayOSLinkDto {
   @IsString()
   @IsOptional()
   voucherCode?: string;
+
+  @IsNumber()
+  @IsOptional()
+  voucherDiscount?: number;
 
   @IsNumber()
   @IsOptional()
