@@ -60,7 +60,7 @@ export function BranchRequisition() {
     try {
       const [prRes, medRes] = await Promise.all([
         purchaseRequisitionService.getPurchaseRequisitions().catch(() => []),
-        medicineService.getMedicines({ limit: 500 }).then(r => r.data || r).catch(() => []),
+        medicineService.getMedicinesDropdown().then(r => r.data || (Array.isArray(r) ? r : [])).catch(() => []),
       ]);
 
       setPrList(Array.isArray(prRes) ? prRes : (prRes.data || []));

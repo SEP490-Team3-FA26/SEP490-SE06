@@ -38,15 +38,9 @@ export class OrderController implements OnModuleInit {
     @Optional() @Inject(CACHE_MANAGER) private readonly cacheManager?: Cache,
   ) {}
 
-  // Tự động dọn sạch cache danh mục thuốc trên Redis để UI phản ánh ngay số tồn kho thực tế
+  // Tránh reset() toàn bộ Redis làm sập hiệu năng trang chủ và mất session của user
   private async clearMedicineCache() {
-    if (this.cacheManager) {
-      try {
-        await (this.cacheManager as any).reset?.();
-      } catch (e) {
-        // Bỏ qua lỗi cache để không ảnh hưởng luồng nghiệp vụ chính
-      }
-    }
+    // Để TTL tự nhiên (2 phút) của Redis xử lý hoặc evict có chọn lọc
   }
 
   async onModuleInit() {

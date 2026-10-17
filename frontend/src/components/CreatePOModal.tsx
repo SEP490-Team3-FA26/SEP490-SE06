@@ -54,10 +54,10 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
   // Fetch full medicines for filtering
   useEffect(() => {
     Promise.all([
-      medicineService.getMedicines({ limit: 500 }),
+      medicineService.getMedicinesDropdown(),
       supplierService.getSuppliers()
     ]).then(([medData, supData]) => {
-      setMedicines(Array.isArray(medData?.data) ? medData.data : []);
+      setMedicines(Array.isArray(medData?.data) ? medData.data : (Array.isArray(medData) ? medData : []));
       setSuppliers(Array.isArray(supData) ? supData : []);
     }).catch(err => {
       console.error("Lỗi khi tải dữ liệu thuốc/nhà cung cấp:", err);

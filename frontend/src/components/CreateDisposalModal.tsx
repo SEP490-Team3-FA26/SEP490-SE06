@@ -80,9 +80,9 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
 
   // Fetch full medicines for filtering
   useEffect(() => {
-    medicineService.getMedicines({ limit: 500 })
+    medicineService.getMedicinesDropdown()
       .then(res => {
-        const list = Array.isArray(res?.data) ? res.data : [];
+        const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
         setMedicines(list);
       })
       .catch(err => {

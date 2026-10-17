@@ -321,16 +321,13 @@ export function VoucherManagement() {
           console.warn("Dropdown API failed, falling back to medicines list:", dropErr);
         }
 
-        // Đảm bảo tải đầy đủ toàn bộ hơn 2.300 loại dược phẩm trong hệ thống
-        if (!list || list.length < 2000) {
+        // Chỉ sử dụng API dropdown siêu nhẹ để tránh nghẽn server và database
+        if (!list || list.length === 0) {
           try {
-            const fallbackRes = await medicineService.getMedicines({ limit: 5000 });
-            const fullList = Array.isArray(fallbackRes) ? fallbackRes : (fallbackRes?.data && Array.isArray(fallbackRes.data) ? fallbackRes.data : []);
-            if (fullList.length > list.length) {
-              list = fullList;
-            }
-          } catch (fallbackErr) {
-            console.warn("Fallback getMedicines limit 5000:", fallbackErr);
+            const retryRes = await medicineService.getMedicinesDropdown();
+            list = Array.isArray(retryRes) ? retryRes : (retryRes?.data && Array.isArray(retryRes.data) ? retryRes.data : []);
+          } catch (retryErr) {
+            console.warn("Retry dropdown failed:", retryErr);
           }
         }
 
