@@ -1,5 +1,4 @@
 import os
-import re
 import base64
 import json
 import httpx
@@ -74,109 +73,109 @@ SCHEMA BẮT BUỘC TRẢ VỀ DẠNG STRUCTURED JSON DƯỚI ĐÂY (KHÔNG KÈM
 }
 """
 
+class VisionProviderError(Exception):
+    """A provider failure safe to expose without logging prescription contents."""
+
+
 async def analyze_prescription_images(images: List[Tuple[bytes, str]]) -> Dict[str, Any]:
-    """
-    Gửi ảnh đơn thuốc tới OpenRouter Gemini 2.5 Flash Vision (fallback Google Direct API).
-    """
     openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
     google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_KEY")
+    errors: List[str] = []
 
-    # Strategy 1: Call OpenRouter Gemini 2.5 Flash API
     if openrouter_key:
         try:
-            res = await _call_openrouter_gemini_vision(images, openrouter_key)
-            if res:
-                return res
-        except Exception as e:
-            print(f"OpenRouter Gemini Vision call error: {e}")
+            return await _call_openrouter_gemini_vision(images, openrouter_key)
+        except VisionProviderError as exc:
+            errors.append(str(exc))
 
-    # Strategy 2: Call Google AI Studio Direct API if Google key present
     if google_key and len(google_key) > 10:
         try:
-            res = await _call_google_direct_api(images, google_key)
-            if res:
-                return res
-        except Exception as e:
-            print(f"Google Direct API call error: {e}")
+            result = await _call_google_direct_api(images, google_key)
+            if result:
+                return result
+            errors.append("Google Gemini không trả về JSON hợp lệ.")
+        except Exception:
+            errors.append("Google Gemini không khả dụng.")
 
-    raise Exception("Không thể kết nối dịch vụ AI Vision (OpenRouter/Google API). Vui lòng kiểm tra lại cấu hình API key.")
+    if not openrouter_key and not google_key:
+        raise VisionProviderError("Chưa cấu hình OPEN_ROUTER_API hoặc GEMINI_API_KEY cho OCR.")
+    raise VisionProviderError("OCR AI không khả dụng: " + " ".join(errors))
+
 
 async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_key: str) -> Dict[str, Any]:
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-
     content_list = [{"type": "text", "text": GEMINI_SYSTEM_PROMPT}]
-
     for idx, (img_bytes, mime_type) in enumerate(images):
-        b64 = base64.b64encode(img_bytes).decode('utf-8')
-        m_type = mime_type if mime_type and "image" in mime_type else "image/jpeg"
-        content_list.append({
-            "type": "text",
-            "text": f"--- HÌNH ĐƠN THUỐC TRANG {idx + 1} ---"
-        })
-        content_list.append({
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:{m_type};base64,{b64}"
-            }
-        })
+        m_type = mime_type if mime_type and mime_type.startswith("image/") else "image/jpeg"
+        content_list.extend([
+            {"type": "text", "text": f"--- HÌNH ĐƠN THUỐC TRANG {idx + 1} ---"},
+            {"type": "image_url", "image_url": {
+                "url": f"data:{m_type};base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+            }},
+        ])
 
-    # Giới hạn max_tokens ở mức 1000 vừa đủ cho đơn thuốc JSON và không vượt hạn mức credit tài khoản
-    current_max_tokens = 1000
     models_to_try = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"]
-
-    async with httpx.AsyncClient(timeout=45.0) as client:
+    last_error = "OpenRouter không phản hồi."
+    async with httpx.AsyncClient(timeout=60.0) as client:
         for model in models_to_try:
             payload = {
                 "model": model,
-                "max_tokens": current_max_tokens,
+                "max_tokens": 2048,
                 "temperature": 0.1,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": content_list
-                    }
-                ],
-                "response_format": {"type": "json_object"}
+                "messages": [{"role": "user", "content": content_list}],
+                "response_format": {"type": "json_object"},
             }
-
-            for attempt in range(1, 3):
+            for attempt in range(2):
                 try:
                     res = await client.post(url, json=payload, headers=headers)
-                    if res.status_code == 200:
-                        data = res.json()
-                        choices = data.get("choices", [])
-                        if choices:
-                            raw_msg = choices[0].get("message", {}).get("content", "")
-                            parsed = json.loads(raw_msg)
-                            parsed["prompt_version"] = f"v2.1 (OpenRouter {model})"
-                            return parsed
-
-                    # Xử lý khi OpenRouter báo thiếu credit do max_tokens
                     if res.status_code == 402:
-                        res_text = res.text
-                        print(f"OpenRouter attempt {attempt} 402: {res_text[:200]}")
-                        match = re.search(r"can only afford (\d+)", res_text)
-                        if match:
-                            afford = int(match.group(1))
-                            if afford > 300:
-                                payload["max_tokens"] = min(afford - 50, 1000)
-                                print(f"OpenRouter tự động hạ max_tokens xuống {payload['max_tokens']} và thử lại...")
-                                continue
-                        # Nếu không parse được afford thì thử hạ xuống 800
-                        if payload["max_tokens"] > 800:
-                            payload["max_tokens"] = 800
+                        last_error = "OpenRouter không đủ credit cho OCR hoặc đang giữ credit cho request khác (HTTP 402)."
+                        if attempt == 0:
+                            await asyncio.sleep(2)
                             continue
+                        break
+                    if res.status_code in (401, 403):
+                        raise VisionProviderError("OpenRouter từ chối API key (HTTP 401/403).")
+                    if res.status_code != 200:
+                        last_error = f"OpenRouter {model} trả HTTP {res.status_code}."
+                        if res.status_code == 429 or res.status_code >= 500:
+                            await asyncio.sleep(attempt + 1)
+                            continue
+                        break
 
-                    print(f"OpenRouter [{model}] attempt {attempt} status {res.status_code}: {res.text[:200]}")
-                    await asyncio.sleep(attempt * 0.5)
-                except Exception as exc:
-                    print(f"OpenRouter [{model}] attempt {attempt} error: {exc}")
-                    await asyncio.sleep(attempt * 0.5)
-    return {}
+                    data = res.json()
+                    choices = data.get("choices") or []
+                    if not choices:
+                        last_error = f"OpenRouter {model} trả kết quả rỗng."
+                        continue
+                    choice = choices[0]
+                    raw_msg = choice.get("message", {}).get("content") or ""
+                    if choice.get("finish_reason") == "length":
+                        last_error = f"OpenRouter {model} cắt ngắn JSON OCR do giới hạn token."
+                        payload["max_tokens"] = 4096
+                        continue
+                    try:
+                        parsed = json.loads(raw_msg)
+                    except (TypeError, json.JSONDecodeError):
+                        last_error = f"OpenRouter {model} trả JSON OCR không hợp lệ."
+                        continue
+                    if not isinstance(parsed, dict):
+                        last_error = f"OpenRouter {model} trả JSON OCR sai định dạng."
+                        continue
+                    parsed["prompt_version"] = f"v2.2 (OpenRouter {model})"
+                    return parsed
+                except VisionProviderError:
+                    raise
+                except (httpx.HTTPError, ValueError, KeyError) as exc:
+                    last_error = f"OpenRouter {model} lỗi kết nối hoặc dữ liệu ({type(exc).__name__})."
+                    if attempt == 0:
+                        await asyncio.sleep(1)
+    raise VisionProviderError(last_error)
+
 
 async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str) -> Dict[str, Any]:
     models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
@@ -207,6 +206,6 @@ async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str)
                     parsed = json.loads(text_content)
                     parsed["prompt_version"] = f"v2.1 (Google {model})"
                     return parsed
-            except Exception as e:
-                print(f"Google Direct {model} error: {e}")
+            except Exception as exc:
+                print(f"Google Direct {model} error: {type(exc).__name__}")
     return {}

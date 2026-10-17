@@ -356,6 +356,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const handleSendVoiceToAI = async () => {
     if (!voiceBlob) return;
     setAiLoading(true);
+    setAiResult(null);
     try {
       const { branchId: currentBranchId } = getBranchInfoFromToken();
       const activeBranch = currentBranchId || "BR-001";
