@@ -178,116 +178,12 @@ export const aiClinicalService = {
    * Record walk-in customer voice, run Whisper STT & RAG recommendation
    */
   async recordVoiceConsult(formData: FormData) {
-    try {
-      const response = await api.post(API_ENDPOINTS.AI.VOICE_CONSULT, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    } catch (err: any) {
-      console.warn("AI Voice consultation service unavailable, using clinical fallback data:", err);
-      return {
-        success: true,
-        transcribed_text: "Khách hàng nam 35 tuổi, sốt nhẹ 38.5 độ C, đau rát họng, ho có đờm trắng từ 2 ngày trước, không có tiền sử dị ứng thuốc.",
-        prescription: {
-          confidence_score: 0.94,
-          recommended_drugs: [
-            {
-              name: "Paracetamol 500mg",
-              dosage: "500mg",
-              frequency: "Uống 1 viên mỗi 4-6 giờ khi sốt > 38.5°C",
-              duration: "3-5 ngày",
-              indication: "Hạ sốt, giảm đau rát họng",
-              quantity: 10,
-              unit: "Viên",
-              price: 1500,
-            },
-            {
-              name: "Ambroxol 30mg",
-              dosage: "30mg",
-              frequency: "Uống 1 viên/lần x 3 lần/ngày sau ăn",
-              duration: "5 ngày",
-              indication: "Long đờm, giảm đờm nhầy niêm mạc phế quản",
-              quantity: 15,
-              unit: "Viên",
-              price: 2500,
-            },
-            {
-              name: "Strepsils Cool Hộp 24 viên",
-              dosage: "1 viên",
-              frequency: "Ngậm 1 viên mỗi 2-3 giờ khi rát họng (tối đa 8 viên/ngày)",
-              duration: "3 ngày",
-              indication: "Sát khuẩn họng, làm dịu niêm mạc",
-              quantity: 1,
-              unit: "Hộp",
-              price: 38000,
-            },
-            {
-              name: "Vitamin C 500mg",
-              dosage: "500mg",
-              frequency: "Uống 1 viên/ngày vào buổi sáng sau ăn",
-              duration: "7 ngày",
-              indication: "Tăng cường miễn dịch đề kháng",
-              quantity: 10,
-              unit: "Viên",
-              price: 2000,
-            },
-          ],
-          warnings: "Lưu ý không dùng quá 4000mg Paracetamol/ngày. Uống nhiều nước ấm để tăng hiệu quả long đờm.",
-        },
-        inventory_status: {
-          available: [
-            {
-              id: "MED-001",
-              _id: "MED-001",
-              name: "Paracetamol 500mg",
-              stock: 120,
-              branch_stock: 120,
-              unit: "Viên",
-              price: 1500,
-              suggested_alternatives: [],
-            },
-            {
-              id: "MED-002",
-              _id: "MED-002",
-              name: "Ambroxol 30mg",
-              stock: 85,
-              branch_stock: 85,
-              unit: "Viên",
-              price: 2500,
-              suggested_alternatives: [],
-            },
-            {
-              id: "MED-003",
-              _id: "MED-003",
-              name: "Strepsils Cool Hộp 24 viên",
-              stock: 40,
-              branch_stock: 40,
-              unit: "Hộp",
-              price: 38000,
-              suggested_alternatives: [],
-            },
-            {
-              id: "MED-004",
-              _id: "MED-004",
-              name: "Vitamin C 500mg",
-              stock: 200,
-              branch_stock: 200,
-              unit: "Viên",
-              price: 2000,
-              suggested_alternatives: [],
-            },
-          ],
-          out_of_stock: [],
-        },
-      };
-    }
+    const response = await api.post(API_ENDPOINTS.AI.VOICE_CONSULT, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
   },
 
-  /**
-   * Query voice consultation records
-   */
   async getConsultations(params?: ConsultationQuery) {
     const response = await api.get(API_ENDPOINTS.AI.CONSULTATIONS, { params });
     return response.data;
