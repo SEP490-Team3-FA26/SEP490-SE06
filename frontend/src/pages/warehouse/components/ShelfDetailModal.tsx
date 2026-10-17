@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   X, Loader2, Package, Calendar, AlertTriangle,
-  Clock, CheckCircle, MapPin, ShieldAlert, Archive,
+  Clock, CheckCircle, MapPin, Archive,
   AlertCircle, ArrowLeftRight, ChevronDown, Trash2
 } from "lucide-react";
 import { inventoryMapService, BinDetailResponse } from "../../../services/inventory/inventoryMap.service";
@@ -23,12 +24,11 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; b
   LOW_STOCK: { label: "Sắp hết hàng", bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200", icon: <AlertTriangle size={11} /> },
   NORMAL: { label: "An toàn", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle size={11} /> },
   ACTIVE: { label: "An toàn", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle size={11} /> },
-  QUARANTINED: { label: "Đã khóa (Cách ly)", bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", icon: <ShieldAlert size={11} /> },
 };
 
 export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }: ShelfDetailModalProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [quarantining, setQuarantining] = useState<string | null>(null);
 
   // Toast thông báo chuyên nghiệp
   const [toast, setToast] = useState<{
@@ -42,20 +42,6 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
       setToast(null);
     }, 3500);
   };
-
-  // State quản lý Modal Xuất Hủy cho lô hết hạn
-  const [disposeModal, setDisposeModal] = useState<{
-    isOpen: boolean;
-    batch: any | null;
-    quantity: number;
-    notes: string;
-  }>({
-    isOpen: false,
-    batch: null,
-    quantity: 0,
-    notes: "Thuốc hết hạn sử dụng, xuất hủy theo quy chuẩn GSP/GDP",
-  });
-  const [disposing, setDisposing] = useState(false);
 
   // Quản lý dropdown mã lô đang mở theo ID của ô thùng
   const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null);
@@ -101,56 +87,29 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
     loadData();
   }, [zone, rack, shelf, bin]);
 
-  const handleQuarantine = async (batchId: string) => {
-    try {
-      setQuarantining(batchId);
-      await inventoryMapService.quarantineBatch(batchId, "Khóa thủ công từ sơ đồ kho (cận date / hết hạn)");
-      showToast("Đã gửi yêu cầu cách ly/khóa lô thuốc thành công!", "success");
-      // Delay 1000ms để Kafka consumer ghi DB xong trước khi re-fetch
-      setTimeout(() => {
-        loadData();
-        if (onRefresh) onRefresh();
-      }, 1000);
-    } catch (err: any) {
-      showToast(err.message || "Lỗi khi khóa lô", "error");
-    } finally {
-      setQuarantining(null);
-    }
-  };
 
-  const handleOpenDispose = (batch: any) => {
-    setDisposeModal({
-      isOpen: true,
-      batch,
-      quantity: batch.stock,
-      notes: "Thuốc hết hạn sử dụng, xuất hủy theo quy chuẩn GSP/GDP",
+
+  // Điều hướng trực tiếp sang phiếu hủy thuốc GSP/GPP và tự động điền thông tin thuốc hủy
+  const handleNavigateToDispose = (item: any) => {
+    const basePath = window.location.pathname.startsWith('/admin') ? '/admin' : '/warehouse';
+    navigate(`${basePath}/inventory/dispose`, {
+      state: {
+        autoOpenCreate: true,
+        prefillItem: {
+          medicineId: item.medicineId || item.id || item._id,
+          medicineName: item.medicineName || medicineName,
+          batchId: item._id || item.batchId || item.id,
+          batchNo: item.representativeBatchNo || item.batchNo,
+          stock: item.stock,
+          unit: item.unit || unit || "Hộp",
+          price: item.price || 0,
+          expDate: item.expDate,
+          batches: item.batches,
+          reason: "Thuốc quá hạn sử dụng theo quy định Dược (Hết date)",
+        },
+      },
     });
-  };
-
-  const handleConfirmDispose = async () => {
-    if (!disposeModal.batch) return;
-    if (disposeModal.quantity <= 0 || disposeModal.quantity > disposeModal.batch.stock) {
-      showToast("Số lượng xuất hủy không hợp lệ!", "warning");
-      return;
-    }
-    try {
-      setDisposing(true);
-      await inventoryMapService.disposeExpiredBatch({
-        batchId: disposeModal.batch._id || disposeModal.batch.id,
-        quantity: disposeModal.quantity,
-        notes: disposeModal.notes,
-      });
-      showToast(`Đã xuất hủy thành công lô ${disposeModal.batch.batchNo}!`, "success");
-      setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" });
-      setTimeout(() => {
-        loadData();
-        if (onRefresh) onRefresh();
-      }, 1000);
-    } catch (err: any) {
-      showToast(err.response?.data?.message || err.message || "Lỗi khi xuất hủy lô", "error");
-    } finally {
-      setDisposing(false);
-    }
+    if (onClose) onClose();
   };
 
   // Thống kê chế độ Ô Thùng
@@ -263,7 +222,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
           )}
 
           {/* Content Area */}
-          <div className="flex-1 overflow-auto p-6 space-y-6 bg-white custom-scrollbar">
+          <div className={`flex-1 overflow-auto bg-white custom-scrollbar ${isBinMode ? "p-6 space-y-6" : "p-0"}`}>
             {loading ? (
               <div className="flex flex-col items-center justify-center h-48 text-slate-400">
                 <Loader2 className="animate-spin mb-3 text-sky-500" size={32} />
@@ -298,7 +257,6 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                 <th className="px-3 py-2.5 text-right">Số lượng tồn</th>
                                 <th className="px-3 py-2.5">Hạn sử dụng</th>
                                 <th className="px-3 py-2.5">Trạng thái</th>
-                                <th className="px-3 py-2.5 text-right">Thao tác</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-amber-100">
@@ -323,16 +281,6 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
                                         {sc.icon} {sc.label}
                                       </span>
-                                    </td>
-                                    <td className="px-3 py-2.5 text-right">
-                                      <button
-                                        onClick={() => handleQuarantine(rb._id)}
-                                        disabled={quarantining === rb._id}
-                                        className="px-2 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-200 text-[10px] transition font-medium"
-                                        title="Khóa cách ly nếu hỏng/hết hạn"
-                                      >
-                                        {quarantining === rb._id ? "Đang khóa..." : "Khóa Lô"}
-                                      </button>
                                     </td>
                                   </tr>
                                 );
@@ -460,7 +408,11 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                     {/* Nút Xuất Hủy màu đỏ rực rỡ chỉ hiển thị cho lô đã hết hạn */}
                                     {isExpired && (
                                       <button
-                                        onClick={() => handleOpenDispose(mb)}
+                                        onClick={() => handleNavigateToDispose({
+                                          ...mb,
+                                          medicineName: mb.medicineName || medicineName,
+                                          unit: mb.unit || unit,
+                                        })}
                                         className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1 shadow-2xs border border-rose-700 cursor-pointer"
                                         title="Xuất hủy lô thuốc đã hết hạn sử dụng (GSP/GDP)"
                                       >
@@ -485,15 +437,6 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                       <ArrowLeftRight size={11} /> Dời ô
                                     </button>
 
-                                    {/* Nút Khóa Lô */}
-                                    <button
-                                      onClick={() => handleQuarantine(mb._id)}
-                                      disabled={quarantining === mb._id || mb.status === 'QUARANTINED'}
-                                      className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 text-xs transition disabled:opacity-50 font-medium cursor-pointer"
-                                      title="Khóa lô (Cách ly không xuất bán)"
-                                    >
-                                      {quarantining === mb._id ? "Đang khóa..." : mb.status === 'QUARANTINED' ? "Đã khóa" : "Khóa"}
-                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -508,23 +451,23 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
             ) : (
               /* CHẾ ĐỘ XEM TẦNG KỆ (TẤT CẢ CÁC Ô THÙNG TRÊN TẦNG) */
               shelfData.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-slate-400">
+                <div className="flex flex-col items-center justify-center h-64 text-slate-400 p-6">
                   <Package size={40} className="mb-2 opacity-30 text-slate-300" />
                   <p className="font-semibold text-slate-600 text-sm">Tầng kệ này đang trống</p>
                   <p className="text-xs text-slate-400 mt-0.5">Chưa có lô hàng nào được xếp tại đây</p>
                 </div>
               ) : (
-                <div className="overflow-visible rounded-xl border border-slate-200 bg-white">
-                  <table className="w-full text-left text-xs">
-                    <thead className="text-[10px] uppercase font-bold tracking-wider bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
+                <div className="overflow-visible bg-white min-w-full">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="text-[10px] uppercase font-bold tracking-wider text-slate-600 border-b border-slate-200 sticky top-0 z-20 shadow-xs">
                       <tr>
-                        <th className="px-4 py-3">Tên thuốc</th>
-                        <th className="px-4 py-3">Mã lô</th>
-                        <th className="px-4 py-3 text-right">Số lượng</th>
-                        <th className="px-4 py-3">Đơn vị</th>
-                        <th className="px-4 py-3">Hạn sử dụng</th>
-                        <th className="px-4 py-3">Trạng thái</th>
-                        <th className="px-4 py-3 text-right">Thao tác</th>
+                        <th className="px-6 py-3.5 bg-slate-50 sticky top-0">Tên thuốc</th>
+                        <th className="px-4 py-3.5 bg-slate-50 sticky top-0">Mã lô</th>
+                        <th className="px-4 py-3.5 text-right bg-slate-50 sticky top-0">Số lượng</th>
+                        <th className="px-4 py-3.5 bg-slate-50 sticky top-0">Đơn vị</th>
+                        <th className="px-4 py-3.5 bg-slate-50 sticky top-0">Hạn sử dụng</th>
+                        <th className="px-4 py-3.5 bg-slate-50 sticky top-0">Trạng thái</th>
+                        <th className="px-6 py-3.5 text-right bg-slate-50 sticky top-0">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -537,7 +480,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
 
                         return (
                           <tr key={idx} className={`transition-colors hover:bg-slate-50 ${isAlert ? "bg-rose-50/30" : ""}`}>
-                            <td className="px-4 py-3">
+                            <td className="px-6 py-3.5">
                               <div className="flex items-center gap-2">
                                 {item.bin != null && (
                                   <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 shrink-0" title={`Thùng ${item.bin}`}>
@@ -641,10 +584,13 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                                     onClick={(e) => {
                                                       e.stopPropagation();
                                                       setOpenDropdownKey(null);
-                                                      handleOpenDispose({
+                                                      handleNavigateToDispose({
                                                         ...b,
+                                                        medicineId: item.medicineId || b.medicineId,
                                                         medicineName: item.medicineName,
                                                         unit: item.unit || "Hộp",
+                                                        price: item.price,
+                                                        batches: item.batches,
                                                       });
                                                     }}
                                                     className="p-1 rounded-md text-rose-600 hover:bg-rose-100 transition cursor-pointer"
@@ -713,18 +659,21 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                 {sc.icon} {sc.label}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-6 py-3.5 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 {/* Nút Xuất hủy nếu ô thùng này hết hạn */}
                                 {item.status === "EXPIRED" && (
                                   <button
-                                    onClick={() => handleOpenDispose({
-                                      _id: item._id || item.id || item.batchId,
+                                    onClick={() => handleNavigateToDispose({
+                                      _id: item.representativeBatchId || item.batchId || item._id,
                                       batchNo: item.representativeBatchNo || item.batchNo,
                                       stock: item.stock,
                                       unit: item.unit || "Hộp",
                                       expDate: item.expDate,
                                       medicineName: item.medicineName,
+                                      medicineId: item.medicineId,
+                                      price: item.price,
+                                      batches: item.batches,
                                     })}
                                     className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1 shadow-2xs border border-rose-700 cursor-pointer"
                                     title="Xuất hủy lô thuốc đã hết hạn sử dụng (GSP/GDP)"
@@ -750,17 +699,8 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                   <ArrowLeftRight size={11} /> Dời ô
                                 </button>
 
-                                {(item._id || item.id || item.batchId) && (
-                                  <button
-                                    onClick={() => handleQuarantine(item._id || item.id || item.batchId)}
-                                    disabled={quarantining === (item._id || item.id || item.batchId) || item.status === 'QUARANTINED'}
-                                    className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 text-xs transition font-medium"
-                                  >
-                                    Khóa
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+                                </div>
+                              </td>
                           </tr>
                         );
                       })}
@@ -812,113 +752,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
         />
       )}
 
-      {/* MODAL XÁC NHẬN XUẤT HỦY LÔ THUỐC HẾT HẠN */}
-      {disposeModal.isOpen && disposeModal.batch && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
-          onClick={() => setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" })}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 pb-3 border-b border-rose-100 text-rose-700">
-              <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-200">
-                <Trash2 size={20} />
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-slate-800">Biên Bản Xuất Hủy Lô Thuốc</h3>
-                <p className="text-xs text-rose-600 font-medium">Quy chuẩn Dược GDP/GSP & Thông tư 11/2025</p>
-              </div>
-            </div>
 
-            <div className="mt-4 space-y-3.5 text-xs text-slate-700">
-              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Dược phẩm:</span>
-                  <span className="font-bold text-slate-800 text-right">
-                    {disposeModal.batch.medicineName || medicineName}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Mã số lô:</span>
-                  <span className="font-mono font-bold text-rose-700">{disposeModal.batch.batchNo}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tồn kho hiện tại:</span>
-                  <span className="font-bold text-slate-800 font-mono">
-                    {disposeModal.batch.stock} {disposeModal.batch.unit || unit}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Hạn sử dụng:</span>
-                  <span className="font-bold text-rose-600">
-                    {disposeModal.batch.expDate ? new Date(disposeModal.batch.expDate).toLocaleDateString("vi-VN") : "—"} (ĐÃ HẾT HẠN)
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Số lượng xuất hủy ({disposeModal.batch.unit || unit}):
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={disposeModal.batch.stock}
-                  value={disposeModal.quantity}
-                  onChange={(e) => setDisposeModal((prev) => ({ ...prev, quantity: Math.max(1, Number(e.target.value)) }))}
-                  className="w-full px-3 py-2 border rounded-xl text-slate-800 font-mono font-bold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Lý do / Căn cứ xuất hủy:
-                </label>
-                <textarea
-                  rows={2}
-                  value={disposeModal.notes}
-                  onChange={(e) => setDisposeModal((prev) => ({ ...prev, notes: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-xl text-slate-800 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                />
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
-                ⚠️ <b>Lưu ý:</b> Thao tác này sẽ trừ số lượng tồn kho của lô, lập phiếu xuất hủy loại <code>DISPOSE</code> và đồng bộ lên CSDL Dược Quốc gia.
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setDisposeModal({ isOpen: false, batch: null, quantity: 0, notes: "" })}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
-              >
-                Đóng
-              </button>
-              <button
-                type="button"
-                disabled={disposing}
-                onClick={handleConfirmDispose}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition flex items-center gap-1.5 border border-rose-700 cursor-pointer disabled:opacity-50"
-              >
-                {disposing ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Đang xử lý xuất hủy...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={13} />
-                    <span>Xác nhận xuất hủy</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Toast thông báo chuyên nghiệp */}
       {toast && (
