@@ -125,11 +125,26 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({ summary: "Lấy báo cáo hết hạn của các lô hàng" })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getExpirationReport(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:expiration_report:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.expiration_report",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 120000);
+      } catch (e) {}
+    }
+    return result;
   }
 
   // Hỗ trợ cả 2 alias endpoint để đảm bảo tương thích ngược 100%
@@ -166,11 +181,26 @@ export class MedicineController implements OnModuleInit {
   })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getLowStockReport(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:low_stock_report:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.low_stock_report",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 120000);
+      } catch (e) {}
+    }
+    return result;
   }
 
   @Get("dropdown")
@@ -191,15 +221,28 @@ export class MedicineController implements OnModuleInit {
   @Get("warehouse-map")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @UseInterceptors(CacheInterceptor)
-  @CacheTTL(60000) // Cache 60s
   @ApiOperation({ summary: "Lấy sơ đồ kho tổng quan 2D/3D" })
   async getWarehouseMap() {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:warehouse_map`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.warehouse_map",
       {},
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 120000);
+      } catch (e) {}
+    }
+    return result;
   }
 
   @Get("shelf-detail")
@@ -418,7 +461,22 @@ export class MedicineController implements OnModuleInit {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lay danh sach lo dang o Khu Du Tru (FEFO sorted)' })
   async getReserveBatches(@Query('branchId') branchId: string = 'CENTRAL_WH') {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.reserve.list', { branchId });
+    const cacheKey = `medicines:reserve_batches:${branchId}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.reserve.list', { branchId });
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 120000);
+      } catch (e) {}
+    }
+    return result;
   }
 
   // GET /api/medicines/bin-detail?zone=A&rack=A1&shelf=3&bin=2

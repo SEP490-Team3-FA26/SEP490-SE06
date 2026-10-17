@@ -36,6 +36,8 @@ async function bootstrap() {
             },
             consumer: {
               groupId: `${kafkaBaseGroup}-inventory`,
+              sessionTimeout: 60000,
+              heartbeatInterval: 5000,
             },
             producer: {
               maxInFlightRequests: 1,

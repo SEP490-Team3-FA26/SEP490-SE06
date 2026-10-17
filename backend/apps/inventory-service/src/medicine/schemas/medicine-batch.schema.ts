@@ -69,3 +69,9 @@ MedicineBatchSchema.index({ 'location.zone': 1, 'location.rack': 1, 'location.sh
 MedicineBatchSchema.index({ 'location.zone': 1, 'location.rack': 1, 'location.shelf': 1, 'location.bin': 1 });
 // Index phân loại Khu Chính / Khu Dự Trữ
 MedicineBatchSchema.index({ 'location.slotType': 1, branchId: 1, medicineId: 1 });
+// Index tối ưu hóa cho Sơ đồ Kho (Warehouse Map)
+MedicineBatchSchema.index({ branchId: 1, status: 1 });
+// Index tối ưu cho Khu Dự Trữ (Reserve Batches FEFO)
+MedicineBatchSchema.index({ branchId: 1, 'location.slotType': 1, status: 1, expDate: 1 });
+// Index tối ưu cho Báo cáo hết hạn (Expiration Report)
+MedicineBatchSchema.index({ branchId: 1, status: 1, expDate: 1, stock: 1 });

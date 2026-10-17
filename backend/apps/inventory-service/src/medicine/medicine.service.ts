@@ -28,9 +28,11 @@ export class MedicineService implements OnModuleInit {
   ) { }
 
   onModuleInit() {
-    this.syncMedicineStocksInBackground().catch((error) => {
-      this.logger.error('Failed to synchronize stock in background:', error);
-    });
+    setTimeout(() => {
+      this.syncMedicineStocksInBackground().catch((error) => {
+        this.logger.error('Failed to synchronize stock in background:', error);
+      });
+    }, 10000);
   }
 
   private async syncMedicineStocksInBackground() {
@@ -1349,7 +1351,11 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
-      const medBatchesFilter: any = { medicineId: { $in: lowStockMedIds } };
+      // Giới hạn tối đa 100 sản phẩm thiếu hụt khẩn cấp nhất để bảo vệ hiệu năng
+      const targetMedicines = lowStockMedicines.slice(0, 100);
+      const targetMedIds = lowStockMedIds.slice(0, 100);
+
+      const medBatchesFilter: any = { medicineId: { $in: targetMedIds } };
       if (branchId && branchId !== 'all') {
         if (branchId === 'CENTRAL_WH') {
           medBatchesFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
@@ -1371,7 +1377,7 @@ export class MedicineService implements OnModuleInit {
         batchesMap.set(b.medicineId, list);
       }
 
-      const report = lowStockMedicines.map(({ med, stock, minStock }) => {
+      const report = targetMedicines.map(({ med, stock, minStock }) => {
         const medId = med._id.toString();
         const medBatches = batchesMap.get(medId) || [];
         return {
@@ -2709,7 +2715,12 @@ export class MedicineService implements OnModuleInit {
         'location.slotType': 'RESERVE',
         stock: { $gt: 0 },
         status: { $in: ['ACTIVE', 'EXPIRED'] },
-      }).sort({ expDate: 1 }).lean().exec();
+      })
+      .select('medicineId batchNo expDate stock status branchId location')
+      .sort({ expDate: 1 })
+      .limit(300)
+      .lean()
+      .exec();
 
       // Enrich với tên thuốc
       const medicineIds = [...new Set(batches.map(b => b.medicineId))];
