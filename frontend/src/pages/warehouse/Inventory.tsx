@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, MoreHorizontal, AlertCircle, CheckCircle2, Loader2, Eye, X, Package, TrendingUp, Calendar, Truck, Tag, TrendingDown, Trash2, RotateCcw, Edit2, ShieldAlert } from "lucide-react";
+import { Plus, Search, Filter, MoreHorizontal, AlertCircle, CheckCircle2, Loader2, Eye, X, Package, TrendingUp, Calendar, Truck, Tag, TrendingDown, Trash2, RotateCcw, Edit2 } from "lucide-react";
 import { medicineService } from "../../services/inventory/medicine.service";
-import { inventoryMapService } from "../../services/inventory/inventoryMap.service";
 import { CreateMedicineModal } from "../../components/CreateMedicineModal";
 import { EditMedicineModal } from "../../components/EditMedicineModal";
 
@@ -73,8 +72,7 @@ export function Inventory() {
     }, 4500);
   };
 
-  // State modal xác nhận cách ly lô thuốc (thay thế window.confirm)
-  const [quarantineConfirmBatch, setQuarantineConfirmBatch] = useState<any | null>(null);
+
 
   const fetchMedicineDetails = async (id: string) => {
     setFetchingDetails(true);
@@ -230,29 +228,7 @@ export function Inventory() {
     }
   };
 
-  const [quarantiningId, setQuarantiningId] = useState<string | null>(null);
 
-  const handleQuarantineBatch = (batch: any) => {
-    // Mở modal xác nhận cách ly thay vì dùng window.confirm của trình duyệt
-    setQuarantineConfirmBatch(typeof batch === 'string' ? { id: batch } : batch);
-  };
-
-  const executeQuarantine = async (batchId: string) => {
-    try {
-      setQuarantiningId(batchId);
-      await inventoryMapService.quarantineBatch(batchId, "Khóa cách ly từ tab Cần xử lý");
-      showToast("Đã gửi yêu cầu cách ly lô thuốc vào Kafka queue.", "info");
-      // Delay 800ms để Kafka consumer ghi nhận cập nhật DB trước khi re-fetch
-      setTimeout(() => {
-        fetchExpirationReport();
-        fetchStats();
-      }, 800);
-    } catch (e: any) {
-      showToast("Lỗi khi khóa lô: " + (e.message || "Lỗi không xác định"), "error");
-    } finally {
-      setQuarantiningId(null);
-    }
-  };
 
   useEffect(() => {
     fetchStats();
@@ -879,33 +855,21 @@ export function Inventory() {
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className={`px-3 py-1.5 rounded-full text-xs font-bold inline-block border shadow-sm whitespace-nowrap
-                        ${batch.status === 'QUARANTINED'
-                          ? 'bg-purple-100 text-purple-800 border-purple-300'
-                          : batch.status === 'EXPIRED'
+                        ${batch.status === 'EXPIRED'
                           ? 'bg-rose-50 text-rose-700 border-rose-100'
                           : 'bg-amber-50 text-amber-700 border-amber-100'
                         }
                       `}>
-                        {batch.status === 'QUARANTINED' ? 'Đã cách ly' : batch.status === 'EXPIRED' ? 'Đã hết hạn' : 'Sắp hết hạn'}
+                        {batch.status === 'EXPIRED' ? 'Đã hết hạn' : 'Sắp hết hạn'}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openExpirationActionModal(batch)}
-                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1"
-                        >
-                          Đề xuất
-                        </button>
-                        <button
-                          onClick={() => handleQuarantineBatch(batch)}
-                          disabled={quarantiningId === (batch.id || batch._id) || batch.status === 'QUARANTINED'}
-                          className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-black px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1 disabled:opacity-50"
-                          title="Khóa lô (Cách ly không xuất bán)"
-                        >
-                          {quarantiningId === (batch.id || batch._id) ? "..." : batch.status === 'QUARANTINED' ? "Đã khóa" : "Khóa Lô"}
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => openExpirationActionModal(batch)}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black px-3.5 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        Đề xuất
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1702,43 +1666,7 @@ export function Inventory() {
         }}
       />
 
-      {/* Modal Xác Nhận Cách Ly Lô Thuốc (Thay thế window.confirm) */}
-      {quarantineConfirmBatch && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/45 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-            <div className="flex items-center gap-3 text-purple-700 mb-3">
-              <ShieldAlert className="w-6 h-6 text-purple-600" />
-              <h3 className="font-extrabold text-slate-800 text-base">Xác Nhận Khóa Cách Ly Lô Thuốc</h3>
-            </div>
-            <p className="text-slate-600 text-xs leading-relaxed mb-6">
-              Bạn có chắc chắn muốn khóa cách ly lô{" "}
-              <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
-                {quarantineConfirmBatch.batchNo || quarantineConfirmBatch.batchNumber || quarantineConfirmBatch.id}
-              </span>
-              ? Lô thuốc sau khi cách ly sẽ bị gắn cờ <span className="font-bold text-purple-700">QUARANTINED</span> và lập tức ngưng xuất bán trên toàn chuỗi.
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setQuarantineConfirmBatch(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
-              >
-                Hủy Bỏ
-              </button>
-              <button
-                onClick={() => {
-                  const bId = quarantineConfirmBatch.id || quarantineConfirmBatch._id;
-                  setQuarantineConfirmBatch(null);
-                  executeQuarantine(bId);
-                }}
-                className="px-4 py-2 text-xs font-extrabold text-white bg-purple-700 hover:bg-purple-800 rounded-xl shadow-md transition-all flex items-center gap-1.5"
-              >
-                <ShieldAlert size={14} />
-                Xác Nhận Khóa Lô
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Toast Notification Container */}
       <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2.5 max-w-md w-full pointer-events-none">

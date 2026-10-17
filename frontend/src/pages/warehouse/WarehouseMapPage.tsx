@@ -60,7 +60,14 @@ export function WarehouseMapPage() {
       r + rack.shelves.reduce((s: number, sh: any) => s + sh.totalStock, 0), 0), 0);
   const alertCount = zones.reduce((acc, z) =>
     acc + z.racks.reduce((r: number, rack: any) =>
-      r + rack.shelves.filter((sh: any) => sh.status === "NEAR_EXPIRY" || sh.status === "EXPIRED" || sh.status === "LOW_STOCK").length, 0), 0);
+      r + rack.shelves.filter((sh: any) => 
+        sh.status === "NEAR_EXPIRY" || 
+        sh.status === "EXPIRED" || 
+        sh.status === "LOW_STOCK" || 
+        Boolean(sh.hasExpired) || 
+        Boolean(sh.hasNearExpiry) ||
+        Boolean(sh.hasLowStock)
+      ).length, 0), 0);
 
   if (loading && zones.length === 0) {
     return (
@@ -288,7 +295,7 @@ export function WarehouseMapPage() {
           loading={loadingReserve}
           onRefresh={fetchReserveBatches}
           onSelectBatch={(batch) => {
-            const loc = batch.location || {};
+            const loc: any = batch.location || {};
             setSelectedShelf({
               zone: loc.zone || 'RESERVE',
               rack: loc.rack || 'RES1',
