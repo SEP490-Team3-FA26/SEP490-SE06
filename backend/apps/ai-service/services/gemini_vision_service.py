@@ -118,7 +118,7 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
             }},
         ])
 
-    models_to_try = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"]
+    models_to_try = ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash"]
     last_error = "OpenRouter không phản hồi."
     async with httpx.AsyncClient(timeout=60.0) as client:
         for model in models_to_try:
