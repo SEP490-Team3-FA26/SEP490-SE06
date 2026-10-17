@@ -5,6 +5,7 @@ import { orderService } from "../../services/sales/order.service";
 import { cartService } from "../../services/sales/cart.service";
 import { voucherService } from "../../services/sales/voucher.service";
 import { userService } from "../../services/auth/user.service";
+import { medicineService } from "../../services/inventory/medicine.service";
 import { VietQRCode } from "../../components/common/VietQRCode";
 
 export function CustomerCheckout() {
@@ -228,14 +229,66 @@ export function CustomerCheckout() {
     setIsValidatingVoucher(true);
     setVoucherError("");
     try {
-      const res = await voucherService.validateVoucher(voucherCode.trim(), subtotal);
+      let currentItems = [...cartItems];
+      const itemsPayload = currentItems.map((it: any) => ({
+        medicineId: String(it.medicineId || it.id || it._id),
+        medicineName: it.name || it.medicineName || "",
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || it.salePrice || 0),
+      }));
+      let res = await voucherService.validateVoucher(voucherCode.trim(), subtotal, itemsPayload);
       if (res.error) {
         setVoucherError(res.message);
         setAppliedVoucher(null);
-      } else {
-        setAppliedVoucher(res);
-        setVoucherError("");
+        return;
       }
+
+      // 🎁 Xử lý UC-75: Mua X tặng Y - Tự động thêm quà tặng vào danh sách thanh toán nếu chưa có
+      if (res.ruleType === 'BUY_X_GET_Y' && res.giftReward) {
+        const gift = res.giftReward;
+        const missingQty = gift.missingGiftQty || 0;
+
+        if (missingQty > 0) {
+          if (gift.isSameMedicine) {
+            // Mua X tặng X: Tăng số lượng thuốc X thêm số lượng quà tặng
+            currentItems = currentItems.map(it => {
+              if (String(it.medicineId || it.id || it._id) === String(gift.medicineId)) {
+                return { ...it, quantity: Number(it.quantity || 1) + missingQty };
+              }
+              return it;
+            });
+          } else {
+            // Mua X tặng Y: Thêm sản phẩm quà tặng Y vào giỏ
+            const medInfo = await medicineService.getMedicineById(gift.medicineId).catch(() => null);
+            const giftPrice = medInfo?.price || 0;
+            currentItems.push({
+              id: gift.medicineId,
+              _id: gift.medicineId,
+              medicineId: gift.medicineId,
+              name: gift.medicineName || medInfo?.name || "Quà tặng khuyến mãi",
+              price: giftPrice,
+              quantity: missingQty,
+              unit: medInfo?.unit || "Hộp",
+              isGiftItem: true,
+            });
+          }
+
+          // Cập nhật lại giỏ hàng và re-validate voucher để nhận chiết khấu 100% quà tặng ngay lập tức
+          setCartItems(currentItems);
+          localStorage.setItem("customer_cart", JSON.stringify(currentItems));
+          const updatedSubtotal = currentItems.reduce((acc, item) => acc + item.price * (Number(item.quantity) || 0), 0);
+          const updatedItemsPayload = currentItems.map((it: any) => ({
+            medicineId: String(it.medicineId || it.id || it._id),
+            medicineName: it.name || it.medicineName || "",
+            quantity: Number(it.quantity || 1),
+            price: Number(it.price || it.salePrice || 0),
+          }));
+          res = await voucherService.validateVoucher(voucherCode.trim(), updatedSubtotal, updatedItemsPayload);
+        }
+      }
+
+      setAppliedVoucher(res);
+      setVoucherError("");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Lỗi kiểm tra voucher";
       setVoucherError(msg);
@@ -246,6 +299,26 @@ export function CustomerCheckout() {
   };
 
   const handleRemoveVoucher = () => {
+    // Thu hồi các sản phẩm quà tặng nếu có
+    if (appliedVoucher?.giftReward) {
+      const gift = appliedVoucher.giftReward;
+      if (gift.isSameMedicine) {
+        const giftQty = gift.quantity || 1;
+        const reverted = cartItems.map(it => {
+          if (String(it.medicineId || it.id || it._id) === String(gift.medicineId)) {
+            const nextQty = Math.max(1, Number(it.quantity) - giftQty);
+            return { ...it, quantity: nextQty };
+          }
+          return it;
+        });
+        setCartItems(reverted);
+        localStorage.setItem("customer_cart", JSON.stringify(reverted));
+      } else {
+        const filtered = cartItems.filter(it => !it.isGiftItem && String(it.medicineId || it.id || it._id) !== String(gift.medicineId));
+        setCartItems(filtered);
+        localStorage.setItem("customer_cart", JSON.stringify(filtered));
+      }
+    }
     setAppliedVoucher(null);
     setVoucherCode("");
     setVoucherError("");
@@ -298,14 +371,15 @@ export function CustomerCheckout() {
           paymentMethod: paymentMethod,
           totalAmount: total,
           type: "ONLINE",
+          branchId: "CENTRAL_WH", // Bắt buộc xuất kho từ Kho Tổng CENTRAL_WH cho đơn mua online
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
           redeemedPoints: usePoints ? redeemedPoints : 0,
           items: cartItems.map(it => ({
-            medicineId: it.id || it._id,
+            medicineId: String(it.medicineId || it.id || it._id),
             name: it.name,
-            quantity: it.quantity,
-            price: it.price,
-            unit: it.unit
+            quantity: Number(it.quantity || 1),
+            price: Number(it.price || 0),
+            unit: it.unit || "Hộp",
           }))
         };
 
@@ -504,8 +578,15 @@ export function CustomerCheckout() {
                   {cartItems.map((item, index) => (
                     <div key={`${item.id}-${index}`} className="flex justify-between items-start pt-3 first:pt-0">
                       <div className="max-w-[70%]">
-                        <span className="font-extrabold text-slate-900 text-xs line-clamp-1">{item.name}</span>
-                        <span className="text-[10px] text-slate-400 font-bold block mt-0.5">{item.quantity} {item.unit} x {item.price.toLocaleString()}₫</span>
+                        <span className="font-extrabold text-slate-900 text-xs line-clamp-1 flex items-center gap-1.5">
+                          {item.name}
+                          {item.isGiftItem && (
+                            <span className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0.5 rounded font-black tracking-wide shrink-0">
+                              🎁 Quà tặng
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold block mt-0.5">{item.quantity} {item.unit || "Hộp"} x {item.price.toLocaleString()}₫</span>
                       </div>
                       <span className="font-bold text-xs text-slate-800">{(item.price * item.quantity).toLocaleString()}₫</span>
                     </div>

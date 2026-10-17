@@ -814,7 +814,13 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
 
     setIsValidatingVoucher(true);
     try {
-      const result = await voucherService.validateVoucher(code, subtotal);
+      const itemsPayload = prescriptionItems.map((it: any) => ({
+        medicineId: String(it.medicineId || it.id || it._id),
+        medicineName: it.name || it.medicineName || "",
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || it.salePrice || 0),
+      }));
+      const result = await voucherService.validateVoucher(code, subtotal, itemsPayload);
       if (result?.error) {
         setVoucherError(result.message || "Mã giảm giá không hợp lệ");
         setAppliedVoucher(null);
@@ -823,7 +829,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
 
       setAppliedVoucher(result);
       setVoucherCode("");
-      showToast(`Đã áp dụng mã ${result.code}`, "success");
+      showToast(result.message || `Đã áp dụng mã ${result.code}`, "success");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Không thể áp dụng mã giảm giá";
       setVoucherError(msg);

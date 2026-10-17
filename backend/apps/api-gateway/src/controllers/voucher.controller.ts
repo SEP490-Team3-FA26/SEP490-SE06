@@ -24,7 +24,9 @@ export class VoucherController implements OnModuleInit {
       'vouchers.delete',
       'vouchers.list',
       'vouchers.validate',
+      'vouchers.claim',
       'vouchers.audit.flags',
+      'voucher.event.rule_update',
     ]);
   }
 
@@ -41,6 +43,21 @@ export class VoucherController implements OnModuleInit {
   })
   async createVoucher(@Body() data: CreateVoucherDto) {
     return await sendKafkaMessage(this.orderClient, 'vouchers.create', data);
+  }
+
+  // Thiết lập quy tắc Voucher theo điều kiện (Mua X tặng Y)
+  @Post('advanced-rules')
+  @UseGuards(JwtAuthGuard)
+  @AuditLogAction({
+    actionCode: 'VOUCHER_ADVANCED_RULES_CREATE',
+    actionName: 'Thiết lập quy tắc Voucher nâng cao (Mua X tặng Y)',
+    module: 'Voucher',
+    eventType: 'CREATE',
+    entityType: 'Voucher',
+  })
+  @ApiOperation({ summary: 'Tạo mã giảm giá theo điều kiện (Mua X tặng Y)' })
+  async createAdvancedRules(@Body() data: any) {
+    return await sendKafkaMessage(this.orderClient, 'voucher.event.rule_update', data);
   }
 
   @Get()
@@ -91,8 +108,8 @@ export class VoucherController implements OnModuleInit {
 
   @Post('validate')
   @UseGuards(OptionalJwtAuthGuard)
-  @ApiOperation({ summary: 'Xác thực mã voucher cho đơn hàng' })
-  async validateVoucher(@Body() data: { code: string; subtotal: number }) {
+  @ApiOperation({ summary: 'Kiểm tra và tính toán giảm giá của Voucher (Đơn hàng, Mua X tặng Y)' })
+  async validateVoucher(@Body() data: { code: string; subtotal: number; items?: any[]; branchId?: string }) {
     return await sendKafkaMessage(this.orderClient, 'vouchers.validate', data);
   }
 

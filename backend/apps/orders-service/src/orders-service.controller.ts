@@ -60,7 +60,11 @@ export class OrdersServiceController {
   @MessagePattern('vouchers.update')
   async updateVoucher(@Payload() data: any) {
     try {
-      return await this.ordersServiceService.updateVoucher(data.id, data.payload);
+      const res: any = await this.ordersServiceService.updateVoucher(data.id, data.payload);
+      if (res && res.error) {
+        throw new RpcException({ message: res.message || 'Lỗi cập nhật voucher', statusCode: res.statusCode || 400 });
+      }
+      return res;
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi cập nhật voucher');
@@ -88,12 +92,33 @@ export class OrdersServiceController {
   }
 
   @MessagePattern('vouchers.validate')
-  async validateVoucher(@Payload() data: { code: string; subtotal: number }) {
+  async validateVoucher(@Payload() data: { code: string; subtotal: number; items?: any[]; branchId?: string }) {
     try {
-      return await this.ordersServiceService.validateVoucher(data.code, data.subtotal);
+      return await this.ordersServiceService.validateVoucher(data.code, data.subtotal, data.items || [], data.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi kiểm tra voucher');
+    }
+  }
+
+  @MessagePattern('vouchers.claim')
+  async claimVoucher(@Payload() data: { code: string }) {
+    try {
+      return await this.ordersServiceService.claimVoucher(data.code);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi sử dụng voucher');
+    }
+  }
+
+  // UC-75: Tiếp nhận cấu hình quy tắc Voucher nâng cao (Mua X tặng Y, Combo)
+  @MessagePattern('voucher.event.rule_update')
+  async handleVoucherRuleUpdate(@Payload() data: any) {
+    try {
+      return await this.ordersServiceService.createVoucher(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi lưu quy tắc khuyến mãi nâng cao');
     }
   }
 

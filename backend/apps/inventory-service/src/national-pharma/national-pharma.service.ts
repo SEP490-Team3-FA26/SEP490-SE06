@@ -62,6 +62,7 @@ export class NationalPharmaService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: body.toString(),
+        signal: AbortSignal.timeout(2000),
       });
 
       if (!res.ok) {
@@ -102,6 +103,7 @@ export class NationalPharmaService {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(2000),
     });
 
     const contentType = res.headers.get('content-type') || '';
