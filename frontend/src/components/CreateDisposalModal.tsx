@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { X, AlertTriangle, CheckCircle2, Trash2, Loader2, Search, Package, AlertCircle, CheckSquare, Square, Zap, Clock, ShieldAlert } from "lucide-react";
+import { X, AlertTriangle, CheckCircle2, Trash2, Loader2, Search, Package, AlertCircle, CheckSquare, Square, Zap, Clock, ShieldAlert, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
@@ -15,11 +15,13 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
   const [disposalCart, setDisposalCart] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingMedicines, setIsLoadingMedicines] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Expiry filter mode: default to 'EXPIRED_ONLY' per user requirement
+  // Chế độ lọc hạn dùng: mặc định 'EXPIRED_ONLY' để rà soát thuốc hết date
   const [expiryFilterMode, setExpiryFilterMode] = useState<'EXPIRED_ONLY' | 'NEAR_EXPIRY' | 'ALL'>('EXPIRED_ONLY');
 
-  // Form fields
+  // Trường biểu mẫu xuất hủy
   const [disposalReason, setDisposalReason] = useState("Thuốc quá hạn sử dụng theo quy định Dược (Hết date)");
   const [disposalMethod, setDisposalMethod] = useState("Nghiền nhỏ và bàn giao công ty xử lý chất thải y tế nguy hại có hợp đồng");
   const [disposalPerformedBy, setDisposalPerformedBy] = useState("Dược sĩ phụ trách kho");
@@ -27,7 +29,7 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Advanced Filter states
+  // Trạng thái bộ lọc nâng cao
   const [selectedTargetGroup, setSelectedTargetGroup] = useState("");
   const [selectedPriceRange, setSelectedPriceRange] = useState("");
   const [selectedFlavour, setSelectedFlavour] = useState("");
@@ -64,31 +66,110 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
     selectedBrand || selectedIndication || selectedBrandOrigin || selectedIngredient || selectedClassification
   );
 
-  // Helper check batch status
+  // Hàm kiểm tra trạng thái lô thuốc quá hạn
   const isBatchExpired = (b: any) => {
-    if (!b || !b.expDate) return false;
+    if (!b) return false;
+    if (b.status === 'EXPIRED') return (b.stock > 0 || b.quantity > 0);
+    if (!b.expDate) return false;
     return new Date(b.expDate).getTime() <= Date.now() && (b.stock > 0 || b.quantity > 0);
   };
 
+  // Hàm kiểm tra trạng thái lô thuốc cận hạn (<= 60 ngày)
   const isBatchNearExpiry = (b: any) => {
-    if (!b || !b.expDate) return false;
+    if (!b) return false;
+    if (b.status === 'SOON_TO_EXPIRE') return (b.stock > 0 || b.quantity > 0);
+    if (!b.expDate) return false;
     const expTime = new Date(b.expDate).getTime();
     const now = Date.now();
     const diffDays = (expTime - now) / (1000 * 60 * 60 * 24);
     return diffDays > 0 && diffDays <= 60 && (b.stock > 0 || b.quantity > 0);
   };
 
-  // Fetch full medicines for filtering
-  useEffect(() => {
-    medicineService.getMedicinesDropdown()
-      .then(res => {
-        const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
-        setMedicines(list);
-      })
-      .catch(err => {
-        console.error("Lỗi khi tải danh mục thuốc:", err);
-        setMedicines([]);
+  // Nạp dữ liệu thuốc và các lô hết hạn thực tế từ kho CENTRAL_WH
+  const loadMedicinesData = async () => {
+    setIsLoadingMedicines(true);
+    setLoadError(null);
+    try {
+      // 1. Lấy báo cáo các lô hết hạn/cận hạn từ kho CENTRAL_WH (truy vấn nhanh trực tiếp từ batches collection)
+      const expPromise = medicineService.getExpirationReport('CENTRAL_WH').catch(err => {
+        console.warn("Lỗi khi tải báo cáo hết hạn:", err);
+        return [];
       });
+
+      // 2. Lấy danh mục thuốc tổng thể (giới hạn 100 để tải nhanh, không bị 504)
+      const medPromise = medicineService.getMedicines({ limit: 100 }).catch(err => {
+        console.warn("Lỗi khi tải danh mục thuốc:", err);
+        return { data: [] };
+      });
+
+      const [expRes, medRes] = await Promise.all([expPromise, medPromise]);
+
+      const expList: any[] = Array.isArray(expRes) ? expRes : [];
+      const medList: any[] = Array.isArray(medRes?.data) ? medRes.data : [];
+
+      // Gom nhóm các lô hết hạn theo từng thuốc
+      const expiredMedMap = new Map<string, any>();
+
+      expList.forEach((b: any) => {
+        const medId = b.medicineId || b.id;
+        if (!expiredMedMap.has(medId)) {
+          expiredMedMap.set(medId, {
+            id: medId,
+            _id: medId,
+            name: b.medicineName || 'Thuốc không xác định',
+            category: b.category || 'Chưa phân loại',
+            unit: b.unit || 'Hộp',
+            price: b.price || 0,
+            stock: b.stock || 0,
+            location: b.location,
+            batches: [],
+          });
+        }
+        const current = expiredMedMap.get(medId);
+        current.batches.push({
+          id: b.id, // ID thực tế của batch trong collection batches
+          _id: b.id,
+          batchNo: b.batchNo,
+          expDate: b.expDate,
+          stock: b.stock,
+          status: b.status,
+          location: b.location,
+        });
+      });
+
+      // Hợp nhất dữ liệu: Các thuốc có lô hết hạn được ưu tiên hiển thị trước
+      const combinedMedList: any[] = [...expiredMedMap.values()];
+      const existingIds = new Set(combinedMedList.map(m => m.id));
+
+      medList.forEach((m: any) => {
+        const mId = m.id || m._id;
+        if (!existingIds.has(mId)) {
+          combinedMedList.push(m);
+        } else {
+          // Bổ sung thông tin chi tiết (ảnh, hoạt chất, số đăng ký) nếu có
+          const target = combinedMedList.find(x => x.id === mId);
+          if (target) {
+            target.image = m.image || target.image;
+            target.active_ingredient = m.active_ingredient || target.active_ingredient;
+            target.registrationNumber = m.registration_number || m.registrationNumber || target.registrationNumber;
+            target.brand = m.brand || target.brand;
+            target.country = m.country || target.country;
+            target.targetGroup = m.targetGroup || target.targetGroup;
+          }
+        }
+      });
+
+      setMedicines(combinedMedList);
+    } catch (err: any) {
+      console.error("Lỗi khi tải dữ liệu thuốc:", err);
+      setLoadError("Không thể tải danh sách thuốc hoặc lô hết hạn. Vui lòng thử lại!");
+    } finally {
+      setIsLoadingMedicines(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMedicinesData();
   }, []);
 
   // Expiry Statistics
@@ -274,11 +355,13 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
 
     setIsSubmitting(true);
     try {
-      // Execute disposal action for all items
+      // Thực hiện gửi yêu cầu xuất hủy thuốc
       for (const item of disposalCart) {
-        const batchId = item.selectedBatch.id || item.selectedBatch._id;
+        const batchId = item.selectedBatch?.id || item.selectedBatch?._id;
         await medicineService.handleExpirationAction({
           batchId,
+          medicineId: item.id || item._id,
+          batchNo: item.selectedBatchNo || item.selectedBatch?.batchNo,
           action: 'DISPOSE',
           quantity: item.quantity,
           notes: `[Lý do: ${disposalReason}] ${disposalNotes ? `- Ghi chú: ${disposalNotes}` : ''} - Phương pháp: ${disposalMethod}`,
@@ -455,68 +538,88 @@ export function CreateDisposalModal({ onClose, onSuccess }: CreateDisposalModalP
               </div>
             </div>
 
-            {/* Medicine Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 auto-rows-max">
-              {filteredMedicines.length === 0 ? (
-                <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-8">
-                  <Package size={48} className="mb-4 opacity-40 text-slate-300" />
-                  <p className="text-base font-black text-slate-700">
-                    {expiryFilterMode === 'EXPIRED_ONLY' 
-                      ? 'Kho hiện tại không có thuốc nào bị quá hạn!'
-                      : 'Không tìm thấy thuốc phù hợp bộ lọc'}
-                  </p>
-                  <p className="text-xs font-semibold text-slate-400 mt-1 text-center max-w-sm">
-                    {expiryFilterMode === 'EXPIRED_ONLY'
-                      ? 'Tất cả các lô thuốc đang trong hạn sử dụng an toàn. Bạn có thể chuyển tab sang "Cận Hạn" hoặc "Tất Cả Danh Mục" để kiểm tra.'
-                      : 'Vui lòng thử tìm kiếm với từ khóa khác hoặc xóa bớt tiêu chí lọc.'}
-                  </p>
-                  {expiryFilterMode === 'EXPIRED_ONLY' && (
-                    <button
-                      onClick={() => setExpiryFilterMode('ALL')}
-                      className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
-                    >
-                      Xem tất cả danh mục thuốc
-                    </button>
-                  )}
-                </div>
-              ) : (
-                filteredMedicines.map(med => {
-                  const medId = med.id || med._id;
-                  const isAdded = disposalCart.some(i => i.id === medId);
-                  const batches = med.batches || [];
-                  const expiredBatches = batches.filter(isBatchExpired);
-                  const nearExpBatches = batches.filter(isBatchNearExpiry);
+            {/* Trạng thái tải dữ liệu, lỗi hoặc Danh sách thuốc */}
+            {isLoadingMedicines ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-slate-200">
+                <Loader2 className="w-10 h-10 animate-spin text-rose-600 mb-3" />
+                <p className="text-sm font-bold text-slate-800">Đang quét và rà soát các lô thuốc quá hạn...</p>
+                <p className="text-xs text-slate-400 mt-1">Đang đối soát kho GSP/GPP tự động theo thời gian thực</p>
+              </div>
+            ) : loadError ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-rose-200 text-center">
+                <AlertTriangle className="w-10 h-10 text-rose-500 mb-3" />
+                <p className="text-sm font-bold text-slate-800 mb-1">{loadError}</p>
+                <p className="text-xs text-slate-400 mb-4">Có thể kết nối mạng chập chờn hoặc hệ thống đang bận.</p>
+                <button
+                  onClick={loadMedicinesData}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                >
+                  <RefreshCw size={14} /> Thử lại ngay
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 auto-rows-max">
+                {filteredMedicines.length === 0 ? (
+                  <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-8">
+                    <Package size={48} className="mb-4 opacity-40 text-slate-300" />
+                    <p className="text-base font-black text-slate-700">
+                      {expiryFilterMode === 'EXPIRED_ONLY' 
+                        ? 'Kho hiện tại không có thuốc nào bị quá hạn!'
+                        : 'Không tìm thấy thuốc phù hợp bộ lọc'}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-400 mt-1 text-center max-w-sm">
+                      {expiryFilterMode === 'EXPIRED_ONLY'
+                        ? 'Tất cả các lô thuốc đang trong hạn sử dụng an toàn. Bạn có thể chuyển tab sang "Cận Hạn" hoặc "Tất Cả Danh Mục" để kiểm tra.'
+                        : 'Vui lòng thử tìm kiếm với từ khóa khác hoặc xóa bớt tiêu chí lọc.'}
+                    </p>
+                    {expiryFilterMode === 'EXPIRED_ONLY' && (
+                      <button
+                        onClick={() => setExpiryFilterMode('ALL')}
+                        className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                      >
+                        Xem tất cả danh mục thuốc
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  filteredMedicines.map(med => {
+                    const medId = med.id || med._id;
+                    const isAdded = disposalCart.some(i => i.id === medId);
+                    const batches = med.batches || [];
+                    const expiredBatches = batches.filter(isBatchExpired);
+                    const nearExpBatches = batches.filter(isBatchNearExpiry);
 
-                  return (
-                    <div key={medId} className="relative group">
-                      <MedicineCard
-                        med={med}
-                        added={isAdded}
-                        onAddToCart={(m) => { handleAddMedicine(m); }}
-                        onClick={() => { handleAddMedicine(med); }}
-                        allowOutOfStock={true}
-                      />
-                      
-                      {/* Top Overlay Badge for Expiry indicator */}
-                      {expiredBatches.length > 0 && (
-                        <div className="absolute top-2 right-2 pointer-events-none z-10">
-                          <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider animate-pulse">
-                            <ShieldAlert size={10} /> Hết hạn ({expiredBatches.length} lô)
-                          </span>
-                        </div>
-                      )}
-                      {expiredBatches.length === 0 && nearExpBatches.length > 0 && (
-                        <div className="absolute top-2 right-2 pointer-events-none z-10">
-                          <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider">
-                            <Clock size={10} /> Cận date ({nearExpBatches.length} lô)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                    return (
+                      <div key={medId} className="relative group">
+                        <MedicineCard
+                          med={med}
+                          added={isAdded}
+                          onAddToCart={(m) => { handleAddMedicine(m); }}
+                          onClick={() => { handleAddMedicine(med); }}
+                          allowOutOfStock={true}
+                        />
+                        
+                        {/* Huy hiệu cảnh báo lô quá hạn / cận hạn */}
+                        {expiredBatches.length > 0 && (
+                          <div className="absolute top-2 right-2 pointer-events-none z-10">
+                            <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider animate-pulse">
+                              <ShieldAlert size={10} /> Hết hạn ({expiredBatches.length} lô)
+                            </span>
+                          </div>
+                        )}
+                        {expiredBatches.length === 0 && nearExpBatches.length > 0 && (
+                          <div className="absolute top-2 right-2 pointer-events-none z-10">
+                            <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider">
+                              <Clock size={10} /> Cận date ({nearExpBatches.length} lô)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right Column: Disposal Details & Cart */}

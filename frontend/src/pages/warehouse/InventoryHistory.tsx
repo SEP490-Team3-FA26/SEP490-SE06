@@ -4,7 +4,7 @@ import {
   Search, Filter, ArrowDownToLine, ArrowUpFromLine, Trash2,
   Calendar, FileText, Plus, ChevronRight, X, Package,
   Building, CheckCircle2, DollarSign, ListFilter, ClipboardCheck,
-  AlertTriangle, Loader2, Image
+  AlertTriangle, Loader2, Image, RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { supplierService } from "../../services/purchase/supplier.service";
@@ -620,7 +620,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tổng Thuốc Đã Tiêu Hủy</p>
               <p className="text-2xl font-black text-rose-600">
-                {disposalTransactions.reduce((acc, curr) => acc + (curr.quantity || 0), 0).toLocaleString("vi-VN")}{" "}
+                {disposalTransactions.reduce((acc, curr) => acc + Math.abs(curr.quantityChange || curr.quantity || 0), 0).toLocaleString("vi-VN")}{" "}
                 <span className="text-xs font-semibold text-slate-500">đơn vị</span>
               </p>
             </div>
@@ -684,9 +684,21 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
               <p className="text-slate-500 text-sm font-semibold">Đang tải dữ liệu từ máy chủ...</p>
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3 text-rose-600">
-              <AlertTriangle size={32} />
-              <p className="text-sm font-semibold">{error}</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shadow-sm">
+                <AlertTriangle size={28} />
+              </div>
+              <div className="space-y-1 max-w-md">
+                <p className="text-base font-bold text-slate-800">Không thể tải dữ liệu xuất hủy</p>
+                <p className="text-xs text-slate-500 font-medium">{error}</p>
+              </div>
+              <button
+                onClick={() => fetchData()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95"
+              >
+                <RefreshCw size={14} />
+                Thử lại ngay
+              </button>
             </div>
           ) : type === "dispose" ? (
             // DISPOSAL LIST TABLE
@@ -734,7 +746,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center font-black text-rose-600">
-                        - {r.quantity?.toLocaleString("vi-VN")} đơn vị
+                        - {Math.abs(r.quantityChange || r.quantity || 0).toLocaleString("vi-VN")} đơn vị
                       </td>
                       <td className="px-6 py-4 max-w-xs">
                         <p className="text-xs font-semibold text-slate-700 line-clamp-2">{r.notes || "Xuất hủy thuốc quá hạn sử dụng theo quy định Dược"}</p>
@@ -1512,7 +1524,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                           {selectedDisposalCert.batchNo || selectedDisposalCert.batchId || "LOT-EXP"}
                         </td>
                         <td className="border border-slate-300 p-2 font-black text-rose-600">
-                          {selectedDisposalCert.quantity?.toLocaleString("vi-VN")} đơn vị
+                          {Math.abs(selectedDisposalCert.quantityChange || selectedDisposalCert.quantity || selectedDisposalCert.amount || 0).toLocaleString("vi-VN")} đơn vị
                         </td>
                         <td className="border border-slate-300 p-2 text-left text-slate-600">
                           {selectedDisposalCert.notes || "Thuốc quá hạn sử dụng theo quy định Dược"}
@@ -1526,7 +1538,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                     - Phương pháp: Đã thực hiện làm biến dạng hoàn toàn (nghiền nhỏ, phân hủy hoặc bàn giao đơn vị xử lý rác y tế chuyên dụng theo đúng cam kết bảo vệ môi trường).
                   </p>
                   <p className="ml-4">
-                    - Số lượng thuốc nêu trên đã được loại bỏ hoàn toàn khỏi hệ thống tồn kho lưu thông.
+                    - Số lượng thuốc nêu trên ({Math.abs(selectedDisposalCert.quantityChange || selectedDisposalCert.quantity || selectedDisposalCert.amount || 0).toLocaleString("vi-VN")} đơn vị) đã được loại bỏ hoàn toàn khỏi hệ thống tồn kho lưu thông.
                   </p>
                 </div>
 
