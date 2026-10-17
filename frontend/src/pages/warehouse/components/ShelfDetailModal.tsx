@@ -126,7 +126,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
   return (
     <>
       <div 
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
         onClick={onClose}
       >
         <div 
