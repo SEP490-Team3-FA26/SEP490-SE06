@@ -48,7 +48,42 @@ export class MedicineController implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Topics are already subscribed globally in AppGatewayModule
+    // Đăng ký đầy đủ các reply topic cho ClientKafka trước khi nhận request
+    await subscribeToKafkaTopics(this.inventoryClient, [
+      "inventory.medicine.list",
+      "inventory.medicine.get_by_id",
+      "inventory.medicine.stats",
+      "inventory.medicine.dropdown_list",
+      "inventory.medicine.expiration_report",
+      "inventory.medicine.low_stock_report",
+      "inventory.medicine.get_filters",
+      "inventory.medicine.branch_list",
+      "inventory.medicine.create",
+      "inventory.medicine.update",
+      "inventory.medicine.handle_expiration_action",
+      "inventory.medicine.get_by_barcode",
+      "inventory.medicine.generate_barcode",
+      "inventory.medicine.subcategory_counts",
+      "inventory.medicine.get_alternatives",
+      "inventory.medicine.warehouse_map",
+      "inventory.medicine.warehouse_search",
+    ]);
+  }
+
+  // Helper xóa cache liên quan đến danh mục thuốc, dropdown và thống kê khi có thay đổi dữ liệu
+  private async invalidateMedicineCaches() {
+    if (!this.cacheManager) return;
+    try {
+      await Promise.all([
+        this.cacheManager.del("medicines:dropdown:all"),
+        this.cacheManager.del("medicines:dropdown:CENTRAL_WH"),
+        this.cacheManager.del("medicines:stats:all"),
+        this.cacheManager.del("medicines:stats:CENTRAL_WH"),
+        this.cacheManager.del("medicines:expiration_report:all"),
+        this.cacheManager.del("medicines:expiration_report:CENTRAL_WH"),
+        this.cacheManager.del("medicines:filters:all"),
+      ]);
+    } catch (e) {}
   }
 
   @Get("filters")
@@ -95,11 +130,27 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({ summary: "Lấy thống kê tồn kho" })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getStats(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:stats:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.stats",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 60000); // Cache 60 giây
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   // Hỗ trợ cả 2 endpoint báo cáo hết hạn và cảnh báo hết hạn
@@ -109,11 +160,27 @@ export class MedicineController implements OnModuleInit {
   @ApiOperation({ summary: "Lấy báo cáo hết hạn của các lô hàng" })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getExpirationReport(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:expiration_report:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.expiration_report",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 60000); // Cache 60 giây
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   // Hỗ trợ cả 2 alias endpoint để đảm bảo tương thích ngược 100%
@@ -135,11 +202,16 @@ export class MedicineController implements OnModuleInit {
       performedBy?: string;
     },
   ) {
-    return await sendKafkaMessage(
+    const res = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.handle_expiration_action",
       body,
     );
+
+    // Xóa cache khi có thao tác xuất hủy/giảm giá/trả NCC
+    await this.invalidateMedicineCaches();
+
+    return res;
   }
 
   @Get("low-stock-report")
@@ -165,11 +237,27 @@ export class MedicineController implements OnModuleInit {
   })
   @ApiQuery({ name: "branchId", required: false, type: String })
   async getMedicinesDropdown(@Query("branchId") branchId?: string) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:dropdown:${branchId || "all"}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.dropdown_list",
       { branchId },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 300000); // Cache 5 phút
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   @Get("warehouse-map")
@@ -362,8 +450,8 @@ export class MedicineController implements OnModuleInit {
       {
         branchId,
         branchStockOnly,
-        page: Number(page),
-        limit: Number(limit),
+        page: Math.max(Number(page) || 1, 1),
+        limit: Math.min(Math.max(Number(limit) || 10, 1), 100),
         search,
         category,
         classification,
@@ -578,11 +666,13 @@ export class MedicineController implements OnModuleInit {
     @Body("status") status: string,
     @Body("stock") stock?: number,
   ) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update_status",
       { id, status, stock },
     );
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Patch(":id/price-tiers")
@@ -600,11 +690,13 @@ export class MedicineController implements OnModuleInit {
     @Param("id") id: string,
     @Body("priceTiers") priceTiers: { minQuantity: number; price: number }[],
   ) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update_price_tiers",
       { id, priceTiers },
     );
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Patch(":id/price")
@@ -616,11 +708,13 @@ export class MedicineController implements OnModuleInit {
     @Param("id") id: string,
     @Body("price") price: number,
   ) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update_price",
       { id, price },
     );
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Post()
@@ -636,11 +730,14 @@ export class MedicineController implements OnModuleInit {
     entityType: "Medicine",
   })
   async createMedicine(@Body() body: any) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.create",
       body,
     );
+    // Xóa cache dropdown, stats và filters khi tạo thuốc mới
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Put(":id")
@@ -656,11 +753,14 @@ export class MedicineController implements OnModuleInit {
     entityType: "Medicine",
   })
   async updateMedicine(@Param("id") id: string, @Body() body: any) {
-    return await sendKafkaMessage(
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.update",
       { id, updateData: body },
     );
+    // Xóa cache dropdown, stats và filters khi cập nhật thuốc
+    await this.invalidateMedicineCaches();
+    return result;
   }
 
   @Post("subcategories-count")
@@ -715,9 +815,11 @@ export class MedicineController implements OnModuleInit {
     @Query("bypassAiSearch") bypassAiSearch?: string | boolean,
     @Query("directDb") directDb?: string | boolean,
   ) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const safePage = Math.max(Number(page) || 1, 1);
     const effectiveClassification = classification || drugClassification || "";
     const isDirectDb = bypassAiSearch === true || bypassAiSearch === "true" || directDb === true || directDb === "true";
-    const cacheKey = `medicines:list:${page}:${limit}:${search}:${category}:${effectiveClassification}:${targetGroup}:${minPrice || ""}:${maxPrice || ""}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}:${isDirectDb}`;
+    const cacheKey = `medicines:list:${safePage}:${safeLimit}:${search}:${category}:${effectiveClassification}:${targetGroup}:${minPrice || ""}:${maxPrice || ""}:${flavour}:${country}:${brand}:${indication}:${brandOrigin}:${branchId}:${isDirectDb}`;
 
     // 1. Kiểm tra cache Redis (Nếu không yêu cầu directDb / bypassAiSearch)
     if (!isDirectDb && this.cacheManager) {
@@ -735,8 +837,8 @@ export class MedicineController implements OnModuleInit {
         this.inventoryClient,
         "inventory.medicine.list",
         {
-          page: Number(page),
-          limit: Number(limit),
+          page: safePage,
+          limit: safeLimit,
           search,
           category,
           classification: effectiveClassification,
@@ -753,10 +855,12 @@ export class MedicineController implements OnModuleInit {
         },
       );
 
-      // 3. Ghi kết quả vào Redis Cache (TTL: 2 phút = 120,000 ms) nếu không phải directDb
+      // 3. Ghi kết quả vào Redis Cache (Landing page mặc định: 10 phút, còn lại: 2 phút)
       if (!isDirectDb && this.cacheManager && result) {
         try {
-          await this.cacheManager.set(cacheKey, result, 120000);
+          const isLandingDefault = safePage === 1 && safeLimit <= 12 && !search && !category;
+          const ttl = isLandingDefault ? 600000 : 120000;
+          await this.cacheManager.set(cacheKey, result, ttl);
         } catch (e) {}
       }
 

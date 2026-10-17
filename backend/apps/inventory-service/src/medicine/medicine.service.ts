@@ -940,7 +940,9 @@ export class MedicineService implements OnModuleInit {
   }
 
   async handleExpirationAction(data: {
-    batchId: string;
+    batchId?: string;
+    medicineId?: string;
+    batchNo?: string;
     action: 'DISPOSE' | 'RETURN_SUPPLIER' | 'DISCOUNT';
     quantity: number;
     notes?: string;
@@ -948,12 +950,23 @@ export class MedicineService implements OnModuleInit {
     performedBy?: string;
   }) {
     try {
-      const { batchId, action, quantity, notes, discountPrice, performedBy } = data;
-      this.logger.log(`Handling expiration action: ${action} for batch ${batchId}`);
+      const { batchId, action, quantity, notes, discountPrice, performedBy, medicineId, batchNo } = data;
+      this.logger.log(`Handling expiration action: ${action} for batch ${batchId || batchNo}`);
 
-      const batch = await this.batchModel.findById(batchId).exec();
+      // Tìm lô thuốc linh hoạt: theo batchId ObjectId hoặc theo medicineId + batchNo
+      let batch: any = null;
+      if (batchId && Types.ObjectId.isValid(batchId)) {
+        batch = await this.batchModel.findById(batchId).exec();
+      }
+      if (!batch && medicineId && batchNo) {
+        batch = await this.batchModel.findOne({ medicineId, batchNo }).exec();
+      }
+      if (!batch && batchNo) {
+        batch = await this.batchModel.findOne({ batchNo }).exec();
+      }
+
       if (!batch) {
-        throw new RpcException('Không tìm thấy lô thuốc này');
+        throw new RpcException('Không tìm thấy lô thuốc này trong kho');
       }
 
       const medicine = await this.medicineModel.findById(batch.medicineId).exec();
@@ -1409,8 +1422,13 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
+      // Truy vấn danh mục thuốc kèm hình ảnh và thông tin chi tiết phục vụ hiển thị thẻ thuốc
       const [medicines, batches] = await Promise.all([
-        this.medicineModel.find().select('name unit price supplierId').lean().exec(),
+        this.medicineModel
+          .find()
+          .select('name unit price supplierId registration_number image images thong_tin_chi_tiet category drug_classification barcode country brand targetGroup packaging')
+          .lean()
+          .exec(),
         this.batchModel.find(batchFilter).select('medicineId batchNo stock').lean().exec()
       ]);
 
@@ -1426,12 +1444,27 @@ export class MedicineService implements OnModuleInit {
 
       return medicines.map(med => {
         const medId = med._id.toString();
+        const details = (med as any).thong_tin_chi_tiet || {};
+        const img = (med as any).image || ((med as any).images && (med as any).images.length > 0 ? (med as any).images[0] : '');
+        const packSpec = details['Quy cách'] || details['Quy cách đóng gói'] || '';
+        const country = (med as any).country || details['Nước sản xuất'] || details['Xuất xứ'] || '';
+        const brand = (med as any).brand || details['Nhà sản xuất'] || details['Thương hiệu'] || '';
+        const targetGroup = (med as any).targetGroup || details['Đối tượng sử dụng'] || '';
         return {
+          _id: medId,
           id: medId,
           name: med.name,
+          registrationNumber: (med as any).registration_number || details['Số đăng ký'] || '',
           unit: med.unit || 'Hộp',
           price: med.price || 0,
           supplierId: med.supplierId || '',
+          image: img,
+          thong_tin_chi_tiet: (packSpec || country) ? { 'Quy cách': packSpec, 'Nước sản xuất': country } : undefined,
+          category: (med as any).category || details['Danh mục'] || '',
+          drug_classification: (med as any).drug_classification || '',
+          country,
+          brand,
+          targetGroup,
           batches: batchesByMedId.get(medId) || []
         };
       });
@@ -1439,7 +1472,7 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi lấy danh sách chọn thuốc');
     }
   }
-  async findAlternatives(medicineId: string, branchId: string) {
+  async findAlternatives(medicineId: string, branchId: string): Promise<any> {
     try {
       this.logger.log(`Finding alternatives for medicine ${medicineId} at branch ${branchId}`);
       const medicine = await this.medicineModel.findById(medicineId).lean().exec();

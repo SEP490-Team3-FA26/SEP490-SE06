@@ -77,7 +77,9 @@
         {
           "android": {
             "foregroundService": {
-              "types": ["mediaPlayback"]
+              "types": [
+                "mediaPlayback"
+              ]
             }
           }
         }
@@ -96,9 +98,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "f7db0cf2-e41b-4383-bec8-3a75eb6c12ec"
+        "projectId": "1491cb0c-c010-49fb-9954-9dacdcc93d17"
       }
     },
-    "owner": "phuche2004"
+    "owner": "phuche2004p"
   }
 }

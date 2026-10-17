@@ -9,9 +9,10 @@
     "go": "expo start --go",
     "go:clean": "expo start --go -c",
     "dev": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "build:apk": "cd android && gradlew.bat :app:assembleRelease -PreactNativeArchitectures=arm64-v8a && gradlew.bat --stop"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -22,6 +23,7 @@
     "d3-path": "^3.1.0",
     "d3-shape": "^3.2.0",
     "expo": "~57.0.21",
+    "expo-modules-core": "~57.0.17",
     "expo-auth-session": "~57.0.11",
     "expo-calendar": "~57.0.3",
     "expo-camera": "~57.0.4",

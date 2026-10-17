@@ -308,6 +308,14 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<any>(null);
+  const recognitionRef = useRef<any>(null);
+  const audioContextRef = useRef<any>(null);
+  const animFrameRef = useRef<any>(null);
+  const recordingRef = useRef<boolean>(false);
+
+  const [symptomText, setSymptomText] = useState<string>("");
+  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  const [audioVolume, setAudioVolume] = useState<number>(0);
 
   useEffect(() => {
     if (recording) {
@@ -316,7 +324,6 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       }, 1000);
     } else {
       clearInterval(intervalRef.current);
-      setTimer(0);
     }
     return () => clearInterval(intervalRef.current);
   }, [recording]);
@@ -324,49 +331,253 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const startVoiceRecording = async () => {
     setAiResult(null);
     setVoiceBlob(null);
+    setTimer(0);
+    setAudioVolume(0);
     audioChunksRef.current = [];
+    recordingRef.current = true;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      // 1. Phân tích cường độ âm thanh thời gian thực (Audio Waveform Visualizer giống ChatGPT)
+      try {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtxClass) {
+          const audioCtx = new AudioCtxClass();
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 64;
+          const source = audioCtx.createMediaStreamSource(stream);
+          source.connect(analyser);
+          audioContextRef.current = audioCtx;
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const updateVolume = () => {
+            if (!recordingRef.current) return;
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              sum += dataArray[i];
+            }
+            const avg = sum / dataArray.length;
+            setAudioVolume(Math.min(100, Math.round(avg * 1.5)));
+            animFrameRef.current = requestAnimationFrame(updateVolume);
+          };
+          updateVolume();
+        }
+      } catch (audioErr) {
+        console.warn("Không khởi tạo được AudioContext Visualizer:", audioErr);
+      }
+
+      // 2. Tự động nhận diện định dạng MIME phù hợp với trình duyệt
+      let mimeType = "audio/webm";
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        }
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
       mediaRecorder.onstop = () => {
-        setVoiceBlob(new Blob(audioChunksRef.current, { type: "audio/webm" }));
+        const finalBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorder.mimeType || mimeType,
+        });
+        setVoiceBlob(finalBlob);
         stream.getTracks().forEach((track) => track.stop());
       };
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
+      // Thu thập audio chunk mỗi 200ms để không bị mất âm thanh
+      mediaRecorder.start(200);
       setRecording(true);
+
+      // 3. Chạy Web Speech API để hiển thị lời nói trực tiếp (Nói tới đâu hiện chữ tới đó như ChatGPT)
+      if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+        try {
+          const SpeechClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+          const rec = new SpeechClass();
+          rec.lang = "vi-VN";
+          rec.continuous = true;
+          rec.interimResults = true;
+
+          rec.onresult = (ev: any) => {
+            let fullTranscript = "";
+            for (let i = 0; i < ev.results.length; ++i) {
+              fullTranscript += ev.results[i][0].transcript;
+            }
+            if (fullTranscript.trim()) {
+              setSymptomText(fullTranscript.trim());
+            }
+          };
+
+          rec.onerror = (ev: any) => {
+            console.warn("Web Speech API thông báo lỗi (sẽ tự động dùng Whisper fallback):", ev.error);
+          };
+
+          rec.onend = () => {
+            // Tự động khởi động lại nếu người dùng vẫn đang nói để không bị dừng sau 5 giây
+            if (recordingRef.current && recognitionRef.current) {
+              try {
+                recognitionRef.current.start();
+              } catch (e) {}
+            }
+          };
+
+          rec.start();
+          recognitionRef.current = rec;
+        } catch (e) {
+          console.warn("Web Speech API không khởi tạo được:", e);
+        }
+      }
     } catch (err) {
       console.error(err);
-      showToast("Không thể kết nối Microphone. Vui lòng cấp quyền micro!", "error");
+      showToast("Không thể kết nối Microphone. Vui lòng cấp quyền micro trong trình duyệt!", "error");
     }
   };
 
-  const stopVoiceRecording = () => {
+  const stopVoiceRecording = async () => {
+    recordingRef.current = false;
     if (mediaRecorderRef.current && recording) {
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
       setRecording(false);
     }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch (e) {}
+    }
+    setAudioVolume(0);
+
+    // ⚡ CHUYỂN ĐỔI NGAY TỨC THÌ (Instant Auto-Transcribe giống ChatGPT):
+    // Ngay khi dừng thu, gửi ngay âm thanh lên AI Whisper/Gemini để bóc tách và điền thẳng vào ô triệu chứng
+    setTimeout(async () => {
+      if (audioChunksRef.current && audioChunksRef.current.length > 0) {
+        const finalBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        setVoiceBlob(finalBlob);
+
+        // Nếu ô triệu chứng chưa có chữ (do Brave chặn Web Speech) hoặc cần chuẩn hóa lại từ AI
+        if (!symptomText.trim()) {
+          setIsTranscribing(true);
+          try {
+            const formData = new FormData();
+            formData.append("audio", finalBlob, "counter_recording.webm");
+            const res = await prescriptionService.transcribeAudio(formData);
+            if (res?.success && res.text?.trim()) {
+              setSymptomText(res.text.trim());
+              showToast("Đã bóc tách giọng nói thành công!", "success");
+            }
+          } catch (e) {
+            console.warn("Auto transcribe on stop error:", e);
+          } finally {
+            setIsTranscribing(false);
+          }
+        }
+      }
+    }, 250);
   };
 
   const handleSendVoiceToAI = async () => {
-    if (!voiceBlob) return;
+    // Tự động dừng ghi âm nếu người dùng chưa bấm dừng
+    if (recording && mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.stop();
+        setRecording(false);
+      } catch (e) {}
+    }
+
+    // Lấy blob hiện tại hoặc tái tạo từ các audio chunks đã thu thập
+    let currentBlob = voiceBlob;
+    if (!currentBlob && audioChunksRef.current && audioChunksRef.current.length > 0) {
+      currentBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      setVoiceBlob(currentBlob);
+    }
+
+    if (!currentBlob && !symptomText.trim()) {
+      showToast("Vui lòng ghi âm hoặc nhập triệu chứng bệnh nhân vào ô bên dưới!", "warning");
+      return;
+    }
+
     setAiLoading(true);
     try {
       const { branchId: currentBranchId } = getBranchInfoFromToken();
       const activeBranch = currentBranchId || "BR-001";
 
-      const formData = new FormData();
-      formData.append("audio", voiceBlob, "counter_recording.webm");
-      if (activeBranch) {
-        formData.append("branch_id", activeBranch);
+      let data: any = null;
+
+      // 1. Nếu có file ghi âm hợp lệ (> 300 bytes) -> Gửi Voice endpoint
+      if (currentBlob && currentBlob.size >= 300) {
+        const formData = new FormData();
+        formData.append("audio", currentBlob, "counter_recording.webm");
+        if (activeBranch) {
+          formData.append("branch_id", activeBranch);
+        }
+        try {
+          data = await prescriptionService.recommendPrescription(formData);
+          // Hỗ trợ đồng bộ cả 2 định dạng trả về từ API Gateway (aiSuggestion và prescription)
+          if (data && !data.prescription && data.aiSuggestion) {
+            data.prescription = data.aiSuggestion;
+          }
+          if (data && !data.inventory_status && data.inventoryStatus) {
+            data.inventory_status = data.inventoryStatus;
+          }
+          // Nếu nhận diện được nội dung từ audio, hiển thị ngay lên ô triệu chứng để dược sĩ quan sát
+          if (data?.transcribed_text?.trim()) {
+            setSymptomText(data.transcribed_text.trim());
+          }
+        } catch (voiceErr) {
+          console.warn("Voice endpoint gặp sự cố, tự động chuyển sang phân tích triệu chứng văn bản:", voiceErr);
+        }
       }
 
-      const data = await prescriptionService.recommendPrescription(formData);
+      // 2. Nếu voice không có kết quả mà ô triệu chứng có chữ (do Web Speech hoặc nhập tay) -> Gọi symptom-consult
+      const drugsList = data?.prescription?.recommended_drugs || data?.aiSuggestion?.recommended_drugs || [];
+      const hasVoiceDrugs = Array.isArray(drugsList) && drugsList.length > 0;
+      const textToConsult = symptomText.trim() || data?.transcribed_text?.trim();
+
+      if (!hasVoiceDrugs && textToConsult) {
+        const res = await prescriptionService.consultBySymptoms(textToConsult, activeBranch);
+        if (res?.success || res?.prescription) {
+          data = {
+            success: true,
+            transcribed_text: textToConsult,
+            prescription: res.prescription || {},
+            inventory_status: res.inventory_status || {},
+            branch_id: activeBranch,
+          };
+        }
+      }
+
+      const finalDrugs = data?.prescription?.recommended_drugs || data?.aiSuggestion?.recommended_drugs || [];
+      const finalTranscribed = data?.transcribed_text || symptomText.trim();
+
+      if (!data || (!finalTranscribed && !finalDrugs.length)) {
+        showToast("Chưa nhận diện được triệu chứng. Vui lòng nói vào mic rõ hơn hoặc gõ trực tiếp vào ô triệu chứng!", "warning");
+        setAiLoading(false);
+        return;
+      }
 
       // 🛡️ ĐỐI SOÁT TỒN KHO VẬT LÝ THỰC TẾ TẠI CHI NHÁNH HIỆN TẠI (BR-001)
       if (data?.inventory_status?.available && Array.isArray(data.inventory_status.available)) {
@@ -991,22 +1202,79 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
     setIsValidatingVoucher(true);
     try {
-      const result = await voucherService.validateVoucher(code, subtotal);
+      const cartItemsPayload = cart.map((it: any) => ({
+        medicineId: String(it.medicineId || it.id || it._id),
+        medicineName: it.name || it.medicineName || "",
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || it.salePrice || 0),
+      }));
+      const result = await voucherService.validateVoucher(code, subtotal, cartItemsPayload);
       if (result?.error) {
         setVoucherError(result.message || "Mã giảm giá không hợp lệ");
         setAppliedVoucher(null);
         return;
       }
 
+      // 🎁 Tự động thêm quà tặng Mua X tặng Y vào giỏ hàng POS để đảm bảo trừ kho
+      if (result?.ruleType === 'BUY_X_GET_Y' && result?.giftReward) {
+        const gift = result.giftReward;
+        const missingQty = gift.missingGiftQty || (!gift.inCart ? gift.quantity : 0);
+        const giftMedId = gift.giftMedicineId || gift.medicineId;
+
+        if (missingQty > 0 && giftMedId) {
+          try {
+            const giftMed = await medicineService.getMedicineById(giftMedId).catch(() => null);
+            if (giftMed) {
+              const existingIndex = cart.findIndex(it => String(it.id || it._id) === String(giftMedId));
+              let nextCart = [...cart];
+              if (existingIndex > -1) {
+                nextCart[existingIndex] = {
+                  ...nextCart[existingIndex],
+                  quantity: nextCart[existingIndex].quantity + missingQty,
+                  isGiftItem: true,
+                };
+              } else {
+                const unitOptions = buildUnitOptions(giftMed);
+                const defaultUnit = getDefaultUnitOption(giftMed);
+                const baseUnit = giftMed.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
+                nextCart.push({
+                  ...giftMed,
+                  id: giftMedId,
+                  _id: giftMedId,
+                  baseUnit,
+                  unitOptions,
+                  selectedUnit: defaultUnit.unitName,
+                  unit: defaultUnit.unitName,
+                  exchangeValue: getUnitFactor(defaultUnit),
+                  price: getUnitPrice(giftMed, defaultUnit),
+                  quantity: missingQty,
+                  isGiftItem: true,
+                });
+              }
+              setCart(nextCart);
+
+              // Tính lại discount chính xác sau khi đã chèn quà vào giỏ
+              const giftUnitPrice = existingIndex > -1 ? nextCart[existingIndex].price : getUnitPrice(giftMed, getDefaultUnitOption(giftMed));
+              result.discount = Math.round(giftUnitPrice * (gift.quantity || missingQty) * ((gift.discountPercent ?? 100) / 100));
+              result.giftReward.inCart = true;
+              result.giftReward.missingGiftQty = 0;
+              showToast(`🎁 Đã tự động thêm ${missingQty}x ${gift.medicineName || giftMed.name} vào đơn hàng để xuất kho!`, "success");
+            }
+          } catch (giftErr) {
+            console.warn("Không thể tự động thêm quà tặng vào POS:", giftErr);
+          }
+        }
+      }
+
       // Áp dụng trực tiếp Voucher (Hệ thống Anomaly Detection sẽ tự động hậu kiểm nếu thu ngân áp dụng > 10 voucher/ngày)
       setAppliedVoucher(result);
       setVoucherCode("");
       setVoucherError("");
-      const maxRedeem = Math.floor(Math.max(0, subtotal - vipDiscount - result.discount) * 0.5);
+      const maxRedeem = Math.floor(Math.max(0, subtotal - vipDiscount - (result.discount || 0)) * 0.5);
       if (redeemedPoints > maxRedeem) {
         setRedeemedPoints(maxRedeem);
       }
-      showToast(`Đã áp dụng mã giảm giá ${result.code}`, "success");
+      showToast(result.message || `Đã áp dụng mã giảm giá ${result.code}`, "success");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Không thể áp dụng mã giảm giá";
       setVoucherError(msg);
@@ -1019,6 +1287,33 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const handleRemoveVoucher = () => {
     setAppliedVoucher(null);
     setVoucherError("");
+  };
+
+  // Tự động kiểm tra lại Voucher tại POS khi giỏ hàng thay đổi
+  const revalidatePosVoucher = async (nextCart: any[]) => {
+    if (!appliedVoucher?.code) return;
+    if (nextCart.length === 0) {
+      setAppliedVoucher(null);
+      return;
+    }
+    const curSubtotal = nextCart.reduce((sum, it) => sum + (it.price || 0) * (it.quantity || 1), 0);
+    const cartPayload = nextCart.map((it: any) => ({
+      medicineId: String(it.medicineId || it.id || it._id),
+      medicineName: it.name || it.medicineName || "",
+      quantity: Number(it.quantity || 1),
+      price: Number(it.price || it.salePrice || 0),
+    }));
+    try {
+      const res = await voucherService.validateVoucher(appliedVoucher.code, curSubtotal, cartPayload);
+      if (res?.error) {
+        setAppliedVoucher(null);
+        showToast(`Voucher ${appliedVoucher.code} đã tự động gỡ bỏ do giỏ hàng không còn đủ điều kiện`, "warning");
+      } else {
+        setAppliedVoucher(res);
+      }
+    } catch (e) {
+      // Bỏ qua lỗi kết nối tạm thời
+    }
   };
 
   const handleAdjustToMaxStock = (medId: string) => {
@@ -1056,8 +1351,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     const item = cart.find(it => (it.id || it._id) === id);
     if (!item) return;
     const newQty = item.quantity + change;
+    let nextCart = cart;
     if (newQty <= 0) {
-      setCart(cart.filter(it => (it.id || it._id) !== id));
+      nextCart = cart.filter(it => (it.id || it._id) !== id);
     } else {
       const factor = item.exchangeValue || 1;
       const requiredBase = newQty * factor;
@@ -1066,7 +1362,12 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         showToast(`Đã vượt quá tồn kho khả dụng (${availableStock} ${item.baseUnit || 'đơn vị'})!`, "warning");
         return;
       }
-      setCart(cart.map(it => (it.id || it._id) === id ? { ...it, quantity: newQty } : it));
+      nextCart = cart.map(it => (it.id || it._id) === id ? { ...it, quantity: newQty } : it);
+    }
+    setCart(nextCart);
+
+    if (appliedVoucher) {
+      revalidatePosVoucher(nextCart);
     }
   };
 
@@ -1099,6 +1400,14 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       const generatedOrderCode = Math.floor(10000000 + Math.random() * 90000000);
       const patientName = loyaltyInfo ? loyaltyInfo.fullName : "Khách lẻ vãng lai";
       const patientPhone = loyaltyInfo ? loyaltyInfo.phone : "0900000000";
+      // Xác định đối tượng khách hàng vãng lai hay thành viên hệ thống
+      const isGuestCustomer = !loyaltyInfo || !patientPhone || patientPhone === "0900000000";
+      const assignedRole = isGuestCustomer ? "guest" : (loyaltyInfo?.role || "customer");
+      // Kiểm tra xem giỏ hàng có chứa các khoản mục do AI gợi ý hay không
+      const hasAiItems = cart.some((it: any) => it.aiSuggested || it.isAiSuggested);
+      const aiAuditCode = aiPharmacistConfirmation?.auditCode || cart.find((it: any) => it.aiAuditCode)?.aiAuditCode;
+      const consultationId = aiPharmacistConfirmation?.auditCode || cart.find((it: any) => it.consultationId)?.consultationId;
+      const pharmacistApprovedBy = aiPharmacistConfirmation?.pharmacistName || currentUserName;
 
       const payload = {
         type: "RETAIL",
@@ -1123,6 +1432,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         patientPhone,
         patientEmail: patientEmail || undefined,
         userId: loyaltyInfo?.userId || undefined,
+        totalAmount: total,
         redeemedPoints: usePoints ? redeemedPoints : 0,
         role: assignedRole,
         customerRole: assignedRole,
@@ -1141,7 +1451,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         pharmacistApprovedBy: hasAiItems ? pharmacistApprovedBy : (aiPharmacistConfirmation?.pharmacistName || undefined),
         // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
         voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
-        voucherDiscount: appliedVoucher ? appliedVoucher.discount : 0,
+        voucherDiscount: appliedVoucher ? appliedVoucher.discount : undefined,
       };
 
       if (paymentMethod === "QR_PAY") {
@@ -1155,7 +1465,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           type: "RETAIL",
           branchId: currentBranchId || undefined,
           voucherCode: appliedVoucher ? appliedVoucher.code : undefined,
-          voucherDiscount: appliedVoucher ? appliedVoucher.discount : 0,
+          voucherDiscount: appliedVoucher ? appliedVoucher.discount : undefined,
           redeemedPoints: usePoints ? redeemedPoints : 0,
           items: cart.map(it => ({
             medicineId: it.id || it._id,
@@ -1191,9 +1501,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     }
   };
 
-  // Tính toán
+  // Tính toán - Ưu đãi VIP 5% chỉ áp dụng cho khách hàng có thẻ thành viên (Loyalty), không áp dụng cho khách lẻ vãng lai
   const subtotal = cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
-  const vipDiscount = Math.round(subtotal * 0.05); // VIP discount
+  const vipDiscount = loyaltyInfo ? Math.round(subtotal * 0.05) : 0; // VIP discount
   const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
 
   // 1 point = 1 VND
@@ -1756,6 +2066,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                               <Sparkles size={10} className="text-emerald-600" /> AI Tư vấn • Đã duyệt GPP
                             </span>
                           )}
+                          {((appliedVoucher?.giftReward && String(it.id || it._id) === String(appliedVoucher.giftReward.medicineId)) || it.isGiftItem) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
+                              <Gift size={10} className="text-emerald-700" /> 🎁 Quà tặng Voucher {appliedVoucher?.code || ''}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
@@ -2104,9 +2419,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                           min={0}
                           max={Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5)}
                           value={redeemedPoints}
+                          onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
                           onChange={(e) => {
-                            const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
-                            const pts = Math.min(loyaltyInfo.points, maxRedeem, Number(e.target.value));
+                            const rawVal = Math.max(0, Number(e.target.value) || 0);
+                            const maxRedeem = Math.max(0, Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5));
+                            const pts = Math.min(loyaltyInfo.points, maxRedeem, rawVal);
                             setRedeemedPoints(pts);
                           }}
                           className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
@@ -2142,7 +2459,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   Mã đã dùng: <span className="font-extrabold uppercase font-mono text-emerald-950">{appliedVoucher.code}</span>
-                  {loyaltyInfo && !isWalkIn ? (
+                  {loyaltyInfo ? (
                     <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">
                       ✓ Thành viên Zalo
                     </span>
@@ -2191,10 +2508,12 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               <span>Tạm tính / Subtotal</span>
               <span className="text-slate-900 font-bold">{subtotal.toLocaleString()}₫</span>
             </div>
-            <div className="flex justify-between items-center text-[#ba1a1a]">
-              <span>Ưu đãi VIP (5%)</span>
-              <span className="font-bold">-{vipDiscount.toLocaleString()}₫</span>
-            </div>
+            {vipDiscount > 0 && (
+              <div className="flex justify-between items-center text-[#ba1a1a]">
+                <span>Ưu đãi VIP (5%)</span>
+                <span className="font-bold">-{vipDiscount.toLocaleString()}₫</span>
+              </div>
+            )}
             {appliedVoucher && (
               <div className="flex justify-between items-center text-[#ba1a1a]">
                 <span>Khuyến mãi Voucher ({appliedVoucher.code})</span>
@@ -2646,15 +2965,70 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   <div className="text-2xl font-black font-mono text-slate-800">
                     {String(Math.floor(timer / 60)).padStart(2, "0")}:{String(timer % 60).padStart(2, "0")}
                   </div>
+
+                  {/* Sóng âm thanh động dạng Live Soundwave Bar (như ChatGPT Voice) */}
+                  {recording && (
+                    <div className="flex items-center justify-center gap-1.5 h-7 my-2">
+                      {[0.6, 1.2, 1.8, 1.2, 0.7].map((factor, i) => {
+                        const dynamicHeight = Math.max(6, Math.min(26, Math.round((audioVolume * factor) / 3)));
+                        return (
+                          <div
+                            key={i}
+                            style={{ height: `${dynamicHeight}px` }}
+                            className="w-1.5 bg-gradient-to-t from-purple-600 to-indigo-400 rounded-full transition-all duration-75"
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mt-1 block">
-                    {recording ? "Đang thu âm cuộc hội thoại..." : voiceBlob ? "Đã lưu bản ghi âm sẵn sàng" : "Nhấp nút tròn để ghi âm triệu chứng"}
+                    {recording
+                      ? "🎙️ Đang nghe giọng nói... (nói tới đâu chữ nhảy tới đó)"
+                      : isTranscribing
+                      ? "✨ AI đang bóc tách âm thanh thành văn bản..."
+                      : voiceBlob
+                      ? `Đã lưu bản ghi âm (${timer}s) sẵn sàng`
+                      : "Nhấp nút tròn để ghi âm triệu chứng"}
                   </span>
                 </div>
 
-                {voiceBlob && !recording && (
+                {/* Ô triệu chứng (tự động nhận diện từ giọng nói hoặc nhập tay) */}
+                <div className="w-full text-left">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700">
+                      Triệu chứng nhận diện (tự động điền hoặc gõ bổ sung):
+                    </label>
+                    {isTranscribing && (
+                      <span className="text-[10px] text-purple-600 font-bold flex items-center gap-1 animate-pulse">
+                        <Loader2 size={11} className="animate-spin" /> Đang bóc tách...
+                      </span>
+                    )}
+                    {recording && symptomText && (
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                        ● Đang nhận diện trực tiếp
+                      </span>
+                    )}
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={symptomText}
+                    onChange={(e) => setSymptomText(e.target.value)}
+                    placeholder={
+                      recording
+                        ? "🎙️ Đang lắng nghe... Lời nói của bạn sẽ xuất hiện tại đây theo thời gian thực..."
+                        : isTranscribing
+                        ? "✨ AI Whisper đang phiên âm giọng nói của bạn, vui lòng đợi giây lát..."
+                        : "Ví dụ: Bệnh nhân sốt cao 39 độ, đau rát họng, ho có đờm 2 ngày..."
+                    }
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white resize-none"
+                  />
+                </div>
+
+                {(voiceBlob || symptomText.trim()) && !recording && (
                   <button
                     onClick={handleSendVoiceToAI}
-                    disabled={aiLoading}
+                    disabled={aiLoading || isTranscribing}
                     className="w-full py-3 bg-[#0057cd] hover:bg-[#00419e] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <Sparkles size={16} />

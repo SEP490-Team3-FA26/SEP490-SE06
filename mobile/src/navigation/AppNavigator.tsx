@@ -1,4 +1,4 @@
-// AppNavigator.tsx - Complete Role-based Navigation Routing Hub for Pharma ERP Mobile
+// AppNavigator.tsx - Complete Guest-First Role-based Navigation Routing Hub
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
 import { ProfileScreen } from '../screens/common/ProfileScreen';
 import { NotificationListScreen } from '../screens/common/NotificationListScreen';
 import { WebViewScreen } from '../screens/common/WebViewScreen';
+import { SplashScreen } from '../screens/common/SplashScreen';
 
 // Actor Screens
 import { AdminScreen } from '../screens/admin/AdminScreen';
@@ -28,7 +29,12 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { auth, user } = useAuth();
+  const [showSplash, setShowSplash] = React.useState(true);
   const role = user?.role || auth.role;
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   const getInitialActorScreen = () => {
     switch (role) {
@@ -53,25 +59,29 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator
       id="app-stack"
-      key={auth.isAuthenticated ? `auth-${role || 'user'}` : 'unauth'}
-      initialRouteName={auth.isAuthenticated ? getInitialActorScreen() : 'LoginScreen'}
+      key={auth.isAuthenticated ? `auth-${role || 'user'}` : 'guest-flow'}
+      initialRouteName={auth.isAuthenticated ? getInitialActorScreen() : 'CustomerScreen'}
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
-        animationDuration: 250,
+        animationDuration: 220,
         contentStyle: { backgroundColor: '#F8FAFC' },
       }}
     >
       {!auth.isAuthenticated ? (
-        // Auth Flow
+        // ─── Guest Flow (Guest-First E-Commerce Discovery) ──────────────────────
         <Stack.Group>
+          {/* Mở thẳng trang CustomerScreen cho khách vãng lai */}
+          <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
+          {/* Màn hình xác thực khi khách bấm Checkout hoặc Login */}
           <Stack.Screen name="LoginScreen" component={LoginScreen} />
           <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
           <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
+          <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
         </Stack.Group>
       ) : (
-        // Authenticated Role-Based App Flow (Strict RBAC Gating)
+        // ─── Authenticated Role-Based App Flow ──────────────────────────────────
         <Stack.Group>
           {role === 'admin' && (
             <Stack.Screen name="AdminScreen" component={AdminScreen} />
@@ -93,7 +103,11 @@ export default function AppNavigator() {
             <Stack.Screen name="BranchScreen" component={BranchScreen} />
           )}
 
-          {(role === 'customer' || role === 'user' || !['admin', 'director', 'headBranch', 'warehouse', 'pharmacist', 'branch'].includes(role)) && (
+          {(role === 'customer' ||
+            role === 'user' ||
+            !['admin', 'director', 'headBranch', 'warehouse', 'pharmacist', 'branch'].includes(
+              role
+            )) && (
             <>
               <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
               <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />

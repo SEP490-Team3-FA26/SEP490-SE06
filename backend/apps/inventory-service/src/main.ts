@@ -4,6 +4,8 @@ import { InventoryServiceModule } from './inventory-service.module';
 
 import { TelemetryConsumerModule } from './telemetry/telemetry-consumer.module';
 
+import { CompressionTypes } from 'kafkajs';
+
 process.on('unhandledRejection', (reason) => {
   console.warn('⚠️ [Inventory MS] Unhandled Rejection:', reason);
 });
@@ -35,11 +37,18 @@ async function bootstrap() {
               logLevel: 0,
             },
             consumer: {
-              groupId: `${kafkaBaseGroup}-inventory`,
+              groupId: process.env.KAFKA_INVENTORY_GROUP_ID || `${kafkaBaseGroup}-inventory`,
+              sessionTimeout: 45000,
+              heartbeatInterval: 3000,
+              rebalanceTimeout: 60000,
             },
             producer: {
+              allowAutoTopicCreation: true,
               maxInFlightRequests: 1,
               maxMessageBytes: 10485760,
+            },
+            send: {
+              compression: CompressionTypes.GZIP,
             },
             subscribe: {
               allowAutoTopicCreation: true,

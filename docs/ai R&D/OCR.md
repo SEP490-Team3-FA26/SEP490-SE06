@@ -10,6 +10,7 @@ Tài liệu này đặc tả kiến trúc, nguyên tắc thiết kế, chính s�
 
 > [!CAUTION]
 > **Quy định bất biến về an toàn dược phẩm:**
+>
 > 1. **CHỈ XỬ LÝ ĐƠN THUỐC BẢN IN ĐIỆN TỬ:** Hệ thống chỉ tiếp nhận và bóc tách các đơn thuốc được in ra từ máy tính hoặc phần mềm quản lý bệnh viện/phòng khám (Machine-printed prescriptions) với font chữ in rõ ràng.
 > 2. **TUYỆT ĐỐI KHÔNG XỬ LÝ ĐƠN THUỐC CHỮ VIẾT TAY:** Chữ viết tay bác sĩ có tỷ lệ biến thiên cực kỳ cao, nguy cơ đọc sai tên biệt dược hoặc liều lượng (VD: nhầm số 1 thành 7, nhầm mg thành g) gây hậu quả chết người. Do đó, hệ thống chủ động thẩm định và **từ chối ngay lập tức** (Rejection) khi phát hiện chữ viết tay.
 > 3. **KHÔNG HUẤN LUYỆN MODEL OFFLINE (NO TRAINING PIPELINE):** Với sự phát triển của các mô hình Vision LLM tiên tiến (Gemini 2.5 Flash Multimodal), khả năng nhận diện văn bản in vi tính đạt độ chính xác > 99%. Việc tự huấn luyện model OCR nhỏ (như VietOCR) trên dữ liệu giả là thừa thãi, tốn tài nguyên và kém chính xác hơn nhiều so với Vision LLM.
@@ -44,6 +45,7 @@ Hệ thống tuân thủ nghiêm ngặt mô hình Microservices 4 tầng:
 ## 3. Đặc Tả Chi Tiết Từng Tầng (Tier Specifications)
 
 ### 3.1. Tầng Client (Web React 19 & Mobile Expo React Native)
+
 - **Web:** `frontend/src/services/sales/prescription.service.ts`
   - Đóng gói file ảnh vào `FormData` với key `images`.
   - Gọi qua `api.post('/api/prescriptions/scan-ai', formData)`.
@@ -54,8 +56,10 @@ Hệ thống tuân thủ nghiêm ngặt mô hình Microservices 4 tầng:
   - Phân tích linh hoạt kết quả `res.items` (schema v2) và hiển thị thông tin bệnh nhân, bác sĩ, lô FEFO.
 - **Xử lý từ chối chữ viết tay:** Khi nhận mã lỗi `HANDWRITTEN_PRESCRIPTION_REJECTED`, giao diện hiển thị thông báo:
   > *"⚠️ Đơn thuốc viết tay không được hỗ trợ! Vui lòng tải lên đơn bản in điện tử rõ nét để đảm bảo an toàn dược phẩm."*
+  >
 
 ### 3.2. Tầng API Gateway (NestJS Monorepo)
+
 - **File:** `backend/apps/api-gateway/src/controllers/prescription.controller.ts`
 - **Endpoints:**
   - `POST /api/prescriptions/scan-ai`: Nhận multipart form data (tối đa 5 ảnh đơn thuốc), xác thực JWT Guard, chuyển tiếp sang `ai-service:8000/api/ai/scan-prescription-v2`. Bảo toàn mã lỗi HTTP 400 Bad Request từ AI Service về Client.
@@ -63,6 +67,7 @@ Hệ thống tuân thủ nghiêm ngặt mô hình Microservices 4 tầng:
   - `POST /api/prescriptions/scan-sample`: Proxy quét đơn mẫu.
 
 ### 3.3. Tầng AI Service (FastAPI)
+
 - **File Router:** `backend/apps/ai-service/routers/prescription.py`
 - **File Vision:** `backend/apps/ai-service/services/gemini_vision_service.py`
 - **Cơ chế thẩm định bản in:**
@@ -134,7 +139,9 @@ Hệ thống tuân thủ nghiêm ngặt mô hình Microservices 4 tầng:
 ---
 
 ## 5. Kết Luận
+
 Việc loại bỏ hoàn toàn mã nguồn training cục bộ và tập trung vào **Vision LLM chuyên biệt cho bản in** giúp hệ thống:
+
 1. **Gọn nhẹ & Tối ưu:** Loại bỏ các dependency nặng nề (`torch`, `vietocr`, dữ liệu synthetic).
 2. **Độ chính xác vượt trội:** Nhận diện ký tự in điện tử chuẩn xác, không bị lỗi ảo giác (hallucination).
 3. **An toàn y tế tối đa:** Triệt tiêu hoàn toàn rủi ro đọc sai chữ viết tay của bác sĩ.

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, Inject, OnModuleInit, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Inject, OnModuleInit, UseGuards, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ClientKafka, RpcException } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { OptionalJwtAuthGuard } from '../guards/optional-jwt-auth.guard';
@@ -12,6 +12,7 @@ export class SalesController implements OnModuleInit {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
     @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
+    @Inject('ORDER_SERVICE') private readonly orderClient: ClientKafka,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
@@ -25,6 +26,9 @@ export class SalesController implements OnModuleInit {
     ]);
     await subscribeToKafkaTopics(this.userClient, [
       'hr.attendance.verify_active_shift',
+    ]);
+    await subscribeToKafkaTopics(this.orderClient, [
+      'vouchers.claim',
     ]);
   }
 
@@ -67,6 +71,19 @@ export class SalesController implements OnModuleInit {
       data.approvedBy = req.user.sub;
       data.approvedAt = new Date().toISOString();
     }
+
+    // 🛡️ Kiểm toán & Trừ lượt dùng Voucher nguyên tử nếu quầy có áp dụng mã giảm giá
+    if (data.voucherCode) {
+      try {
+        const claimRes: any = await sendKafkaMessage(this.orderClient, 'vouchers.claim', { code: data.voucherCode });
+        if (claimRes && claimRes.success === false) {
+          throw new BadRequestException(claimRes.message || 'Mã giảm giá đã hết lượt dùng hoặc không hợp lệ');
+        }
+      } catch (claimErr: any) {
+        throw new BadRequestException(claimErr.message || 'Không thể áp dụng mã giảm giá lúc này');
+      }
+    }
+
     const result = await sendKafkaMessage(this.inventoryClient, 'inventory.sale.create', data);
     
     // Evict seasonal analysis cache on sales changes
