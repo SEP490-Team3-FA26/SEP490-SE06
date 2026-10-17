@@ -50,9 +50,6 @@ jobs:
     steps:
       - name: Execute Remote SSH Commands on iNet VPS
         uses: appleboy/ssh-action@v1.2.0
-        env:
-          S3_RUNTIME_ACCESS_KEY_ID: ${{ secrets.S3_RUNTIME_ACCESS_KEY_ID }}
-          S3_RUNTIME_SECRET_ACCESS_KEY: ${{ secrets.S3_RUNTIME_SECRET_ACCESS_KEY }}
         with:
           host: ${{ secrets.VPS_HOST || '103.75.187.86' }}
           port: ${{ secrets.VPS_PORT || 24700 }}
@@ -61,7 +58,6 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: true
           command_timeout: 30m
-          envs: S3_RUNTIME_ACCESS_KEY_ID,S3_RUNTIME_SECRET_ACCESS_KEY
           script: |
             set -e
             echo "=================================================="
@@ -114,14 +110,6 @@ jobs:
             git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH" || git checkout "$TARGET_BRANCH" || git checkout demo
             git reset --hard "origin/$TARGET_BRANCH" || git reset --hard origin/demo || git reset --hard HEAD
             git clean -fd
-
-            # Supply a dedicated S3-only key to the API gateway container.
-            test -n "${S3_RUNTIME_ACCESS_KEY_ID:-}"
-            test -n "${S3_RUNTIME_SECRET_ACCESS_KEY:-}"
-            umask 077
-            S3_ENV_TMP=$(mktemp "$APP_DIR/backend/.env.s3-runtime.XXXXXX")
-            printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nAWS_REGION=ap-southeast-1\nS3_IMAGES_BUCKET=wdp301-images-dev-211888002777\n' "$S3_RUNTIME_ACCESS_KEY_ID" "$S3_RUNTIME_SECRET_ACCESS_KEY" > "$S3_ENV_TMP"
-            mv "$S3_ENV_TMP" "$APP_DIR/backend/.env.s3-runtime"
 
             # 3. Phân quyền và thực thi script deploy production hoàn chỉnh
             chmod +x "$APP_DIR/scripts/deploy-prod.sh"

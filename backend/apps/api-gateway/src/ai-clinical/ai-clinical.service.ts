@@ -46,11 +46,11 @@ export class AiClinicalService {
   }
 
   /**
-   * Save OCR files to S3, with local fallback for existing OCR behavior.
+   * Save uploaded files to S3 Cloud Storage (with safe local fallback)
    */
   async saveUploadedFiles(
     files: Express.Multer.File[],
-    subDir: 'ocr',
+    subDir: 'ocr' | 'audio',
   ): Promise<string[]> {
     const savedUrls: string[] = [];
     for (const file of files) {
@@ -83,6 +83,7 @@ export class AiClinicalService {
     branchId: string = 'BR-001',
     userContext?: any,
   ) {
+    const imageUrls = await this.saveUploadedFiles(files, 'ocr');
     const scanId = `SCAN-${Date.now()}-${randomUUID().substring(0, 6).toUpperCase()}`;
 
     let aiResponseData: any = null;
@@ -109,21 +110,15 @@ export class AiClinicalService {
       if (response.ok) {
         aiResponseData = await response.json();
       } else {
-        const errorBody = await response.json().catch(() => ({}));
-        const detail = typeof errorBody?.detail === 'string'
-          ? errorBody.detail
-          : `AI service responded with status ${response.status}`;
-        throw new Error(detail);
+        throw new Error(`AI service responded with status ${response.status}`);
       }
     } catch (err: any) {
       this.logger.error(`AI prescription scanning failed: ${err.message}`);
       throw new HttpException(
-        err.message || 'Dịch vụ AI quét đơn thuốc hiện không khả dụng.',
+        'Dịch vụ AI chẩn đoán đơn thuốc hiện không khả dụng. Vui lòng kiểm tra lại kết nối.',
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-
-    const imageUrls = await this.saveUploadedFiles(files, 'ocr');
 
     const rawExtractedItems = (aiResponseData.items || []).map((it: any) => {
       const sku = it.selected_sku || {};
@@ -288,6 +283,8 @@ export class AiClinicalService {
     branchId: string = 'BR-001',
     userContext?: any,
   ) {
+    const savedAudioUrls = await this.saveUploadedFiles([audioFile], 'audio');
+    const audioUrl = savedAudioUrls[0] || '';
     const consultationId = `CS-${Date.now()}-${randomUUID().substring(0, 6).toUpperCase()}`;
 
     let aiResponseData: any = null;
@@ -311,9 +308,6 @@ export class AiClinicalService {
 
       if (response.ok) {
         aiResponseData = await response.json();
-        if (!aiResponseData?.transcribed_text?.trim()) {
-          throw new Error('AI voice service returned an empty transcript');
-        }
       } else {
         throw new Error(`AI voice service responded with status ${response.status}`);
       }
@@ -325,25 +319,10 @@ export class AiClinicalService {
       );
     }
 
-    let audioKey: string;
-    let audioUrl: string;
-    try {
-      const uploaded = await this.s3Storage.uploadImage(audioFile, 'uploads/audio');
-      audioKey = uploaded.key;
-      audioUrl = await this.s3Storage.getPresignedUrl(audioKey, 3600);
-    } catch (err: any) {
-      this.logger.error(`S3 voice upload failed: ${err.message}`);
-      throw new HttpException(
-        'Không thể lưu bản ghi âm lên S3. Vui lòng liên hệ quản trị hệ thống.',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-
     const consultRecord = new this.consultRecordModel({
       consultationId,
       branchId,
       audioUrl,
-      audioKey,
       audioDuration: 15,
       transcription: aiResponseData.transcribed_text || 'Hội thoại tư vấn quầy offline',
       aiOriginalSuggestion: {
@@ -376,9 +355,6 @@ export class AiClinicalService {
 
     return {
       success: true,
-      transcribed_text: aiResponseData.transcribed_text,
-      prescription: aiResponseData.prescription,
-      inventory_status: aiResponseData.inventory_status || {},
       consultationId,
       audioUrl,
       aiSuggestion: consultRecord.aiOriginalSuggestion,
@@ -425,16 +401,9 @@ export class AiClinicalService {
       this.consultRecordModel.countDocuments(filter).exec(),
     ]);
 
-    const records = await Promise.all(data.map(async (record: any) => ({
-      ...record,
-      audioUrl: record.audioKey
-        ? await this.s3Storage.getPresignedUrl(record.audioKey, 3600)
-        : record.audioUrl,
-    })));
-
     return {
       success: true,
-      data: records,
+      data,
       pagination: {
         total,
         page,
@@ -452,15 +421,7 @@ export class AiClinicalService {
     if (!record) {
       throw new NotFoundException(`Consultation record ${id} not found`);
     }
-    return {
-      success: true,
-      data: {
-        ...record,
-        audioUrl: record.audioKey
-          ? await this.s3Storage.getPresignedUrl(record.audioKey, 3600)
-          : record.audioUrl,
-      },
-    };
+    return { success: true, data: record };
   }
 
   async confirmConsultationDecision(

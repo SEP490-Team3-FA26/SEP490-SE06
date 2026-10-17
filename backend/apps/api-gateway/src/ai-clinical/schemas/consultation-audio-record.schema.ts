@@ -12,9 +12,6 @@ export class ConsultationAudioRecord extends Document {
   @Prop({ default: '' })
   audioUrl: string;
 
-  @Prop({ default: '' })
-  audioKey: string;
-
   @Prop({ default: 0 })
   audioDuration: number;
 
