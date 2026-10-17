@@ -81,25 +81,27 @@ async def analyze_prescription_images(images: List[Tuple[bytes, str]]) -> Dict[s
     openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
     google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_KEY")
 
-    # Strategy 1: Call OpenRouter Gemini 2.5 Flash API
-    if openrouter_key:
-        try:
-            res = await _call_openrouter_gemini_vision(images, openrouter_key)
-            if res:
-                return res
-        except Exception as e:
-            print(f"OpenRouter Gemini Vision call error: {e}")
-
-    # Strategy 2: Call Google AI Studio Direct API if Google key present
+    # Chiến lược 1: Ưu tiên gọi trực tiếp Google AI Studio API (Hoàn toàn miễn phí, tốc độ cao 1-2s, không phụ thuộc credit)
     if google_key and len(google_key) > 10:
         try:
+            print("🚀 [AI Vision] Sử dụng Google AI Studio Direct API (Gemini 3.8 Flash)...")
             res = await _call_google_direct_api(images, google_key)
-            if res:
+            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital")):
                 return res
         except Exception as e:
             print(f"Google Direct API call error: {e}")
 
-    raise Exception("Không thể kết nối dịch vụ AI Vision (OpenRouter/Google API). Vui lòng kiểm tra lại cấu hình API key.")
+    # Chiến lược 2: Fallback sang OpenRouter nếu không có key Google hoặc Google gặp lỗi
+    if openrouter_key:
+        try:
+            print("🔄 [AI Vision] Gọi OpenRouter fallback...")
+            res = await _call_openrouter_gemini_vision(images, openrouter_key)
+            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital")):
+                return res
+        except Exception as e:
+            print(f"OpenRouter Gemini Vision call error: {e}")
+
+    raise Exception("Không thể kết nối dịch vụ AI Vision (Google API / OpenRouter). Vui lòng kiểm tra lại cấu hình API key.")
 
 async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_key: str) -> Dict[str, Any]:
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -124,9 +126,15 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
             }
         })
 
-    # Giới hạn max_tokens ở mức 1000 vừa đủ cho đơn thuốc JSON và không vượt hạn mức credit tài khoản
+    # Giới hạn max_tokens ở mức 1000 vừa đủ cho đơn thuốc JSON
     current_max_tokens = 1000
-    models_to_try = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"]
+    # Danh sách model theo thứ tự ưu tiên: Gemini chính -> Gemini lite -> Model Vision miễn phí
+    models_to_try = [
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-flash-lite",
+        "openrouter/free",
+        "google/gemma-4-26b-a4b-it:free",
+    ]
 
     async with httpx.AsyncClient(timeout=45.0) as client:
         for model in models_to_try:
@@ -150,26 +158,33 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
                         data = res.json()
                         choices = data.get("choices", [])
                         if choices:
-                            raw_msg = choices[0].get("message", {}).get("content", "")
-                            parsed = json.loads(raw_msg)
-                            parsed["prompt_version"] = f"v2.1 (OpenRouter {model})"
-                            return parsed
+                            raw_msg = choices[0].get("message", {}).get("content", "") or ""
+                            # Làm sạch chuỗi markdown json nếu model trả về bọc trong codeblock
+                            clean_msg = raw_msg.strip()
+                            if clean_msg.startswith("```"):
+                                clean_msg = re.sub(r"^```[a-zA-Z]*\n?", "", clean_msg)
+                                clean_msg = re.sub(r"\n?```$", "", clean_msg).strip()
+                            if clean_msg:
+                                parsed = json.loads(clean_msg)
+                                parsed["prompt_version"] = f"v2.1 (OpenRouter {model})"
+                                return parsed
 
-                    # Xử lý khi OpenRouter báo thiếu credit do max_tokens
+                    # Xử lý khi OpenRouter báo thiếu credit (HTTP 402 Payment Required)
                     if res.status_code == 402:
                         res_text = res.text
-                        print(f"OpenRouter attempt {attempt} 402: {res_text[:200]}")
+                        print(f"OpenRouter [{model}] attempt {attempt} 402 (Hết credit): {res_text[:200]}")
                         match = re.search(r"can only afford (\d+)", res_text)
                         if match:
                             afford = int(match.group(1))
-                            if afford > 300:
+                            # Đơn thuốc JSON cần tối thiểu 600 tokens; nếu afford quá thấp, chuyển ngay sang model tiếp theo (free)
+                            if afford >= 600:
                                 payload["max_tokens"] = min(afford - 50, 1000)
                                 print(f"OpenRouter tự động hạ max_tokens xuống {payload['max_tokens']} và thử lại...")
                                 continue
-                        # Nếu không parse được afford thì thử hạ xuống 800
-                        if payload["max_tokens"] > 800:
-                            payload["max_tokens"] = 800
-                            continue
+                            else:
+                                print(f"OpenRouter số dư chỉ đủ {afford} tokens (< 600) -> Chuyển ngay sang model miễn phí/dự phòng tiếp theo.")
+                                break
+                        break
 
                     print(f"OpenRouter [{model}] attempt {attempt} status {res.status_code}: {res.text[:200]}")
                     await asyncio.sleep(attempt * 0.5)
@@ -179,7 +194,8 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
     return {}
 
 async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str) -> Dict[str, Any]:
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    # Danh sách model Google AI Studio hiện hành (Gemini 3.8 Flash & Gemini Flash Latest)
+    models_to_try = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-pro", "gemini-1.5-flash"]
     parts = [{"text": GEMINI_SYSTEM_PROMPT}]
     for idx, (img_bytes, mime_type) in enumerate(images):
         b64_data = base64.b64encode(img_bytes).decode('utf-8')
@@ -203,10 +219,17 @@ async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str)
             try:
                 res = await client.post(url, json=payload, headers=headers)
                 if res.status_code == 200:
-                    text_content = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    parsed = json.loads(text_content)
-                    parsed["prompt_version"] = f"v2.1 (Google {model})"
-                    return parsed
+                    candidates = res.json().get("candidates", [])
+                    if candidates:
+                        text_content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        clean_text = text_content.strip()
+                        if clean_text.startswith("```"):
+                            clean_text = re.sub(r"^```[a-zA-Z]*\n?", "", clean_text)
+                            clean_text = re.sub(r"\n?```$", "", clean_text).strip()
+                        if clean_text:
+                            parsed = json.loads(clean_text)
+                            parsed["prompt_version"] = f"v2.1 (Google {model})"
+                            return parsed
             except Exception as e:
                 print(f"Google Direct {model} error: {e}")
     return {}

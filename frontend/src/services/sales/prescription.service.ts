@@ -47,6 +47,23 @@ export const prescriptionService = {
     return response.data;
   },
 
+  /**
+   * Bóc tách âm thanh sang chữ siêu tốc cho tính năng Live Dictation như ChatGPT
+   */
+  async transcribeAudio(formData: FormData): Promise<{ success: boolean; text: string }> {
+    try {
+      const response = await api.post('/api/ai/transcribe', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (err: any) {
+      console.warn("Transcribe audio error:", err);
+      return { success: false, text: '' };
+    }
+  },
+
   async recommendPrescription(formData: FormData) {
     try {
       const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.VOICE_CONSULT, formData, {
@@ -160,6 +177,17 @@ export const prescriptionService = {
         ],
       };
     }
+  },
+
+  /**
+   * Tư vấn phác đồ và gợi ý đơn thuốc theo triệu chứng văn bản kết hợp đối soát kho chi nhánh
+   */
+  async consultBySymptoms(symptoms: string, branchId?: string) {
+    const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.SYMPTOM_CONSULT, {
+      symptoms,
+      branch_id: branchId,
+    });
+    return response.data;
   },
 
   async scanPrescriptionAI(formData: FormData) {
