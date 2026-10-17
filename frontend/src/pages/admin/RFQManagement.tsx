@@ -129,10 +129,12 @@ export function RFQManagement() {
         supplierService.getSuppliers().catch(() => []),
         medicineService.getMedicinesDropdown().catch(() => ({ data: [] })),
       ]);
-      setRfqs(Array.isArray(rfqList) ? rfqList : []);
-      setSuppliers(Array.isArray(suppList) ? suppList : (suppList as any)?.data || []);
-      const meds = Array.isArray(medList) ? medList : (medList as any)?.data || (medList as any)?.medicines || [];
-      setMedicines(meds);
+      const validRfqs = Array.isArray(rfqList) ? rfqList : Array.isArray((rfqList as any)?.data) ? (rfqList as any).data : [];
+      const validSupps = Array.isArray(suppList) ? suppList : Array.isArray((suppList as any)?.data) ? (suppList as any).data : [];
+      const validMeds = Array.isArray(medList) ? medList : Array.isArray((medList as any)?.data) ? (medList as any).data : Array.isArray((medList as any)?.medicines) ? (medList as any).medicines : [];
+      setRfqs(validRfqs);
+      setSuppliers(validSupps);
+      setMedicines(validMeds);
     } catch (err) {
       console.error('Lỗi khi tải dữ liệu RFQ:', err);
     } finally {
@@ -252,7 +254,9 @@ export function RFQManagement() {
 
   // Filtered RFQs
   const filteredRfqs = useMemo(() => {
+    if (!Array.isArray(rfqs)) return [];
     return rfqs.filter((r) => {
+      if (!r) return false;
       const matchSearch =
         r.rfqCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -263,10 +267,11 @@ export function RFQManagement() {
 
   // Statistics
   const stats = useMemo(() => {
+    if (!Array.isArray(rfqs)) return { total: 0, active: 0, awarded: 0, draft: 0 };
     const total = rfqs.length;
-    const active = rfqs.filter((r) => r.status === 'SENT' || r.status === 'IN_REVIEW').length;
-    const awarded = rfqs.filter((r) => r.status === 'AWARDED').length;
-    const draft = rfqs.filter((r) => r.status === 'DRAFT').length;
+    const active = rfqs.filter((r) => r && (r.status === 'SENT' || r.status === 'IN_REVIEW')).length;
+    const awarded = rfqs.filter((r) => r && r.status === 'AWARDED').length;
+    const draft = rfqs.filter((r) => r && r.status === 'DRAFT').length;
     return { total, active, awarded, draft };
   }, [rfqs]);
 
@@ -285,15 +290,19 @@ export function RFQManagement() {
   // Trích xuất danh sách danh mục (category) từ medicines
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
-    medicines.forEach((m) => {
-      if (m.category) set.add(m.category.trim());
-    });
+    if (Array.isArray(medicines)) {
+      medicines.forEach((m) => {
+        if (m?.category) set.add(m.category.trim());
+      });
+    }
     return Array.from(set).sort();
   }, [medicines]);
 
   // Bộ lọc danh mục dược phẩm đồng bộ như bên kho
   const filteredCatalogMedicines = useMemo(() => {
+    if (!Array.isArray(medicines)) return [];
     return medicines.filter((m) => {
+      if (!m) return false;
       const q = medSearchQuery.toLowerCase().trim();
       const nameMatch = (m.name || '').toLowerCase().includes(q);
       const skuMatch = (m.sku || m.barcode || '').toLowerCase().includes(q);
@@ -470,17 +479,19 @@ export function RFQManagement() {
 
   // Open Add Quote
   const openAddQuoteModal = (rfq: RequestForQuotationData) => {
+    if (!rfq) return;
     setSelectedRfq(rfq);
     setQuoteSupplierId(rfq.targetSuppliers?.[0]?.supplierId || '');
     setQuotePaymentDays(rfq.requiredPaymentTermDays || 30);
     setQuoteDeliveryDays(2);
     setQuoteNotes('');
     const initialItemPrices: any = {};
-    rfq.items.forEach((item) => {
+    (rfq.items || []).forEach((item) => {
+      if (!item) return;
       initialItemPrices[item.medicineId] = {
         price: item.targetPrice ? Math.round(item.targetPrice * 0.95) : 45000,
         shelfLife: 24,
-        qty: item.quantityRequested,
+        qty: item.quantityRequested || 0,
       };
     });
     setQuoteItemPrices(initialItemPrices);
@@ -495,10 +506,10 @@ export function RFQManagement() {
     };
 
     let total = 0;
-    const items = selectedRfq.items.map((item) => {
+    const items = (selectedRfq?.items || []).map((item) => {
       const p = quoteItemPrices[item.medicineId]?.price || 0;
       const shelf = quoteItemPrices[item.medicineId]?.shelfLife || 24;
-      const qty = quoteItemPrices[item.medicineId]?.qty || item.quantityRequested;
+      const qty = quoteItemPrices[item.medicineId]?.qty || item.quantityRequested || 0;
       total += p * qty;
       return {
         medicineId: item.medicineId,
@@ -700,7 +711,7 @@ export function RFQManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredRfqs.map((rfq) => {
+                {(filteredRfqs || []).map((rfq) => {
                   const itemsCount = rfq.items?.length || 0;
                   const suppliersCount = rfq.targetSuppliers?.length || 0;
                   const quotesCount = rfq.quotations?.length || 0;
@@ -900,7 +911,7 @@ export function RFQManagement() {
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
                     >
                       <option value="all">Tất cả nhóm dược lý</option>
-                      {availableCategories.map((cat) => (
+                      {(availableCategories || []).map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
                         </option>
@@ -969,7 +980,7 @@ export function RFQManagement() {
                             </td>
                           </tr>
                         ) : (
-                          filteredCatalogMedicines.slice(0, 50).map((med) => {
+                          (filteredCatalogMedicines || []).slice(0, 50).map((med) => {
                             const medId = med._id || med.id;
                             const isSelected = selectedMedicineIds.some((it) => it.medicineId === medId);
                             const stock = Number(med.stock || 0);
@@ -1086,7 +1097,7 @@ export function RFQManagement() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                          {selectedMedicineIds.map((item, idx) => {
+                          {(selectedMedicineIds || []).map((item, idx) => {
                             const subtotal = (item.quantityRequested || 0) * (item.targetPrice || 0);
                             return (
                               <tr key={item.medicineId} className="hover:bg-slate-50">
@@ -1200,7 +1211,7 @@ export function RFQManagement() {
                   Mời các Nhà cung cấp tham gia chào thầu ({selectedSupplierIds.length}):
                 </span>
                 <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
-                  {suppliers.map((s) => {
+                  {(suppliers || []).map((s) => {
                     const sid = s._id || s.id || '';
                     const checked = selectedSupplierIds.includes(sid);
                     return (
@@ -1278,7 +1289,7 @@ export function RFQManagement() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {selectedRfq.targetSuppliers?.map((target) => {
+                  {(selectedRfq?.targetSuppliers || []).map((target) => {
                     const quotation = selectedRfq.quotations?.find(
                       (q) => q.supplierId === target.supplierId
                     );
@@ -1356,7 +1367,7 @@ export function RFQManagement() {
                       <th className="py-3.5 px-3 font-bold text-slate-500 min-w-[90px] w-24 text-center">
                         Số lượng
                       </th>
-                      {selectedRfq.targetSuppliers?.map((target) => {
+                      {(selectedRfq?.targetSuppliers || []).map((target) => {
                         const quotation = selectedRfq.quotations?.find(
                           (q) => q.supplierId === target.supplierId
                         );
@@ -1392,7 +1403,7 @@ export function RFQManagement() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {selectedRfq.items.map((item, itemIdx) => (
+                    {(selectedRfq?.items || []).map((item, itemIdx) => (
                       <tr key={item.medicineId || itemIdx} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 font-bold text-slate-800">
                           <div className="text-slate-900 leading-snug">{item.medicineName}</div>
@@ -1413,9 +1424,9 @@ export function RFQManagement() {
                           </div>
                         </td>
                         <td className="py-3.5 px-3 font-semibold text-slate-700 text-center">
-                          {item.quantityRequested.toLocaleString('vi-VN')}
+                          {(item.quantityRequested || 0).toLocaleString('vi-VN')}
                         </td>
-                        {selectedRfq.targetSuppliers?.map((target) => {
+                        {(selectedRfq?.targetSuppliers || []).map((target) => {
                           const quotation = selectedRfq.quotations?.find(
                             (q) => q.supplierId === target.supplierId
                           );
@@ -1483,7 +1494,7 @@ export function RFQManagement() {
                         TỔNG GIÁ TRỊ
                       </td>
                       <td className="py-4 px-3 text-slate-400 text-center">—</td>
-                      {selectedRfq.targetSuppliers?.map((target) => {
+                      {(selectedRfq?.targetSuppliers || []).map((target) => {
                         const quotation = selectedRfq.quotations?.find(
                           (q) => q.supplierId === target.supplierId
                         );
@@ -1563,7 +1574,7 @@ export function RFQManagement() {
                     onChange={(e) => setQuoteSupplierId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-800"
                   >
-                    {selectedRfq.targetSuppliers.map((s) => (
+                    {(selectedRfq?.targetSuppliers || []).map((s) => (
                       <option key={s.supplierId} value={s.supplierId}>
                         {s.supplierName}
                       </option>
@@ -1592,11 +1603,11 @@ export function RFQManagement() {
 
               <div className="space-y-2">
                 <label className="block font-bold text-slate-700">Đơn giá và HSD cam kết từng mặt hàng:</label>
-                {selectedRfq.items.map((item) => (
+                {(selectedRfq?.items || []).map((item) => (
                   <div key={item.medicineId} className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                     <div className="flex-1">
                       <span className="font-bold text-slate-800 block">{item.medicineName}</span>
-                      <span className="text-[10px] text-slate-400">SL: {item.quantityRequested} {item.unit}</span>
+                      <span className="text-[10px] text-slate-400">SL: {item.quantityRequested || 0} {item.unit || 'Hộp'}</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-500 block">Đơn giá chào (VNĐ):</span>
@@ -1658,7 +1669,7 @@ export function RFQManagement() {
       {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ (Gắn trực tiếp vào body với z-[999999] để không bao giờ bị modal che) */}
       {typeof document !== 'undefined' && createPortal(
         <div className="fixed top-6 right-6 z-[999999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
-          {toasts.map((t) => (
+          {(toasts || []).map((t) => (
             <div
               key={t.id}
               className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
