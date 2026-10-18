@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Modal,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,7 +28,15 @@ import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, logout, updateProfile, refreshUser } = useAuth();
+  const {
+    user,
+    logout,
+    updateProfile,
+    refreshUser,
+    isBiometricSupported,
+    isBiometricEnabled,
+    toggleBiometrics,
+  } = useAuth();
 
   const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
   const [name, setName] = useState<string>(user?.name || '');
@@ -276,6 +285,40 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </AnimatedTouchable>
+
+          {/* Cài đặt Sinh trắc học (Vân tay / Khuôn mặt) */}
+          <View style={[styles.menuItem, { justifyContent: 'space-between' }]}>
+            <View style={styles.menuLeft}>
+              <Ionicons name="finger-print-outline" size={22} color="#059669" />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.menuText}>Đăng nhập Sinh trắc học</Text>
+                <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                  {!isBiometricSupported
+                    ? 'Thiết bị không hỗ trợ'
+                    : isBiometricEnabled
+                    ? 'Đang bật (Vân tay / Khuôn mặt)'
+                    : 'Bật để đăng nhập nhanh 1 chạm'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={isBiometricEnabled}
+              onValueChange={async (val) => {
+                const res = await toggleBiometrics(val);
+                if (res.success) {
+                  showToast.success(
+                    'Thành công',
+                    val ? 'Đã bật đăng nhập sinh trắc học' : 'Đã tắt đăng nhập sinh trắc học'
+                  );
+                } else if (res.message && res.message !== 'HỦY_BỎ') {
+                  showToast.error('Thông báo', res.message);
+                }
+              }}
+              disabled={!isBiometricSupported && !isBiometricEnabled}
+              trackColor={{ false: '#CBD5E1', true: '#059669' }}
+              thumbColor={isBiometricEnabled ? '#FFFFFF' : '#F1F5F9'}
+            />
+          </View>
 
           <AnimatedTouchable
             onPress={() => navigation.navigate('NotificationListScreen')}

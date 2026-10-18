@@ -226,6 +226,11 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               expDate: it.expDate || '',
             })),
           };
+          // Đảm bảo đưa phiếu PO vào danh sách receipts để không bị mất khi thoát hoặc hoàn tất
+          setReceipts((prev) => {
+            const exists = prev.some((r) => r.id === poReceipt.id || r.poCode === poReceipt.poCode);
+            return exists ? prev : [poReceipt, ...prev];
+          });
           setActiveTab('RECEIPTS');
           handleStartInspection(poReceipt);
           showToast.success('Đồng bộ đơn PO', `Mở phiên kiểm đếm kiện hàng cho đơn: ${poReceipt.poCode}`);
@@ -342,8 +347,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     setSelectedReceiptForInspection(receipt);
     setSelectedItemIndex(0);
     setAiScanResult(null);
-    setActualCountInput('');
     const firstItem = receipt.items?.[0];
+    setActualCountInput(String(firstItem?.actual ?? firstItem?.expected ?? '10'));
     setSelectedInspectionImage(getItemImage(firstItem));
     setInspectModalVisible(true);
   };
@@ -409,45 +414,34 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
     try {
       const currentItem = selectedReceiptForInspection.items[selectedItemIndex];
-      let res = await ApiService.inspectReceiptItemAI(
+      const res = await ApiService.inspectReceiptItemAI(
         selectedReceiptForInspection.id || selectedReceiptForInspection._id,
         currentItem.id || String(selectedItemIndex),
         selectedInspectionImage
       );
 
-      const curExp = Number(currentItem?.expected || 10);
-      const medicineName = currentItem?.medName || currentItem?.medicineName || 'Dược phẩm';
+      if (res && res.success !== false && typeof res.aiCount === 'number') {
+        const medicineName = currentItem?.medName || currentItem?.medicineName || currentItem?.name || 'Dược phẩm';
+        const scanOutput = {
+          medName: medicineName,
+          aiCount: Number(res.aiCount),
+          batchNo: String(res.batchNo || currentItem?.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${100 + selectedItemIndex * 12}`),
+          expDate: String(res.expDate || (currentItem?.expDate ? new Date(currentItem.expDate).toLocaleDateString('vi-VN') : '31/12/2028')),
+          integrity: res.difference === 0 ? 'Nguyên vẹn 100%' : `Chênh lệch: ${res.difference > 0 ? '+' : ''}${res.difference}`,
+          confidence: Number(res.confidence ?? 95),
+          matchPo: res.difference === 0,
+          inspectionRecordId: res.inspectionRecordId ? String(res.inspectionRecordId) : undefined,
+        };
 
-      const scanOutput = {
-        medName: medicineName,
-        aiCount: Number(res?.aiCount ?? curExp),
-        batchNo: String(res?.batchNo || currentItem?.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${100 + selectedItemIndex * 12}`),
-        expDate: String(res?.expDate || (currentItem?.expDate ? new Date(currentItem.expDate).toLocaleDateString('vi-VN') : '31/12/2028')),
-        integrity: 'Nguyên vẹn 100%',
-        confidence: Number(res?.confidence ?? 98),
-        matchPo: true,
-        inspectionRecordId: res?.inspectionRecordId ? String(res.inspectionRecordId) : undefined,
-      };
-
-      setAiScanResult(scanOutput);
-      setActualCountInput(String(scanOutput.aiCount));
-      showToast.success('AI Vision', `Nhận diện thành công ${scanOutput.aiCount} hộp (Khớp: ${scanOutput.confidence}%)`);
-    } catch {
-      const currentItem = selectedReceiptForInspection.items[selectedItemIndex];
-      const curExp = Number(currentItem?.expected || 10);
-      const medicineName = currentItem?.medName || currentItem?.medicineName || 'Dược phẩm';
-      const fallbackResult = {
-        medName: medicineName,
-        confidence: 96,
-        aiCount: curExp,
-        batchNo: String(currentItem?.batchNo || `LOT-${new Date().getFullYear()}-099`),
-        expDate: '31/12/2028',
-        integrity: 'Nguyên vẹn 100%',
-        matchPo: true,
-      };
-      setAiScanResult(fallbackResult);
-      setActualCountInput(String(curExp));
-      showToast.info('Kiểm đếm', `Đã đếm dự kiến ${curExp} hộp`);
+        setAiScanResult(scanOutput);
+        setActualCountInput(String(scanOutput.aiCount));
+        showToast.success('AI Vision', `Nhận diện thành công ${scanOutput.aiCount} hộp (Khớp: ${scanOutput.confidence}%)`);
+      } else {
+        const errMsg = res?.message || 'Không thể nhận diện hình ảnh từ máy chủ AI. Vui lòng nhập số lượng kiểm đếm thủ công.';
+        showToast.error('Kiểm định thất bại', errMsg);
+      }
+    } catch (err: any) {
+      showToast.error('Lỗi kiểm định', err?.message || 'Không thể kết nối đến máy chủ AI Vision.');
     } finally {
       setIsAiScanning(false);
     }
@@ -456,7 +450,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const handleConfirmItemInspection = () => {
     if (!selectedReceiptForInspection) return;
     const currentItem = selectedReceiptForInspection.items[selectedItemIndex];
-    const confirmedQty = parseInt(actualCountInput, 10) || currentItem.expected || 10;
+    const parsed = parseInt(actualCountInput, 10);
+    const confirmedQty = !isNaN(parsed) && parsed >= 0 ? parsed : Number(currentItem?.expected ?? 10);
 
     const nextItems = [...selectedReceiptForInspection.items];
     nextItems[selectedItemIndex] = {
@@ -465,12 +460,9 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       status: 'VERIFIED',
     };
 
-    const nextReceipts = receipts.map((r) => {
-      if (r.id === selectedReceiptForInspection.id) {
-        return { ...r, items: nextItems };
-      }
-      return r;
-    });
+    const nextReceipts = receipts.some((r) => r.id === selectedReceiptForInspection.id)
+      ? receipts.map((r) => (r.id === selectedReceiptForInspection.id ? { ...r, items: nextItems } : r))
+      : [{ ...selectedReceiptForInspection, items: nextItems }, ...receipts];
 
     setReceipts(nextReceipts);
     setSelectedReceiptForInspection((prev: any) => ({
@@ -488,18 +480,36 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     if (targetIdx !== -1) {
       setSelectedItemIndex(targetIdx);
       setAiScanResult(null);
-      setActualCountInput(String(nextItems[targetIdx].actual || nextItems[targetIdx].expected || ''));
-      setSelectedInspectionImage(getItemImage(nextItems[targetIdx]));
+      const targetItem = nextItems[targetIdx];
+      setActualCountInput(String(targetItem.actual ?? targetItem.expected ?? '10'));
+      setSelectedInspectionImage(getItemImage(targetItem));
     }
   };
 
-  const handleFinishAndStockReceipt = () => {
+  const handleFinishAndStockReceipt = async () => {
     if (!selectedReceiptForInspection) return;
+    const receiptId = selectedReceiptForInspection.id || selectedReceiptForInspection._id;
+
     setReceipts((prev) =>
-      prev.map((r) => (r.id === selectedReceiptForInspection.id ? { ...r, status: 'COMPLETED' } : r))
+      prev.map((r) =>
+        r.id === receiptId || r.poCode === selectedReceiptForInspection.poCode
+          ? { ...r, status: 'COMPLETED' }
+          : r
+      )
     );
     setInspectModalVisible(false);
-    showToast.success('Hoàn tất', `Đã nhập kho GSP thành công toàn bộ lô hàng ${selectedReceiptForInspection.id}!`);
+
+    try {
+      if (receiptId && !receiptId.startsWith('GRN-PO')) {
+        await ApiService.approveGoodsReceipt(receiptId);
+      } else if (selectedReceiptForInspection.poId) {
+        await ApiService.submitInspection(selectedReceiptForInspection.poId);
+      }
+    } catch (e) {
+      console.warn('Lỗi lưu kết quả kiểm đếm lên backend:', e);
+    }
+
+    showToast.success('Hoàn tất', `Đã nhập kho GSP thành công toàn bộ lô hàng ${receiptId}!`);
   };
 
   const handleApproveReceipt = (id: string) => {
@@ -537,34 +547,40 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
       {/* Quick Shift & Payslip Bar */}
       <View style={styles.shiftActionBar}>
-        <AnimatedTouchable
-          onPress={() => setShowCheckInModal(true)}
-          style={[styles.shiftActionBtn, styles.checkInBtn]}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shiftActionBarContent}
         >
-          <Ionicons name="location" size={16} color="#059669" />
-          <Text style={[styles.shiftActionText, { color: '#059669' }]}>
-            Điểm Danh GPS Kho Tổng
-          </Text>
-        </AnimatedTouchable>
+          <AnimatedTouchable
+            onPress={() => setShowCheckInModal(true)}
+            style={[styles.shiftActionBtn, styles.checkInBtn]}
+          >
+            <Ionicons name="location" size={16} color="#059669" />
+            <Text style={[styles.shiftActionText, { color: '#059669' }]}>
+              Điểm Danh GPS Kho Tổng
+            </Text>
+          </AnimatedTouchable>
 
-        <AnimatedTouchable
-          onPress={() => setShowPayslipModal(true)}
-          style={[styles.shiftActionBtn, styles.payslipBtn]}
-        >
-          <Ionicons name="receipt-outline" size={16} color="#0284C7" />
-          <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
-        </AnimatedTouchable>
+          <AnimatedTouchable
+            onPress={() => setShowPayslipModal(true)}
+            style={[styles.shiftActionBtn, styles.payslipBtn]}
+          >
+            <Ionicons name="receipt-outline" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
+          </AnimatedTouchable>
 
-        <AnimatedTouchable
-          onPress={() => {
-            setScannerPurpose('SCAN_PO');
-            setScannerVisible(true);
-          }}
-          style={[styles.shiftActionBtn, { borderColor: '#818CF8', backgroundColor: '#EEF2FF' }]}
-        >
-          <Ionicons name="scan-circle" size={17} color="#4F46E5" />
-          <Text style={[styles.shiftActionText, { color: '#4F46E5', fontWeight: '700' }]}>Quét Đơn PO</Text>
-        </AnimatedTouchable>
+          <AnimatedTouchable
+            onPress={() => {
+              setScannerPurpose('SCAN_PO');
+              setScannerVisible(true);
+            }}
+            style={[styles.shiftActionBtn, { borderColor: '#818CF8', backgroundColor: '#EEF2FF' }]}
+          >
+            <Ionicons name="scan-circle" size={17} color="#4F46E5" />
+            <Text style={[styles.shiftActionText, { color: '#4F46E5', fontWeight: '700' }]}>Quét Đơn PO</Text>
+          </AnimatedTouchable>
+        </ScrollView>
       </View>
 
       {/* Horizontal Scrollable Tabs Bar */}
@@ -1589,13 +1605,15 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 {selectedReceiptForInspection?.items?.map((it: any, idx: number) => {
                   const isCur = idx === selectedItemIndex;
                   const isDone = it.status === 'VERIFIED';
+                  const medDisplayName = it.name || it.medicineName || `Thuốc #${idx + 1}`;
+                  const shortName = medDisplayName.length > 18 ? `${medDisplayName.slice(0, 16)}...` : medDisplayName;
                   return (
                     <TouchableOpacity
-                      key={idx}
+                      key={it.medicineId || it.id || `item-${idx}`}
                       onPress={() => {
                         setSelectedItemIndex(idx);
                         setAiScanResult(null);
-                        setActualCountInput(String(it.actual || it.expected || 10));
+                        setActualCountInput(String(it.actual ?? it.expected ?? '10'));
                         setSelectedInspectionImage(getItemImage(it));
                       }}
                       style={{
@@ -1622,7 +1640,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                           color: isCur ? '#FFFFFF' : isDone ? '#065F46' : '#475569',
                         }}
                       >
-                        Thuốc #{idx + 1} ({it.expected} {it.unit || 'hộp'})
+                        {shortName} ({it.expected} {it.unit || 'hộp'})
                       </Text>
                     </TouchableOpacity>
                   );
@@ -1720,7 +1738,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <View style={styles.actualCountInputRow}>
                   <TouchableOpacity
                     onPress={() => {
-                      const cur = parseInt(actualCountInput || String(selectedReceiptForInspection?.items[selectedItemIndex]?.actual || selectedReceiptForInspection?.items[selectedItemIndex]?.expected || 10), 10) || 0;
+                      const cur = parseInt(actualCountInput, 10) || 0;
                       if (cur > 0) setActualCountInput(String(cur - 1));
                     }}
                     style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' }}
@@ -1730,12 +1748,15 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   <TextInput
                     style={[styles.actualCountInput, { minWidth: 80, textAlign: 'center' }]}
                     keyboardType="numeric"
-                    value={actualCountInput || String(selectedReceiptForInspection?.items[selectedItemIndex]?.actual || selectedReceiptForInspection?.items[selectedItemIndex]?.expected || 10)}
-                    onChangeText={setActualCountInput}
+                    value={actualCountInput}
+                    onChangeText={(val) => {
+                      setActualCountInput(val.replace(/[^0-9]/g, ''));
+                    }}
+                    placeholder="0"
                   />
                   <TouchableOpacity
                     onPress={() => {
-                      const cur = parseInt(actualCountInput || String(selectedReceiptForInspection?.items[selectedItemIndex]?.actual || selectedReceiptForInspection?.items[selectedItemIndex]?.expected || 10), 10) || 0;
+                      const cur = parseInt(actualCountInput, 10) || 0;
                       setActualCountInput(String(cur + 1));
                     }}
                     style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#4F46E5', alignItems: 'center', justifyContent: 'center' }}
@@ -1798,13 +1819,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   shiftActionBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  shiftActionBarContent: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     gap: 10,
+    alignItems: 'center',
   },
   shiftActionBtn: {
     flexDirection: 'row',

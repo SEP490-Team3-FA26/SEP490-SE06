@@ -10,6 +10,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { User, UserRole } from './user.schema';
 import { VerificationToken, TokenType } from './verification-token.schema';
 import { LoginDto } from './dto/login.dto';
@@ -464,6 +465,8 @@ export class AuthService implements OnApplicationBootstrap {
     mongoUser.passwordHash = passwordHash;
     // Tự động đánh dấu email đã xác thực nếu họ đổi mật khẩu thành công (chứng tỏ họ sở hữu email này)
     mongoUser.isEmailVerified = true;
+    // Vô hiệu hóa toàn bộ thiết bị sinh trắc học theo chuẩn ngân hàng khi đổi mật khẩu
+    mongoUser.biometricDevices = [];
     await mongoUser.save();
 
     resetToken.isUsed = true;
@@ -488,6 +491,8 @@ export class AuthService implements OnApplicationBootstrap {
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     user.passwordHash = passwordHash;
+    // Vô hiệu hóa toàn bộ thiết bị sinh trắc học theo chuẩn ngân hàng khi đổi mật khẩu
+    user.biometricDevices = [];
     await user.save();
 
     // Gửi email xác nhận đổi mật khẩu thành công
@@ -890,5 +895,195 @@ export class AuthService implements OnApplicationBootstrap {
     await this.generateAndSendVerificationOtp(email);
 
     return { message: 'Mã xác nhận mới đã được gửi vào email của bạn!' };
+  }
+
+  // ============================================================
+  // SINH TRẮC HỌC CHUẨN NGÂN HÀNG (FIDO2 / CHALLENGE-RESPONSE)
+  // ============================================================
+
+  /**
+   * Đăng ký hoặc cập nhật Khóa Công Khai (Public Key) của thiết bị sinh trắc học
+   */
+  async registerBiometricDevice(
+    userId: string,
+    data: { deviceId: string; deviceName?: string; publicKey: string },
+  ): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+
+    const now = new Date();
+    // Lọc bỏ thiết bị cũ trùng deviceId để đảm bảo tính duy nhất và khóa công khai luôn mới nhất
+    user.biometricDevices = (user.biometricDevices || []).filter(
+      (d) => d.deviceId !== data.deviceId,
+    );
+
+    user.biometricDevices.push({
+      deviceId: data.deviceId,
+      deviceName: data.deviceName || 'Android Device (Hardware Keystore)',
+      publicKey: data.publicKey,
+      registeredAt: now,
+      lastUsedAt: now,
+      isActive: true,
+    });
+
+    await user.save();
+    return { success: true, message: 'Đăng ký thiết bị sinh trắc học thành công!' };
+  }
+
+  /**
+   * Lấy danh sách thiết bị sinh trắc học của tài khoản
+   */
+  async getBiometricDevices(userId: string): Promise<any[]> {
+    const user = await this.userModel.findById(userId).select('biometricDevices');
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+    return (user.biometricDevices || []).map(d => ({
+      deviceId: d.deviceId,
+      deviceName: d.deviceName,
+      registeredAt: d.registeredAt,
+      lastUsedAt: d.lastUsedAt,
+      isActive: d.isActive,
+    }));
+  }
+
+  /**
+   * Hủy liên kết một thiết bị sinh trắc học (Remote Revocation)
+   */
+  async revokeBiometricDevice(userId: string, deviceId: string): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+
+    if (user.biometricDevices) {
+      user.biometricDevices = user.biometricDevices.filter(d => d.deviceId !== deviceId);
+      await user.save();
+    }
+    return { success: true, message: 'Đã hủy liên kết thiết bị sinh trắc học thành công!' };
+  }
+
+  /**
+   * Kiểm tra điều kiện thiết bị trước khi Gateway cấp Challenge Nonce
+   */
+  async checkBiometricDevice(emailOrPhone: string, deviceId: string): Promise<any> {
+    const identifier = (emailOrPhone || '').toLowerCase().trim();
+    const user = await this.userModel.findOne({
+      $or: [{ email: identifier }, { phone: identifier }],
+    });
+
+    if (!user) {
+      throw new NotFoundException('Tài khoản không tồn tại!');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa hoặc khóa!');
+    }
+
+    const device = (user.biometricDevices || []).find(d => d.deviceId === deviceId && d.isActive);
+    if (!device) {
+      throw new UnauthorizedException('Thiết bị này chưa được liên kết sinh trắc học với tài khoản!');
+    }
+
+    return {
+      userId: user._id.toString(),
+      email: user.email,
+      fullName: user.fullName,
+      deviceId: device.deviceId,
+    };
+  }
+
+  /**
+   * Xác thực Chữ Ký Số và cấp Access Token phiên làm việc mới
+   */
+  async verifyBiometricSignature(payload: {
+    emailOrPhone: string;
+    deviceId: string;
+    challenge: string;
+    signature: string;
+  }): Promise<any> {
+    const identifier = (payload.emailOrPhone || '').toLowerCase().trim();
+    const user = await this.userModel.findOne({
+      $or: [{ email: identifier }, { phone: identifier }],
+    });
+
+    if (!user) {
+      throw new NotFoundException('Tài khoản không tồn tại!');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa!');
+    }
+
+    const device = (user.biometricDevices || []).find(
+      d => d.deviceId === payload.deviceId && d.isActive,
+    );
+
+    if (!device || !device.publicKey) {
+      throw new UnauthorizedException('Thiết bị chưa được đăng ký hoặc đã bị thu hồi khóa!');
+    }
+
+    // Xác thực chữ ký số bằng Node.js OpenSSL SPKI DER
+    let isSignatureValid = false;
+    try {
+      const rawBase64 = device.publicKey
+        .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+        .replace(/-----END PUBLIC KEY-----/g, '')
+        .replace(/\s+/g, '');
+
+      const publicKeyObject = crypto.createPublicKey({
+        key: Buffer.from(rawBase64, 'base64'),
+        format: 'der',
+        type: 'spki',
+      });
+
+      const verifier = crypto.createVerify('SHA256');
+      verifier.update(payload.challenge, 'utf8');
+      verifier.end();
+
+      const sigBuffer = Buffer.from(payload.signature, 'base64');
+      isSignatureValid = verifier.verify(publicKeyObject, sigBuffer);
+    } catch (cryptoErr: any) {
+      console.error('❌ [AuthService] Lỗi xác thực chữ ký mật mã học:', cryptoErr.message);
+      throw new UnauthorizedException(`Chữ ký sinh trắc học không hợp lệ: ${cryptoErr.message}`);
+    }
+
+    if (!isSignatureValid) {
+      throw new UnauthorizedException('Chữ ký số sinh trắc học không khớp với khóa công khai của thiết bị!');
+    }
+
+    // Cập nhật lastUsedAt cho thiết bị
+    device.lastUsedAt = new Date();
+    await user.save();
+
+    // Cấp JWT Access Token phiên làm việc
+    const jwtPayload = {
+      sub: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      branchId: user.branchId || null,
+      branchName: user.branchName || null,
+      phone: user.phone || null,
+      avatarUrl: user.avatarUrl || null,
+    };
+
+    const access_token = this.jwtService.sign(jwtPayload);
+
+    return {
+      message: 'Xác thực sinh trắc học thành công!',
+      access_token,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        branchId: user.branchId || null,
+        branchName: user.branchName || null,
+        avatarUrl: user.avatarUrl || null,
+      },
+    };
   }
 }

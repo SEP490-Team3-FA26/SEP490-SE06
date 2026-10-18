@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
 import { ApiService } from '../services/api.service';
 import { authApiService } from '../services/authApiService';
 import { SocketService } from '../services/socket.service';
+import { BiometricService, SavedBiometricUser } from '../services/biometric.service';
 import { UserRole, UserProfile } from '../types/pharmacy.types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
@@ -86,6 +87,14 @@ type AuthContextValue = {
   isLoading: boolean;
   error: string | null;
 
+  // Sinh trắc học (Android BiometricPrompt)
+  isBiometricSupported: boolean;
+  isBiometricEnabled: boolean;
+  savedBiometricUser: SavedBiometricUser | null;
+  checkBiometricState: () => Promise<void>;
+  toggleBiometrics: (enable: boolean) => Promise<{ success: boolean; message?: string }>;
+  loginWithBiometrics: () => Promise<{ success: boolean; user?: UserProfile; role?: string; message?: string }>;
+
   // Actions
   login: (emailOrPhone: string, password: string) => Promise<{ success: boolean; user?: UserProfile; role?: string; message?: string }>;
   register: (data: {
@@ -112,6 +121,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Trạng thái Sinh trắc học (Android BiometricPrompt & Keystore)
+  const [isBiometricSupported, setIsBiometricSupported] = useState<boolean>(false);
+  const [isBiometricEnabled, setIsBiometricEnabled] = useState<boolean>(false);
+  const [savedBiometricUser, setSavedBiometricUser] = useState<SavedBiometricUser | null>(null);
+
+  const checkBiometricState = useCallback(async () => {
+    try {
+      const support = await BiometricService.checkHardwareSupport();
+      setIsBiometricSupported(support.hasHardware && support.isEnrolled);
+
+      const enabled = await BiometricService.isBiometricEnabled();
+      setIsBiometricEnabled(enabled);
+
+      if (enabled) {
+        const { user: savedUser } = await BiometricService.getSavedBiometricCredentials();
+        setSavedBiometricUser(savedUser);
+      } else {
+        setSavedBiometricUser(null);
+      }
+    } catch (err) {
+      console.warn('[AuthContext] Lỗi kiểm tra trạng thái sinh trắc học:', err);
+    }
+  }, []);
 
   const initializeAuth = useCallback(async () => {
     try {
@@ -142,13 +175,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (cachedUserStr) {
         setUser(JSON.parse(cachedUserStr));
       }
+
+      // Khởi tạo kiểm tra phần cứng và trạng thái sinh trắc học
+      await checkBiometricState();
     } catch (err) {
       console.error('Error initializing auth:', err);
       setUser(null);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [checkBiometricState]);
 
   useEffect(() => {
     void initializeAuth();
@@ -187,6 +223,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(userProfile);
       void syncPushTokenToServer();
 
+      // Cập nhật trạng thái sinh trắc học sau khi đăng nhập
+      try {
+        void checkBiometricState();
+      } catch (bioErr) {
+        console.warn('[AuthContext] Lỗi kiểm tra sinh trắc học:', bioErr);
+      }
+
       return {
         success: true,
         user: userProfile,
@@ -199,7 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [checkBiometricState]);
 
   const register = useCallback(async (data: {
     name: string;
@@ -282,14 +325,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       setError(null);
       const res = await ApiService.resetPassword({ email, otp, newPassword: newPass });
-      return res.success !== false;
+      if (res.success !== false) {
+        // Hủy bỏ token sinh trắc học cũ trong Keystore vì mật khẩu tài khoản đã thay đổi
+        await BiometricService.disableBiometrics();
+        await checkBiometricState();
+        return true;
+      }
+      return false;
     } catch (err: any) {
       setError(err.message || 'Đặt lại mật khẩu thất bại');
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [checkBiometricState]);
 
   const updateProfile = useCallback(async (data: Partial<UserProfile>) => {
     try {
@@ -303,6 +352,169 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   }, []);
+
+  const toggleBiometrics = useCallback(
+    async (enable: boolean): Promise<{ success: boolean; message?: string }> => {
+      try {
+        if (!enable) {
+          const id = user?.email || user?.phone || savedBiometricUser?.userIdentifier;
+          await BiometricService.disableBiometrics(id);
+          setIsBiometricEnabled(false);
+          setSavedBiometricUser(null);
+          return { success: true };
+        }
+
+        const support = await BiometricService.checkHardwareSupport();
+        if (!support.hasHardware) {
+          return { success: false, message: 'Thiết bị không hỗ trợ phần cứng sinh trắc học' };
+        }
+        if (!support.isEnrolled) {
+          return {
+            success: false,
+            message: 'Vui lòng cài đặt bảo mật vân tay hoặc khuôn mặt trên thiết bị Android trước',
+          };
+        }
+
+        let currentUser = user;
+        if (!currentUser) {
+          const cachedUserStr = await AsyncStorage.getItem(USER_DATA_KEY);
+          if (cachedUserStr) {
+            try {
+              currentUser = JSON.parse(cachedUserStr);
+            } catch {}
+          }
+        }
+
+        if (!currentUser) {
+          return { success: false, message: 'Vui lòng đăng nhập trước khi kích hoạt sinh trắc học' };
+        }
+
+        // Đăng ký cặp khóa RSA 2048-bit trực tiếp trong Android Keystore TEE và gửi Public Key lên Server
+        const currentIdentifier = currentUser.email || currentUser.phone || 'Tài khoản';
+        const res = await BiometricService.enableBiometricsFido2({
+          userIdentifier: currentIdentifier,
+          userName: currentUser.name,
+          role: currentUser.role,
+        });
+
+        if (res.success) {
+          setIsBiometricEnabled(true);
+          setSavedBiometricUser({
+            userIdentifier: currentIdentifier,
+            userName: currentUser.name,
+            role: currentUser.role,
+          });
+          return { success: true };
+        }
+
+        return { success: false, message: res.message || 'Không thể đăng ký khóa với máy chủ' };
+      } catch (err: any) {
+        return { success: false, message: err?.message || 'Lỗi thiết lập sinh trắc học' };
+      }
+    },
+    [user, savedBiometricUser]
+  );
+
+  const loginWithBiometrics = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const isBioActive = await BiometricService.isBiometricEnabled();
+      if (!isBioActive) {
+        return { success: false, message: 'Chưa kích hoạt sinh trắc học trên thiết bị này' };
+      }
+
+      const { user: savedUser } = await BiometricService.getSavedBiometricCredentials();
+      if (!savedUser || !savedUser.userIdentifier) {
+        return { success: false, message: 'Không tìm thấy thông tin tài khoản đã liên kết sinh trắc học' };
+      }
+
+      const deviceId = await BiometricService.getOrCreateDeviceId();
+
+      // BƯỚC 1: Lấy Challenge Nonce (thời hạn 60s) từ Backend Gateway & Redis
+      let challengeRes: any;
+      try {
+        challengeRes = await ApiService.getBiometricChallenge(savedUser.userIdentifier, deviceId);
+      } catch (chalErr: any) {
+        return {
+          success: false,
+          message: chalErr?.message || 'Không thể lấy mã thử thách xác thực từ máy chủ',
+        };
+      }
+
+      // BƯỚC 2: Ký số nguyên tử 1 bước (BiometricPrompt mở TEE và ký SHA256withRSA)
+      const promptTitle = savedUser?.userName
+        ? `Đăng nhập cho ${savedUser.userName}`
+        : 'Xác thực sinh trắc học cho ABC Pharmacy';
+
+      let signature = '';
+      try {
+        signature = await BiometricService.signChallenge(challengeRes.challenge, promptTitle);
+      } catch (signErr: any) {
+        if (signErr?.message === 'HỦY_BỎ') {
+          return { success: false, message: 'Đã hủy xác thực sinh trắc học' };
+        }
+        return {
+          success: false,
+          message: signErr?.message || 'Xác thực sinh trắc học thất bại',
+        };
+      }
+
+      // BƯỚC 3: Gửi chữ ký số về Backend Gateway để kiểm tra với Public Key và cấp JWT Token
+      let verifyRes: any;
+      try {
+        verifyRes = await ApiService.verifyBiometricSignature({
+          emailOrPhone: savedUser.userIdentifier,
+          deviceId,
+          challenge: challengeRes.challenge,
+          signature,
+        });
+      } catch (verifyErr: any) {
+        return {
+          success: false,
+          message: verifyErr?.message || 'Chữ ký sinh trắc học không hợp lệ',
+        };
+      }
+
+      const token = verifyRes.token || verifyRes.accessToken || verifyRes.access_token;
+      if (!token) {
+        return {
+          success: false,
+          message: 'Không nhận được mã phiên đăng nhập từ máy chủ',
+        };
+      }
+
+      const userProfile: UserProfile = verifyRes.user || {
+        id: verifyRes.id || verifyRes._id || 'user_1',
+        name: verifyRes.fullName || verifyRes.name || savedUser.userName || 'Người dùng',
+        email: savedUser.userIdentifier.includes('@') ? savedUser.userIdentifier : '',
+        phone: !savedUser.userIdentifier.includes('@') ? savedUser.userIdentifier : '',
+        role: verifyRes.role || savedUser.role || UserRole.CUSTOMER,
+        branchId: verifyRes.branchId,
+        branchName: verifyRes.branchName,
+      };
+
+      // Đăng nhập thành công
+      ApiService.setToken(token);
+      SocketService.initSocket(token);
+      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userProfile));
+      setUser(userProfile);
+      void syncPushTokenToServer();
+
+      return {
+        success: true,
+        user: userProfile,
+        role: userProfile.role,
+      };
+    } catch (err: any) {
+      const msg = err?.message || 'Đăng nhập sinh trắc học thất bại';
+      setError(msg);
+      return { success: false, message: msg };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [checkBiometricState]);
 
   const logout = useCallback(async () => {
     try {
@@ -348,6 +560,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated: user !== null,
       isLoading,
       error,
+      isBiometricSupported,
+      isBiometricEnabled,
+      savedBiometricUser,
+      checkBiometricState,
+      toggleBiometrics,
+      loginWithBiometrics,
       login,
       register,
       verifyEmail,
@@ -365,6 +583,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       isLoading,
       error,
+      isBiometricSupported,
+      isBiometricEnabled,
+      savedBiometricUser,
+      checkBiometricState,
+      toggleBiometrics,
+      loginWithBiometrics,
       login,
       register,
       verifyEmail,

@@ -122,6 +122,17 @@ export class User extends Document {
   /** Tổng số ngày phép năm đã sử dụng trong năm */
   @Prop({ default: 0 })
   usedAnnualLeave?: number;
+
+  /** Danh sách các thiết bị sinh trắc học đã đăng ký khóa công khai FIDO2/Challenge-Response */
+  @Prop({ type: Array, default: [] })
+  biometricDevices?: {
+    deviceId: string;
+    deviceName: string;
+    publicKey: string;
+    registeredAt: Date;
+    lastUsedAt: Date;
+    isActive: boolean;
+  }[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

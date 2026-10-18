@@ -516,5 +516,86 @@ export class AuthMsController {
       </div>
     `;
   }
+
+  // =========================================================================
+  // BIOMETRICS FIDO2 PATTERN (Sinh trắc học chuẩn Ngân hàng)
+  // =========================================================================
+
+  /**
+   * Topic: auth.biometrics.register
+   * Đăng ký khóa công khai của thiết bị
+   */
+  @MessagePattern('auth.biometrics.register')
+  async handleBiometricsRegister(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`📨 [Auth MS] Đăng ký thiết bị sinh trắc học cho user: ${payload.userId}`);
+      return await this.authService.registerBiometricDevice(payload.userId, payload);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi đăng ký sinh trắc học:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.devices.list
+   * Lấy danh sách thiết bị sinh trắc học
+   */
+  @MessagePattern('auth.biometrics.devices.list')
+  async handleBiometricsList(@Payload() data: string) {
+    try {
+      const { userId } = typeof data === 'string' ? JSON.parse(data) : data;
+      return await this.authService.getBiometricDevices(userId);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi lấy danh sách thiết bị:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.devices.revoke
+   * Hủy liên kết thiết bị sinh trắc học
+   */
+  @MessagePattern('auth.biometrics.devices.revoke')
+  async handleBiometricsRevoke(@Payload() data: string) {
+    try {
+      const { userId, deviceId } = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`📨 [Auth MS] Hủy liên kết thiết bị ${deviceId} cho user: ${userId}`);
+      return await this.authService.revokeBiometricDevice(userId, deviceId);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi hủy thiết bị sinh trắc học:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.check.device
+   * Kiểm tra điều kiện thiết bị trước khi Gateway cấp Challenge Nonce
+   */
+  @MessagePattern('auth.biometrics.check.device')
+  async handleBiometricsCheckDevice(@Payload() data: string) {
+    try {
+      const { emailOrPhone, deviceId } = typeof data === 'string' ? JSON.parse(data) : data;
+      return await this.authService.checkBiometricDevice(emailOrPhone, deviceId);
+    } catch (error) {
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.verify
+   * Xác thực chữ ký số Challenge-Response và phát hành JWT Token
+   */
+  @MessagePattern('auth.biometrics.verify')
+  async handleBiometricsVerify(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`📨 [Auth MS] Xác thực chữ ký sinh trắc học cho ${payload.emailOrPhone} trên device ${payload.deviceId}`);
+      return await this.authService.verifyBiometricSignature(payload);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi xác thực chữ ký:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 401 };
+    }
+  }
 }
 
