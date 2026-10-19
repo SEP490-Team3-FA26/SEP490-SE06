@@ -24,11 +24,19 @@ import { ColorTokens, TypographyTokens } from '../../theme/tokens';
 const { width } = Dimensions.get('window');
 
 export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { login } = useAuth();
+  const {
+    login,
+    loginWithBiometrics,
+    isBiometricSupported,
+    isBiometricEnabled,
+    savedBiometricUser,
+    toggleBiometrics,
+  } = useAuth();
   const [emailOrPhone, setEmailOrPhone] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [biometricLoading, setBiometricLoading] = useState<boolean>(false);
   const [selectedDemoRole, setSelectedDemoRole] = useState<UserRole | null>(null);
 
   const DEMO_USERS = [
@@ -39,6 +47,20 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     { role: UserRole.BRANCH, title: 'Quản Lý', subtitle: 'Cơ sở & Duyệt ca', email: 'manager@vinapharmacy.com', color: '#0EA5E9', icon: 'storefront' },
     { role: UserRole.CUSTOMER, title: 'Khách Hàng', subtitle: 'Mua sắm trực tuyến', email: 'user@vinapharmacy.com', color: '#0284C7', icon: 'cart' },
   ];
+
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    const res = await loginWithBiometrics();
+    setBiometricLoading(false);
+
+    if (res.success) {
+      showToast.success('Đăng nhập thành công', `Chào mừng ${res.user?.name || ''} quay trở lại!`);
+    } else {
+      if (res.message && res.message !== 'Đã hủy xác thực sinh trắc học') {
+        showToast.error('Đăng nhập thất bại', res.message);
+      }
+    }
+  };
 
   const handleLogin = async () => {
     if (!emailOrPhone.trim() || !password.trim()) {
@@ -52,6 +74,39 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
     if (!res.success) {
       showToast.error('Đăng nhập thất bại', res.message || 'Sai thông tin tài khoản hoặc mật khẩu.');
+    } else {
+      // Kiểm tra xem tài khoản này đã kích hoạt sinh trắc học trên máy chưa
+      const currentIdentifier = emailOrPhone.toLowerCase().trim();
+      const savedIdentifier = (savedBiometricUser?.userIdentifier || '').toLowerCase().trim();
+      const isAccountEnrolled = isBiometricEnabled && savedIdentifier === currentIdentifier;
+
+      // Nếu máy có hỗ trợ vân tay, nhưng TÀI KHOẢN NÀY chưa kích hoạt sinh trắc học:
+      if (isBiometricSupported && !isAccountEnrolled) {
+        setTimeout(() => {
+          Alert.alert(
+            'Kích Hoạt Sinh Trắc Học',
+            `Bạn có muốn kích hoạt Đăng nhập Sinh trắc học cho tài khoản ${res.user?.name || currentIdentifier} trên thiết bị này không?`,
+            [
+              { text: 'Để sau', style: 'cancel' },
+              {
+                text: 'Kích hoạt ngay',
+                onPress: async () => {
+                  try {
+                    const bioRes = await toggleBiometrics(true);
+                    if (bioRes.success) {
+                      showToast.success('Thành công', 'Đã kích hoạt đăng nhập sinh trắc học cho tài khoản này!');
+                    } else if (bioRes.message && bioRes.message !== 'HỦY_BỎ' && bioRes.message !== 'Đã hủy xác thực sinh trắc học') {
+                      showToast.error('Thông báo', bioRes.message);
+                    }
+                  } catch (err: any) {
+                    showToast.error('Lỗi', err?.message || 'Không thể kích hoạt sinh trắc học');
+                  }
+                },
+              },
+            ]
+          );
+        }, 800);
+      }
     }
   };
 
@@ -196,7 +251,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 {/* Primary Action Button - Medical Blue Gradient */}
                 <AnimatedTouchable
                   onPress={handleLogin}
-                  disabled={loading}
+                  disabled={loading || biometricLoading}
                   style={styles.loginBtnTouch}
                 >
                   <LinearGradient
@@ -211,6 +266,34 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
                   </LinearGradient>
                 </AnimatedTouchable>
+
+                {/* Biometric Login Button (Android BiometricPrompt & Keystore) */}
+                {isBiometricEnabled && (
+                  <AnimatedTouchable
+                    onPress={handleBiometricLogin}
+                    disabled={loading || biometricLoading}
+                    style={styles.biometricBtnTouch}
+                  >
+                    <LinearGradient
+                      colors={['#047857', '#10B981']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.biometricBtnGradient}
+                    >
+                      <Ionicons name="finger-print" size={24} color="#FFFFFF" style={{ marginRight: 10 }} />
+                      <View style={{ flexShrink: 1, alignItems: 'flex-start' }}>
+                        <Text style={styles.biometricBtnText}>
+                          {biometricLoading ? 'ĐANG XÁC THỰC SINH TRẮC HỌC...' : 'ĐĂNG NHẬP SINH TRẮC HỌC'}
+                        </Text>
+                        {savedBiometricUser?.userName ? (
+                          <Text style={styles.biometricBtnSubText} numberOfLines={1}>
+                            {savedBiometricUser.userName} • {savedBiometricUser.userIdentifier}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </LinearGradient>
+                  </AnimatedTouchable>
+                )}
 
                 {/* Divider */}
                 <View style={styles.dividerRow}>
@@ -516,6 +599,36 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
+  },
+  biometricBtnTouch: {
+    marginTop: -4,
+    marginBottom: 16,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  biometricBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  biometricBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  biometricBtnSubText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.88)',
+    fontWeight: '500',
+    marginTop: 2,
   },
 
   // Divider

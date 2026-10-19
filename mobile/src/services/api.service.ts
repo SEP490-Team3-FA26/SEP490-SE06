@@ -341,6 +341,118 @@ export class ApiService {
     return await res.json();
   }
 
+  // --- BIOMETRIC FIDO2 CHALLENGE-RESPONSE APIS ---
+  public static async getBiometricChallenge(
+    emailOrPhone: string,
+    deviceId: string,
+  ): Promise<{ challenge: string; userId: string; email: string; fullName: string; expiresInSeconds: number }> {
+    const bodyPayload = { emailOrPhone: emailOrPhone.trim().toLowerCase(), deviceId };
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/api/auth/biometrics/challenge`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify(bodyPayload),
+      });
+    } catch (firstErr) {
+      const altUrl = EnvService.getAlternateApiUrl();
+      if (altUrl && altUrl !== this.baseUrl) {
+        res = await fetch(`${altUrl}/api/auth/biometrics/challenge`, {
+          method: 'POST',
+          headers: this.authHeaders,
+          body: JSON.stringify(bodyPayload),
+        });
+      } else {
+        throw firstErr;
+      }
+    }
+    const data = await res.json();
+    if (res.ok && data?.challenge) {
+      return data;
+    }
+    throw new Error(data?.message || 'Không thể lấy mã thử thách sinh trắc học');
+  }
+
+  public static async verifyBiometricSignature(payload: {
+    emailOrPhone: string;
+    deviceId: string;
+    challenge: string;
+    signature: string;
+  }): Promise<any> {
+    const bodyPayload = {
+      ...payload,
+      emailOrPhone: payload.emailOrPhone.trim().toLowerCase(),
+    };
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/api/auth/biometrics/verify`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify(bodyPayload),
+      });
+    } catch (firstErr) {
+      const altUrl = EnvService.getAlternateApiUrl();
+      if (altUrl && altUrl !== this.baseUrl) {
+        res = await fetch(`${altUrl}/api/auth/biometrics/verify`, {
+          method: 'POST',
+          headers: this.authHeaders,
+          body: JSON.stringify(bodyPayload),
+        });
+      } else {
+        throw firstErr;
+      }
+    }
+    const data = await res.json();
+    const token = data?.accessToken || data?.access_token || data?.token;
+    if (res.ok && token) {
+      this.setToken(token);
+      return {
+        ...data,
+        token,
+        accessToken: token,
+      };
+    }
+    throw new Error(data?.message || 'Xác thực sinh trắc học thất bại');
+  }
+
+  public static async registerBiometricDevice(data: {
+    deviceId: string;
+    deviceName?: string;
+    publicKey: string;
+  }): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/auth/biometrics/register`, {
+      method: 'POST',
+      headers: this.authHeaders,
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (res.ok) return result;
+    throw new Error(result?.message || 'Không thể đăng ký thiết bị sinh trắc học');
+  }
+
+  public static async getBiometricDevices(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/auth/biometrics/devices`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (e) {
+      console.warn('Lỗi getBiometricDevices:', e);
+    }
+    return [];
+  }
+
+  public static async revokeBiometricDevice(deviceId: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/auth/biometrics/devices/${encodeURIComponent(deviceId)}`, {
+      method: 'DELETE',
+      headers: this.authHeaders,
+    });
+    return await res.json();
+  }
+
   // --- LOYALTY & CUSTOMER MEMBERSHIP APIS ---
   public static async getMyLoyalty(): Promise<any> {
     try {
@@ -1521,15 +1633,22 @@ export class ApiService {
       } catch (_) {}
 
       // 2. Fallback to API Gateway inspection endpoint
-      const gwRes = await fetch(
-        `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
-        {
-          headers,
+      try {
+        const gwRes = await fetch(
+          `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
+          {
+            method: 'POST',
+            headers,
+            body: formData,
+          }
+        );
+        if (gwRes.ok) {
+          const decoded = await gwRes.json();
+          if (decoded && decoded.success !== false) {
+            return decoded;
+          }
         }
-      );
-      if (gwRes.ok) {
-        return await gwRes.json();
-      }
+      } catch (_) {}
     } catch (e) {
       console.warn('Failed AI inspection of receipt item:', e);
     }

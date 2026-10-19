@@ -1051,40 +1051,64 @@ async def inspect_receipt_item(
     
     receipt_query = {"_id": ObjectId(receiptId)} if ObjectId.is_valid(receiptId) else {"_id": receiptId}
     receipt = db["goodsreceiptnotes"].find_one(receipt_query)
-    
-    if not receipt:
-        raise HTTPException(status_code=404, detail="Goods Receipt Note not found.")
-        
-    # Transition DRAFT to INSPECTING and PO to RECEIVING on first inspect
-    if receipt.get("status") == "DRAFT":
-        db["goodsreceiptnotes"].update_one(
-            receipt_query,
-            {"$set": {"status": "INSPECTING"}}
-        )
-        po_id = receipt.get("poId")
-        if po_id:
-            po_query = {"_id": ObjectId(po_id)} if ObjectId.is_valid(po_id) else {"_id": po_id}
-            po = db["purchaseorders"].find_one(po_query)
-            if po and po.get("status") in ["SHIPPING", "PARTIAL_RECEIVED"]:
-                db["purchaseorders"].update_one(
-                    po_query,
-                    {"$set": {"status": "RECEIVING"}}
-                )
-    
-    # Locate target receipt item using unique receiptItemId
     target_item = None
-    if "items" in receipt:
-        for item in receipt["items"]:
-            item_id = str(item.get("_id") or "")
-            if item_id == receiptItemId:
-                target_item = item
-                break
-                
-    if not target_item:
-        raise HTTPException(status_code=404, detail="Receipt Item not found in the specified Goods Receipt.")
+    expected_qty = 10
+    medicine_id = None
+    
+    if receipt:
+        # Transition DRAFT to INSPECTING and PO to RECEIVING on first inspect
+        if receipt.get("status") == "DRAFT":
+            db["goodsreceiptnotes"].update_one(
+                receipt_query,
+                {"$set": {"status": "INSPECTING"}}
+            )
+            po_id = receipt.get("poId")
+            if po_id:
+                po_query = {"_id": ObjectId(po_id)} if ObjectId.is_valid(po_id) else {"_id": po_id}
+                po = db["purchaseorders"].find_one(po_query)
+                if po and po.get("status") in ["SHIPPING", "PARTIAL_RECEIVED"]:
+                    db["purchaseorders"].update_one(
+                        po_query,
+                        {"$set": {"status": "RECEIVING"}}
+                    )
         
-    expected_qty = int(target_item.get("quantity"))
-    medicine_id = target_item.get("medicineId")
+        # Locate target receipt item using unique receiptItemId
+        if "items" in receipt:
+            for item in receipt["items"]:
+                item_id = str(item.get("_id") or "")
+                if item_id == receiptItemId:
+                    target_item = item
+                    break
+        if not target_item and receiptItemId.isdigit() and "items" in receipt:
+            idx = int(receiptItemId)
+            if idx < len(receipt["items"]):
+                target_item = receipt["items"][idx]
+    else:
+        # Hỗ trợ kiểm định trực tiếp theo mã đơn PO (từ Mobile quét mã QR Web)
+        po_code_clean = receiptId.replace("GRN-", "").strip()
+        or_clauses = [{"poCode": po_code_clean}, {"poCode": receiptId}]
+        if ObjectId.is_valid(po_code_clean):
+            or_clauses.append({"_id": ObjectId(po_code_clean)})
+        or_clauses.append({"_id": po_code_clean})
+
+        po = db["purchaseorders"].find_one({"$or": or_clauses})
+        if po:
+            po_items = po.get("items", [])
+            if receiptItemId.isdigit() and int(receiptItemId) < len(po_items):
+                target_item = po_items[int(receiptItemId)]
+            else:
+                for pit in po_items:
+                    if str(pit.get("_id") or pit.get("id") or pit.get("medicineId")) == receiptItemId:
+                        target_item = pit
+                        break
+            if po.get("status") in ["SHIPPING", "PARTIAL_RECEIVED"]:
+                db["purchaseorders"].update_one({"_id": po["_id"]}, {"$set": {"status": "RECEIVING"}})
+
+    if not target_item:
+        raise HTTPException(status_code=404, detail="Goods Receipt Note or Purchase Order item not found.")
+        
+    expected_qty = int(target_item.get("quantity") or target_item.get("expected") or 10)
+    medicine_id = target_item.get("medicineId") or target_item.get("id")
 
     # 4. Save timestamped copy as audit evidence
     file_extension = os.path.splitext(file.filename)[1] or ".jpg"

@@ -3,6 +3,8 @@ import {
   Post,
   Body,
   Get,
+  Delete,
+  Param,
   Inject,
   OnModuleInit,
   HttpCode,
@@ -14,6 +16,7 @@ import {
   Res,
   Query,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { AuthGuard } from '@nestjs/passport';
 import { ClientKafka } from '@nestjs/microservices';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -36,6 +39,9 @@ import { JwtService } from '@nestjs/jwt';
 export class AuthController implements OnModuleInit {
   // TTL cache: 1 giờ (tính bằng mili-giây)
   private readonly CACHE_TTL = 3600 * 1000;
+
+  // In-memory Tick-Gate: Chặn đứng tức thì (0ms) các cuộc tấn công Parallel Replay Attack bắn đồng thời
+  private readonly processingNonces = new Set<string>();
 
   constructor(
     @Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka,
@@ -63,6 +69,11 @@ export class AuthController implements OnModuleInit {
       'auth.2fa.authenticate',
       'auth.verify.email',
       'auth.resend.verification',
+      'auth.biometrics.register',
+      'auth.biometrics.devices.list',
+      'auth.biometrics.devices.revoke',
+      'auth.biometrics.check.device',
+      'auth.biometrics.verify',
     ]);
     console.log('✅ [API Gateway] Đã kết nối tới Kafka và đăng ký Reply Topics');
   }
@@ -383,5 +394,171 @@ export class AuthController implements OnModuleInit {
       'auth.resend.verification',
       JSON.stringify(dto),
     );
+  }
+
+  // ============================================================
+  // POST /api/auth/biometrics/challenge — Lấy mã thử thách ngẫu nhiên (Nonce)
+  // ============================================================
+  @Post('biometrics/challenge')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lấy Challenge Nonce để ký số sinh trắc học (FIDO2)' })
+  async getBiometricChallenge(@Body() dto: { emailOrPhone: string; deviceId: string }) {
+    if (!dto.emailOrPhone || !dto.deviceId) {
+      throw new HttpException('Thiếu thông tin email/số điện thoại hoặc mã thiết bị!', HttpStatus.BAD_REQUEST);
+    }
+
+    // 1. Kiểm tra tài khoản và thiết bị trên Auth Service qua Kafka
+    const checkResult: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.check.device',
+      JSON.stringify(dto),
+    );
+
+    if (checkResult?.error) {
+      throw new HttpException(checkResult.message || 'Thiết bị chưa được đăng ký hoặc tài khoản không hợp lệ!', checkResult.statusCode || HttpStatus.BAD_REQUEST);
+    }
+
+    // 2. Sinh Nonce 32-byte ngẫu nhiên cryptographically secure
+    const challenge = crypto.randomBytes(32).toString('hex');
+    // Gắn giá trị challenge vào chính Redis key để triệt tiêu race-condition và rủi ro ghi đè khi có nhiều request đồng thời
+    const nonceKey = `bio:challenge:${checkResult.userId}:${dto.deviceId}:${challenge}`;
+
+    // 3. Lưu Nonce vào Redis với TTL 60 giây (60000ms)
+    await this.cacheManager.set(nonceKey, '1', 60000);
+
+    return {
+      challenge,
+      userId: checkResult.userId,
+      email: checkResult.email,
+      fullName: checkResult.fullName,
+      expiresInSeconds: 60,
+    };
+  }
+
+  // ============================================================
+  // POST /api/auth/biometrics/verify — Xác thực Chữ Ký Số và cấp Access Token
+  // ============================================================
+  @Post('biometrics/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xác thực chữ ký số FIDO2 và đăng nhập' })
+  async verifyBiometricSignature(@Body() dto: { emailOrPhone: string; deviceId: string; challenge: string; signature: string }) {
+    if (!dto.emailOrPhone || !dto.deviceId || !dto.challenge || !dto.signature) {
+      throw new HttpException('Thiếu thông tin xác thực chữ ký sinh trắc học!', HttpStatus.BAD_REQUEST);
+    }
+
+    // 1. Lấy thông tin user để tìm Nonce trong Redis
+    const checkResult: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.check.device',
+      JSON.stringify({ emailOrPhone: dto.emailOrPhone, deviceId: dto.deviceId }),
+    );
+
+    if (checkResult?.error) {
+      throw new HttpException(checkResult.message || 'Tài khoản hoặc thiết bị không hợp lệ!', HttpStatus.UNAUTHORIZED);
+    }
+
+    const nonceKey = `bio:challenge:${checkResult.userId}:${dto.deviceId}:${dto.challenge}`;
+
+    // 2. In-memory Gate (0ms): Chặn đứng ngay lập tức các cuộc tấn công phát lại song song (Parallel Replay Attack)
+    if (this.processingNonces.has(nonceKey)) {
+      throw new HttpException('Mã xác thực đang được xử lý hoặc đã sử dụng! Vui lòng thử lại.', HttpStatus.UNAUTHORIZED);
+    }
+    this.processingNonces.add(nonceKey);
+    // Tự động giải phóng bộ nhớ sau khi TTL Redis hết hạn
+    setTimeout(() => this.processingNonces.delete(nonceKey), 65000);
+
+    // 3. Kiểm tra Nonce trong Redis và XÓA NGAY LẬP TỨC (Single-use / Destroy-on-read)
+    const savedNonce = await this.cacheManager.get<string>(nonceKey);
+    await this.cacheManager.del(nonceKey);
+
+    if (!savedNonce) {
+      throw new HttpException('Mã xác thực (Challenge) đã hết hạn hoặc không hợp lệ! Vui lòng thử lại.', HttpStatus.UNAUTHORIZED);
+    }
+
+    // 4. Gửi Kafka tới Auth Service để đối soát chữ ký số bằng Public Key trong MongoDB
+    const verifyResult: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.verify',
+      JSON.stringify(dto),
+    );
+
+    if (verifyResult?.error) {
+      throw new HttpException(verifyResult.message || 'Xác thực sinh trắc học thất bại!', verifyResult.statusCode || HttpStatus.UNAUTHORIZED);
+    }
+
+    // 5. Lưu phiên đăng nhập thành công vào Redis cache
+    if (verifyResult && verifyResult.access_token && verifyResult.user) {
+      const cacheKey = `auth:session:${verifyResult.user.email}`;
+      await this.cacheManager.set(cacheKey, verifyResult, this.CACHE_TTL);
+    }
+
+    return verifyResult;
+  }
+
+  // ============================================================
+  // POST /api/auth/biometrics/register — Đăng ký Public Key thiết bị
+  // ============================================================
+  @Post('biometrics/register')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đăng ký khóa công khai thiết bị sinh trắc học' })
+  async registerBiometrics(@Request() req, @Body() dto: { deviceId: string; deviceName?: string; publicKey: string }) {
+    if (!dto.deviceId || !dto.publicKey) {
+      throw new HttpException('Thiếu deviceId hoặc publicKey!', HttpStatus.BAD_REQUEST);
+    }
+
+    const { sub: userId } = req.user;
+    const result: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.register',
+      JSON.stringify({ userId, ...dto }),
+    );
+
+    if (result?.error) {
+      throw new HttpException(result.message || 'Lỗi đăng ký thiết bị sinh trắc học!', HttpStatus.BAD_REQUEST);
+    }
+
+    return result;
+  }
+
+  // ============================================================
+  // GET /api/auth/biometrics/devices — Danh sách thiết bị sinh trắc học
+  // ============================================================
+  @Get('biometrics/devices')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lấy danh sách thiết bị sinh trắc học của tài khoản' })
+  async listBiometricDevices(@Request() req) {
+    const { sub: userId } = req.user;
+    return await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.devices.list',
+      JSON.stringify({ userId }),
+    );
+  }
+
+  // ============================================================
+  // DELETE /api/auth/biometrics/devices/:deviceId — Hủy liên kết thiết bị
+  // ============================================================
+  @Delete('biometrics/devices/:deviceId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hủy liên kết thiết bị sinh trắc học (Remote Revocation)' })
+  async revokeBiometricDevice(@Request() req, @Param('deviceId') deviceId: string) {
+    const { sub: userId } = req.user;
+    const result: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.devices.revoke',
+      JSON.stringify({ userId, deviceId }),
+    );
+
+    if (result?.error) {
+      throw new HttpException(result.message || 'Lỗi hủy liên kết thiết bị!', HttpStatus.BAD_REQUEST);
+    }
+
+    return result;
   }
 }

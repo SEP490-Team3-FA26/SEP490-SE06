@@ -208,6 +208,7 @@ export class GoodsReceiptController implements OnModuleInit {
 
   // Chuyển tiếp hình ảnh chụp kiện hàng sang AI Service để nhận diện và đếm số lượng
   @Post(':id/items/:itemId/inspection')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('file'))
   async inspectReceiptItem(
     @Param('id') id: string,
@@ -241,9 +242,10 @@ export class GoodsReceiptController implements OnModuleInit {
       if (response.ok) {
         return await response.json();
       }
-      return { success: false, message: 'AI inspection call failed.' };
-    } catch (e) {
-      return { success: false, message: 'Failed to process AI inspection.' };
+      const errBody = await response.json().catch(() => null);
+      return { success: false, message: errBody?.detail || 'AI inspection call failed.' };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Failed to process AI inspection.' };
     }
   }
 
