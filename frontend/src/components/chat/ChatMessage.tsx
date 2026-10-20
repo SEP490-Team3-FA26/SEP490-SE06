@@ -22,6 +22,7 @@ export interface MessageItem {
   timestamp: string;
   payment?: PayOSPaymentData;
   actionButton?: MessageActionButton;
+  imageUrl?: string;
 }
 
 interface ChatMessageProps {
@@ -64,10 +65,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   if (isUser) {
     return (
       <div className="flex justify-end my-1.5 animate-in fade-in slide-in-from-bottom-1 duration-200">
-        <div className="max-w-[85%] sm:max-w-[78%]">
-          <div className="bg-blue-600 text-white px-3.5 py-2 rounded-2xl rounded-tr-xs shadow-none">
-            <p className="text-xs sm:text-[13px] whitespace-pre-wrap leading-relaxed">{message.text}</p>
-          </div>
+        <div className="max-w-[85%] sm:max-w-[78%] flex flex-col items-end gap-1">
+          {message.imageUrl && (
+            <img
+              src={message.imageUrl}
+              alt="Ảnh đính kèm"
+              className="max-h-48 rounded-2xl border border-slate-200 object-cover shadow-2xs"
+            />
+          )}
+          {message.text ? (
+            <div className="bg-blue-600 text-white px-3.5 py-2 rounded-2xl rounded-tr-xs shadow-none">
+              <p className="text-xs sm:text-[13px] whitespace-pre-wrap leading-relaxed">{message.text}</p>
+            </div>
+          ) : null}
           <span className="block text-[10px] text-slate-400 text-right mt-0.5 px-1 font-normal">
             {message.timestamp}
           </span>

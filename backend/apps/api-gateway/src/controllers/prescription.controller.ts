@@ -428,16 +428,20 @@ export class PrescriptionController implements OnModuleInit {
   async chatConsult(
     @Body()
     body: {
-      message: string;
+      message?: string;
       history?: Array<{ role: string; content: string }>;
       age_group?: string;
       gender?: string;
       allergies?: string[];
+      image_base64?: string;
     },
   ) {
-    if (!body || !body.message || !body.message.trim()) {
+    const hasMessage = Boolean(body?.message && body.message.trim());
+    const hasImage = Boolean(body?.image_base64 && body.image_base64.trim());
+
+    if (!hasMessage && !hasImage) {
       throw new HttpException(
-        "Vui lòng cung cấp nội dung tin nhắn tư vấn",
+        "Vui lòng nhập nội dung tin nhắn hoặc gửi hình ảnh cần tư vấn",
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -445,11 +449,12 @@ export class PrescriptionController implements OnModuleInit {
     try {
       // Data minimization: Không gửi PII (họ tên, email, sđt) sang AI service
       const sanitizedPayload = {
-        message: body.message.trim(),
+        message: body.message ? body.message.trim() : "",
         history: Array.isArray(body.history) ? body.history.slice(-10) : [],
         age_group: body.age_group || null,
         gender: body.gender || null,
         allergies: Array.isArray(body.allergies) ? body.allergies : [],
+        image_base64: hasImage ? body.image_base64 : null,
       };
 
       const aiServiceHost = this.getAiServiceHost();
@@ -480,6 +485,9 @@ export class PrescriptionController implements OnModuleInit {
 
       return await response.json();
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         error.message || "Lỗi kết nối hoặc xử lý từ AI Chat Service",
         HttpStatus.INTERNAL_SERVER_ERROR,

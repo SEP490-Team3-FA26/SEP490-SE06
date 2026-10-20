@@ -17,17 +17,66 @@ def get_deepseek_api_key() -> str | None:
         or os.getenv("DEEPSEEK")
     )
 
+def extract_text_from_message_content(content) -> str:
+    """Trích xuất text an toàn từ content dạng string hoặc mảng multimodal blocks."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                text_parts.append(part.get("text", ""))
+            elif isinstance(part, str):
+                text_parts.append(part)
+        return " ".join(text_parts).strip()
+    return str(content or "")
+
 async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     """
     Gọi LLM với cơ chế Multi-Tier Fallback tự động:
-    1. Ưu tiên Google Gemini 3.8 Flash (tốc độ cao 1-2s, hoàn toàn miễn phí từ key Google AI Studio)
-    2. Fallback sang DeepSeek API (deepseek-flash, deepseek-chat)
+    1. Ưu tiên DeepSeek API (deepseek-flash, deepseek-chat) - hỗ trợ cả text và multimodal vision
+    2. Fallback sang Google Gemini 3.8 Flash
     3. Fallback sang Groq API (llama-3.3-70b-versatile, llama-3.1-8b-instant, qwen/qwen3.8-27b)
     4. Fallback sang OpenRouter (nếu có OPEN_ROUTER_API)
     """
     errors = []
 
-    # 1. Ưu tiên Google Gemini 3.8 Flash
+    # 1. Ưu tiên DeepSeek API (deepseek-flash, deepseek-chat)
+    deepseek_key = get_deepseek_api_key()
+    if deepseek_key:
+        preferred_model = os.getenv("DEEPSEEK_MODEL") or "deepseek-flash"
+        models_to_try = [preferred_model]
+        if preferred_model != "deepseek-chat":
+            models_to_try.append("deepseek-chat")
+
+        for model in models_to_try:
+            try:
+                print(f"[AI Service] Goi DeepSeek API (model: {model})...", flush=True)
+                async with httpx.AsyncClient(timeout=35.0) as client:
+                    res = await client.post(
+                        "https://api.deepseek.com/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {deepseek_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": model,
+                            "messages": messages,
+                            "temperature": temperature,
+                            "response_format": {"type": "json_object"}
+                        }
+                    )
+                    if res.status_code == 200:
+                        data = res.json()
+                        content = data["choices"][0]["message"]["content"]
+                        print(f"[AI Service] DeepSeek API ({model}) phan hoi thanh cong!", flush=True)
+                        return content
+                    else:
+                        errors.append(f"DeepSeek ({model}) HTTP {res.status_code}: {res.text}")
+            except Exception as exc:
+                errors.append(f"DeepSeek ({model}) exception: {exc}")
+
+    # 2. Fallback sang Google Gemini 3.8 Flash
     google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if google_key and len(google_key) > 10:
         try:
@@ -36,7 +85,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
             contents = []
             for m in messages:
                 role = m.get("role")
-                text = m.get("content", "")
+                text = extract_text_from_message_content(m.get("content", ""))
                 if role == "system":
                     sys_text = (sys_text + "\n" + text).strip()
                 elif role == "user":
@@ -78,42 +127,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
             print(f"[AI Service] Gemini 3.8 Flash ngoai le: {exc}", flush=True)
             errors.append(f"Gemini 3.8 Flash exception: {exc}")
 
-    # 2. Thử DeepSeek API
-    deepseek_key = get_deepseek_api_key()
-    if deepseek_key:
-        preferred_model = os.getenv("DEEPSEEK_MODEL") or "deepseek-flash"
-        models_to_try = [preferred_model]
-        if preferred_model != "deepseek-chat":
-            models_to_try.append("deepseek-chat")
-
-        for model in models_to_try:
-            try:
-                print(f"[AI Service] Goi DeepSeek API (model: {model})...", flush=True)
-                async with httpx.AsyncClient(timeout=35.0) as client:
-                    res = await client.post(
-                        "https://api.deepseek.com/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {deepseek_key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": model,
-                            "messages": messages,
-                            "temperature": temperature,
-                            "response_format": {"type": "json_object"}
-                        }
-                    )
-                    if res.status_code == 200:
-                        data = res.json()
-                        content = data["choices"][0]["message"]["content"]
-                        print(f"[AI Service] DeepSeek API ({model}) phan hoi thanh cong!", flush=True)
-                        return content
-                    else:
-                        errors.append(f"DeepSeek ({model}) HTTP {res.status_code}: {res.text}")
-            except Exception as exc:
-                errors.append(f"DeepSeek ({model}) exception: {exc}")
-
-    # 2. Thử Groq API (với model versatile hoặc qwen/gpt-oss)
+    # 3. Fallback sang Groq API (chuẩn hóa text thuần túy)
     groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
     if groq_key:
         groq_models = [
@@ -123,13 +137,17 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
             "openai/gpt-oss-120b",
             "openai/gpt-oss-20b"
         ]
+        groq_messages = [
+            {"role": m.get("role", "user"), "content": extract_text_from_message_content(m.get("content", ""))}
+            for m in messages
+        ]
         for model in groq_models:
             try:
                 print(f"[AI Service] Thu Groq API (model: {model})...", flush=True)
                 groq_client = get_groq_client()
                 response = await groq_client.chat.completions.create(
                     model=model,
-                    messages=messages,
+                    messages=groq_messages,
                     temperature=temperature,
                     response_format={"type": "json_object"}
                 )
@@ -140,7 +158,7 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
             except Exception as exc:
                 errors.append(f"Groq ({model}) exception: {exc}")
 
-    # 3. Thử OpenRouter API (nếu có)
+    # 4. Fallback sang OpenRouter API
     openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
     if openrouter_key:
         try:
@@ -173,6 +191,45 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
 
 async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
     return await call_llm_json(messages, temperature=0.1)
+
+async def extract_vision_keywords_for_rag(image_base64: str, user_message: str = "") -> str:
+    """
+    Sử dụng DeepSeek Flash Vision để đọc ảnh (hộp thuốc, vỉ thuốc, đơn thuốc, triệu chứng)
+    và trích xuất ra tên thuốc, hoạt chất, hàm lượng hoặc triệu chứng để đưa vào bộ tìm kiếm RAG.
+    """
+    deepseek_key = get_deepseek_api_key()
+    if not deepseek_key or not image_base64:
+        return ""
+
+    image_url = image_base64 if image_base64.startswith("data:image") else f"data:image/jpeg;base64,{image_base64}"
+    vision_prompt = (
+        "Bạn là trợ lý dược sĩ. Hãy quan sát bức ảnh này và trích xuất ngắn gọn: "
+        "1. Tên các loại thuốc / biệt dược (nếu là ảnh thuốc hoặc đơn thuốc). "
+        "2. Hoạt chất và hàm lượng (ví dụ: Paracetamol 500mg, Amoxicillin 500mg). "
+        "3. Mô tả triệu chứng nhìn thấy (nếu là ảnh da liễu/triệu chứng). "
+        f"Câu hỏi kèm theo của khách: '{user_message}'. "
+        "Trả về kết quả dưới dạng JSON: {\"keywords\": \"tên thuốc, hoạt chất, triệu chứng\", \"visual_summary\": \"mô tả ngắn gọn nội dung ảnh\"}"
+    )
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                {"type": "text", "text": vision_prompt}
+            ]
+        }
+    ]
+
+    try:
+        content = await call_llm_json(messages, temperature=0.1)
+        data = json.loads(content)
+        keywords = data.get("keywords", "").strip()
+        summary = data.get("visual_summary", "").strip()
+        return f"{keywords} | {summary}".strip(" |")
+    except Exception as exc:
+        print(f"[AI Service] Lỗi trích xuất từ khóa từ ảnh: {exc}", flush=True)
+        return ""
 
 RETRIEVAL_NORMALIZATION_PROMPT = """Bạn làm nhiệm vụ làm sạch bản ghi âm tiếng Việt cho tìm kiếm y tế.
 Hãy sửa các lỗi nhận dạng giọng nói rõ ràng và rút gọn thành các triệu chứng/ngữ cảnh y tế có trong lời nói.
@@ -315,6 +372,13 @@ NGUYÊN TẮC BẮT BUỘC:
    - ĐỐI VỚI CÁC TRƯỜNG HỢP TƯ VẤN BỆNH THÔNG THƯỜNG (cảm sốt, đau đầu nhẹ, đau họng, sổ mũi, hỏi mua thuốc, tư vấn dùng thuốc):
      BẮT BUỘC ĐỂ 'warnings' LÀ RỖNG "" HOẶC null! TUYỆT ĐỐI KHÔNG TỰ BỊA RA CÁC CÂU LƯU Ý CHUNG CHUNG ĐỂ ĐIỀN VÀO ĐÂY!
 6. Gợi ý hỏi thêm: Đặt câu hỏi theo dõi ngắn gọn trong 'follow_up_question' nếu cần thêm thông tin chẩn đoán (ví dụ: đã bị mấy ngày, có kèm theo triệu chứng nào khác không).
+7. NGUYÊN TẮC DUY TRÌ NGỮ CẢNH HỘI THOẠI ĐA LƯỢT (MULTI-TURN CONTINUITY):
+   - Khi khách hàng đặt câu hỏi tiếp nối ngắn gọn (ví dụ: "Uống như thế nào?", "Ngày mấy viên?", "Thuốc đó giá bao nhiêu?", "Bà bầu dùng được không?", "Có tác dụng phụ gì không?"), BẮT BUỘC phải đọc kỹ LỊCH SỬ HỘI THOẠI trước đó để xác định chính xác thuốc hoặc triệu chứng đang được nói tới.
+   - TUYỆT ĐỐI KHÔNG hỏi ngược lại khách hàng "Bạn đang hỏi thuốc nào?" nếu tên thuốc hoặc triệu chứng đã xuất hiện ở các lượt chat trước.
+   - Nếu khách hàng hỏi cách uống/liều dùng của thuốc đã được đề xuất ở câu trước, hãy trả lời chi tiết cách dùng trong 'message' và giữ lại thuốc đó trong mảng 'recommended_drugs' để khách tiện mua.
+8. NGUYÊN TẮC TƯ VẤN QUA HÌNH ẢNH (VISION GUARDRAIL):
+   - Khi khách hàng gửi kèm hình ảnh (hộp thuốc, vỉ thuốc, đơn thuốc, hoặc triệu chứng ngoài da), hãy kết hợp thông tin quan sát được từ ảnh và CƠ SỞ DỮ LIỆU THUỐC TRONG KHO để tư vấn chính xác.
+   - Nếu ảnh là thuốc kê đơn (Rx) hoặc kháng sinh, hãy giải thích công dụng, lưu ý khách tuân thủ chỉ định của bác sĩ và đối chiếu các sản phẩm tương ứng có trong kho.
 
 BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON HỢP LỆ VỚI CẤU TRÚC SAU (KHÔNG KÈM TEXT NGOÀI JSON):
 {
@@ -338,7 +402,9 @@ async def generate_chat_consultation(
     context: str = "",
     age_group: str | None = None,
     gender: str | None = None,
-    allergies: list[str] | None = None
+    allergies: list[str] | None = None,
+    image_base64: str | None = None,
+    vision_context: str = ""
 ) -> dict:
     """
     Tạo phản hồi tư vấn hội thoại đa lượt (multi-turn chat) cho khách hàng nhà thuốc.
@@ -348,9 +414,13 @@ async def generate_chat_consultation(
     age_str = age_group if age_group else "Chưa rõ"
     gender_str = gender if gender else "Chưa rõ"
 
+    combined_context = context or "Không tìm thấy dữ liệu thuốc mới trong lượt này (Hãy tham khảo thuốc đã đề xuất trong lịch sử hội thoại nếu khách đang hỏi tiếp về thuốc cũ)."
+    if vision_context:
+        combined_context = f"[THÔNG TIN NHẬN DIỆN TỪ ẢNH KHÁCH GỬI]: {vision_context}\n\n{combined_context}"
+
     system_prompt = (
         CHATBOT_SYSTEM_PROMPT
-        .replace("{rag_context}", context or "Không tìm thấy dữ liệu thuốc phù hợp trong kho.")
+        .replace("{rag_context}", combined_context)
         .replace("{age_group}", age_str)
         .replace("{gender}", gender_str)
         .replace("{allergies}", allergies_str)
@@ -367,8 +437,19 @@ async def generate_chat_consultation(
             if content:
                 messages.append({"role": role, "content": content})
 
-    # Message hiện tại của khách hàng
-    messages.append({"role": "user", "content": message})
+    # Nếu khách gửi kèm ảnh ở lượt hiện tại -> tạo payload multimodal chuẩn DeepSeek Vision
+    if image_base64:
+        image_url = image_base64 if image_base64.startswith("data:image") else f"data:image/jpeg;base64,{image_base64}"
+        user_text = message.strip() if message and message.strip() else "Nhờ dược sĩ xem giúp hình ảnh này và tư vấn thuốc phù hợp."
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                {"type": "text", "text": user_text}
+            ]
+        })
+    else:
+        messages.append({"role": "user", "content": message})
 
     content = await call_llm_json(messages, temperature=0.2)
     try:

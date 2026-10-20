@@ -89,8 +89,8 @@ async function bootstrap() {
       const expressApp = app.getHttpAdapter().getInstance();
       const path = require('path');
       const express = require('express');
-      expressApp.use(express.json({ limit: '2mb' }));
-      expressApp.use(express.urlencoded({ limit: '2mb', extended: true }));
+      expressApp.use(express.json({ limit: '10mb' }));
+      expressApp.use(express.urlencoded({ limit: '10mb', extended: true }));
       expressApp.use('/public', express.static(path.join(process.cwd(), 'public')));
 
       // Legacy health check
