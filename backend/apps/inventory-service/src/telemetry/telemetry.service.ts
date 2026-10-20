@@ -51,7 +51,13 @@ export class TelemetryService implements OnModuleInit {
     receivedAt: string;
   }) {
     const { deviceId, isBatch, record, records } = payload;
-    if (!deviceId) return;
+    if (!deviceId || typeof deviceId !== 'string' || deviceId.length > 40) return;
+
+    // Chống rò rỉ bộ nhớ RAM: khống chế kích thước tối đa 50 trạm
+    if (this.stationCache.size > 50) this.stationCache.clear();
+    if (this.lastSavedMap.size > 50) this.lastSavedMap.clear();
+    if (this.lastAlertMap.size > 50) this.lastAlertMap.clear();
+    if (this.lastStationUpdateMap.size > 50) this.lastStationUpdateMap.clear();
 
     const nowMs = Date.now();
 
@@ -173,10 +179,37 @@ export class TelemetryService implements OnModuleInit {
   }
 
   // =========================================================================
+  // XÁC ĐỊNH DEVICE ID MỤC TIÊU (TỰ ĐỘNG TÌM TRẠM ACTIVE NẾU CLIENT KHÔNG TRUYỀN)
+  // =========================================================================
+  private async resolveTargetDeviceId(deviceId?: string): Promise<string> {
+    if (deviceId && deviceId.trim().length > 0) {
+      return deviceId.trim();
+    }
+    // 1. Tìm trạm có hoạt động gần nhất
+    const latestStation = await this.stationModel
+      .findOne({ isActive: true })
+      .sort({ lastSeenAt: -1, updatedAt: -1 })
+      .lean();
+    if (latestStation?.deviceId) {
+      return latestStation.deviceId;
+    }
+    // 2. Fallback tìm từ bản ghi telemetry gần nhất trong MongoDB
+    const latestRecord = await this.telemetryModel
+      .findOne()
+      .sort({ timestamp: -1 })
+      .lean();
+    if (latestRecord?.deviceId) {
+      return latestRecord.deviceId;
+    }
+    return 'ESP32S3_2884855FFFFC';
+  }
+
+  // =========================================================================
   // API TRUY VẤN: LẤY CHỈ SỐ MỚI NHẤT
   // =========================================================================
   async getLatest(deviceId?: string) {
-    const filter = deviceId ? { deviceId } : {};
+    const targetDeviceId = await this.resolveTargetDeviceId(deviceId);
+    const filter = { deviceId: targetDeviceId };
     const [latestTelemetry, station] = await Promise.all([
       this.telemetryModel.findOne(filter).sort({ timestamp: -1 }).lean(),
       this.stationModel.findOne(filter).lean(),
@@ -185,8 +218,8 @@ export class TelemetryService implements OnModuleInit {
     return {
       success: true,
       station: station || {
-        deviceId: deviceId || 'ESP32S3_404CCA44C814',
-        name: 'Trạm Quan Trắc Kho Tổng GSP',
+        deviceId: targetDeviceId,
+        name: `Trạm Quan Trắc Kho Tổng GSP (${targetDeviceId})`,
         targetId: 'CENTRAL_WH',
         tempMin: 15.0,
         tempMax: 40.0,
@@ -197,42 +230,95 @@ export class TelemetryService implements OnModuleInit {
   }
 
   // =========================================================================
-  // API TRUY VẤN: LẤY LỊCH SỬ CHUỖI THỜI GIAN (DOWNSAMPLING CHO BIỂU ĐỒ)
+  // API TRUY VẤN: LẤY LỊCH SỬ CHUỖI THỜI GIAN (HỖ TRỢ CẢ QUÁ KHỨ VÀ TƯƠNG ĐỐI)
   // =========================================================================
-  async getHistory(deviceId: string, range: string = '1h') {
+  async getHistory(
+    deviceId?: string,
+    range: string = '1h',
+    from?: string | number,
+    to?: string | number,
+  ) {
+    const targetDeviceId = await this.resolveTargetDeviceId(deviceId);
     const nowSec = Math.floor(Date.now() / 1000);
-    let fromSec = nowSec - 3600; // Mặc định 1 giờ
+    let fromSec: number;
+    let toSec: number = nowSec;
 
-    if (range === '5m') {
-      fromSec = nowSec - 300;
-    } else if (range === '1h') {
-      fromSec = nowSec - 3600;
-    } else if (range === '24h') {
-      fromSec = nowSec - 86400;
-    } else if (range === '7d') {
-      fromSec = nowSec - 7 * 86400;
+    // 1. Xử lý trường hợp xem theo khoảng thời gian quá khứ (fromDate / toDate)
+    if (from !== undefined && from !== null && String(from).trim().length > 0) {
+      if (typeof from === 'number') {
+        fromSec = from;
+      } else if (!isNaN(Number(from))) {
+        fromSec = Number(from);
+      } else {
+        const parsed = Math.floor(new Date(from).getTime() / 1000);
+        fromSec = !isNaN(parsed) ? parsed : nowSec - 3600;
+      }
+
+      if (to !== undefined && to !== null && String(to).trim().length > 0) {
+        if (typeof to === 'number') {
+          toSec = to;
+        } else if (!isNaN(Number(to))) {
+          toSec = Number(to);
+        } else {
+          const parsed = Math.floor(new Date(to).getTime() / 1000);
+          toSec = !isNaN(parsed) ? parsed : nowSec;
+        }
+      }
+    } else {
+      // 2. Xử lý trường hợp xem theo dải thời gian tương đối
+      if (range === '5m') {
+        fromSec = nowSec - 300;
+      } else if (range === '1h') {
+        fromSec = nowSec - 3600;
+      } else if (range === '24h') {
+        fromSec = nowSec - 86400;
+      } else if (range === '7d') {
+        fromSec = nowSec - 7 * 86400;
+      } else {
+        fromSec = nowSec - 3600;
+      }
     }
 
+    if (isNaN(fromSec)) fromSec = nowSec - 3600;
+    if (isNaN(toSec)) toSec = nowSec;
+    if (fromSec > toSec) {
+      const temp = fromSec;
+      fromSec = toSec;
+      toSec = temp;
+    }
+
+    // Khống chế dải truy vấn tối đa không vượt quá 7 ngày để chống nghẽn MongoDB
+    const maxWindowSec = 7 * 86400;
+    if (toSec - fromSec > maxWindowSec) {
+      fromSec = toSec - maxWindowSec;
+    }
+
+    const query: any = {
+      deviceId: targetDeviceId,
+      timestamp: { $gte: fromSec, $lte: toSec },
+    };
+
+    // Giới hạn tối đa 3000 bản ghi để bảo vệ bộ nhớ RAM của Node.js
     const records = await this.telemetryModel
-      .find({
-        deviceId: deviceId || 'ESP32S3_404CCA44C814',
-        timestamp: { $gte: fromSec },
-      })
+      .find(query)
       .sort({ timestamp: 1 })
+      .limit(3000)
       .select('timestamp metrics diagnostics status seq -_id')
       .lean();
 
-    // Nếu dữ liệu 24h hoặc 7d quá lớn -> Downsampling để biểu đồ nhẹ và mượt mà
+    // Nếu dữ liệu quá lớn -> Downsampling nhưng LUÔN BẢO TOÀN các mốc vi phạm cảnh báo GSP
     let result = records;
     if (records.length > 500) {
       const step = Math.ceil(records.length / 300);
-      result = records.filter((_, idx) => idx % step === 0);
+      result = records.filter((r, idx) => idx % step === 0 || r.status?.alert === true);
     }
 
     return {
       success: true,
-      deviceId,
+      deviceId: targetDeviceId,
       range,
+      from: fromSec,
+      to: toSec,
       count: result.length,
       totalRaw: records.length,
       records: result,
