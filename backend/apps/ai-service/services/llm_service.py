@@ -31,50 +31,92 @@ def extract_text_from_message_content(content) -> str:
         return " ".join(text_parts).strip()
     return str(content or "")
 
+async def call_deepseek_json(messages: list[dict], temperature: float = 0.2) -> str:
+    """
+    Chuyên biệt cho Chatbot AI Trợ lý Dược sĩ Bồ Câu:
+    CHỈ sử dụng DeepSeek API (deepseek-flash, deepseek-chat), hỗ trợ cả text và multimodal vision.
+    Không đụng chạm hay ảnh hưởng đến các chức năng AI khác.
+    """
+    deepseek_key = get_deepseek_api_key()
+    if not deepseek_key:
+        raise RuntimeError("DeepSeek API Key (PHUC_DEEPSEEK_V4_FLASH hoặc DEEPSEEK_API_KEY) chưa được cấu hình.")
+
+    preferred_model = os.getenv("DEEPSEEK_MODEL") or "deepseek-flash"
+    models_to_try = [preferred_model]
+    if preferred_model != "deepseek-chat":
+        models_to_try.append("deepseek-chat")
+
+    errors = []
+    for model in models_to_try:
+        try:
+            print(f"[AI Chatbot] Goi DeepSeek API (model: {model})...", flush=True)
+            async with httpx.AsyncClient(timeout=35.0) as client:
+                res = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {deepseek_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print(f"[AI Chatbot] DeepSeek API ({model}) phan hoi thanh cong!", flush=True)
+                    return content
+                else:
+                    errors.append(f"DeepSeek ({model}) HTTP {res.status_code}: {res.text}")
+        except Exception as exc:
+            errors.append(f"DeepSeek ({model}) exception: {exc}")
+
+    raise RuntimeError(f"Chatbot DeepSeek API thất bại: {'; '.join(errors)}")
+
+async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
+    return await call_deepseek_json(messages, temperature=0.1)
+
 async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
     """
-    Gọi LLM với cơ chế Multi-Tier Fallback tự động:
-    1. Ưu tiên DeepSeek API (deepseek-flash, deepseek-chat) - hỗ trợ cả text và multimodal vision
-    2. Fallback sang Google Gemini 3.8 Flash
-    3. Fallback sang Groq API (llama-3.3-70b-versatile, llama-3.1-8b-instant, qwen/qwen3.8-27b)
-    4. Fallback sang OpenRouter (nếu có OPEN_ROUTER_API)
+    Hàm gọi LLM cho các chức năng AI khác của hệ thống (STT, Kê đơn, Tương tác thuốc, RAG, Dự báo):
+    Chỉ dùng Groq API, Google Gemini và OpenRouter theo đúng thiết kế của người khác.
+    TUYỆT ĐỐI KHÔNG dùng DeepSeek để tránh làm ảnh hưởng/làm hỏng code của người khác.
     """
     errors = []
 
-    # 1. Ưu tiên DeepSeek API (deepseek-flash, deepseek-chat)
-    deepseek_key = get_deepseek_api_key()
-    if deepseek_key:
-        preferred_model = os.getenv("DEEPSEEK_MODEL") or "deepseek-flash"
-        models_to_try = [preferred_model]
-        if preferred_model != "deepseek-chat":
-            models_to_try.append("deepseek-chat")
-
-        for model in models_to_try:
+    # 1. Ưu tiên Groq API (chuẩn hóa text thuần túy)
+    groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
+    if groq_key:
+        groq_models = [
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant"
+        ]
+        groq_messages = [
+            {"role": m.get("role", "user"), "content": extract_text_from_message_content(m.get("content", ""))}
+            for m in messages
+        ]
+        for model in groq_models:
             try:
-                print(f"[AI Service] Goi DeepSeek API (model: {model})...", flush=True)
-                async with httpx.AsyncClient(timeout=35.0) as client:
-                    res = await client.post(
-                        "https://api.deepseek.com/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {deepseek_key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": model,
-                            "messages": messages,
-                            "temperature": temperature,
-                            "response_format": {"type": "json_object"}
-                        }
-                    )
-                    if res.status_code == 200:
-                        data = res.json()
-                        content = data["choices"][0]["message"]["content"]
-                        print(f"[AI Service] DeepSeek API ({model}) phan hoi thanh cong!", flush=True)
-                        return content
-                    else:
-                        errors.append(f"DeepSeek ({model}) HTTP {res.status_code}: {res.text}")
+                print(f"[AI Service] Thu Groq API (model: {model})...", flush=True)
+                groq_client = get_groq_client()
+                response = await groq_client.chat.completions.create(
+                    model=model,
+                    messages=groq_messages,
+                    temperature=temperature,
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+                if content:
+                    print(f"[AI Service] Groq ({model}) phan hoi thanh cong!", flush=True)
+                    return content
             except Exception as exc:
-                errors.append(f"DeepSeek ({model}) exception: {exc}")
+                errors.append(f"Groq ({model}) exception: {exc}")
 
     # 2. Fallback sang Google Gemini 3.8 Flash
     google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -189,13 +231,11 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
 
     raise RuntimeError(f"Tat ca cac dich vu LLM deu that bai: {'; '.join(errors)}")
 
-async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
-    return await call_llm_json(messages, temperature=0.1)
-
 async def extract_vision_keywords_for_rag(image_base64: str, user_message: str = "") -> str:
     """
     Sử dụng DeepSeek Flash Vision để đọc ảnh (hộp thuốc, vỉ thuốc, đơn thuốc, triệu chứng)
     và trích xuất ra tên thuốc, hoạt chất, hàm lượng hoặc triệu chứng để đưa vào bộ tìm kiếm RAG.
+    Chuyên biệt cho Chatbot AI.
     """
     deepseek_key = get_deepseek_api_key()
     if not deepseek_key or not image_base64:
@@ -222,13 +262,13 @@ async def extract_vision_keywords_for_rag(image_base64: str, user_message: str =
     ]
 
     try:
-        content = await call_llm_json(messages, temperature=0.1)
+        content = await call_deepseek_json(messages, temperature=0.1)
         data = json.loads(content)
         keywords = data.get("keywords", "").strip()
         summary = data.get("visual_summary", "").strip()
         return f"{keywords} | {summary}".strip(" |")
     except Exception as exc:
-        print(f"[AI Service] Lỗi trích xuất từ khóa từ ảnh: {exc}", flush=True)
+        print(f"[AI Chatbot] Lỗi trích xuất từ khóa từ ảnh qua DeepSeek: {exc}", flush=True)
         return ""
 
 RETRIEVAL_NORMALIZATION_PROMPT = """Bạn làm nhiệm vụ làm sạch bản ghi âm tiếng Việt cho tìm kiếm y tế.
@@ -451,7 +491,7 @@ async def generate_chat_consultation(
     else:
         messages.append({"role": "user", "content": message})
 
-    content = await call_llm_json(messages, temperature=0.2)
+    content = await call_deepseek_json(messages, temperature=0.2)
     try:
         data = json.loads(content)
         
@@ -541,7 +581,7 @@ BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU (KHÔNG GIẢI THÍCH TH
 async def check_drug_interactions(medicines_list: list[str], context: str) -> dict:
     """
     Tạo báo cáo tương tác thuốc JSON dựa trên danh sách thuốc và context từ RAG & Database.
-    Ưu tiên sử dụng DeepSeek V4 Flash (PHUC_DEEPSEEK_V4_FLASH), fallback sang Groq Llama 3.
+    Sử dụng Groq LLM / Gemini (không dùng DeepSeek để bảo toàn code và logic của người khác).
     """
     system_prompt = INTERACTION_SYSTEM_PROMPT.replace(
         "{rag_context}", context or "Không có dữ liệu ngữ cảnh."
@@ -554,15 +594,19 @@ async def check_drug_interactions(medicines_list: list[str], context: str) -> di
         {"role": "user", "content": "Hãy phân tích chi tiết tương tác giữa các loại thuốc trên và xuất JSON chuẩn."}
     ]
 
-    # Gọi trực tiếp DeepSeek V4 Flash API (PHUC_DEEPSEEK_V4_FLASH)
     try:
-        content = await call_deepseek_v4_flash(messages, response_format={"type": "json_object"})
+        content = await call_llm_json(messages, temperature=0.1)
         return json.loads(content)
     except json.JSONDecodeError:
-        return {"error": "Lỗi phân tích JSON từ DeepSeek LLM", "raw_content": content}
+        return {"error": "Lỗi phân tích JSON từ LLM", "raw_content": content}
     except Exception as exc:
-        print(f"[Error] DeepSeek V4 Flash API call failed: {exc}")
-        raise exc
+        print(f"[AI Service] Lỗi kiểm tra tương tác thuốc qua Groq/LLM: {exc}")
+        return {
+            "has_interactions": False,
+            "severity": "Không xác định",
+            "interactions": [],
+            "general_advice": "Hệ thống tạm thời không thể phân tích tương tác nâng cao bằng AI, vui lòng tham khảo ý kiến dược sĩ lâm sàng."
+        }
 
 FORECAST_SYSTEM_PROMPT = """Bạn là Chuyên gia Kế hoạch & Phân tích Chuỗi cung ứng Dược phẩm bằng AI tại Việt Nam.
 Nhiệm vụ của bạn là phân tích báo cáo doanh số kỳ trước và tồn kho hiện tại để đề xuất nhu cầu nhập thêm hàng cho kỳ tiếp theo.
@@ -688,19 +732,25 @@ async def generate_demand_forecast(dataset: list, period_days: int) -> dict:
 
     try:
         user_prompt = f"Phân tích nhanh chuỗi cung ứng cho {len(full_recommendations)} mã thuốc trong {period_days} ngày. Dưới đây là các mặt hàng trọng điểm:\n{json.dumps(top_urgent_samples, ensure_ascii=False)}"
-        response = await get_groq_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": FORECAST_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.2,
-            response_format={"type": "json_object"}
-        )
-        content = response.choices[0].message.content
-        llm_json = json.loads(content)
-        if llm_json.get("summary"):
-            summary_text = llm_json["summary"]
+        groq_client = get_groq_client()
+        for g_model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]:
+            try:
+                response = await groq_client.chat.completions.create(
+                    model=g_model,
+                    messages=[
+                        {"role": "system", "content": FORECAST_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.2,
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+                llm_json = json.loads(content)
+                if llm_json.get("summary"):
+                    summary_text = llm_json["summary"]
+                break
+            except Exception:
+                continue
     except Exception as e:
         print(f"ℹ️ LLM Summary fallback: {e}")
 

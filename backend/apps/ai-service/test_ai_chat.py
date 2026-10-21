@@ -108,7 +108,7 @@ class TestAIChatService(unittest.TestCase):
         from services.llm_service import extract_vision_keywords_for_rag
 
         mock_vision_json = '{"keywords": "Panadol Extra Paracetamol 500mg Cafein", "visual_summary": "Hộp thuốc Panadol Extra đỏ"}'
-        with patch("services.llm_service.call_llm_json", new_callable=AsyncMock) as mock_call:
+        with patch("services.llm_service.call_deepseek_json", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_vision_json
             keywords = asyncio.run(extract_vision_keywords_for_rag(
                 image_base64="data:image/jpeg;base64,mock",
@@ -136,7 +136,7 @@ class TestAIChatService(unittest.TestCase):
             "disclaimer": "Tư vấn mang tính tham khảo."
         }"""
 
-        with patch("services.llm_service.call_llm_json", new_callable=AsyncMock) as mock_call:
+        with patch("services.llm_service.call_deepseek_json", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = mock_llm_json
             result = asyncio.run(generate_chat_consultation(
                 message="Tôi bị đau đầu nhẹ",
@@ -159,7 +159,7 @@ class TestAIChatService(unittest.TestCase):
         from services.llm_service import generate_chat_consultation
 
         raw_text = "Bạn nên uống nước gừng ấm và nghỉ ngơi nhé."
-        with patch("services.llm_service.call_llm_json", new_callable=AsyncMock) as mock_call:
+        with patch("services.llm_service.call_deepseek_json", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = raw_text
             result = asyncio.run(generate_chat_consultation(
                 message="Tôi bị lạnh bụng",

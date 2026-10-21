@@ -368,6 +368,50 @@ export class PrescriptionController implements OnModuleInit {
     }
   }
 
+  @Post("transcribe")
+  @UseGuards(OptionalJwtAuthGuard)
+  @UseInterceptors(FileInterceptor("audio"))
+  async quickTranscribe(
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new HttpException(
+        "Vui lòng cung cấp file ghi âm",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    try {
+      const formData = new FormData();
+      const blob = new Blob([new Uint8Array(file.buffer)], {
+        type: file.mimetype || "audio/webm",
+      });
+      formData.append("audio", blob, file.originalname || "voice_input.webm");
+
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/transcribe`, {
+        method: "POST",
+        headers: {
+          "X-Internal-Token":
+            process.env.JWT_SECRET ||
+            "wdp301-super-secret-key-change-in-production",
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new HttpException(`AI Service lỗi: ${errText}`, response.status);
+      }
+      return await response.json();
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      throw new HttpException(
+        err.message || "Lỗi bóc tách âm thanh từ AI Service",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Post("symptom-consult")
   @UseGuards(OptionalJwtAuthGuard)
   async textConsult(
