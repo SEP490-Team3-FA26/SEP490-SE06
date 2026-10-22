@@ -69,12 +69,13 @@ export function useVoiceInput({
       const formData = new FormData();
       formData.append("audio", blob, "voice_input.webm");
 
-      // Gọi API Backend qua prescriptionService
-      const res = await prescriptionService.recommendPrescription(formData);
-      if (res && res.transcribed_text) {
+      // Gọi endpoint bóc tách âm thanh siêu tốc của server
+      const res = await prescriptionService.transcribeAudio(formData);
+      const transcribed = res?.text || (res as any)?.transcribed_text;
+      if (transcribed && transcribed.trim()) {
         const combined = baseTextRef.current
-          ? `${baseTextRef.current} ${res.transcribed_text.trim()}`
-          : res.transcribed_text.trim();
+          ? `${baseTextRef.current} ${transcribed.trim()}`
+          : transcribed.trim();
         onTextChange(combined);
       }
     } catch (err: any) {

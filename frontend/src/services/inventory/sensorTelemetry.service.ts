@@ -60,21 +60,28 @@ export const sensorTelemetryService = {
     return res.data;
   },
 
-  // Lấy chuỗi dữ liệu lịch sử (5m, 1h, 24h, 7d)
-  async getHistory(deviceId?: string, range: string = '1h'): Promise<{
+  // Lấy chuỗi dữ liệu lịch sử (5m, 1h, 24h, 7d hoặc theo khoảng thời gian quá khứ from - to)
+  async getHistory(
+    deviceId?: string,
+    range: string = '1h',
+    from?: string | number,
+    to?: string | number,
+  ): Promise<{
     success: boolean;
     deviceId: string;
     range: string;
+    from?: number;
+    to?: number;
     count: number;
     totalRaw: number;
     records: TelemetryRecord[];
   }> {
-    const res = await api.get(API_ENDPOINTS.SENSORS.HISTORY, {
-      params: {
-        deviceId: deviceId || 'ESP32S3_404CCA44C814',
-        range,
-      },
-    });
+    const params: any = { range };
+    if (deviceId) params.deviceId = deviceId;
+    if (from !== undefined) params.from = from;
+    if (to !== undefined) params.to = to;
+
+    const res = await api.get(API_ENDPOINTS.SENSORS.HISTORY, { params });
     return res.data;
   },
 

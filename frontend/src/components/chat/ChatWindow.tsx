@@ -398,13 +398,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     showToast("Thanh toán PayOS thành công!");
   };
 
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+  const handleSendMessage = async (text: string, imageBase64?: string) => {
+    const trimmedText = text.trim();
+    if ((!trimmedText && !imageBase64) || isLoading) return;
 
     const userMsg: MessageItem = {
       id: `user-${Date.now()}`,
       sender: "user",
-      text,
+      text: trimmedText,
+      imageUrl: imageBase64,
       timestamp: new Date().toLocaleTimeString("vi-VN", {
         hour: "2-digit",
         minute: "2-digit",
@@ -412,10 +414,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     };
 
     const newMessages = [...messages, userMsg];
-    updateCurrentSessionMessages(newMessages, text);
+    updateCurrentSessionMessages(newMessages, trimmedText || "Gửi hình ảnh");
 
-    // Check payment intent via PayOS inside chat prompt
-    if (isPaymentIntent(text)) {
+    // Check payment intent via PayOS inside chat prompt (chỉ kiểm tra nếu có text)
+    if (trimmedText && isPaymentIntent(trimmedText)) {
       await processPayOSOrder();
       return;
     }
@@ -423,14 +425,34 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setIsLoading(true);
 
     try {
-      const historyPayload = newMessages.slice(-6).map((m) => ({
-        role: m.sender === "user" ? ("user" as const) : ("assistant" as const),
-        content: m.text,
-      }));
+      // Xây dựng history đầy đủ ngữ cảnh thuốc đã đề xuất
+      const historyPayload = newMessages
+        .filter((m) => (m.text || (m.drugs && m.drugs.length > 0)) && !m.payment)
+        .slice(-6)
+        .map((m) => {
+          let fullContent = m.text || "";
+
+          // Nối thông tin các thẻ thuốc đã gợi ý vào nội dung lịch sử của assistant
+          if (m.sender === "bot" && m.drugs && m.drugs.length > 0) {
+            const drugDetails = m.drugs
+              .map(
+                (d) =>
+                  `${d.name} (Hoạt chất: ${d.active_ingredient || "Rõ"}, Liều dùng: ${d.dosage || "Theo chỉ định"}, Cách dùng: ${d.usage || "Uống sau ăn"}, Giá: ${d.price}đ)`
+              )
+              .join("; ");
+            fullContent += `\n[Thuốc Dược sĩ đã đề xuất ở lượt này: ${drugDetails}]`;
+          }
+
+          return {
+            role: (m.sender === "user" ? "user" : "assistant") as "user" | "assistant",
+            content: fullContent.trim(),
+          };
+        });
 
       const res = await prescriptionService.chatConsult({
-        message: text,
+        message: trimmedText || "Nhờ dược sĩ xem giúp hình ảnh này",
         history: historyPayload,
+        image_base64: imageBase64,
         age_group: userProfile.age_group,
         gender: userProfile.gender,
         allergies: userProfile.allergies,
@@ -440,7 +462,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         const botMsg: MessageItem = {
           id: `bot-${Date.now()}`,
           sender: "bot",
-          text: res.reply || "Cảm ơn bạn đã chia sẻ, dưới đây là thông tin y khoa từ Dược sĩ.",
+          text: res.message || res.reply || "Cảm ơn bạn đã chia sẻ, dưới đây là thông tin y khoa từ Dược sĩ.",
           drugs: res.drugs || [],
           warnings: res.warnings || "",
           follow_up_question: res.follow_up_question || "",
@@ -455,7 +477,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         const errorMsg: MessageItem = {
           id: `bot-err-${Date.now()}`,
           sender: "bot",
-          text: res?.reply || "Xin lỗi, hiện tại hệ thống AI đang quá tải. Bạn vui lòng thử lại sau giây lát nhé!",
+          text: res?.message || res?.reply || "Xin lỗi, hiện tại hệ thống AI đang quá tải. Bạn vui lòng thử lại sau giây lát nhé!",
           timestamp: new Date().toLocaleTimeString("vi-VN", {
             hour: "2-digit",
             minute: "2-digit",

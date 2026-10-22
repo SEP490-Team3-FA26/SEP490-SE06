@@ -7,6 +7,7 @@ from services.llm_service import (
     generate_prescription,
     generate_chat_consultation,
     normalize_transcript_for_retrieval,
+    extract_vision_keywords_for_rag,
 )
 from services.rag_service import (
     RAGServiceUnavailable,
@@ -452,32 +453,44 @@ class ChatMessage(BaseModel):
     content: str
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = ""
     history: list[ChatMessage] = []
     age_group: str | None = None
     gender: str | None = None
     allergies: list[str] = []
+    image_base64: str | None = None
 
 @router.post("/api/ai/chat")
 async def chat_consult(req: ChatRequest):
     """
     Endpoint tư vấn sức khỏe & đề xuất sản phẩm hội thoại đa lượt (Chatbot Giai đoạn 1)
-    Hỗ trợ DeepSeek Flash với fallback an toàn.
+    Hỗ trợ DeepSeek Flash với fallback an toàn, xử lý ảnh (Vision) và nhớ ngữ cảnh.
     """
     start_time = time.time()
     try:
-        # Bước 1: RAG context retrieval
-        context = await retrieve_medical_context(req.message)
+        # Bước 0: Nếu có ảnh gửi kèm, trích xuất tên thuốc / hoạt chất / triệu chứng từ ảnh trước
+        vision_context = ""
+        if req.image_base64:
+            vision_context = await extract_vision_keywords_for_rag(req.image_base64, req.message)
 
-        # Bước 2: Gọi LLM Chatbot
+        # Bước 1: Xây dựng câu truy vấn RAG có nhớ ngữ cảnh (Multi-turn RAG Query)
+        recent_history_texts = [h.content for h in req.history[-2:] if h.content]
+        query_parts = recent_history_texts + ([vision_context] if vision_context else []) + ([req.message] if req.message else [])
+        rag_query = " | ".join(query_parts).strip()
+
+        context = await retrieve_medical_context(rag_query) if rag_query else ""
+
+        # Bước 2: Gọi LLM Chatbot đa lượt (hỗ trợ cả text và vision)
         history_dicts = [{"role": h.role, "content": h.content} for h in req.history]
         chat_res = await generate_chat_consultation(
-            message=req.message,
+            message=req.message or "Tư vấn hình ảnh đính kèm",
             history=history_dicts,
             context=context,
             age_group=req.age_group,
             gender=req.gender,
-            allergies=req.allergies
+            allergies=req.allergies,
+            image_base64=req.image_base64,
+            vision_context=vision_context
         )
 
         # Bước 3: Enrich thông tin tồn kho và giá bán thuốc thực tế
@@ -487,11 +500,13 @@ async def chat_consult(req: ChatRequest):
         return {
             "success": True,
             "message": chat_res.get("message") or "Dược sĩ AI đã tiếp nhận thông tin từ bạn.",
+            "reply": chat_res.get("message") or "Dược sĩ AI đã tiếp nhận thông tin từ bạn.",
             "drugs": enriched_drugs,
             "warnings": chat_res.get("warnings") or "",
             "follow_up_question": chat_res.get("follow_up_question") or "",
             "disclaimer": chat_res.get("disclaimer") or "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo y khoa.",
             "rag_context_used": bool(context),
+            "vision_used": bool(req.image_base64),
             "processing_time_sec": round(time.time() - start_time, 2)
         }
     except Exception as e:
