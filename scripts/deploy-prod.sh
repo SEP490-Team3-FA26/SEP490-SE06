@@ -28,15 +28,20 @@ if [ "$CURRENT_SWAP" -eq 0 ]; then
   grep -q '/swapfile none swap' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-# 2. Đảm bảo tường lửa UFW mở cổng cần thiết
+# 2. Đảm bảo tường lửa UFW được thiết lập an toàn (Chỉ mở SSH, HTTP, HTTPS)
 if command -v ufw > /dev/null 2>&1; then
+  echo "🛡️ Cấu hình tường lửa UFW: Chỉ mở SSH (24700), HTTP (80), HTTPS (443)..."
   ufw allow 24700/tcp > /dev/null 2>&1 || true
   ufw allow 80/tcp > /dev/null 2>&1 || true
   ufw allow 443/tcp > /dev/null 2>&1 || true
-  ufw allow 3000/tcp > /dev/null 2>&1 || true
-  ufw allow 4000/tcp > /dev/null 2>&1 || true
-  ufw allow 8888/tcp > /dev/null 2>&1 || true
-  ufw allow 3001/tcp > /dev/null 2>&1 || true
+
+  # Thu hồi triệt để các cổng nội bộ nếu từng mở trước đây
+  ufw delete allow 3000/tcp > /dev/null 2>&1 || true
+  ufw delete allow 4000/tcp > /dev/null 2>&1 || true
+  ufw delete allow 4005/tcp > /dev/null 2>&1 || true
+  ufw delete allow 8000/tcp > /dev/null 2>&1 || true
+  ufw delete allow 8888/tcp > /dev/null 2>&1 || true
+  ufw delete allow 3001/tcp > /dev/null 2>&1 || true
 fi
 
 # 3. Đảm bảo chứng chỉ SSL cho Nginx (Cloudflare Full SSL)
@@ -78,6 +83,6 @@ docker image prune -f
 echo "=================================================="
 echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ TRÊN PRODUCTION!"
 echo "👉 Website:      https://abcpharmacy.store"
-echo "👉 Backend API:  https://abcpharmacy.store/api (hoặc cổng 4000)"
+echo "👉 Backend API:  https://abcpharmacy.store/api (bảo vệ qua Cloudflare + Nginx)"
 echo "=================================================="
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

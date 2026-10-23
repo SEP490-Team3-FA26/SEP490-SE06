@@ -141,17 +141,23 @@ async function bootstrap() {
         }
       });
 
-      // Swagger API Documentation
-      const config = new DocumentBuilder()
-        .setTitle('WDP301 API Gateway')
-        .setDescription('🏥 Hệ thống quản lý chuỗi nhà thuốc WDP301 — API Documentation')
-        .setVersion('1.0')
-        .addBearerAuth()  // Thêm nút "Authorize" trên Swagger UI để test JWT
-        .addTag('🔐 Authentication', 'Đăng nhập, Đăng ký, Đăng xuất')
-        .build();
+      // Cấu hình tài liệu Swagger API (Chỉ kích hoạt ở môi trường phát triển hoặc khi được bật rõ ràng bằng ENABLE_SWAGGER=true)
+      const isSwaggerEnabled = process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true';
+      if (isSwaggerEnabled) {
+        const config = new DocumentBuilder()
+          .setTitle('WDP301 API Gateway')
+          .setDescription('🏥 Hệ thống quản lý chuỗi nhà thuốc WDP301 — API Documentation')
+          .setVersion('1.0')
+          .addBearerAuth()  // Thêm nút "Authorize" trên Swagger UI để test JWT
+          .addTag('🔐 Authentication', 'Đăng nhập, Đăng ký, Đăng xuất')
+          .build();
 
-      const document = SwaggerModule.createDocument(app, config);
-      SwaggerModule.setup('api/docs', app, document);
+        const document = SwaggerModule.createDocument(app, config);
+        SwaggerModule.setup('api/docs', app, document);
+        console.log('📖 Swagger API Documentation đang khả dụng tại /api/docs');
+      } else {
+        console.log('🔒 Swagger API Documentation đã được vô hiệu hóa trên môi trường Production để bảo mật.');
+      }
 
       const port = process.env.PORT || 4000;
 
