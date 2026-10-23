@@ -302,19 +302,25 @@ services:
       - "127.0.0.1:8888:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./gitops/monitoring/dozzle/users.yml:/data/users.yml:ro
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
       DOZZLE_LEVEL: info
       DOZZLE_NO_ANALYTICS: "true"
       DOZZLE_TIME_ZONE: "Asia/Ho_Chi_Minh"
+      DOZZLE_BASE: /dozzle
+      DOZZLE_AUTH_PROVIDER: simple
       TZ: "Asia/Ho_Chi_Minh"
 
     deploy:
       resources:
         limits:
           memory: 64m
-    networks: [wdp301-network]
+    networks:
+      wdp301-network:
+        aliases:
+          - dozzle-svc
 
   node-exporter:
     image: prom/node-exporter:v1.8.0
@@ -369,9 +375,11 @@ services:
       - "127.0.0.1:3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=wdp301admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SERVER_ROOT_URL=https://abcpharmacy.store/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-and-api-overview.json
     volumes:
       - ./gitops/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -382,7 +390,10 @@ services:
       resources:
         limits:
           memory: 128m
-    networks: [wdp301-network]
+    networks:
+      wdp301-network:
+        aliases:
+          - grafana-svc
 
 networks:
   wdp301-network:

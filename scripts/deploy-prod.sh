@@ -62,6 +62,14 @@ if [ ! -f "$APP_DIR/backend/.env" ]; then
   cp "$APP_DIR/backend/.env.example" "$APP_DIR/backend/.env"
 fi
 
+# 4.1. Đảm bảo cấu hình xác thực Dozzle tồn tại (không lưu thông tin nhạy cảm vào Git)
+if [ ! -f "$APP_DIR/gitops/monitoring/dozzle/users.yml" ]; then
+  echo "🔒 Khởi tạo file cấu hình xác thực Dozzle (users.yml)..."
+  mkdir -p "$APP_DIR/gitops/monitoring/dozzle"
+  cp "$APP_DIR/gitops/monitoring/dozzle/users.yml.example" "$APP_DIR/gitops/monitoring/dozzle/users.yml"
+  chmod 600 "$APP_DIR/gitops/monitoring/dozzle/users.yml"
+fi
+
 # 5. Build Production Docker Images
 bash "$APP_DIR/scripts/build-prod-images.sh"
 
@@ -84,5 +92,7 @@ echo "=================================================="
 echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ TRÊN PRODUCTION!"
 echo "👉 Website:      https://abcpharmacy.store"
 echo "👉 Backend API:  https://abcpharmacy.store/api (bảo vệ qua Cloudflare + Nginx)"
+echo "👉 Logs Dozzle:  https://abcpharmacy.store/dozzle (admin / admin)"
+echo "👉 Grafana:      https://abcpharmacy.store/grafana (admin / admin)"
 echo "=================================================="
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

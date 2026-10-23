@@ -1,0 +1,8 @@
+# Mẫu cấu hình danh sách người dùng quản trị Dozzle Log Viewer (WDP301)
+# File này được sao chép tự động thành users.yml trên VPS khi chạy deploy
+# Mặc định: Tài khoản admin / Mật khẩu admin (mã hóa Bcrypt $2a$10$)
+users:
+  admin:
+    email: admin@abcpharmacy.store
+    name: Administrator
+    password: "$2a$10$MZTCvHNqJ.Y7Ct/5WeaVyeoeysSGj1dsm2GoviDd64od6IGeBnu2."
