@@ -3,12 +3,16 @@
 Hệ thống giám sát được thiết kế theo kiến trúc chuẩn Production tối ưu tài nguyên cho Cloud VPS (chỉ tiêu tốn ~130MB RAM), bao gồm 4 thành phần tích hợp trực tiếp:
 
 1. **Dozzle (Real-time Container Logs)**:
-   - **Truy cập bảo mật qua SSH Tunnel**:
+   - **Cách 1: Truy cập Web trực tiếp (Khuyên dùng cho toàn bộ team)**:
+     👉 **`https://abcpharmacy.store/dozzle`**
+     - Tài khoản: `admin`
+     - Mật khẩu: `admin`
+   - **Cách 2: Truy cập qua SSH Tunnel (Dành cho DevOps)**:
      ```bash
      ssh -L 8888:127.0.0.1:8888 root@103.75.187.86 -p 24700
      ```
-     Sau đó mở trình duyệt máy cá nhân tại: `http://localhost:8888`
-   - **Bảo mật:** Cổng 8888 đã được đóng hoàn toàn với Internet công cộng và chỉ bind vào `127.0.0.1` của VPS để ngăn chặn lộ lọt runtime logs, secrets và dữ liệu y tế.
+     Mở trình duyệt tại: `http://localhost:8888`
+   - **Bảo mật:** Cổng 8888 đã được đóng hoàn toàn với Internet công cộng. Mọi request web đều đi qua Cloudflare WAF + Nginx và bắt buộc đăng nhập tài khoản.
 
 2. **Prometheus v2.51.0 (Metrics Scraper & TSDB)**:
    - Tự động cào số liệu mỗi 10 giây từ:
@@ -19,12 +23,16 @@ Hệ thống giám sát được thiết kế theo kiến trúc chuẩn Producti
    - Thu thập chỉ số phần cứng Linux host trực tiếp qua `/proc` và `/sys`.
 
 4. **Grafana v10.4.0 (Visual Dashboard)**:
-   - **Truy cập bảo mật qua SSH Tunnel**:
+   - **Cách 1: Truy cập Web trực tiếp (Khuyên dùng cho toàn bộ team)**:
+     👉 **`https://abcpharmacy.store/grafana`**
+     - Tài khoản: `admin`
+     - Mật khẩu: `admin`
+   - **Cách 2: Truy cập qua SSH Tunnel (Dành cho DevOps)**:
      ```bash
      ssh -L 3001:127.0.0.1:3001 root@103.75.187.86 -p 24700
      ```
-     Sau đó mở trình duyệt máy cá nhân tại: `http://localhost:3001` (Đăng nhập: `admin` / `wdp301admin`)
-   - **Bảo mật:** Đã tắt chế độ Anonymous Viewer (`GF_AUTH_ANONYMOUS_ENABLED=false`) và chỉ bind vào `127.0.0.1`.
+     Mở trình duyệt tại: `http://localhost:3001`
+   - **Bảo mật:** Đã tắt chế độ Anonymous Viewer (`GF_AUTH_ANONYMOUS_ENABLED=false`) và bảo vệ qua Cloudflare WAF + Nginx.
    - **Tự động cấu hình (Auto-provisioning)**: Nguồn dữ liệu Prometheus và Dashboard `WDP301 - Tổng Quan Giám Sát (API Latency & RAM)` được nạp sẵn tự động.
 
 ---
