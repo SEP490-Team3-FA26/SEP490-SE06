@@ -52,7 +52,7 @@ export const prescriptionService = {
    */
   async transcribeAudio(formData: FormData): Promise<{ success: boolean; text: string }> {
     try {
-      const response = await api.post('/api/ai/transcribe', formData, {
+      const response = await api.post('/api/prescriptions/transcribe', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -323,6 +323,7 @@ export const prescriptionService = {
     age_group?: string;
     gender?: string;
     allergies?: string[];
+    image_base64?: string;
   }) {
     const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.CHAT, payload);
     return response.data;

@@ -72,6 +72,8 @@ frontend/public/download/
 # Local Quick-Start Scripts
 start-dev.bat
 start-dev.ps1
+start-dev-ai.bat
+start-dev-ai.ps1
 stop-dev.bat
 stop-dev.ps1
 start-emulator.bat
