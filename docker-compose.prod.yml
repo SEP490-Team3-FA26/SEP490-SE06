@@ -139,8 +139,6 @@ services:
     <<: *backend-common
     container_name: wdp301-gateway
     command: node dist/apps/api-gateway/main.js
-    ports:
-      - "4000:4000"
     environment:
       <<: *backend-env
       PORT: 4000
@@ -192,8 +190,6 @@ services:
     <<: *backend-common
     container_name: wdp301-csdlduoc
     command: node dist/mock-csdlduoc/server.js
-    ports:
-      - "4005:4005"
     environment:
       <<: *backend-env
       PORT: 4005
@@ -246,8 +242,6 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-    ports:
-      - "8000:8000"
     depends_on:
       - qdrant
       - kafka
@@ -275,7 +269,6 @@ services:
     ports:
       - "80:3000"
       - "443:443"
-      - "3000:3000"
     environment:
       TZ: "Asia/Ho_Chi_Minh"
     volumes:
@@ -286,7 +279,7 @@ services:
     depends_on:
       - api-gateway
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/health > /dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -306,7 +299,7 @@ services:
     container_name: wdp301-dozzle
     restart: unless-stopped
     ports:
-      - "8888:8080"
+      - "127.0.0.1:8888:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/localtime:/etc/localtime:ro
@@ -373,13 +366,12 @@ services:
     container_name: wdp301-grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=wdp301admin
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-and-api-overview.json
     volumes:
       - ./gitops/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro

@@ -1,8 +1,5 @@
 # Sổ Tay Quản Trị Cloud VPS & Vận Hành Hệ Thống WDP301 (Production VPS Playbook)
 
-> **Tài liệu chuẩn hóa dành cho Kỹ sư Vận hành & Lập trình viên Backend / DevOps**
-> *Dành cho Cloud VPS iNet (Ubuntu 24.04 LTS — 3 CPU, 6GB RAM, 80GB SSD)*
-
 ---
 
 ## 1. Kết Nối & Quản Lý Phiên Làm Việc (SSH Access)
@@ -117,16 +114,18 @@ ufw allow 24700/tcp comment "Custom SSH Port"
 ufw allow 80/tcp comment "HTTP Web"
 ufw allow 443/tcp comment "HTTPS SSL"
 
-# 4. Mở cổng nội bộ ứng dụng (nếu test trực tiếp không qua Nginx)
-ufw allow 3000/tcp comment "Frontend Next/React"
-ufw allow 4000/tcp comment "API Gateway Backend"
+# 4. Chính sách bảo mật các cổng dịch vụ nội bộ (Microservices & Monitoring)
+# TUYỆT ĐỐI KHÔNG mở các cổng nội bộ (3000, 4000, 4005, 8000, 8888, 3001) ra Internet công cộng!
+# Tất cả traffic công cộng bắt buộc phải đi qua Cloudflare WAF -> Nginx (80/443).
+# Nếu các cổng này từng bị mở, chạy lệnh sau để thu hồi ngay:
+ufw delete allow 3000/tcp comment "Frontend Next/React" 2>/dev/null || true
+ufw delete allow 4000/tcp comment "API Gateway Backend" 2>/dev/null || true
+ufw delete allow 8888/tcp 2>/dev/null || true
+ufw delete allow 3001/tcp 2>/dev/null || true
 
 # 5. Kích hoạt hoặc tải lại tường lửa
 ufw enable
 ufw reload
-
-# 6. Xóa một rule nếu không cần nữa (Ví dụ: đóng cổng 3000)
-ufw delete allow 3000/tcp
 ```
 
 ---
@@ -171,7 +170,13 @@ docker compose up -d --no-deps backend
 
 ### 5.3 Đọc Log để kiểm tra hoạt động & Gỡ lỗi (Debugging)
 
-**Xem trong Dozzle (production):** Mở `http://<VPS-IP>:8888`, mở nhóm **WDP301 - Full Project** ở thanh bên trái rồi bấm nút gộp log trên tên nhóm để xem log của mọi container theo thời gian. Chọn từng container để xem riêng frontend, API Gateway, Auth, Inventory, Orders, AI, Kafka, Redis, v.v. Ô tìm kiếm của Dozzle có thể lọc theo tên service, đường dẫn API, mã trạng thái hoặc thông báo lỗi.
+**Xem trong Dozzle (production):** Để đảm bảo an toàn dữ liệu y tế và log mật, Dozzle chỉ bind vào `127.0.0.1:8888`. Kỹ sư kết nối SSH Tunnel từ máy cá nhân bằng lệnh:
+
+```bash
+ssh -L 8888:127.0.0.1:8888 root@103.75.187.86 -p 24700
+```
+
+Sau đó mở trình duyệt máy tính cá nhân tại `http://localhost:8888`, mở nhóm **WDP301 - Full Project** ở thanh bên trái để xem log thời gian thực của mọi container. Chọn từng container để xem riêng frontend, API Gateway, Auth, Inventory, Orders, AI, Kafka, Redis, v.v. Ô tìm kiếm của Dozzle có thể lọc theo tên service, đường dẫn API, mã trạng thái hoặc thông báo lỗi.
 
 Dozzle đọc log `stdout/stderr` của Docker. Log Nginx frontend được ghi dạng JSON gồm thời gian, đường dẫn, mã trạng thái và thời gian xử lý; query string (có thể chứa token SSE) không được ghi vào access log. Lỗi JavaScript chạy trong trình duyệt vẫn cần xem ở DevTools của trình duyệt.
 
@@ -230,18 +235,26 @@ docker builder prune -a -f
 
 ### 6.2 Trường hợp 2: Ổ cứng báo đầy 100% (No space left on device)
 
-1. Kiểm tra file log Docker bị phình to:
-   ```bash
-   du -sh /var/lib/docker/containers/*/*-json.log
-   ```
-2. Xóa log docker tạm thời:
-   ```bash
-   truncate -s 0 /var/lib/docker/containers/*/*-json.log
-   ```
-3. Xóa các Docker Image cũ:
-   ```bash
-   docker image prune -af
-   ```
+Kiểm tra file log Docker bị phình to:
+
+```bash
+du -sh /var/lib/docker/containers/*/*-json.log
+```
+
+
+Xóa log docker tạm thời:
+
+```bash
+truncate -s 0 /var/lib/docker/containers/*/*-json.log
+```
+
+
+Xóa các Docker Image cũ:
+
+```bash
+docker image prune -af
+```
+
 
 ---
 
