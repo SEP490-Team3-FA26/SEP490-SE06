@@ -8,6 +8,7 @@ import { HrService } from './hr.service';
 import { CertificateService } from './certificate.service';
 import { AttendanceService } from './attendance.service';
 import { PayrollService } from './payroll.service';
+import { ShiftHandoverService } from './shift-handover.service';
 
 describe('UserServiceController', () => {
   let controller: UserServiceController;
@@ -28,6 +29,7 @@ describe('UserServiceController', () => {
         { provide: CertificateService, useValue: {} },
         { provide: AttendanceService, useValue: {} },
         { provide: PayrollService, useValue: {} },
+        { provide: ShiftHandoverService, useValue: {} },
       ],
     }).compile();
 
