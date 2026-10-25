@@ -38,12 +38,19 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install + lint + test (backend)
+      - name: Install dependencies (backend)
+        working-directory: backend
+        run: npm ci --legacy-peer-deps
+
+      - name: 🧪 Run Playbook & Architecture Test Rules
+        working-directory: backend
+        run: npm run test:rules
+
+      - name: 🐳 Run Unit & Integration Tests (Test Container)
         working-directory: backend
         run: |
-          npm ci --legacy-peer-deps
           npm run lint || true
-          npm test -- --passWithNoTests || true
+          npm test -- --passWithNoTests
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

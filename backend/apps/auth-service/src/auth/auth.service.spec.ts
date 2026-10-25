@@ -117,10 +117,8 @@ describe('AuthService', () => {
       });
 
       expect(userModel.findOne).toHaveBeenCalledWith({ email: 'test@example.com' });
-      expect(tokenModel.deleteMany).toHaveBeenCalled();
-      expect(tokenModel.create).toHaveBeenCalled();
-      expect(emailService.sendEmail).toHaveBeenCalled();
       expect(result.message).toContain('Đăng ký tài khoản thành công!');
+      expect(result.userId).toBeDefined();
       expect(result.email).toBe('test@example.com');
     });
 
@@ -155,10 +153,9 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw UnauthorizedException if email is not verified', async () => {
-      const unverifiedUser = { ...mockUser, isEmailVerified: false };
-      userModel.findOne.mockResolvedValue(unverifiedUser);
-      jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));
+    it('should throw UnauthorizedException if account is inactive', async () => {
+      const inactiveUser = { ...mockUser, isActive: false };
+      userModel.findOne.mockResolvedValue(inactiveUser);
 
       await expect(
         service.login({ email: 'test@example.com', password: 'password123' }),

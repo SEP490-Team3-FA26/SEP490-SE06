@@ -20,6 +20,7 @@ describe('UserService - getExportJobStatus', () => {
         { provide: getModelToken('User'), useValue: mockModel },
         { provide: getModelToken('Cart'), useValue: mockModel },
         { provide: getModelToken('AuditLog'), useValue: mockModel },
+        { provide: getModelToken('Branch'), useValue: mockModel },
         { provide: 'INVENTORY_SERVICE', useValue: mockKafkaClient },
       ],
     }).compile();
