@@ -68,6 +68,9 @@ import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
 import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
 import { RFQManagement } from "./pages/admin/RFQManagement";
 import { SupplierQuotePortal } from "./pages/public/SupplierQuotePortal";
+import { EmailCampaignListPage } from "./pages/admin/EmailCampaignListPage";
+import { EmailCampaignPage } from "./pages/admin/EmailCampaignPage";
+import { UnsubscribePage } from "./pages/public/UnsubscribePage";
 
 // Branch Pages
 import { BranchRequisition } from "./pages/branch/BranchRequisition";
@@ -110,6 +113,7 @@ export default function App() {
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
           <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
           {/* Auth Routes */}
           <Route path="/auth" element={<AuthLayout />}>
@@ -126,6 +130,9 @@ export default function App() {
           <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
           <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
           <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
+          <Route path="/marketing/email-campaigns" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
+          <Route path="/marketing/email-campaigns/new" element={<RedirectWithSearch to="/admin/marketing/email-campaigns/new" />} />
+          <Route path="/marketing/email-campaigns/:id" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
 
           {/* --- Customer Routes --- */}
           <Route path="/customer" element={<CustomerLayout />}>
@@ -161,6 +168,9 @@ export default function App() {
 
               <Route path="master-data/products" element={<Products />} />
               <Route path="master-data/suppliers" element={<Suppliers />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
               <Route path="inventory" element={<Inventory />} />
               <Route path="inspector" element={<InspectorDashboard />} />
               <Route path="gpp-sync" element={<GppSyncPage />} />
@@ -174,6 +184,9 @@ export default function App() {
               <Route path="branches" element={<Branches />} />
               <Route path="employees" element={<Employees />} />
               <Route path="vouchers" element={<VoucherManagement />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
               <Route path="approvals" element={<HQApproval />} />
               <Route path="finance" element={<Finance />} />
               <Route path="rfq" element={<RFQManagement />} />
