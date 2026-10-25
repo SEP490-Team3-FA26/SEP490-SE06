@@ -102,3 +102,7 @@ public/uploads/
 .codex-build/
 presentation-output/
 specs/
+
+# Monitoring & Logs Credentials
+gitops/monitoring/dozzle/users.yml
+!gitops/monitoring/dozzle/users.yml.example
