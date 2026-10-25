@@ -6,6 +6,11 @@ on:
       - demo
       - dev
       - main
+  pull_request:
+    branches:
+      - demo
+      - dev
+      - main
   workflow_dispatch:
 
 # All branches deploy to the same checkout and VPS. Finish an active deployment
@@ -16,10 +21,10 @@ concurrency:
 
 jobs:
   # ============================================================
-  # 1. CI: Kiểm tra chất lượng mã nguồn trước khi deploy
+  # 1. CI: Bắt buộc chạy FULL Test Case & Test Rules đạt 100% mới cho deploy
   # ============================================================
   test-and-verify:
-    name: 🧪 Lint & Build Verification
+    name: 🧪 Full Test Suites & Architecture Rules Audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Code
@@ -32,20 +37,27 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies & Test Backend
+      - name: 📦 Install Backend Dependencies
+        working-directory: backend
+        run: npm ci --legacy-peer-deps
+
+      - name: 🧪 Run Playbook & Architecture Test Rules Audit
+        working-directory: backend
+        run: npm run test:rules
+
+      - name: 🐳 Run Full Test Cases & Test Container (Strict Quality Gate)
         working-directory: backend
         run: |
-          npm ci --legacy-peer-deps
           npm run lint || true
-          npm test -- --passWithNoTests || true
+          npm test -- --passWithNoTests
 
   # ============================================================
-  # 2. CD: Tự động SSH vào VPS và triển khai Production
+  # 2. CD: Tự động SSH vào VPS và triển khai Production (Chỉ khi FULL TEST PASS và là sự kiện PUSH)
   # ============================================================
   deploy-to-vps:
     name: 🚢 Deploy to Cloud VPS
     needs: test-and-verify
-    if: success()
+    if: success() && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Execute Remote SSH Commands on iNet VPS

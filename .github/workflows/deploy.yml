@@ -17,7 +17,9 @@ name: CI/CD — Test (dev + main) · Deploy EC2 (main only)
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, demo]
+  pull_request:
+    branches: [main, dev, demo]
   workflow_dispatch:
 
 env:
