@@ -78,7 +78,8 @@ function BinCell({
         border: `1.5px ${isEmpty ? "dashed" : "solid"} ${isHighlighted ? "#38bdf8" : s.border}`,
         color: isHighlighted ? "#0284c7" : s.text,
         width: "100%",
-        minHeight: 56,
+        minWidth: 70,
+        minHeight: 58,
       }}
       title={isEmpty ? `Thùng ${bin.binNo} — Trống (Click để gán thuốc)` : `${bin.medicineName} · ${bin.currentStock} ${bin.unit || ""} · ${s.label}`}
     >
@@ -167,45 +168,68 @@ function RackBinGrid({
   }
 
   return (
-    <div className="mt-2 space-y-2">
-      {layout.map(shelfData => (
-        <div key={shelfData.shelfNo} className="bg-white/80 rounded-lg border border-slate-200 overflow-hidden">
-          {/* Tiêu đề Tầng Kệ */}
-          <div className="px-2 py-1 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5">
-            <Layers size={10} className="text-slate-400" />
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Tầng {shelfData.shelfNo}
-            </span>
-            <span className="text-[9px] text-slate-400 ml-1">
-              ({shelfData.bins.filter(b => b.status !== "EMPTY").length}/10 thùng có hàng)
-            </span>
-          </div>
-          {/* Lưới 10 Ô Thùng */}
-          <div className="grid gap-1 p-1.5" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
-            {shelfData.bins.map(bin => {
-              const highlightId = `bin-${zone}-${rack}-${shelfData.shelfNo}-${bin.binNo}`;
-              const shelfTargetId = `${zone}-${rack}-${shelfData.shelfNo}`;
-              const isHighlighted =
-                (highlightTargets?.has(highlightId) ?? false) ||
-                (highlightTargets?.has(shelfTargetId) ?? false) ||
-                highlightTarget === highlightId ||
-                highlightTarget === shelfTargetId;
+    <div className="mt-2 space-y-1.5">
+      {/* Thanh chỉ dẫn kéo ngang để xem trọn vẹn 10 thùng */}
+      <div className="flex items-center justify-between px-2 py-1 bg-slate-100/90 rounded-md text-[10px] text-slate-500 font-medium">
+        <span className="flex items-center gap-1 text-slate-600 font-semibold">
+          <span>📦 Lưới 10 Thùng (B1 → B10)</span>
+        </span>
+        <span className="text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200/60 font-semibold text-[9px] flex items-center gap-1">
+          <span>⇄ Kéo thanh trượt ngang để xem hết</span>
+        </span>
+      </div>
 
-              return (
-                <BinCell
-                  key={bin.binNo}
-                  bin={bin}
-                  zone={zone}
-                  rack={rack}
-                  shelf={shelfData.shelfNo}
-                  isHighlighted={isHighlighted}
-                  onBinSelect={onBinSelect}
-                />
-              );
-            })}
-          </div>
+      {/* Vùng cuộn ngang đồng bộ cả 4 tầng */}
+      <div className="overflow-x-auto pb-2 custom-shelf-scrollbar rounded-lg">
+        <div className="space-y-2 min-w-[760px]">
+          {layout.map(shelfData => (
+            <div key={shelfData.shelfNo} className="bg-white/90 rounded-lg border border-slate-200 overflow-hidden shadow-2xs">
+              {/* Tiêu đề Tầng Kệ */}
+              <div className="px-2.5 py-1 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Layers size={10} className="text-slate-400" />
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                    Tầng {shelfData.shelfNo}
+                  </span>
+                  <span className="text-[9px] text-slate-400 ml-1">
+                    ({shelfData.bins.filter(b => b.status !== "EMPTY").length}/10 thùng có hàng)
+                  </span>
+                </div>
+              </div>
+              {/* Lưới 10 Ô Thùng */}
+              <div className="grid gap-1.5 p-1.5" style={{ gridTemplateColumns: "repeat(10, minmax(70px, 1fr))" }}>
+                {shelfData.bins.map(bin => {
+                  const highlightId = `bin-${zone}-${rack}-${shelfData.shelfNo}-${bin.binNo}`;
+                  const shelfTargetId = `${zone}-${rack}-${shelfData.shelfNo}`;
+
+                  // Kiểm tra xem mục tiêu tìm kiếm có phải là ô thùng cụ thể (dạng bin-Zone-Rack-Shelf-Bin) hay không
+                  const hasSpecificBinTarget =
+                    Boolean(highlightTarget && highlightTarget.startsWith("bin-")) ||
+                    Boolean(highlightTargets && Array.from(highlightTargets).some(t => t.startsWith("bin-")));
+
+                  // Nếu đang tìm kiếm đích danh một ô thùng cụ thể: CHỈ duy nhất ô thùng đó được sáng
+                  // Nếu đang lọc theo danh mục hoặc toàn bộ tầng/kệ chung: mới áp dụng theo shelfTargetId
+                  const isHighlighted = hasSpecificBinTarget
+                    ? (highlightTarget === highlightId || (highlightTargets?.has(highlightId) ?? false))
+                    : (highlightTarget === shelfTargetId || (highlightTargets?.has(shelfTargetId) ?? false));
+
+                  return (
+                    <BinCell
+                      key={bin.binNo}
+                      bin={bin}
+                      zone={zone}
+                      rack={rack}
+                      shelf={shelfData.shelfNo}
+                      isHighlighted={isHighlighted}
+                      onBinSelect={onBinSelect}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -242,19 +266,50 @@ export function WarehouseMap2D({
     }
   }, [highlightTarget, highlightTargets]);
 
+  // Tự động mở rộng kệ nếu có mục tiêu tìm kiếm là một ô thùng cụ thể (bin-Zone-Rack-Shelf-Bin)
   React.useEffect(() => {
-    let targetId: string | null = null;
-    if (highlightTarget) {
-      targetId = highlightTarget;
-    } else if (highlightTargets && highlightTargets.size > 0) {
-      targetId = highlightTargets.values().next().value || null;
-    }
+    const target = highlightTarget || (highlightTargets && Array.from(highlightTargets)[0]);
+    if (!target) return;
 
-    if (targetId) {
-      // Highlight có thể là bin hoặc shelf
-      const element = document.getElementById(targetId);
-      if (element) element.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (target.startsWith("bin-")) {
+      const parts = target.split("-");
+      if (parts.length >= 5) {
+        const rack = parts[parts.length - 3];
+        const zone = parts.slice(1, parts.length - 3).join("-");
+        // Tự động mở rộng kệ chứa ô thùng đó
+        setExpandedRack(`${zone}-${rack}`);
+      }
     }
+  }, [highlightTarget, highlightTargets]);
+
+  // Tự động cuộn tới vị trí tầng kệ hoặc ô thùng được tìm kiếm
+  React.useEffect(() => {
+    const targetId: string | null = highlightTarget || (highlightTargets?.values().next().value || null);
+    if (!targetId) return;
+
+    const tryScroll = () => {
+      // 1. Thử tìm phần tử theo ID trực tiếp (nếu là ô thùng hoặc tầng kệ đã render)
+      let element = document.getElementById(targetId);
+
+      // 2. Nếu là target dạng bin- mà ô thùng chưa kịp mount, cuộn tới tầng kệ tương ứng
+      if (!element && targetId.startsWith("bin-")) {
+        const parts = targetId.split("-");
+        if (parts.length >= 5) {
+          const shelf = parts[parts.length - 2];
+          const rack = parts[parts.length - 3];
+          const zone = parts.slice(1, parts.length - 3).join("-");
+          element = document.getElementById(`${zone}-${rack}-${shelf}`) || document.getElementById(`rack-${zone}-${rack}`);
+        }
+      }
+
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      }
+    };
+
+    tryScroll();
+    const timer = setTimeout(tryScroll, 120);
+    return () => clearTimeout(timer);
   }, [highlightTarget, highlightTargets]);
 
   // Phân tách các khu kệ chính A-F và Khu Dự Trữ RESERVE
@@ -278,6 +333,27 @@ export function WarehouseMap2D({
           50% { box-shadow: 0 0 0 4px rgba(56,189,248,0); }
         }
         .highlighted-bin { animation: binPulse 1.2s ease-in-out infinite; }
+
+        /* Thanh cuộn ngang mượt mà cho 10 thùng của kệ */
+        .custom-shelf-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #94a3b8 #f1f5f9;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar {
+          height: 7px;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 9999px;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 9999px;
+          border: 1.5px solid #f1f5f9;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
       `}</style>
 
       {/* Khu vực tiếp nhận hàng nhập */}
@@ -394,7 +470,13 @@ export function WarehouseMap2D({
                           {rackData.shelves.map((shelfData: any) => {
                             const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
                             const targetId = `${zoneData.zone}-${rackData.rack}-${shelfData.shelf}`;
-                            const isHighlighted = (highlightTargets?.has(targetId) ?? false) || highlightTarget === targetId;
+                            const binTargetPrefix = `bin-${zoneData.zone}-${rackData.rack}-${shelfData.shelf}-`;
+
+                            const isHighlighted =
+                              (highlightTargets?.has(targetId) ?? false) ||
+                              highlightTarget === targetId ||
+                              (Boolean(highlightTarget) && highlightTarget.startsWith(binTargetPrefix)) ||
+                              (Boolean(highlightTargets) && Array.from(highlightTargets).some(t => t.startsWith(binTargetPrefix)));
 
                             return (
                               <button
@@ -576,7 +658,13 @@ export function WarehouseMap2D({
                           {rackData.shelves.map((shelfData: any) => {
                             const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
                             const targetId = `RESERVE-${rackData.rack}-${shelfData.shelf}`;
-                            const isHighlighted = (highlightTargets?.has(targetId) ?? false) || highlightTarget === targetId;
+                            const binTargetPrefix = `bin-RESERVE-${rackData.rack}-${shelfData.shelf}-`;
+
+                            const isHighlighted =
+                              (highlightTargets?.has(targetId) ?? false) ||
+                              highlightTarget === targetId ||
+                              (Boolean(highlightTarget) && highlightTarget.startsWith(binTargetPrefix)) ||
+                              (Boolean(highlightTargets) && Array.from(highlightTargets).some(t => t.startsWith(binTargetPrefix)));
 
                             return (
                               <button

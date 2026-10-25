@@ -204,7 +204,14 @@ export function WarehouseFilterBar({
     setActiveChips(new Set());
     setQuery(item.name);
     setIsSearchOpen(false);
-    onSearchSelect(item.targetId);
+
+    // Ưu tiên tạo targetId chi tiết tới tận ô thùng (bin-Zone-Rack-Shelf-Bin)
+    const loc = item.location;
+    let target = item.targetId;
+    if (loc?.zone && loc?.rack && loc?.shelf && loc?.bin) {
+      target = `bin-${loc.zone}-${loc.rack}-${loc.shelf}-${loc.bin}`;
+    }
+    onSearchSelect(target);
   };
 
   // Bật/tắt chip lọc nhanh
