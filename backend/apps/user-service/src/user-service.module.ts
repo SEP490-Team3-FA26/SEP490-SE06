@@ -8,6 +8,7 @@ import { UserService } from './user-service.service';
 import { Branch, BranchSchema } from './schemas/branch.schema';
 import { BranchService } from './branch.service';
 import { Cart, CartSchema } from './schemas/cart.schema';
+import { Wishlist, WishlistSchema } from './schemas/wishlist.schema';
 import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
 import { BranchFeedback, BranchFeedbackSchema } from './schemas/branch-feedback.schema';
 
@@ -48,6 +49,7 @@ import { NewsletterCronService } from './newsletter-cron.service';
       { name: User.name, schema: UserSchema },
       { name: Branch.name, schema: BranchSchema },
       { name: Cart.name, schema: CartSchema },
+      { name: Wishlist.name, schema: WishlistSchema },
       { name: AuditLog.name, schema: AuditLogSchema },
       { name: BranchFeedback.name, schema: BranchFeedbackSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
