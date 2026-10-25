@@ -30,16 +30,16 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: 📦 Install Backend Dependencies
         working-directory: backend
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: 🧪 Run Playbook & Architecture Test Rules Audit
         working-directory: backend

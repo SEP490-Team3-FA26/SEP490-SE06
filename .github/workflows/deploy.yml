@@ -38,13 +38,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies (backend)
         working-directory: backend
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: 🧪 Run Playbook & Architecture Test Rules
         working-directory: backend
