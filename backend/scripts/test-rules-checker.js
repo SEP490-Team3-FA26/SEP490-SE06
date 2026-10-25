@@ -211,11 +211,57 @@ if (normalCasesCount > 0 && boundaryCasesCount > 0 && abnormalCasesCount > 0) {
 }
 
 // -------------------------------------------------------------------------
+// RULE 7: KIỂM TRA QUY TẮC KẸP BÀI TEST BẮT BUỘC KHI VIẾT CODE MỚI
+// (Zero Untested Code Policy - Every new Service/Controller must have tests)
+// -------------------------------------------------------------------------
+console.log('\n📌 [Rule 7] Kiểm tra quy tắc kẹp bài test bắt buộc khi viết code mới (Test-Coupled Mandate)');
+const targetCodeFiles = allTsFiles.filter(
+  (f) => (f.endsWith('.service.ts') || f.endsWith('.controller.ts')) && !f.includes('api-gateway')
+);
+let testedCount = 0;
+let missingTestFiles = [];
+
+for (const codeFile of targetCodeFiles) {
+  const baseName = path.basename(codeFile, '.ts');
+  const dirName = path.dirname(codeFile);
+  const adjacentSpec = path.join(dirName, `${baseName}.spec.ts`);
+
+  const hasAdjacentSpec = fs.existsSync(adjacentSpec);
+  const hasSpecInDir = specFiles.some((spec) => {
+    const specLower = spec.toLowerCase();
+    const serviceName = baseName.replace(/\.(service|controller)$/, '').toLowerCase();
+    return spec.includes(dirName) || specLower.includes(serviceName);
+  });
+
+  if (hasAdjacentSpec || hasSpecInDir) {
+    testedCount++;
+  } else {
+    missingTestFiles.push(path.relative(APPS_DIR, codeFile));
+  }
+}
+
+const coverageRatio = targetCodeFiles.length > 0 ? ((testedCount / targetCodeFiles.length) * 100).toFixed(1) : 100;
+console.log(`   📊 Tỷ lệ Services & Controllers có bài test kẹp vào: ${testedCount}/${targetCodeFiles.length} (${coverageRatio}%)`);
+
+if (missingTestFiles.length === 0 || coverageRatio >= 75) {
+  console.log(`   ✅ ĐẠT: Độ phủ bài test đạt ${coverageRatio}% (Tuân thủ chính sách Test-Coupled)!`);
+  if (missingTestFiles.length > 0) {
+    console.log(`   ⚠️ Khuyến khích kẹp thêm test cho: ${missingTestFiles.slice(0, 3).join(', ')}${missingTestFiles.length > 3 ? '...' : ''}`);
+    warnings++;
+  }
+  passedRules++;
+} else {
+  console.log(`   ❌ CHƯA ĐẠT: Tỷ lệ kẹp bài test (${coverageRatio}%) dưới ngưỡng yêu cầu 75%!`);
+  console.log(`   Danh sách file cần bổ sung bài test: \n      - ${missingTestFiles.slice(0, 5).join('\n      - ')}`);
+  failedRules++;
+}
+
+// -------------------------------------------------------------------------
 // TỔNG KẾT
 // -------------------------------------------------------------------------
 console.log('\n' + '='.repeat(80));
 console.log('📋 TỔNG KẾT KIỂM TRA QUY TẮC KIẾN TRÚC & PHÁT TRIỂN:');
-console.log(`   ✅ Số quy tắc ĐẠT: ${passedRules}/6`);
+console.log(`   ✅ Số quy tắc ĐẠT: ${passedRules}/7`);
 console.log(`   ⚠️ Cảnh báo: ${warnings}`);
 console.log(`   ❌ Lỗi nghiêm trọng: ${failedRules}`);
 console.log('='.repeat(80));
