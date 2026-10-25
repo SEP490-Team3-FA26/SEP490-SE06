@@ -14,6 +14,7 @@ import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRec
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { cartService } from "../../services/sales/cart.service";
+import { useWishlist } from "../../hooks/useWishlist";
 import { notifyAuthLoginRequired } from "../../utils/authEvents";
 
 // Sub-category Card Model
@@ -104,6 +105,7 @@ export function CustomerShop() {
   const [selectedSubCategory, setSelectedSubCategory] = useState(searchParams.get("subCategory") || "");
   const [selectedClassification, setSelectedClassification] = useState("");
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+  const { isInWishlist, toggleWishlist } = useWishlist();
   // Lưu số lượng thuốc thực tế truy vấn trực tiếp từ MongoDB cho các danh mục con
   const [realCategoryCounts, setRealCategoryCounts] = useState<Record<string, number>>({});
 
@@ -642,6 +644,8 @@ export function CustomerShop() {
                       key={medId}
                       med={med}
                       added={!!addedItems[medId]}
+                      isWishlisted={isInWishlist(medId)}
+                      onToggleWishlist={toggleWishlist}
                       onClick={() => { setSelectedMedicineForModal(med); }}
                       onAddToCart={(m, qty, _unit) => { handleAddToCart(m, qty); }}
                     />
