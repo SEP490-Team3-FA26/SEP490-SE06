@@ -142,6 +142,47 @@ describe('ShiftHandoverService (Unit & Security Tests)', () => {
       expect(mockAttendance.isHandoverSubmitted).toBe(true);
       expect(mockAttendance.save).toHaveBeenCalled();
     });
+
+    it('T-SHO-03: should succeed without discrepancyReason when cash is surplus (positive discrepancy)', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: employeeId, fullName: 'Dược Sĩ A', role: 'pharmacist', branchId }) }),
+      });
+
+      const mockAttendance = {
+        _id: new Types.ObjectId(),
+        status: AttendanceStatus.CHECKED_IN,
+        isHandoverSubmitted: false,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({ exec: jest.fn().mockResolvedValue(mockAttendance) }),
+      });
+
+      function MockHandoverDoc(this: any, data: any) {
+        Object.assign(this, data);
+        this.save = jest.fn().mockResolvedValue(this);
+      }
+      (MockHandoverDoc as any).findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      (service as any).handoverModel = MockHandoverDoc as any;
+
+      // Expected = 3.000.000, Actual = 3.050.000 (Dư 50.000đ nhưng không cần giải trình)
+      const result = await service.submitHandover({
+        employeeId,
+        branchId,
+        shiftId: 'CA_SANG',
+        shiftName: 'Ca sáng',
+        openingFloat: 1000000,
+        systemCashSales: 2000000,
+        systemDigitalSales: 500000,
+        systemOrderCount: 15,
+        actualCashAmount: 3050000,
+      });
+
+      expect(result.success).toBe(true);
+    });
   });
 
   describe('T-SHO-04 & T-SHO-05: Bảo mật phân quyền tiếp nhận ca (Anti-Spoofing & Anti-IDOR)', () => {

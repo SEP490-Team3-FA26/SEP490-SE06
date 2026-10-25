@@ -20,6 +20,7 @@ import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { showToast } from '../../components/ui/toastHelper';
 import { UserRole } from '../../types/pharmacy.types';
 import { ColorTokens, TypographyTokens } from '../../theme/tokens';
+import { EnvService } from '../../services/env.service';
 
 const { width } = Dimensions.get('window');
 
@@ -354,6 +355,21 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     <Text style={styles.registerLink}>Đăng ký ngay</Text>
                   </AnimatedTouchable>
                 </View>
+
+                {/* Server Connection Indicator - Chỉ hiển thị trong môi trường DEV nội bộ, tuyệt đối không hiện ở bản Production */}
+                {__DEV__ && EnvService.getApiBaseUrl().includes('localhost') && (
+                  <View style={styles.serverInfoRow}>
+                    <Ionicons
+                      name="hardware-chip-outline"
+                      size={13}
+                      color="#0284C7"
+                      style={{ marginRight: 5 }}
+                    />
+                    <Text style={styles.serverInfoText}>
+                      USB DEBUG LOCALHOST: {EnvService.getApiBaseUrl()}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </ScrollView>
@@ -738,5 +754,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#0284C7',
+  },
+  serverInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    alignSelf: 'center',
+  },
+  serverInfoText: {
+    fontSize: 11,
+    color: '#166534',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

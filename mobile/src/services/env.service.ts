@@ -81,14 +81,19 @@ class EnvServiceClass {
       return 'https://abcpharmacy.store';
     }
 
-    // 2. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost
+    if (!__DEV__ && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1'))) {
+      return 'https://abcpharmacy.store';
+    }
+
+    // 3. Nếu có cấu hình EXPO_PUBLIC_API_URL (hỗ trợ cả http://localhost:4000, 10.0.2.2 và domain)
+    if (envUrl) {
       return envUrl;
     }
 
     // 3. Chế độ Web Local
     if (Platform.OS === 'web') {
-      return envUrl || 'https://abcpharmacy.store';
+      return 'http://localhost:4000';
     }
 
     // 4. Mặc định Production Cloud Server
@@ -102,15 +107,20 @@ class EnvServiceClass {
       return 'https://abcpharmacy.store';
     }
 
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    if (envUrl) {
       return envUrl;
     }
 
     return 'https://abcpharmacy.store';
   }
 
-  // Cung cấp URL dự phòng khi gặp lỗi kết nối mạng (luôn dùng HTTPS an toàn)
+  // Cung cấp URL dự phòng khi gặp lỗi kết nối mạng
   public getAlternateApiUrl(): string {
+    const current = this.getApiBaseUrl();
+    if (current.includes('localhost') || current.includes('127.0.0.1')) {
+      // Khi debug localhost: nếu localhost qua adb reverse gặp sự cố, thử fallback 10.0.2.2 (máy ảo Android)
+      return current.includes('10.0.2.2') ? 'http://localhost:4000' : 'http://10.0.2.2:4000';
+    }
     return 'https://abcpharmacy.store';
   }
 

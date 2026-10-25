@@ -176,11 +176,11 @@ export class ShiftHandoverService {
     const actualCashAmount = Math.max(0, Number(dto.actualCashAmount) || 0);
     const cashDiscrepancy = actualCashAmount - expectedCashAmount;
 
-    // 3. Ràng buộc giải trình khi lệch két (INV-SHO-03)
-    if (cashDiscrepancy !== 0) {
+    // 3. Ràng buộc giải trình khi hụt két (INV-SHO-03: Chỉ bắt buộc khi âm tiền)
+    if (cashDiscrepancy < 0) {
       if (!dto.discrepancyReason || dto.discrepancyReason.trim().length < 10) {
         throw new RpcException(
-          `Két tiền bị chênh lệch ${cashDiscrepancy > 0 ? '+' : ''}${cashDiscrepancy.toLocaleString('vi-VN')}₫. Bắt buộc nhập lý do giải trình cụ thể (tối thiểu 10 ký tự) trước khi nộp biên bản!`,
+          `Két tiền bị thiếu hụt ${cashDiscrepancy.toLocaleString('vi-VN')}₫. Bắt buộc nhập lý do giải trình cụ thể (tối thiểu 10 ký tự) trước khi nộp biên bản!`,
         );
       }
     }

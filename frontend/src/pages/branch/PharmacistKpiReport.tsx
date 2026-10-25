@@ -19,6 +19,10 @@ import {
   Target,
   Coins,
   ChevronRight,
+  HelpCircle,
+  Info,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { hrService } from '../../services/hr/hr.service';
 
@@ -30,6 +34,7 @@ export default function PharmacistKpiReport() {
   const [reportData, setReportData] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [showGuide, setShowGuide] = useState<boolean>(true);
 
   const loadKpiReport = async () => {
     setLoading(true);
@@ -209,6 +214,66 @@ export default function PharmacistKpiReport() {
         </div>
       </div>
 
+      {/* KPI Methodology Explanation Box */}
+      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-3xl p-4 sm:p-5 shadow-2xs">
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => setShowGuide(!showGuide)}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <HelpCircle size={17} />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-extrabold text-emerald-950 uppercase tracking-wide">
+                Quy Chuẩn Đo Lường & Công Thức Tính Các Chỉ Số KPI Dược Sĩ (GPP)
+              </h3>
+              <p className="text-[11px] text-emerald-800 font-medium">
+                Bấm để {showGuide ? 'thu gọn' : 'xem chi tiết'} cách hệ thống tính toán từng cột chỉ số thi đua
+              </p>
+            </div>
+          </div>
+          <button className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-100 transition">
+            {showGuide ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+        </div>
+
+        {showGuide && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mt-4 pt-4 border-t border-emerald-200/60 animate-in fade-in">
+            <div className="bg-white p-3 rounded-2xl border border-emerald-100 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <DollarSign size={14} className="text-emerald-600" />
+                <span>1. Doanh Thu & Chỉ Tiêu (Quota)</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                • <strong>Doanh thu</strong>: Tổng tiền đơn hàng bán thành công (tách Tiền mặt vs Chuyển khoản QR).<br />
+                • <strong>Chỉ tiêu (Quota)</strong>: Mức doanh số giao tháng (chuẩn 50.000.000₫/DS).<br />
+                • <strong>% Hoàn thành</strong>: = (Doanh thu / Quota) × 100%.
+              </p>
+            </div>
+
+            <div className="bg-white p-3 rounded-2xl border border-emerald-100 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <Target size={14} className="text-indigo-600" />
+                <span>2. AOV & Tỷ Lệ Kèm OTC</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                • <strong>AOV (Đơn/Giá)</strong>: = Tổng doanh thu / Tổng số đơn. Đo lường giá trị giỏ hàng trung bình.<br />
+                • <strong>Tỷ lệ kèm OTC</strong>: % đơn hàng có bán kèm TPBVSK, Vitamin, Men vi sinh... Đánh giá kỹ năng upsell tư vấn của Dược sĩ (Mục tiêu &ge; 35%).
+              </p>
+            </div>
+
+            <div className="bg-white p-3 rounded-2xl border border-emerald-100 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <ShieldCheck size={14} className="text-teal-600" />
+                <span>3. Khớp Két & Xếp Loại Thi Đua</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                • <strong>Khớp két tiền</strong>: Tỷ lệ trung thực khi bàn giao ca (đạt 100% nếu không lệch két hoặc có giải trình hợp lệ).<br />
+                • <strong>Xếp loại</strong>: <strong>Xuất Sắc</strong> (&ge; 100%), <strong>Đạt Chỉ Tiêu</strong> (&ge; 70%), <strong>Cần Cố Gắng</strong> (&lt; 70%).
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Main Table & Filter */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
         {/* Table Filter Bar */}
@@ -263,24 +328,52 @@ export default function PharmacistKpiReport() {
                   const isTopRank = idx === 0 && quotaRate >= 80;
                   const cashRate = item.cashIntegrityRate ?? 100;
 
+                  // Parse pharmacist display name & branch note
+                  const rawName = item.pharmacistName || 'Dược sĩ';
+                  const match = rawName.match(/^([^(]+)(\([^)]+\))?$/);
+                  const mainName = match ? match[1].trim() : rawName;
+                  const subBranch = match && match[2] ? match[2].trim() : '';
+
+                  const isOnlineOrUnassigned =
+                    item.pharmacistId === 'ONLINE_UNASSIGNED' ||
+                    item.pharmacistId === 'UNASSIGNED' ||
+                    rawName.includes('Online') ||
+                    rawName.includes('Vãng Lai');
+
+                  const avatarChar = isOnlineOrUnassigned
+                    ? 'ON'
+                    : isTopRank
+                    ? '★'
+                    : mainName.replace(/^(DS\.|Dược sĩ)\s*/i, '').trim().charAt(0).toUpperCase() || 'DS';
+
                   return (
                     <tr key={item.pharmacistId || idx} className="hover:bg-slate-50/80 transition">
                       {/* Name & ID */}
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 ${
-                            isTopRank
+                            isOnlineOrUnassigned
+                              ? 'bg-slate-100 text-slate-600 border border-slate-300'
+                              : isTopRank
                               ? 'bg-gradient-to-tr from-amber-400 to-yellow-300 text-amber-950 shadow-xs'
                               : 'bg-emerald-100 text-emerald-800'
                           }`}>
-                            {isTopRank ? '★' : (item.pharmacistName || 'DS').charAt(0).toUpperCase()}
+                            {avatarChar}
                           </div>
                           <div>
                             <p className="font-extrabold text-slate-900 text-xs sm:text-sm">
-                              {item.pharmacistName}
+                              {mainName}
                             </p>
-                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              ID: {item.pharmacistId?.slice(-6) || '---'}
+                            <p className="text-[10px] text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
+                              {subBranch && <span className="text-slate-600 font-bold">{subBranch}</span>}
+                              <span>•</span>
+                              <span className="font-mono text-slate-400">
+                                {isOnlineOrUnassigned
+                                  ? 'Kênh Online / POS'
+                                  : item.pharmacistId && /^[0-9a-fA-F]{24}$/.test(item.pharmacistId)
+                                  ? `ID: #${item.pharmacistId.slice(-6).toUpperCase()}`
+                                  : `Mã: DS-${(idx + 1).toString().padStart(2, '0')}`}
+                              </span>
                             </p>
                           </div>
                         </div>

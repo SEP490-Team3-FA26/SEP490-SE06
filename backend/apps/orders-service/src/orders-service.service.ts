@@ -2309,8 +2309,19 @@ export class OrdersServiceService implements OnModuleInit {
       > = {};
 
       for (const o of orders) {
-        const pId = (o.soldBy || o.pharmacistApprovedBy || 'UNASSIGNED').toString();
-        const pName = o.pharmacistApprovedBy || (pId === 'UNASSIGNED' ? 'Dược sĩ quầy' : `Dược sĩ ${pId.slice(-4)}`);
+        const rawIdentifier = (o.soldBy || o.pharmacistApprovedBy || '').trim();
+        let pId = rawIdentifier;
+        let pName = rawIdentifier;
+
+        if (!rawIdentifier || rawIdentifier.toUpperCase() === 'UNASSIGNED') {
+          pId = 'ONLINE_UNASSIGNED';
+          pName = 'Đơn Online / Quầy Vãng Lai';
+        } else {
+          // Giữ trọn vẹn tên dược sĩ (ví dụ: DS. Lê Hải Yến (Dược Sĩ CN1))
+          pName = rawIdentifier;
+          pId = rawIdentifier;
+        }
+
         const bId = o.branchId || payload.branchId || 'BR-001';
         const rev = Number(o.totalAmount || 0);
         const isCash = o.paymentMethod === 'CASH' || o.paymentMethod === 'TIEN_MAT';
