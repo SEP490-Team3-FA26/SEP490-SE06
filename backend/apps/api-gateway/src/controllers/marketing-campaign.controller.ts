@@ -13,7 +13,10 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  Optional,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { ClientKafka } from '@nestjs/microservices';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
@@ -27,7 +30,21 @@ export class MarketingCampaignController implements OnModuleInit {
   constructor(
     @Inject('ORDER_SERVICE') private readonly orderClient: ClientKafka,
     @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
+    @Optional() @Inject(CACHE_MANAGER) private readonly cacheManager?: Cache,
   ) {}
+
+  /**
+   * Helper xóa cache Redis khi chiến dịch thay đổi trạng thái (Cache Eviction)
+   */
+  private async evictCampaignCache(id: string): Promise<void> {
+    if (this.cacheManager) {
+      try {
+        await this.cacheManager.del(`email:campaign:${id}`);
+      } catch (err) {
+        // Bỏ qua lỗi kết nối Redis ngầm
+      }
+    }
+  }
 
   async onModuleInit() {
     // Subscribe reply topics cho Marketing Campaign (orders-service)
@@ -125,10 +142,13 @@ export class MarketingCampaignController implements OnModuleInit {
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    return await sendKafkaMessage(this.userClient, 'email.campaign.update', {
+    const res = await sendKafkaMessage(this.userClient, 'email.campaign.update', {
       id,
       dto: body,
     });
+    // Xóa cache Redis cũ khi có cập nhật mới (Cache Eviction)
+    await this.evictCampaignCache(id);
+    return res;
   }
 
   /**
@@ -143,11 +163,38 @@ export class MarketingCampaignController implements OnModuleInit {
 
   /**
    * Lấy chi tiết 1 chiến dịch Email Newsletter
+   * Áp dụng mô hình Cache-Aside (TTL 5 phút) giảm tải truy vấn lặp lại vào MongoDB
    */
   @Get('email/:id')
-  @ApiOperation({ summary: 'Chi tiết chiến dịch Email Newsletter' })
+  @ApiOperation({ summary: 'Chi tiết chiến dịch Email Newsletter (Cache-Aside)' })
   async getEmailCampaignById(@Param('id') id: string) {
-    return await sendKafkaMessage(this.userClient, 'email.campaign.get.by.id', { id });
+    const cacheKey = `email:campaign:${id}`;
+
+    // 1. Kiểm tra cache Redis trước (Cache Hit)
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+      } catch (err) {
+        // Fallback an toàn nếu Redis gặp sự cố
+      }
+    }
+
+    // 2. Cache Miss: Gọi sang user-service qua Kafka
+    const campaign = await sendKafkaMessage(this.userClient, 'email.campaign.get.by.id', { id });
+
+    // 3. Ghi dữ liệu vào Redis Cache với TTL 5 phút (300 giây)
+    if (campaign && this.cacheManager) {
+      try {
+        await this.cacheManager.set(cacheKey, campaign, 300);
+      } catch (err) {
+        // Bỏ qua lỗi ghi cache
+      }
+    }
+
+    return campaign;
   }
 
   /**
@@ -195,6 +242,8 @@ export class MarketingCampaignController implements OnModuleInit {
     @Param('id') id: string,
     @Req() req: any,
   ) {
+    // Xóa cache Redis để phản ánh trạng thái mới
+    await this.evictCampaignCache(id);
     // Emit event bất đồng bộ — user-service lắng nghe và gửi ngay
     this.userClient.emit('email.campaign.event.trigger', { campaignId: id });
     return {
@@ -217,7 +266,9 @@ export class MarketingCampaignController implements OnModuleInit {
     entityType: 'EmailCampaign',
   })
   async cancelEmailCampaign(@Param('id') id: string) {
-    return await sendKafkaMessage(this.userClient, 'email.campaign.cancel', { id });
+    const res = await sendKafkaMessage(this.userClient, 'email.campaign.cancel', { id });
+    await this.evictCampaignCache(id);
+    return res;
   }
 
   /**
@@ -234,7 +285,9 @@ export class MarketingCampaignController implements OnModuleInit {
     entityType: 'EmailCampaign',
   })
   async deleteEmailCampaign(@Param('id') id: string) {
-    return await sendKafkaMessage(this.userClient, 'email.campaign.delete', { id });
+    const res = await sendKafkaMessage(this.userClient, 'email.campaign.delete', { id });
+    await this.evictCampaignCache(id);
+    return res;
   }
 
   // ===================================================================

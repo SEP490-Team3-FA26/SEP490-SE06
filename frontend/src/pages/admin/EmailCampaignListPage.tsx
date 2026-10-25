@@ -186,6 +186,7 @@ const EmailCampaignListPage: React.FC = () => {
   const [statsModalId, setStatsModalId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<EmailCampaignData | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EmailCampaignData | null>(null);
+  const [triggerTarget, setTriggerTarget] = useState<EmailCampaignData | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   // Hiển thị toast thông báo tự đóng sau 3 giây
@@ -204,15 +205,20 @@ const EmailCampaignListPage: React.FC = () => {
     return matchSearch && matchStatus;
   });
 
-  // Xử lý kích hoạt / retry gửi email
-  const handleTrigger = async (campaign: EmailCampaignData) => {
-    const label =
-      campaign.status === "PARTIAL_FAILED" ? "retry gửi lại" : "kích hoạt gửi";
-    if (!window.confirm(`Xác nhận ${label} chiến dịch "${campaign.title}"?`)) return;
+  // Mở Custom Modal xác nhận kích hoạt / retry gửi email (không dùng window.confirm)
+  const handleTrigger = (campaign: EmailCampaignData) => {
+    setTriggerTarget(campaign);
+  };
 
-    const result = await triggerCampaign(campaign._id!);
+  // Thực thi kích hoạt sau khi người dùng xác nhận trên Custom Confirm Dialog
+  const handleConfirmTrigger = async () => {
+    if (!triggerTarget?._id) return;
+    const label =
+      triggerTarget.status === "PARTIAL_FAILED" ? "retry gửi lại" : "kích hoạt gửi";
+    const result = await triggerCampaign(triggerTarget._id);
     if (result.success) {
       showToast("success", `✅ Đã ${label} chiến dịch! Hệ thống đang xử lý ngầm...`);
+      setTriggerTarget(null);
     } else {
       showToast("error", result.error || "Lỗi khi kích hoạt chiến dịch");
     }
@@ -852,6 +858,103 @@ const EmailCampaignListPage: React.FC = () => {
               >
                 {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 <span>{submitting ? "Đang xóa..." : "Xác nhận xóa"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal xác nhận KÍCH HOẠT / RETRY PHÁT TÁN CHIẾN DỊCH (Thay thế hoàn toàn window.confirm) */}
+      {triggerTarget && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 9998,
+            background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+          onClick={() => setTriggerTarget(null)}
+        >
+          <div
+            style={{
+              background: "#fff", borderRadius: 16, padding: "28px 32px",
+              maxWidth: 480, width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: "#f0f9ff", border: "1px solid #bae6fd",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#0284c7", flexShrink: 0,
+                }}
+              >
+                <Send size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+                  {triggerTarget.status === "PARTIAL_FAILED"
+                    ? "Xác nhận Retry gửi lại chiến dịch?"
+                    : "Xác nhận kích hoạt gửi email ngay?"}
+                </h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748b" }}>
+                  Phát tán email tự động theo lô qua nền tảng Resend
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "#f8fafc", border: "1px solid #e2e8f0",
+                borderRadius: 10, padding: "12px 16px", marginBottom: 20,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", marginBottom: 4 }}>
+                {triggerTarget.title}
+              </div>
+              <div style={{ fontSize: 12, color: "#64748b" }}>
+                📧 Tiêu đề gửi: <strong>{triggerTarget.subject}</strong>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 13, color: "#475569", margin: "0 0 24px", lineHeight: 1.5 }}>
+              Yêu cầu sẽ được gửi vào hàng đợi Kafka để xử lý ngầm (Non-blocking). Hệ thống sẽ chia lô gửi và ghi nhận nhật ký phát tán thời gian thực.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setTriggerTarget(null)}
+                disabled={submitting}
+                style={{
+                  padding: "10px 18px", borderRadius: 8,
+                  border: "1px solid #e2e8f0", background: "#fff",
+                  fontSize: 14, fontWeight: 600, color: "#64748b", cursor: "pointer",
+                }}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmTrigger}
+                disabled={submitting}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "10px 20px", borderRadius: 8, border: "none",
+                  background: "#0284c7", color: "#fff",
+                  fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+                }}
+              >
+                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                <span>
+                  {submitting
+                    ? "Đang kích hoạt..."
+                    : triggerTarget.status === "PARTIAL_FAILED"
+                    ? "Xác nhận Retry"
+                    : "Xác nhận gửi ngay"}
+                </span>
               </button>
             </div>
           </div>
