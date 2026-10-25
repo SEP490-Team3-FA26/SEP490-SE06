@@ -62,6 +62,15 @@ export class Attendance extends Document {
   @Prop({ default: false })
   isMockLocation: boolean;
 
+  @Prop({ type: Types.ObjectId, ref: 'ShiftHandover', default: null })
+  handoverId?: Types.ObjectId;
+
+  @Prop({ default: false })
+  isHandoverSubmitted?: boolean;
+
+  @Prop({ default: false })
+  isHandoverCompleted?: boolean;
+
   @Prop({ default: '' })
   note?: string;
 }

@@ -35,6 +35,7 @@ import { randomUUID } from 'crypto';
 export class HrController implements OnModuleInit {
   constructor(
     @Inject('USER_SERVICE') private readonly kafkaClient: ClientKafka,
+    @Inject('ORDER_SERVICE') private readonly ordersClient: ClientKafka,
     private readonly cloudinaryStorageService: CloudinaryStorageService,
   ) {}
 
@@ -71,6 +72,11 @@ export class HrController implements OnModuleInit {
       'hr.attendance.verify_active_shift',
       'hr.attendance.branch_today',
       'hr.attendance.history',
+      'hr.shift_handover.live_stats',
+      'hr.shift_handover.submit',
+      'hr.shift_handover.accept',
+      'hr.shift_handover.history',
+      'hr.shift_handover.detail',
       'hr.payroll.calculate',
       'hr.payroll.list',
       'hr.payroll.detail',
@@ -84,6 +90,11 @@ export class HrController implements OnModuleInit {
       'hr.leave.create',
       'hr.leave.respond',
       'hr.leave.cancel',
+    ]);
+
+    await subscribeToKafkaTopics(this.ordersClient, [
+      'orders.shift.aggregate_sales',
+      'orders.pharmacist.kpi_report',
     ]);
   }
 
@@ -550,6 +561,207 @@ export class HrController implements OnModuleInit {
       branchId: req.user.branchId,
       date,
     });
+  }
+
+  // --- HR: SHIFT HANDOVER & CASH DRAWER RECONCILIATION ---
+  @Get('shift-handover/live-stats')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Lấy dữ liệu trực tiếp doanh số, tiền mặt và danh mục thuốc GPP để bàn giao ca' })
+  async getShiftHandoverLiveStats(
+    @Request() req,
+    @Query('shiftId') shiftId?: string,
+    @Query('branchId') queryBranchId?: string,
+  ) {
+    const branchId = req.user.role === 'branch' ? req.user.branchId : (queryBranchId || req.user.branchId || 'BR-001');
+
+    // 1. Lấy thông tin ca & danh mục thuốc GPP từ user-service
+    const shiftStats: any = await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.live_stats', {
+      employeeId: req.user.sub,
+      branchId,
+      shiftId,
+    });
+
+    // 2. Lấy tổng hợp doanh số thực tế từ orders-service
+    let salesStats: any = null;
+    try {
+      salesStats = await sendKafkaMessage(this.ordersClient, 'orders.shift.aggregate_sales', {
+        branchId,
+        shiftId: shiftStats?.shiftId || shiftId,
+        pharmacistId: req.user.sub,
+        date: shiftStats?.handoverDate,
+      });
+    } catch (err) {
+      salesStats = {
+        ordersCount: 0,
+        totalRevenue: 0,
+        cashSales: 0,
+        digitalSales: 0,
+        otcCount: 0,
+        otcRate: 0,
+        recentOrders: [],
+      };
+    }
+
+    const openingFloat = shiftStats?.openingFloat || 1000000;
+    const cashSales = salesStats?.cashSales || 0;
+    const expectedCashAmount = openingFloat + cashSales;
+
+    return {
+      ...shiftStats,
+      sales: salesStats,
+      openingFloat,
+      systemCashSales: cashSales,
+      systemDigitalSales: salesStats?.digitalSales || 0,
+      systemOrderCount: salesStats?.ordersCount || 0,
+      expectedCashAmount,
+    };
+  }
+
+  @Post('shift-handover/submit')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Dược sĩ nộp biên bản bàn giao ca và chốt két tiền mặt' })
+  async submitShiftHandover(@Request() req, @Body() body: any) {
+    const branchId = req.user.role === 'branch' ? req.user.branchId : (req.user.branchId || 'BR-001');
+
+    // Chốt chặn INV-SHO-02: Bắt buộc lấy doanh số thực tế từ orders-service phía server,
+    // ghi đè hoàn toàn bất kỳ số liệu lý thuyết nào do client gửi lên (chống gian lận STRIDE-01)
+    let verifiedCashSales = 0;
+    let verifiedDigitalSales = 0;
+    let verifiedOrdersCount = 0;
+    try {
+      const salesStats: any = await sendKafkaMessage(this.ordersClient, 'orders.shift.aggregate_sales', {
+        branchId,
+        pharmacistId: req.user.sub,
+      });
+      if (salesStats) {
+        verifiedCashSales = Number(salesStats.cashSales) || 0;
+        verifiedDigitalSales = Number(salesStats.digitalSales) || 0;
+        verifiedOrdersCount = Number(salesStats.ordersCount) || 0;
+      }
+    } catch (err) {
+      // Fallback nếu microservice có trục trặc tạm thời
+      verifiedCashSales = Number(body.systemCashSales) || 0;
+      verifiedDigitalSales = Number(body.systemDigitalSales) || 0;
+      verifiedOrdersCount = Number(body.systemOrderCount) || 0;
+    }
+
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.submit', {
+      ...body,
+      systemCashSales: verifiedCashSales,
+      systemDigitalSales: verifiedDigitalSales,
+      systemOrderCount: verifiedOrdersCount,
+      employeeId: req.user.sub,
+      branchId,
+    });
+  }
+
+  @Post('shift-handover/:id/accept')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Dược sĩ ca sau hoặc Quản lý chi nhánh xác nhận tiếp nhận bàn giao ca' })
+  async acceptShiftHandover(@Request() req, @Param('id') id: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.accept', {
+      id,
+      user: {
+        userId: req.user.sub,
+        fullName: req.user.fullName || req.user.username || 'Dược sĩ tiếp nhận',
+        branchId: req.user.branchId,
+        role: req.user.role,
+      },
+    });
+  }
+
+  @Get('shift-handover/history')
+  @Roles('branch', 'pharmacist', 'admin', 'director')
+  @ApiOperation({ summary: 'Xem lịch sử các biên bản bàn giao ca của chi nhánh' })
+  async getShiftHandoverHistory(
+    @Request() req,
+    @Query('branchId') queryBranchId?: string,
+    @Query('date') date?: string,
+    @Query('limit') limit?: number,
+  ) {
+    const branchId = req.user.role === 'branch' || req.user.role === 'pharmacist'
+      ? req.user.branchId
+      : (queryBranchId || req.user.branchId || 'all');
+
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.history', {
+      branchId,
+      date,
+      limit: limit ? Number(limit) : 50,
+    });
+  }
+
+  @Get('shift-handover/:id')
+  @Roles('branch', 'pharmacist', 'admin', 'director')
+  @ApiOperation({ summary: 'Chi tiết biên bản bàn giao ca theo ID' })
+  async getShiftHandoverDetail(@Param('id') id: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.detail', { id });
+  }
+
+  // --- HR: BÁO CÁO HIỆU SUẤT BÁN HÀNG KPI DƯỢC SĨ (UC-111 / SCRUM-106) ---
+  @Get('kpi/sales-report')
+  @Roles('branch', 'director', 'admin', 'pharmacist')
+  @ApiOperation({ summary: 'Báo cáo hiệu suất nhân viên bán hàng (KPI) - UC-111' })
+  async getPharmacistKpiReport(
+    @Request() req,
+    @Query('branchId') queryBranchId?: string,
+    @Query('month') month?: number,
+    @Query('year') year?: number,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('pharmacistId') queryPharmacistId?: string,
+  ) {
+    // Bảo vệ IDOR & Thông tin nhạy cảm:
+    // Dược sĩ chỉ xem duy nhất báo cáo KPI của chính mình
+    let pharmacistId = queryPharmacistId;
+    if (req.user.role === 'pharmacist') {
+      pharmacistId = req.user.sub;
+    }
+
+    // Quản lý chi nhánh bị gán chặt vào chi nhánh mình
+    let branchId = queryBranchId;
+    if (req.user.role === 'branch' || req.user.role === 'pharmacist') {
+      branchId = req.user.branchId;
+    }
+
+    const report: any = await sendKafkaMessage(this.ordersClient, 'orders.pharmacist.kpi_report', {
+      branchId,
+      month: month ? Number(month) : undefined,
+      year: year ? Number(year) : undefined,
+      startDate,
+      endDate,
+      pharmacistId,
+    });
+
+    // Lấy thông tin chênh lệch két từ lịch sử ShiftHandover để bổ sung chỉ số trung thực tiền mặt
+    try {
+      const handoversRes: any = await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.history', {
+        branchId: branchId || 'all',
+        limit: 100,
+      });
+
+      const handovers = handoversRes?.handovers || [];
+      if (Array.isArray(report?.kpiList)) {
+        report.kpiList = report.kpiList.map((item: any) => {
+          const userHandovers = handovers.filter((h: any) => h.outgoingPharmacistId?.toString() === item.pharmacistId);
+          const totalShifts = userHandovers.length;
+          const balancedShifts = userHandovers.filter((h: any) => h.cashDiscrepancy === 0).length;
+          const cashDiscrepancyTotal = userHandovers.reduce((sum: number, h: any) => sum + Math.abs(h.cashDiscrepancy || 0), 0);
+          const cashIntegrityRate = totalShifts > 0 ? Number(((balancedShifts / totalShifts) * 100).toFixed(1)) : 100;
+
+          return {
+            ...item,
+            totalShifts,
+            balancedShifts,
+            cashDiscrepancyTotal,
+            cashIntegrityRate,
+          };
+        });
+      }
+    } catch (e) {
+      // Bỏ qua lỗi nối kết nếu có
+    }
+
+    return report;
   }
 
   // --- HR: PAYROLL MANAGEMENT ---

@@ -1,0 +1,231 @@
+/// <reference types="jest" />
+import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
+import { RpcException } from '@nestjs/microservices';
+import { Types } from 'mongoose';
+import { ShiftHandoverService } from './shift-handover.service';
+import { ShiftHandover, ShiftHandoverStatus } from './schemas/shift-handover.schema';
+import { Attendance, AttendanceStatus } from './schemas/attendance.schema';
+import { WorkShift } from './schemas/work-shift.schema';
+import { WorkSchedule } from './schemas/work-schedule.schema';
+import { User } from '../../auth-service/src/auth/user.schema';
+import { Medicine } from '../../inventory-service/src/medicine/schemas/medicine.schema';
+
+describe('ShiftHandoverService (Unit & Security Tests)', () => {
+  let service: ShiftHandoverService;
+
+  const mockHandoverModel: any = {
+    findOne: jest.fn(),
+    findById: jest.fn(),
+    find: jest.fn(),
+    create: jest.fn(),
+  };
+
+  const mockAttendanceModel: any = {
+    findOne: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+  };
+
+  const mockWorkShiftModel: any = {
+    findOne: jest.fn(),
+    findById: jest.fn(),
+  };
+
+  const mockWorkScheduleModel: any = {
+    find: jest.fn(),
+  };
+
+  const mockUserModel: any = {
+    findById: jest.fn(),
+  };
+
+  const mockMedicineModel: any = {
+    find: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ShiftHandoverService,
+        { provide: getModelToken(ShiftHandover.name), useValue: mockHandoverModel },
+        { provide: getModelToken(Attendance.name), useValue: mockAttendanceModel },
+        { provide: getModelToken(WorkShift.name), useValue: mockWorkShiftModel },
+        { provide: getModelToken(WorkSchedule.name), useValue: mockWorkScheduleModel },
+        { provide: getModelToken(User.name), useValue: mockUserModel },
+        { provide: getModelToken(Medicine.name), useValue: mockMedicineModel },
+      ],
+    }).compile();
+
+    service = module.get<ShiftHandoverService>(ShiftHandoverService);
+  });
+
+  describe('T-SHO-01 & T-SHO-02: Chốt két tiền mặt & Bắt buộc giải trình chênh lệch', () => {
+    const employeeId = new Types.ObjectId().toString();
+    const branchId = 'BR-001';
+
+    it('T-SHO-02: should throw RpcException if cash discrepancy != 0 and discrepancyReason is missing or under 10 chars (INV-SHO-03)', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: employeeId, fullName: 'Dược Sĩ A', role: 'pharmacist', branchId }) }),
+      });
+
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({
+          exec: jest.fn().mockResolvedValue({
+            _id: new Types.ObjectId(),
+            status: AttendanceStatus.CHECKED_IN,
+            save: jest.fn().mockResolvedValue(true),
+          }),
+        }),
+      });
+
+      // Opening float = 1.000.000, Cash Sales = 2.000.000 -> Expected = 3.000.000
+      // Actual = 2.800.000 -> Lệch -200.000 nhưng lý do chỉ có 9 ký tự ('lech tien')
+      await expect(
+        service.submitHandover({
+          employeeId,
+          branchId,
+          shiftId: 'CA_SANG',
+          shiftName: 'Ca sáng',
+          openingFloat: 1000000,
+          systemCashSales: 2000000,
+          systemDigitalSales: 500000,
+          systemOrderCount: 15,
+          actualCashAmount: 2800000,
+          discrepancyReason: 'lech tien', // 9 ký tự < 10 ký tự
+        }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('T-SHO-01: should succeed when cash is balanced or reason is properly provided', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: employeeId, fullName: 'Dược Sĩ A', role: 'pharmacist', branchId }) }),
+      });
+
+      const mockAttendance = {
+        _id: new Types.ObjectId(),
+        status: AttendanceStatus.CHECKED_IN,
+        isHandoverSubmitted: false,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({ exec: jest.fn().mockResolvedValue(mockAttendance) }),
+      });
+
+      mockHandoverModel.findOne.mockResolvedValue(null);
+
+      // Constructor mock
+      function MockHandoverDoc(this: any, data: any) {
+        Object.assign(this, data);
+        this.save = jest.fn().mockResolvedValue(this);
+      }
+      (MockHandoverDoc as any).findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      (service as any).handoverModel = MockHandoverDoc as any;
+
+      const result = await service.submitHandover({
+        employeeId,
+        branchId,
+        shiftId: 'CA_SANG',
+        shiftName: 'Ca sáng',
+        openingFloat: 1000000,
+        systemCashSales: 2000000,
+        systemDigitalSales: 500000,
+        systemOrderCount: 15,
+        actualCashAmount: 3000000, // Cân bằng 100%
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockAttendance.isHandoverSubmitted).toBe(true);
+      expect(mockAttendance.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('T-SHO-04 & T-SHO-05: Bảo mật phân quyền tiếp nhận ca (Anti-Spoofing & Anti-IDOR)', () => {
+    const handoverId = new Types.ObjectId().toString();
+    const pharmacistA = new Types.ObjectId().toString();
+    const pharmacistB = new Types.ObjectId().toString();
+
+    it('T-SHO-04: should reject if outgoing pharmacist attempts to accept their own handover', async () => {
+      const mockHandover = {
+        _id: handoverId,
+        branchId: 'BR-001',
+        outgoingPharmacistId: new Types.ObjectId(pharmacistA),
+        status: ShiftHandoverStatus.SUBMITTED,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockHandoverModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockHandover),
+      });
+
+      // Dược sĩ A tự nhận biên bản của chính mình
+      await expect(
+        service.acceptHandover(handoverId, {
+          userId: pharmacistA,
+          fullName: 'Dược Sĩ A',
+          branchId: 'BR-001',
+          role: 'pharmacist',
+        }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('T-SHO-05: should reject if pharmacist from another branch tries to accept handover (IDOR Protection)', async () => {
+      const mockHandover = {
+        _id: handoverId,
+        branchId: 'BR-001',
+        outgoingPharmacistId: new Types.ObjectId(pharmacistA),
+        status: ShiftHandoverStatus.SUBMITTED,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockHandoverModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockHandover),
+      });
+
+      // Dược sĩ B thuộc BR-002 cố tình duyệt của BR-001
+      await expect(
+        service.acceptHandover(handoverId, {
+          userId: pharmacistB,
+          fullName: 'Dược Sĩ B',
+          branchId: 'BR-002',
+          role: 'pharmacist',
+        }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('T-SHO-06: should allow incoming pharmacist from same branch to accept handover successfully', async () => {
+      const mockAttendanceId = new Types.ObjectId();
+      const mockHandover = {
+        _id: handoverId,
+        branchId: 'BR-001',
+        outgoingPharmacistId: new Types.ObjectId(pharmacistA),
+        attendanceId: mockAttendanceId,
+        status: ShiftHandoverStatus.SUBMITTED,
+        save: jest.fn().mockResolvedValue(true),
+        toObject: () => ({ status: ShiftHandoverStatus.ACCEPTED }),
+      };
+
+      mockHandoverModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockHandover),
+      });
+
+      mockAttendanceModel.findByIdAndUpdate.mockResolvedValue(true);
+
+      const res = await service.acceptHandover(handoverId, {
+        userId: pharmacistB,
+        fullName: 'Dược Sĩ B',
+        branchId: 'BR-001',
+        role: 'pharmacist',
+      });
+
+      expect(res.success).toBe(true);
+      expect(mockHandover.status).toBe(ShiftHandoverStatus.ACCEPTED);
+      expect(mockHandover.save).toHaveBeenCalled();
+      expect(mockAttendanceModel.findByIdAndUpdate).toHaveBeenCalledWith(mockAttendanceId, { isHandoverCompleted: true });
+    });
+  });
+});

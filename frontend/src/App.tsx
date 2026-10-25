@@ -81,6 +81,7 @@ import { BranchSchedule } from "./pages/branch/BranchSchedule";
 import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
 import BranchPayroll from "./pages/branch/BranchPayroll";
+import PharmacistKpiReport from "./pages/branch/PharmacistKpiReport";
 
 import { Sales } from "./pages/pharmacist/Sales";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
@@ -257,6 +258,8 @@ export default function App() {
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
               <Route path="feedbacks" element={<BranchFeedbackPage />} />
               <Route path="payroll" element={<BranchPayroll />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
+              <Route path="kpi-report" element={<PharmacistKpiReport />} />
               <Route path="profile" element={<Profile />} />
             </Route>
           </Route>
@@ -271,6 +274,7 @@ export default function App() {
               <Route path="ai-consultation" element={<VoiceConsultHistoryPage />} />
               <Route path="gpp-sync" element={<GppSyncPage />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
               <Route path="schedule" element={<PharmacistSchedule />} />
               <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
               <Route path="leave-requests" element={<PharmacistLeaveRequest />} />

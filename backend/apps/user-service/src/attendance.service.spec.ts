@@ -306,6 +306,72 @@ describe('AttendanceService (Unit & Security Tests)', () => {
       ).rejects.toThrow(RpcException);
     });
 
+    it('T-SHO-03: should reject check-out when pharmacist has not submitted shift handover (INV-SHO-01)', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', fullName: 'Dược sĩ A', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+
+      mockBranchModel.findOne.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ branchCode: 'BR-001', latitude: 10.7769, longitude: 106.7009, checkInRadiusMeters: 200 }) }),
+      });
+
+      const mockExistingAttendance = {
+        _id: 'att-1',
+        status: AttendanceStatus.CHECKED_IN,
+        isHandoverSubmitted: false, // CHƯA NỘP BÀN GIAO CA
+        checkInTime: new Date(Date.now() - 4 * 3600000),
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({
+          exec: jest.fn().mockResolvedValue(mockExistingAttendance),
+        }),
+      });
+
+      await expect(
+        service.checkOut({
+          employeeId: '507f1f77bcf86cd799439011',
+          latitude: 10.7769,
+          longitude: 106.7009,
+        }),
+      ).rejects.toThrow('Theo quy chuẩn quản lý nhà thuốc GPP, Dược sĩ phụ trách quầy bắt buộc phải hoàn thành và nộp Phiếu Bàn Giao Ca (Shift Handover) trước khi Check-out tan ca!');
+    });
+
+    it('should reject check-out even if client attempts bypass with bypassHandover or fake handoverId', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', fullName: 'Dược sĩ A', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+
+      mockBranchModel.findOne.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ branchCode: 'BR-001', latitude: 10.7769, longitude: 106.7009, checkInRadiusMeters: 200 }) }),
+      });
+
+      const mockExistingAttendance = {
+        _id: 'att-1',
+        status: AttendanceStatus.CHECKED_IN,
+        isHandoverSubmitted: false,
+        checkInTime: new Date(Date.now() - 4 * 3600000),
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({
+          exec: jest.fn().mockResolvedValue(mockExistingAttendance),
+        }),
+      });
+
+      await expect(
+        service.checkOut({
+          employeeId: '507f1f77bcf86cd799439011',
+          latitude: 10.7769,
+          longitude: 106.7009,
+          bypassHandover: true,
+          handoverId: '507f1f77bcf86cd799439011',
+        } as any),
+      ).rejects.toThrow(RpcException);
+    });
+
     it('should successfully check-out when within allowed geofence (< 200m)', async () => {
       mockUserModel.findById.mockReturnValue({
         lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', fullName: 'Dược sĩ A', role: 'pharmacist', branchId: 'BR-001' }) }),
@@ -318,6 +384,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
       const mockExistingAttendance = {
         _id: 'att-1',
         status: AttendanceStatus.CHECKED_IN,
+        isHandoverSubmitted: true,
         checkInTime: new Date(Date.now() - 4 * 3600000),
         save: jest.fn().mockResolvedValue(true),
         toObject: () => ({ _id: 'att-1', status: AttendanceStatus.COMPLETED }),

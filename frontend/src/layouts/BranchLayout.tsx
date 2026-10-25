@@ -19,6 +19,7 @@ export function BranchLayout() {
     { name: "Bảng giá bán", href: "/branch/pricing", icon: <Tag size={20} /> },
     { name: "Công nợ NCC", href: "/branch/supplier-credit", icon: <CreditCard size={20} /> },
     { name: "Bảng lương & Hoa hồng", href: "/branch/payroll", icon: <Banknote size={20} /> },
+    { name: "KPI Hiệu Suất Bán Hàng", href: "/branch/kpi", icon: <Award size={20} /> },
     { name: "Báo cáo thống kê", href: "/branch/reports", icon: <BarChart3 size={20} /> },
   ];
 

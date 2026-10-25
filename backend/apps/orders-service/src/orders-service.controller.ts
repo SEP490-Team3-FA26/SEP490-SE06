@@ -284,4 +284,24 @@ export class OrdersServiceController {
       throw new RpcException(error.message || 'Lỗi phân tích hiệu quả ROI');
     }
   }
+
+  @MessagePattern('orders.shift.aggregate_sales')
+  async getShiftSalesAggregation(@Payload() payload: any) {
+    try {
+      return await this.ordersServiceService.getShiftSalesAggregation(payload);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi tổng hợp doanh số ca trực');
+    }
+  }
+
+  @MessagePattern('orders.pharmacist.kpi_report')
+  async getPharmacistKpiReport(@Payload() payload: any) {
+    try {
+      return await this.ordersServiceService.getPharmacistKpiAggregation(payload);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi tạo báo cáo KPI Dược sĩ');
+    }
+  }
 }

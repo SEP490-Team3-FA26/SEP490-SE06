@@ -210,6 +210,38 @@ export const hrService = {
     return response.data;
   },
 
+  // --- SHIFT HANDOVER & CASH DRAWER RECONCILIATION ---
+  getShiftHandoverLiveStats: async (shiftId?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.SHIFT_HANDOVER_LIVE_STATS, { params: { shiftId } });
+    return response.data;
+  },
+
+  submitShiftHandover: async (data: any) => {
+    const response = await api.post(API_ENDPOINTS.HR.SHIFT_HANDOVER_SUBMIT, data);
+    return response.data;
+  },
+
+  acceptShiftHandover: async (id: string) => {
+    const response = await api.post(API_ENDPOINTS.HR.SHIFT_HANDOVER_ACCEPT(id));
+    return response.data;
+  },
+
+  getShiftHandoverHistory: async (params?: { date?: string; limit?: number }) => {
+    const response = await api.get(API_ENDPOINTS.HR.SHIFT_HANDOVER_HISTORY, { params });
+    return response.data;
+  },
+
+  getShiftHandoverDetail: async (id: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.SHIFT_HANDOVER_DETAIL(id));
+    return response.data;
+  },
+
+  // --- PHARMACIST SALES KPI REPORT (UC-111 / SCRUM-106) ---
+  getPharmacistKpiReport: async (params?: { month?: number; year?: number; startDate?: string; endDate?: string; pharmacistId?: string }) => {
+    const response = await api.get(API_ENDPOINTS.HR.PHARMACIST_KPI_REPORT, { params });
+    return response.data;
+  },
+
   // --- LEAVE MANAGEMENT ---
   getLeaveBalance: async () => {
     const response = await api.get(API_ENDPOINTS.HR.LEAVE_BALANCE);

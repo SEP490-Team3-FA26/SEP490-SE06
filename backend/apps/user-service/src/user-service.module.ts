@@ -28,6 +28,8 @@ import { PayrollService } from './payroll.service';
 import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
 import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/schemas/sales-order.schema';
 import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staff-transfer-request.schema';
+import { ShiftHandover, ShiftHandoverSchema } from './schemas/shift-handover.schema';
+import { ShiftHandoverService } from './shift-handover.service';
 
 @Module({
   imports: [
@@ -58,6 +60,7 @@ import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staf
       { name: LeaveRequest.name, schema: LeaveRequestSchema },
       { name: SalesOrder.name, schema: SalesOrderSchema },
       { name: StaffTransferRequest.name, schema: StaffTransferRequestSchema },
+      { name: ShiftHandover.name, schema: ShiftHandoverSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -101,7 +104,16 @@ import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staf
     ]),
   ],
   controllers: [UserServiceController],
-  providers: [UserService, BranchService, HrService, CertificateService, AttendanceService, PayrollService],
+  providers: [
+    UserService,
+    BranchService,
+    HrService,
+    CertificateService,
+    AttendanceService,
+    PayrollService,
+    ShiftHandoverService,
+  ],
+  exports: [ShiftHandoverService],
 })
 export class UserServiceModule {}
 
