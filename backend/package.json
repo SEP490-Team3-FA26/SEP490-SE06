@@ -20,7 +20,7 @@
     "test:rules": "node scripts/test-rules-checker.js",
     "test:container": "jest apps/orders-service/src/orders-service.integration.spec.ts",
     "test:all": "npm run test:rules && npm test",
-    "test:ci": "npm run test:rules && jest --runInBand --forceExit --passWithNoTests",
+    "test:ci": "npm run test:rules && jest --runInBand --forceExit --passWithNoTests --reporters=\"<rootDir>/scripts/tap-reporter.js\"",
     "// --- MICROSERVICES COMMANDS ---": "",
     "start:gateway": "nest start api-gateway --watch",
     "start:auth": "nest start auth-service -b swc --watch",
