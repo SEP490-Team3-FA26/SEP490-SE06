@@ -14,6 +14,7 @@ Tài liệu này là **"công thức nấu ăn" (Recipe Book)** tối cao và to
 > 2. Frontend Web và Mobile tuyệt đối **không** kết nối trực tiếp vào Database hoặc Microservice, mọi HTTP request **bắt buộc** phải đi qua **API Gateway** (`/api/...`).
 > 3. Nắm vững bản chất **Event-Driven qua Kafka**: Các tác vụ Ghi (Create, Update, Delete) trả về **HTTP 202 ACCEPTED** - không được giả định là đã ghi xong vào DB ngay trong mili-giây đầu tiên.
 > 4. **Ngôn ngữ chú thích mã nguồn (Code Comments):** Toàn bộ code comments (`//`, `/* */`, JSDoc) **viết bằng Tiếng Việt 100%** theo quy chuẩn dự án WDP301/SEP490 để toàn bộ đội ngũ dễ dàng đọc hiểu, chuyển giao và đối soát nghiệp vụ y tế.
+> 5. **Quy tắc Kẹp Bài Test Bắt Buộc (Test-Coupled Mandate):** Tuyệt đối **không** được commit mã nguồn mới (Service, Controller, hàm nghiệp vụ mới) mà không có file test đi kèm (`*.spec.ts` hoặc `*.test.ts`). Mọi bài test kẹp vào bắt buộc phải phân loại đầy đủ 3 nhóm giá trị chuẩn: `[Normal Values]`, `[Boundary Values]`, `[Abnormal Values]`. Vi phạm quy tắc này sẽ bị chặn ngay tại cổng kiểm tra Test Rules của CI/CD.
 
 ---
 
