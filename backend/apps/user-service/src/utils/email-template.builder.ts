@@ -68,6 +68,9 @@ export function buildPromotionEmailHtml(params: EmailTemplateParams): string {
   // Lấy tiêu đề hiển thị chính (loại bỏ tiền tố [TEST] nếu có)
   const displayHeadline = headline || subject.replace(/^\[TEST\]\s*/i, '') || 'Giảm 20% toàn chuỗi';
 
+  // Lọc bỏ thẻ HTML cho các đoạn trích thuần text (như preheader xem trước ngoài hộp thư)
+  const stripHtml = (html: string) => (html || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
+
   // Định dạng ngày kết thúc theo dd/mm/yyyy
   let formattedEndDate = 'dd/mm/yyyy';
   if (promotionEndDate) {
@@ -153,7 +156,7 @@ export function buildPromotionEmailHtml(params: EmailTemplateParams): string {
 
   <!-- Preheader ẩn hiển thị ngoài Gmail -->
   <div style="display: none; max-height: 0; overflow: hidden; opacity: 0;">
-    ${preheader || greetingText}
+    ${preheader || stripHtml(greetingText)}
   </div>
 
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color: #f1f5f9; padding: 32px 12px;">

@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useEmailCampaignManagement } from "../../hooks/useEmailCampaignManagement";
 import { emailCampaignService, EmailCampaignData } from "../../services/sales/emailCampaign.service";
+// Import Rich Text Editor — cho phép soạn thảo văn bản phong phú với định dạng tự do
+import RichTextEditor from "../../components/common/RichTextEditor";
 
 // ===================================================================
 // Live Preview — Giả lập giao diện Email chuẩn nhận diện ABC Pharmacy
@@ -162,7 +164,7 @@ const EmailLivePreview: React.FC<{
             {data.subject || "Giảm 20% toàn chuỗi"}
           </h1>
 
-          {/* 4. Lời cảm ơn / dẫn dắt */}
+          {/* 4. Lời cảm ơn / dẫn dắt — render HTML từ rich text editor */}
           <div
             style={{
               fontSize: 14,
@@ -170,10 +172,13 @@ const EmailLivePreview: React.FC<{
               lineHeight: 1.5,
               marginBottom: 20,
             }}
-          >
-            {data.greetingText ||
-              "Cảm ơn bạn đã đồng hành cùng ABC Pharmacy. Món quà nhỏ dành riêng cho bạn."}
-          </div>
+            dangerouslySetInnerHTML={{
+              __html:
+                data.greetingText && data.greetingText.trim()
+                  ? data.greetingText
+                  : "Cảm ơn bạn đã đồng hành cùng ABC Pharmacy. Món quà nhỏ dành riêng cho bạn.",
+            }}
+          />
 
           {/* Nội dung chi tiết nếu có nhập thêm HTML */}
           {data.mainContentHtml &&
@@ -813,12 +818,28 @@ const EmailCampaignPage: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Lời cảm ơn / dẫn dắt khách hàng</label>
-              <input
-                style={inputStyle}
+              <label style={labelStyle}>
+                Lời cảm ơn / dẫn dắt khách hàng
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#0070ba",
+                    background: "#e0f2fe",
+                    padding: "2px 7px",
+                    borderRadius: 4,
+                  }}
+                >
+                  ✍️ Rich Text
+                </span>
+              </label>
+              {/* Soạn thảo tự do: bold, italic, màu chữ, cỡ chữ, danh sách... */}
+              <RichTextEditor
+                value={formData.greetingText || ""}
+                onChange={(html) => updateField("greetingText", html)}
                 placeholder="VD: Cảm ơn bạn đã đồng hành cùng ABC Pharmacy. Món quà nhỏ dành riêng cho bạn."
-                value={formData.greetingText}
-                onChange={(e) => updateField("greetingText", e.target.value)}
+                minHeight={90}
               />
             </div>
 
@@ -1001,17 +1022,27 @@ const EmailCampaignPage: React.FC = () => {
 
             <div>
               <label style={labelStyle}>
-                Nội dung chi tiết bổ sung (HTML tùy chọn)
+                Nội dung chi tiết bổ sung
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#0070ba",
+                    background: "#e0f2fe",
+                    padding: "2px 7px",
+                    borderRadius: 4,
+                  }}
+                >
+                  ✍️ Rich Text
+                </span>
               </label>
-              <textarea
-                style={{
-                  ...inputStyle,
-                  height: 70,
-                  resize: "vertical",
-                }}
-                placeholder="Nhập thông tin sản phẩm hoặc đoạn văn chi tiết nếu cần..."
-                value={formData.mainContentHtml}
-                onChange={(e) => updateField("mainContentHtml", e.target.value)}
+              {/* Soạn thảo tự do: hỗ trợ tiêu đề, danh sách, link, màu sắc cho nội dung mở rộng */}
+              <RichTextEditor
+                value={formData.mainContentHtml || ""}
+                onChange={(html) => updateField("mainContentHtml", html)}
+                placeholder="Nhập thông tin sản phẩm hoặc đoạn văn chi tiết, mô tả ưu đãi nếu cần..."
+                minHeight={130}
               />
             </div>
           </div>
