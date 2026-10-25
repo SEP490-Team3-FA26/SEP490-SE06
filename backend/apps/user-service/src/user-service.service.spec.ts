@@ -24,8 +24,14 @@ describe('UserService - getExportJobStatus', () => {
         { provide: getModelToken('Branch'), useValue: mockModel },
         { provide: getModelToken('BranchFeedback'), useValue: mockModel },
         { provide: getModelToken('CustomerSegment'), useValue: mockModel },
+        { provide: getModelToken('StaffTransferRequest'), useValue: mockModel },
+        { provide: getModelToken('StaffNotification'), useValue: mockModel },
+        { provide: getModelToken('WorkSchedule'), useValue: mockModel },
+        { provide: getModelToken('ShiftSwapRequest'), useValue: mockModel },
+        { provide: getModelToken('LeaveRequest'), useValue: mockModel },
         { provide: getConnectionToken(), useValue: {} },
         { provide: 'INVENTORY_SERVICE', useValue: mockKafkaClient },
+        { provide: 'AUTH_SERVICE', useValue: mockKafkaClient },
       ],
     }).compile();
 

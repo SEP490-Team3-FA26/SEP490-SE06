@@ -43,7 +43,7 @@ describe('SalesController', () => {
 
       const result = await controller.getPrescriptionByCode({ code: 'PRX-01' });
       expect(result).toBe(mockResult);
-      expect(service.getPrescriptionByCode).toHaveBeenCalledWith('PRX-01');
+      expect(service.getPrescriptionByCode).toHaveBeenCalledWith('PRX-01', undefined);
     });
 
     it('should throw RpcException if service throws error', async () => {
@@ -82,7 +82,7 @@ describe('SalesController', () => {
 
       const result = await controller.listSalesOrders({ search: '09999999' });
       expect(result).toBe(mockResult);
-      expect(service.listSalesOrders).toHaveBeenCalledWith('09999999');
+      expect(service.listSalesOrders).toHaveBeenCalledWith('09999999', undefined);
     });
   });
 
