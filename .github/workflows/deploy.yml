@@ -33,6 +33,7 @@ jobs:
   # ──────────────────────────────────────────────
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -50,11 +51,11 @@ jobs:
         working-directory: backend
         run: npm run test:rules
 
-      - name: 🐳 Run Unit & Integration Tests (Test Container)
+      - name: 🐳 Run Unit & Integration Tests (Test Container Strict Gate)
         working-directory: backend
         run: |
           npm run lint || true
-          npm test -- --passWithNoTests
+          npm run test:ci
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

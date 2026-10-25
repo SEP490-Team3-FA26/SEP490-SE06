@@ -26,6 +26,7 @@ jobs:
   test-and-verify:
     name: 🧪 Full Test Suites & Architecture Rules Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
@@ -41,6 +42,10 @@ jobs:
         working-directory: backend
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
+      - name: 🏗️ Typecheck & Build Verification (Fast Fail)
+        working-directory: backend
+        run: npm run build
+
       - name: 🧪 Run Playbook & Architecture Test Rules Audit
         working-directory: backend
         run: npm run test:rules
@@ -49,7 +54,7 @@ jobs:
         working-directory: backend
         run: |
           npm run lint || true
-          npm test -- --passWithNoTests
+          npm run test:ci
 
   # ============================================================
   # 2. CD: Tự động SSH vào VPS và triển khai Production (Chỉ khi FULL TEST PASS và là sự kiện PUSH)
