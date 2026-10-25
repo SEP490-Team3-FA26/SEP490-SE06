@@ -17,7 +17,9 @@ name: CI/CD — Test (dev + main) · Deploy EC2 (main only)
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, demo]
+  pull_request:
+    branches: [main, dev, demo]
   workflow_dispatch:
 
 env:
@@ -31,21 +33,29 @@ jobs:
   # ──────────────────────────────────────────────
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install + lint + test (backend)
+      - name: Install dependencies (backend)
+        working-directory: backend
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+      - name: 🧪 Run Playbook & Architecture Test Rules
+        working-directory: backend
+        run: npm run test:rules
+
+      - name: 🐳 Run Unit & Integration Tests (Test Container Strict Gate)
         working-directory: backend
         run: |
-          npm ci --legacy-peer-deps
           npm run lint || true
-          npm test -- --passWithNoTests || true
+          npm run test:ci
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,7 +73,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Gửi thông báo Discord cho Team (Thành công)
-        if: success()
+        if: success() && env.DISCORD_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         uses: tsickert/discord-webhook@v5.3.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}

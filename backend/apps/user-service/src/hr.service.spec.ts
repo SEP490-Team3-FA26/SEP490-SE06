@@ -85,6 +85,10 @@ describe('HrService', () => {
           provide: getModelToken(Attendance.name),
           useValue: mockAttendanceModel,
         },
+        {
+          provide: 'AUTH_SERVICE',
+          useValue: { send: jest.fn(), emit: jest.fn() },
+        },
       ],
     }).compile();
 
