@@ -2,7 +2,7 @@
 # UC-96: DANH SÁCH SẢN PHẨM YÊU THÍCH (WISHLIST)
 **Mã công việc (Jira/Scrum):** SCRUM-107  
 **Phân hệ (Module):** Cổng Mua Sắm Khách Hàng (Customer Portal) & User Service  
-**Kiến trúc:** Microservices (API Gateway + Kafka RPC + MongoDB + React 19 Web)  
+**Kiến trúc:** Microservices (API Gateway + Kafka RPC + MongoDB + React 19 Web + Expo Mobile)  
 **Tác nhân chính (Actor):** Khách hàng cá nhân (`USER`), Khách vãng lai (`GUEST`)
 
 ---
@@ -10,10 +10,10 @@
 ## 1. MỤC TIÊU & TỔNG QUAN NGHIỆP VỤ
 
 ### 1.1. Mục tiêu chức năng
-Chức năng **Danh sách sản phẩm yêu thích (Wishlist)** cho phép khách hàng lưu giữ các mặt hàng dược phẩm, thực phẩm chức năng, thiết bị y tế mà mình đang quan tâm hoặc có nhu cầu mua định kỳ. Giúp khách hàng:
+Chức năng **Danh sách sản phẩm yêu thích (Wishlist)** cho phép khách hàng lưu giữ các mặt hàng dược phẩm, thực phẩm chức năng, thiết bị y tế mà mình đang quan tâm hoặc có nhu cầu mua định kỳ trên cả nền tảng Web và ứng dụng Di động (Mobile App). Giúp khách hàng:
 - Theo dõi biến động giá và tình trạng tồn kho của sản phẩm yêu thích.
 - Chuyển nhanh thuốc vào Giỏ hàng để tiến hành thanh toán mà không cần tìm kiếm lại trong danh mục hàng ngàn SKU.
-- Trải nghiệm mượt mà ngay cả khi chưa đăng nhập (lưu tạm `guest_wishlist` trong LocalStorage và tự động đồng bộ lên tài khoản cá nhân khi đăng nhập).
+- Trải nghiệm mượt mà ngay cả khi chưa đăng nhập (lưu tạm `guest_wishlist` trong LocalStorage trên Web hoặc AsyncStorage trên Mobile và tự động đồng bộ lên tài khoản cá nhân khi đăng nhập).
 
 ### 1.2. Quy tắc nghiệp vụ y tế & hệ thống
 1. **Tính bất biến và độc lập theo người dùng:** Mỗi tài khoản khách hàng chỉ có duy nhất một danh sách yêu thích gắn liền với `userId`.
@@ -28,13 +28,14 @@ Chức năng **Danh sách sản phẩm yêu thích (Wishlist)** cho phép khách
 ### 2.1. Sơ đồ luồng giao tiếp (Data Flow Diagram)
 
 ```
-[Khách Hàng: Web Browser (React 19)]
-       │
-       │ HTTP REST API (JWT Bearer Token)
-       ▼
-[API Gateway (NestJS) : user.controller.ts]
-       │
-       │ Kafka RPC (sendKafkaMessage)
+[Khách Hàng: Web Browser (React 19)]    [Khách Hàng: Mobile App (Expo / React Native)]
+               │                                            │
+               │ HTTP REST API (JWT Bearer)                 │ HTTP REST API (JWT Bearer)
+               └───────────────────────┬────────────────────┘
+                                       ▼
+                       [API Gateway (NestJS) : user.controller.ts]
+                                       │
+                                       │ Kafka RPC (sendKafkaMessage)
        ▼
 [Kafka Broker: wdp301-cluster]
        │   Topics:
@@ -126,18 +127,27 @@ Giao tiếp nội bộ giữa `api-gateway` và `user-service` sử dụng cơ c
 13. **`frontend/src/components/common/CustomerHeader.tsx` (Cập nhật):** Hiển thị nút "Yêu thích" kèm badge số lượng sản phẩm thời gian thực trên cả Desktop Header và Mobile Drawer.
 14. **`frontend/src/App.tsx` (Cập nhật):** Đăng ký route `/customer/wishlist`.
 
+### 6.3. Mobile Application (React Native / Expo)
+15. **`mobile/src/services/wishlistApiService.ts` (Tạo mới):** Dịch vụ gọi API Gateway `/api/users/wishlist`, kết hợp lưu trữ ngoại tuyến `@guest_wishlist` qua `AsyncStorage` cho khách vãng lai và đồng bộ tự động `syncGuestWishlist`.
+16. **`mobile/src/services/api.service.ts` (Cập nhật):** Tích hợp các static methods `getWishlist`, `addToWishlist`, `removeFromWishlist`, `clearWishlist` vào lớp trung tâm `ApiService`.
+17. **`mobile/src/screens/customer/CustomerWishlistScreen.tsx` (Tạo mới):** Màn hình danh sách yêu thích độc lập trên Mobile, hỗ trợ tìm kiếm theo tên/hoạt chất thuốc, thẻ thuốc y tế trực quan, chuyển thuốc vào giỏ hàng (`addToCart`), xóa từng món và modal dọn sạch.
+18. **`mobile/src/navigation/AppNavigator.tsx` (Cập nhật):** Đăng ký màn hình `CustomerWishlist` vào cả Guest Flow và Authenticated Customer Stack.
+19. **`mobile/src/screens/customer/CustomerScreen.tsx` (Cập nhật):** Tích hợp nút Trái tim kèm Badge đếm số lượng thời gian thực trên Header Bar, nút tim bật/tắt yêu thích trên thẻ Flash Sale, danh sách sản phẩm Grid và Modal chi tiết thuốc.
+
 ---
 
 ## 7. KẾT QUẢ KIỂM THỬ & ĐÁNH GIÁ CHẤT LƯỢNG
 
 | Hạng mục kiểm thử | Kịch bản kiểm thử | Kết quả mong đợi | Đánh giá |
 |---|---|---|---|
-| **Thêm yêu thích** | Bấm ❤️ trên thẻ thuốc tại trang Cửa hàng | Trái tim chuyển màu hồng/đỏ ngay lập tức, badge trên Header tăng +1, lưu vào DB | **ĐẠT (PASS)** |
-| **Bỏ yêu thích** | Bấm ❤️ lần thứ 2 trên thẻ thuốc đã thích | Trái tim chuyển về màu xám, badge trên Header giảm -1, xóa khỏi DB | **ĐẠT (PASS)** |
-| **Trải nghiệm khách vãng lai** | Khách chưa đăng nhập bấm ❤️ lưu thuốc | Lưu thành công vào LocalStorage `guest_wishlist`, không bị chặn bởi modal đăng nhập | **ĐẠT (PASS)** |
-| **Đồng bộ khi đăng nhập** | Khách đã chọn 3 món ở khách vãng lai rồi tiến hành đăng nhập | Tự động đồng bộ 3 món từ LocalStorage lên tài khoản MongoDB và xóa cache tạm | **ĐẠT (PASS)** |
-| **Thêm vào giỏ hàng** | Bấm "Thêm giỏ" trên trang Wishlist | Thuốc được chuyển vào Cart, giỏ hàng tăng số lượng, hiển thị toast thông báo | **ĐẠT (PASS)** |
+| **Thêm yêu thích (Web & Mobile)** | Bấm ❤️ trên thẻ thuốc tại trang Cửa hàng / Store Screen | Trái tim chuyển màu hồng/đỏ ngay lập tức, badge trên Header tăng +1, lưu vào DB | **ĐẠT (PASS)** |
+| **Bỏ yêu thích (Web & Mobile)** | Bấm ❤️ lần thứ 2 trên thẻ thuốc đã thích | Trái tim chuyển về màu xám, badge trên Header giảm -1, xóa khỏi DB | **ĐẠT (PASS)** |
+| **Trải nghiệm khách vãng lai** | Khách chưa đăng nhập bấm ❤️ lưu thuốc | Lưu thành công vào LocalStorage / AsyncStorage `guest_wishlist`, không bị chặn bởi modal đăng nhập | **ĐẠT (PASS)** |
+| **Đồng bộ khi đăng nhập** | Khách đã chọn các món ở khách vãng lai rồi tiến hành đăng nhập | Tự động đồng bộ các món từ bộ nhớ tạm lên tài khoản MongoDB và dọn sạch cache tạm | **ĐẠT (PASS)** |
+| **Thêm vào giỏ hàng từ Wishlist** | Bấm "Thêm giỏ" trên trang/màn hình Wishlist | Thuốc được chuyển vào Cart, giỏ hàng tăng số lượng, hiển thị toast thông báo | **ĐẠT (PASS)** |
 | **Tự phục hồi dữ liệu** | Thuốc trong Wishlist bị quản trị viên xóa khỏi kho thuốc | Truy vấn wishlist tự động lọc bỏ và dọn sạch DB, không crash UI | **ĐẠT (PASS)** |
-| **Lọc & Tìm kiếm** | Nhập tên thuốc hoặc chọn danh mục con | Lưới sản phẩm cập nhật tức thì theo đúng tiêu chí lọc | **ĐẠT (PASS)** |
+| **Lọc & Tìm kiếm** | Nhập tên thuốc hoặc chọn danh mục con | Danh sách sản phẩm cập nhật tức thì theo đúng tiêu chí lọc | **ĐẠT (PASS)** |
 | **Xác nhận dọn sạch** | Bấm "Dọn sạch" -> Hiển thị Modal -> Xác nhận | Xóa toàn bộ sản phẩm khỏi wishlist, đưa giao diện về Empty state | **ĐẠT (PASS)** |
-| **Biên dịch mã nguồn** | `nest build api-gateway`, `nest build user-service`, `vite build` | 100% build thành công, 0 lỗi cú pháp hoặc Type check | **ĐẠT (PASS)** |
+| **Điều hướng & UI Mobile** | Nhấn icon tim trên Header hoặc Drawer Mobile | Chuyển mượt mà sang `CustomerWishlistScreen`, hiển thị đúng số lượng và chi tiết thuốc | **ĐẠT (PASS)** |
+| **Biên dịch mã nguồn** | `nest build api-gateway`, `nest build user-service`, `vite build`, `tsc mobile` | 100% build thành công, 0 lỗi cú pháp hoặc Type check | **ĐẠT (PASS)** |
+

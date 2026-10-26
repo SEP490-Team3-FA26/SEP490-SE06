@@ -1266,6 +1266,119 @@ export class ApiService {
     return [];
   }
 
+  // --- WISHLIST (Danh sách sản phẩm yêu thích) ---
+  public static async getWishlist(): Promise<{ items: any[]; totalCount: number }> {
+    try {
+      const token = this.currentToken;
+      if (!token) {
+        const guestStr = await AsyncStorage.getItem('@guest_wishlist');
+        const items = guestStr ? JSON.parse(guestStr) : [];
+        return { items, totalCount: items.length };
+      }
+
+      const res = await fetch(`${this.baseUrl}/api/users/wishlist`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return {
+          items: Array.isArray(json?.items) ? json.items : [],
+          totalCount: json?.totalCount || (Array.isArray(json?.items) ? json.items.length : 0),
+        };
+      }
+    } catch (e) {
+      console.warn('[Wishlist] Lỗi tải danh sách yêu thích:', e);
+    }
+    return { items: [], totalCount: 0 };
+  }
+
+  public static async addToWishlist(med: any): Promise<{ success: boolean; message?: string }> {
+    const medId = med.id || med._id || med.medicineId;
+    if (!medId) return { success: false, message: 'Thiếu ID sản phẩm' };
+
+    try {
+      const token = this.currentToken;
+      if (!token) {
+        const guestStr = await AsyncStorage.getItem('@guest_wishlist');
+        const items: any[] = guestStr ? JSON.parse(guestStr) : [];
+        const exists = items.some((it) => (it.id || it._id) === medId);
+        if (!exists) {
+          items.unshift({
+            id: medId,
+            _id: medId,
+            name: med.name || 'Sản phẩm thuốc',
+            price: med.price || 0,
+            unit: med.unit || 'Hộp',
+            image: med.image || '',
+            active: med.active || med.active_ingredient || '',
+            category: med.category || 'Dược phẩm',
+            stock: med.stock !== undefined ? med.stock : 999,
+            addedAt: new Date().toISOString(),
+          });
+          await AsyncStorage.setItem('@guest_wishlist', JSON.stringify(items));
+        }
+        return { success: true, message: 'Đã thêm vào danh sách yêu thích' };
+      }
+
+      const res = await fetch(`${this.baseUrl}/api/users/wishlist`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify({ medicineId: medId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { success: true, message: json.message || 'Đã thêm vào yêu thích' };
+      }
+      return { success: false, message: json.message || 'Lỗi thêm yêu thích' };
+    } catch (e: any) {
+      console.warn('[Wishlist] Lỗi thêm yêu thích:', e);
+      return { success: false, message: e.message };
+    }
+  }
+
+  public static async removeFromWishlist(medicineId: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const token = this.currentToken;
+      if (!token) {
+        const guestStr = await AsyncStorage.getItem('@guest_wishlist');
+        let items: any[] = guestStr ? JSON.parse(guestStr) : [];
+        items = items.filter((it) => (it.id || it._id) !== medicineId);
+        await AsyncStorage.setItem('@guest_wishlist', JSON.stringify(items));
+        return { success: true, message: 'Đã xóa khỏi danh sách yêu thích' };
+      }
+
+      const res = await fetch(`${this.baseUrl}/api/users/wishlist/${encodeURIComponent(medicineId)}`, {
+        method: 'DELETE',
+        headers: this.authHeaders,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { success: true, message: json.message || 'Đã xóa khỏi yêu thích' };
+      }
+      return { success: false, message: json.message || 'Lỗi xóa yêu thích' };
+    } catch (e: any) {
+      console.warn('[Wishlist] Lỗi xóa yêu thích:', e);
+      return { success: false, message: e.message };
+    }
+  }
+
+  public static async clearWishlist(): Promise<{ success: boolean }> {
+    try {
+      await AsyncStorage.removeItem('@guest_wishlist');
+      const token = this.currentToken;
+      if (token) {
+        await fetch(`${this.baseUrl}/api/users/wishlist/clear`, {
+          method: 'POST',
+          headers: this.authHeaders,
+        });
+      }
+      return { success: true };
+    } catch (e) {
+      console.warn('[Wishlist] Lỗi làm trống wishlist:', e);
+      return { success: false };
+    }
+  }
+
   // --- VOUCHERS ---
   public static async getVouchers(): Promise<Voucher[]> {
     try {
