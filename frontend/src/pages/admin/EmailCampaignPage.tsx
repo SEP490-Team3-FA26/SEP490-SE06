@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useEmailCampaignManagement } from "../../hooks/useEmailCampaignManagement";
 import { emailCampaignService, EmailCampaignData } from "../../services/sales/emailCampaign.service";
+// Import Rich Text Editor — cho phép soạn thảo văn bản phong phú với định dạng tự do
+import RichTextEditor from "../../components/common/RichTextEditor";
 
 // ===================================================================
 // Live Preview — Giả lập giao diện Email chuẩn nhận diện ABC Pharmacy
@@ -162,7 +164,7 @@ const EmailLivePreview: React.FC<{
             {data.subject || "Giảm 20% toàn chuỗi"}
           </h1>
 
-          {/* 4. Lời cảm ơn / dẫn dắt */}
+          {/* 4. Lời cảm ơn / dẫn dắt — render HTML từ rich text editor */}
           <div
             style={{
               fontSize: 14,
@@ -170,10 +172,13 @@ const EmailLivePreview: React.FC<{
               lineHeight: 1.5,
               marginBottom: 20,
             }}
-          >
-            {data.greetingText ||
-              "Cảm ơn bạn đã đồng hành cùng ABC Pharmacy. Món quà nhỏ dành riêng cho bạn."}
-          </div>
+            dangerouslySetInnerHTML={{
+              __html:
+                data.greetingText && data.greetingText.trim()
+                  ? data.greetingText
+                  : "Cảm ơn bạn đã đồng hành cùng ABC Pharmacy. Món quà nhỏ dành riêng cho bạn.",
+            }}
+          />
 
           {/* Nội dung chi tiết nếu có nhập thêm HTML */}
           {data.mainContentHtml &&
@@ -652,102 +657,49 @@ const EmailCampaignPage: React.FC = () => {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f8fafc",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-      }}
-    >
-      {/* Toast thông báo */}
+    <div className="min-h-screen bg-slate-50 font-sans">
+      {/* Toast thông báo — chuyển đổi sang Tailwind classes */}
       {toast && (
         <div
-          style={{
-            position: "fixed",
-            top: 20,
-            right: 20,
-            zIndex: 9999,
-            background: toast.type === "success" ? "#16a34a" : "#dc2626",
-            color: "#fff",
-            borderRadius: 12,
-            padding: "12px 20px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-            fontSize: 14,
-            fontWeight: 600,
-          }}
+          className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-5 py-3 rounded-xl text-white text-sm font-semibold shadow-xl transition-all ${
+            toast.type === "success" ? "bg-emerald-600" : "bg-rose-600"
+          }`}
         >
           {toast.msg}
         </div>
       )}
 
-      {/* Header điều hướng */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #0369a1 0%, #0070ba 100%)",
-          padding: "18px 36px",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-        }}
-      >
+      {/* Header điều hướng — chuyển đổi sang Tailwind classes */}
+      <div className="flex items-center gap-4 bg-gradient-to-r from-sky-700 to-sky-600 px-9 py-4 text-white shadow-md">
         <button
           type="button"
           onClick={() => navigate(basePath)}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            opacity: 0.9,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
+          className="flex items-center gap-2 text-sm text-white/90 hover:text-white transition-opacity bg-transparent border-0 cursor-pointer"
         >
           <ArrowLeft size={16} /> Quay lại
         </button>
-        <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.3)" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 10,
-              background: "rgba(255,255,255,0.2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+        <div className="w-px h-6 bg-white/30" />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white">
             <Mail size={20} />
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: 19, fontWeight: 800 }}>
+            <h1 className="m-0 text-lg font-extrabold tracking-tight">
               {isEditMode
                 ? "Chỉnh sửa chiến dịch Email Newsletter"
                 : "Tạo chiến dịch Email Newsletter (Mẫu Chuẩn 2026)"}
             </h1>
-            <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>
+            <p className="m-0 text-xs text-white/85">
               Thiết kế theo mẫu nhận diện thương hiệu ABC Pharmacy tối giản, hiện đại
             </p>
           </div>
         </div>
       </div>
 
-      {/* Split-screen layout */}
-      <div style={{ display: "flex", height: "calc(100vh - 74px)", overflow: "hidden" }}>
+      {/* Split-screen layout — chuyển đổi sang Tailwind classes */}
+      <div className="flex h-[calc(100vh-74px)] overflow-hidden">
         {/* CỘT TRÁI: Form cấu hình (52%) */}
-        <div
-          style={{
-            flex: "0 0 52%",
-            overflowY: "auto",
-            padding: "24px 28px",
-            borderRight: "1px solid #e2e8f0",
-          }}
-        >
+        <div className="w-[52%] flex-none overflow-y-auto px-7 py-6 border-r border-slate-200 bg-slate-50">
           {/* === KHỐI 1: Tiêu đề & Thông điệp chính === */}
           <div
             style={{
@@ -813,12 +765,28 @@ const EmailCampaignPage: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Lời cảm ơn / dẫn dắt khách hàng</label>
-              <input
-                style={inputStyle}
+              <label style={labelStyle}>
+                Lời cảm ơn / dẫn dắt khách hàng
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#0070ba",
+                    background: "#e0f2fe",
+                    padding: "2px 7px",
+                    borderRadius: 4,
+                  }}
+                >
+                  ✍️ Rich Text
+                </span>
+              </label>
+              {/* Soạn thảo tự do: bold, italic, màu chữ, cỡ chữ, danh sách... */}
+              <RichTextEditor
+                value={formData.greetingText || ""}
+                onChange={(html) => updateField("greetingText", html)}
                 placeholder="VD: Cảm ơn bạn đã đồng hành cùng ABC Pharmacy. Món quà nhỏ dành riêng cho bạn."
-                value={formData.greetingText}
-                onChange={(e) => updateField("greetingText", e.target.value)}
+                minHeight={90}
               />
             </div>
 
@@ -1001,17 +969,27 @@ const EmailCampaignPage: React.FC = () => {
 
             <div>
               <label style={labelStyle}>
-                Nội dung chi tiết bổ sung (HTML tùy chọn)
+                Nội dung chi tiết bổ sung
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#0070ba",
+                    background: "#e0f2fe",
+                    padding: "2px 7px",
+                    borderRadius: 4,
+                  }}
+                >
+                  ✍️ Rich Text
+                </span>
               </label>
-              <textarea
-                style={{
-                  ...inputStyle,
-                  height: 70,
-                  resize: "vertical",
-                }}
-                placeholder="Nhập thông tin sản phẩm hoặc đoạn văn chi tiết nếu cần..."
-                value={formData.mainContentHtml}
-                onChange={(e) => updateField("mainContentHtml", e.target.value)}
+              {/* Soạn thảo tự do: hỗ trợ tiêu đề, danh sách, link, màu sắc cho nội dung mở rộng */}
+              <RichTextEditor
+                value={formData.mainContentHtml || ""}
+                onChange={(html) => updateField("mainContentHtml", html)}
+                placeholder="Nhập thông tin sản phẩm hoặc đoạn văn chi tiết, mô tả ưu đãi nếu cần..."
+                minHeight={130}
               />
             </div>
           </div>
@@ -1258,79 +1236,36 @@ const EmailCampaignPage: React.FC = () => {
             )}
           </div>
 
-          {/* Thanh công cụ nút bấm Action */}
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              padding: "16px 0",
-              position: "sticky",
-              bottom: 0,
-              background: "linear-gradient(transparent, #f8fafc 30%)",
-              paddingTop: 28,
-            }}
-          >
+          {/* Thanh công cụ nút bấm Action — chuyển đổi sang Tailwind classes */}
+          <div className="flex items-center gap-3 pt-7 pb-4 sticky bottom-0 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent">
             <button
+              type="button"
               onClick={handleSaveDraft}
               disabled={submitting}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "11px 20px",
-                borderRadius: 10,
-                border: "1px solid #e2e8f0",
-                background: "#fff",
-                cursor: "pointer",
-                fontSize: 14,
-                fontWeight: 600,
-                color: "#374151",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-              }}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-sm transition-all disabled:opacity-50 cursor-pointer"
             >
               <Save size={15} />
               Lưu nháp
             </button>
 
             <button
+              type="button"
               onClick={() => setShowTestModal(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "11px 20px",
-                borderRadius: 10,
-                border: "1px solid #0070ba",
-                background: "#f0f9ff",
-                cursor: "pointer",
-                fontSize: 14,
-                fontWeight: 600,
-                color: "#0070ba",
-              }}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-sky-600 bg-sky-50 hover:bg-sky-100 text-sky-700 text-sm font-semibold transition-all cursor-pointer"
             >
               <Eye size={15} />
               Gửi test email
             </button>
 
             <button
+              type="button"
               onClick={handleSchedule}
               disabled={submitting}
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                padding: "11px 20px",
-                borderRadius: 10,
-                border: "none",
-                background: submitting ? "#94a3b8" : "#0070ba",
-                cursor: submitting ? "not-allowed" : "pointer",
-                fontSize: 14,
-                fontWeight: 700,
-                color: "#fff",
-                boxShadow: "0 2px 6px rgba(0, 112, 186, 0.3)",
-              }}
+              className={`flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border-0 text-white text-sm font-bold shadow-md transition-all ${
+                submitting
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-sky-600 hover:bg-sky-700 shadow-sky-600/30 cursor-pointer"
+              }`}
             >
               {submitting ? (
                 <span>Đang xử lý...</span>
@@ -1422,55 +1357,29 @@ const EmailCampaignPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal gửi test email */}
+      {/* Modal gửi test email — chuyển đổi sang Tailwind classes */}
       {showTestModal && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            backdropFilter: "blur(4px)",
-          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-sm"
           onClick={() => setShowTestModal(false)}
         >
           <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              padding: 30,
-              width: 420,
-              boxShadow: "0 24px 48px rgba(0,0,0,0.2)",
-            }}
+            className="w-full max-w-md bg-white rounded-2xl p-7 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 16,
-              }}
-            >
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
-                📧 Gửi email thử nghiệm
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="m-0 text-base font-bold text-slate-900 flex items-center gap-2">
+                <span>📧</span> Gửi email thử nghiệm
               </h3>
               <button
+                type="button"
                 onClick={() => setShowTestModal(false)}
-                style={{
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  color: "#64748b",
-                }}
+                className="border-0 bg-transparent cursor-pointer text-slate-400 hover:text-slate-600 p-1"
               >
                 <X size={18} />
               </button>
             </div>
-            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
+            <p className="text-slate-500 text-xs leading-relaxed mb-4">
               Nhập địa chỉ email bất kỳ để nhận bản mẫu thực tế theo đúng thiết kế mới này.
             </p>
             <input
@@ -1478,26 +1387,13 @@ const EmailCampaignPage: React.FC = () => {
               placeholder="nhap-email-cua-ban@gmail.com"
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 16 }}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-colors mb-4 box-border"
             />
             <button
+              type="button"
               onClick={handleSendTest}
               disabled={submitting}
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: 10,
-                border: "none",
-                background: "#0070ba",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-              }}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-0 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-md shadow-sky-600/30 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Send size={15} />
               Gửi test ngay vào hộp thư

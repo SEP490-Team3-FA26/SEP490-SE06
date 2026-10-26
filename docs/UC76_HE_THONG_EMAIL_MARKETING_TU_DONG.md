@@ -20,6 +20,8 @@
 8. [Vòng Đời Trạng Thái Chiến Dịch (Campaign Lifecycle)](#8-vòng-đời-trạng-thái-chiến-dịch-campaign-lifecycle)
 9. [Cơ Chế Phát Tán Email Lô & Khả Năng Chịu Lỗi (Resend Batching Engine)](#9-cơ-chế-phát-tán-email-lô--khả-năng-chịu-lỗi-resend-batching-engine)
 10. [Hướng Dẫn Thao Tác & Kịch Bản Kiểm Thử (QA & Testing Guide)](#10-hướng-dẫn-thao-tác--kịch-bản-kiểm-thử-qa--testing-guide)
+11. [Bộ Công Cụ Soạn Thảo Văn Bản Tự Do (Rich Text Editor - Native Quill 2.x)](#11-bộ-công-cụ-soạn-thảo-văn-bản-tự-do-rich-text-editor---native-quill-2x)
+12. [Hướng Dẫn Triển Khai Môi Trường Docker Container & Xử Lý Sự Cố](#12-hướng-dẫn-triển-khai-môi-trường-docker-container--xử-lý-sự-cố)
 
 ---
 
@@ -276,6 +278,8 @@ Theo đúng quy chuẩn **Playbook v2.0**, Frontend chia tách thành 3 tầng r
 
 ```
 frontend/src/
+├── components/common/
+│   └── RichTextEditor.tsx                    # [Tầng 3: Reusable UI Component] Trình soạn thảo văn bản phong phú (Native Quill 2.x)
 ├── services/sales/emailCampaign.service.ts   # [Tầng 1: Data Access Service] Gọi Axios qua Gateway
 ├── hooks/useEmailCampaignManagement.ts        # [Tầng 2: Business Logic Hook] Quản lý State & Optimistic UI
 └── pages/admin/
@@ -284,10 +288,12 @@ frontend/src/
 ```
 
 ### Điểm nổi bật trong mã nguồn Frontend:
-1. **Quản lý Chế độ Chỉnh sửa (`isEditMode`):** Khi người dùng ấn nút "Sửa", trang [EmailCampaignPage.tsx](file:///d:/Nam%204_NTD/Ki_8/Project/wdp301-rbl-project-wdp_se18d08_group-7/frontend/src/pages/admin/EmailCampaignPage.tsx) tự động nạp dữ liệu cũ theo `:id`, nút "Lưu nháp" và "Lên lịch" gọi hàm `updateCampaign` thay vì tạo mới, ngăn ngừa tạo bản ghi trùng lặp.
-2. **Gửi Thử An Toàn (Safe Send-Test):** Tự động phát hiện nếu bản thảo chưa lưu hoặc vừa sửa đổi, tự động gọi `createCampaign` hoặc `updateCampaign` trước khi thực hiện gửi test.
-3. **Optimistic UI khi Xóa:** Trong [useEmailCampaignManagement.ts](file:///d:/Nam%204_NTD/Ki_8/Project/wdp301-rbl-project-wdp_se18d08_group-7/frontend/src/hooks/useEmailCampaignManagement.ts), khi người dùng xóa chiến dịch, item lập tức biến mất khỏi giao diện, sau đó gửi lệnh qua Gateway. Nếu có lỗi từ server, hệ thống tự động hoàn tác (rollback) trạng thái cũ.
-4. **Modal Cảnh Báo Chuyên Nghiệp:** Không dùng `window.confirm` đơn sơ. Có riêng Modal Hủy Lịch màu vàng cam (cảnh báo cron dừng) và Modal Xóa Vĩnh Viễn màu đỏ (cảnh báo mất sạch dữ liệu nhật ký gửi) với nút bấm trực quan.
+1. **Trình Soạn Thảo Phong Phú (Rich Text Editor Tự Do):** Tích hợp component [RichTextEditor.tsx](file:///d:/Nam%204_NTD/Ki_8/Project/wdp301-rbl-project-wdp_se18d08_group-7/frontend/src/components/common/RichTextEditor.tsx) cho phép người dùng tự do định dạng văn bản: đổi màu chữ, màu nền, in đậm/nghiêng/gạch chân, đổi cỡ chữ/tiêu đề, căn lề, danh sách bullet/số và chèn link liên kết.
+2. **Xem Trước Trực Quan Thời Gian Thực (Live Preview Synchronized):** Khung xem trước bên phải màn hình render tức thì mã HTML định dạng của `greetingText` và `mainContentHtml` theo đúng chuẩn hiển thị nhận diện ABC Pharmacy.
+3. **Quản lý Chế độ Chỉnh sửa (`isEditMode`):** Khi người dùng ấn nút "Sửa", trang [EmailCampaignPage.tsx](file:///d:/Nam%204_NTD/Ki_8/Project/wdp301-rbl-project-wdp_se18d08_group-7/frontend/src/pages/admin/EmailCampaignPage.tsx) tự động nạp dữ liệu cũ theo `:id`, nút "Lưu nháp" và "Lên lịch" gọi hàm `updateCampaign` thay vì tạo mới, ngăn ngừa tạo bản ghi trùng lặp.
+4. **Gửi Thử An Toàn (Safe Send-Test):** Tự động phát hiện nếu bản thảo chưa lưu hoặc vừa sửa đổi, tự động gọi `createCampaign` hoặc `updateCampaign` trước khi thực hiện gửi test.
+5. **Optimistic UI khi Xóa:** Trong [useEmailCampaignManagement.ts](file:///d:/Nam%204_NTD/Ki_8/Project/wdp301-rbl-project-wdp_se18d08_group-7/frontend/src/hooks/useEmailCampaignManagement.ts), khi người dùng xóa chiến dịch, item lập tức biến mất khỏi giao diện, sau đó gửi lệnh qua Gateway. Nếu có lỗi từ server, hệ thống tự động hoàn tác (rollback) trạng thái cũ.
+6. **Modal Cảnh Báo Chuyên Nghiệp:** Không dùng `window.confirm` đơn sơ. Có riêng Modal Hủy Lịch màu vàng cam (cảnh báo cron dừng) và Modal Xóa Vĩnh Viễn màu đỏ (cảnh báo mất sạch dữ liệu nhật ký gửi) với nút bấm trực quan.
 
 ---
 
@@ -364,4 +370,128 @@ frontend/src/
 3. Chiến dịch lập tức biến mất khỏi bảng (Optimistic UI) và cơ sở dữ liệu được dọn sạch hoàn toàn.
 
 ---
+
+## 11. BỘ CÔNG CỤ SOẠN THẢO VĂN BẢN TỰ DO (RICH TEXT EDITOR - NATIVE QUILL 2.X)
+
+### 11.1. Bối cảnh & Yêu cầu nghiệp vụ
+Trước đây, các trường nhập văn bản trên form soạn chiến dịch (như lời cảm ơn/dẫn dắt, nội dung chi tiết bổ sung) là các ô `<input>` hoặc `<textarea>` đơn sắc thuần văn bản thô. Người dùng gặp hạn chế:
+- Toàn bộ văn bản chỉ hiển thị một màu mực xám/đen đơn điệu.
+- Không thể nhấn mạnh các cụm từ quan trọng bằng in đậm (**Bold**), in nghiêng (*Italic*), gạch chân (<u>Underline</u>).
+- Không thể tạo danh sách gạch đầu dòng (Bullet points) hoặc đánh số thứ tự (Ordered list).
+- Không thể chèn siêu liên kết (Hyperlink) trực tiếp trong câu văn.
+- Không thể thay đổi kích thước chữ (Small, Large, Huge) hay tạo các tiêu đề nổi bật (H1, H2, H3).
+
+### 11.2. Quyết định kiến trúc kỹ thuật: Tại sao chọn Native Quill 2.x?
+Trong quá trình triển khai trên nền tảng **React 19 + Vite 6**, đội ngũ đã xem xét và đánh giá hai hướng tiếp cận:
+
+| Tiêu chí so sánh | Dùng Wrapper `react-quill` cũ | Dùng Trực Tiếp `quill` Native 2.x (Lựa chọn tối ưu) |
+| :--- | :--- | :--- |
+| **Hệ thống Module** | CommonJS (Cũ, thiếu trường `exports` chuẩn) | **ECMAScript Module (ESM)** 100% chuẩn hiện đại |
+| **Tương thích Vite** | Dễ gặp lỗi `Internal server error: Failed to resolve import "react-quill"` | **Tương thích hoàn hảo**, biên dịch siêu nhanh qua Rollup/Vite |
+| **Tương thích React 19** | Dính cảnh báo deprecated `findDOMNode` và ref lifecycle cũ | **Không xung đột**, quản lý DOM chủ động qua React `useRef` |
+| **Khả năng kiểm soát** | Bị giới hạn bởi API của wrapper trung gian | **Toàn quyền tương tác** với Quill API, Toolbar, Parchment formats |
+| **Dung lượng & Rác DOM** | Khó dọn dẹp khi unmount, dễ duplicate toolbar | **Dọn sạch DOM** (`container.innerHTML = ""`) ngay khi unmount |
+
+### 11.3. Cấu trúc Component `RichTextEditor.tsx`
+File: `frontend/src/components/common/RichTextEditor.tsx`
+
+```typescript
+import React, { useEffect, useRef } from "react";
+import Quill from "quill";
+import "quill/dist/quill.snow.css";
+
+interface RichTextEditorProps {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+  minHeight?: number;
+}
+```
+
+#### Các cơ chế kỹ thuật cốt lõi:
+1. **Thanh công cụ Toolbar trực quan (`TOOLBAR_OPTIONS`):**
+   - **Nhóm 1 - Cỡ chữ & Header:** H1, H2, H3, Normal text; font size (Small, Normal, Large, Huge).
+   - **Nhóm 2 - Kiểu chữ:** Bold, Italic, Underline, Strikethrough.
+   - **Nhóm 3 - Bảng màu sắc:** Chọn màu chữ (Color) và màu nền highlight (Background).
+   - **Nhóm 4 - Cấu trúc danh sách:** Đánh số (Ordered), gạch đầu dòng (Bullet), thụt dòng (Indent -/+).
+   - **Nhóm 5 - Căn lề:** Căn trái, giữa, phải, căn đều hai bên (Align).
+   - **Nhóm 6 - Công cụ mở rộng:** Chèn link (`link`) và nút xóa định dạng gốc (`clean`).
+2. **Cơ chế Chống Loop Sự Kiện (Two-Way Data Binding Shield):**
+   - Sử dụng cờ `isUpdatingRef = useRef<boolean>(false)`.
+   - Khi prop `value` từ bên ngoài truyền vào thay đổi (ví dụ: người dùng nạp bản thảo cũ hoặc chọn mẫu có sẵn), editor chỉ cập nhật `quill.root.innerHTML = normalizedValue` khi có sự sai lệch thật sự giữa DOM hiện tại và prop, đồng thời bật cờ để ngăn sự kiện `text-change` bắn ngược lại `onChange`.
+3. **Chuẩn hóa giá trị rỗng:**
+   - Quill mặc định sinh ra thẻ `<p><br></p>` khi ô soạn thảo trống. Component tự động chuyển đổi giá trị này thành chuỗi rỗng `""` để các điều kiện kiểm tra dữ liệu và placeholder hoạt động chính xác.
+4. **Cô lập DOM trong Container:**
+   - Tạo phần tử DIV con độc lập và xóa sạch nội dung container (`containerRef.current.innerHTML = ""`) trong hàm dọn dẹp (cleanup function) của `useEffect`, đảm bảo khi Vite Hot Module Replacement (HMR) kích hoạt sẽ không bị nhân bản toolbar.
+
+### 11.4. Tích hợp trên Trang Soạn Thảo & Live Preview
+File: `frontend/src/pages/admin/EmailCampaignPage.tsx`
+
+1. **Vùng Soạn thảo (Left Panel):**
+   - Thay thế thẻ `<input>` của trường **Lời cảm ơn / dẫn dắt khách hàng** bằng `<RichTextEditor value={formData.greetingText} onChange={...} minHeight={90} />`.
+   - Thay thế thẻ `<textarea>` của trường **Nội dung chi tiết bổ sung** bằng `<RichTextEditor value={formData.mainContentHtml} onChange={...} minHeight={130} />`.
+   - Gắn nhãn badge `✍️ Rich Text` màu xanh dương giúp người dùng nhận biết ngay tính năng soạn thảo tự do.
+2. **Vùng Xem trước Thời gian thực (Right Panel - Live Preview):**
+   - Sử dụng thuộc tính `dangerouslySetInnerHTML` để render trực tiếp HTML đã định dạng:
+   ```tsx
+   <div
+     dangerouslySetInnerHTML={{
+       __html:
+         data.greetingText && data.greetingText.trim()
+           ? data.greetingText
+           : "Cảm ơn bạn đã đồng hành cùng ABC Pharmacy. Món quà nhỏ dành riêng cho bạn.",
+     }}
+   />
+   ```
+   - Khách hàng gõ chữ in đậm, đổi màu đỏ, căn giữa ở panel trái -> panel phải lập tức hiển thị y hệt mà không cần tải lại trang.
+
+### 11.5. Xử lý Tương Thích Phía Backend Template Builder
+File: `backend/apps/user-service/src/utils/email-template.builder.ts`
+
+1. **Hiển thị trung thực trong nội dung bức thư:**
+   - Thân email chèn biến `${greetingText}` và `${mainContentHtml}` trực tiếp vào mã HTML dạng bảng (Table layout inline CSS).
+2. **Xử lý sạch thẻ HTML cho Preheader hộp thư Inbox:**
+   - Dòng tiêu đề phụ (Preheader) ẩn ngoài danh sách hộp thư Gmail/Outlook chỉ chấp nhận văn bản thuần (plain text).
+   - Nếu fallback về `greetingText` có chứa mã thẻ HTML (ví dụ `<p><span style="color: rgb(230, 0, 0);">Ưu đãi lớn</span></p>`), người nhận sẽ thấy các thẻ HTML thô.
+   - Bổ sung hàm tiện ích `stripHtml`:
+   ```typescript
+   const stripHtml = (html: string) => (html || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
+   ```
+   - Preheader được tinh chỉnh: `${preheader || stripHtml(greetingText)}`, bảo đảm bên ngoài hộp thư hiển thị sạch sẽ câu chữ, khi bấm vào xem chi tiết sẽ thấy đầy đủ định dạng màu mè đẹp mắt.
+
+---
+
+## 12. HƯỚNG DẪN TRIỂN KHAI MÔI TRƯỜNG DOCKER CONTAINER & XỬ LÝ SỰ CỐ
+
+### 12.1. Cấu trúc Docker Volume và Hiện tượng "Module Not Found"
+Trong môi trường phát triển microservices bằng Docker Compose, container `frontend-1` (`wdp301-rbl-project-wdp_se18d08_group-7-frontend-1`) sử dụng một volume độc lập cho thư mục `/app/node_modules` để tối ưu tốc độ đọc ghi giữa Windows host và Linux container.
+
+> [!WARNING]
+> Khi cài đặt một thư viện mới (ví dụ: `quill`) bằng lệnh `npm install` ở máy host bên ngoài, gói thư viện chỉ nằm trong `frontend/node_modules/` của máy host. Container Docker **chưa** có thư viện này trong `/app/node_modules`, dẫn tới lỗi khi Vite khởi động:
+> ```text
+> [vite] Internal server error: Failed to resolve import "quill" from "src/components/common/RichTextEditor.tsx". Does the file exist?
+> ```
+
+### 12.2. Quy trình xử lý chuẩn hóa 2 bước:
+1. **Cài đặt trực tiếp vào Container:**
+   ```powershell
+   docker exec wdp301-rbl-project-wdp_se18d08_group-7-frontend-1 npm install quill
+   ```
+2. **Khởi động lại Container để Vite kích hoạt Re-optimizing Dependencies:**
+   ```powershell
+   docker restart wdp301-rbl-project-wdp_se18d08_group-7-frontend-1
+   ```
+3. **Kiểm tra kết quả trong Docker logs:**
+   ```powershell
+   docker logs --tail 20 wdp301-rbl-project-wdp_se18d08_group-7-frontend-1
+   ```
+   Khi thấy dòng thông báo sau là hệ thống đã sẵn sàng:
+   ```text
+   [vite] (client) Re-optimizing dependencies because lockfile has changed
+   VITE v6.4.3  ready in 1561 ms
+   ➜  Local:   http://localhost:3001/
+   ```
+
+---
 > 💡 **Ghi chú vận hành:** Toàn bộ mã nguồn đã được compile sạch sẽ, hệ thống Microservices backend (Port 4000) và frontend (Port 3001) đang hoạt động ổn định và sẵn sàng phục vụ anh yêu nghiệm thu thực tế!
+
