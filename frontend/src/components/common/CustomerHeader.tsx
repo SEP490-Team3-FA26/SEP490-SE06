@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
-  Search, ShoppingCart, Award, Truck, ShieldCheck,
+  Search, ShoppingCart, Heart, Award, Truck, ShieldCheck,
   PhoneCall, FileText, MapPin, UploadCloud, ChevronDown,
   ChevronRight, X, Loader2, BrainCircuit, Star, LogOut,
   User, ClipboardList, Pill, Flame, CheckCircle2, AlertCircle,
@@ -10,6 +10,7 @@ import {
   Droplets, Wind, Bone, MoreHorizontal, Activity
 } from "lucide-react";
 import { authService, userService, cartService, medicineService } from "../../services";
+import { wishlistService } from "../../services/sales/wishlist.service";
 import {
   AUTH_LOGIN_REQUIRED_EVENT,
   AUTH_TOKEN_CHANGED_EVENT,
@@ -593,8 +594,9 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Cart State
+  // Cart & Wishlist State
   const [cartCount, setCartCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   // Search Auto-complete State
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
@@ -666,11 +668,23 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     }
   };
 
+  // Wishlist Count Loading
+  const updateWishlistCount = async () => {
+    try {
+      const res = await wishlistService.getWishlist();
+      setWishlistCount(res?.totalCount || (Array.isArray(res?.items) ? res.items.length : 0));
+    } catch (err) {
+      console.error("Error reading wishlist count:", err);
+    }
+  };
+
   useEffect(() => {
     syncAuthState();
     updateCartCount();
+    updateWishlistCount();
 
     window.addEventListener("cartUpdated", updateCartCount);
+    window.addEventListener("wishlistUpdated", updateWishlistCount);
     window.addEventListener("loyaltyUpdated", syncAuthState);
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
     const handleLoginRequired = () => setShowLoginRequiredModal(true);
@@ -685,6 +699,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
 
     return () => {
       window.removeEventListener("cartUpdated", updateCartCount);
+      window.removeEventListener("wishlistUpdated", updateWishlistCount);
       window.removeEventListener("loyaltyUpdated", syncAuthState);
       window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
       window.removeEventListener(AUTH_LOGIN_REQUIRED_EVENT, handleLoginRequired);
@@ -1259,6 +1274,23 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               </Link>
             )}
 
+            {/* Nút Yêu thích (Wishlist) */}
+            <Link
+              to="/customer/wishlist"
+              className="flex items-center gap-2 bg-[#0047a5] hover:bg-[#003c8c] text-white px-3.5 py-2 rounded-full font-bold text-xs transition-all shadow-sm relative group cursor-pointer border-none outline-none"
+              title="Danh sách sản phẩm yêu thích"
+            >
+              <div className="relative">
+                <Heart size={18} className={wishlistCount > 0 ? "fill-rose-400 text-rose-400" : "text-white"} />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-2 -right-2.5 min-w-4.5 h-4.5 bg-rose-500 text-white text-[9px] font-black flex items-center justify-center rounded-full px-1 border border-white shadow-xs">
+                    {wishlistCount}
+                  </span>
+                )}
+              </div>
+              <span className="hidden xl:inline">Yêu thích</span>
+            </Link>
+
             {/* Nút Giỏ hàng: Nếu chưa đăng nhập thì redirect sang trang đăng nhập */}
             <button
               ref={cartIconRef as any}
@@ -1604,6 +1636,19 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                 className="w-full px-4 py-2.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 text-left flex items-center gap-2"
               >
                 <UploadCloud size={15} /> Gửi Toa Thuốc Nhanh
+              </button>
+              <button
+                onClick={() => { setMobileMenuOpen(false); navigate("/customer/wishlist"); }}
+                className="w-full px-4 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 text-left flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Heart size={15} className="fill-rose-500 text-rose-500" /> Sản phẩm yêu thích
+                </div>
+                {wishlistCount > 0 && (
+                  <span className="px-2 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full">
+                    {wishlistCount}
+                  </span>
+                )}
               </button>
             </div>
 

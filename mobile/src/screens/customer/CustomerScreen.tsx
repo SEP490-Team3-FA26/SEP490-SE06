@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
@@ -125,6 +126,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
   const [voucherCodeInput, setVoucherCodeInput] = useState<string>('');
 
+  // Wishlist State (Danh sách sản phẩm yêu thích)
+  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [wishlistTotalCount, setWishlistTotalCount] = useState<number>(0);
+
   // AI Chat & Voice Consultant
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string; recommendedMeds?: Medicine[] }>>([
     {
@@ -209,11 +214,12 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, voucherList, orderList, branchList] = await Promise.all([
+      const [medList, voucherList, orderList, branchList, wishlistRes] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getVouchers(),
         ApiService.getMyOrders(searchPhone || user?.phone),
         ApiService.getBranches(),
+        ApiService.getWishlist(),
       ]);
 
       if (medList && medList.length > 0) {
@@ -227,6 +233,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       if (branchList && Array.isArray(branchList) && branchList.length > 0) {
         setBranches(branchList);
       }
+      if (wishlistRes) {
+        setWishlistItems(wishlistRes.items || []);
+        setWishlistTotalCount(wishlistRes.totalCount || (wishlistRes.items || []).length);
+      }
     } catch (e) {
       console.warn('Error loading customer data:', e);
     } finally {
@@ -234,9 +244,62 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     }
   }, [searchQuery, searchPhone, user?.phone]);
 
+  // Kiểm tra sản phẩm đã nằm trong Wishlist hay chưa
+  const isWishlisted = useCallback(
+    (medId: string) => {
+      if (!medId) return false;
+      return wishlistItems.some((it) => (it.id || it._id) === medId);
+    },
+    [wishlistItems]
+  );
+
+  // Thêm / Xóa nhanh sản phẩm yêu thích (Optimistic UI)
+  const toggleWishlist = async (med: any) => {
+    const medId = med.id || (med as any)._id || (med as any).sku;
+    if (!medId) return;
+
+    const exists = isWishlisted(medId);
+    if (exists) {
+      setWishlistItems((prev) => prev.filter((it) => (it.id || it._id) !== medId));
+      setWishlistTotalCount((prev) => Math.max(0, prev - 1));
+      showToast.success('Đã bỏ yêu thích', `Đã xóa "${med.name}" khỏi danh sách`);
+      await ApiService.removeFromWishlist(medId);
+    } else {
+      const newItem = {
+        id: medId,
+        _id: medId,
+        name: med.name,
+        price: med.price || 0,
+        unit: med.unit || 'Hộp',
+        image: med.image || '',
+        active: med.active || med.active_ingredient || '',
+        category: med.category || 'Dược phẩm',
+        stock: med.stock !== undefined ? med.stock : 999,
+      };
+      setWishlistItems((prev) => [newItem, ...prev]);
+      setWishlistTotalCount((prev) => prev + 1);
+      showToast.success('Đã yêu thích', `Đã thêm "${med.name}" vào yêu thích!`);
+      await ApiService.addToWishlist(med);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Tự động làm tươi Wishlist mỗi khi màn hình CustomerScreen được focus lại
+  useFocusEffect(
+    useCallback(() => {
+      ApiService.getWishlist()
+        .then((res) => {
+          if (res) {
+            setWishlistItems(res.items || []);
+            setWishlistTotalCount(res.totalCount || (res.items || []).length);
+          }
+        })
+        .catch(() => {});
+    }, [])
+  );
 
   // ─── 5 Recent Searches & Guest Cart Persistence ────────────────────────────
   const RECENT_SEARCHES_KEY = '@abc_recent_searches_v1';
@@ -702,6 +765,29 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
             </AnimatedTouchable>
 
+            {/* Wishlist Button with Heart Icon & Count Badge */}
+            <AnimatedTouchable
+              onPress={() =>
+                navigation.navigate('CustomerWishlistScreen', {
+                  onAddToCart: (item: any) => addToCart(item),
+                })
+              }
+              style={styles.headerRoundBtn}
+            >
+              <Ionicons
+                name={wishlistTotalCount > 0 ? 'heart' : 'heart-outline'}
+                size={20}
+                color={wishlistTotalCount > 0 ? '#EF4444' : '#FFFFFF'}
+              />
+              {wishlistTotalCount > 0 && (
+                <View style={[styles.headerCartBadge, { backgroundColor: '#EF4444' }]}>
+                  <Text style={styles.headerCartBadgeText}>
+                    {wishlistTotalCount > 99 ? '99+' : wishlistTotalCount}
+                  </Text>
+                </View>
+              )}
+            </AnimatedTouchable>
+
             {/* Cart Button with Count Badge */}
             <AnimatedTouchable
               onPress={() => setActiveTab('CART')}
@@ -999,6 +1085,17 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                       <View style={styles.flashDiscountBadge}>
                         <Text style={styles.flashDiscountText}>-35%</Text>
                       </View>
+                      <AnimatedTouchable
+                        onPress={() => toggleWishlist(med)}
+                        style={styles.flashWishlistBtn}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons
+                          name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
+                          size={16}
+                          color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
+                        />
+                      </AnimatedTouchable>
                       <Image
                         source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
                         style={styles.flashThumb}
@@ -1234,16 +1331,33 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                       </View>
                     </AnimatedPressable>
 
-                    <AnimatedPressable
-                      onPress={() => {
-                        addToCart(med);
-                        showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
-                      }}
-                      style={styles.addToCartBtn}
-                      pressedScale={0.90}
-                    >
-                      <Ionicons name="add" size={20} color="#FFFFFF" />
-                    </AnimatedPressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <AnimatedPressable
+                        onPress={() => toggleWishlist(med)}
+                        style={[
+                          styles.wishlistCardBtn,
+                          isWishlisted(med.id || (med as any)._id) && styles.wishlistCardBtnActive,
+                        ]}
+                        pressedScale={0.88}
+                      >
+                        <Ionicons
+                          name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
+                          size={18}
+                          color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
+                        />
+                      </AnimatedPressable>
+
+                      <AnimatedPressable
+                        onPress={() => {
+                          addToCart(med);
+                          showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                        }}
+                        style={styles.addToCartBtn}
+                        pressedScale={0.90}
+                      >
+                        <Ionicons name="add" size={20} color="#FFFFFF" />
+                      </AnimatedPressable>
+                    </View>
                   </View>
                 </View>
               ))
@@ -1841,6 +1955,31 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             onPress={() => setSelectedMedDetail(null)}
             style={{ flex: 1, marginRight: 8 }}
           />
+          {selectedMedDetail && (
+            <AnimatedPressable
+              onPress={() => toggleWishlist(selectedMedDetail)}
+              style={[
+                styles.modalWishlistBtn,
+                isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id) &&
+                  styles.modalWishlistBtnActive,
+              ]}
+              pressedScale={0.90}
+            >
+              <Ionicons
+                name={
+                  isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id)
+                    ? 'heart'
+                    : 'heart-outline'
+                }
+                size={22}
+                color={
+                  isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id)
+                    ? '#EF4444'
+                    : '#64748B'
+                }
+              />
+            </AnimatedPressable>
+          )}
           <ClinicalButton
             title="THÊM VÀO GIỎ"
             variant="primary"
@@ -3224,8 +3363,55 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
-    marginLeft: 8,
+    marginLeft: 6,
     alignSelf: 'center',
+  },
+  // Wishlist heart button on product cards
+  wishlistCardBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignSelf: 'center',
+  },
+  wishlistCardBtnActive: {
+    backgroundColor: '#FFE4E6',
+    borderColor: '#FECDD3',
+  },
+  modalWishlistBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 8,
+  },
+  modalWishlistBtnActive: {
+    backgroundColor: '#FFE4E6',
+    borderColor: '#FECDD3',
+  },
+  flashWishlistBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    zIndex: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   scrollContent: {
     padding: 16,

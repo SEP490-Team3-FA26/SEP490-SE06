@@ -34,6 +34,7 @@ export { rfqService } from './purchase/rfq.service';
 // Sales & Customer
 export { orderService } from './sales/order.service';
 export { cartService } from './sales/cart.service';
+export { wishlistService } from './sales/wishlist.service';
 export { voucherService } from './sales/voucher.service';
 export { prescriptionService } from './sales/prescription.service';
 export { reconciliationService } from './sales/reconciliation.service';

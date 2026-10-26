@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CheckCircle2, Plus, ShoppingBag, AlertCircle } from "lucide-react";
+import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart } from "lucide-react";
 
 interface MedicineCardProps {
   med: any;
@@ -7,9 +7,19 @@ interface MedicineCardProps {
   onAddToCart: (med: any, quantity: number, unit: string) => void;
   onClick: () => void;
   allowOutOfStock?: boolean;
+  isWishlisted?: boolean;
+  onToggleWishlist?: (med: any) => void;
 }
 
-export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToCart, onClick, allowOutOfStock = false }) => {
+export const MedicineCard: React.FC<MedicineCardProps> = ({
+  med,
+  added,
+  onAddToCart,
+  onClick,
+  allowOutOfStock = false,
+  isWishlisted = false,
+  onToggleWishlist,
+}) => {
   const isOutOfStock = med.stock <= 0;
   const isLowStock = med.stock > 0 && med.stock <= 50;
 
@@ -91,8 +101,27 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
             </span>
           </div>
         )}
+        {/* Nút yêu thích (Wishlist Heart) */}
+        {onToggleWishlist && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleWishlist(med);
+            }}
+            className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-xs cursor-pointer ${
+              isWishlisted
+                ? "bg-rose-50 text-rose-500 hover:bg-rose-100 ring-1 ring-rose-200"
+                : "bg-white/85 backdrop-blur-xs text-slate-400 hover:text-rose-500 hover:bg-white"
+            }`}
+            title={isWishlisted ? "Bỏ yêu thích" : "Thêm vào danh sách yêu thích"}
+          >
+            <Heart size={15} className={isWishlisted ? "fill-rose-500 text-rose-500" : ""} />
+          </button>
+        )}
+
         {isLowStock && !isOutOfStock && (
-          <div className="absolute top-2 right-2 px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full uppercase tracking-wider flex items-center gap-1">
+          <div className={`absolute top-2 ${onToggleWishlist ? 'right-11' : 'right-2'} px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs`}>
             <AlertCircle size={8} /> Sắp hết
           </div>
         )}

@@ -6,6 +6,7 @@ import { lastValueFrom } from 'rxjs';
 import { User } from '../../auth-service/src/auth/user.schema';
 import { Medicine } from '../../inventory-service/src/medicine/schemas/medicine.schema';
 import { Cart } from './schemas/cart.schema';
+import { Wishlist } from './schemas/wishlist.schema';
 import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema';
 import { Branch, BranchDocument } from './schemas/branch.schema';
 import { BranchFeedback, BranchFeedbackDocument } from './schemas/branch-feedback.schema';
@@ -45,6 +46,8 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly userModel: Model<User>,
     @InjectModel(Cart.name)
     private readonly cartModel: Model<Cart>,
+    @InjectModel(Wishlist.name)
+    private readonly wishlistModel: Model<Wishlist>,
     @InjectModel(Medicine.name)
     private readonly medicineModel: Model<any>,
     @InjectModel(AuditLog.name)
@@ -436,6 +439,213 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       await cart.save();
     }
     return { success: true, message: 'Làm trống giỏ hàng thành công!' };
+  }
+
+  // =========================================================================
+  // WISHLIST OPERATIONS (Quản lý danh sách sản phẩm yêu thích)
+  // =========================================================================
+
+  /**
+   * Lấy danh sách sản phẩm yêu thích của người dùng (kèm chi tiết thuốc và tự động dọn rác)
+   * @param userId ID định danh người dùng
+   */
+  async getWishlist(userId: string) {
+    this.logger.log(`[Wishlist] Lấy danh sách yêu thích cho người dùng: ${userId}`);
+    if (!userId) {
+      return { items: [], totalCount: 0 };
+    }
+
+    let wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (!wishlist) {
+      wishlist = new this.wishlistModel({ userId, items: [] });
+      await wishlist.save();
+    }
+
+    if (!wishlist.items || wishlist.items.length === 0) {
+      return { items: [], totalCount: 0 };
+    }
+
+    const itemIds = wishlist.items.map((it) => it.medicineId);
+    let medicineDetails: any[] = [];
+
+    // 1. Ưu tiên truy vấn trực tiếp từ MongoDB thông qua Model Medicine
+    try {
+      medicineDetails = await this.medicineModel.find({ _id: { $in: itemIds } }).lean().exec();
+    } catch (dbErr: any) {
+      this.logger.warn(`[Wishlist] Truy vấn trực tiếp DB thất bại, fallback sang Kafka RPC: ${dbErr.message}`);
+    }
+
+    // 2. Dự phòng: Gửi yêu cầu qua Kafka RPC nếu không tìm thấy trong database nội bộ
+    if (!medicineDetails || medicineDetails.length === 0) {
+      try {
+        const kafkaRes: any = await lastValueFrom(
+          this.inventoryClient.send('inventory.medicine.get_by_ids', { ids: itemIds }).pipe(
+            require('rxjs').timeout(3000)
+          )
+        );
+        if (Array.isArray(kafkaRes)) {
+          medicineDetails = kafkaRes;
+        }
+      } catch (err: any) {
+        this.logger.error(`[Wishlist] Lỗi gọi Kafka topic inventory.medicine.get_by_ids: ${err.message}`);
+      }
+    }
+
+    // Tạo Map tra cứu thuốc theo ID để tối ưu tốc độ map O(1)
+    const medicineMap = new Map<string, any>(
+      medicineDetails.map((med) => [med._id ? med._id.toString() : (med.id ? med.id.toString() : ''), med])
+    );
+
+    let hasHealed = false;
+    const enrichedItems = [];
+
+    for (const item of wishlist.items) {
+      const med = medicineMap.get(item.medicineId);
+      if (!med) {
+        // Tự động dọn rác (Auto-healing): Thuốc đã bị xóa khỏi danh mục sản phẩm của hệ thống
+        hasHealed = true;
+        continue;
+      }
+
+      enrichedItems.push({
+        id: item.medicineId,
+        _id: item.medicineId,
+        name: med.name,
+        active_ingredient: med.active_ingredient || '',
+        category: med.category || 'Dược phẩm',
+        unit: med.unit || 'Hộp',
+        image: med.image || '',
+        price: med.price || 0,
+        stock: med.stock !== undefined ? med.stock : 999,
+        dosage_form: med.dosage_form || '',
+        registration_number: med.registration_number || '',
+        description: med.description || '',
+        prescription_required: med.prescription_required || false,
+        addedAt: item.addedAt || new Date(),
+      });
+    }
+
+    // Cập nhật lại cơ sở dữ liệu nếu có thuốc bị xóa khỏi hệ thống
+    if (hasHealed) {
+      wishlist.items = wishlist.items.filter((it) => medicineMap.has(it.medicineId)) as any;
+      await wishlist.save();
+    }
+
+    return {
+      items: enrichedItems,
+      totalCount: enrichedItems.length,
+    };
+  }
+
+  /**
+   * Thêm sản phẩm vào danh sách yêu thích
+   * @param userId ID định danh người dùng
+   * @param medicineId ID sản phẩm thuốc
+   */
+  async addToWishlist(userId: string, medicineId: string) {
+    this.logger.log(`[Wishlist] Người dùng ${userId} thêm thuốc ${medicineId} vào yêu thích`);
+    if (!userId || !medicineId) {
+      return { error: true, message: 'Dữ liệu không hợp lệ (thiếu userId hoặc medicineId)', statusCode: 400 };
+    }
+
+    // 1. Kiểm tra sản phẩm có tồn tại và còn kinh doanh hay không
+    let medicine: any;
+    try {
+      medicine = await this.medicineModel.findById(medicineId).lean().exec();
+    } catch (dbErr: any) {
+      this.logger.warn(`[Wishlist] Truy vấn DB kiểm tra thuốc thất bại: ${dbErr.message}`);
+    }
+
+    if (!medicine) {
+      try {
+        medicine = await lastValueFrom(
+          this.inventoryClient.send('inventory.medicine.get_by_id', { id: medicineId }).pipe(
+            require('rxjs').timeout(3000)
+          )
+        );
+      } catch (err: any) {
+        this.logger.error(`[Wishlist] Không thể lấy thông tin thuốc qua Kafka: ${err.message}`);
+      }
+    }
+
+    if (!medicine) {
+      return { error: true, message: 'Sản phẩm thuốc không tồn tại hoặc đã ngừng kinh doanh', statusCode: 404 };
+    }
+
+    // 2. Tìm hoặc khởi tạo danh sách yêu thích
+    let wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (!wishlist) {
+      wishlist = new this.wishlistModel({ userId, items: [] });
+    }
+
+    // 3. Kiểm tra tính trùng lặp (Idempotent)
+    const exists = wishlist.items.some((it) => it.medicineId === medicineId);
+    if (exists) {
+      return {
+        success: true,
+        alreadyExists: true,
+        message: 'Sản phẩm đã nằm trong danh sách yêu thích của bạn',
+        totalCount: wishlist.items.length,
+      };
+    }
+
+    wishlist.items.push({ medicineId, addedAt: new Date() } as any);
+    await wishlist.save();
+
+    return {
+      success: true,
+      message: 'Đã thêm sản phẩm vào danh sách yêu thích thành công',
+      totalCount: wishlist.items.length,
+    };
+  }
+
+  /**
+   * Xóa một sản phẩm khỏi danh sách yêu thích
+   * @param userId ID người dùng
+   * @param medicineId ID sản phẩm thuốc cần xóa
+   */
+  async removeFromWishlist(userId: string, medicineId: string) {
+    this.logger.log(`[Wishlist] Người dùng ${userId} xóa thuốc ${medicineId} khỏi yêu thích`);
+    if (!userId || !medicineId) {
+      return { error: true, message: 'Dữ liệu không hợp lệ', statusCode: 400 };
+    }
+
+    const wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (!wishlist) {
+      return { success: true, message: 'Đã xóa sản phẩm khỏi danh sách yêu thích', totalCount: 0 };
+    }
+
+    wishlist.items = wishlist.items.filter((it) => it.medicineId !== medicineId) as any;
+    await wishlist.save();
+
+    return {
+      success: true,
+      message: 'Đã xóa sản phẩm khỏi danh sách yêu thích',
+      totalCount: wishlist.items.length,
+    };
+  }
+
+  /**
+   * Dọn sạch toàn bộ sản phẩm trong danh sách yêu thích của người dùng
+   * @param userId ID người dùng
+   */
+  async clearWishlist(userId: string) {
+    this.logger.log(`[Wishlist] Dọn sạch danh sách yêu thích của người dùng ${userId}`);
+    if (!userId) {
+      return { error: true, message: 'Thiếu thông tin người dùng', statusCode: 400 };
+    }
+
+    const wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (wishlist) {
+      wishlist.items = [];
+      await wishlist.save();
+    }
+
+    return {
+      success: true,
+      message: 'Đã làm trống danh sách sản phẩm yêu thích thành công!',
+      totalCount: 0,
+    };
   }
 
   getMemberTier(accumulatedPoints: number): { name: string; multiplier: number } {
