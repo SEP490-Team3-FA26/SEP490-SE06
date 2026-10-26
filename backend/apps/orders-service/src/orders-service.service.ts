@@ -2164,9 +2164,6 @@ export class OrdersServiceService implements OnModuleInit {
   /**
    * Tổng hợp doanh số đơn hàng theo ca trực phục vụ Bàn Giao Ca (Shift Handover)
    */
-  /**
-   * Tổng hợp doanh số đơn hàng theo ca trực phục vụ Bàn Giao Ca (Shift Handover)
-   */
   async getShiftSalesAggregation(payload: {
     branchId: string;
     shiftId?: string;

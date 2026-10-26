@@ -8,6 +8,7 @@ import { CertificateService } from './certificate.service';
 import { AttendanceService } from './attendance.service';
 import { PayrollService } from './payroll.service';
 import { ShiftHandoverService } from './shift-handover.service';
+import { EmailMarketingService } from './email-marketing.service';
 
 @Controller()
 export class UserServiceController {
@@ -19,6 +20,7 @@ export class UserServiceController {
     private readonly attendanceService: AttendanceService,
     private readonly payrollService: PayrollService,
     private readonly shiftHandoverService: ShiftHandoverService,
+    private readonly emailMarketingService: EmailMarketingService,
   ) { }
 
   @MessagePattern('user.edit_profile')
@@ -482,8 +484,8 @@ export class UserServiceController {
   }
 
   @MessagePattern('hr.shift_handover.detail')
-  handleGetShiftHandoverDetail(@Payload() data: { id: string }) {
-    return this.shiftHandoverService.getHandoverDetail(data.id);
+  handleGetShiftHandoverDetail(@Payload() data: { id: string; requesterBranchId?: string; requesterRole?: string }) {
+    return this.shiftHandoverService.getHandoverDetail(data.id, data.requesterBranchId, data.requesterRole);
   }
 
   // --- HR: PAYROLL MANAGEMENT ---
@@ -520,5 +522,88 @@ export class UserServiceController {
   @MessagePattern('hr.payroll.my_payslip')
   handleGetMyPayslip(@Payload() data: { employeeId: string; month?: number; year?: number }) {
     return this.payrollService.getMyPayslip(data.employeeId, data.month, data.year);
+  }
+
+  // ===================================================================
+  // EMAIL MARKETING — Quản lý chiến dịch gửi Email Newsletter
+  // ===================================================================
+
+  /** Tạo chiến dịch email mới (Lưu DB đồng bộ và trả về POJO object) */
+  @MessagePattern('email.campaign.create')
+  async handleCreateEmailCampaign(@Payload() data: { dto: any; createdBy?: string }) {
+    const res = await this.emailMarketingService.createCampaign(data.dto, data.createdBy);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Cập nhật thông tin chiến dịch email */
+  @MessagePattern('email.campaign.update')
+  async handleUpdateEmailCampaign(@Payload() data: { id: string; dto: any }) {
+    const res = await this.emailMarketingService.updateCampaign(data.id, data.dto);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Lấy danh sách chiến dịch email (có thể lọc theo status) */
+  @MessagePattern('email.campaign.get.all')
+  async handleGetAllEmailCampaigns(@Payload() data: { status?: string }) {
+    const res = await this.emailMarketingService.getAllCampaigns(data?.status);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Lấy chi tiết 1 chiến dịch email theo ID */
+  @MessagePattern('email.campaign.get.by.id')
+  async handleGetEmailCampaignById(@Payload() data: { id: string }) {
+    const res = await this.emailMarketingService.getCampaignById(data.id);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Gửi email thử nghiệm tới địa chỉ bất kỳ để Admin preview bố cục */
+  @MessagePattern('email.campaign.send_test')
+  async handleSendTestEmail(@Payload() data: { campaignId: string; testEmail: string }) {
+    const res = await this.emailMarketingService.sendTestEmail(data.campaignId, data.testEmail);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Kích hoạt gửi ngay hoặc Retry chiến dịch (Bất đồng bộ — Kafka Event) */
+  @EventPattern('email.campaign.event.trigger')
+  handleTriggerCampaign(@Payload() data: { campaignId: string }) {
+    this.emailMarketingService.executeCampaignSend(data.campaignId).catch((err) => {
+      console.error(`[Email] Lỗi khi trigger chiến dịch ${data.campaignId}: ${err.message}`);
+    });
+  }
+
+  /** Lấy thống kê tiến độ gửi real-time của chiến dịch */
+  @MessagePattern('email.campaign.stats')
+  async handleGetCampaignStats(@Payload() data: { campaignId: string }) {
+    const res = await this.emailMarketingService.getCampaignStats(data.campaignId);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Hủy lịch gửi chiến dịch email */
+  @MessagePattern('email.campaign.cancel')
+  async handleCancelCampaign(@Payload() data: { id: string }) {
+    const res = await this.emailMarketingService.cancelCampaign(data.id);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Xóa vĩnh viễn chiến dịch email và log liên quan */
+  @MessagePattern('email.campaign.delete')
+  async handleDeleteCampaign(@Payload() data: { id: string }) {
+    const res = await this.emailMarketingService.deleteCampaign(data.id);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Xử lý hủy đăng ký email marketing (Unsubscribe 1-click qua token) */
+  @MessagePattern('email.newsletter.unsubscribe')
+  async handleUnsubscribeNewsletter(@Payload() data: { token: string; email: string }) {
+    const res = await this.emailMarketingService.unsubscribeNewsletter(data.token, data.email);
+    return JSON.parse(JSON.stringify(res));
+  }
+
+  /** Xử lý Webhook từ Resend (email bounced, delivered, complained) */
+  @EventPattern('email.resend.webhook')
+  handleResendWebhook(@Payload() data: any) {
+    this.emailMarketingService.handleResendWebhook(data).catch((err) => {
+      console.error(`[Resend Webhook] Lỗi xử lý: ${err.message}`);
+    });
   }
 }

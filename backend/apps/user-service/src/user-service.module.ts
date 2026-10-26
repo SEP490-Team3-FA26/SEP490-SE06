@@ -30,6 +30,11 @@ import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/
 import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staff-transfer-request.schema';
 import { ShiftHandover, ShiftHandoverSchema } from './schemas/shift-handover.schema';
 import { ShiftHandoverService } from './shift-handover.service';
+// Import schemas và services cho hệ thống Email Marketing Newsletter
+import { EmailCampaign, EmailCampaignSchema } from './schemas/email-campaign.schema';
+import { EmailDeliveryLog, EmailDeliveryLogSchema } from './schemas/email-delivery-log.schema';
+import { EmailMarketingService } from './email-marketing.service';
+import { NewsletterCronService } from './newsletter-cron.service';
 
 @Module({
   imports: [
@@ -61,6 +66,9 @@ import { ShiftHandoverService } from './shift-handover.service';
       { name: SalesOrder.name, schema: SalesOrderSchema },
       { name: StaffTransferRequest.name, schema: StaffTransferRequestSchema },
       { name: ShiftHandover.name, schema: ShiftHandoverSchema },
+      // Schema hệ thống Email Marketing
+      { name: EmailCampaign.name, schema: EmailCampaignSchema },
+      { name: EmailDeliveryLog.name, schema: EmailDeliveryLogSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -112,6 +120,8 @@ import { ShiftHandoverService } from './shift-handover.service';
     AttendanceService,
     PayrollService,
     ShiftHandoverService,
+    EmailMarketingService,
+    NewsletterCronService,
   ],
   exports: [ShiftHandoverService],
 })

@@ -699,8 +699,12 @@ export class HrController implements OnModuleInit {
   @Get('shift-handover/:id')
   @Roles('branch', 'pharmacist', 'admin', 'director')
   @ApiOperation({ summary: 'Chi tiết biên bản bàn giao ca theo ID' })
-  async getShiftHandoverDetail(@Param('id') id: string) {
-    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.detail', { id });
+  async getShiftHandoverDetail(@Param('id') id: string, @Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.detail', {
+      id,
+      requesterBranchId: req.user?.branchId,
+      requesterRole: req.user?.role,
+    });
   }
 
   // --- HR: BÁO CÁO HIỆU SUẤT BÁN HÀNG KPI DƯỢC SĨ (UC-111 / SCRUM-106) ---

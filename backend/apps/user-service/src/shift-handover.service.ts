@@ -346,12 +346,25 @@ export class ShiftHandoverService {
   }
 
   /**
-   * Lấy chi tiết một biên bản bàn giao ca
+   * Lấy chi tiết một biên bản bàn giao ca (có kiểm tra chống IDOR theo chi nhánh)
    */
-  async getHandoverDetail(id: string) {
+  async getHandoverDetail(id: string, requesterBranchId?: string, requesterRole?: string) {
     if (!Types.ObjectId.isValid(id)) throw new RpcException('ID không hợp lệ');
     const handover = await this.handoverModel.findById(id).lean().exec();
     if (!handover) throw new RpcException('Không tìm thấy biên bản bàn giao');
+
+    // Chống IDOR: Chỉ admin hoặc director mới được xem biên bản của chi nhánh khác
+    if (
+      requesterRole &&
+      requesterRole !== 'admin' &&
+      requesterRole !== 'director' &&
+      requesterBranchId &&
+      handover.branchId &&
+      handover.branchId.toString() !== requesterBranchId.toString()
+    ) {
+      throw new RpcException('Bạn không có quyền truy cập biên bản bàn giao của chi nhánh khác');
+    }
+
     return handover;
   }
 }

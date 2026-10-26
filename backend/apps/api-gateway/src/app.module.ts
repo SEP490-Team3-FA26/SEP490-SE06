@@ -32,6 +32,7 @@ import { RfqController } from "./controllers/rfq.controller";
 import { RfqPortalController } from "./controllers/rfq-portal.controller";
 import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
 import { RecommendationController } from "./controllers/recommendation.controller";
+import { EmailNewsletterController } from "./controllers/email-newsletter.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
 import { FeedbackController } from "./controllers/feedback.controller";
@@ -211,6 +212,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     RfqPortalController,
     MarketingCampaignController,
     RecommendationController,
+    EmailNewsletterController,
     SensorController,
   ],
   providers: [
@@ -404,6 +406,16 @@ export class AppGatewayModule implements OnModuleInit {
       "hr.payroll.submit",
       "hr.payroll.approve",
       "hr.payroll.my_payslip",
+      // Kafka reply topics cho hệ thống Email Newsletter Marketing
+      "email.campaign.create",
+      "email.campaign.update",
+      "email.campaign.get.all",
+      "email.campaign.get.by.id",
+      "email.campaign.send_test",
+      "email.campaign.stats",
+      "email.campaign.cancel",
+      "email.campaign.delete",
+      "email.newsletter.unsubscribe",
     ];
 
     // 4. ORDER_SERVICE Reply Topics

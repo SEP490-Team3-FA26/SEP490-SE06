@@ -320,4 +320,65 @@ describe('ShiftHandoverService (Unit & Security Tests)', () => {
       expect(stats.openingFloat).toBe(1750000);
     });
   });
+
+  describe('T-SHO-09, T-SHO-10, T-SHO-11: Handover Detail & IDOR Protection', () => {
+    // [Normal Values]
+    it('T-SHO-09: [Normal Values] should return handover detail when requested by same branch', async () => {
+      const validId = new Types.ObjectId().toString();
+      const mockRecord = {
+        _id: validId,
+        branchId: 'BR-001',
+        outgoingPharmacistName: 'Dược sĩ Test',
+      };
+      mockHandoverModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue(mockRecord) }),
+      });
+
+      const result = await service.getHandoverDetail(validId, 'BR-001', 'pharmacist');
+      expect(result).toBeDefined();
+      expect(result._id).toBe(validId);
+    });
+
+    // [Boundary Values]
+    it('T-SHO-10: [Boundary Values] should allow admin or director to access detail from any branch', async () => {
+      const validId = new Types.ObjectId().toString();
+      const mockRecord = {
+        _id: validId,
+        branchId: 'BR-001',
+        outgoingPharmacistName: 'Dược sĩ Test',
+      };
+      mockHandoverModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue(mockRecord) }),
+      });
+
+      const adminResult = await service.getHandoverDetail(validId, 'BR-002', 'admin');
+      expect(adminResult).toBeDefined();
+
+      const directorResult = await service.getHandoverDetail(validId, 'BR-003', 'director');
+      expect(directorResult).toBeDefined();
+    });
+
+    // [Abnormal Values]
+    it('T-SHO-11: [Abnormal Values] should block unauthorized cross-branch access with RpcException', async () => {
+      const validId = new Types.ObjectId().toString();
+      const mockRecord = {
+        _id: validId,
+        branchId: 'BR-001',
+        outgoingPharmacistName: 'Dược sĩ Test',
+      };
+      mockHandoverModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue(mockRecord) }),
+      });
+
+      // Dược sĩ hoặc Quản lý chi nhánh BR-002 cố tình đọc biên bản của BR-001
+      await expect(
+        service.getHandoverDetail(validId, 'BR-002', 'branch'),
+      ).rejects.toThrow(RpcException);
+
+      await expect(
+        service.getHandoverDetail(validId, 'BR-002', 'pharmacist'),
+      ).rejects.toThrow(RpcException);
+    });
+  });
 });
+
