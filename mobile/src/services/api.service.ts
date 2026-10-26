@@ -1269,15 +1269,25 @@ export class ApiService {
   // --- WISHLIST (Danh sách sản phẩm yêu thích) ---
   public static async getWishlist(): Promise<{ items: any[]; totalCount: number }> {
     try {
-      const token = this.currentToken;
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
       if (!token) {
         const guestStr = await AsyncStorage.getItem('@guest_wishlist');
         const items = guestStr ? JSON.parse(guestStr) : [];
         return { items, totalCount: items.length };
       }
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
       const res = await fetch(`${this.baseUrl}/api/users/wishlist`, {
-        headers: this.authHeaders,
+        headers,
       });
       if (res.ok) {
         const json = await res.json();
@@ -1297,7 +1307,11 @@ export class ApiService {
     if (!medId) return { success: false, message: 'Thiếu ID sản phẩm' };
 
     try {
-      const token = this.currentToken;
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
       if (!token) {
         const guestStr = await AsyncStorage.getItem('@guest_wishlist');
         const items: any[] = guestStr ? JSON.parse(guestStr) : [];
@@ -1320,9 +1334,15 @@ export class ApiService {
         return { success: true, message: 'Đã thêm vào danh sách yêu thích' };
       }
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
       const res = await fetch(`${this.baseUrl}/api/users/wishlist`, {
         method: 'POST',
-        headers: this.authHeaders,
+        headers,
         body: JSON.stringify({ medicineId: medId }),
       });
       const json = await res.json().catch(() => ({}));
@@ -1338,7 +1358,11 @@ export class ApiService {
 
   public static async removeFromWishlist(medicineId: string): Promise<{ success: boolean; message?: string }> {
     try {
-      const token = this.currentToken;
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
       if (!token) {
         const guestStr = await AsyncStorage.getItem('@guest_wishlist');
         let items: any[] = guestStr ? JSON.parse(guestStr) : [];
@@ -1347,9 +1371,15 @@ export class ApiService {
         return { success: true, message: 'Đã xóa khỏi danh sách yêu thích' };
       }
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
       const res = await fetch(`${this.baseUrl}/api/users/wishlist/${encodeURIComponent(medicineId)}`, {
         method: 'DELETE',
-        headers: this.authHeaders,
+        headers,
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -1365,11 +1395,20 @@ export class ApiService {
   public static async clearWishlist(): Promise<{ success: boolean }> {
     try {
       await AsyncStorage.removeItem('@guest_wishlist');
-      const token = this.currentToken;
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
       if (token) {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        };
         await fetch(`${this.baseUrl}/api/users/wishlist/clear`, {
           method: 'POST',
-          headers: this.authHeaders,
+          headers,
         });
       }
       return { success: true };

@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
@@ -285,6 +286,20 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Tự động làm tươi Wishlist mỗi khi màn hình CustomerScreen được focus lại
+  useFocusEffect(
+    useCallback(() => {
+      ApiService.getWishlist()
+        .then((res) => {
+          if (res) {
+            setWishlistItems(res.items || []);
+            setWishlistTotalCount(res.totalCount || (res.items || []).length);
+          }
+        })
+        .catch(() => {});
+    }, [])
+  );
 
   // ─── 5 Recent Searches & Guest Cart Persistence ────────────────────────────
   const RECENT_SEARCHES_KEY = '@abc_recent_searches_v1';

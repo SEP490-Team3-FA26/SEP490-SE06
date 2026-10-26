@@ -41,7 +41,10 @@ export const WishlistAPI = {
    * Tạo tiêu đề HTTP Headers có chứa Bearer Token
    */
   async getAuthHeaders(): Promise<Record<string, string>> {
-    const token = await AsyncStorage.getItem('auth_token');
+    let token = await AsyncStorage.getItem('auth_token');
+    if (!token && typeof (globalThis as any).ApiService?.getToken === 'function') {
+      token = (globalThis as any).ApiService.getToken();
+    }
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -56,7 +59,10 @@ export const WishlistAPI = {
    * Lấy danh sách sản phẩm yêu thích hiện tại
    */
   async getWishlist(): Promise<WishlistApiResponse> {
-    const token = await AsyncStorage.getItem('auth_token');
+    let token = await AsyncStorage.getItem('auth_token');
+    if (!token && typeof (globalThis as any).ApiService?.getToken === 'function') {
+      token = (globalThis as any).ApiService.getToken();
+    }
 
     // Nếu là khách vãng lai, đọc từ AsyncStorage
     if (!token) {

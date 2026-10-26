@@ -11,6 +11,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { HeaderBar } from '../../components/ui/HeaderBar';
@@ -51,6 +52,13 @@ export const CustomerWishlistScreen: React.FC<{ navigation: any; route?: any }> 
   useEffect(() => {
     loadWishlist();
   }, [loadWishlist]);
+
+  // Tự động làm tươi dữ liệu khi chuyển vào màn hình
+  useFocusEffect(
+    useCallback(() => {
+      loadWishlist(true);
+    }, [loadWishlist])
+  );
 
   // Xóa một sản phẩm khỏi danh sách yêu thích
   const handleRemoveItem = async (medicineId: string, name: string) => {
