@@ -31,6 +31,9 @@ export class ShiftHandoverService {
    * Lấy thông số ca trực và danh sách thuốc GPP nhạy cảm phục vụ lập biên bản bàn giao
    */
   async getShiftLiveStats(payload: { employeeId: string; branchId?: string; shiftId?: string }) {
+    if (!payload.employeeId || !Types.ObjectId.isValid(payload.employeeId)) {
+      throw new RpcException('Mã nhân viên không hợp lệ');
+    }
     const todayStr = getVietnamTodayString();
     const user = await this.userModel.findById(payload.employeeId).lean().exec();
     if (!user) throw new RpcException('Không tìm thấy thông tin nhân viên');
@@ -58,9 +61,9 @@ export class ShiftHandoverService {
       }
     }
 
-    // 3. Tiền mặt đầu ca (Opening Float): mặc định 1.000.000₫ hoặc lấy từ retainedFloat ca trước
+    // 3. Tiền mặt đầu ca (Opening Float): mặc định 1.000.000₫ hoặc lấy từ retainedFloat ca trước gần nhất
     const lastHandover = await this.handoverModel
-      .findOne({ branchId, handoverDate: todayStr, status: ShiftHandoverStatus.ACCEPTED })
+      .findOne({ branchId, status: ShiftHandoverStatus.ACCEPTED })
       .sort({ createdAt: -1 })
       .lean()
       .exec();
@@ -79,15 +82,19 @@ export class ShiftHandoverService {
       .lean()
       .exec();
 
-    const controlledDrugsChecklist = controlledMeds.map((m: any) => ({
-      medicineId: m._id.toString(),
-      medicineName: m.name,
-      unit: m.unit || 'Hộp',
-      systemStock: m.totalQuantity || m.stockQuantity || 25,
-      actualCount: m.totalQuantity || m.stockQuantity || 25,
-      isMatched: true,
-      note: 'Tủ thuốc GPP niêm phong nguyên vẹn',
-    }));
+    const controlledDrugsChecklist = controlledMeds.map((m: any) => {
+      // Dùng ?? để tránh lỗi falsy khi tồn kho bằng 0
+      const stock = m.totalQuantity ?? m.stockQuantity ?? 0;
+      return {
+        medicineId: m._id.toString(),
+        medicineName: m.name,
+        unit: m.unit || 'Hộp',
+        systemStock: stock,
+        actualCount: stock,
+        isMatched: true,
+        note: 'Tủ thuốc GPP niêm phong nguyên vẹn',
+      };
+    });
 
     // Kiểm tra xem đã có bản ghi bàn giao nào được nộp hôm nay chưa
     const existingHandover = await this.handoverModel
@@ -140,6 +147,9 @@ export class ShiftHandoverService {
     incomingPharmacistId?: string;
     incomingPharmacistName?: string;
   }) {
+    if (!dto.employeeId || !Types.ObjectId.isValid(dto.employeeId)) {
+      throw new RpcException('Mã nhân viên không hợp lệ');
+    }
     const todayStr = getVietnamTodayString();
     const user = await this.userModel.findById(dto.employeeId).lean().exec();
     if (!user) throw new RpcException('Không tìm thấy thông tin Dược sĩ bàn giao');
@@ -163,7 +173,7 @@ export class ShiftHandoverService {
     let openingFloat = Number(dto.openingFloat);
     if (isNaN(openingFloat) || openingFloat < 0) {
       const lastHandover = await this.handoverModel
-        .findOne({ branchId, handoverDate: todayStr, status: ShiftHandoverStatus.ACCEPTED })
+        .findOne({ branchId, status: ShiftHandoverStatus.ACCEPTED })
         .sort({ createdAt: -1 })
         .lean()
         .exec();
@@ -185,8 +195,13 @@ export class ShiftHandoverService {
       }
     }
 
-    const retainedFloat = Number(dto.retainedFloatForNextShift) || 1000000;
-    const safeDrop = Number(dto.safeDropAmount) || Math.max(0, actualCashAmount - retainedFloat);
+    // Tránh lỗi falsy khi người dùng nhập số 0 cho tiền lẻ hoặc nộp két
+    const retainedFloat = (dto.retainedFloatForNextShift !== undefined && !isNaN(Number(dto.retainedFloatForNextShift)))
+      ? Number(dto.retainedFloatForNextShift)
+      : 1000000;
+    const safeDrop = (dto.safeDropAmount !== undefined && !isNaN(Number(dto.safeDropAmount)))
+      ? Number(dto.safeDropAmount)
+      : Math.max(0, actualCashAmount - retainedFloat);
 
     // 4. Tạo hoặc cập nhật bản ghi ShiftHandover
     let handover = await this.handoverModel

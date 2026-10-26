@@ -269,4 +269,55 @@ describe('ShiftHandoverService (Unit & Security Tests)', () => {
       expect(mockAttendanceModel.findByIdAndUpdate).toHaveBeenCalledWith(mockAttendanceId, { isHandoverCompleted: true });
     });
   });
+
+  describe('T-SHO-07, T-SHO-08: Falsy & Float Inheritance Edge Cases', () => {
+    it('T-SHO-07: should correctly keep stock as 0 when totalQuantity is 0 (no falsy bug)', async () => {
+      const validEmpId = new Types.ObjectId().toString();
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: validEmpId, fullName: 'Dược Sĩ Test', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({ lean: () => ({ exec: jest.fn().mockResolvedValue(null) }) }),
+      });
+      mockHandoverModel.findOne.mockReturnValue({
+        sort: () => ({ lean: () => ({ exec: jest.fn().mockResolvedValue(null) }) }),
+      });
+      mockMedicineModel.find.mockReturnValue({
+        limit: () => ({
+          lean: () => ({
+            exec: jest.fn().mockResolvedValue([
+              { _id: new Types.ObjectId(), name: 'Morphin 10mg', unit: 'Ống', totalQuantity: 0, stockQuantity: 0 },
+            ]),
+          }),
+        }),
+      });
+
+      const stats = await service.getShiftLiveStats({ employeeId: validEmpId, branchId: 'BR-001' });
+      expect(stats.controlledDrugsChecklist[0].systemStock).toBe(0);
+      expect(stats.controlledDrugsChecklist[0].actualCount).toBe(0);
+    });
+
+    it('T-SHO-08: should inherit float from latest accepted handover in branch', async () => {
+      const validEmpId = new Types.ObjectId().toString();
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: validEmpId, fullName: 'Dược Sĩ Test', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({ lean: () => ({ exec: jest.fn().mockResolvedValue(null) }) }),
+      });
+      mockHandoverModel.findOne.mockReturnValue({
+        sort: () => ({
+          lean: () => ({
+            exec: jest.fn().mockResolvedValue({ retainedFloatForNextShift: 1750000, status: ShiftHandoverStatus.ACCEPTED }),
+          }),
+        }),
+      });
+      mockMedicineModel.find.mockReturnValue({
+        limit: () => ({ lean: () => ({ exec: jest.fn().mockResolvedValue([]) }) }),
+      });
+
+      const stats = await service.getShiftLiveStats({ employeeId: validEmpId, branchId: 'BR-001' });
+      expect(stats.openingFloat).toBe(1750000);
+    });
+  });
 });

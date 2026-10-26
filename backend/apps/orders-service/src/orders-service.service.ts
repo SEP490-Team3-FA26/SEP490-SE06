@@ -2164,28 +2164,53 @@ export class OrdersServiceService implements OnModuleInit {
   /**
    * Tổng hợp doanh số đơn hàng theo ca trực phục vụ Bàn Giao Ca (Shift Handover)
    */
+  /**
+   * Tổng hợp doanh số đơn hàng theo ca trực phục vụ Bàn Giao Ca (Shift Handover)
+   */
   async getShiftSalesAggregation(payload: {
     branchId: string;
     shiftId?: string;
     pharmacistId?: string;
+    pharmacistName?: string;
     date?: string;
     startTime?: string;
     endTime?: string;
   }) {
     try {
-      const { branchId, pharmacistId, date, startTime, endTime } = payload;
+      const { branchId, pharmacistId, pharmacistName, date, startTime, endTime } = payload;
       const targetDate = date ? new Date(date) : new Date();
       let startRange: Date;
       let endRange: Date;
 
-      if (startTime && endTime) {
-        const [sH, sM] = startTime.split(':').map(Number);
-        const [eH, eM] = endTime.split(':').map(Number);
-        startRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), sH || 0, sM || 0, 0);
-        endRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), eH || 23, eM || 59, 59, 999);
+      // Xử lý linh hoạt startTime: hỗ trợ cả ISO timestamp (checkInTime) và giờ:phút (HH:mm)
+      if (startTime) {
+        if (typeof startTime === 'string' && (startTime.includes('T') || startTime.includes('-'))) {
+          const parsed = new Date(startTime);
+          startRange = isNaN(parsed.getTime()) ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0) : parsed;
+        } else if (typeof startTime === 'string' && startTime.includes(':')) {
+          const [sH, sM] = startTime.split(':').map(Number);
+          startRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), sH || 0, sM || 0, 0);
+        } else {
+          startRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
+        }
       } else {
         startRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
-        endRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+      }
+
+      // Xử lý endTime: nếu không truyền và là ngày hiện tại thì lấy mốc hiện tại, ngày quá khứ lấy cuối ngày
+      if (endTime) {
+        if (typeof endTime === 'string' && (endTime.includes('T') || endTime.includes('-'))) {
+          const parsed = new Date(endTime);
+          endRange = isNaN(parsed.getTime()) ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999) : parsed;
+        } else if (typeof endTime === 'string' && endTime.includes(':')) {
+          const [eH, eM] = endTime.split(':').map(Number);
+          endRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), eH || 23, eM || 59, 59, 999);
+        } else {
+          endRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+        }
+      } else {
+        const isToday = targetDate.toDateString() === new Date().toDateString();
+        endRange = isToday ? new Date() : new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
       }
 
       const query: any = {
@@ -2195,8 +2220,22 @@ export class OrdersServiceService implements OnModuleInit {
       if (branchId && branchId !== 'all') {
         query.branchId = branchId;
       }
+
+      // Map khớp theo cả pharmacistId (ObjectId) và pharmacistName (họ tên lưu ở order.soldBy)
+      const orConditions: any[] = [];
       if (pharmacistId) {
-        query.$or = [{ soldBy: pharmacistId }, { pharmacistApprovedBy: pharmacistId }, { userId: pharmacistId }];
+        orConditions.push({ soldBy: pharmacistId }, { pharmacistApprovedBy: pharmacistId }, { userId: pharmacistId });
+      }
+      if (pharmacistName && pharmacistName.trim()) {
+        const trimmedName = pharmacistName.trim();
+        orConditions.push(
+          { soldBy: trimmedName },
+          { pharmacistApprovedBy: trimmedName },
+          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') }
+        );
+      }
+      if (orConditions.length > 0) {
+        query.$or = orConditions;
       }
 
       const orders = await this.orderModel.find(query).lean().exec();
@@ -2263,6 +2302,9 @@ export class OrdersServiceService implements OnModuleInit {
     startDate?: string;
     endDate?: string;
     pharmacistId?: string;
+    pharmacistName?: string;
+    quota?: number;
+    assignedQuota?: number;
   }) {
     try {
       const now = new Date();
@@ -2288,8 +2330,26 @@ export class OrdersServiceService implements OnModuleInit {
       if (payload.branchId && payload.branchId !== 'all') {
         query.branchId = payload.branchId;
       }
+
+      // Khớp theo cả pharmacistId và pharmacistName để dược sĩ xem KPI chính mình không bị rỗng
+      const orConditions: any[] = [];
       if (payload.pharmacistId) {
-        query.$or = [{ soldBy: payload.pharmacistId }, { pharmacistApprovedBy: payload.pharmacistId }, { userId: payload.pharmacistId }];
+        orConditions.push(
+          { soldBy: payload.pharmacistId },
+          { pharmacistApprovedBy: payload.pharmacistId },
+          { userId: payload.pharmacistId }
+        );
+      }
+      if (payload.pharmacistName && payload.pharmacistName.trim()) {
+        const trimmedName = payload.pharmacistName.trim();
+        orConditions.push(
+          { soldBy: trimmedName },
+          { pharmacistApprovedBy: trimmedName },
+          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') }
+        );
+      }
+      if (orConditions.length > 0) {
+        query.$or = orConditions;
       }
 
       const orders = await this.orderModel.find(query).lean().exec();
@@ -2357,10 +2417,11 @@ export class OrdersServiceService implements OnModuleInit {
         if (hasOtc) pharmacistMap[pId].otcCount += 1;
       }
 
+      const assignedQuota = Number(payload.assignedQuota) || Number(payload.quota) || 50000000;
+
       const kpiList = Object.values(pharmacistMap).map((item) => {
         const aov = item.orderCount > 0 ? Math.round(item.totalRevenue / item.orderCount) : 0;
         const otcRate = item.orderCount > 0 ? Number(((item.otcCount / item.orderCount) * 100).toFixed(1)) : 0;
-        const assignedQuota = 50000000;
         const completionRate = Number(((item.totalRevenue / assignedQuota) * 100).toFixed(1));
 
         return {

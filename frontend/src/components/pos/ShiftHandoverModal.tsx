@@ -361,6 +361,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
         employeeName: liveStats?.employeeName,
         branchId: liveStats?.branchId,
         handoverDate: liveStats?.handoverDate,
+        checkInTime: liveStats?.checkInTime,
         expectedCashAmount,
         cashDiscrepancy,
       };

@@ -237,7 +237,7 @@ export const hrService = {
   },
 
   // --- PHARMACIST SALES KPI REPORT (UC-111 / SCRUM-106) ---
-  getPharmacistKpiReport: async (params?: { month?: number; year?: number; startDate?: string; endDate?: string; pharmacistId?: string }) => {
+  getPharmacistKpiReport: async (params?: { month?: number; year?: number; startDate?: string; endDate?: string; pharmacistId?: string; quota?: number }) => {
     const response = await api.get(API_ENDPOINTS.HR.PHARMACIST_KPI_REPORT, { params });
     return response.data;
   },

@@ -588,7 +588,9 @@ export class HrController implements OnModuleInit {
         branchId,
         shiftId: shiftStats?.shiftId || shiftId,
         pharmacistId: req.user.sub,
+        pharmacistName: req.user.fullName,
         date: shiftStats?.handoverDate,
+        startTime: shiftStats?.checkInTime || undefined,
       });
     } catch (err) {
       salesStats = {
@@ -631,7 +633,11 @@ export class HrController implements OnModuleInit {
     try {
       const salesStats: any = await sendKafkaMessage(this.ordersClient, 'orders.shift.aggregate_sales', {
         branchId,
+        shiftId: body.shiftId,
         pharmacistId: req.user.sub,
+        pharmacistName: req.user.fullName,
+        date: body.handoverDate,
+        startTime: body.checkInTime || undefined,
       });
       if (salesStats) {
         verifiedCashSales = Number(salesStats.cashSales) || 0;
@@ -709,6 +715,7 @@ export class HrController implements OnModuleInit {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('pharmacistId') queryPharmacistId?: string,
+    @Query('quota') quota?: number,
   ) {
     // Bảo vệ IDOR & Thông tin nhạy cảm:
     // Dược sĩ chỉ xem duy nhất báo cáo KPI của chính mình
@@ -730,6 +737,8 @@ export class HrController implements OnModuleInit {
       startDate,
       endDate,
       pharmacistId,
+      pharmacistName: req.user.role === 'pharmacist' ? req.user.fullName : undefined,
+      quota: quota ? Number(quota) : undefined,
     });
 
     // Lấy thông tin chênh lệch két từ lịch sử ShiftHandover để bổ sung chỉ số trung thực tiền mặt
