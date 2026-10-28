@@ -583,6 +583,7 @@ export class HrController implements OnModuleInit {
 
     // 2. Lấy tổng hợp doanh số thực tế từ orders-service
     let salesStats: any = null;
+    let salesSyncError = false;
     try {
       salesStats = await sendKafkaMessage(this.ordersClient, 'orders.shift.aggregate_sales', {
         branchId,
@@ -593,6 +594,8 @@ export class HrController implements OnModuleInit {
         startTime: shiftStats?.checkInTime || undefined,
       });
     } catch (err) {
+      console.error('[HrController] Lỗi đồng bộ doanh số từ orders-service:', err?.message || err);
+      salesSyncError = true;
       salesStats = {
         ordersCount: 0,
         totalRevenue: 0,
@@ -611,6 +614,7 @@ export class HrController implements OnModuleInit {
     return {
       ...shiftStats,
       sales: salesStats,
+      salesSyncError,
       openingFloat,
       systemCashSales: cashSales,
       systemDigitalSales: salesStats?.digitalSales || 0,
@@ -645,6 +649,7 @@ export class HrController implements OnModuleInit {
         verifiedOrdersCount = Number(salesStats.ordersCount) || 0;
       }
     } catch (err) {
+      console.error('[HrController] Lỗi đồng bộ doanh số khi submit handover từ orders-service:', err?.message || err);
       // Fallback nếu microservice có trục trặc tạm thời
       verifiedCashSales = Number(body.systemCashSales) || 0;
       verifiedDigitalSales = Number(body.systemDigitalSales) || 0;
@@ -755,7 +760,14 @@ export class HrController implements OnModuleInit {
       const handovers = handoversRes?.handovers || [];
       if (Array.isArray(report?.kpiList)) {
         report.kpiList = report.kpiList.map((item: any) => {
-          const userHandovers = handovers.filter((h: any) => h.outgoingPharmacistId?.toString() === item.pharmacistId);
+          const userHandovers = handovers.filter((h: any) => {
+            const matchId = h.outgoingPharmacistId?.toString() === item.pharmacistId;
+            const matchName =
+              h.outgoingPharmacistName &&
+              item.pharmacistName &&
+              h.outgoingPharmacistName.trim().toLowerCase() === item.pharmacistName.trim().toLowerCase();
+            return matchId || matchName;
+          });
           const totalShifts = userHandovers.length;
           const balancedShifts = userHandovers.filter((h: any) => h.cashDiscrepancy === 0).length;
           const cashDiscrepancyTotal = userHandovers.reduce((sum: number, h: any) => sum + Math.abs(h.cashDiscrepancy || 0), 0);

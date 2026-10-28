@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import React from 'react';
 import {
   X,
   Banknote,
   ShieldCheck,
-  CheckCircle2,
   AlertTriangle,
   Coins,
   ClipboardList,
@@ -16,14 +15,13 @@ import {
   ChevronUp,
   Receipt,
   CreditCard,
-  ArrowDownLeft,
   ArrowUpRight,
   Sparkles,
   UserCheck,
   Store,
-  FileText,
 } from 'lucide-react';
-import { hrService } from '../../services/hr/hr.service';
+import { useShiftHandover } from '../../hooks/useShiftHandover';
+import { DenominationTable } from './DenominationTable';
 
 interface ShiftHandoverModalProps {
   isOpen: boolean;
@@ -32,370 +30,67 @@ interface ShiftHandoverModalProps {
   showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
-const DENOMINATIONS = [
-  { key: 'count500k', label: '500.000₫', value: 500000 },
-  { key: 'count200k', label: '200.000₫', value: 200000 },
-  { key: 'count100k', label: '100.000₫', value: 100000 },
-  { key: 'count50k', label: '50.000₫', value: 50000 },
-  { key: 'count20k', label: '20.000₫', value: 20000 },
-  { key: 'count10k', label: '10.000₫', value: 10000 },
-  { key: 'count5k', label: '5.000₫', value: 5000 },
-  { key: 'count2k', label: '2.000₫', value: 2000 },
-  { key: 'count1k', label: '1.000₫', value: 1000 },
-];
-
 export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: ShiftHandoverModalProps) {
-  const [loading, setLoading] = useState<boolean>(true);
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  const [liveStats, setLiveStats] = useState<any>(null);
-
-  // Cash counting states
-  const [actualCashAmount, setActualCashAmount] = useState<number>(0);
-  const [actualCashInput, setActualCashInput] = useState<string>('0');
-  const [showDenomAccordion, setShowDenomAccordion] = useState<boolean>(false);
-  const [counts, setCounts] = useState<Record<string, number>>({
-    count500k: 0,
-    count200k: 0,
-    count100k: 0,
-    count50k: 0,
-    count20k: 0,
-    count10k: 0,
-    count5k: 0,
-    count2k: 0,
-    count1k: 0,
-  });
-
-  // Operating cash flow states
-  const [pettyExpenses, setPettyExpenses] = useState<number>(0);
-  const [retainedFloat, setRetainedFloat] = useState<number>(1000000);
-  const [discrepancyReason, setDiscrepancyReason] = useState<string>('');
-
-  // Accordion & secondary states
-  const [showGppAccordion, setShowGppAccordion] = useState<boolean>(false);
-  const [showNotesAccordion, setShowNotesAccordion] = useState<boolean>(false);
-  const [controlledDrugs, setControlledDrugs] = useState<any[]>([]);
-  const [pendingOrdersNote, setPendingOrdersNote] = useState<string>('');
-  const [generalShiftNotes, setGeneralShiftNotes] = useState<string>('');
-  const [incomingPharmacistName, setIncomingPharmacistName] = useState<string>('');
-
-  // Fetch live stats from API
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const data = await hrService.getShiftHandoverLiveStats();
-      setLiveStats(data);
-
-      const openFloat = Number(data?.openingFloat) || 1000000;
-      const cashSales = Number(data?.systemCashSales) || 0;
-      const expectedTotal = openFloat + cashSales;
-
-      // Suggest expected cash by default
-      setActualCashAmount(expectedTotal);
-      setActualCashInput(expectedTotal.toLocaleString('vi-VN'));
-      setRetainedFloat(Math.min(openFloat, expectedTotal));
-
-      if (Array.isArray(data?.controlledDrugsChecklist)) {
-        setControlledDrugs(data.controlledDrugsChecklist);
-      }
-    } catch (err: any) {
-      if (showToast) showToast(err?.response?.data?.message || 'Không thể lấy dữ liệu ca trực', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen]);
-
-  // Financial calculations
-  const openingFloat = Number(liveStats?.openingFloat) || 1000000;
-  const systemCashSales = Number(liveStats?.systemCashSales) || 0;
-  const systemDigitalSales = Number(liveStats?.systemDigitalSales) || 0;
-  const systemOrderCount = Number(liveStats?.systemOrderCount) || 0;
-
-  const expectedCashAmount = Math.max(0, openingFloat + systemCashSales - pettyExpenses);
-  const cashDiscrepancy = actualCashAmount - expectedCashAmount;
-  const isBalanced = cashDiscrepancy === 0;
-
-  // Safe drop calculation
-  const safeDropAmount = Math.max(0, actualCashAmount - retainedFloat);
-
-  // Handle direct cash input change
-  const handleActualCashChange = (valStr: string) => {
-    const rawNumber = parseInt(valStr.replace(/\D/g, ''), 10) || 0;
-    setActualCashAmount(rawNumber);
-    setActualCashInput(rawNumber > 0 ? rawNumber.toLocaleString('vi-VN') : '0');
-
-    // Adjust retained float if it exceeds total actual cash
-    if (retainedFloat > rawNumber) {
-      setRetainedFloat(rawNumber);
-    }
-  };
-
-  // Sync cash to expected amount
-  const handleSyncToExpected = () => {
-    setActualCashAmount(expectedCashAmount);
-    setActualCashInput(expectedCashAmount.toLocaleString('vi-VN'));
-    setRetainedFloat(Math.min(openingFloat, expectedCashAmount));
-  };
-
-  // Handle denomination changes
-  const handleCountChange = (key: string, val: string) => {
-    const num = Math.max(0, parseInt(val, 10) || 0);
-    const updated = { ...counts, [key]: num };
-    setCounts(updated);
-
-    const totalFromDenoms = DENOMINATIONS.reduce((sum, d) => sum + (updated[d.key] || 0) * d.value, 0);
-    setActualCashAmount(totalFromDenoms);
-    setActualCashInput(totalFromDenoms.toLocaleString('vi-VN'));
-
-    if (retainedFloat > totalFromDenoms) {
-      setRetainedFloat(totalFromDenoms);
-    }
-  };
-
-  const handleDrugToggle = (index: number) => {
-    setControlledDrugs((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], isMatched: !next[index].isMatched };
-      return next;
-    });
-  };
-
-  // Print Handover Receipt (K80 / A5 standard)
-  const triggerPrintReceipt = (payload: any) => {
-    const printWindow = window.open('', '_blank', 'width=420,height=650');
-    if (!printWindow) {
-      window.print();
-      return;
-    }
-
-    const printHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Biên bản bàn giao ca - ABC Pharmacy</title>
-          <style>
-            @page { size: 80mm auto; margin: 4mm; }
-            body {
-              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-              font-size: 11px;
-              line-height: 1.35;
-              color: #111;
-              padding: 6px;
-            }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .font-bold { font-weight: bold; }
-            .header { margin-bottom: 8px; border-bottom: 1px dashed #444; padding-bottom: 6px; }
-            .header h2 { font-size: 14px; margin: 0 0 2px 0; text-transform: uppercase; }
-            .header p { margin: 2px 0; font-size: 10px; color: #444; }
-            .info-row { display: flex; justify-content: space-between; margin: 3px 0; }
-            .divider { border-top: 1px dashed #666; margin: 6px 0; }
-            .highlight-box {
-              background: #f4f4f4;
-              padding: 6px;
-              border-radius: 4px;
-              margin: 6px 0;
-            }
-            .signatures {
-              margin-top: 18px;
-              display: flex;
-              justify-content: space-between;
-              text-align: center;
-              font-size: 10px;
-            }
-            .sig-space { height: 45px; }
-          </style>
-        </head>
-        <body>
-          <div class="text-center header">
-            <h2>ABC PHARMACY</h2>
-            <p>HỆ THỐNG NHÀ THUỐC ĐẠT CHUẨN GPP</p>
-            <p>Chi nhánh: ${payload.branchId || 'Hệ thống'} | Ngày: ${payload.handoverDate || new Date().toLocaleDateString('vi-VN')}</p>
-            <h3 style="margin: 6px 0 2px 0; font-size: 13px;">BIÊN BẢN BÀN GIAO CA & CHỐT KÉT</h3>
-            <p>Ca: ${payload.shiftName} (${payload.shiftId})</p>
-          </div>
-
-          <div>
-            <div class="info-row">
-              <span>Dược sĩ giao ca:</span>
-              <span class="font-bold">${payload.employeeName || 'Dược sĩ'}</span>
-            </div>
-            <div class="info-row">
-              <span>Dược sĩ nhận ca:</span>
-              <span class="font-bold">${payload.incomingPharmacistName || 'Chưa bàn giao'}</span>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div>
-            <div class="info-row">
-              <span>1. Tiền mặt đầu ca (Float):</span>
-              <span class="font-bold">${payload.openingFloat.toLocaleString('vi-VN')}₫</span>
-            </div>
-            <div class="info-row">
-              <span>2. Tiền mặt bán trong ca (${payload.systemOrderCount} đơn):</span>
-              <span class="font-bold">${payload.systemCashSales.toLocaleString('vi-VN')}₫</span>
-            </div>
-            <div class="info-row">
-              <span>3. Doanh số Chuyển khoản / QR:</span>
-              <span>${payload.systemDigitalSales.toLocaleString('vi-VN')}₫</span>
-            </div>
-            <div class="info-row">
-              <span>4. Phiếu chi tiền mặt ca trực:</span>
-              <span>${payload.pettyExpenses.toLocaleString('vi-VN')}₫</span>
-            </div>
-            <div class="info-row font-bold" style="color: #047857; margin-top: 4px;">
-              <span>=> Tiền mặt sổ sách tính toán:</span>
-              <span>${payload.expectedCashAmount.toLocaleString('vi-VN')}₫</span>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="highlight-box">
-            <div class="info-row font-bold" style="font-size: 12px;">
-              <span>TIỀN MẶT KIỂM ĐẾM THỰC TẾ:</span>
-              <span>${payload.actualCashAmount.toLocaleString('vi-VN')}₫</span>
-            </div>
-            <div class="info-row font-bold" style="color: ${payload.cashDiscrepancy === 0 ? '#047857' : '#b91c1c'}">
-              <span>Chênh lệch sổ sách:</span>
-              <span>${payload.cashDiscrepancy > 0 ? '+' : ''}${payload.cashDiscrepancy.toLocaleString('vi-VN')}₫</span>
-            </div>
-            ${
-              payload.discrepancyReason
-                ? `<div style="font-size: 9px; margin-top: 4px; color: #b91c1c;">Lý do lệch: ${payload.discrepancyReason}</div>`
-                : ''
-            }
-          </div>
-
-          <div class="divider"></div>
-
-          <div>
-            <div class="info-row">
-              <span>- Tiền lẻ để lại két cho ca sau:</span>
-              <span class="font-bold">${payload.retainedFloatForNextShift.toLocaleString('vi-VN')}₫</span>
-            </div>
-            <div class="info-row font-bold" style="color: #1e3a8a;">
-              <span>- Niêm phong nộp két sắt (Safe Drop):</span>
-              <span>${payload.safeDropAmount.toLocaleString('vi-VN')}₫</span>
-            </div>
-          </div>
-
-          <div class="signatures">
-            <div>
-              <div class="font-bold">Dược sĩ giao ca</div>
-              <div class="sig-space"></div>
-              <div>${payload.employeeName || 'Ký tên'}</div>
-            </div>
-            <div>
-              <div class="font-bold">Dược sĩ nhận ca / QL</div>
-              <div class="sig-space"></div>
-              <div>${payload.incomingPharmacistName || 'Ký tên'}</div>
-            </div>
-          </div>
-
-          <div class="text-center" style="margin-top: 14px; font-size: 9px; color: #666;">
-            Hệ thống quản lý nhà thuốc ABC Pharmacy • In lúc ${new Date().toLocaleTimeString('vi-VN')}
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.open();
-    printWindow.document.write(printHtml);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 300);
-  };
-
-  // Submit handover report
-  const handleSubmit = async (shouldPrintReceipt: boolean = false) => {
-    if (cashDiscrepancy < 0 && (!discrepancyReason || discrepancyReason.trim().length < 10)) {
-      if (showToast) {
-        showToast(
-          `Két tiền đang bị thiếu hụt ${cashDiscrepancy.toLocaleString('vi-VN')}₫. Vui lòng nhập lý do giải trình cụ thể (tối thiểu 10 ký tự)!`,
-          'warning'
-        );
-      }
-      return;
-    }
-
-    if (retainedFloat > actualCashAmount) {
-      if (showToast) {
-        showToast(
-          `Tiền lẻ để lại ca sau (${retainedFloat.toLocaleString('vi-VN')}₫) không thể vượt quá tổng tiền thực tế có trong két (${actualCashAmount.toLocaleString('vi-VN')}₫)!`,
-          'error'
-        );
-      }
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const payload = {
-        shiftId: liveStats?.shiftId || 'CA_HIEN_TAI',
-        shiftName: liveStats?.shiftName || 'Ca làm việc',
-        openingFloat,
-        systemCashSales,
-        systemDigitalSales,
-        systemOrderCount,
-        pettyExpenses,
-        actualCashAmount,
-        cashDenominations: counts,
-        retainedFloatForNextShift: retainedFloat,
-        safeDropAmount,
-        discrepancyReason: discrepancyReason.trim(),
-        controlledDrugsHandover: controlledDrugs,
-        pendingOrdersNote: pendingOrdersNote.trim(),
-        generalShiftNotes: generalShiftNotes.trim(),
-        incomingPharmacistName: incomingPharmacistName.trim() || undefined,
-        employeeName: liveStats?.employeeName,
-        branchId: liveStats?.branchId,
-        handoverDate: liveStats?.handoverDate,
-        checkInTime: liveStats?.checkInTime,
-        expectedCashAmount,
-        cashDiscrepancy,
-      };
-
-      const res = await hrService.submitShiftHandover(payload);
-      if (showToast) {
-        showToast(res?.message || 'Đóng ca làm việc và chốt két thành công!', 'success');
-      }
-
-      if (shouldPrintReceipt) {
-        triggerPrintReceipt(payload);
-      }
-
-      if (onSuccess) onSuccess();
-      onClose();
-    } catch (err: any) {
-      if (showToast) {
-        showToast(err?.response?.data?.message || err?.message || 'Lỗi khi nộp biên bản bàn giao ca', 'error');
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const {
+    loading,
+    submitting,
+    liveStats,
+    salesSyncError,
+    openingFloat,
+    systemCashSales,
+    systemDigitalSales,
+    systemOrderCount,
+    expectedCashAmount,
+    actualCashAmount,
+    actualCashInput,
+    cashDiscrepancy,
+    isBalanced,
+    retainedFloat,
+    setRetainedFloat,
+    safeDropAmount,
+    pettyExpenses,
+    setPettyExpenses,
+    discrepancyReason,
+    setDiscrepancyReason,
+    showDenomAccordion,
+    setShowDenomAccordion,
+    counts,
+    handleCountChange,
+    resetCounts,
+    handleActualCashChange,
+    handleSyncToExpected,
+    showGppAccordion,
+    setShowGppAccordion,
+    controlledDrugs,
+    handleDrugToggle,
+    showNotesAccordion,
+    setShowNotesAccordion,
+    pendingOrdersNote,
+    setPendingOrdersNote,
+    generalShiftNotes,
+    setGeneralShiftNotes,
+    incomingPharmacistName,
+    setIncomingPharmacistName,
+    submitHandover,
+    loadData,
+  } = useShiftHandover({ isOpen, onSuccess, showToast });
 
   if (!isOpen) return null;
 
+  const handleSubmit = async () => {
+    const success = await submitHandover();
+    if (success) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[94vh] flex flex-col overflow-hidden text-slate-800">
-        
-        {/* Header - KiotViet Style */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+        {/* Header Modal */}
+        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 flex items-center justify-center">
               <Banknote size={20} />
             </div>
             <div>
@@ -433,7 +128,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
           </button>
         </div>
 
-        {/* Modal Scrollable Body */}
+        {/* Body Modal Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {loading ? (
             <div className="py-20 text-center">
@@ -442,7 +137,20 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
             </div>
           ) : (
             <>
-              {/* SECTION 1: ĐẦU CA & DOANH SỐ TRONG CA */}
+              {/* Canh bao neu loi dong bo doanh so tu orders-service */}
+              {salesSyncError && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 flex items-center gap-2.5 text-xs font-bold animate-in fade-in">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                  <div>
+                    <p className="font-extrabold">Cảnh báo đồng bộ doanh số</p>
+                    <p className="text-[11px] font-normal text-amber-800">
+                      Không thể kết nối trực tiếp đến Orders Service. Doanh số hiển thị có thể chưa đầy đủ, vui lòng kiểm đếm tiền mặt thực tế cẩn thận trước khi nộp.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 1. Dau ca & Doanh so trong ca */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
                   <div className="flex items-center gap-2">
@@ -458,13 +166,13 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                   </div>
                 </div>
 
-                {/* Grid 4 thẻ: Bán hàng, Phiếu thu, Phiếu chi, Đổi trả */}
+                {/* 4 the tong quan */}
                 <div>
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                     2. Giao dịch phát sinh trong ca
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {/* Thẻ 1: Tiền mặt bán lẻ */}
+                    {/* The 1: Tien mat ban le */}
                     <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                       <div className="flex items-center justify-between text-slate-500 text-[11px] font-semibold">
                         <span className="flex items-center gap-1">
@@ -481,7 +189,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                       <div className="text-[10px] text-slate-400 mt-0.5">Thu trực tiếp tại quầy</div>
                     </div>
 
-                    {/* Thẻ 2: Chuyển khoản & Thẻ */}
+                    {/* The 2: Chuyen khoan */}
                     <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                       <div className="flex items-center justify-between text-slate-500 text-[11px] font-semibold">
                         <span className="flex items-center gap-1">
@@ -498,7 +206,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                       <div className="text-[10px] text-slate-400 mt-0.5">Tài khoản ngân hàng</div>
                     </div>
 
-                    {/* Thẻ 3: Phiếu chi tiền mặt */}
+                    {/* The 3: Phieu chi */}
                     <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                       <div className="flex items-center justify-between text-slate-500 text-[11px] font-semibold">
                         <span className="flex items-center gap-1">
@@ -523,7 +231,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                       <div className="text-[10px] text-slate-400 mt-0.5">Tiền vặt / Tạm ứng quầy</div>
                     </div>
 
-                    {/* Thẻ 4: Tiền mặt sổ sách tính toán */}
+                    {/* The 4: So sach ly thuyet */}
                     <div className="bg-emerald-50/80 p-2.5 rounded-lg border border-emerald-200/90">
                       <div className="flex items-center justify-between text-emerald-900 text-[11px] font-bold">
                         <span>Tiền sổ sách cần có</span>
@@ -540,7 +248,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                 </div>
               </div>
 
-              {/* SECTION 2: KIỂM KÊ THỰC TẾ (KIOTVIET CORE) */}
+              {/* 2. Kiem ke thuc te trong ket */}
               <div className="bg-white border-2 border-slate-300 rounded-xl p-4 shadow-xs space-y-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
                   <div>
@@ -574,9 +282,8 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                   </div>
                 </div>
 
-                {/* Hàng to nhập Tiền mặt thực tế & Chênh lệch */}
+                {/* O nhap tien & O hien thi lech ket */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
-                  {/* Ô nhập tiền mặt thực tế */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <label className="block text-xs font-black uppercase tracking-wide text-slate-700 mb-1">
                       Tổng tiền mặt thực tế trong két *
@@ -598,7 +305,6 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                     </p>
                   </div>
 
-                  {/* Khối hiển thị chênh lệch */}
                   <div
                     className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
                       isBalanced
@@ -651,7 +357,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                   </div>
                 </div>
 
-                {/* Bắt buộc nhập giải trình khi két bị hụt tiền (âm tiền) */}
+                {/* Bat buoc giai trinh khi am tien */}
                 {cashDiscrepancy < 0 && (
                   <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl space-y-1.5 animate-in fade-in">
                     <label className="block text-xs font-black text-rose-900 flex items-center gap-1.5">
@@ -672,7 +378,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                   </div>
                 )}
 
-                {/* Tùy chọn ghi chú khi két thừa tiền (dương tiền) */}
+                {/* Ghi chu tuy chon khi duong tien */}
                 {cashDiscrepancy > 0 && (
                   <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5 animate-in fade-in">
                     <label className="block text-xs font-bold text-amber-900 flex items-center gap-1.5">
@@ -691,52 +397,19 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                   </div>
                 )}
 
-                {/* Accordion kê chi tiết theo mệnh giá */}
+                {/* Sub-component DenominationTable */}
                 {showDenomAccordion && (
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 animate-in fade-in">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-700">Bảng kê số tờ từng mệnh giá (Tùy chọn)</span>
-                      <span className="text-[11px] text-slate-500">
-                        Tổng đếm: <strong className="text-emerald-700">{actualCashAmount.toLocaleString('vi-VN')}₫</strong>
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {DENOMINATIONS.map((denom) => {
-                        const count = counts[denom.key] || 0;
-                        const subTotal = count * denom.value;
-                        return (
-                          <div
-                            key={denom.key}
-                            className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between gap-1 shadow-2xs"
-                          >
-                            <div className="min-w-0">
-                              <span className="text-[11px] font-bold text-slate-800 block truncate">
-                                {denom.label}
-                              </span>
-                              <span className="text-[9px] font-bold text-emerald-600 block">
-                                ={subTotal.toLocaleString('vi-VN')}₫
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <input
-                                type="number"
-                                min={0}
-                                value={count === 0 ? '' : count}
-                                placeholder="0"
-                                onChange={(e) => handleCountChange(denom.key, e.target.value)}
-                                className="w-14 px-1.5 py-0.5 text-center font-bold text-xs bg-slate-50 border border-slate-300 rounded focus:bg-white focus:border-emerald-500 focus:outline-none"
-                              />
-                              <span className="text-[9px] text-slate-400 font-bold">tờ</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <DenominationTable
+                      counts={counts}
+                      onCountChange={handleCountChange}
+                      onReset={resetCounts}
+                    />
                   </div>
                 )}
               </div>
 
-              {/* SECTION 3: PHÂN BỔ TIỀN MẶT BÀN GIAO */}
+              {/* 3. Phan bo tien mat ket ca */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
                 <div className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                   <Lock size={14} className="text-indigo-600" />
@@ -744,7 +417,6 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Ô 1: Tiền lẻ để lại ca sau */}
                   <div className="bg-white p-3 rounded-xl border border-slate-200">
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-bold text-slate-700">
@@ -782,7 +454,6 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                     </div>
                   </div>
 
-                  {/* Ô 2: Tiền niêm phong nộp két sắt */}
                   <div className="bg-indigo-50/70 p-3 rounded-xl border border-indigo-200">
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-black text-indigo-950 uppercase tracking-wide">
@@ -809,9 +480,8 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                 </div>
               </div>
 
-              {/* SECTION 4: ACCORDIONS BỔ SUNG (THUỐC GPP & GHI CHÚ) */}
+              {/* 4. Accordions kiem ke thuoc GPP & Ghi chu */}
               <div className="space-y-2">
-                {/* Accordion 1: Thuốc GPP đặc biệt */}
                 <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
                   <button
                     type="button"
@@ -871,7 +541,6 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                   )}
                 </div>
 
-                {/* Accordion 2: Ghi chú & Bàn giao ca sau */}
                 <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
                   <button
                     type="button"
@@ -934,7 +603,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
           )}
         </div>
 
-        {/* Footer Actions - KiotViet Style */}
+        {/* Footer Actions */}
         <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <button
             type="button"
@@ -959,17 +628,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
             <button
               type="button"
               disabled={submitting || loading}
-              onClick={() => handleSubmit(false)}
-              className="px-4 py-2 rounded-lg text-xs font-extrabold text-slate-800 bg-slate-200 hover:bg-slate-300 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <Check size={15} />
-              <span>Đóng ca</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={submitting || loading}
-              onClick={() => handleSubmit(true)}
+              onClick={handleSubmit}
               className="px-5 py-2 rounded-lg text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
             >
               {submitting ? (
@@ -986,7 +645,6 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );

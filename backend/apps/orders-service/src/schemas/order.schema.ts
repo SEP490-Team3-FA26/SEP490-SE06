@@ -136,6 +136,9 @@ export class Order extends Document {
   @Prop({ type: String })
   soldBy?: string;
 
+  @Prop({ type: String, index: true })
+  pharmacistId?: string;
+
   // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
   @Prop({ type: Boolean, default: false, index: true })
   auditFlag?: boolean; // Cờ nghi vấn kiểm toán (Audit Flag) khi phát hiện bất thường

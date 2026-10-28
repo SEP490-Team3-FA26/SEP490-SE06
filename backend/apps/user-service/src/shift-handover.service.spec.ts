@@ -380,5 +380,107 @@ describe('ShiftHandoverService (Unit & Security Tests)', () => {
       ).rejects.toThrow(RpcException);
     });
   });
+
+  describe('T-SHO-12, T-SHO-13, T-SHO-14: Xử lý an toàn incomingPharmacistId & IDOR khi xác nhận bàn giao', () => {
+    // 1. [Normal Values]
+    it('T-SHO-12: [Normal Values] Cho phép tiếp nhận biên bản bàn giao với incomingPharmacistId hợp lệ', async () => {
+      const handoverId = new Types.ObjectId().toString();
+      const outgoingId = new Types.ObjectId().toString();
+      const incomingId = new Types.ObjectId().toString();
+
+      const mockHandover: any = {
+        _id: handoverId,
+        branchId: 'BR-001',
+        outgoingPharmacistId: new Types.ObjectId(outgoingId),
+        status: ShiftHandoverStatus.SUBMITTED,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockHandoverModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockHandover),
+      });
+      mockAttendanceModel.findByIdAndUpdate.mockResolvedValue(true);
+
+      const res = await service.acceptHandover(handoverId, {
+        userId: incomingId,
+        fullName: 'Dược sĩ nhận ca',
+        branchId: 'BR-001',
+        role: 'pharmacist',
+      });
+
+      expect(res.success).toBe(true);
+      expect(mockHandover.status).toBe(ShiftHandoverStatus.ACCEPTED);
+      expect(mockHandover.incomingPharmacistName).toBe('Dược sĩ nhận ca');
+    });
+
+    // 2. [Boundary Values]
+    it('T-SHO-13: [Boundary Values] Nộp biên bản khi incomingPharmacistId là chuỗi rỗng "" hoặc khoảng trắng không gây lỗi crash BSON', async () => {
+      const employeeId = new Types.ObjectId().toString();
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: employeeId, fullName: 'Dược Sĩ Test', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+
+      mockAttendanceModel.findOne.mockReturnValue({
+        sort: () => ({
+          exec: jest.fn().mockResolvedValue({
+            _id: new Types.ObjectId(),
+            shiftId: 'CA_SANG',
+            status: AttendanceStatus.CHECKED_IN,
+            save: jest.fn().mockResolvedValue(true),
+          }),
+        }),
+      });
+
+      function MockHandoverDoc(this: any, data: any) {
+        Object.assign(this, data);
+        this.save = jest.fn().mockResolvedValue(this);
+      }
+      (MockHandoverDoc as any).findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      (service as any).handoverModel = MockHandoverDoc as any;
+
+      const res = await service.submitHandover({
+        employeeId,
+        branchId: 'BR-001',
+        shiftId: 'CA_SANG',
+        shiftName: 'Ca sáng',
+        openingFloat: 1000000,
+        systemCashSales: 1000000,
+        systemDigitalSales: 0,
+        systemOrderCount: 5,
+        actualCashAmount: 2000000,
+        incomingPharmacistId: '', // Chuỗi rỗng boundary
+      });
+
+      expect(res.success).toBe(true);
+    });
+
+    // 3. [Abnormal Values]
+    it('T-SHO-14: [Abnormal Values] Không cho phép tự xác nhận biên bản của chính mình (Anti-Self-Approve)', async () => {
+      const handoverId = new Types.ObjectId().toString();
+      const sameUserId = new Types.ObjectId().toString();
+
+      const mockHandover: any = {
+        _id: handoverId,
+        branchId: 'BR-001',
+        outgoingPharmacistId: new Types.ObjectId(sameUserId),
+        status: ShiftHandoverStatus.SUBMITTED,
+      };
+
+      mockHandoverModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockHandover),
+      });
+
+      await expect(
+        service.acceptHandover(handoverId, {
+          userId: sameUserId,
+          fullName: 'Dược sĩ tự duyệt',
+          branchId: 'BR-001',
+          role: 'pharmacist',
+        }),
+      ).rejects.toThrow(RpcException);
+    });
+  });
 });
 

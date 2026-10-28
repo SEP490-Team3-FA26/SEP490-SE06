@@ -370,6 +370,7 @@ export class OrdersServiceService implements OnModuleInit {
       consultationId: data.consultationId || undefined,
       pharmacistApprovedBy: data.pharmacistApprovedBy || undefined,
       soldBy: cashierName,
+      pharmacistId: data.pharmacistId || (['pharmacist', 'branch'].includes(data.role) ? data.userId : undefined),
       // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA)
       auditFlag,
       flagReason,
@@ -2367,16 +2368,32 @@ export class OrdersServiceService implements OnModuleInit {
 
       for (const o of orders) {
         const rawIdentifier = (o.soldBy || o.pharmacistApprovedBy || '').trim();
-        let pId = rawIdentifier;
+        let pId = '';
         let pName = rawIdentifier;
 
-        if (!rawIdentifier || rawIdentifier.toUpperCase() === 'UNASSIGNED') {
+        const isUnassigned =
+          !rawIdentifier ||
+          rawIdentifier.toUpperCase() === 'UNASSIGNED' ||
+          rawIdentifier.toLowerCase().includes('online') ||
+          rawIdentifier.toLowerCase().includes('vãng lai');
+
+        if (isUnassigned) {
           pId = 'ONLINE_UNASSIGNED';
           pName = 'Đơn Online / Quầy Vãng Lai';
         } else {
-          // Giữ trọn vẹn tên dược sĩ (ví dụ: DS. Lê Hải Yến (Dược Sĩ CN1))
-          pName = rawIdentifier;
-          pId = rawIdentifier;
+          // Khớp dược sĩ bằng userId / soldBy dạng ObjectId chuẩn để liên kết chính xác với outgoingPharmacistId
+          if (o.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(o.pharmacistId))) {
+            pId = String(o.pharmacistId);
+          } else if (payload.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(payload.pharmacistId))) {
+            pId = String(payload.pharmacistId);
+          } else if (o.userId && /^[0-9a-fA-F]{24}$/.test(String(o.userId))) {
+            pId = String(o.userId);
+          } else if (/^[0-9a-fA-F]{24}$/.test(rawIdentifier)) {
+            pId = rawIdentifier;
+          } else {
+            pId = rawIdentifier;
+          }
+          pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
         }
 
         const bId = o.branchId || payload.branchId || 'BR-001';
@@ -2414,7 +2431,7 @@ export class OrdersServiceService implements OnModuleInit {
         if (hasOtc) pharmacistMap[pId].otcCount += 1;
       }
 
-      const assignedQuota = Number(payload.assignedQuota) || Number(payload.quota) || 50000000;
+      const assignedQuota = Math.max(1, Number(payload.assignedQuota) || Number(payload.quota) || 50000000);
 
       const kpiList = Object.values(pharmacistMap).map((item) => {
         const aov = item.orderCount > 0 ? Math.round(item.totalRevenue / item.orderCount) : 0;

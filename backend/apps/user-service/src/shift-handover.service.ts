@@ -204,11 +204,12 @@ export class ShiftHandoverService {
       : Math.max(0, actualCashAmount - retainedFloat);
 
     // 4. Tạo hoặc cập nhật bản ghi ShiftHandover
+    const effectiveShiftId = dto.shiftId || attendance?.shiftId || 'DEFAULT';
     let handover = await this.handoverModel
       .findOne({
         outgoingPharmacistId: new Types.ObjectId(dto.employeeId),
         handoverDate: todayStr,
-        shiftId: dto.shiftId,
+        shiftId: effectiveShiftId,
       })
       .exec();
 
@@ -216,15 +217,20 @@ export class ShiftHandoverService {
       throw new RpcException('Biên bản bàn giao ca này đã được bên nhận xác nhận, không thể chỉnh sửa!');
     }
 
+    const incomingPharmacistId =
+      dto.incomingPharmacistId && Types.ObjectId.isValid(dto.incomingPharmacistId)
+        ? new Types.ObjectId(dto.incomingPharmacistId)
+        : null;
+
     if (!handover) {
       handover = new this.handoverModel({
         branchId,
-        shiftId: dto.shiftId,
+        shiftId: effectiveShiftId,
         shiftName: dto.shiftName || 'Ca làm việc',
         handoverDate: todayStr,
         outgoingPharmacistId: new Types.ObjectId(dto.employeeId),
         outgoingPharmacistName: user.fullName,
-        incomingPharmacistId: dto.incomingPharmacistId ? new Types.ObjectId(dto.incomingPharmacistId) : null,
+        incomingPharmacistId,
         incomingPharmacistName: dto.incomingPharmacistName || null,
         attendanceId: attendance._id,
         openingFloat,
@@ -302,7 +308,10 @@ export class ShiftHandoverService {
       throw new RpcException('Dược sĩ giao ca không thể tự xác nhận biên bản của chính mình');
     }
 
-    handover.incomingPharmacistId = new Types.ObjectId(user.userId);
+    handover.incomingPharmacistId =
+      user.userId && Types.ObjectId.isValid(user.userId)
+        ? new Types.ObjectId(user.userId)
+        : handover.incomingPharmacistId;
     handover.incomingPharmacistName = user.fullName;
     handover.status = ShiftHandoverStatus.ACCEPTED;
     handover.acceptedAt = new Date();

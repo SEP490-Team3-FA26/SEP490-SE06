@@ -306,7 +306,11 @@ export function Sales() {
       <ShiftHandoverModal
         isOpen={isHandoverOpen}
         onClose={() => setIsHandoverOpen(false)}
-        onSuccess={() => verifyShiftStatus()}
+        onSuccess={() => {
+          setTimeout(() => {
+            verifyShiftStatus();
+          }, 800);
+        }}
         showToast={showToast}
       />
     </div>
