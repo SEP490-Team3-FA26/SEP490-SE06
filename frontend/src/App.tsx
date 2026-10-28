@@ -35,6 +35,7 @@ import { CustomerCart } from "./pages/customer/CustomerCart";
 import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
 import { AIConsultant } from "./pages/customer/AIConsultant";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
+import { CustomerWishlist } from "./pages/customer/CustomerWishlist";
 import { CustomerOrders } from "./pages/customer/CustomerOrders";
 import { FeedbackPage } from "./pages/customer/FeedbackPage";
 import { BranchFeedbackPage } from "./pages/branch/BranchFeedbackPage";
@@ -143,6 +144,7 @@ export default function App() {
             <Route path="checkout" element={<CustomerCheckout />} />
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
+            <Route path="wishlist" element={<CustomerWishlist />} />
             <Route path="orders" element={<CustomerOrders />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="feedback/:orderCode" element={<FeedbackPage />} />

@@ -60,6 +60,28 @@ export class UserServiceController {
     return this.userService.clearCart(data.userId);
   }
 
+  // --- WISHLIST MESSAGE PATTERNS ---
+
+  @MessagePattern('user.wishlist.get')
+  handleGetWishlist(@Payload() data: { userId: string }) {
+    return this.userService.getWishlist(data.userId);
+  }
+
+  @MessagePattern('user.wishlist.add')
+  handleAddToWishlist(@Payload() data: { userId: string; medicineId: string }) {
+    return this.userService.addToWishlist(data.userId, data.medicineId);
+  }
+
+  @MessagePattern('user.wishlist.remove')
+  handleRemoveFromWishlist(@Payload() data: { userId: string; medicineId: string }) {
+    return this.userService.removeFromWishlist(data.userId, data.medicineId);
+  }
+
+  @MessagePattern('user.wishlist.clear')
+  handleClearWishlist(@Payload() data: { userId: string }) {
+    return this.userService.clearWishlist(data.userId);
+  }
+
   @MessagePattern('user.branch.list')
   handleListBranches() {
     return this.branchService.findAll();
