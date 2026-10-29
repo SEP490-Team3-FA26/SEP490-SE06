@@ -20,6 +20,8 @@ describe('Order Management - OrdersServiceController (Report 5: F02 & F03)', () 
     deleteVoucher: jest.fn(),
     listVouchers: jest.fn(),
     validateVoucher: jest.fn(),
+    getShiftSalesAggregation: jest.fn(),
+    getPharmacistKpiAggregation: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -166,6 +168,117 @@ describe('Order Management - OrdersServiceController (Report 5: F02 & F03)', () 
 
       expect(result.success).toBe(true);
       expect(service.deleteVoucher).toHaveBeenCalledWith('voucher-01');
+    });
+  });
+
+  // ============================================================
+  // UC-111 / SCRUM-106: Shift Sales Aggregation & Pharmacist KPI Report
+  // ============================================================
+  describe('[UC-111 / SCRUM-106] getShiftSalesAggregation & getPharmacistKpiReport', () => {
+    // 1. [Normal Values]
+    it('TC-111.1: [Normal Values] Tổng hợp doanh số ca trực thành công', async () => {
+      const mockResult = {
+        branchId: 'BR-001',
+        totalRevenue: 3000000,
+        cashSales: 2000000,
+        digitalSales: 1000000,
+        ordersCount: 15,
+        otcCount: 6,
+        otcRate: 40,
+        recentOrders: [],
+      };
+      mockOrdersService.getShiftSalesAggregation.mockResolvedValue(mockResult);
+
+      const payload = { branchId: 'BR-001', shiftId: 'CA_SANG', pharmacistId: '6745...01' };
+      const res = await controller.getShiftSalesAggregation(payload);
+
+      expect(res).toEqual(mockResult);
+      expect(service.getShiftSalesAggregation).toHaveBeenCalledWith(payload);
+    });
+
+    it('TC-111.2: [Normal Values] Xuất báo cáo KPI Dược sĩ thành công', async () => {
+      const mockKpiResult = {
+        month: 10,
+        year: 2026,
+        branchId: 'BR-001',
+        totalPharmacists: 1,
+        kpiList: [
+          {
+            pharmacistId: '6745...01',
+            pharmacistName: 'Dược sĩ Test',
+            branchId: 'BR-001',
+            totalRevenue: 50000000,
+            cashRevenue: 30000000,
+            digitalRevenue: 20000000,
+            orderCount: 100,
+            otcCount: 40,
+            averageOrderValue: 500000,
+            otcAttachmentRate: 40,
+            assignedQuota: 50000000,
+            quotaCompletionRate: 100,
+          },
+        ],
+      };
+      mockOrdersService.getPharmacistKpiAggregation.mockResolvedValue(mockKpiResult);
+
+      const payload = { branchId: 'BR-001', month: 10, year: 2026 };
+      const res = await controller.getPharmacistKpiReport(payload);
+
+      expect(res).toEqual(mockKpiResult);
+      expect(service.getPharmacistKpiAggregation).toHaveBeenCalledWith(payload);
+    });
+
+    // 2. [Boundary Values]
+    it('TC-111.3: [Boundary Values] Xử lý an toàn khi ca không có đơn hàng nào (0 doanh số)', async () => {
+      const emptyResult = {
+        branchId: 'BR-001',
+        totalRevenue: 0,
+        cashSales: 0,
+        digitalSales: 0,
+        ordersCount: 0,
+        otcCount: 0,
+        otcRate: 0,
+        recentOrders: [],
+      };
+      mockOrdersService.getShiftSalesAggregation.mockResolvedValue(emptyResult);
+
+      const res = await controller.getShiftSalesAggregation({ branchId: 'BR-001' });
+      expect(res.totalRevenue).toBe(0);
+      expect(res.ordersCount).toBe(0);
+    });
+
+    it('TC-111.4: [Boundary Values] Xử lý an toàn khi Quota bằng 0 (không chia cho 0)', async () => {
+      const zeroQuotaResult = {
+        month: 10,
+        year: 2026,
+        branchId: 'BR-001',
+        totalPharmacists: 1,
+        kpiList: [
+          {
+            pharmacistId: '6745...01',
+            totalRevenue: 10000000,
+            assignedQuota: 50000000,
+            quotaCompletionRate: 20,
+          },
+        ],
+      };
+      mockOrdersService.getPharmacistKpiAggregation.mockResolvedValue(zeroQuotaResult);
+
+      const res = await controller.getPharmacistKpiReport({ branchId: 'BR-001', quota: 0 });
+      expect(res.kpiList[0].assignedQuota).toBeGreaterThan(0);
+    });
+
+    // 3. [Abnormal Values]
+    it('TC-111.5: [Abnormal Values] Ném RpcException khi service tổng hợp doanh số ném lỗi', async () => {
+      mockOrdersService.getShiftSalesAggregation.mockRejectedValue(new Error('Lỗi truy vấn Database'));
+
+      await expect(controller.getShiftSalesAggregation({ branchId: 'BR-001' })).rejects.toThrow(RpcException);
+    });
+
+    it('TC-111.6: [Abnormal Values] Ném RpcException khi service báo cáo KPI ném lỗi', async () => {
+      mockOrdersService.getPharmacistKpiAggregation.mockRejectedValue(new Error('Lỗi Kafka Timeout'));
+
+      await expect(controller.getPharmacistKpiReport({ branchId: 'BR-001' })).rejects.toThrow(RpcException);
     });
   });
 });

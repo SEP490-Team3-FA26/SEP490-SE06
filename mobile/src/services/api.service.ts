@@ -2042,6 +2042,41 @@ export class ApiService {
     return data;
   }
 
+  public static async getShiftHandoverLiveStats(shiftId?: string): Promise<any> {
+    let url = `${this.baseUrl}/api/hr/shift-handover/live-stats`;
+    if (shiftId) url += `?shiftId=${encodeURIComponent(shiftId)}`;
+    const res = await fetch(url, { headers: this.authHeaders });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.message || 'Không thể lấy dữ liệu bàn giao ca');
+    }
+    return await res.json();
+  }
+
+  public static async submitShiftHandover(payload: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/hr/shift-handover/submit`, {
+      method: 'POST',
+      headers: this.authHeaders,
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.message || 'Nộp biên bản bàn giao thất bại');
+    }
+    return data;
+  }
+
+  public static async getPharmacistKpiReport(month?: number, year?: number): Promise<any> {
+    let url = `${this.baseUrl}/api/hr/kpi/sales-report`;
+    const params = [];
+    if (month) params.push(`month=${month}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const res = await fetch(url, { headers: this.authHeaders });
+    if (res.ok) return await res.json();
+    return null;
+  }
+
   public static async getMyTodayAttendance(): Promise<any> {
     const res = await fetch(`${this.baseUrl}/api/hr/attendance/my-today`, {
       headers: this.authHeaders,

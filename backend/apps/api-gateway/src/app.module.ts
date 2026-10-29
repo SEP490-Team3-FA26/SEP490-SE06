@@ -406,6 +406,18 @@ export class AppGatewayModule implements OnModuleInit {
       "hr.payroll.submit",
       "hr.payroll.approve",
       "hr.payroll.my_payslip",
+      // Kafka reply topics cho ban giao ca (Shift Handover) va quan ly nghi phep
+      "hr.shift_handover.live_stats",
+      "hr.shift_handover.submit",
+      "hr.shift_handover.accept",
+      "hr.shift_handover.history",
+      "hr.shift_handover.detail",
+      "hr.leave.balance",
+      "hr.leave.my_list",
+      "hr.leave.branch_list",
+      "hr.leave.create",
+      "hr.leave.respond",
+      "hr.leave.cancel",
       // Kafka reply topics cho hệ thống Email Newsletter Marketing
       "email.campaign.create",
       "email.campaign.update",
@@ -439,6 +451,8 @@ export class AppGatewayModule implements OnModuleInit {
       "orders.campaign.get_by_id",
       "orders.campaign.add_cost",
       "orders.campaign.analytics",
+      "orders.shift.aggregate_sales",
+      "orders.pharmacist.kpi_report",
     ];
 
     // 5. KAFKA_SERVICE Reply Topics

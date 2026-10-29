@@ -7,6 +7,7 @@ import { HrService } from './hr.service';
 import { CertificateService } from './certificate.service';
 import { AttendanceService } from './attendance.service';
 import { PayrollService } from './payroll.service';
+import { ShiftHandoverService } from './shift-handover.service';
 import { EmailMarketingService } from './email-marketing.service';
 
 @Controller()
@@ -18,6 +19,7 @@ export class UserServiceController {
     private readonly certService: CertificateService,
     private readonly attendanceService: AttendanceService,
     private readonly payrollService: PayrollService,
+    private readonly shiftHandoverService: ShiftHandoverService,
     private readonly emailMarketingService: EmailMarketingService,
   ) { }
 
@@ -480,6 +482,32 @@ export class UserServiceController {
   @MessagePattern('hr.attendance.history')
   handleGetMyAttendanceHistory(@Payload() data: { employeeId: string; startDate?: string; endDate?: string }) {
     return this.attendanceService.getMyAttendanceHistory(data.employeeId, data.startDate, data.endDate);
+  }
+
+  // --- HR: SHIFT HANDOVER (BÀN GIAO CA & CHỐT KÉT) ---
+  @MessagePattern('hr.shift_handover.live_stats')
+  handleGetShiftLiveStats(@Payload() data: { employeeId: string; branchId?: string; shiftId?: string }) {
+    return this.shiftHandoverService.getShiftLiveStats(data);
+  }
+
+  @MessagePattern('hr.shift_handover.submit')
+  handleSubmitShiftHandover(@Payload() data: any) {
+    return this.shiftHandoverService.submitHandover(data);
+  }
+
+  @MessagePattern('hr.shift_handover.accept')
+  handleAcceptShiftHandover(@Payload() data: { id: string; user: any }) {
+    return this.shiftHandoverService.acceptHandover(data.id, data.user);
+  }
+
+  @MessagePattern('hr.shift_handover.history')
+  handleGetShiftHandoverHistory(@Payload() data: { branchId: string; date?: string; limit?: number }) {
+    return this.shiftHandoverService.getHandoverHistory(data);
+  }
+
+  @MessagePattern('hr.shift_handover.detail')
+  handleGetShiftHandoverDetail(@Payload() data: { id: string; requesterBranchId?: string; requesterRole?: string }) {
+    return this.shiftHandoverService.getHandoverDetail(data.id, data.requesterBranchId, data.requesterRole);
   }
 
   // --- HR: PAYROLL MANAGEMENT ---

@@ -357,6 +357,20 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
                   </View>
                 </View>
               )}
+
+              {todayAttendance?.isHandoverSubmitted ? (
+                <View style={[styles.shiftBadge, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, marginTop: 8 }]}>
+                  <Text style={{ color: '#047857', fontSize: 11, fontWeight: '700' }}>
+                    ✓ ĐÃ NỘP BIÊN BẢN BÀN GIAO CA & CHỐT KÉT
+                  </Text>
+                </View>
+              ) : hasCheckedIn && !hasCheckedOut ? (
+                <View style={[styles.shiftBadge, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1, marginTop: 8 }]}>
+                  <Text style={{ color: '#B45309', fontSize: 11, fontWeight: '700' }}>
+                    ℹ CẦN NỘP BÀN GIAO CA TRÊN WEB POS TRƯỚC KHI TAN CA
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </ScrollView>
 

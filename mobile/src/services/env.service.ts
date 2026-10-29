@@ -81,29 +81,34 @@ class EnvServiceClass {
       return 'https://abcpharmacy.store';
     }
 
-    // 2. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa cụ thể
+    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost
+    if (!__DEV__ && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1'))) {
+      return 'https://abcpharmacy.store';
+    }
+
+    // 3. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa cụ thể
     if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
       return envUrl;
     }
 
-    // 3. Chế độ Web Local
+    // 4. Chế độ Web Local
     if (Platform.OS === 'web') {
       return envUrl || 'http://localhost:4000';
     }
 
-    // 4. Chế độ Android Emulator Local
+    // 5. Chế độ Android Emulator Local
     if (this.isAndroidEmulator()) {
       return 'http://10.0.2.2:4000';
     }
 
-    // 5. Chế độ Điện thoại thật qua Expo Go Wi-Fi Local (Auto-detect IP máy tính từ Metro)
+    // 6. Chế độ Điện thoại thật qua Expo Go Wi-Fi Local (Auto-detect IP máy tính từ Metro)
     const detectedHost = this.getHostIp();
     if (detectedHost) {
       console.log(`📡 [EnvService] Tự động kết nối Backend Local qua LAN: http://${detectedHost}:4000`);
       return `http://${detectedHost}:4000`;
     }
 
-    // 6. Mặc định Production Cloud Server nếu không tìm thấy máy chủ dev LAN
+    // 7. Mặc định Production Cloud Server nếu không tìm thấy máy chủ dev LAN
     return 'https://abcpharmacy.store';
   }
 
@@ -114,7 +119,7 @@ class EnvServiceClass {
       return 'https://abcpharmacy.store';
     }
 
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    if (envUrl) {
       return envUrl;
     }
 
@@ -134,8 +139,13 @@ class EnvServiceClass {
     return 'https://abcpharmacy.store';
   }
 
-  // Cung cấp URL dự phòng khi gặp lỗi kết nối mạng (luôn dùng HTTPS an toàn)
+  // Cung cấp URL dự phòng khi gặp lỗi kết nối mạng
   public getAlternateApiUrl(): string {
+    const current = this.getApiBaseUrl();
+    if (current.includes('localhost') || current.includes('127.0.0.1')) {
+      // Khi debug localhost: nếu localhost qua adb reverse gặp sự cố, thử fallback 10.0.2.2 (máy ảo Android)
+      return current.includes('10.0.2.2') ? 'http://localhost:4000' : 'http://10.0.2.2:4000';
+    }
     return 'https://abcpharmacy.store';
   }
 

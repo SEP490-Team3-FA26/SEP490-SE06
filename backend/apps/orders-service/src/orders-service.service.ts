@@ -370,6 +370,7 @@ export class OrdersServiceService implements OnModuleInit {
       consultationId: data.consultationId || undefined,
       pharmacistApprovedBy: data.pharmacistApprovedBy || undefined,
       soldBy: cashierName,
+      pharmacistId: data.pharmacistId || (['pharmacist', 'branch'].includes(data.role) ? data.userId : undefined),
       // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA)
       auditFlag,
       flagReason,
@@ -2158,6 +2159,303 @@ export class OrdersServiceService implements OnModuleInit {
     } catch (error) {
       this.logger.error('Lỗi khi lấy danh sách kiểm toán nghi vấn voucher:', error);
       throw new RpcException(error.message || 'Lỗi khi lấy danh sách kiểm toán nghi vấn voucher');
+    }
+  }
+
+  /**
+   * Tổng hợp doanh số đơn hàng theo ca trực phục vụ Bàn Giao Ca (Shift Handover)
+   */
+  async getShiftSalesAggregation(payload: {
+    branchId: string;
+    shiftId?: string;
+    pharmacistId?: string;
+    pharmacistName?: string;
+    date?: string;
+    startTime?: string;
+    endTime?: string;
+  }) {
+    try {
+      const { branchId, pharmacistId, pharmacistName, date, startTime, endTime } = payload;
+      const targetDate = date ? new Date(date) : new Date();
+      let startRange: Date;
+      let endRange: Date;
+
+      // Xử lý linh hoạt startTime: hỗ trợ cả ISO timestamp (checkInTime) và giờ:phút (HH:mm)
+      if (startTime) {
+        if (typeof startTime === 'string' && (startTime.includes('T') || startTime.includes('-'))) {
+          const parsed = new Date(startTime);
+          startRange = isNaN(parsed.getTime()) ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0) : parsed;
+        } else if (typeof startTime === 'string' && startTime.includes(':')) {
+          const [sH, sM] = startTime.split(':').map(Number);
+          startRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), sH || 0, sM || 0, 0);
+        } else {
+          startRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
+        }
+      } else {
+        startRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
+      }
+
+      // Xử lý endTime: nếu không truyền và là ngày hiện tại thì lấy mốc hiện tại, ngày quá khứ lấy cuối ngày
+      if (endTime) {
+        if (typeof endTime === 'string' && (endTime.includes('T') || endTime.includes('-'))) {
+          const parsed = new Date(endTime);
+          endRange = isNaN(parsed.getTime()) ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999) : parsed;
+        } else if (typeof endTime === 'string' && endTime.includes(':')) {
+          const [eH, eM] = endTime.split(':').map(Number);
+          endRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), eH || 23, eM || 59, 59, 999);
+        } else {
+          endRange = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+        }
+      } else {
+        const isToday = targetDate.toDateString() === new Date().toDateString();
+        endRange = isToday ? new Date() : new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+      }
+
+      const query: any = {
+        createdAt: { $gte: startRange, $lte: endRange },
+        paymentStatus: { $in: ['PAID', 'PAYMENT_RECEIVED_INVENTORY_PENDING', 'INVENTORY_FULFILLING'] },
+      };
+      if (branchId && branchId !== 'all') {
+        query.branchId = branchId;
+      }
+
+      // Map khớp theo cả pharmacistId (ObjectId) và pharmacistName (họ tên lưu ở order.soldBy)
+      const orConditions: any[] = [];
+      if (pharmacistId) {
+        orConditions.push({ soldBy: pharmacistId }, { pharmacistApprovedBy: pharmacistId }, { userId: pharmacistId });
+      }
+      if (pharmacistName && pharmacistName.trim()) {
+        const trimmedName = pharmacistName.trim();
+        orConditions.push(
+          { soldBy: trimmedName },
+          { pharmacistApprovedBy: trimmedName },
+          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') }
+        );
+      }
+      if (orConditions.length > 0) {
+        query.$or = orConditions;
+      }
+
+      const orders = await this.orderModel.find(query).lean().exec();
+
+      let totalRevenue = 0;
+      let cashSales = 0;
+      let digitalSales = 0;
+      let otcCount = 0;
+
+      const orderSummaries = orders.map((o: any) => {
+        const rev = Number(o.totalAmount || 0);
+        const isCash = o.paymentMethod === 'CASH' || o.paymentMethod === 'TIEN_MAT';
+        totalRevenue += rev;
+        if (isCash) cashSales += rev;
+        else digitalSales += rev;
+
+        const hasOtc =
+          Array.isArray(o.items) &&
+          o.items.some(
+            (it: any) =>
+              it.isGiftItem ||
+              (it.name &&
+                (it.name.toLowerCase().includes('vitamin') ||
+                  it.name.toLowerCase().includes('kẽm') ||
+                  it.name.toLowerCase().includes('bổ') ||
+                  it.name.toLowerCase().includes('tpbvsk'))),
+          );
+        if (hasOtc) otcCount++;
+
+        return {
+          orderCode: o.orderCode || o._id,
+          totalAmount: rev,
+          paymentMethod: o.paymentMethod,
+          paymentStatus: o.paymentStatus,
+          patientName: o.patientName || 'Khách vãng lai',
+          createdAt: o.createdAt,
+          itemsCount: Array.isArray(o.items) ? o.items.length : 0,
+        };
+      });
+
+      return {
+        branchId,
+        date: date || startRange.toISOString().slice(0, 10),
+        ordersCount: orders.length,
+        totalRevenue,
+        cashSales,
+        digitalSales,
+        otcCount,
+        otcRate: orders.length > 0 ? Number(((otcCount / orders.length) * 100).toFixed(1)) : 0,
+        recentOrders: orderSummaries.slice(-20),
+      };
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi tổng hợp doanh số ca trực');
+    }
+  }
+
+  /**
+   * Báo cáo hiệu suất nhân viên bán hàng (KPI) - UC-111 / SCRUM-106
+   */
+  async getPharmacistKpiAggregation(payload: {
+    branchId?: string;
+    month?: number;
+    year?: number;
+    startDate?: string;
+    endDate?: string;
+    pharmacistId?: string;
+    pharmacistName?: string;
+    quota?: number;
+    assignedQuota?: number;
+  }) {
+    try {
+      const now = new Date();
+      const year = Number(payload.year) || now.getFullYear();
+      const month = Number(payload.month) || now.getMonth() + 1;
+
+      let start: Date;
+      let end: Date;
+
+      if (payload.startDate && payload.endDate) {
+        start = new Date(payload.startDate);
+        end = new Date(payload.endDate);
+        end.setHours(23, 59, 59, 999);
+      } else {
+        start = new Date(year, month - 1, 1, 0, 0, 0);
+        end = new Date(year, month, 0, 23, 59, 59, 999);
+      }
+
+      const query: any = {
+        createdAt: { $gte: start, $lte: end },
+        paymentStatus: { $in: ['PAID', 'PAYMENT_RECEIVED_INVENTORY_PENDING', 'INVENTORY_FULFILLING'] },
+      };
+      if (payload.branchId && payload.branchId !== 'all') {
+        query.branchId = payload.branchId;
+      }
+
+      // Khớp theo cả pharmacistId và pharmacistName để dược sĩ xem KPI chính mình không bị rỗng
+      const orConditions: any[] = [];
+      if (payload.pharmacistId) {
+        orConditions.push(
+          { soldBy: payload.pharmacistId },
+          { pharmacistApprovedBy: payload.pharmacistId },
+          { userId: payload.pharmacistId }
+        );
+      }
+      if (payload.pharmacistName && payload.pharmacistName.trim()) {
+        const trimmedName = payload.pharmacistName.trim();
+        orConditions.push(
+          { soldBy: trimmedName },
+          { pharmacistApprovedBy: trimmedName },
+          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') }
+        );
+      }
+      if (orConditions.length > 0) {
+        query.$or = orConditions;
+      }
+
+      const orders = await this.orderModel.find(query).lean().exec();
+
+      const pharmacistMap: Record<
+        string,
+        {
+          pharmacistId: string;
+          pharmacistName: string;
+          branchId: string;
+          totalRevenue: number;
+          cashRevenue: number;
+          digitalRevenue: number;
+          orderCount: number;
+          otcCount: number;
+        }
+      > = {};
+
+      for (const o of orders) {
+        const rawIdentifier = (o.soldBy || o.pharmacistApprovedBy || '').trim();
+        let pId = '';
+        let pName = rawIdentifier;
+
+        const isUnassigned =
+          !rawIdentifier ||
+          rawIdentifier.toUpperCase() === 'UNASSIGNED' ||
+          rawIdentifier.toLowerCase().includes('online') ||
+          rawIdentifier.toLowerCase().includes('vãng lai');
+
+        if (isUnassigned) {
+          pId = 'ONLINE_UNASSIGNED';
+          pName = 'Đơn Online / Quầy Vãng Lai';
+        } else {
+          // Khớp dược sĩ bằng userId / soldBy dạng ObjectId chuẩn để liên kết chính xác với outgoingPharmacistId
+          if (o.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(o.pharmacistId))) {
+            pId = String(o.pharmacistId);
+          } else if (payload.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(payload.pharmacistId))) {
+            pId = String(payload.pharmacistId);
+          } else if (o.userId && /^[0-9a-fA-F]{24}$/.test(String(o.userId))) {
+            pId = String(o.userId);
+          } else if (/^[0-9a-fA-F]{24}$/.test(rawIdentifier)) {
+            pId = rawIdentifier;
+          } else {
+            pId = rawIdentifier;
+          }
+          pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
+        }
+
+        const bId = o.branchId || payload.branchId || 'BR-001';
+        const rev = Number(o.totalAmount || 0);
+        const isCash = o.paymentMethod === 'CASH' || o.paymentMethod === 'TIEN_MAT';
+
+        if (!pharmacistMap[pId]) {
+          pharmacistMap[pId] = {
+            pharmacistId: pId,
+            pharmacistName: pName,
+            branchId: bId,
+            totalRevenue: 0,
+            cashRevenue: 0,
+            digitalRevenue: 0,
+            orderCount: 0,
+            otcCount: 0,
+          };
+        }
+
+        pharmacistMap[pId].totalRevenue += rev;
+        if (isCash) pharmacistMap[pId].cashRevenue += rev;
+        else pharmacistMap[pId].digitalRevenue += rev;
+        pharmacistMap[pId].orderCount += 1;
+
+        const hasOtc =
+          Array.isArray(o.items) &&
+          o.items.some(
+            (it: any) =>
+              it.isGiftItem ||
+              (it.name &&
+                (it.name.toLowerCase().includes('vitamin') ||
+                  it.name.toLowerCase().includes('bổ') ||
+                  it.name.toLowerCase().includes('tpbvsk'))),
+          );
+        if (hasOtc) pharmacistMap[pId].otcCount += 1;
+      }
+
+      const assignedQuota = Math.max(1, Number(payload.assignedQuota) || Number(payload.quota) || 50000000);
+
+      const kpiList = Object.values(pharmacistMap).map((item) => {
+        const aov = item.orderCount > 0 ? Math.round(item.totalRevenue / item.orderCount) : 0;
+        const otcRate = item.orderCount > 0 ? Number(((item.otcCount / item.orderCount) * 100).toFixed(1)) : 0;
+        const completionRate = Number(((item.totalRevenue / assignedQuota) * 100).toFixed(1));
+
+        return {
+          ...item,
+          averageOrderValue: aov,
+          otcAttachmentRate: otcRate,
+          assignedQuota,
+          quotaCompletionRate: completionRate,
+        };
+      });
+
+      return {
+        month,
+        year,
+        branchId: payload.branchId || 'all',
+        totalPharmacists: kpiList.length,
+        kpiList,
+      };
+    } catch (error) {
+      throw new RpcException(error.message || 'Lỗi tổng hợp KPI Dược sĩ');
     }
   }
 }
