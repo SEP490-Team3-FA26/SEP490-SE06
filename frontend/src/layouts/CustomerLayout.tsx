@@ -1,6 +1,5 @@
 import { Outlet } from "react-router-dom";
 import { CustomerHeader } from "../components/common/CustomerHeader";
-import { DoveFloatingWidget } from "../components/mascot/DoveFloatingWidget";
 import { ChatWidget } from "../components/chat";
 
 export function CustomerLayout() {
@@ -26,10 +25,7 @@ export function CustomerLayout() {
         </div>
       </footer>
 
-      {/* Floating Mascot Companion */}
-      <DoveFloatingWidget />
-
-      {/* Floating AI Pharmacist Chatbot */}
+      {/* Dược sĩ Bồ Câu AI nổi ở góc phải (đã gộp linh vật và khung chat) */}
       <ChatWidget />
     </div>
   );

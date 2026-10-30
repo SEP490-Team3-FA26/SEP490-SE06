@@ -180,7 +180,7 @@ export const WebViewScreen: React.FC<{ route: any; navigation: any }> = ({
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Chủ tài khoản:</Text>
-              <Text style={styles.infoValue}>CONG TY CP DUOC PHAM VINA</Text>
+              <Text style={styles.infoValue}>CONG TY CP DUOC PHAM ABC</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Nội dung chuyển khoản:</Text>

@@ -19,7 +19,7 @@ Tài liệu này là **Quy Chuẩn Tối Cao (Master Blueprint & Recipe Book)** 
 > 1. **Kiến Trúc 3 Tầng Phân Lập (3-Tier Separation of Concerns):** `Service (API Gateway)` ➔ `Custom Hook (Business & Async State)` ➔ `Component / Page (Presentation Only)`. Tuyệt đối không gọi Axios hoặc fetch trực tiếp trong UI components.
 > 2. **Xử Lý Sự Kiện Bất Đồng Bộ Kafka (HTTP 202 Accepted):** Mọi thao tác Ghi (Create, Update, Delete) qua Gateway trả về 202 Accepted. UI phải áp dụng **Optimistic UI** hoặc thông báo Toast tiếp nhận, kèm **Delayed Re-fetch (1000ms)** để chờ Consumer ghi DB và làm tươi Redis.
 > 3. **Chỉ Gọi Qua API Gateway:** Mọi HTTP request bắt buộc dùng tiền tố `/api/...`. Tuyệt đối không trỏ trực tiếp đến cổng microservice nội bộ.
-> 4. **English Code Comments Only:** Toàn bộ chú thích mã nguồn (`//`, `/* */`, JSDoc) bắt buộc viết bằng Tiếng Anh. Không dùng tiếng Việt trong code comments.
+> 4. **Vietnamese Code Comments:** Toàn bộ chú thích mã nguồn (`//`, `/* */`, JSDoc) viết bằng Tiếng Việt 100% theo quy chuẩn dự án WDP301/SEP490.
 > 5. **Git Safety:** Không tự ý push code lên Git; dừng lại ở `git status` để lập trình viên tự push. Mọi thao tác Git quan trọng phải xin xác nhận.
 
 ---
@@ -474,7 +474,7 @@ Khi người dùng gõ `/abc-frontend-skill` kèm yêu cầu, Agent sẽ thực 
    - Xây dựng Service với kiểu dữ liệu TypeScript nghiêm ngặt.
    - Xây dựng Custom Hook quản lý trạng thái, bẫy lỗi và độ trễ Kafka 1000ms.
    - Xây dựng Component UI chỉ làm nhiệm vụ hiển thị, có loading & empty states.
-   - Bảo đảm 100% code comments bằng Tiếng Anh.
+   - Bảo đảm 100% code comments bằng Tiếng Việt theo quy chuẩn dự án WDP301/SEP490.
 4. **Bước 4: Chạy Công Cụ Kiểm Định Chất Lượng:**
    - Chạy `fe_validator.py` và `qa_auditor.py` để bảo đảm 0 lỗi quy chuẩn.
    - Chạy `npm run lint` hoặc `tsc --noEmit` để xác nhận TypeScript trong sạch.

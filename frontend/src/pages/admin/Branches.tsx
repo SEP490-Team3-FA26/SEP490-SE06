@@ -109,7 +109,7 @@ export function Branches() {
    );
 
    return (
-      <div className="space-y-6 flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
+      <div className="space-y-6 flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Quản lý chi nhánh</h1>

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Model, Connection } from 'mongoose';
+import { Model, Connection, Types } from 'mongoose';
 import { Medicine } from './schemas/medicine.schema';
 import { SearchHistory, SearchHistoryDocument } from './schemas/search-history.schema';
 
@@ -236,7 +236,7 @@ export class RecommendationService {
       }
 
       // -----------------------------------------------------------------------
-      // BƯỚC D: TRUY VẤN CSDL VỚI BỘ LỌC AN TOÀN PHÁP CHẾ DƯỢC (Strict Pharma Filter)
+      // BƯỚC D: TRUY VẤN CSDL VỚI BỘ LỌC AN TOÀN PHÁP CHẾ DƯỢC & CHI NHÁNH
       // -----------------------------------------------------------------------
       // BẮT BUỘC: LOẠI BỎ 100% THUỐC KÊ ĐƠN (Prescription Drugs) KHỎI GỢI Ý
       const safeFilter: any = {
@@ -246,6 +246,25 @@ export class RecommendationService {
         status: 'ACTIVE',
         stock: { $gt: 0 },
       };
+
+      // Nếu có branchId cụ thể: Ưu tiên lọc các thuốc thực tế có tồn kho tại chi nhánh
+      if (params.branchId && params.branchId !== 'all') {
+        try {
+          const branchInvCol = this.connection.collection('branch_inventories');
+          const branchItems = await branchInvCol
+            .find({ branchId: params.branchId, status: 'ACTIVE', stock: { $gt: 0 } })
+            .project({ medicineId: 1 })
+            .toArray();
+
+          if (branchItems.length > 0) {
+            const rawIds = branchItems.map((b) => String(b.medicineId));
+            const validObjIds = rawIds.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+            safeFilter._id = { $in: [...validObjIds, ...rawIds] };
+          }
+        } catch (branchErr) {
+          this.logger.warn(`Lỗi khi lọc tồn kho chi nhánh ${params.branchId}: ${branchErr}`);
+        }
+      }
 
       let queryConditions: any[] = [];
 

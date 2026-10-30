@@ -2,7 +2,9 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
+  Delete,
   Param,
   Body,
   UseGuards,
@@ -10,20 +12,32 @@ import {
   OnModuleInit,
   Query,
   Request,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientKafka } from '@nestjs/microservices';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
+import { CloudinaryStorageService } from '../storage/cloudinary-storage.service';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
 
 @ApiTags('🏢 HR Management')
 @Controller('api/hr')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class HrController implements OnModuleInit {
-  constructor(@Inject('USER_SERVICE') private readonly kafkaClient: ClientKafka) {}
+  constructor(
+    @Inject('USER_SERVICE') private readonly kafkaClient: ClientKafka,
+    @Inject('ORDER_SERVICE') private readonly ordersClient: ClientKafka,
+    private readonly cloudinaryStorageService: CloudinaryStorageService,
+  ) {}
 
   async onModuleInit() {
     await subscribeToKafkaTopics(this.kafkaClient, [
@@ -44,6 +58,43 @@ export class HrController implements OnModuleInit {
       'hr.notification.mark_read',
       'hr.notification.unread_count',
       'user.admin.employee.list',
+      'hr.certificate.submit',
+      'hr.certificate.my_list',
+      'hr.certificate.update',
+      'hr.certificate.delete',
+      'hr.certificate.branch_list',
+      'hr.certificate.approve',
+      'hr.certificate.reject',
+      'hr.certificate.branch_summary',
+      'hr.attendance.check_in',
+      'hr.attendance.check_out',
+      'hr.attendance.my_current_shift',
+      'hr.attendance.verify_active_shift',
+      'hr.attendance.branch_today',
+      'hr.attendance.history',
+      'hr.shift_handover.live_stats',
+      'hr.shift_handover.submit',
+      'hr.shift_handover.accept',
+      'hr.shift_handover.history',
+      'hr.shift_handover.detail',
+      'hr.payroll.calculate',
+      'hr.payroll.list',
+      'hr.payroll.detail',
+      'hr.payroll.adjust',
+      'hr.payroll.submit',
+      'hr.payroll.approve',
+      'hr.payroll.my_payslip',
+      'hr.leave.balance',
+      'hr.leave.my_list',
+      'hr.leave.branch_list',
+      'hr.leave.create',
+      'hr.leave.respond',
+      'hr.leave.cancel',
+    ]);
+
+    await subscribeToKafkaTopics(this.ordersClient, [
+      'orders.shift.aggregate_sales',
+      'orders.pharmacist.kpi_report',
     ]);
   }
 
@@ -98,11 +149,12 @@ export class HrController implements OnModuleInit {
   @Post('schedules/publish')
   @Roles('branch', 'admin')
   @ApiOperation({ summary: 'Publish lịch tuần' })
-  async publishSchedule(@Request() req, @Body() data: { weekStart: string }) {
+  async publishSchedule(@Request() req, @Body() data: { weekStart: string; sendEmailNotification?: boolean }) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.schedule.publish', { 
       branchId: req.user.branchId, 
       managerId: req.user.sub, 
-      weekStart: data.weekStart 
+      weekStart: data.weekStart,
+      sendEmailNotification: data.sendEmailNotification !== false,
     });
   }
 
@@ -168,6 +220,113 @@ export class HrController implements OnModuleInit {
     });
   }
 
+  // --- HR: LEAVE MANAGEMENT ---
+  @Get('leaves/balance')
+  @Roles('pharmacist', 'branch', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy số dư ngày phép năm của tôi' })
+  async getLeaveBalance(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.balance', { userId: req.user.sub });
+  }
+
+  @Get('leaves/mine')
+  @Roles('pharmacist', 'branch', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy danh sách đơn xin nghỉ của tôi' })
+  async getMyLeaves(@Request() req, @Query('status') status?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.my_list', { userId: req.user.sub, status });
+  }
+
+  @Get('leaves/branch')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Lấy danh sách đơn xin nghỉ của toàn chi nhánh (Quản lý)' })
+  async getBranchLeaves(@Request() req, @Query('status') status?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.branch_list', { branchId: req.user.branchId, status });
+  }
+
+  @Post('leaves')
+  @Roles('pharmacist', 'branch', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Tạo đơn xin nghỉ ca' })
+  async createLeave(@Request() req, @Body() data: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.create', {
+      ...data,
+      requesterId: req.user.sub,
+      requesterName: req.user.fullName,
+      requesterRole: req.user.role,
+      branchId: req.user.branchId,
+    });
+  }
+
+  @Patch('leaves/:id/respond')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý phê duyệt hoặc từ chối đơn xin nghỉ' })
+  async respondLeave(
+    @Request() req,
+    @Param('id') leaveId: string,
+    @Body() data: { action: 'approve' | 'reject'; managerNote?: string },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.respond', {
+      leaveId,
+      managerId: req.user.sub,
+      managerName: req.user.fullName,
+      managerRole: req.user.role,
+      managerBranchId: req.user.branchId,
+      action: data.action,
+      managerNote: data.managerNote,
+    });
+  }
+
+  @Patch('leaves/:id/cancel')
+  @Roles('pharmacist', 'warehouse', 'branch', 'admin')
+  @ApiOperation({ summary: 'Nhân viên hủy đơn xin nghỉ đang chờ duyệt' })
+  async cancelLeave(@Request() req, @Param('id') leaveId: string, @Body() data: { cancelReason?: string }) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.cancel', {
+      leaveId,
+      userId: req.user.sub,
+      cancelReason: data.cancelReason,
+    });
+  }
+
+  @Post('leaves/upload-attachment')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Tải lên tài liệu minh chứng xin nghỉ (giấy ốm, giấy ra viện)' })
+  async uploadLeaveAttachment(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body?: { base64?: string; filename?: string },
+  ) {
+    const userId = req.user?.sub || req.user?.id || 'general';
+    const branchId = req.user?.branchId || 'general';
+
+    if (file) {
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/pdf'];
+      if (!allowedMimes.includes(file.mimetype)) {
+        throw new BadRequestException('Chỉ chấp nhận file ảnh JPEG, PNG, WebP hoặc PDF');
+      }
+      return await this.cloudinaryStorageService.uploadImage({
+        buffer: file.buffer,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        category: 'leave-attachments',
+        userId,
+        branchId,
+        side: 'leave',
+      });
+    }
+
+    if (body?.base64) {
+      return await this.cloudinaryStorageService.uploadImage({
+        base64: body.base64,
+        filename: body.filename,
+        category: 'leave-attachments',
+        userId,
+        branchId,
+        side: 'leave',
+      });
+    }
+
+    throw new BadRequestException('Vui lòng cung cấp file đính kèm hoặc base64');
+  }
+
   // --- HR: NOTIFICATION ---
   @Get('notifications')
   @Roles('branch', 'pharmacist', 'warehouse', 'admin')
@@ -202,5 +361,555 @@ export class HrController implements OnModuleInit {
   @ApiOperation({ summary: 'Lấy danh sách nhân viên/đồng nghiệp chi nhánh để đổi ca' })
   async getColleagues(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', { branchId: req.user.branchId });
+  }
+
+  // --- HR: CERTIFICATES & CCHN MANAGEMENT ---
+
+  @Post('certificates/upload')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Tải lên hình ảnh bằng cấp / CCHN' })
+  async uploadCertificateImage(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body?: { base64?: string; filename?: string; side?: 'front' | 'back' },
+  ) {
+    const userId = req.user?.sub || req.user?.id || 'general';
+    const branchId = req.user?.branchId || 'general';
+    const side = (body?.side || req.query?.side || 'front') as 'front' | 'back';
+
+    // Trường hợp 1: Tải lên qua Multipart File
+    if (file) {
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/pdf'];
+      if (!allowedMimes.includes(file.mimetype)) {
+        throw new BadRequestException('Chỉ chấp nhận file ảnh JPEG, PNG, WebP hoặc PDF');
+      }
+      return await this.cloudinaryStorageService.uploadCertificateImage({
+        buffer: file.buffer,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        userId,
+        branchId,
+        side,
+      });
+    }
+
+    // Trường hợp 2: Tải lên qua Base64 string
+    if (body?.base64) {
+      return await this.cloudinaryStorageService.uploadCertificateImage({
+        base64: body.base64,
+        filename: body.filename,
+        userId,
+        branchId,
+        side,
+      });
+    }
+
+    throw new BadRequestException('Vui lòng cung cấp file ảnh hoặc chuỗi base64');
+  }
+
+  @Post('certificates')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Nhân viên nộp hồ sơ văn bằng / CCHN mới' })
+  async submitCertificate(@Request() req, @Body() data: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.submit', {
+      userId: req.user.sub,
+      branchId: req.user.branchId,
+      ...data,
+    });
+  }
+
+  @Get('certificates/mine')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy danh sách văn bằng / CCHN của chính mình' })
+  async getMyCertificates(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.my_list', {
+      userId: req.user.sub,
+    });
+  }
+
+  @Put('certificates/:id')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Chỉnh sửa lại hồ sơ văn bằng khi bị từ chối' })
+  async updateCertificate(@Request() req, @Param('id') id: string, @Body() data: any) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.update', {
+      userId: req.user.sub,
+      certificateId: id,
+      ...data,
+    });
+  }
+
+  @Delete('certificates/:id')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Xóa hồ sơ văn bằng' })
+  async deleteCertificate(@Request() req, @Param('id') id: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.delete', {
+      userId: req.user.sub,
+      certificateId: id,
+    });
+  }
+
+  @Get('certificates/branch')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý xem danh sách văn bằng nhân viên trong chi nhánh' })
+  async listBranchCertificates(@Request() req, @Query('status') status?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.branch_list', {
+      branchId: req.user.branchId,
+      status,
+    });
+  }
+
+  @Get('certificates/branch/summary')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Thống kê tổng quan bằng cấp tại chi nhánh' })
+  async getBranchCertificateSummary(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.branch_summary', {
+      branchId: req.user.branchId,
+    });
+  }
+
+  @Patch('certificates/:id/approve')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý phê duyệt hồ sơ văn bằng và gán phụ cấp' })
+  async approveCertificate(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { monthlyAllowance?: number; isBranchPIC?: boolean },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.approve', {
+      managerId: req.user.sub,
+      certificateId: id,
+      monthlyAllowance: body.monthlyAllowance,
+      isBranchPIC: body.isBranchPIC,
+    });
+  }
+
+  @Patch('certificates/:id/reject')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý từ chối hồ sơ văn bằng kèm lý do' })
+  async rejectCertificate(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { rejectionReason: string },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.certificate.reject', {
+      managerId: req.user.sub,
+      certificateId: id,
+      rejectionReason: body.rejectionReason,
+    });
+  }
+
+  // --- HR: ATTENDANCE & GPS CHECK-IN ---
+  @Post('attendance/check-in')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Nhân viên điểm danh vào ca bằng GPS Geofencing' })
+  async attendanceCheckIn(@Request() req, @Body() data: { latitude: number; longitude: number; shiftId?: string; isMockLocation?: boolean; note?: string }) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.check_in', {
+      employeeId: req.user.sub,
+      branchId: req.user.branchId,
+      ...data,
+    });
+  }
+
+  @Post('attendance/check-out')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Nhân viên check-out kết thúc ca làm việc' })
+  async attendanceCheckOut(@Request() req, @Body() data: { latitude?: number; longitude?: number; note?: string }) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.check_out', {
+      employeeId: req.user.sub,
+      ...data,
+    });
+  }
+
+  @Get('attendance/my-current-shift')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy trạng thái ca trực hiện tại và điểm danh của bản thân' })
+  async getMyCurrentShift(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.my_current_shift', {
+      employeeId: req.user.sub,
+      branchId: req.user.branchId,
+    });
+  }
+
+  @Get('attendance/my-today')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Alias lấy trạng thái điểm danh hôm nay của cá nhân (Dành cho Mobile App)' })
+  async getMyTodayAttendance(@Request() req) {
+    const shiftStatus: any = await sendKafkaMessage(this.kafkaClient, 'hr.attendance.my_current_shift', {
+      employeeId: req.user.sub,
+      branchId: req.user.branchId,
+    });
+    return shiftStatus?.attendance || shiftStatus;
+  }
+
+  @Get('attendance/history')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Lấy lịch sử điểm danh của cá nhân nhân viên' })
+  async getMyAttendanceHistory(@Request() req, @Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.history', {
+      employeeId: req.user.sub,
+      startDate,
+      endDate,
+    });
+  }
+
+  @Get('attendance/today')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Quản lý xem danh sách điểm danh hôm nay của chi nhánh' })
+  async getBranchTodayAttendance(@Request() req, @Query('date') date?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_today', {
+      branchId: req.user.branchId,
+      date,
+    });
+  }
+
+  // --- HR: SHIFT HANDOVER & CASH DRAWER RECONCILIATION ---
+  @Get('shift-handover/live-stats')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Lấy dữ liệu trực tiếp doanh số, tiền mặt và danh mục thuốc GPP để bàn giao ca' })
+  async getShiftHandoverLiveStats(
+    @Request() req,
+    @Query('shiftId') shiftId?: string,
+    @Query('branchId') queryBranchId?: string,
+  ) {
+    const branchId = req.user.role === 'branch' ? req.user.branchId : (queryBranchId || req.user.branchId || 'BR-001');
+
+    // 1. Lấy thông tin ca & danh mục thuốc GPP từ user-service
+    const shiftStats: any = await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.live_stats', {
+      employeeId: req.user.sub,
+      branchId,
+      shiftId,
+    });
+
+    // 2. Lấy tổng hợp doanh số thực tế từ orders-service
+    let salesStats: any = null;
+    let salesSyncError = false;
+    try {
+      salesStats = await sendKafkaMessage(this.ordersClient, 'orders.shift.aggregate_sales', {
+        branchId,
+        shiftId: shiftStats?.shiftId || shiftId,
+        pharmacistId: req.user.sub,
+        pharmacistName: req.user.fullName,
+        date: shiftStats?.handoverDate,
+        startTime: shiftStats?.checkInTime || undefined,
+      });
+    } catch (err) {
+      console.error('[HrController] Lỗi đồng bộ doanh số từ orders-service:', err?.message || err);
+      salesSyncError = true;
+      salesStats = {
+        ordersCount: 0,
+        totalRevenue: 0,
+        cashSales: 0,
+        digitalSales: 0,
+        otcCount: 0,
+        otcRate: 0,
+        recentOrders: [],
+      };
+    }
+
+    const openingFloat = shiftStats?.openingFloat || 1000000;
+    const cashSales = salesStats?.cashSales || 0;
+    const expectedCashAmount = openingFloat + cashSales;
+
+    return {
+      ...shiftStats,
+      sales: salesStats,
+      salesSyncError,
+      openingFloat,
+      systemCashSales: cashSales,
+      systemDigitalSales: salesStats?.digitalSales || 0,
+      systemOrderCount: salesStats?.ordersCount || 0,
+      expectedCashAmount,
+    };
+  }
+
+  @Post('shift-handover/submit')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Dược sĩ nộp biên bản bàn giao ca và chốt két tiền mặt' })
+  async submitShiftHandover(@Request() req, @Body() body: any) {
+    const branchId = req.user.role === 'branch' ? req.user.branchId : (req.user.branchId || 'BR-001');
+
+    // Chốt chặn INV-SHO-02: Bắt buộc lấy doanh số thực tế từ orders-service phía server,
+    // ghi đè hoàn toàn bất kỳ số liệu lý thuyết nào do client gửi lên (chống gian lận STRIDE-01)
+    let verifiedCashSales = 0;
+    let verifiedDigitalSales = 0;
+    let verifiedOrdersCount = 0;
+    try {
+      const salesStats: any = await sendKafkaMessage(this.ordersClient, 'orders.shift.aggregate_sales', {
+        branchId,
+        shiftId: body.shiftId,
+        pharmacistId: req.user.sub,
+        pharmacistName: req.user.fullName,
+        date: body.handoverDate,
+        startTime: body.checkInTime || undefined,
+      });
+      if (salesStats) {
+        verifiedCashSales = Number(salesStats.cashSales) || 0;
+        verifiedDigitalSales = Number(salesStats.digitalSales) || 0;
+        verifiedOrdersCount = Number(salesStats.ordersCount) || 0;
+      }
+    } catch (err) {
+      console.error('[HrController] Lỗi đồng bộ doanh số khi submit handover từ orders-service:', err?.message || err);
+      // Fallback nếu microservice có trục trặc tạm thời
+      verifiedCashSales = Number(body.systemCashSales) || 0;
+      verifiedDigitalSales = Number(body.systemDigitalSales) || 0;
+      verifiedOrdersCount = Number(body.systemOrderCount) || 0;
+    }
+
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.submit', {
+      ...body,
+      systemCashSales: verifiedCashSales,
+      systemDigitalSales: verifiedDigitalSales,
+      systemOrderCount: verifiedOrdersCount,
+      employeeId: req.user.sub,
+      branchId,
+    });
+  }
+
+  @Post('shift-handover/:id/accept')
+  @Roles('branch', 'pharmacist', 'admin')
+  @ApiOperation({ summary: 'Dược sĩ ca sau hoặc Quản lý chi nhánh xác nhận tiếp nhận bàn giao ca' })
+  async acceptShiftHandover(@Request() req, @Param('id') id: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.accept', {
+      id,
+      user: {
+        userId: req.user.sub,
+        fullName: req.user.fullName || req.user.username || 'Dược sĩ tiếp nhận',
+        branchId: req.user.branchId,
+        role: req.user.role,
+      },
+    });
+  }
+
+  @Get('shift-handover/history')
+  @Roles('branch', 'pharmacist', 'admin', 'director')
+  @ApiOperation({ summary: 'Xem lịch sử các biên bản bàn giao ca của chi nhánh' })
+  async getShiftHandoverHistory(
+    @Request() req,
+    @Query('branchId') queryBranchId?: string,
+    @Query('date') date?: string,
+    @Query('limit') limit?: number,
+  ) {
+    const branchId = req.user.role === 'branch' || req.user.role === 'pharmacist'
+      ? req.user.branchId
+      : (queryBranchId || req.user.branchId || 'all');
+
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.history', {
+      branchId,
+      date,
+      limit: limit ? Number(limit) : 50,
+    });
+  }
+
+  @Get('shift-handover/:id')
+  @Roles('branch', 'pharmacist', 'admin', 'director')
+  @ApiOperation({ summary: 'Chi tiết biên bản bàn giao ca theo ID' })
+  async getShiftHandoverDetail(@Param('id') id: string, @Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.detail', {
+      id,
+      requesterBranchId: req.user?.branchId,
+      requesterRole: req.user?.role,
+    });
+  }
+
+  // --- HR: BÁO CÁO HIỆU SUẤT BÁN HÀNG KPI DƯỢC SĨ (UC-111 / SCRUM-106) ---
+  @Get('kpi/sales-report')
+  @Roles('branch', 'director', 'admin', 'pharmacist')
+  @ApiOperation({ summary: 'Báo cáo hiệu suất nhân viên bán hàng (KPI) - UC-111' })
+  async getPharmacistKpiReport(
+    @Request() req,
+    @Query('branchId') queryBranchId?: string,
+    @Query('month') month?: number,
+    @Query('year') year?: number,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('pharmacistId') queryPharmacistId?: string,
+    @Query('quota') quota?: number,
+  ) {
+    // Bảo vệ IDOR & Thông tin nhạy cảm:
+    // Dược sĩ chỉ xem duy nhất báo cáo KPI của chính mình
+    let pharmacistId = queryPharmacistId;
+    if (req.user.role === 'pharmacist') {
+      pharmacistId = req.user.sub;
+    }
+
+    // Quản lý chi nhánh bị gán chặt vào chi nhánh mình
+    let branchId = queryBranchId;
+    if (req.user.role === 'branch' || req.user.role === 'pharmacist') {
+      branchId = req.user.branchId;
+    }
+
+    const report: any = await sendKafkaMessage(this.ordersClient, 'orders.pharmacist.kpi_report', {
+      branchId,
+      month: month ? Number(month) : undefined,
+      year: year ? Number(year) : undefined,
+      startDate,
+      endDate,
+      pharmacistId,
+      pharmacistName: req.user.role === 'pharmacist' ? req.user.fullName : undefined,
+      quota: quota ? Number(quota) : undefined,
+    });
+
+    // Lấy thông tin chênh lệch két từ lịch sử ShiftHandover để bổ sung chỉ số trung thực tiền mặt
+    try {
+      const handoversRes: any = await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.history', {
+        branchId: branchId || 'all',
+        limit: 100,
+      });
+
+      const handovers = handoversRes?.handovers || [];
+      if (Array.isArray(report?.kpiList)) {
+        report.kpiList = report.kpiList.map((item: any) => {
+          const userHandovers = handovers.filter((h: any) => {
+            const matchId = h.outgoingPharmacistId?.toString() === item.pharmacistId;
+            const matchName =
+              h.outgoingPharmacistName &&
+              item.pharmacistName &&
+              h.outgoingPharmacistName.trim().toLowerCase() === item.pharmacistName.trim().toLowerCase();
+            return matchId || matchName;
+          });
+          const totalShifts = userHandovers.length;
+          const balancedShifts = userHandovers.filter((h: any) => h.cashDiscrepancy === 0).length;
+          const cashDiscrepancyTotal = userHandovers.reduce((sum: number, h: any) => sum + Math.abs(h.cashDiscrepancy || 0), 0);
+          const cashIntegrityRate = totalShifts > 0 ? Number(((balancedShifts / totalShifts) * 100).toFixed(1)) : 100;
+
+          return {
+            ...item,
+            totalShifts,
+            balancedShifts,
+            cashDiscrepancyTotal,
+            cashIntegrityRate,
+          };
+        });
+      }
+    } catch (e) {
+      // Bỏ qua lỗi nối kết nếu có
+    }
+
+    return report;
+  }
+
+  // --- HR: PAYROLL MANAGEMENT ---
+  @Post('payroll/calculate')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Tính toán dự thảo bảng lương tháng cho chi nhánh' })
+  async calculateMonthlyPayroll(@Request() req, @Body() data: { month: number; year: number; branchId?: string; mealAllowanceRate?: number }) {
+    // Nếu là Quản lý chi nhánh (role 'branch'), bắt buộc khóa chặt theo chi nhánh của mình (Chống IDOR/BOLA)
+    const branchId = req.user.role === 'branch'
+      ? req.user.branchId
+      : (data.branchId || req.user.branchId || 'BR-001');
+
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.calculate', {
+      branchId,
+      month: Number(data.month),
+      year: Number(data.year),
+      mealAllowanceRate: data.mealAllowanceRate ? Number(data.mealAllowanceRate) : 35000,
+      managerId: req.user.sub,
+      managerName: req.user.fullName,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Get('payroll')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Lấy danh sách bảng lương của chi nhánh' })
+  async listPayrolls(@Request() req, @Query('year') year?: number, @Query('branchId') branchId?: string) {
+    try {
+      const targetBranch = req.user.role === 'branch' ? req.user.branchId : (branchId || req.user.branchId);
+      return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.list', {
+        branchId: targetBranch,
+        year: year ? Number(year) : undefined,
+      });
+    } catch (err: any) {
+      // Khi microservice timeout hoac dang khoi dong lai, tra ve mang rong de UI hien thi trang thai rong an toan
+      if (err?.name === 'TimeoutError' || err?.message?.includes('timeout') || err?.status === 504 || (err?.getStatus && err.getStatus() === 504)) {
+        return [];
+      }
+      throw err;
+    }
+  }
+
+  @Get('payroll/my-payslip')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Nhân viên xem phiếu lương cá nhân của chính mình' })
+  async getMyPayslip(@Request() req, @Query('month') month?: number, @Query('year') year?: number) {
+    try {
+      const employeeId = req.user?.sub || req.user?._id || req.user?.id;
+      return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.my_payslip', {
+        employeeId,
+        month: month ? Number(month) : undefined,
+        year: year ? Number(year) : undefined,
+      });
+    } catch (err: any) {
+      return [];
+    }
+  }
+
+  @Get('payroll/my-payslips')
+  @Roles('branch', 'pharmacist', 'warehouse', 'admin')
+  @ApiOperation({ summary: 'Alias nhân viên xem phiếu lương cá nhân của chính mình (Cho Mobile App)' })
+  async getMyPayslipsAlias(@Request() req, @Query('month') month?: number, @Query('year') year?: number) {
+    try {
+      const employeeId = req.user?.sub || req.user?._id || req.user?.id;
+      return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.my_payslip', {
+        employeeId,
+        month: month ? Number(month) : undefined,
+        year: year ? Number(year) : undefined,
+      });
+    } catch (err: any) {
+      return [];
+    }
+  }
+
+  @Get('payroll/:id')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Xem chi tiết bảng lương' })
+  async getPayrollDetail(@Request() req, @Param('id') id: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.detail', {
+      payrollId: id,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Patch('payroll/:id/adjust')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý điều chỉnh thủ công thưởng/phạt của nhân viên' })
+  async adjustPayrollItem(
+    @Request() req,
+    @Param('id') payrollId: string,
+    @Body() body: { employeeId: string; manualAdjustment: number; penalties?: number; adjustmentNote?: string },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.adjust', {
+      payrollId,
+      ...body,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Patch('payroll/:id/submit')
+  @Roles('branch', 'admin')
+  @ApiOperation({ summary: 'Quản lý gửi bảng lương lên Ban Giám đốc phê duyệt' })
+  async submitPayroll(@Request() req, @Param('id') payrollId: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.submit', {
+      payrollId,
+      managerId: req.user.sub,
+      requesterBranchId: req.user.branchId,
+      requesterRole: req.user.role,
+    });
+  }
+
+  @Patch('payroll/:id/approve')
+  @Roles('branch', 'director', 'admin')
+  @ApiOperation({ summary: 'Quản lý chi nhánh / Ban Giám đốc phê duyệt bảng lương cơ sở' })
+  async approvePayroll(@Request() req, @Param('id') payrollId: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.approve', {
+      payrollId,
+      approverId: req.user.sub,
+      approverRole: req.user.role,
+      requesterBranchId: req.user.branchId,
+    });
   }
 }

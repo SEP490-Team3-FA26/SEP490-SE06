@@ -35,6 +35,7 @@ import { CustomerCart } from "./pages/customer/CustomerCart";
 import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
 import { AIConsultant } from "./pages/customer/AIConsultant";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
+import { CustomerWishlist } from "./pages/customer/CustomerWishlist";
 import { CustomerOrders } from "./pages/customer/CustomerOrders";
 import { FeedbackPage } from "./pages/customer/FeedbackPage";
 import { BranchFeedbackPage } from "./pages/branch/BranchFeedbackPage";
@@ -52,6 +53,7 @@ import { WarehouseInventoryHub } from "./pages/warehouse/WarehouseInventoryHub";
 import { MobileAIInspection } from "./pages/warehouse/MobileAIInspection";
 import { WarehouseMapPage } from "./pages/warehouse/WarehouseMapPage";
 import { GspTelemetryDashboard } from "./pages/warehouse/GspTelemetryDashboard";
+import { GoodsReceiptInspectionPage } from "./pages/warehouse/GoodsReceiptInspectionPage";
 
 // Admin / HQ Pages
 import { Finance } from "./pages/admin/Finance";
@@ -67,6 +69,9 @@ import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
 import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
 import { RFQManagement } from "./pages/admin/RFQManagement";
 import { SupplierQuotePortal } from "./pages/public/SupplierQuotePortal";
+import { EmailCampaignListPage } from "./pages/admin/EmailCampaignListPage";
+import { EmailCampaignPage } from "./pages/admin/EmailCampaignPage";
+import { UnsubscribePage } from "./pages/public/UnsubscribePage";
 
 // Branch Pages
 import { BranchRequisition } from "./pages/branch/BranchRequisition";
@@ -74,13 +79,18 @@ import { BranchStockReceive } from "./pages/branch/BranchStockReceive";
 import { BranchInventory } from "./pages/branch/BranchInventory";
 import { BranchTransfer } from "./pages/branch/BranchTransfer";
 import { BranchEmployees } from "./pages/branch/BranchEmployees";
+import { BranchCertificateApproval } from "./pages/branch/BranchCertificateApproval";
 import { BranchShiftManagement } from "./pages/branch/BranchShiftManagement";
 import { BranchSchedule } from "./pages/branch/BranchSchedule";
 import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
+import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
+import BranchPayroll from "./pages/branch/BranchPayroll";
+import PharmacistKpiReport from "./pages/branch/PharmacistKpiReport";
 
 import { Sales } from "./pages/pharmacist/Sales";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
 import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
+import { PharmacistLeaveRequest } from "./pages/pharmacist/PharmacistLeaveRequest";
 import PrescriptionManagement from "./pages/pharmacist/PrescriptionManagement";
 import OcrHistoryPage from "./pages/pharmacist/OcrHistoryPage";
 import VoiceConsultHistoryPage from "./pages/pharmacist/VoiceConsultHistoryPage";
@@ -105,6 +115,7 @@ export default function App() {
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
           <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
           {/* Auth Routes */}
           <Route path="/auth" element={<AuthLayout />}>
@@ -121,6 +132,9 @@ export default function App() {
           <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
           <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
           <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
+          <Route path="/marketing/email-campaigns" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
+          <Route path="/marketing/email-campaigns/new" element={<RedirectWithSearch to="/admin/marketing/email-campaigns/new" />} />
+          <Route path="/marketing/email-campaigns/:id" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
 
           {/* --- Customer Routes --- */}
           <Route path="/customer" element={<CustomerLayout />}>
@@ -130,6 +144,7 @@ export default function App() {
             <Route path="checkout" element={<CustomerCheckout />} />
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
+            <Route path="wishlist" element={<CustomerWishlist />} />
             <Route path="orders" element={<CustomerOrders />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="feedback/:orderCode" element={<FeedbackPage />} />
@@ -156,6 +171,9 @@ export default function App() {
 
               <Route path="master-data/products" element={<Products />} />
               <Route path="master-data/suppliers" element={<Suppliers />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
               <Route path="inventory" element={<Inventory />} />
               <Route path="inspector" element={<InspectorDashboard />} />
               <Route path="gpp-sync" element={<GppSyncPage />} />
@@ -169,6 +187,9 @@ export default function App() {
               <Route path="branches" element={<Branches />} />
               <Route path="employees" element={<Employees />} />
               <Route path="vouchers" element={<VoucherManagement />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
               <Route path="approvals" element={<HQApproval />} />
               <Route path="finance" element={<Finance />} />
               <Route path="rfq" element={<RFQManagement />} />
@@ -213,10 +234,13 @@ export default function App() {
               <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
               <Route path="goods-receipt/mobile-inspection" element={<MobileAIInspection />} />
+              <Route path="goods-receipt/inspection" element={<GoodsReceiptInspectionPage />} />
+              <Route path="goods-receipt/scan" element={<GoodsReceiptInspectionPage />} />
               <Route path="mobile-ai-inspection" element={<MobileAIInspection />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="ai-insights" element={<AIInsights />} />
               <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="rfq" element={<RFQManagement />} />
               <Route path="supply-chain" element={<SupplyChainDashboard />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
@@ -232,9 +256,11 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="sales" element={<Sales />} />
               <Route path="employees" element={<BranchEmployees />} />
+              <Route path="certificates" element={<BranchCertificateApproval />} />
               <Route path="shifts" element={<BranchShiftManagement />} />
               <Route path="schedule" element={<BranchSchedule />} />
               <Route path="shift-swaps" element={<BranchShiftSwap />} />
+              <Route path="leave-approvals" element={<BranchLeaveApproval />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="requisitions" element={<BranchRequisition />} />
               <Route path="receive-transfers" element={<BranchStockReceive />} />
@@ -246,6 +272,9 @@ export default function App() {
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
               <Route path="feedbacks" element={<BranchFeedbackPage />} />
+              <Route path="payroll" element={<BranchPayroll />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
+              <Route path="kpi-report" element={<PharmacistKpiReport />} />
               <Route path="profile" element={<Profile />} />
             </Route>
           </Route>
@@ -260,8 +289,10 @@ export default function App() {
               <Route path="ai-consultation" element={<VoiceConsultHistoryPage />} />
               <Route path="gpp-sync" element={<GppSyncPage />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
               <Route path="schedule" element={<PharmacistSchedule />} />
               <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
+              <Route path="leave-requests" element={<PharmacistLeaveRequest />} />
               <Route path="lot-tracking" element={<LotTracking />} />
               <Route path="profile" element={<Profile />} />
             </Route>

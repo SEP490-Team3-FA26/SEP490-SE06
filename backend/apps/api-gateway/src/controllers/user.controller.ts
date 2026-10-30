@@ -52,6 +52,10 @@ export class UserController implements OnModuleInit {
       "user.cart.update",
       "user.cart.delete",
       "user.cart.clear",
+      "user.wishlist.get",
+      "user.wishlist.add",
+      "user.wishlist.remove",
+      "user.wishlist.clear",
       "user.loyalty.get",
       "user.loyalty.lookup",
       "user.loyalty.update_points",
@@ -142,6 +146,48 @@ export class UserController implements OnModuleInit {
   @ApiOperation({ summary: "Dọn sạch giỏ hàng" })
   async clearCart(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, "user.cart.clear", {
+      userId: req.user.sub,
+    });
+  }
+
+  // --- WISHLIST REST ENDPOINTS (Quản lý sản phẩm yêu thích) ---
+
+  @Get("wishlist")
+  @ApiOperation({ summary: "Lấy danh sách sản phẩm yêu thích của khách hàng" })
+  async getWishlist(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, "user.wishlist.get", {
+      userId: req.user.sub,
+    });
+  }
+
+  @Post("wishlist")
+  @ApiOperation({ summary: "Thêm sản phẩm vào danh sách yêu thích" })
+  async addToWishlist(
+    @Request() req,
+    @Body() data: { medicineId: string },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, "user.wishlist.add", {
+      userId: req.user.sub,
+      medicineId: data.medicineId,
+    });
+  }
+
+  @Delete("wishlist/:medicineId")
+  @ApiOperation({ summary: "Xóa sản phẩm khỏi danh sách yêu thích" })
+  async removeFromWishlist(
+    @Request() req,
+    @Param("medicineId") medicineId: string,
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, "user.wishlist.remove", {
+      userId: req.user.sub,
+      medicineId,
+    });
+  }
+
+  @Post("wishlist/clear")
+  @ApiOperation({ summary: "Dọn sạch danh sách sản phẩm yêu thích" })
+  async clearWishlist(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, "user.wishlist.clear", {
       userId: req.user.sub,
     });
   }
@@ -411,7 +457,19 @@ export class UserController implements OnModuleInit {
   @Post("rfm/recalculate")
   @ApiOperation({ summary: "Kích hoạt tính toán lại phân cụm RFM khách hàng" })
   async recalculateRFM() {
-    return await sendKafkaMessage(this.kafkaClient, "user.rfm.recalculate", {});
+    const res = await sendKafkaMessage(this.kafkaClient, "user.rfm.recalculate", {});
+    // Xóa cache overview để dữ liệu mới hiển thị ngay lập tức
+    if (this.cacheManager) {
+      try {
+        await Promise.all([
+          this.cacheManager.del("rfm:overview:chain"),
+          this.cacheManager.del("rfm:overview:all"),
+          this.cacheManager.del("rfm:overview:BR-001"),
+          this.cacheManager.del("rfm:overview:CENTRAL_WH"),
+        ]);
+      } catch (e) {}
+    }
+    return res;
   }
 
   @Get("rfm/at-risk")

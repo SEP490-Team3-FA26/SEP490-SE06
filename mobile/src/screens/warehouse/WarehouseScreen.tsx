@@ -29,6 +29,8 @@ import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModa
 import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
 import { WarehouseShelfModal } from '../../components/warehouse/WarehouseShelfModal';
 import { TransferQRModal } from '../../components/warehouse/TransferQRModal';
+import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
+import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 
 const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; label: string; icon: string }> = {
   A: { bg: 'rgba(2, 132, 199, 0.1)', border: '#0284C7', text: '#0284C7', label: 'Kháng sinh', icon: '💊' },
@@ -42,6 +44,10 @@ const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; la
 export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'MAP' | 'INVENTORY' | 'RECEIPTS' | 'TRANSFERS' | 'EXPIRATION' | 'TRACE' | 'FORECAST'>('MAP');
+
+  // Attendance & Shift Modal
+  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
+  const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
 
   // --- Sơ Đồ Kho Tổng (Warehouse Map) State ---
   const [warehouseZones, setWarehouseZones] = useState<WarehouseZone[]>(DEFAULT_GSP_ZONES);
@@ -57,7 +63,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   // --- Barcode & Label Modal State ---
   const [scannerVisible, setScannerVisible] = useState<boolean>(false);
-  const [scannerPurpose, setScannerPurpose] = useState<'LOCATE_MAP' | 'SEARCH_INVENTORY' | 'TRACE_LOT' | 'RECEIVE_TRANSFER'>('LOCATE_MAP');
+  const [scannerPurpose, setScannerPurpose] = useState<'LOCATE_MAP' | 'SEARCH_INVENTORY' | 'TRACE_LOT' | 'RECEIVE_TRANSFER' | 'SCAN_PO'>('LOCATE_MAP');
   const [labelModalVisible, setLabelModalVisible] = useState<boolean>(false);
   const [selectedMedForLabel, setSelectedMedForLabel] = useState<Medicine | null>(null);
 
@@ -67,64 +73,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [transferFilter, setTransferFilter] = useState<string>('ALL');
 
   // --- Goods Receipts state (GRN) ---
-  const [receipts, setReceipts] = useState<any[]>([
-    {
-      id: 'GRN-2026-881',
-      poCode: 'PO-2026-01',
-      supplier: 'Công Ty Cổ Phần Dược Hậu Giang',
-      status: 'INSPECTING',
-      date: '2026-09-12',
-      items: [
-        {
-          name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu (15 gói x 2 miếng)',
-          expected: 150,
-          actual: 0,
-          unit: 'Hộp',
-          status: 'PENDING',
-          batchNo: 'B007-HIS',
-          expDate: '2027-02-03',
-          image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg',
-        },
-        {
-          name: 'Miếng dán Tiger Balm Plaster - RD Haw Par giảm mỏi cơ (7cm x 10cm)',
-          expected: 100,
-          actual: 0,
-          unit: 'Hộp',
-          status: 'PENDING',
-          batchNo: 'TB-2026-08',
-          expDate: '2027-11-20',
-          image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/00500745_tiger_balm_plaster_rd_7x10cm_4417_62bd_large_4776af9b3f.jpg',
-        },
-      ],
-    },
-    {
-      id: 'GRN-2026-882',
-      poCode: 'PO-2026-02',
-      supplier: 'Hisamitsu Pharmaceutical Việt Nam',
-      status: 'PENDING_APPROVAL',
-      date: '2026-09-11',
-      items: [
-        {
-          name: 'Cao dán Salonsip Gel - Patch Hisamitsu giảm đau mỏi cơ (8 gói x 3 miếng)',
-          expected: 80,
-          actual: 80,
-          unit: 'Hộp',
-          status: 'VERIFIED',
-          batchNo: 'SLS-2026-04',
-          expDate: '2027-08-15',
-          image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_00638_2f20f0ff6a.jpg',
-        },
-      ],
-    },
-  ]);
+  const [receipts, setReceipts] = useState<any[]>([]);
 
   // AI Goods Inspection Scanner state
   const [inspectModalVisible, setInspectModalVisible] = useState<boolean>(false);
   const [selectedReceiptForInspection, setSelectedReceiptForInspection] = useState<any | null>(null);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number>(0);
-  const [selectedInspectionImage, setSelectedInspectionImage] = useState<string>(
-    'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg'
-  );
+  const [selectedInspectionImage, setSelectedInspectionImage] = useState<string>('');
   const [isAiScanning, setIsAiScanning] = useState<boolean>(false);
   const [aiScanResult, setAiScanResult] = useState<{
     medName: string;
@@ -144,10 +99,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [traceResult, setTraceResult] = useState<any | null>(null);
 
   // Expiration report state
-  const [expiredList, setExpiredList] = useState<any[]>([
-    { name: 'Cefuroxim 500mg', batchNo: 'Lô D1', expDate: '2026-09-20', stock: 12, unit: 'Hộp', daysLeft: 20 },
-    { name: 'Strepsils Cool', batchNo: 'Lô E1', expDate: '2026-10-01', stock: 40, unit: 'Hộp', daysLeft: 31 },
-  ]);
+  const [expiredList, setExpiredList] = useState<any[]>([]);
 
   // AI Demand Forecast state
   const [forecastPeriod, setForecastPeriod] = useState<number>(30);
@@ -159,49 +111,33 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, mapRes, lowStock, transferList] = await Promise.all([
+      const [medList, mapRes, lowStock, transferList, grnList] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getWarehouseMap(),
         ApiService.getLowStockReport(),
         ApiService.getStockTransfers(),
+        ApiService.getGoodsReceipts(),
       ]);
 
-      if (medList) setMedicines(medList);
-      if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
-      if (transferList && transferList.length > 0) {
-        setTransfers(transferList);
-      } else {
-        // Fallback demo stock transfers
-        setTransfers([
-          {
-            id: 'st_demo_1',
-            transferCode: 'ST-20260920-0001',
-            fromBranchId: 'CENTRAL_WH',
-            fromBranchName: 'Kho Tổng GSP Trung Tâm',
-            toBranchId: 'BR-001',
-            toBranchName: 'Chi Nhánh Q1 - TP.HCM',
-            status: 'SHIPPING',
-            items: [
-              { medicineId: 'fallback_1', name: 'Panadol Extra Đỏ', batchNo: 'BATCH-2026-001', quantity: 50, unit: 'Vỉ' },
-              { medicineId: 'fallback_2', name: 'Amoxicillin 500mg', batchNo: 'AMX-2026-11', quantity: 30, unit: 'Hộp' },
-            ],
-            createdAt: '2026-09-20',
-          },
-          {
-            id: 'st_demo_2',
-            transferCode: 'ST-20260919-0002',
-            fromBranchId: 'CENTRAL_WH',
-            fromBranchName: 'Kho Tổng GSP Trung Tâm',
-            toBranchId: 'BR-002',
-            toBranchName: 'Chi Nhánh Q3 - TP.HCM',
-            status: 'COMPLETED',
-            items: [
-              { medicineId: 'fallback_3', name: 'Decolgen Forte', batchNo: 'DEC-2026-05', quantity: 40, unit: 'Vỉ' },
-            ],
-            createdAt: '2026-09-19',
-          },
-        ]);
+      if (medList) {
+        setMedicines(medList);
+        const nearExpiry = medList
+          .map((m: any) => {
+            const exp = ApiService.getExpiryStatus(m);
+            return {
+              ...m,
+              ...exp,
+              expDate: exp.expDateFormatted,
+              stock: m.stock ?? m.totalStock ?? 0,
+              unit: m.unit || m.baseUnit || 'Đơn vị',
+            };
+          })
+          .filter((item: any) => item.status === 'NEAR_EXPIRY' || item.status === 'EXPIRED');
+        setExpiredList(nearExpiry);
       }
+      if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
+      setTransfers(transferList || []);
+      setReceipts(grnList || []);
     } catch (e) {
       console.warn('Error loading warehouse data:', e);
     } finally {
@@ -249,30 +185,102 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     } else if (scannerPurpose === 'TRACE_LOT') {
       setBatchNoQuery(code);
       handleTraceLotWithCode(code);
-    } else if (scannerPurpose === 'RECEIVE_TRANSFER') {
-      // Find transfer and confirm
-      const transfer = transfers.find((t) => t.transferCode === code || t.id === code || t._id === code);
-      if (transfer) {
-        Alert.alert(
-          'Xác Nhận Nhập Hàng Bằng QR',
-          `Phiếu: ${transfer.transferCode}\nTừ: ${transfer.fromBranchName || transfer.fromBranchId}\nSố lượng: ${transfer.items?.length || 0} loại thuốc.\nBạn muốn xác nhận nhập kho?`,
-          [
-            { text: 'Hủy', style: 'cancel' },
-            {
-              text: 'Xác Nhận Nhập Kho',
-              onPress: async () => {
-                await ApiService.receiveStockTransfer(transfer.id || transfer._id || '', {
-                  receivedBy: 'Thủ kho di động',
-                  inspectionNote: 'Quét mã QR kiện hàng thành công',
-                });
-                showToast.success('Thành công', `Đã nhập kho phiếu ${transfer.transferCode}!`);
-                loadData();
+    } else if (scannerPurpose === 'RECEIVE_TRANSFER' || scannerPurpose === 'SCAN_PO') {
+      try {
+        let cleanCode = code.trim();
+        // Bóc tách ID nếu mã quét là đường link (URL) Web
+        if (cleanCode.includes('poId=')) {
+          const match = cleanCode.match(/poId=([a-zA-Z0-9_-]+)/);
+          if (match) cleanCode = match[1];
+        } else if (cleanCode.includes('grnId=')) {
+          const match = cleanCode.match(/grnId=([a-zA-Z0-9_-]+)/);
+          if (match) cleanCode = match[1];
+        }
+
+        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN
+        const pos = await ApiService.getPurchaseOrders().catch(() => []);
+        let matchedPo = Array.isArray(pos)
+          ? pos.find((p: any) => p._id === cleanCode || p.poCode === cleanCode || p.id === cleanCode || (p._id && cleanCode.includes(p._id.slice(-6))))
+          : null;
+
+        // Nếu chưa thấy trong danh sách, thử gọi API tìm trực tiếp theo ID
+        if (!matchedPo && cleanCode.length >= 8) {
+          matchedPo = await ApiService.getPurchaseOrderById(cleanCode).catch(() => null);
+        }
+
+        if (matchedPo) {
+          const poReceipt = {
+            id: `GRN-${matchedPo.poCode || (matchedPo._id ? matchedPo._id.slice(-6).toUpperCase() : 'PO')}`,
+            poCode: matchedPo.poCode || matchedPo._id,
+            poId: matchedPo._id,
+            supplier: matchedPo.supplierName || 'Nhà cung cấp',
+            status: 'INSPECTING',
+            items: (matchedPo.items || []).map((it: any, idx: number) => ({
+              medicineId: it.medicineId || it.id || `item_${idx}`,
+              name: it.medicineName || it.name || `Thuốc #${idx + 1}`,
+              expected: Number(it.quantity) || 100,
+              actual: 0,
+              unit: it.unit || 'Hộp',
+              status: 'PENDING',
+              batchNo: it.batchNo || '',
+              expDate: it.expDate || '',
+            })),
+          };
+          // Đảm bảo đưa phiếu PO vào danh sách receipts để không bị mất khi thoát hoặc hoàn tất
+          setReceipts((prev) => {
+            const exists = prev.some((r) => r.id === poReceipt.id || r.poCode === poReceipt.poCode);
+            return exists ? prev : [poReceipt, ...prev];
+          });
+          setActiveTab('RECEIPTS');
+          handleStartInspection(poReceipt);
+          showToast.success('Đồng bộ đơn PO', `Mở phiên kiểm đếm kiện hàng cho đơn: ${poReceipt.poCode}`);
+          return;
+        }
+
+        // 2. Kiểm tra phiếu nhập kho trong state
+        const matchedReceipt = receipts.find((r) => r.id === cleanCode || r.poCode === cleanCode || (r as any)._id === cleanCode);
+        if (matchedReceipt) {
+          setActiveTab('RECEIPTS');
+          handleStartInspection(matchedReceipt);
+          showToast.success('Nhận diện phiếu nhập', `Đang mở phiếu: ${matchedReceipt.id}`);
+          return;
+        }
+
+        // 3. Kiểm tra trong danh sách phiếu chuyển kho
+        const transfer = transfers.find((t) => t.transferCode === cleanCode || t.id === cleanCode || (t as any)._id === cleanCode);
+        if (transfer) {
+          Alert.alert(
+            'Xác Nhận Nhập Hàng Bằng QR',
+            `Phiếu: ${transfer.transferCode}\nTừ: ${transfer.fromBranchName || transfer.fromBranchId}\nSố lượng: ${transfer.items?.length || 0} loại thuốc.\nBạn muốn xác nhận nhập kho?`,
+            [
+              { text: 'Hủy', style: 'cancel' },
+              {
+                text: 'Xác Nhận Nhập Kho',
+                onPress: async () => {
+                  try {
+                    const res = await ApiService.receiveStockTransfer(transfer.id || (transfer as any)._id || '', {
+                      receivedBy: 'Thủ kho di động',
+                      inspectionNote: 'Quét mã QR kiện hàng thành công',
+                    });
+                    if (res && res.success !== false) {
+                      showToast.success('Thành công', `Đã nhập kho phiếu ${transfer.transferCode}!`);
+                      loadData();
+                    } else {
+                      showToast.error('Không thành công', res?.message || 'Lỗi nhập kho');
+                    }
+                  } catch (e: any) {
+                    showToast.error('Lỗi', e?.message || 'Không thể xác nhận nhập kho');
+                  }
+                },
               },
-            },
-          ]
-        );
-      } else {
-        showToast.error('Mã phiếu không tồn tại', `Không tìm thấy phiếu chuyển kho: ${code}`);
+            ]
+          );
+          return;
+        }
+
+        showToast.error('Mã phiếu không tồn tại', `Không tìm thấy đơn PO hoặc phiếu chuyển kho: ${cleanCode}`);
+      } catch (err: any) {
+        showToast.error('Lỗi xử lý mã quét', err?.message || 'Không thể xử lý mã');
       }
     }
   };
@@ -298,19 +306,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       if (res && res.batchNo) {
         setTraceResult(res);
       } else {
-        // Mock fallback trace
-        setTraceResult({
-          batchNo: batchNo.toUpperCase(),
-          medicineName: 'Panadol Extra Đỏ 500mg',
-          supplier: 'Công ty Cổ phần Dược Hậu Giang',
-          expDate: '2027-08-15',
-          currentStock: 320,
-          transactions: [
-            { type: 'Nhập kho tổng', date: '2026-01-10', qty: '+500', note: 'Theo PO-2026-01 (Khu B · Kệ B1 · Tầng 1)' },
-            { type: 'Xuất chuyển kho', date: '2026-02-14', qty: '-100', note: 'Chuyển Chi Nhánh Q1 (ST-20260214-0001)' },
-            { type: 'Xuất chuyển kho', date: '2026-03-01', qty: '-80', note: 'Chuyển Chi Nhánh Q3 (ST-20260301-0002)' },
-          ],
-        });
+        setTraceResult(null);
+        showToast.info('Thông báo', `Không tìm thấy dữ liệu truy vết cho lô ${batchNo}`);
       }
     } catch {
       showToast.error('Lỗi', 'Không thể truy vết lô thuốc.');
@@ -350,8 +347,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     setSelectedReceiptForInspection(receipt);
     setSelectedItemIndex(0);
     setAiScanResult(null);
-    setActualCountInput('');
     const firstItem = receipt.items?.[0];
+    setActualCountInput(String(firstItem?.actual ?? firstItem?.expected ?? '10'));
     setSelectedInspectionImage(getItemImage(firstItem));
     setInspectModalVisible(true);
   };
@@ -396,21 +393,15 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     try {
       setForecastLoading(true);
       const res = await ApiService.getAIForecast(period);
-      if (res) {
+      if (res && (res.predictedDemand || res.topDemanded)) {
         setForecastData(res);
       } else {
-        setForecastData({
-          predictedDemand: 1240,
-          confidenceScore: 0.94,
-          topDemanded: [
-            { name: 'Panadol Extra', demand: 420, trend: '+15%' },
-            { name: 'Amoxicillin 500mg', demand: 310, trend: '+8%' },
-            { name: 'Decolgen Forte', demand: 250, trend: '+22%' },
-          ],
-        });
+        setForecastData(null);
+        showToast.info('Thông báo', 'Hệ thống chưa đủ dữ liệu bán hàng để tính toán dự báo AI.');
       }
     } catch (e) {
       console.warn('Lỗi dự báo:', e);
+      setForecastData(null);
     } finally {
       setForecastLoading(false);
     }
@@ -429,24 +420,28 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         selectedInspectionImage
       );
 
-      if (res && res.confidence) {
-        setAiScanResult(res);
-        setActualCountInput(String(res.aiCount || currentItem.expected || 100));
+      if (res && res.success !== false && typeof res.aiCount === 'number') {
+        const medicineName = currentItem?.medName || currentItem?.medicineName || currentItem?.name || 'Dược phẩm';
+        const scanOutput = {
+          medName: medicineName,
+          aiCount: Number(res.aiCount),
+          batchNo: String(res.batchNo || currentItem?.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${100 + selectedItemIndex * 12}`),
+          expDate: String(res.expDate || (currentItem?.expDate ? new Date(currentItem.expDate).toLocaleDateString('vi-VN') : '31/12/2028')),
+          integrity: res.difference === 0 ? 'Nguyên vẹn 100%' : `Chênh lệch: ${res.difference > 0 ? '+' : ''}${res.difference}`,
+          confidence: Number(res.confidence ?? 95),
+          matchPo: res.difference === 0,
+          inspectionRecordId: res.inspectionRecordId ? String(res.inspectionRecordId) : undefined,
+        };
+
+        setAiScanResult(scanOutput);
+        setActualCountInput(String(scanOutput.aiCount));
+        showToast.success('AI Vision', `Nhận diện thành công ${scanOutput.aiCount} hộp (Khớp: ${scanOutput.confidence}%)`);
       } else {
-        // Mock fallback AI vision
-        setAiScanResult({
-          medName: currentItem.name,
-          aiCount: currentItem.expected || 150,
-          batchNo: currentItem.batchNo || 'B007-HIS',
-          expDate: currentItem.expDate || '2027-02-03',
-          integrity: 'Nguyên đai nguyên kiện, bao bì chuẩn GSP',
-          confidence: 96.8,
-          matchPo: true,
-        });
-        setActualCountInput(String(currentItem.expected || 150));
+        const errMsg = res?.message || 'Không thể nhận diện hình ảnh từ máy chủ AI. Vui lòng nhập số lượng kiểm đếm thủ công.';
+        showToast.error('Kiểm định thất bại', errMsg);
       }
-    } catch {
-      showToast.error('Lỗi', 'AI kiểm định gặp sự cố.');
+    } catch (err: any) {
+      showToast.error('Lỗi kiểm định', err?.message || 'Không thể kết nối đến máy chủ AI Vision.');
     } finally {
       setIsAiScanning(false);
     }
@@ -454,41 +449,67 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   const handleConfirmItemInspection = () => {
     if (!selectedReceiptForInspection) return;
-    const nextReceipts = receipts.map((r) => {
-      if (r.id === selectedReceiptForInspection.id) {
-        const nextItems = [...r.items];
-        nextItems[selectedItemIndex] = {
-          ...nextItems[selectedItemIndex],
-          actual: parseInt(actualCountInput, 10) || nextItems[selectedItemIndex].expected,
-          status: 'VERIFIED',
-        };
-        return { ...r, items: nextItems };
-      }
-      return r;
-    });
+    const currentItem = selectedReceiptForInspection.items[selectedItemIndex];
+    const parsed = parseInt(actualCountInput, 10);
+    const confirmedQty = !isNaN(parsed) && parsed >= 0 ? parsed : Number(currentItem?.expected ?? 10);
+
+    const nextItems = [...selectedReceiptForInspection.items];
+    nextItems[selectedItemIndex] = {
+      ...nextItems[selectedItemIndex],
+      actual: confirmedQty,
+      status: 'VERIFIED',
+    };
+
+    const nextReceipts = receipts.some((r) => r.id === selectedReceiptForInspection.id)
+      ? receipts.map((r) => (r.id === selectedReceiptForInspection.id ? { ...r, items: nextItems } : r))
+      : [{ ...selectedReceiptForInspection, items: nextItems }, ...receipts];
 
     setReceipts(nextReceipts);
-    setSelectedReceiptForInspection((prev: any) => {
-      if (!prev) return null;
-      const nextItems = [...prev.items];
-      nextItems[selectedItemIndex] = {
-        ...nextItems[selectedItemIndex],
-        actual: parseInt(actualCountInput, 10) || nextItems[selectedItemIndex].expected,
-        status: 'VERIFIED',
-      };
-      return { ...prev, items: nextItems };
-    });
+    setSelectedReceiptForInspection((prev: any) => ({
+      ...prev,
+      items: nextItems,
+    }));
 
-    showToast.success('Đã xác nhận', `Mặt hàng "${selectedReceiptForInspection.items[selectedItemIndex]?.name}" đã qua kiểm định!`);
+    showToast.success('Đã xác nhận', `Mặt hàng "${currentItem?.name}" đã xác nhận đủ ${confirmedQty} hộp!`);
+
+    // Tự động tìm và chuyển sang mặt hàng chưa kiểm tiếp theo
+    const nextUnverifiedIdx = nextItems.findIndex((it, idx) => idx > selectedItemIndex && it.status !== 'VERIFIED');
+    const fallbackIdx = nextItems.findIndex((it) => it.status !== 'VERIFIED');
+    const targetIdx = nextUnverifiedIdx !== -1 ? nextUnverifiedIdx : fallbackIdx;
+
+    if (targetIdx !== -1) {
+      setSelectedItemIndex(targetIdx);
+      setAiScanResult(null);
+      const targetItem = nextItems[targetIdx];
+      setActualCountInput(String(targetItem.actual ?? targetItem.expected ?? '10'));
+      setSelectedInspectionImage(getItemImage(targetItem));
+    }
   };
 
-  const handleFinishAndStockReceipt = () => {
+  const handleFinishAndStockReceipt = async () => {
     if (!selectedReceiptForInspection) return;
+    const receiptId = selectedReceiptForInspection.id || selectedReceiptForInspection._id;
+
     setReceipts((prev) =>
-      prev.map((r) => (r.id === selectedReceiptForInspection.id ? { ...r, status: 'COMPLETED' } : r))
+      prev.map((r) =>
+        r.id === receiptId || r.poCode === selectedReceiptForInspection.poCode
+          ? { ...r, status: 'COMPLETED' }
+          : r
+      )
     );
     setInspectModalVisible(false);
-    showToast.success('Hoàn tất', `Đã nhập kho GSP thành công toàn bộ lô hàng ${selectedReceiptForInspection.id}!`);
+
+    try {
+      if (receiptId && !receiptId.startsWith('GRN-PO')) {
+        await ApiService.approveGoodsReceipt(receiptId);
+      } else if (selectedReceiptForInspection.poId) {
+        await ApiService.submitInspection(selectedReceiptForInspection.poId);
+      }
+    } catch (e) {
+      console.warn('Lỗi lưu kết quả kiểm đếm lên backend:', e);
+    }
+
+    showToast.success('Hoàn tất', `Đã nhập kho GSP thành công toàn bộ lô hàng ${receiptId}!`);
   };
 
   const handleApproveReceipt = (id: string) => {
@@ -523,6 +544,44 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           onPress: () => navigation.navigate('NotificationListScreen'),
         }}
       />
+
+      {/* Quick Shift & Payslip Bar */}
+      <View style={styles.shiftActionBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shiftActionBarContent}
+        >
+          <AnimatedTouchable
+            onPress={() => setShowCheckInModal(true)}
+            style={[styles.shiftActionBtn, styles.checkInBtn]}
+          >
+            <Ionicons name="location" size={16} color="#059669" />
+            <Text style={[styles.shiftActionText, { color: '#059669' }]}>
+              Điểm Danh GPS Kho Tổng
+            </Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowPayslipModal(true)}
+            style={[styles.shiftActionBtn, styles.payslipBtn]}
+          >
+            <Ionicons name="receipt-outline" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => {
+              setScannerPurpose('SCAN_PO');
+              setScannerVisible(true);
+            }}
+            style={[styles.shiftActionBtn, { borderColor: '#818CF8', backgroundColor: '#EEF2FF' }]}
+          >
+            <Ionicons name="scan-circle" size={17} color="#4F46E5" />
+            <Text style={[styles.shiftActionText, { color: '#4F46E5', fontWeight: '700' }]}>Quét Đơn PO</Text>
+          </AnimatedTouchable>
+        </ScrollView>
+      </View>
 
       {/* Horizontal Scrollable Tabs Bar */}
       <View style={styles.tabBarWrapper}>
@@ -1029,6 +1088,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </View>
               </View>
             ))}
+
+            {displayedTransfers.length === 0 && (
+              <View style={styles.emptyCard}>
+                <Ionicons name="swap-horizontal-outline" size={42} color="#94A3B8" />
+                <Text style={styles.emptyCardTitle}>Chưa có phiếu chuyển kho</Text>
+                <Text style={styles.emptyCardSub}>Hiện tại không có phiếu điều phối xuất/nhập kho nào cần xử lý.</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -1037,7 +1104,58 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         {/* ========================================================= */}
         {activeTab === 'RECEIPTS' && (
           <View>
-            <Text style={styles.sectionTitle}>Phiếu Nhập Kho (Goods Receipts - GRN)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Phiếu Nhập Kho (GRN)</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setScannerPurpose('SCAN_PO');
+                  setScannerVisible(true);
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#4F46E5',
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 12,
+                  gap: 4,
+                }}
+              >
+                <Ionicons name="scan" size={15} color="#FFFFFF" />
+                <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>Quét Mã Đơn PO</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Banner hướng dẫn quét mã QR đơn PO trực tiếp từ Web */}
+            <TouchableOpacity
+              onPress={() => {
+                setScannerPurpose('SCAN_PO');
+                setScannerVisible(true);
+              }}
+              style={{
+                backgroundColor: '#EEF2FF',
+                borderColor: '#C7D2FE',
+                borderWidth: 1,
+                borderRadius: 16,
+                padding: 14,
+                marginBottom: 16,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="qr-code-outline" size={22} color="#4F46E5" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#312E81' }}>Quét QR Đơn Hàng PO Để Kiểm Đếm</Text>
+                <Text style={{ fontSize: 11, color: '#6366F1', marginTop: 2 }}>
+                  Hướng camera vào mã QR đơn PO trên Web để mở phiên kiểm định AI Vision
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#4F46E5" />
+            </TouchableOpacity>
+
             {receipts.map((gr, idx) => (
               <View key={gr.id || (gr as any)._id || `receipt-${idx}`} style={styles.receiptCard}>
                 <View style={styles.receiptHeader}>
@@ -1134,6 +1252,33 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 )}
               </View>
             ))}
+
+            {receipts.length === 0 && (
+              <View style={styles.emptyCard}>
+                <Ionicons name="document-text-outline" size={42} color="#94A3B8" />
+                <Text style={styles.emptyCardTitle}>Chưa có phiếu nhập kho</Text>
+                <Text style={styles.emptyCardSub}>Quét mã QR từ Web hoặc tạo đơn nhập hàng PO để bắt đầu kiểm đếm.</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setScannerPurpose('SCAN_PO');
+                    setScannerVisible(true);
+                  }}
+                  style={{
+                    marginTop: 14,
+                    backgroundColor: '#4F46E5',
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
+                  <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>Mở Camera Quét Mã PO Ngay</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -1163,6 +1308,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </Text>
               </View>
             ))}
+
+            {expiredList.length === 0 && (
+              <View style={styles.emptyCard}>
+                <Ionicons name="shield-checkmark-outline" size={42} color="#059669" />
+                <Text style={[styles.emptyCardTitle, { color: '#059669' }]}>Hạn Dùng Đạt Chuẩn GSP</Text>
+                <Text style={styles.emptyCardSub}>Tất cả dược phẩm trong kho đều đảm bảo hạn dùng an toàn theo tiêu chuẩn GSP.</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -1358,7 +1511,9 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         onClose={() => setScannerVisible(false)}
         onScanned={handleBarcodeScanned}
         title={
-          scannerPurpose === 'LOCATE_MAP'
+          scannerPurpose === 'SCAN_PO'
+            ? 'Quét QR Đơn Hàng PO / Kiện Hàng'
+            : scannerPurpose === 'LOCATE_MAP'
             ? 'Quét Barcode Định Vị Kệ'
             : scannerPurpose === 'RECEIVE_TRANSFER'
             ? 'Quét QR Nhận Hàng Chuyển Kho'
@@ -1367,7 +1522,9 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             : 'Quét Mã Vạch Dược Phẩm'
         }
         subtitle={
-          scannerPurpose === 'LOCATE_MAP'
+          scannerPurpose === 'SCAN_PO'
+            ? 'Hướng camera vào mã QR đơn PO trên Web hoặc vỏ thùng kiện hàng'
+            : scannerPurpose === 'LOCATE_MAP'
             ? 'Đưa mã vạch hộp thuốc vào khung để tìm vị trí Tầng Kệ'
             : scannerPurpose === 'RECEIVE_TRANSFER'
             ? 'Quét mã QR trên kiện hàng để xác nhận nhập kho'
@@ -1439,6 +1596,58 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </View>
 
           <ScrollView contentContainerStyle={styles.inspectScroll} showsVerticalScrollIndicator={false}>
+            {/* Thanh chuyển đổi nhanh giữa các mặt hàng trong đơn PO */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 6 }}>
+                Chọn mặt hàng kiểm đếm ({selectedReceiptForInspection?.items?.filter((it: any) => it.status === 'VERIFIED').length || 0}/{selectedReceiptForInspection?.items?.length || 0} đã đạt):
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {selectedReceiptForInspection?.items?.map((it: any, idx: number) => {
+                  const isCur = idx === selectedItemIndex;
+                  const isDone = it.status === 'VERIFIED';
+                  const medDisplayName = it.name || it.medicineName || `Thuốc #${idx + 1}`;
+                  const shortName = medDisplayName.length > 18 ? `${medDisplayName.slice(0, 16)}...` : medDisplayName;
+                  return (
+                    <TouchableOpacity
+                      key={it.medicineId || it.id || `item-${idx}`}
+                      onPress={() => {
+                        setSelectedItemIndex(idx);
+                        setAiScanResult(null);
+                        setActualCountInput(String(it.actual ?? it.expected ?? '10'));
+                        setSelectedInspectionImage(getItemImage(it));
+                      }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: 12,
+                        backgroundColor: isCur ? '#4F46E5' : isDone ? '#ECFDF5' : '#F8FAFC',
+                        borderWidth: 1.5,
+                        borderColor: isCur ? '#4338CA' : isDone ? '#10B981' : '#E2E8F0',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <Ionicons
+                        name={isDone ? 'checkmark-circle' : isCur ? 'radio-button-on' : 'radio-button-off'}
+                        size={13}
+                        color={isCur ? '#FFFFFF' : isDone ? '#059669' : '#94A3B8'}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: '700',
+                          color: isCur ? '#FFFFFF' : isDone ? '#065F46' : '#475569',
+                        }}
+                      >
+                        {shortName} ({it.expected} {it.unit || 'hộp'})
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
             <View style={styles.inspectProgressCard}>
               <View style={styles.progressHeaderRow}>
                 <Text style={styles.progressLabel}>
@@ -1496,50 +1705,80 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               icon={<Ionicons name="sparkles" size={18} color="#FFFFFF" />}
             />
 
-            {aiScanResult && (
-              <View style={styles.aiResultCard}>
-                <View style={styles.aiResultHeader}>
-                  <Text style={styles.aiResultTitle}>Kết Quả AI Vision</Text>
-                  <View style={styles.confidenceBadge}>
-                    <Text style={styles.confidenceText}>Khớp: {aiScanResult.confidence}%</Text>
+            {/* Khung Kết Quả AI hoặc Đếm Thực Tế Bằng Tay */}
+            <View style={styles.aiResultCard}>
+              {aiScanResult && (
+                <>
+                  <View style={styles.aiResultHeader}>
+                    <Text style={styles.aiResultTitle}>Kết Quả AI Vision</Text>
+                    <View style={styles.confidenceBadge}>
+                      <Text style={styles.confidenceText}>Khớp: {aiScanResult.confidence}%</Text>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.aiRow}>
-                  <Text style={styles.aiRowLabel}>📦 Số lượng:</Text>
-                  <Text style={styles.aiRowValueBold}>{aiScanResult.aiCount} Hộp</Text>
-                </View>
-                <View style={styles.aiRow}>
-                  <Text style={styles.aiRowLabel}>🏷️ Số Lô (Batch OCR):</Text>
-                  <Text style={styles.aiRowValue}>{aiScanResult.batchNo}</Text>
-                </View>
-                <View style={styles.aiRow}>
-                  <Text style={styles.aiRowLabel}>📅 Hạn sử dụng:</Text>
-                  <Text style={styles.aiRowValue}>{aiScanResult.expDate}</Text>
-                </View>
-
-                <View style={styles.actualCountWrapper}>
-                  <Text style={styles.actualCountLabel}>Xác nhận số lượng thực nhận:</Text>
-                  <View style={styles.actualCountInputRow}>
-                    <TextInput
-                      style={styles.actualCountInput}
-                      keyboardType="numeric"
-                      value={actualCountInput}
-                      onChangeText={setActualCountInput}
-                    />
-                    <Text style={styles.unitSuffix}>Hộp</Text>
+                  <View style={styles.aiRow}>
+                    <Text style={styles.aiRowLabel}>📦 Số lượng AI đếm:</Text>
+                    <Text style={styles.aiRowValueBold}>{aiScanResult.aiCount} Hộp</Text>
                   </View>
-                </View>
+                  <View style={styles.aiRow}>
+                    <Text style={styles.aiRowLabel}>🏷️ Số Lô (Batch OCR):</Text>
+                    <Text style={styles.aiRowValue}>{aiScanResult.batchNo}</Text>
+                  </View>
+                  <View style={styles.aiRow}>
+                    <Text style={styles.aiRowLabel}>📅 Hạn sử dụng:</Text>
+                    <Text style={styles.aiRowValue}>{aiScanResult.expDate}</Text>
+                  </View>
+                </>
+              )}
 
-                <GradientButton
-                  title="XÁC NHẬN MẶT HÀNG NÀY"
-                  onPress={handleConfirmItemInspection}
-                  gradientVariant="success"
-                  size="sm"
-                  style={{ marginTop: 10 }}
-                />
+              <View style={styles.actualCountWrapper}>
+                <Text style={styles.actualCountLabel}>
+                  {aiScanResult ? 'Xác nhận số lượng thực nhận:' : 'Số lượng thực tế kiểm nhận (đếm tay):'}
+                </Text>
+                <View style={styles.actualCountInputRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const cur = parseInt(actualCountInput, 10) || 0;
+                      if (cur > 0) setActualCountInput(String(cur - 1));
+                    }}
+                    style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Ionicons name="remove" size={18} color="#475569" />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={[styles.actualCountInput, { minWidth: 80, textAlign: 'center' }]}
+                    keyboardType="numeric"
+                    value={actualCountInput}
+                    onChangeText={(val) => {
+                      setActualCountInput(val.replace(/[^0-9]/g, ''));
+                    }}
+                    placeholder="0"
+                  />
+                  <TouchableOpacity
+                    onPress={() => {
+                      const cur = parseInt(actualCountInput, 10) || 0;
+                      setActualCountInput(String(cur + 1));
+                    }}
+                    style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#4F46E5', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Ionicons name="add" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <Text style={styles.unitSuffix}>{selectedReceiptForInspection?.items[selectedItemIndex]?.unit || 'Hộp'}</Text>
+                </View>
               </View>
-            )}
+
+              <GradientButton
+                title={
+                  selectedReceiptForInspection?.items[selectedItemIndex]?.status === 'VERIFIED'
+                    ? '✓ CẬP NHẬT SỐ LƯỢNG MẶT HÀNG NÀY'
+                    : 'XÁC NHẬN MẶT HÀNG NÀY (TIẾP TỤC)'
+                }
+                onPress={handleConfirmItemInspection}
+                gradientVariant="success"
+                size="sm"
+                style={{ marginTop: 10 }}
+              />
+            </View>
 
             {selectedReceiptForInspection?.items?.every((it: any) => it.status === 'VERIFIED') && (
               <View style={styles.finishInspectionBox}>
@@ -1557,6 +1796,19 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Attendance GPS Modal */}
+      <AttendanceCheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+        onAttendanceSuccess={loadData}
+      />
+
+      {/* Staff Payslip Modal */}
+      <StaffPayslipModal
+        visible={showPayslipModal}
+        onClose={() => setShowPayslipModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -1565,6 +1817,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  shiftActionBar: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  shiftActionBarContent: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+    alignItems: 'center',
+  },
+  shiftActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  checkInBtn: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  payslipBtn: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+  },
+  shiftActionText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   tabBarWrapper: {
     backgroundColor: '#FFFFFF',
@@ -2528,4 +2813,28 @@ const styles = StyleSheet.create({
   unitSuffix: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   finishInspectionBox: { backgroundColor: '#ECFDF5', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 10 },
   finishInspectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#059669', marginTop: 4 },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyCardTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#334155',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptyCardSub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
+  },
 });

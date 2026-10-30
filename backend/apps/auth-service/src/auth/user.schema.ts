@@ -94,6 +94,81 @@ export class User extends Document {
 
   @Prop({ type: [String], default: [], select: false })
   loyaltyOperationKeys?: string[];
+
+  /** Trình độ bằng cấp chuyên môn cao nhất được duyệt (VD: Dược sĩ Đại học, Dược sĩ Cao đẳng) */
+  @Prop({ default: null })
+  highestDegree?: string;
+
+  /** Số hiệu Chứng chỉ hành nghề Dược (CCHN) đã được thẩm định */
+  @Prop({ default: null })
+  practiceCertificateNumber?: string;
+
+  /** Tổng mức phụ cấp văn bằng & CCHN hàng tháng (VNĐ) */
+  @Prop({ default: 0 })
+  certificateAllowance?: number;
+
+  /** Xác định Dược sĩ chịu trách nhiệm chuyên môn chính (PTCM) cho Chi nhánh */
+  @Prop({ default: false })
+  isBranchPIC?: boolean;
+
+  /** Mức lương cơ bản hàng tháng (VNĐ) */
+  @Prop({ default: 7500000 })
+  baseSalary?: number;
+
+  /** Quỹ số ngày phép năm khả dụng còn lại */
+  @Prop({ default: 12 })
+  annualLeaveBalance?: number;
+
+  /** Quỹ số ngày phép năm đã sử dụng trong năm */
+  @Prop({ default: 0 })
+  usedAnnualLeave?: number;
+
+  /** Danh sách các thiết bị sinh trắc học đã đăng ký khóa công khai FIDO2/Challenge-Response */
+  @Prop({ type: Array, default: [] })
+  biometricDevices?: {
+    deviceId: string;
+    deviceName: string;
+    publicKey: string;
+    registeredAt: Date;
+    lastUsedAt: Date;
+    isActive: boolean;
+  }[];
+
+  // ===================================================================
+  // EMAIL MARKETING — Quản lý đăng ký nhận email khuyến mãi
+  // Phục vụ hệ thống Newsletter & Promotion Email Marketing
+  // ===================================================================
+
+  /** Nhóm khách hàng theo mục đích điều trị (dùng để lọc đối tượng nhận email) */
+  @Prop({
+    type: String,
+    enum: ['GENERAL', 'PEDIATRIC', 'PREGNANT', 'ELDERLY', 'CHRONIC'],
+    default: 'GENERAL',
+  })
+  targetGroup?: string;
+
+  /**
+   * Thông tin quản lý đăng ký nhận email marketing
+   * isSubscribed: Khách hàng đồng ý nhận email khuyến mãi (default: true khi đăng ký)
+   * unsubscribeToken: Token ngẫu nhiên để hủy đăng ký 1-click an toàn
+   * isEmailValid: Chuyển false khi nhận sự kiện Hard Bounce từ Resend
+   * unsubscribedAt: Thời điểm khách hủy đăng ký
+   */
+  @Prop({
+    type: {
+      isSubscribed: { type: Boolean, default: true },
+      unsubscribeToken: { type: String, index: true },
+      isEmailValid: { type: Boolean, default: true },
+      unsubscribedAt: { type: Date },
+    },
+    default: () => ({ isSubscribed: true, isEmailValid: true }),
+  })
+  newsletter?: {
+    isSubscribed: boolean;
+    unsubscribeToken?: string;
+    isEmailValid: boolean;
+    unsubscribedAt?: Date;
+  };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

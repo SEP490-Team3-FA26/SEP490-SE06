@@ -107,6 +107,16 @@ export class MedicineController {
     }
   }
 
+  @MessagePattern('inventory.medicine.subcategory_counts')
+  async getSubCategoryCounts(@Payload() payload: any) {
+    try {
+      return await this.medicineService.getSubCategoryCounts(payload);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi đếm số lượng danh mục con');
+    }
+  }
+
   @MessagePattern('inventory.medicine.stats')
   async getInventoryStats(@Payload() data?: { branchId?: string }) {
     try {
@@ -211,7 +221,7 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.medicine.get_alternatives')
-  async getAlternatives(@Payload() data: { medicineId: string; branchId: string }) {
+  async getAlternatives(@Payload() data: { medicineId: string; branchId: string }): Promise<any> {
     try {
       return await this.medicineService.findAlternatives(data.medicineId, data.branchId);
     } catch (error) {

@@ -1,7 +1,6 @@
 # Dependencies & build caches
 node_modules
 node_modules/**
-**/node_modules/**
 .expo
 .expo/**
 dist
@@ -15,9 +14,18 @@ build/**
 **/build/**
 .gradle
 .gradle/**
+**/.gradle/**
+android/.gradle
+android/.gradle/**
 **/android/.gradle/**
+android/build
+android/build/**
 android/app/build
 android/app/build/**
+**/android/app/build/**
+android/app/.cxx
+android/app/.cxx/**
+**/android/app/.cxx/**
 *.apk
 *.aab
 
@@ -31,5 +39,11 @@ windows/**
 .kotlin
 .kotlin/**
 
-# Keep google-services.json
+# Keep credentials & google-services
 !google-services.json
+!credentials.json
+
+# Documentation
+AGENTS.md
+agents.md
+

@@ -401,4 +401,201 @@ export class AuthMsController {
       </div>
     `;
   }
+
+  /**
+   * Su kien tu dong gui email chao mung va OTP thiet lap mat khau cho nhan vien moi
+   */
+  @EventPattern('auth.employee.welcome_reset_password')
+  async handleEmployeeWelcomeResetPassword(@Payload() data: any) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`[Auth MS] Nhan su kien gui email chao mung cho nhan vien: ${payload.email}`);
+      await this.authService.generateAndSendWelcomeResetToken(
+        payload.email,
+        payload.fullName,
+        payload.branchId,
+        payload.role,
+      );
+    } catch (error: any) {
+      console.error(`[Auth MS] Loi xu ly gui email chao mung nhan vien:`, error.message);
+    }
+  }
+
+  /**
+   * Su kien gui lich lam viec tuan cho tung nhan vien qua email
+   */
+  @EventPattern('hr.schedule.email.send')
+  async handleSendScheduleEmail(@Payload() data: any) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!this.emailService.isEnabled) {
+        console.warn(`[Auth MS] Email service chua duoc cau hinh. Bo qua gui email lich lam viec.`);
+        return;
+      }
+
+      console.log(`[Auth MS] Dang gui lich tuan den email: ${payload.recipientEmail}`);
+      const html = this.generateScheduleHtml(payload);
+
+      await this.emailService.sendEmail({
+        to: payload.recipientEmail,
+        subject: `Lich lam viec tuan tu ${payload.weekStart} den ${payload.weekEnd} - ABC Pharmacy ${payload.branchId}`,
+        html,
+      });
+
+      console.log(`[Auth MS] Da gui thanh cong lich lam viec toi ${payload.recipientEmail}`);
+    } catch (error: any) {
+      console.error(`[Auth MS] Loi gui email lich lam viec:`, error.message);
+    }
+  }
+
+  private generateScheduleHtml(payload: any): string {
+    const shiftsHtml = (payload.shifts || [])
+      .map(
+        (s: any, idx: number) => `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 12px 14px; font-weight: 600; color: #1e293b;">
+            ${s.dayOfWeek || ''}<br>
+            <span style="font-weight: 400; font-size: 12px; color: #64748b;">${s.date}</span>
+          </td>
+          <td style="padding: 12px 14px; color: #0369a1; font-weight: 600;">
+            ${s.shiftName}
+          </td>
+          <td style="padding: 12px 14px; color: #334155;">
+            ${s.time}
+          </td>
+          <td style="padding: 12px 14px; color: #64748b; font-size: 13px;">
+            ${s.note || '-'}
+          </td>
+        </tr>
+      `,
+      )
+      .join('');
+
+    return `
+      <div style="background-color: #f1f5f9; padding: 36px 16px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="max-width: 620px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);">
+          <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 28px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">ABC Pharmacy</h1>
+            <p style="color: #e0f2fe; margin: 6px 0 0 0; font-size: 14px;">Thong bao lich lam viec tuan moi</p>
+          </div>
+          <div style="padding: 28px 24px;">
+            <p style="color: #1e293b; font-size: 15px; margin-top: 0; line-height: 1.6;">
+              Xin chao <strong>${payload.recipientName || 'Dong nghiep'}</strong>,<br>
+              Quan ly chi nhanh <strong>${payload.branchId}</strong> da phe duyet va dang tai lich lam viec tuan tu ngay <strong>${payload.weekStart}</strong> den ngay <strong>${payload.weekEnd}</strong>.
+            </p>
+            <p style="color: #475569; font-size: 14px; margin-bottom: 20px;">
+              Duoi day la danh sach cac ca lam viec cua ban trong tuan:
+            </p>
+            <div style="overflow-x: auto; margin-bottom: 24px; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                <thead>
+                  <tr style="background-color: #0f172a; color: #ffffff;">
+                    <th style="padding: 10px 14px;">Ngay</th>
+                    <th style="padding: 10px 14px;">Ca truc</th>
+                    <th style="padding: 10px 14px;">Khung gio</th>
+                    <th style="padding: 10px 14px;">Ghi chu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${shiftsHtml || '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #64748b;">Khong co ca truc nao duoc phan cong</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+            <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 4px; margin-bottom: 24px;">
+              <p style="color: #1e40af; font-size: 13px; margin: 0; line-height: 1.5;">
+                Luu y: Vui long co mat truoc ca truc 10-15 phut de thuc hien diem danh Geofencing va ban giao ca theo dung quy dinh cua ABC Pharmacy. Neu co nhu cau doi ca, vui long tao yeu cau Doi ca tren he thong it nhat 12 gio truoc khi ca bat dau.
+              </p>
+            </div>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 20px;">
+            <p style="color: #64748b; font-size: 13px; line-height: 1.6; margin: 0; text-align: center;">
+              Chuc ban mot tuan lam viec hieu qua va an toan!<br>
+              <strong style="color: #0f172a;">Ban Quan Ly Chi Nhanh ${payload.branchId} - ABC Pharmacy</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // =========================================================================
+  // BIOMETRICS FIDO2 PATTERN (Sinh trắc học chuẩn Ngân hàng)
+  // =========================================================================
+
+  /**
+   * Topic: auth.biometrics.register
+   * Đăng ký khóa công khai của thiết bị
+   */
+  @MessagePattern('auth.biometrics.register')
+  async handleBiometricsRegister(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`📨 [Auth MS] Đăng ký thiết bị sinh trắc học cho user: ${payload.userId}`);
+      return await this.authService.registerBiometricDevice(payload.userId, payload);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi đăng ký sinh trắc học:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.devices.list
+   * Lấy danh sách thiết bị sinh trắc học
+   */
+  @MessagePattern('auth.biometrics.devices.list')
+  async handleBiometricsList(@Payload() data: string) {
+    try {
+      const { userId } = typeof data === 'string' ? JSON.parse(data) : data;
+      return await this.authService.getBiometricDevices(userId);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi lấy danh sách thiết bị:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.devices.revoke
+   * Hủy liên kết thiết bị sinh trắc học
+   */
+  @MessagePattern('auth.biometrics.devices.revoke')
+  async handleBiometricsRevoke(@Payload() data: string) {
+    try {
+      const { userId, deviceId } = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`📨 [Auth MS] Hủy liên kết thiết bị ${deviceId} cho user: ${userId}`);
+      return await this.authService.revokeBiometricDevice(userId, deviceId);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi hủy thiết bị sinh trắc học:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.check.device
+   * Kiểm tra điều kiện thiết bị trước khi Gateway cấp Challenge Nonce
+   */
+  @MessagePattern('auth.biometrics.check.device')
+  async handleBiometricsCheckDevice(@Payload() data: string) {
+    try {
+      const { emailOrPhone, deviceId } = typeof data === 'string' ? JSON.parse(data) : data;
+      return await this.authService.checkBiometricDevice(emailOrPhone, deviceId);
+    } catch (error) {
+      return { error: true, message: error.message, statusCode: error.status || 400 };
+    }
+  }
+
+  /**
+   * Topic: auth.biometrics.verify
+   * Xác thực chữ ký số Challenge-Response và phát hành JWT Token
+   */
+  @MessagePattern('auth.biometrics.verify')
+  async handleBiometricsVerify(@Payload() data: string) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`📨 [Auth MS] Xác thực chữ ký sinh trắc học cho ${payload.emailOrPhone} trên device ${payload.deviceId}`);
+      return await this.authService.verifyBiometricSignature(payload);
+    } catch (error) {
+      console.error(`❌ [Auth MS] Lỗi xác thực chữ ký:`, error.message);
+      return { error: true, message: error.message, statusCode: error.status || 401 };
+    }
+  }
 }
+

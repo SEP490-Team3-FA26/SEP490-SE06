@@ -58,6 +58,9 @@ export class SalesOrderItem {
 
   @Prop({ type: Number, default: 0 })
   returnedQuantity: number;
+
+  @Prop({ type: Boolean, default: false })
+  isGiftItem?: boolean; // Đánh dấu sản phẩm quà tặng khuyến mãi (UC-75: Mua X tặng Y)
 }
 export const SalesOrderItemSchema = SchemaFactory.createForClass(SalesOrderItem);
 
@@ -110,6 +113,22 @@ export class SalesOrder extends Document {
 
   @Prop({ type: Boolean, default: true })
   isGuest?: boolean;
+
+  // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+  @Prop({ type: String, uppercase: true })
+  voucherCode?: string;
+
+  @Prop({ type: Number, default: 0 })
+  voucherDiscount?: number;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  auditFlag?: boolean; // Cờ nghi vấn kiểm toán (Audit Flag) khi phát hiện bất thường
+
+  @Prop({ type: String })
+  flagReason?: string; // Lý do gắn cờ (VD: 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION')
+
+  @Prop({ type: Number, default: 0 })
+  cashierVoucherDailyCount?: number; // Số đơn voucher tiền mặt thu ngân này đã dùng trong ngày
 
   // --- Liên thông Cơ sở Dữ liệu Dược Quốc gia (GPP) ---
   @Prop({ type: String, default: '79-001234' })

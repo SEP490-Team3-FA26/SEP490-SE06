@@ -3,6 +3,8 @@ import { User, Phone, Mail, MapPin, Lock, Edit2, Save, X, Eye, EyeOff, CheckCirc
 import { useNavigate } from 'react-router-dom';
 import { authService, branchService, userService } from '../../services';
 import { notifyAuthTokenChanged } from '../../utils/authEvents';
+import { StaffCertificateSection } from '../profile/StaffCertificateSection';
+import { StaffPayslipSection } from '../profile/StaffPayslipSection';
 
 const ROLE_MAP: Record<string, { label: string; color: string; bg: string }> = {
   admin:       { label: 'Quản trị viên',       color: 'text-purple-700', bg: 'bg-purple-100' },
@@ -331,6 +333,14 @@ export function Profile() {
           </div>
         )}
       </div>
+
+      {/* ── Bằng cấp cá nhân & CCHN (Phần 1 nghiệp vụ y tế) ── */}
+      <StaffCertificateSection userRole={profile.role} />
+
+      {/* ── Phiếu lương & Thu nhập cá nhân theo ca ── */}
+      {['pharmacist', 'warehouse', 'branch'].includes(profile.role) && (
+        <StaffPayslipSection userRole={profile.role} />
+      )}
 
       {/* ── Security Card ── */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">

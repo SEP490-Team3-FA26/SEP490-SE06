@@ -24,13 +24,24 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<'HEALTH' | 'EMPLOYEES' | 'AUDIT'>('HEALTH');
 
   // Microservices Health State
-  const [services] = useState([
-    { name: 'auth-service', status: 'ACTIVE', port: '4001', load: '1.2%', reqCount: '1,420/m' },
-    { name: 'user-service', status: 'ACTIVE', port: '4002', load: '0.8%', reqCount: '890/m' },
-    { name: 'inventory-service', status: 'ACTIVE', port: '4003', load: '2.4%', reqCount: '3,210/m' },
-    { name: 'supplier-service', status: 'ACTIVE', port: '4004', load: '0.3%', reqCount: '340/m' },
-    { name: 'ai-service', status: 'ACTIVE', port: '8000', load: '12.6%', reqCount: '780/m' },
-  ]);
+  const [healthData, setHealthData] = useState<{
+    status: 'ONLINE' | 'OFFLINE';
+    latencyMs: number;
+    timestamp: string;
+    services: Array<{ name: string; port: string; status: 'ACTIVE' | 'STANDBY'; role: string }>;
+  }>({
+    status: 'ONLINE',
+    latencyMs: 15,
+    timestamp: new Date().toISOString(),
+    services: [
+      { name: 'api-gateway', port: '4000', status: 'ACTIVE', role: 'Gateway Routing' },
+      { name: 'auth-service', port: '4001', status: 'ACTIVE', role: 'Authentication & JWT' },
+      { name: 'user-service', port: '4002', status: 'ACTIVE', role: 'HR & Attendance' },
+      { name: 'inventory-service', port: '4003', status: 'ACTIVE', role: 'Stock & Batches' },
+      { name: 'supplier-service', port: '4004', status: 'ACTIVE', role: 'Vendors & PO' },
+      { name: 'orders-service', port: '4005', status: 'ACTIVE', role: 'Sales & POS' },
+    ],
+  });
 
   // Employees State
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -52,33 +63,15 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [empList, logs] = await Promise.all([
+      const [empList, logs, health] = await Promise.all([
         ApiService.getEmployees(),
         ApiService.getAuditLogs(),
+        ApiService.getGatewayHealth(),
       ]);
 
-      if (empList && empList.length > 0) {
-        setEmployees(empList);
-      } else {
-        // Mock fallback employees
-        setEmployees([
-          { id: '1', name: 'Nguyễn Văn An', email: 'pharmacist@vinapharmacy.com', phone: '0901234567', role: 'pharmacist', isActive: true },
-          { id: '2', name: 'Trần Thị Bình', email: 'warehouse@vinapharmacy.com', phone: '0912345678', role: 'warehouse', isActive: true },
-          { id: '3', name: 'Lê Hoàng Cường', email: 'manager@vinapharmacy.com', phone: '0923456789', role: 'branch', isActive: true },
-          { id: '4', name: 'Phạm Minh Đức', email: 'director@vinapharmacy.com', phone: '0934567890', role: 'head_branch', isActive: true },
-        ]);
-      }
-
-      if (logs && logs.length > 0) {
-        setAuditLogs(logs);
-      } else {
-        // Mock fallback logs
-        setAuditLogs([
-          { id: '1', action: 'UPDATE_PRICE', userName: 'Admin Hệ Thống', userRole: 'admin', entityName: 'Medicine (MED-001)', createdAt: new Date().toISOString() },
-          { id: '2', action: 'APPROVE_STOCK_TRANSFER', userName: 'Giám Đốc', userRole: 'director', entityName: 'StockTransfer (ST-2026-001)', createdAt: new Date(Date.now() - 3600000).toISOString() },
-          { id: '3', action: 'CREATE_EMPLOYEE', userName: 'Admin Hệ Thống', userRole: 'admin', entityName: 'User (pharmacist_02)', createdAt: new Date(Date.now() - 7200000).toISOString() },
-        ]);
-      }
+      setEmployees(empList || []);
+      setAuditLogs(logs || []);
+      if (health) setHealthData(health);
     } catch (e) {
       console.warn('Error loading admin data:', e);
     } finally {
@@ -212,57 +205,6 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#1E293B']} />}
       >
-        {/* Quick Role & Screen Switcher Banner */}
-        <View style={styles.roleBanner}>
-          <View style={styles.roleBannerHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="sparkles" size={16} color="#6366F1" style={{ marginRight: 6 }} />
-              <Text style={styles.roleBannerTitle}>Khám Phá Các Màn Hình Khác</Text>
-            </View>
-            <Text style={styles.roleBannerSub}>Chạm để xem trực tiếp</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleChipScroll}>
-            <AnimatedTouchable
-              style={[styles.roleChip, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
-              onPress={() => navigation.navigate('CustomerScreen')}
-            >
-              <Ionicons name="cart" size={14} color="#059669" />
-              <Text style={[styles.roleChipText, { color: '#065F46' }]}>🛒 Khách Hàng (5 Tabs + PayOS)</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleChip, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
-              onPress={() => navigation.navigate('WarehouseScreen')}
-            >
-              <Ionicons name="cube" size={14} color="#D97706" />
-              <Text style={[styles.roleChipText, { color: '#92400E' }]}>📦 Thủ Kho (5 Tabs + AI Dự Báo)</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleChip, { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }]}
-              onPress={() => navigation.navigate('DirectorScreen')}
-            >
-              <Ionicons name="business" size={14} color="#7C3AED" />
-              <Text style={[styles.roleChipText, { color: '#5B21B6' }]}>🏢 Giám Đốc (AI Chuỗi)</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleChip, { backgroundColor: '#E0F2FE', borderColor: '#BAE6FD' }]}
-              onPress={() => navigation.navigate('PharmacistScreen')}
-            >
-              <Ionicons name="medkit" size={14} color="#0284C7" />
-              <Text style={[styles.roleChipText, { color: '#0369A1' }]}>💊 Dược Sĩ (Kê Đơn OCR)</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleChip, { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' }]}
-              onPress={() => navigation.navigate('BranchScreen')}
-            >
-              <Ionicons name="storefront" size={14} color="#475569" />
-              <Text style={[styles.roleChipText, { color: '#1E293B' }]}>🏪 Quản Lý Cơ Sở</Text>
-            </AnimatedTouchable>
-          </ScrollView>
-        </View>
 
         {/* TAB 1: SYSTEM HEALTH */}
         {activeTab === 'HEALTH' && (
@@ -270,43 +212,64 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <View style={styles.kpiRow}>
               <GradientCard gradientVariant="indigo" style={styles.kpiCard}>
                 <Ionicons name="flash" size={24} color="#FFFFFF" />
-                <Text style={styles.kpiValue}>234 req/s</Text>
-                <Text style={styles.kpiLabel}>API Gateway Load</Text>
+                <Text style={styles.kpiValue}>{healthData.latencyMs} ms</Text>
+                <Text style={styles.kpiLabel}>Độ Trễ Gateway</Text>
               </GradientCard>
 
               <GradientCard gradientVariant="ocean" style={styles.kpiCard}>
-                <Ionicons name="hardware-chip" size={24} color="#FFFFFF" />
-                <Text style={styles.kpiValue}>14.8%</Text>
-                <Text style={styles.kpiLabel}>CPU Utilization</Text>
+                <Ionicons name="people" size={24} color="#FFFFFF" />
+                <Text style={styles.kpiValue}>{employees.length} Nhân Sự</Text>
+                <Text style={styles.kpiLabel}>Tổng Tài Khoản</Text>
               </GradientCard>
             </View>
 
             <View style={[styles.kpiRow, { marginTop: -6 }]}>
-              <GradientCard gradientVariant="sunset" style={styles.kpiCard}>
-                <Ionicons name="server" size={24} color="#FFFFFF" />
-                <Text style={styles.kpiValue}>6.2 / 16 GB</Text>
-                <Text style={styles.kpiLabel}>RAM (61% free)</Text>
+              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+                <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                <Text style={styles.kpiValue}>
+                  {employees.filter((e) => e.isActive !== false).length} Hoạt Động
+                </Text>
+                <Text style={styles.kpiLabel}>Tài Khoản Đang Mở</Text>
               </GradientCard>
 
-              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
-                <Ionicons name="people" size={24} color="#FFFFFF" />
-                <Text style={styles.kpiValue}>145 online</Text>
-                <Text style={styles.kpiLabel}>Active Sessions</Text>
+              <GradientCard gradientVariant="sunset" style={styles.kpiCard}>
+                <Ionicons name="receipt" size={24} color="#FFFFFF" />
+                <Text style={styles.kpiValue}>{auditLogs.length} Bản Ghi</Text>
+                <Text style={styles.kpiLabel}>Nhật Ký Kiểm Toán</Text>
               </GradientCard>
             </View>
 
-            <Text style={styles.sectionHeader}>Trạng Thái Microservices</Text>
-            {services.map((s) => (
+            <Text style={styles.sectionHeader}>Trạng Thái Cụm Microservices (Port Thật)</Text>
+            {healthData.services.map((s) => (
               <View key={s.name} style={styles.serviceCard}>
                 <View style={styles.serviceLeft}>
-                  <View style={styles.statusDot} />
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: s.status === 'ACTIVE' ? '#10B981' : '#F59E0B' },
+                    ]}
+                  />
                   <View>
                     <Text style={styles.serviceName}>{s.name}</Text>
-                    <Text style={styles.serviceSub}>Port: {s.port} • Lưu lượng: {s.reqCount}</Text>
+                    <Text style={styles.serviceSub}>
+                      Cổng :{s.port} • {s.role}
+                    </Text>
                   </View>
                 </View>
-                <View style={styles.loadBadge}>
-                  <Text style={styles.loadBadgeText}>CPU: {s.load}</Text>
+                <View
+                  style={[
+                    styles.loadBadge,
+                    { backgroundColor: s.status === 'ACTIVE' ? '#ECFDF5' : '#FEF3C7' },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.loadBadgeText,
+                      { color: s.status === 'ACTIVE' ? '#059669' : '#D97706' },
+                    ]}
+                  >
+                    {s.status === 'ACTIVE' ? 'SẴN SÀNG' : 'STANDBY'}
+                  </Text>
                 </View>
               </View>
             ))}

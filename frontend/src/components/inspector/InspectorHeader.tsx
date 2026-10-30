@@ -1,6 +1,6 @@
 // Component Banner Tiêu Đề Giám Sát CSDL Dược Quốc Gia
 import React from "react";
-import { ShieldCheck, RefreshCw } from "lucide-react";
+import { ShieldCheck, RefreshCw, ExternalLink } from "lucide-react";
 
 interface InspectorHeaderProps {
   loading: boolean;
@@ -32,6 +32,16 @@ export const InspectorHeader: React.FC<InspectorHeaderProps> = ({ loading, onRef
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <a
+            href="http://localhost:4005/portal"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs shadow-md transition flex items-center gap-2 cursor-pointer border border-red-400/40"
+            title="Mở Cổng Thông Tin CSDL Dược Quốc Gia (Sandbox Bộ Y Tế v2)"
+          >
+            <span>Mở Cổng Bộ Y Tế (Portal QĐ 232)</span>
+            <ExternalLink size={14} />
+          </a>
           <button
             onClick={onRefresh}
             disabled={loading}

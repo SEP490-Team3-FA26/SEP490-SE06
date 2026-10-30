@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserService } from './user-service.service';
-import { getModelToken } from '@nestjs/mongoose';
+import { getModelToken, getConnectionToken } from '@nestjs/mongoose';
 import { RpcException } from '@nestjs/microservices';
 
 describe('UserService - getExportJobStatus', () => {
@@ -19,10 +19,20 @@ describe('UserService - getExportJobStatus', () => {
         UserService,
         { provide: getModelToken('User'), useValue: mockModel },
         { provide: getModelToken('Cart'), useValue: mockModel },
+        { provide: getModelToken('Wishlist'), useValue: mockModel },
         { provide: getModelToken('Medicine'), useValue: mockModel },
         { provide: getModelToken('AuditLog'), useValue: mockModel },
         { provide: getModelToken('Branch'), useValue: mockModel },
+        { provide: getModelToken('BranchFeedback'), useValue: mockModel },
+        { provide: getModelToken('CustomerSegment'), useValue: mockModel },
+        { provide: getModelToken('StaffTransferRequest'), useValue: mockModel },
+        { provide: getModelToken('StaffNotification'), useValue: mockModel },
+        { provide: getModelToken('WorkSchedule'), useValue: mockModel },
+        { provide: getModelToken('ShiftSwapRequest'), useValue: mockModel },
+        { provide: getModelToken('LeaveRequest'), useValue: mockModel },
+        { provide: getConnectionToken(), useValue: {} },
         { provide: 'INVENTORY_SERVICE', useValue: mockKafkaClient },
+        { provide: 'AUTH_SERVICE', useValue: mockKafkaClient },
       ],
     }).compile();
 

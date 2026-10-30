@@ -10,6 +10,8 @@ import {
   InternalServerErrorException,
   BadRequestException,
   ForbiddenException,
+  HttpCode,
+  HttpStatus,
 } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import {
@@ -19,6 +21,8 @@ import {
   ApiBearerAuth,
 } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
+import { RolesGuard } from "../guards/roles.guard";
+import { Roles } from "../decorators/roles.decorator";
 import { S3StorageService } from "../storage/s3-storage.service";
 import { ReportService } from "../services/report.service";
 import {
@@ -633,11 +637,14 @@ export class ReportController implements OnModuleInit {
 
         if (response.ok) {
           const aiResult = await response.json();
+          // Nếu AI Service đã trả về recommendations chuẩn, dùng trực tiếp
+          if (Array.isArray(aiResult.recommendations) && aiResult.recommendations.length > 0) {
+            return aiResult;
+          }
+          
           const targetArray = Array.isArray(aiResult.enriched_dataset)
             ? aiResult.enriched_dataset
-            : Array.isArray(aiResult.recommendations)
-              ? aiResult.recommendations
-              : rawDataset;
+            : rawDataset;
 
           aiResult.recommendations = targetArray.map((item: any) => {
             const stock = item.currentStock || 0;
@@ -681,7 +688,7 @@ export class ReportController implements OnModuleInit {
                 ...item,
                 daysRemaining,
                 suggestedOrderQty,
-                urgency: stock <= 10 ? "HIGH" : "MEDIUM",
+                urgency: stock <= 10 || daysRemaining <= 3 ? "HIGH" : "MEDIUM",
                 reason: `Tồn kho hiện tại (${stock} ${unitStr}) sắp chạm ngưỡng an toàn ROP (${reorderPoint}). Khuyên dùng nhập bổ sung ${suggestedOrderQty} ${unitStr}.`,
               };
             }
@@ -702,7 +709,10 @@ export class ReportController implements OnModuleInit {
           });
 
           if (response.ok) {
-            return await response.json();
+            const resData = await response.json();
+            if (Array.isArray(resData.recommendations) && resData.recommendations.length > 0) {
+              return resData;
+            }
           }
         } catch (_) {}
       }
@@ -765,7 +775,7 @@ export class ReportController implements OnModuleInit {
               : 0;
 
         return {
-          medicineId: String(med.medicineId || med._id || "med-001"),
+          medicineId: String(med.medicineId || med._id || ""),
           name: med.name || "Dược phẩm",
           category: med.category || "Dược phẩm",
           unit: unitStr,
@@ -780,36 +790,6 @@ export class ReportController implements OnModuleInit {
           reason,
         };
       });
-
-      if (realRecommendations.length === 0) {
-        realRecommendations.push(
-          {
-            medicineId: "med-001",
-            name: "Amoxicillin 500mg",
-            category: "Kháng sinh / Antibiotics",
-            unit: "Hộp",
-            currentStock: 12,
-            averageDailySales: 5.5,
-            expectedIncoming: 0,
-            suggestedOrderQty: 150,
-            urgency: "HIGH",
-            reason:
-              "Tồn kho chỉ còn đủ dùng 2 ngày. Cần nhập bổ sung khẩn cấp.",
-          },
-          {
-            medicineId: "med-002",
-            name: "Panadol Extra 500mg",
-            category: "Giảm đau / Giảm sốt",
-            unit: "Hộp",
-            currentStock: 25,
-            averageDailySales: 8.0,
-            expectedIncoming: 50,
-            suggestedOrderQty: 200,
-            urgency: "MEDIUM",
-            reason: "Tồn kho sắp chạm ngưỡng an toàn. Khuyên dùng nhập thêm.",
-          },
-        );
-      }
 
       // Sắp xếp ưu tiên: Mức khẩn cấp (HIGH -> MEDIUM -> LOW) -> Thuốc bán chạy (Tốc độ bán/ngày giảm dần)
       const urgencyWeight: Record<string, number> = {
@@ -829,7 +809,7 @@ export class ReportController implements OnModuleInit {
       });
 
       return {
-        summary: `Hệ thống AI đã tổng hợp phân tích kế hoạch nhập hàng dự phòng cho ${days} ngày tới dựa trên ${realRecommendations.length} sản phẩm dược phẩm thực tế từ cơ sở dữ liệu MongoDB.`,
+        summary: `Hệ thống AI đã tổng hợp phân tích kế hoạch nhập hàng cho ${days} ngày tới dựa trên ${realRecommendations.length} sản phẩm dược phẩm thực tế từ kho.`,
         recommendations: realRecommendations,
       };
     } catch (error: any) {
@@ -839,6 +819,30 @@ export class ReportController implements OnModuleInit {
         recommendations: [],
       };
     }
+  }
+
+  @Post("ai-forecast/train")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin", "warehouse_manager")
+  @ApiOperation({ summary: "Kích hoạt huấn luyện lại mô hình AI Forecast trên GPU/CPU (Async Kafka Event - Playbook v2.0)" })
+  async triggerTrainAIForecast(@Req() req?: any) {
+    // 🛡️ Tuân thủ Playbook v2.0: Không gọi HTTP trực tiếp giữa microservices, phát sự kiện một chiều qua Kafka
+    const payload = {
+      epochs: 60,
+      batch_size: 64,
+      triggeredBy: req?.user?.id || req?.user?._id || "ADMIN",
+      timestamp: new Date().toISOString(),
+    };
+
+    // Đẩy sự kiện bất đồng bộ vào hàng đợi Kafka của inventory-service
+    this.inventoryClient.emit("ai.forecast.event.train", JSON.stringify(payload));
+
+    return {
+      statusCode: HttpStatus.ACCEPTED,
+      status: "Accepted",
+      message: "Sự kiện yêu cầu huấn luyện lại mô hình AI Forecast đã được gửi vào hàng đợi Kafka để xử lý ngầm!",
+    };
   }
 
   @Get("seasonal-analysis")
@@ -1149,30 +1153,9 @@ export class ReportController implements OnModuleInit {
           };
         });
 
+        // Tuân thủ chính sách Zero Mock Data: Không sinh dữ liệu giả lập khi kho đã đủ hàng an toàn
         if (realRecommendations.length === 0) {
-          realRecommendations.push(
-            {
-              medicineId: "med-fallback-1",
-              name: "Amoxicillin 500mg",
-              suggestedAction: "Tăng tồn kho",
-              suggestedQty: 300,
-              priority: "HIGH",
-              explainability_confidence: 90,
-              explainability_confidence_level: "High",
-              explainability:
-                "Kháng sinh dự phòng bệnh đường hô hấp mùa mưa ẩm.",
-            },
-            {
-              medicineId: "med-fallback-2",
-              name: "Panadol Extra 500mg",
-              suggestedAction: "Tăng tồn kho",
-              suggestedQty: 500,
-              priority: "MEDIUM",
-              explainability_confidence: 85,
-              explainability_confidence_level: "Medium",
-              explainability: "Dự phòng nhu cầu hạ sốt giảm đau mùa giao mùa.",
-            },
-          );
+          // Giữ nguyên danh sách rỗng nếu toàn bộ thuốc trong kho đều đạt mức an toàn
         }
 
         aiResult = {

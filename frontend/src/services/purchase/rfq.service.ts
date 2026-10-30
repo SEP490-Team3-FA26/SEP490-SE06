@@ -8,6 +8,9 @@ export interface RfqItem {
   unit: string;
   quantityRequested: number;
   targetPrice?: number;
+  nationalDrugCode?: string;
+  declaredPrice?: number;
+  gppCompliant?: boolean;
   notes?: string;
 }
 
@@ -31,6 +34,9 @@ export interface SupplierQuotationItem {
   discountPercent?: number;
   offeredShelfLifeMonths: number;
   isCompliantShelfLife: boolean;
+  declaredPrice?: number;
+  nationalDrugCode?: string;
+  isExceedingDeclaredPrice?: boolean;
   availableQuantity: number;
   batchNo?: string;
   notes?: string;

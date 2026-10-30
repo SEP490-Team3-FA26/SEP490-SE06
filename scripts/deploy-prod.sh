@@ -28,15 +28,20 @@ if [ "$CURRENT_SWAP" -eq 0 ]; then
   grep -q '/swapfile none swap' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-# 2. Đảm bảo tường lửa UFW mở cổng cần thiết
+# 2. Đảm bảo tường lửa UFW được thiết lập an toàn (Chỉ mở SSH, HTTP, HTTPS)
 if command -v ufw > /dev/null 2>&1; then
+  echo "🛡️ Cấu hình tường lửa UFW: Chỉ mở SSH (24700), HTTP (80), HTTPS (443)..."
   ufw allow 24700/tcp > /dev/null 2>&1 || true
   ufw allow 80/tcp > /dev/null 2>&1 || true
   ufw allow 443/tcp > /dev/null 2>&1 || true
-  ufw allow 3000/tcp > /dev/null 2>&1 || true
-  ufw allow 4000/tcp > /dev/null 2>&1 || true
-  ufw allow 8888/tcp > /dev/null 2>&1 || true
-  ufw allow 3001/tcp > /dev/null 2>&1 || true
+
+  # Thu hồi triệt để các cổng nội bộ nếu từng mở trước đây
+  ufw delete allow 3000/tcp > /dev/null 2>&1 || true
+  ufw delete allow 4000/tcp > /dev/null 2>&1 || true
+  ufw delete allow 4005/tcp > /dev/null 2>&1 || true
+  ufw delete allow 8000/tcp > /dev/null 2>&1 || true
+  ufw delete allow 8888/tcp > /dev/null 2>&1 || true
+  ufw delete allow 3001/tcp > /dev/null 2>&1 || true
 fi
 
 # 3. Đảm bảo chứng chỉ SSL cho Nginx (Cloudflare Full SSL)
@@ -57,15 +62,16 @@ if [ ! -f "$APP_DIR/backend/.env" ]; then
   cp "$APP_DIR/backend/.env.example" "$APP_DIR/backend/.env"
 fi
 
+# 4.1. Đảm bảo cấu hình xác thực Dozzle tồn tại (không lưu thông tin nhạy cảm vào Git)
+if [ ! -f "$APP_DIR/gitops/monitoring/dozzle/users.yml" ]; then
+  echo "🔒 Khởi tạo file cấu hình xác thực Dozzle (users.yml)..."
+  mkdir -p "$APP_DIR/gitops/monitoring/dozzle"
+  cp "$APP_DIR/gitops/monitoring/dozzle/users.yml.example" "$APP_DIR/gitops/monitoring/dozzle/users.yml"
+  chmod 600 "$APP_DIR/gitops/monitoring/dozzle/users.yml"
+fi
+
 # 5. Build Production Docker Images
-echo "🏗️ 1/3 Đang Build Docker Image Backend Microservices..."
-docker build -t wdp301-backend:latest ./backend -f ./backend/docker/backend.Dockerfile
-
-echo "🏗️ 2/3 Đang Build Docker Image Frontend Web..."
-docker build --build-arg CACHEBUST=$(date +%s) -t wdp301-frontend:latest . -f ./backend/docker/frontend.Dockerfile
-
-echo "🏗️ 3/3 Đang Build Docker Image AI Service..."
-docker build -t wdp301-ai:latest ./backend/apps/ai-service -f ./backend/apps/ai-service/Dockerfile
+bash "$APP_DIR/scripts/build-prod-images.sh"
 
 # 6. Khởi chạy toàn bộ hệ sinh thái Microservices
 echo "🐳 Đang khởi động hệ thống qua Docker Compose..."
@@ -78,14 +84,15 @@ if [ -f "$APP_DIR/backend/service-account-key.json" ]; then
 fi
 docker compose -f docker-compose.prod.yml restart frontend || true
 
-# 7. Dọn dẹp Docker images rác
-echo "🧹 Dọn dẹp Docker images trung gian..."
+# 7. Giữ build cache để lần deploy sau không phải cài lại dependency AI.
+echo "🧹 Dọn dẹp Docker images trung gian (giữ nguyên build cache)..."
 docker image prune -f
-docker builder prune -f --keep-storage 2GB
 
 echo "=================================================="
 echo "🎉 DEPLOY THÀNH CÔNG RỰC RỠ TRÊN PRODUCTION!"
 echo "👉 Website:      https://abcpharmacy.store"
-echo "👉 Backend API:  https://abcpharmacy.store/api (hoặc cổng 4000)"
+echo "👉 Backend API:  https://abcpharmacy.store/api (bảo vệ qua Cloudflare + Nginx)"
+echo "👉 Logs Dozzle:  https://abcpharmacy.store/dozzle (admin / admin)"
+echo "👉 Grafana:      https://abcpharmacy.store/grafana (admin / admin)"
 echo "=================================================="
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

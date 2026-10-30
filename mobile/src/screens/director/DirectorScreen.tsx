@@ -57,40 +57,11 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       ]);
 
       if (sumData) setSummary(sumData);
-      if (branchList && branchList.length > 0) {
-        setBranches(branchList);
-      } else {
-        setBranches([
-          { id: 'b1', name: 'Chi Nhánh Quận 1 (Trụ Sở)', address: '123 Hai Bà Trưng, Q1, TP.HCM', status: 'ACTIVE' },
-          { id: 'b2', name: 'Chi Nhánh Quận 7 (Phú Mỹ Hưng)', address: '456 Nguyễn Lương Bằng, Q7, TP.HCM', status: 'ACTIVE' },
-          { id: 'b3', name: 'Chi Nhánh Bình Thạnh', address: '789 Điện Biên Phủ, Bình Thạnh, TP.HCM', status: 'ACTIVE' },
-        ]);
-      }
-
-      if (transfers && transfers.length > 0) {
-        setStockTransfers(transfers);
-      } else {
-        setStockTransfers([
-          {
-            id: 'st1',
-            transferCode: 'ST-2026-001',
-            fromBranchId: 'b1',
-            fromBranchName: 'Kho Tổng (Bình Tân)',
-            toBranchId: 'b2',
-            toBranchName: 'Chi Nhánh Quận 1',
-            items: [{ medicineId: 'm1', name: 'Amoxicillin 500mg', batchNo: 'Lô A1', quantity: 50, unit: 'Hộp' }],
-            status: 'APPROVED',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      }
-
+      setBranches(branchList || []);
+      setStockTransfers(transfers || []);
       if (lowStock) setLowStockList(lowStock);
       if (safeChain) setSafeStock(safeChain);
-
-      if (poList && poList.length > 0) {
-        setPurchaseOrders(poList);
-      }
+      setPurchaseOrders(poList || []);
     } catch (e) {
       console.warn('Error loading director dashboard data:', e);
     } finally {
@@ -102,16 +73,28 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     loadData();
   }, [loadData]);
 
-  const handleApprovePO = (po: any) => {
-    setPurchaseOrders((prev) => prev.filter((p) => p.id !== po.id));
-    setPoDetailModal(false);
-    showToast.success('Thành công', `Đã phê duyệt đơn mua hàng ${po.id}!`);
+  const handleApprovePO = async (po: any) => {
+    try {
+      const poId = po.id || po._id;
+      await ApiService.approvePO(poId);
+      setPurchaseOrders((prev) => prev.filter((p) => (p.id || p._id) !== poId));
+      setPoDetailModal(false);
+      showToast.success('Thành công', `Đã phê duyệt đơn mua hàng ${poId}!`);
+    } catch (err: any) {
+      showToast.error('Lỗi', err.message || 'Không thể phê duyệt đơn hàng');
+    }
   };
 
-  const handleRejectPO = (po: any) => {
-    setPurchaseOrders((prev) => prev.filter((p) => p.id !== po.id));
-    setPoDetailModal(false);
-    showToast.info('Thông báo', `Đã từ chối đơn hàng ${po.id}.`);
+  const handleRejectPO = async (po: any) => {
+    try {
+      const poId = po.id || po._id;
+      await ApiService.rejectPO(poId, 'Từ chối bởi Ban Giám đốc');
+      setPurchaseOrders((prev) => prev.filter((p) => (p.id || p._id) !== poId));
+      setPoDetailModal(false);
+      showToast.info('Thông báo', `Đã từ chối đơn hàng ${poId}.`);
+    } catch (err: any) {
+      showToast.error('Lỗi', err.message || 'Không thể từ chối đơn hàng');
+    }
   };
 
   return (

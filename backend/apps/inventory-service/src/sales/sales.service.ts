@@ -248,29 +248,24 @@ export class SalesService implements OnModuleInit {
       const baseUnit = [...unitOptions].sort((a, b) => getUnitFactor(a) - getUnitFactor(b))[0] || selectedUnit;
       const exchangeValue = getUnitFactor(selectedUnit);
 
-      // Truy cập các lô hoạt động sắp xếp tăng dần hạn sử dụng expDate ASC -> FIFO/FEFO
-      const batchQuery: any = {
-        $or: [
-          { medicineId: medIdStr },
-          { medicineId: medicine._id },
-          { medicineId: item.medicineId }
-        ],
-        status: 'ACTIVE',
-        stock: { $gt: 0 }
-      };
+      // Danh sách các định dạng ID hợp lệ của thuốc
+      const medIds: any[] = [medIdStr, String(medicine._id)];
+      if (item.medicineId && !medIds.includes(String(item.medicineId))) {
+        medIds.push(String(item.medicineId));
+      }
+      if (Types.ObjectId.isValid(medIdStr)) {
+        medIds.push(new Types.ObjectId(medIdStr));
+      }
+
       let batches: any[] = [];
       let isBranchInventoryUsed = false;
 
-      // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ (Phương án 2):
-      // Nếu bán tại chi nhánh cụ thể, truy vấn trực tiếp vào collection vật lý riêng `branch_inventories`
+      // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ:
+      // Nếu bán tại chi nhánh cụ thể (không phải Kho Tổng), truy vấn trực tiếp vào collection riêng `branch_inventories`
       if (data.branchId && data.branchId !== 'CENTRAL_WH') {
         batches = await this.branchInvModel.find({
           branchId: data.branchId,
-          $or: [
-            { medicineId: medIdStr },
-            { medicineId: medicine._id },
-            { medicineId: item.medicineId }
-          ],
+          medicineId: { $in: medIds },
           status: 'ACTIVE',
           stock: { $gt: 0 }
         }).sort({ expDate: 1 }).exec();
@@ -280,21 +275,32 @@ export class SalesService implements OnModuleInit {
         }
       }
 
-      // Fallback: Nếu không tìm thấy trong branch_inventories hoặc là Kho Tổng, tra cứu medicinebatches
+      // Fallback: Nếu không tìm thấy trong branch_inventories hoặc là Kho Tổng (CENTRAL_WH / đơn ONLINE)
       if (batches.length === 0) {
-        if (data.branchId) {
-          batchQuery.branchId = data.branchId;
-        } else {
-          // Nếu đơn hàng online không gán chi nhánh, ưu tiên trừ kho tổng CENTRAL_WH
-          batchQuery.branchId = 'CENTRAL_WH';
-        }
-        batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
+        const branchCondition = (data.branchId && data.branchId !== 'CENTRAL_WH')
+          ? { branchId: data.branchId }
+          : {
+              $or: [
+                { branchId: 'CENTRAL_WH' },
+                { branchId: null },
+                { branchId: '' },
+                { branchId: { $exists: false } }
+              ]
+            };
+
+        batches = await this.batchModel.find({
+          medicineId: { $in: medIds },
+          ...branchCondition,
+          status: 'ACTIVE',
+          stock: { $gt: 0 }
+        }).sort({ expDate: 1 }).exec();
       }
 
-      // Nếu vẫn không có lô hàng nào hợp lệ tại chi nhánh
-      if (batches.length === 0 && data.branchId) {
+      // Nếu vẫn không có lô hàng nào hợp lệ tại chi nhánh hoặc Kho Tổng
+      if (batches.length === 0) {
+        const warehouseName = (data.branchId && data.branchId !== 'CENTRAL_WH') ? `Chi nhánh ${data.branchId}` : 'Kho Tổng (CENTRAL_WH)';
         throw new RpcException({
-          message: `Chi nhánh ${data.branchId} không có tồn kho khả dụng cho thuốc "${medicine.name}". Vui lòng liên hệ kho tổng để chuyển hàng.`
+          message: `${warehouseName} không có tồn kho khả dụng cho thuốc "${medicine.name}". Vui lòng kiểm tra lại tồn kho hoặc nhập thêm hàng.`
         });
       }
 
@@ -355,7 +361,6 @@ export class SalesService implements OnModuleInit {
           quantity: deductQty,
           importPrice: batch.importPrice || 0
         });
-        await batch.save();
 
         transactionLogs.push({
           type: 'SALE_EXPORT',
@@ -377,13 +382,25 @@ export class SalesService implements OnModuleInit {
         });
       }
 
-      // Đồng bộ ngay bảng số dư tồn kho chi nhánh (BranchStockBalance) để bảo đảm tính toàn vẹn tuyệt đối
+      // Đồng bộ ngay bảng số dư tồn kho chi nhánh (BranchStockBalance) theo chuẩn ACID và tính toàn vẹn
       if (data.branchId && data.branchId !== 'CENTRAL_WH') {
+        // Tính toán tổng tồn kho thực tế từ các lô vật lý còn ACTIVE của chi nhánh để chống âm kho tuyệt đối
+        const activeBranchBatches = await this.branchInvModel.find({
+          branchId: data.branchId,
+          medicineId: medIdStr,
+          status: 'ACTIVE',
+          stock: { $gt: 0 }
+        }).lean().exec();
+        const recalculatedStock = Math.max(0, activeBranchBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0));
+
         await this.balanceModel.findOneAndUpdate(
           { branchId: data.branchId, medicineId: medIdStr },
           {
-            $inc: { totalStock: -baseDeductQty },
-            $set: { lastSyncedAt: new Date() }
+            $set: {
+              totalStock: recalculatedStock,
+              status: recalculatedStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK',
+              lastSyncedAt: new Date()
+            }
           },
           { upsert: true }
         ).exec();
@@ -404,21 +421,37 @@ export class SalesService implements OnModuleInit {
           currentOpened = (boxesOpened * boxSize) - needed;
         }
       }
+      // Cập nhật tồn kho tổng của thuốc trong bảng Medicine theo số dư thực tế từ các lô ACTIVE
+      const activeBatchesRemaining = await this.batchModel.find({
+        medicineId: { $in: medIds },
+        status: 'ACTIVE',
+        stock: { $gt: 0 }
+      }).lean().exec();
+      const updatedTotalStock = Math.max(0, activeBatchesRemaining.reduce((sum, b) => sum + Number(b.stock || 0), 0));
+
       await this.medicineModel.updateOne(
         { _id: medicine._id },
         { 
-          $set: { openedBoxUnits: currentOpened }
+          $set: { 
+            stock: updatedTotalStock,
+            status: updatedTotalStock > 0 ? 'In Stock' : 'Out of Stock',
+            openedBoxUnits: currentOpened 
+          }
         }
       ).exec();
 
-      // Resolve giá theo chi nhánh và đơn vị đã chọn
-      const branchReferencePrice = await this.pricingService.resolvePrice(
-        data.branchId,
-        medIdStr,
-        data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
-        requestedQuantity,
-      );
-      const resolvedPrice = resolveUnitPrice(medicine, selectedUnit, branchReferencePrice);
+      // Resolve giá theo chi nhánh và đơn vị đã chọn (Nếu là sản phẩm quà tặng khuyến mãi UC-75 thì giá = 0đ)
+      const isGift = Boolean(item.isGiftItem || item.price === 0);
+      let resolvedPrice = 0;
+      if (!isGift) {
+        const branchReferencePrice = await this.pricingService.resolvePrice(
+          data.branchId,
+          medIdStr,
+          data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
+          requestedQuantity,
+        );
+        resolvedPrice = resolveUnitPrice(medicine, selectedUnit, branchReferencePrice);
+      }
       totalAmount += resolvedPrice * requestedQuantity;
 
       const dosePerTime = Number(item.dosePerTime) > 0 ? Number(item.dosePerTime) : 1;
@@ -446,8 +479,41 @@ export class SalesService implements OnModuleInit {
           durationDays,
           baseUnitName: baseUnit.unitName,
         }),
-        batches: allocatedBatches
+        batches: allocatedBatches,
+        returnedQuantity: 0,
+        isGiftItem: isGift,
       });
+    }
+
+    // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+    let auditFlag = false;
+    let flagReason: string | undefined = undefined;
+    let cashierVoucherDailyCount = 0;
+
+    const voucherCode = data.voucherCode ? String(data.voucherCode).toUpperCase().trim() : undefined;
+    const voucherDiscount = Number(data.voucherDiscount) || 0;
+    const paymentMethod = data.paymentMethod || 'CASH';
+    const cashierName = data.soldBy || 'Dược sĩ trực quầy';
+
+    if (voucherCode && paymentMethod === 'CASH') {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const dailyCount = await this.saleModel.countDocuments({
+        soldBy: cashierName,
+        paymentMethod: 'CASH',
+        voucherCode: { $exists: true, $ne: '' },
+        createdAt: { $gte: startOfToday },
+      }).exec();
+
+      cashierVoucherDailyCount = dailyCount + 1;
+
+      // Nếu áp dụng quá 10 voucher/ngày cho đơn tiền mặt -> Hệ thống tự động gắn cờ nghi vấn (Audit Flag)
+      if (cashierVoucherDailyCount > 10) {
+        auditFlag = true;
+        flagReason = 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION';
+        this.logger.warn(`⚠️ [RỦI RO 7 - AUDIT FLAG] Thu ngân "${cashierName}" đã áp dụng ${cashierVoucherDailyCount} voucher cho đơn tiền mặt trong ngày hôm nay! Đã tự động gắn cờ nghi vấn.`);
+      }
     }
 
     // Tạo hóa đơn bán hàng
@@ -456,11 +522,11 @@ export class SalesService implements OnModuleInit {
       prescriptionCode: data.prescriptionCode,
       items: orderItems,
       totalAmount: totalAmount,
-      paymentMethod: data.paymentMethod || 'CASH',
+      paymentMethod: paymentMethod,
       type: data.type || 'RETAIL',
       patientName: data.patientName || (prescription ? prescription.patientName : undefined),
       patientPhone: data.patientPhone || (prescription ? prescription.patientPhone : undefined),
-      soldBy: data.soldBy || 'Dược sĩ',
+      soldBy: cashierName,
       orderCode: data.orderCode,
       branchId: data.branchId || null,
       redeemedPoints: data.redeemedPoints || 0,
@@ -468,22 +534,39 @@ export class SalesService implements OnModuleInit {
       customerRole: data.customerRole || data.role || (data.isGuest ? 'guest' : 'customer'),
       role: data.role || data.customerRole || (data.isGuest ? 'guest' : 'customer'),
       isGuest: data.isGuest !== undefined ? Boolean(data.isGuest) : (data.role === 'guest' || !data.patientPhone || data.patientPhone === '0900000000'),
+      // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA)
+      voucherCode,
+      voucherDiscount,
+      auditFlag,
+      flagReason,
+      cashierVoucherDailyCount,
     });
 
-    // Tự động liên thông CSDL Dược Quốc gia (GPP Sandbox)
-    try {
-      const gppSync = await this.nationalPharmaService.syncSaleOrder(salesOrder, data.branchId);
-      salesOrder.nationalFacilityCode = gppSync.facilityCode;
-      salesOrder.nationalSyncStatus = gppSync.syncStatus;
-      salesOrder.nationalSyncCode = gppSync.syncCode;
-      salesOrder.nationalSyncedAt = gppSync.syncedAt;
-      salesOrder.nationalSyncMessage = gppSync.message;
-    } catch (gppErr: any) {
-      this.logger.warn(`[GPP Sync Warning] ${gppErr.message}`);
-      salesOrder.nationalSyncStatus = 'PENDING';
-    }
-
+    // Tự động liên thông CSDL Dược Quốc gia (GPP Sandbox) - Xử lý ngầm không chặn luồng xuất bán
+    salesOrder.nationalSyncStatus = 'PENDING';
     await salesOrder.save();
+
+    // Chạy ngầm việc đồng bộ lên CSDL Dược Quốc Gia và cập nhật lại salesOrder khi hoàn tất
+    this.nationalPharmaService.syncSaleOrder(salesOrder, data.branchId)
+      .then(async (gppSync) => {
+        if (gppSync && gppSync.success) {
+          await this.saleModel.updateOne(
+            { _id: salesOrder._id },
+            {
+              $set: {
+                nationalFacilityCode: gppSync.facilityCode,
+                nationalSyncStatus: gppSync.syncStatus,
+                nationalSyncCode: gppSync.syncCode,
+                nationalSyncedAt: gppSync.syncedAt,
+                nationalSyncMessage: gppSync.message,
+              }
+            }
+          ).exec();
+        }
+      })
+      .catch((gppErr: any) => {
+        this.logger.warn(`[GPP Sync Warning] ${gppErr.message}`);
+      });
 
     // Lưu các transaction log liên kết với mã hóa đơn bán hàng vừa tạo
     for (const log of transactionLogs) {
@@ -864,8 +947,17 @@ export class SalesService implements OnModuleInit {
         });
       }
 
-      // Cập nhật tồn kho tổng của thuốc mới đổi
-      await this.medicineModel.updateOne({ _id: medicineId }, { $inc: { stock: -requiredBaseQuantity } }).exec();
+      // Cập nhật tồn kho tổng của thuốc mới đổi theo số dư thực tế từ các lô ACTIVE
+      const activeBatchesRemaining = await this.batchModel.find({
+        medicineId,
+        status: 'ACTIVE',
+        stock: { $gt: 0 }
+      }).lean().exec();
+      const updatedTotalStock = Math.max(0, activeBatchesRemaining.reduce((sum, b) => sum + Number(b.stock || 0), 0));
+      await this.medicineModel.updateOne(
+        { _id: medicineId },
+        { $set: { stock: updatedTotalStock, status: updatedTotalStock > 0 ? 'In Stock' : 'Out of Stock' } }
+      ).exec();
 
       const branchReferencePrice = await this.pricingService.resolvePrice(
         salesOrder.branchId,

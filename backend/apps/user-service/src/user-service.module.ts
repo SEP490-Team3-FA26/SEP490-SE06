@@ -8,6 +8,7 @@ import { UserService } from './user-service.service';
 import { Branch, BranchSchema } from './schemas/branch.schema';
 import { BranchService } from './branch.service';
 import { Cart, CartSchema } from './schemas/cart.schema';
+import { Wishlist, WishlistSchema } from './schemas/wishlist.schema';
 import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
 import { BranchFeedback, BranchFeedbackSchema } from './schemas/branch-feedback.schema';
 
@@ -17,9 +18,24 @@ import { WorkShift, WorkShiftSchema } from './schemas/work-shift.schema';
 import { WorkSchedule, WorkScheduleSchema } from './schemas/work-schedule.schema';
 import { ShiftSwapRequest, ShiftSwapRequestSchema } from './schemas/shift-swap-request.schema';
 import { StaffNotification, StaffNotificationSchema } from './schemas/staff-notification.schema';
-import { HrService } from './hr.service';
-
 import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segment.schema';
+import { StaffCertificate, StaffCertificateSchema } from './schemas/staff-certificate.schema';
+import { CertificateService } from './certificate.service';
+import { HrService } from './hr.service';
+import { Attendance, AttendanceSchema } from './schemas/attendance.schema';
+import { AttendanceService } from './attendance.service';
+import { Payroll, PayrollSchema } from './schemas/payroll.schema';
+import { PayrollService } from './payroll.service';
+import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
+import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/schemas/sales-order.schema';
+import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staff-transfer-request.schema';
+import { ShiftHandover, ShiftHandoverSchema } from './schemas/shift-handover.schema';
+import { ShiftHandoverService } from './shift-handover.service';
+// Import schemas và services cho hệ thống Email Marketing Newsletter
+import { EmailCampaign, EmailCampaignSchema } from './schemas/email-campaign.schema';
+import { EmailDeliveryLog, EmailDeliveryLogSchema } from './schemas/email-delivery-log.schema';
+import { EmailMarketingService } from './email-marketing.service';
+import { NewsletterCronService } from './newsletter-cron.service';
 
 @Module({
   imports: [
@@ -35,6 +51,7 @@ import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segme
       { name: User.name, schema: UserSchema },
       { name: Branch.name, schema: BranchSchema },
       { name: Cart.name, schema: CartSchema },
+      { name: Wishlist.name, schema: WishlistSchema },
       { name: AuditLog.name, schema: AuditLogSchema },
       { name: BranchFeedback.name, schema: BranchFeedbackSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
@@ -44,6 +61,16 @@ import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segme
       { name: ShiftSwapRequest.name, schema: ShiftSwapRequestSchema },
       { name: StaffNotification.name, schema: StaffNotificationSchema },
       { name: CustomerSegment.name, schema: CustomerSegmentSchema },
+      { name: StaffCertificate.name, schema: StaffCertificateSchema },
+      { name: Attendance.name, schema: AttendanceSchema },
+      { name: Payroll.name, schema: PayrollSchema },
+      { name: LeaveRequest.name, schema: LeaveRequestSchema },
+      { name: SalesOrder.name, schema: SalesOrderSchema },
+      { name: StaffTransferRequest.name, schema: StaffTransferRequestSchema },
+      { name: ShiftHandover.name, schema: ShiftHandoverSchema },
+      // Schema hệ thống Email Marketing
+      { name: EmailCampaign.name, schema: EmailCampaignSchema },
+      { name: EmailDeliveryLog.name, schema: EmailDeliveryLogSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -65,10 +92,40 @@ import { CustomerSegment, CustomerSegmentSchema } from './schemas/customer-segme
         }),
         inject: [ConfigService],
       },
+      {
+        name: 'AUTH_SERVICE',
+        imports: [ConfigModule],
+        useFactory: async (config: ConfigService) => ({
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'user-to-auth-client',
+              brokers: (config.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+              connectionTimeout: 10000,
+              retry: { initialRetryTime: 1000, retries: 10 },
+              logLevel: 0,
+            },
+            consumer: { groupId: 'user-to-auth-group' },
+            producer: { allowAutoTopicCreation: true },
+          },
+        }),
+        inject: [ConfigService],
+      },
     ]),
   ],
   controllers: [UserServiceController],
-  providers: [UserService, BranchService, HrService],
+  providers: [
+    UserService,
+    BranchService,
+    HrService,
+    CertificateService,
+    AttendanceService,
+    PayrollService,
+    ShiftHandoverService,
+    EmailMarketingService,
+    NewsletterCronService,
+  ],
+  exports: [ShiftHandoverService],
 })
 export class UserServiceModule {}
 

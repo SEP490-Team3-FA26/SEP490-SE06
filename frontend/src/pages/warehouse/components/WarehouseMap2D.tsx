@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Layers, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronRight, Package, Plus, Archive } from "lucide-react";
+import { Layers, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronRight, Package, Plus, Archive, TrendingDown } from "lucide-react";
 import { inventoryMapService, ShelfLayout, BinData } from "../../../services/inventory/inventoryMap.service";
 
 interface WarehouseMap2DProps {
@@ -21,6 +21,7 @@ const ZONE_CONFIG: Record<string, {
   D: { label: "Khu D", bgColor: "#f0fdf4", headerBg: "#dcfce7", borderColor: "#86efac", textColor: "#15803d", badgeBg: "#bbf7d0", badgeText: "#166534", accentColor: "#22c55e" },
   E: { label: "Khu E", bgColor: "#faf5ff", headerBg: "#f3e8ff", borderColor: "#d8b4fe", textColor: "#7e22ce", badgeBg: "#e9d5ff", badgeText: "#6b21a8", accentColor: "#a855f7" },
   F: { label: "Khu F", bgColor: "#f8fafc", headerBg: "#f1f5f9", borderColor: "#cbd5e1", textColor: "#475569", badgeBg: "#e2e8f0", badgeText: "#334155", accentColor: "#64748b" },
+  RESERVE: { label: "Khu Dự Trữ", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#f59e0b", textColor: "#92400e", badgeBg: "#fde68a", badgeText: "#78350f", accentColor: "#d97706" },
 };
 
 const BIN_STATUS: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
@@ -42,7 +43,7 @@ const STATUS_SHELF: Record<string, { bg: string; border: string; text: string; d
 
 function getRackWorstStatus(shelves: any[]) {
   if (shelves.some((s) => s.status === "EXPIRED")) return "EXPIRED";
-  if (shelves.some((s) => s.status === "NEAR_EXPIRY")) return "NEAR_EXPIRY";
+  if (shelves.some((s) => s.hasExpired || s.status === "NEAR_EXPIRY" || s.hasNearExpiry)) return "NEAR_EXPIRY";
   if (shelves.some((s) => s.status === "LOW_STOCK")) return "LOW_STOCK";
   if (shelves.every((s) => s.status === "EMPTY" || s.status === "OUT_OF_STOCK")) return "EMPTY";
   return "NORMAL";
@@ -77,7 +78,8 @@ function BinCell({
         border: `1.5px ${isEmpty ? "dashed" : "solid"} ${isHighlighted ? "#38bdf8" : s.border}`,
         color: isHighlighted ? "#0284c7" : s.text,
         width: "100%",
-        minHeight: 56,
+        minWidth: 70,
+        minHeight: 58,
       }}
       title={isEmpty ? `Thùng ${bin.binNo} — Trống (Click để gán thuốc)` : `${bin.medicineName} · ${bin.currentStock} ${bin.unit || ""} · ${s.label}`}
     >
@@ -166,45 +168,68 @@ function RackBinGrid({
   }
 
   return (
-    <div className="mt-2 space-y-2">
-      {layout.map(shelfData => (
-        <div key={shelfData.shelfNo} className="bg-white/80 rounded-lg border border-slate-200 overflow-hidden">
-          {/* Tiêu đề Tầng Kệ */}
-          <div className="px-2 py-1 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5">
-            <Layers size={10} className="text-slate-400" />
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Tầng {shelfData.shelfNo}
-            </span>
-            <span className="text-[9px] text-slate-400 ml-1">
-              ({shelfData.bins.filter(b => b.status !== "EMPTY").length}/10 thùng có hàng)
-            </span>
-          </div>
-          {/* Lưới 10 Ô Thùng */}
-          <div className="grid gap-1 p-1.5" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
-            {shelfData.bins.map(bin => {
-              const highlightId = `bin-${zone}-${rack}-${shelfData.shelfNo}-${bin.binNo}`;
-              const shelfTargetId = `${zone}-${rack}-${shelfData.shelfNo}`;
-              const isHighlighted =
-                (highlightTargets?.has(highlightId) ?? false) ||
-                (highlightTargets?.has(shelfTargetId) ?? false) ||
-                highlightTarget === highlightId ||
-                highlightTarget === shelfTargetId;
+    <div className="mt-2 space-y-1.5">
+      {/* Thanh chỉ dẫn kéo ngang để xem trọn vẹn 10 thùng */}
+      <div className="flex items-center justify-between px-2 py-1 bg-slate-100/90 rounded-md text-[10px] text-slate-500 font-medium">
+        <span className="flex items-center gap-1 text-slate-600 font-semibold">
+          <span>📦 Lưới 10 Thùng (B1 → B10)</span>
+        </span>
+        <span className="text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200/60 font-semibold text-[9px] flex items-center gap-1">
+          <span>⇄ Kéo thanh trượt ngang để xem hết</span>
+        </span>
+      </div>
 
-              return (
-                <BinCell
-                  key={bin.binNo}
-                  bin={bin}
-                  zone={zone}
-                  rack={rack}
-                  shelf={shelfData.shelfNo}
-                  isHighlighted={isHighlighted}
-                  onBinSelect={onBinSelect}
-                />
-              );
-            })}
-          </div>
+      {/* Vùng cuộn ngang đồng bộ cả 4 tầng */}
+      <div className="overflow-x-auto pb-2 custom-shelf-scrollbar rounded-lg">
+        <div className="space-y-2 min-w-[760px]">
+          {layout.map(shelfData => (
+            <div key={shelfData.shelfNo} className="bg-white/90 rounded-lg border border-slate-200 overflow-hidden shadow-2xs">
+              {/* Tiêu đề Tầng Kệ */}
+              <div className="px-2.5 py-1 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Layers size={10} className="text-slate-400" />
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                    Tầng {shelfData.shelfNo}
+                  </span>
+                  <span className="text-[9px] text-slate-400 ml-1">
+                    ({shelfData.bins.filter(b => b.status !== "EMPTY").length}/10 thùng có hàng)
+                  </span>
+                </div>
+              </div>
+              {/* Lưới 10 Ô Thùng */}
+              <div className="grid gap-1.5 p-1.5" style={{ gridTemplateColumns: "repeat(10, minmax(70px, 1fr))" }}>
+                {shelfData.bins.map(bin => {
+                  const highlightId = `bin-${zone}-${rack}-${shelfData.shelfNo}-${bin.binNo}`;
+                  const shelfTargetId = `${zone}-${rack}-${shelfData.shelfNo}`;
+
+                  // Kiểm tra xem mục tiêu tìm kiếm có phải là ô thùng cụ thể (dạng bin-Zone-Rack-Shelf-Bin) hay không
+                  const hasSpecificBinTarget =
+                    Boolean(highlightTarget && highlightTarget.startsWith("bin-")) ||
+                    Boolean(highlightTargets && Array.from(highlightTargets).some(t => t.startsWith("bin-")));
+
+                  // Nếu đang tìm kiếm đích danh một ô thùng cụ thể: CHỈ duy nhất ô thùng đó được sáng
+                  // Nếu đang lọc theo danh mục hoặc toàn bộ tầng/kệ chung: mới áp dụng theo shelfTargetId
+                  const isHighlighted = hasSpecificBinTarget
+                    ? (highlightTarget === highlightId || (highlightTargets?.has(highlightId) ?? false))
+                    : (highlightTarget === shelfTargetId || (highlightTargets?.has(shelfTargetId) ?? false));
+
+                  return (
+                    <BinCell
+                      key={bin.binNo}
+                      bin={bin}
+                      zone={zone}
+                      rack={rack}
+                      shelf={shelfData.shelfNo}
+                      isHighlighted={isHighlighted}
+                      onBinSelect={onBinSelect}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -223,25 +248,73 @@ export function WarehouseMap2D({
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
   // Theo dõi kệ nào đang được mở rộng (hiển thị lưới thùng)
   const [expandedRack, setExpandedRack] = useState<string | null>(null);
+  // Theo dõi mở / đóng danh sách kệ của Khu Dự Trữ (mặc định đóng, bấm nút mới sổ ra)
+  const [showReserveRacks, setShowReserveRacks] = useState<boolean>(false);
 
   const handleRackToggle = useCallback((rackKey: string) => {
     setExpandedRack(prev => prev === rackKey ? null : rackKey);
   }, []);
 
+  // Tự động mở rộng danh sách kệ Khu Dự Trữ nếu có target highlight nằm trong RESERVE
   React.useEffect(() => {
-    let targetId: string | null = null;
-    if (highlightTarget) {
-      targetId = highlightTarget;
-    } else if (highlightTargets && highlightTargets.size > 0) {
-      targetId = highlightTargets.values().next().value || null;
-    }
+    const hasReserveTarget =
+      (highlightTarget && highlightTarget.startsWith("RESERVE")) ||
+      (highlightTargets && Array.from(highlightTargets).some(t => t.startsWith("RESERVE")));
 
-    if (targetId) {
-      // Highlight có thể là bin hoặc shelf
-      const element = document.getElementById(targetId);
-      if (element) element.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (hasReserveTarget) {
+      setShowReserveRacks(true);
     }
   }, [highlightTarget, highlightTargets]);
+
+  // Tự động mở rộng kệ nếu có mục tiêu tìm kiếm là một ô thùng cụ thể (bin-Zone-Rack-Shelf-Bin)
+  React.useEffect(() => {
+    const target = highlightTarget || (highlightTargets && Array.from(highlightTargets)[0]);
+    if (!target) return;
+
+    if (target.startsWith("bin-")) {
+      const parts = target.split("-");
+      if (parts.length >= 5) {
+        const rack = parts[parts.length - 3];
+        const zone = parts.slice(1, parts.length - 3).join("-");
+        // Tự động mở rộng kệ chứa ô thùng đó
+        setExpandedRack(`${zone}-${rack}`);
+      }
+    }
+  }, [highlightTarget, highlightTargets]);
+
+  // Tự động cuộn tới vị trí tầng kệ hoặc ô thùng được tìm kiếm
+  React.useEffect(() => {
+    const targetId: string | null = highlightTarget || (highlightTargets?.values().next().value || null);
+    if (!targetId) return;
+
+    const tryScroll = () => {
+      // 1. Thử tìm phần tử theo ID trực tiếp (nếu là ô thùng hoặc tầng kệ đã render)
+      let element = document.getElementById(targetId);
+
+      // 2. Nếu là target dạng bin- mà ô thùng chưa kịp mount, cuộn tới tầng kệ tương ứng
+      if (!element && targetId.startsWith("bin-")) {
+        const parts = targetId.split("-");
+        if (parts.length >= 5) {
+          const shelf = parts[parts.length - 2];
+          const rack = parts[parts.length - 3];
+          const zone = parts.slice(1, parts.length - 3).join("-");
+          element = document.getElementById(`${zone}-${rack}-${shelf}`) || document.getElementById(`rack-${zone}-${rack}`);
+        }
+      }
+
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      }
+    };
+
+    tryScroll();
+    const timer = setTimeout(tryScroll, 120);
+    return () => clearTimeout(timer);
+  }, [highlightTarget, highlightTargets]);
+
+  // Phân tách các khu kệ chính A-F và Khu Dự Trữ RESERVE
+  const normalZones = zones.filter((z) => z.zone !== "RESERVE");
+  const reserveZone = zones.find((z) => z.zone === "RESERVE");
 
   return (
     <div className="flex-1 h-full overflow-auto p-5 flex flex-col bg-slate-100">
@@ -260,6 +333,27 @@ export function WarehouseMap2D({
           50% { box-shadow: 0 0 0 4px rgba(56,189,248,0); }
         }
         .highlighted-bin { animation: binPulse 1.2s ease-in-out infinite; }
+
+        /* Thanh cuộn ngang mượt mà cho 10 thùng của kệ */
+        .custom-shelf-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #94a3b8 #f1f5f9;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar {
+          height: 7px;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 9999px;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 9999px;
+          border: 1.5px solid #f1f5f9;
+        }
+        .custom-shelf-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
       `}</style>
 
       {/* Khu vực tiếp nhận hàng nhập */}
@@ -271,9 +365,9 @@ export function WarehouseMap2D({
         <span className="font-mono text-[10px] text-emerald-500">Luồng một chiều → GSP</span>
       </div>
 
-      {/* Lưới các khu vực (Zone) */}
+      {/* Lưới các khu vực Kệ Chính (Zone A - F) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 flex-1">
-        {zones.map((zoneData) => {
+        {normalZones.map((zoneData) => {
           const cfg = ZONE_CONFIG[zoneData.zone] || ZONE_CONFIG.F;
           const totalStock = zoneData.racks.reduce((a: number, r: any) =>
             a + r.shelves.reduce((s: number, sh: any) => s + sh.totalStock, 0), 0);
@@ -376,7 +470,13 @@ export function WarehouseMap2D({
                           {rackData.shelves.map((shelfData: any) => {
                             const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
                             const targetId = `${zoneData.zone}-${rackData.rack}-${shelfData.shelf}`;
-                            const isHighlighted = (highlightTargets?.has(targetId) ?? false) || highlightTarget === targetId;
+                            const binTargetPrefix = `bin-${zoneData.zone}-${rackData.rack}-${shelfData.shelf}-`;
+
+                            const isHighlighted =
+                              (highlightTargets?.has(targetId) ?? false) ||
+                              highlightTarget === targetId ||
+                              (Boolean(highlightTarget) && highlightTarget.startsWith(binTargetPrefix)) ||
+                              (Boolean(highlightTargets) && Array.from(highlightTargets).some(t => t.startsWith(binTargetPrefix)));
 
                             return (
                               <button
@@ -389,14 +489,41 @@ export function WarehouseMap2D({
                                   border: `1px solid ${isHighlighted ? "#38bdf8" : ss.border}`,
                                   color: isHighlighted ? "#0284c7" : ss.text,
                                 }}
-                                title={`Tầng ${shelfData.shelf} · Tồn: ${shelfData.totalStock} · ${shelfData.status}`}
+                                title={`Tầng ${shelfData.shelf} · Tổng tồn: ${shelfData.totalStock.toLocaleString("vi-VN")} (${(shelfData.activeStock ?? shelfData.totalStock).toLocaleString("vi-VN")} khả dụng${shelfData.expiredStock ? ` · ${shelfData.expiredStock.toLocaleString("vi-VN")} hết hạn` : ""})`}
                               >
                                 <span>T{shelfData.shelf}</span>
-                                <span className="flex items-center gap-1 tabular-nums">
-                                  {shelfData.totalStock.toLocaleString("vi-VN")}
-                                  {shelfData.status === "EXPIRED" && <AlertTriangle size={9} />}
-                                  {shelfData.status === "NEAR_EXPIRY" && <Clock size={9} />}
-                                  {shelfData.status === "NORMAL" && <CheckCircle size={9} />}
+                                <span className="flex items-center gap-1.5 tabular-nums">
+                                  <span>{shelfData.totalStock.toLocaleString("vi-VN")}</span>
+                                  {/* Phương án 1: Badge cảnh báo đỏ nếu có lô thuốc hết hạn cần nhặt ra */}
+                                  {shelfData.hasExpired || (shelfData.expiredBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-rose-500 text-white shadow-xs animate-pulse"
+                                      title={`Có ${shelfData.expiredBatchCount || 1} lô hết hạn cần nhặt ra`}
+                                    >
+                                      <AlertTriangle size={8} />
+                                      <span>{shelfData.expiredBatchCount || 1}</span>
+                                    </span>
+                                  ) : shelfData.hasNearExpiry || (shelfData.nearExpiryBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-500 text-white shadow-xs"
+                                      title={`Có ${shelfData.nearExpiryBatchCount} lô cận date trong 90 ngày`}
+                                    >
+                                      <Clock size={8} />
+                                      <span>{shelfData.nearExpiryBatchCount}</span>
+                                    </span>
+                                  ) : shelfData.hasLowStock || (shelfData.lowStockBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs"
+                                      title={`Có ${shelfData.lowStockBatchCount || 1} thuốc sắp hết hàng (< 20 hộp)`}
+                                    >
+                                      <TrendingDown size={8} />
+                                      <span>{shelfData.lowStockBatchCount || 1}</span>
+                                    </span>
+                                  ) : shelfData.status === "EXPIRED" ? (
+                                    <AlertTriangle size={9} className="text-rose-600" />
+                                  ) : shelfData.status === "NORMAL" ? (
+                                    <CheckCircle size={9} className="text-emerald-600" />
+                                  ) : null}
                                 </span>
                               </button>
                             );
@@ -435,6 +562,178 @@ export function WarehouseMap2D({
           );
         })}
       </div>
+
+      {/* KHỐI KHU DỰ TRỮ (RESERVE ZONE) — CÓ NÚT BẤM SỔ RA CÁC KỆ DỰ TRỮ */}
+      {reserveZone && (
+        <div className="mt-4 rounded-2xl overflow-hidden bg-amber-50/70 border-2 border-amber-300 shadow-sm transition-all">
+          <div className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 bg-amber-100/70 border-b border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                <Archive size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-amber-950">
+                    Khu Dự Trữ (Reserve Zone) — Kho Đệm FEFO
+                  </h3>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                    Phân kệ chuẩn
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800/80 mt-0.5">
+                  Gồm các dãy Kệ RES1, RES2, RES3, RES4 &middot; {reserveZone.racks?.length || 0} dãy kệ &middot; {reserveZone.racks?.reduce((a: number, r: any) => a + r.shelves.length, 0) || 0} tầng &middot; Sức chứa 160 ô thùng
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-amber-200/80 text-amber-900 border border-amber-300">
+                {reserveZone.racks?.reduce((a: number, r: any) => a + r.shelves.reduce((s: number, sh: any) => s + sh.totalStock, 0), 0).toLocaleString("vi-VN")} đơn vị tồn
+              </span>
+
+              {/* NÚT BẤM SỔ RA CÁC KỆ CỦA KHU DỰ TRỮ */}
+              <button
+                type="button"
+                onClick={() => setShowReserveRacks(!showReserveRacks)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs border cursor-pointer ${
+                  showReserveRacks
+                    ? "bg-amber-600 text-white border-amber-700"
+                    : "bg-white hover:bg-amber-100 text-amber-900 border-amber-300"
+                }`}
+              >
+                <Layers size={14} className={showReserveRacks ? "text-white" : "text-amber-600"} />
+                <span>
+                  {showReserveRacks
+                    ? "🔼 Thu gọn kệ dự trữ"
+                    : "📂 Bấm để sổ ra các kệ của Khu Dự Trữ (RES1, RES2, RES3, RES4)"}
+                </span>
+                {showReserveRacks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Khi bấm nút thì mới sổ ra các kệ của khu dự trữ */}
+          {showReserveRacks && (
+            <div className="p-4 bg-white/60 animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                {reserveZone.racks.map((rackData: any) => {
+                  const rackStatus = getRackWorstStatus(rackData.shelves);
+                  const rackStyle = STATUS_SHELF[rackStatus] || STATUS_SHELF.EMPTY;
+                  const rackKey = `RESERVE-${rackData.rack}`;
+                  const isExpanded = expandedRack === rackKey;
+
+                  return (
+                    <div
+                      key={rackData.rack}
+                      className="rounded-xl bg-white border border-amber-200 shadow-xs overflow-hidden"
+                    >
+                      {/* Tiêu đề Kệ Dự Trữ — click để mở/đóng lưới thùng */}
+                      <div
+                        className="flex items-center justify-between p-2.5 cursor-pointer hover:bg-amber-50/50 transition-colors"
+                        onClick={() => handleRackToggle(rackKey)}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                          <Layers size={12} className="text-amber-600" />
+                          Kệ Dự Trữ {rackData.rack}
+                          <span className="font-mono text-[10px] text-amber-700 font-normal">
+                            &middot; {rackData.shelves.reduce((a: number, s: any) => a + s.batchCount, 0)} lô
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs"
+                            style={{ backgroundColor: rackStyle.dot }}
+                            title={`Trạng thái: ${rackStatus}`}
+                          />
+                          {isExpanded
+                            ? <ChevronDown size={13} className="text-amber-600" />
+                            : <ChevronRight size={13} className="text-amber-600" />
+                          }
+                        </div>
+                      </div>
+
+                      {/* Tóm tắt 4 tầng (hiển thị khi thu gọn) */}
+                      {!isExpanded && (
+                        <div className="flex flex-col-reverse gap-1 px-2.5 pb-2.5">
+                          {rackData.shelves.map((shelfData: any) => {
+                            const ss = STATUS_SHELF[shelfData.status] || STATUS_SHELF.EMPTY;
+                            const targetId = `RESERVE-${rackData.rack}-${shelfData.shelf}`;
+                            const binTargetPrefix = `bin-RESERVE-${rackData.rack}-${shelfData.shelf}-`;
+
+                            const isHighlighted =
+                              (highlightTargets?.has(targetId) ?? false) ||
+                              highlightTarget === targetId ||
+                              (Boolean(highlightTarget) && highlightTarget.startsWith(binTargetPrefix)) ||
+                              (Boolean(highlightTargets) && Array.from(highlightTargets).some(t => t.startsWith(binTargetPrefix)));
+
+                            return (
+                              <button
+                                key={shelfData.shelf}
+                                id={targetId}
+                                onClick={() => onShelfSelect("RESERVE", rackData.rack, shelfData.shelf)}
+                                className={`shelf-btn w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer ${isHighlighted ? "highlighted-shelf" : ""}`}
+                                style={{
+                                  backgroundColor: isHighlighted ? "#fef3c7" : ss.bg,
+                                  border: `1px solid ${isHighlighted ? "#f59e0b" : ss.border}`,
+                                  color: isHighlighted ? "#92400e" : ss.text,
+                                }}
+                                title={`Tầng ${shelfData.shelf} · Tổng tồn: ${shelfData.totalStock.toLocaleString("vi-VN")} (${(shelfData.activeStock ?? shelfData.totalStock).toLocaleString("vi-VN")} khả dụng${shelfData.expiredStock ? ` · ${shelfData.expiredStock.toLocaleString("vi-VN")} hết hạn` : ""})`}
+                              >
+                                <span>Tầng {shelfData.shelf}</span>
+                                <span className="flex items-center gap-1.5 tabular-nums font-mono">
+                                  <span>{shelfData.totalStock.toLocaleString("vi-VN")} đv</span>
+                                  {shelfData.hasExpired || (shelfData.expiredBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-rose-500 text-white shadow-xs animate-pulse"
+                                      title={`Có ${shelfData.expiredBatchCount || 1} lô hết hạn cần nhặt ra`}
+                                    >
+                                      <AlertTriangle size={8} />
+                                      <span>{shelfData.expiredBatchCount || 1}</span>
+                                    </span>
+                                  ) : shelfData.hasNearExpiry || (shelfData.nearExpiryBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-500 text-white shadow-xs"
+                                      title={`Có ${shelfData.nearExpiryBatchCount} lô cận date trong 90 ngày`}
+                                    >
+                                      <Clock size={8} />
+                                      <span>{shelfData.nearExpiryBatchCount}</span>
+                                    </span>
+                                  ) : shelfData.hasLowStock || (shelfData.lowStockBatchCount > 0) ? (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs"
+                                      title={`Có ${shelfData.lowStockBatchCount || 1} thuốc sắp hết hàng (< 20 hộp)`}
+                                    >
+                                      <TrendingDown size={8} />
+                                      <span>{shelfData.lowStockBatchCount || 1}</span>
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Mở rộng: Lưới 4 Tầng x 10 Thùng của Kệ Dự Trữ */}
+                      {isExpanded && (
+                        <div className="px-2 pb-2">
+                          <RackBinGrid
+                            zone="RESERVE"
+                            rack={rackData.rack}
+                            highlightTargets={highlightTargets}
+                            highlightTarget={highlightTarget}
+                            onBinSelect={onBinSelect}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Khu vực xuất hàng */}
       <div className="w-full mt-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-sky-50 border border-dashed border-sky-300">

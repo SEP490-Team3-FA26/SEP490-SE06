@@ -368,6 +368,50 @@ export class PrescriptionController implements OnModuleInit {
     }
   }
 
+  @Post("transcribe")
+  @UseGuards(OptionalJwtAuthGuard)
+  @UseInterceptors(FileInterceptor("audio"))
+  async quickTranscribe(
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new HttpException(
+        "Vui lòng cung cấp file ghi âm",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    try {
+      const formData = new FormData();
+      const blob = new Blob([new Uint8Array(file.buffer)], {
+        type: file.mimetype || "audio/webm",
+      });
+      formData.append("audio", blob, file.originalname || "voice_input.webm");
+
+      const aiServiceHost = this.getAiServiceHost();
+      const response = await fetch(`${aiServiceHost}/api/ai/transcribe`, {
+        method: "POST",
+        headers: {
+          "X-Internal-Token":
+            process.env.JWT_SECRET ||
+            "wdp301-super-secret-key-change-in-production",
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new HttpException(`AI Service lỗi: ${errText}`, response.status);
+      }
+      return await response.json();
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      throw new HttpException(
+        err.message || "Lỗi bóc tách âm thanh từ AI Service",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Post("symptom-consult")
   @UseGuards(OptionalJwtAuthGuard)
   async textConsult(
@@ -428,16 +472,20 @@ export class PrescriptionController implements OnModuleInit {
   async chatConsult(
     @Body()
     body: {
-      message: string;
+      message?: string;
       history?: Array<{ role: string; content: string }>;
       age_group?: string;
       gender?: string;
       allergies?: string[];
+      image_base64?: string;
     },
   ) {
-    if (!body || !body.message || !body.message.trim()) {
+    const hasMessage = Boolean(body?.message && body.message.trim());
+    const hasImage = Boolean(body?.image_base64 && body.image_base64.trim());
+
+    if (!hasMessage && !hasImage) {
       throw new HttpException(
-        "Vui lòng cung cấp nội dung tin nhắn tư vấn",
+        "Vui lòng nhập nội dung tin nhắn hoặc gửi hình ảnh cần tư vấn",
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -445,11 +493,12 @@ export class PrescriptionController implements OnModuleInit {
     try {
       // Data minimization: Không gửi PII (họ tên, email, sđt) sang AI service
       const sanitizedPayload = {
-        message: body.message.trim(),
+        message: body.message ? body.message.trim() : "",
         history: Array.isArray(body.history) ? body.history.slice(-10) : [],
         age_group: body.age_group || null,
         gender: body.gender || null,
         allergies: Array.isArray(body.allergies) ? body.allergies : [],
+        image_base64: hasImage ? body.image_base64 : null,
       };
 
       const aiServiceHost = this.getAiServiceHost();
@@ -480,6 +529,9 @@ export class PrescriptionController implements OnModuleInit {
 
       return await response.json();
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         error.message || "Lỗi kết nối hoặc xử lý từ AI Chat Service",
         HttpStatus.INTERNAL_SERVER_ERROR,

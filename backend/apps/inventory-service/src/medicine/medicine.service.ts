@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Medicine } from './schemas/medicine.schema';
 import { MedicineBatch } from './schemas/medicine-batch.schema';
 import { MedicineLocation } from './schemas/medicine-location.schema';
@@ -77,8 +77,23 @@ export class MedicineService implements OnModuleInit {
         this.logger.log(`Found ${bulkOps.length} medicines with mismatched stock. Syncing...`);
         await this.medicineModel.bulkWrite(bulkOps);
         this.logger.log(`Bulk stock synchronization completed successfully in ${Date.now() - startTime}ms.`);
-      } else {
-        this.logger.log(`All medicine stocks are already synchronized. Completed in ${Date.now() - startTime}ms.`);
+      }
+
+      // 6. Rà soát và tự động khắc phục các bản ghi tồn kho âm trong BranchStockBalance và Medicines
+      const negativeBalances = await this.balanceModel.updateMany(
+        { totalStock: { $lt: 0 } },
+        { $set: { totalStock: 0, status: 'OUT_OF_STOCK', lastSyncedAt: new Date() } }
+      ).exec();
+      if (negativeBalances.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeBalances.modifiedCount} bản ghi tồn kho chi nhánh bị âm về 0.`);
+      }
+
+      const negativeMedicines = await this.medicineModel.updateMany(
+        { stock: { $lt: 0 } },
+        { $set: { stock: 0, status: 'Out of Stock' } }
+      ).exec();
+      if (negativeMedicines.modifiedCount > 0) {
+        this.logger.warn(`Đã tự động sửa ${negativeMedicines.modifiedCount} dược phẩm có tồn kho âm về 0.`);
       }
     } catch (error) {
       this.logger.error('Failed to run background stock synchronization:', error);
@@ -100,6 +115,42 @@ export class MedicineService implements OnModuleInit {
         categories: ['Kháng sinh', 'Hạ sốt & Giảm đau', 'Tim mạch', 'Tiêu hóa', 'Thực phẩm chức năng', 'Vật tư y tế'],
         classifications: ['PRESCRIPTION', 'NON_PRESCRIPTION', 'SUPPLEMENT']
       };
+    }
+  }
+
+  // Truy vấn trực tiếp từ MongoDB để đếm số lượng SKU thực tế của các danh mục con
+  async getSubCategoryCounts(payload: { category?: string; items: { id: string; searchKeyword?: string; categoryValue?: string }[] }) {
+    try {
+      const counts: Record<string, number> = {};
+      const { category, items } = payload || {};
+      if (!Array.isArray(items)) return counts;
+
+      await Promise.all(
+        items.map(async (item) => {
+          if (!item?.id) return;
+          const query: any = {};
+          if (item.categoryValue) {
+            query.category = item.categoryValue;
+          } else {
+            if (category) {
+              query.category = category;
+            }
+            if (item.searchKeyword) {
+              const safeSearch = item.searchKeyword.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+              query.$or = [
+                { name: { $regex: safeSearch, $options: 'i' } },
+                { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+              ];
+            }
+          }
+          const count = await this.medicineModel.countDocuments(query).exec();
+          counts[item.id] = count;
+        })
+      );
+      return counts;
+    } catch (error) {
+      this.logger.error('Lỗi khi đếm số lượng sub-category từ DB:', error);
+      return {};
     }
   }
 
@@ -214,20 +265,37 @@ export class MedicineService implements OnModuleInit {
 
   async getMedicineById(id: string) {
     try {
-      if (!id || typeof id !== 'string' || !id.match(/^[0-9a-fA-F]{24}$/)) {
-        this.logger.warn(`[getMedicineById] Invalid ObjectId string provided: "${id}"`);
+      if (!id || typeof id !== 'string') {
         throw new RpcException(`Mã thuốc "${id}" không hợp lệ`);
       }
-      this.logger.log(`[getMedicineById] Querying medicine by ID from MongoDB: "${id}"`);
-      const medicine = await this.medicineModel.findById(id).exec();
+      this.logger.log(`[getMedicineById] Querying medicine from MongoDB: "${id}"`);
+
+      let medicine: any = null;
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        medicine = await this.medicineModel.findById(id).exec();
+      }
+
+      // Hỗ trợ tra cứu theo SKU, code, barcode nếu id không phải ObjectId hoặc không tìm thấy bằng ObjectId
       if (!medicine) {
-        this.logger.warn(`[getMedicineById] Medicine with ID "${id}" NOT found in MongoDB!`);
+        medicine = await this.medicineModel.findOne({
+          $or: [
+            { sku: id },
+            { code: id },
+            { barcode: id },
+            { national_drug_code: id },
+          ],
+        }).exec();
+      }
+
+      if (!medicine) {
+        this.logger.warn(`[getMedicineById] Medicine with ID/SKU "${id}" NOT found in MongoDB!`);
         throw new RpcException(`Medicine with ID ${id} not found in database`);
       }
-      this.logger.log(`[getMedicineById] Found medicine: "${medicine.name}"`);
+      const actualId = medicine._id.toString();
+      this.logger.log(`[getMedicineById] Found medicine: "${medicine.name}" (ID: ${actualId})`);
 
       // Lấy danh sách lô hàng khả dụng
-      const batches = await this.batchModel.find({ medicineId: id, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
+      const batches = await this.batchModel.find({ medicineId: actualId, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
       const totalStock = batches.reduce((sum, b) => sum + b.stock, 0);
       this.logger.log(`[getMedicineById] Found ${batches.length} active batches. Total stock: ${totalStock}`);
 
@@ -556,13 +624,17 @@ export class MedicineService implements OnModuleInit {
           this.logger.log(`Executing fallback Mongoose regex search for "${search}"`);
           const filterQuery: any = {};
           const conditionsCopy = [...conditions];
-          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          // Chuẩn hóa từ khóa tìm kiếm: hỗ trợ tìm đa từ thông minh (ví dụ: "omega 3" khớp "Omega-3", "Omega 3")
+          const searchWords = search.trim().split(/[\s\-]+/).filter(Boolean);
+          const safeSearchPattern = searchWords.length > 0
+            ? searchWords.map(w => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
+            : search.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
           conditionsCopy.push({
             $or: [
-              { name: { $regex: safeSearch, $options: 'i' } },
-              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
-              { sku: { $regex: safeSearch, $options: 'i' } },
-              { barcode: { $regex: safeSearch, $options: 'i' } }
+              { name: { $regex: safeSearchPattern, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearchPattern, $options: 'i' } },
+              { sku: { $regex: safeSearchPattern, $options: 'i' } },
+              { barcode: { $regex: safeSearchPattern, $options: 'i' } }
             ]
           });
           filterQuery.$and = conditionsCopy;
@@ -626,13 +698,17 @@ export class MedicineService implements OnModuleInit {
         const filterQuery: any = {};
         const conditionsCopy = [...conditions];
         if (search) {
-          const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+          // Chuẩn hóa từ khóa tìm kiếm: hỗ trợ tìm đa từ thông minh (ví dụ: "omega 3" khớp "Omega-3", "Omega 3")
+          const searchWords = search.trim().split(/[\s\-]+/).filter(Boolean);
+          const safeSearchPattern = searchWords.length > 0
+            ? searchWords.map(w => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
+            : search.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
           conditionsCopy.push({
             $or: [
-              { name: { $regex: safeSearch, $options: 'i' } },
-              { active_ingredient: { $regex: safeSearch, $options: 'i' } },
-              { sku: { $regex: safeSearch, $options: 'i' } },
-              { barcode: { $regex: safeSearch, $options: 'i' } }
+              { name: { $regex: safeSearchPattern, $options: 'i' } },
+              { active_ingredient: { $regex: safeSearchPattern, $options: 'i' } },
+              { sku: { $regex: safeSearchPattern, $options: 'i' } },
+              { barcode: { $regex: safeSearchPattern, $options: 'i' } }
             ]
           });
         }
@@ -833,9 +909,7 @@ export class MedicineService implements OnModuleInit {
           const expDate = new Date(b.expDate);
 
           let status = 'ACTIVE';
-          if (b.status === 'QUARANTINED') {
-            status = 'QUARANTINED';
-          } else if (expDate < today) {
+          if (expDate < today) {
             status = 'EXPIRED';
           } else if (expDate <= ninetyDaysFromNow) {
             status = 'SOON_TO_EXPIRE';
@@ -856,7 +930,7 @@ export class MedicineService implements OnModuleInit {
             location: b.location || null,
           };
         })
-        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE' || item.status === 'QUARANTINED')
+        .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE')
         .sort((a, b) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
 
       return report;
@@ -866,7 +940,9 @@ export class MedicineService implements OnModuleInit {
   }
 
   async handleExpirationAction(data: {
-    batchId: string;
+    batchId?: string;
+    medicineId?: string;
+    batchNo?: string;
     action: 'DISPOSE' | 'RETURN_SUPPLIER' | 'DISCOUNT';
     quantity: number;
     notes?: string;
@@ -874,12 +950,23 @@ export class MedicineService implements OnModuleInit {
     performedBy?: string;
   }) {
     try {
-      const { batchId, action, quantity, notes, discountPrice, performedBy } = data;
-      this.logger.log(`Handling expiration action: ${action} for batch ${batchId}`);
+      const { batchId, action, quantity, notes, discountPrice, performedBy, medicineId, batchNo } = data;
+      this.logger.log(`Handling expiration action: ${action} for batch ${batchId || batchNo}`);
 
-      const batch = await this.batchModel.findById(batchId).exec();
+      // Tìm lô thuốc linh hoạt: theo batchId ObjectId hoặc theo medicineId + batchNo
+      let batch: any = null;
+      if (batchId && Types.ObjectId.isValid(batchId)) {
+        batch = await this.batchModel.findById(batchId).exec();
+      }
+      if (!batch && medicineId && batchNo) {
+        batch = await this.batchModel.findOne({ medicineId, batchNo }).exec();
+      }
+      if (!batch && batchNo) {
+        batch = await this.batchModel.findOne({ batchNo }).exec();
+      }
+
       if (!batch) {
-        throw new RpcException('Không tìm thấy lô thuốc này');
+        throw new RpcException('Không tìm thấy lô thuốc này trong kho');
       }
 
       const medicine = await this.medicineModel.findById(batch.medicineId).exec();
@@ -1335,8 +1422,13 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
+      // Truy vấn danh mục thuốc kèm hình ảnh và thông tin chi tiết phục vụ hiển thị thẻ thuốc
       const [medicines, batches] = await Promise.all([
-        this.medicineModel.find().select('name unit price supplierId').lean().exec(),
+        this.medicineModel
+          .find()
+          .select('name unit price supplierId registration_number image images thong_tin_chi_tiet category drug_classification barcode country brand targetGroup packaging')
+          .lean()
+          .exec(),
         this.batchModel.find(batchFilter).select('medicineId batchNo stock').lean().exec()
       ]);
 
@@ -1352,12 +1444,27 @@ export class MedicineService implements OnModuleInit {
 
       return medicines.map(med => {
         const medId = med._id.toString();
+        const details = (med as any).thong_tin_chi_tiet || {};
+        const img = (med as any).image || ((med as any).images && (med as any).images.length > 0 ? (med as any).images[0] : '');
+        const packSpec = details['Quy cách'] || details['Quy cách đóng gói'] || '';
+        const country = (med as any).country || details['Nước sản xuất'] || details['Xuất xứ'] || '';
+        const brand = (med as any).brand || details['Nhà sản xuất'] || details['Thương hiệu'] || '';
+        const targetGroup = (med as any).targetGroup || details['Đối tượng sử dụng'] || '';
         return {
+          _id: medId,
           id: medId,
           name: med.name,
+          registrationNumber: (med as any).registration_number || details['Số đăng ký'] || '',
           unit: med.unit || 'Hộp',
           price: med.price || 0,
           supplierId: med.supplierId || '',
+          image: img,
+          thong_tin_chi_tiet: (packSpec || country) ? { 'Quy cách': packSpec, 'Nước sản xuất': country } : undefined,
+          category: (med as any).category || details['Danh mục'] || '',
+          drug_classification: (med as any).drug_classification || '',
+          country,
+          brand,
+          targetGroup,
           batches: batchesByMedId.get(medId) || []
         };
       });
@@ -1365,7 +1472,7 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi lấy danh sách chọn thuốc');
     }
   }
-  async findAlternatives(medicineId: string, branchId: string) {
+  async findAlternatives(medicineId: string, branchId: string): Promise<any> {
     try {
       this.logger.log(`Finding alternatives for medicine ${medicineId} at branch ${branchId}`);
       const medicine = await this.medicineModel.findById(medicineId).lean().exec();
@@ -1801,11 +1908,15 @@ export class MedicineService implements OnModuleInit {
     try {
       this.logger.log('Fetching warehouse map aggregation...');
       
+      const today = new Date();
+      const ninetyDaysFromNow = new Date();
+      ninetyDaysFromNow.setDate(today.getDate() + 90);
+
       const pipeline: any[] = [
         {
           $match: {
             branchId: 'CENTRAL_WH',
-            status: 'ACTIVE'
+            status: { $in: ['ACTIVE', 'EXPIRED'] }
           }
         },
         {
@@ -1818,6 +1929,91 @@ export class MedicineService implements OnModuleInit {
             totalStock: { $sum: '$stock' },
             batchCount: { $sum: 1 },
             minExpDate: { $min: '$expDate' },
+            expiredBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $lt: ['$expDate', today] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            nearExpiryBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $gte: ['$expDate', today] },
+                      { $lte: ['$expDate', ninetyDaysFromNow] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            lowStockBatchCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $lt: ['$stock', 20] },
+                      {
+                        $or: [
+                          { $eq: ['$expDate', null] },
+                          { $gte: ['$expDate', today] }
+                        ]
+                      }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            expiredStock: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      { $ne: ['$expDate', null] },
+                      { $lt: ['$expDate', today] }
+                    ]
+                  },
+                  '$stock',
+                  0
+                ]
+              }
+            },
+            activeStock: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: ['$stock', 0] },
+                      {
+                        $or: [
+                          { $eq: ['$expDate', null] },
+                          { $gte: ['$expDate', today] }
+                        ]
+                      }
+                    ]
+                  },
+                  '$stock',
+                  0
+                ]
+              }
+            },
             medicineIds: { $addToSet: '$medicineId' }
           }
         },
@@ -1831,7 +2027,12 @@ export class MedicineService implements OnModuleInit {
               $push: {
                 shelf: '$_id.shelf',
                 totalStock: '$totalStock',
+                activeStock: '$activeStock',
+                expiredStock: '$expiredStock',
                 batchCount: '$batchCount',
+                expiredBatchCount: '$expiredBatchCount',
+                nearExpiryBatchCount: '$nearExpiryBatchCount',
+                lowStockBatchCount: '$lowStockBatchCount',
                 minExpDate: '$minExpDate',
                 medicineIds: '$medicineIds'
               }
@@ -1890,10 +2091,6 @@ export class MedicineService implements OnModuleInit {
         }
       });
 
-      const today = new Date();
-      const ninetyDaysFromNow = new Date();
-      ninetyDaysFromNow.setDate(today.getDate() + 90);
-
       // Định nghĩa tên khu theo chuẩn GSP
       const zoneLabels: Record<string, string> = {
         'A': 'Khu A',
@@ -1901,7 +2098,8 @@ export class MedicineService implements OnModuleInit {
         'C': 'Khu C',
         'D': 'Khu D',
         'E': 'Khu E',
-        'F': 'Khu F'
+        'F': 'Khu F',
+        'RESERVE': 'Khu Dự Trữ'
       };
 
       // Xử lý status và categories cho từng shelf và sắp xếp
@@ -1912,15 +2110,23 @@ export class MedicineService implements OnModuleInit {
           // Sort shelves
           r.shelves.sort((a: any, b: any) => a.shelf - b.shelf);
           r.shelves.forEach((s: any) => {
+            const hasExpired = (s.expiredBatchCount || 0) > 0;
+            const hasNearExpiry = (s.nearExpiryBatchCount || 0) > 0;
+            const hasLowStock = (s.lowStockBatchCount || 0) > 0;
+            s.hasExpired = hasExpired;
+            s.hasNearExpiry = hasNearExpiry;
+            s.hasLowStock = hasLowStock;
+
+            // Phương án 1: Nếu còn thuốc bình thường thì giữ nền NORMAL, gắn badge cảnh báo
             if (s.totalStock === 0) {
               s.status = 'EMPTY';
-            } else if (new Date(s.minExpDate) < today) {
+            } else if (s.activeStock === 0 && s.expiredStock > 0) {
+              // 100% thuốc trên kệ đã hết hạn -> Nhuộm đỏ
               s.status = 'EXPIRED';
-            } else if (new Date(s.minExpDate) <= ninetyDaysFromNow) {
-              s.status = 'NEAR_EXPIRY';
-            } else if (s.totalStock < 50) { // Giả sử 50 là ngưỡng an toàn chung cho 1 shelf
+            } else if ((s.activeStock || 0) < 50 && s.activeStock > 0) {
               s.status = 'LOW_STOCK';
             } else {
+              // Kệ vẫn còn thuốc khả dụng tốt -> NORMAL (Nền xanh)
               s.status = 'NORMAL';
             }
 
@@ -1936,6 +2142,34 @@ export class MedicineService implements OnModuleInit {
             delete s.medicineIds;
           });
         });
+
+        // Đảm bảo Khu Dự Trữ RESERVE có đầy đủ 4 kệ: RES1, RES2, RES3, RES4
+        if (z.zone === 'RESERVE') {
+          const existingRacks = new Set(z.racks.map((r: any) => String(r.rack)));
+          for (const resRack of ['RES1', 'RES2', 'RES3', 'RES4']) {
+            if (!existingRacks.has(resRack)) {
+              z.racks.push({
+                rack: resRack,
+                shelves: [1, 2, 3, 4].map((shelfNum) => ({
+                  shelf: shelfNum,
+                  totalStock: 0,
+                  activeStock: 0,
+                  expiredStock: 0,
+                  batchCount: 0,
+                  expiredBatchCount: 0,
+                  nearExpiryBatchCount: 0,
+                  lowStockBatchCount: 0,
+                  status: 'EMPTY',
+                  categories: [],
+                  hasExpired: false,
+                  hasNearExpiry: false,
+                  hasLowStock: false,
+                })),
+              });
+            }
+          }
+          z.racks.sort((a: any, b: any) => String(a.rack).localeCompare(String(b.rack)));
+        }
 
         return {
           zone: z.zone,
@@ -1955,14 +2189,19 @@ export class MedicineService implements OnModuleInit {
     try {
       this.logger.log(`Fetching shelf detail: Zone=${zone}, Rack=${rack}, Shelf=${shelf}`);
 
-      const batches = await this.batchModel.find({
+      const filter: any = {
         'location.zone': zone,
         'location.rack': rack,
         'location.shelf': Number(shelf),
-        'location.slotType': 'MAIN',
         stock: { $gte: 0 },
         status: { $nin: ['REMOVED', 'DELETED'] },
-      }).lean().exec();
+      };
+      // Đối với các khu kệ thông thường (A, B, C, D, E, F) thì chỉ lấy lô MAIN, Khu RESERVE lấy toàn bộ
+      if (zone !== 'RESERVE') {
+        filter['location.slotType'] = 'MAIN';
+      }
+
+      const batches = await this.batchModel.find(filter).lean().exec();
 
       if (batches.length === 0) return [];
 
@@ -1976,10 +2215,8 @@ export class MedicineService implements OnModuleInit {
       const ninetyDaysFromNow = new Date();
       ninetyDaysFromNow.setDate(today.getDate() + 90);
 
-      // GROUP BY BIN: moi thung (bin) chi xuat ra 1 hang duy nhat.
-      // Neu 1 thung co nhieu lo ACTIVE, ta gop stock lai va dung lo gan date
-      // nhat (FEFO) de xac dinh trang thai va hien thi batchNo dai dien.
-      const binMap = new Map<number, {
+      // GROUP BY BIN: Kệ thông thường mỗi thùng 1 thuốc.
+      const binMap = new Map<string, {
         bin: number;
         medicineId: string;
         medicineName: string;
@@ -1991,30 +2228,65 @@ export class MedicineService implements OnModuleInit {
         representativeBatchId: string;
         representativeBatchNo: string;
         batchCount: number;
+        batches: any[];
       }>();
 
       for (const b of batches) {
         const binNo: number = b.location?.bin || 1;
         const med = medMap.get(b.medicineId?.toString());
         const expDate = new Date(b.expDate);
-        const existing = binMap.get(binNo);
+        const mapKey = `${binNo}`;
+
+        // Tính trạng thái của từng lô riêng biệt
+        const batchExpDate = new Date(b.expDate);
+        const batchDays = Math.ceil((batchExpDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
+        let batchStatus = 'ACTIVE';
+        if (b.status === 'QUARANTINED') {
+          batchStatus = 'QUARANTINED';
+        } else if (b.stock === 0) {
+          batchStatus = 'OUT_OF_STOCK';
+        } else if (batchExpDate < today) {
+          batchStatus = 'EXPIRED';
+        } else if (batchExpDate <= ninetyDaysFromNow) {
+          batchStatus = 'NEAR_EXPIRY';
+        } else if (b.stock < 20) {
+          batchStatus = 'LOW_STOCK';
+        }
+
+        const batchItem = {
+          _id: b._id.toString(),
+          id: b._id.toString(),
+          batchNo: b.batchNo,
+          medicineId: b.medicineId?.toString() || '',
+          medicineName: med?.name || 'Unknown',
+          stock: b.stock,
+          unit: med?.unit || 'Hộp',
+          expDate: b.expDate ? new Date(b.expDate).toISOString().split('T')[0] : '',
+          rawExpDate: b.expDate,
+          daysUntilExpiry: batchDays,
+          status: batchStatus,
+        };
+
+        const existing = binMap.get(mapKey);
         if (!existing) {
-          binMap.set(binNo, {
+          binMap.set(mapKey, {
             bin: binNo,
             medicineId: b.medicineId?.toString() || '',
             medicineName: med?.name || 'Unknown',
             category: med?.category || '',
-            unit: med?.unit || 'Hop',
+            unit: med?.unit || 'Hộp',
             price: (med as any)?.price || 0,
             totalStock: b.stock,
             nearestExpDate: expDate,
             representativeBatchId: b._id.toString(),
             representativeBatchNo: b.batchNo,
             batchCount: 1,
+            batches: [batchItem],
           });
         } else {
           existing.totalStock += b.stock;
           existing.batchCount += 1;
+          existing.batches.push(batchItem);
           if (expDate < existing.nearestExpDate) {
             existing.nearestExpDate = expDate;
             existing.representativeBatchId = b._id.toString();
@@ -2037,6 +2309,14 @@ export class MedicineService implements OnModuleInit {
         } else if (binInfo.totalStock < 20) {
           status = 'LOW_STOCK';
         }
+
+        // Sắp xếp các lô theo thứ tự FEFO (hạn gần nhất xếp trước)
+        const sortedBatches = binInfo.batches.sort((a, b) => {
+          const tA = a.rawExpDate ? new Date(a.rawExpDate).getTime() : 0;
+          const tB = b.rawExpDate ? new Date(b.rawExpDate).getTime() : 0;
+          return tA - tB;
+        });
+
         return {
           _id: binInfo.representativeBatchId,
           id: binInfo.representativeBatchId,
@@ -2044,6 +2324,7 @@ export class MedicineService implements OnModuleInit {
           batchNo: binInfo.batchCount > 1
             ? `${binInfo.representativeBatchNo} (+${binInfo.batchCount - 1} lo)`
             : binInfo.representativeBatchNo,
+          representativeBatchNo: binInfo.representativeBatchNo,
           medicineId: binInfo.medicineId,
           medicineName: binInfo.medicineName,
           category: binInfo.category,
@@ -2055,6 +2336,7 @@ export class MedicineService implements OnModuleInit {
           price: binInfo.price,
           bin: binInfo.bin,
           batchCount: binInfo.batchCount,
+          batches: sortedBatches,
         };
       });
 
@@ -2123,34 +2405,43 @@ export class MedicineService implements OnModuleInit {
       if (!q || q.trim() === '') return [];
       
       this.logger.log(`[WarehouseSearch] Searching for: "${q}"`);
-      const regex = new RegExp(q, 'i');
+      const trimmed = q.trim();
+      // Thoát ký tự đặc biệt regex như (, ), [, ], +, * để không bị lỗi hoặc miss
+      const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+
+      const orClauses: any[] = [
+        { name: regex },
+        { sku: regex },
+        { barcode: regex },
+        { category: regex },
+        { 'units.barcode': regex }
+      ];
+      if (Types.ObjectId.isValid(trimmed)) {
+        orClauses.push({ _id: new Types.ObjectId(trimmed) });
+      }
+
       const medicines = await this.medicineModel.find(
-        {
-          $or: [
-            { name: regex },
-            { sku: regex },
-            { barcode: regex },
-            { category: regex },
-            { 'units.barcode': regex }
-          ]
-        },
+        { $or: orClauses },
         { name: 1, sku: 1, category: 1, barcode: 1, stock: 1, unit: 1 }
       ).limit(25).lean().exec();
 
       if (medicines.length === 0) return [];
 
       const medIds = medicines.map(m => m._id.toString());
+      const medObjectIds = medIds.map(id => new Types.ObjectId(id));
+      const allMedIds: any[] = [...medIds, ...medObjectIds];
 
       // 1. Lấy tất cả batch ở CENTRAL_WH của các thuốc tìm thấy (không lọc cứng stock > 0 để tránh ẩn thuốc hết hàng trên kệ)
       const centralBatches = await this.batchModel.find({
-        medicineId: { $in: medIds },
+        medicineId: { $in: allMedIds },
         branchId: 'CENTRAL_WH',
         status: { $nin: ['DELETED', 'REMOVED'] },
       }, { medicineId: 1, location: 1, batchNo: 1, stock: 1, status: 1, expDate: 1 }).lean().exec();
 
       // 2. Lấy vị trí cố định từ medicinelocations (960 thùng chuẩn GSP)
       const fixedLocations = await this.locationModel.find({
-        medicineId: { $in: medIds }
+        medicineId: { $in: allMedIds }
       }).lean().exec();
 
       const fixedLocMap = new Map<string, any>();
@@ -2183,7 +2474,9 @@ export class MedicineService implements OnModuleInit {
           // Ưu tiên lô còn tồn > 0, nếu không thì lấy lô đầu tiên
           const bestBatch = mainBatches.find(b => (b.stock || 0) > 0) || mainBatches[0];
           const totalStock = mainBatches.reduce((acc, b) => acc + (b.stock || 0), 0);
-          const targetId = `${bestBatch.location.zone}-${bestBatch.location.rack}-${bestBatch.location.shelf}`;
+          const targetId = bestBatch.location?.bin
+            ? `bin-${bestBatch.location.zone}-${bestBatch.location.rack}-${bestBatch.location.shelf}-${bestBatch.location.bin}`
+            : `${bestBatch.location.zone}-${bestBatch.location.rack}-${bestBatch.location.shelf}`;
           const locKey = `${mid}-${targetId}`;
 
           if (!seenLocKeys.has(locKey)) {
@@ -2202,7 +2495,9 @@ export class MedicineService implements OnModuleInit {
           }
         } else if (fixedLoc) {
           // Chưa có lô tồn nhưng đã có vị trí quy hoạch cố định trong kho GSP
-          const targetId = `${fixedLoc.zone}-${fixedLoc.rack}-${fixedLoc.shelf}`;
+          const targetId = fixedLoc.bin
+            ? `bin-${fixedLoc.zone}-${fixedLoc.rack}-${fixedLoc.shelf}-${fixedLoc.bin}`
+            : `${fixedLoc.zone}-${fixedLoc.rack}-${fixedLoc.shelf}`;
           const locKey = `${mid}-${targetId}`;
 
           if (!seenLocKeys.has(locKey)) {
@@ -2229,7 +2524,10 @@ export class MedicineService implements OnModuleInit {
           // Thuốc nằm trong Khu Lưu Trữ Dự Trữ (RESERVE)
           const bestBatch = reserveBatches.find(b => (b.stock || 0) > 0) || reserveBatches[0];
           const totalStock = reserveBatches.reduce((acc, b) => acc + (b.stock || 0), 0);
-          const locKey = `${mid}-RESERVE`;
+          const targetId = bestBatch.location?.bin
+            ? `bin-${bestBatch.location.zone || 'RESERVE'}-${bestBatch.location.rack || 'RES1'}-${bestBatch.location.shelf || 1}-${bestBatch.location.bin}`
+            : 'RESERVE';
+          const locKey = `${mid}-${targetId}`;
 
           if (!seenLocKeys.has(locKey)) {
             seenLocKeys.add(locKey);
@@ -2240,7 +2538,7 @@ export class MedicineService implements OnModuleInit {
               category: med.category,
               unit: med.unit || 'Hộp',
               location: bestBatch.location || { zone: 'RESERVE', rack: 'RES1', shelf: 1, bin: 1, slotType: 'RESERVE' },
-              targetId: 'RESERVE',
+              targetId,
               stock: totalStock,
               status: bestBatch.status || 'ACTIVE',
               isReserve: true
@@ -2434,12 +2732,15 @@ export class MedicineService implements OnModuleInit {
         locationMap.set(`${loc.shelf}-${loc.bin}`, loc);
       }
 
-      // Lấy tồn kho thực (batch MAIN còn stock > 0) cho kệ này - CHỈ Kho Tổng
+      // Lấy tồn kho thực cho kệ này - Hỗ trợ cả kệ chính (MAIN) và kệ dự trữ (RESERVE)
+      const isReserveZone = zone === 'RESERVE';
+      const slotTypeFilter = isReserveZone ? 'RESERVE' : 'MAIN';
+
       const activeBatches = await this.batchModel.find({
         branchId: 'CENTRAL_WH',
         'location.zone': zone,
         'location.rack': rack,
-        'location.slotType': 'MAIN',
+        'location.slotType': slotTypeFilter,
         stock: { $gt: 0 },
         status: { $nin: ['REMOVED', 'DELETED'] },
       }).lean().exec();
@@ -2592,34 +2893,48 @@ export class MedicineService implements OnModuleInit {
       const { zone, rack, shelf, bin } = payload;
       this.logger.log(`[getBinDetail] ${zone}/${rack}/tang${shelf}/thung${bin}`);
 
-      // Lấy thông tin vị trí cố định của thùng này
+      // Lấy thông tin vị trí cố định của thùng này (nếu có)
       const locationInfo = await this.locationModel.findOne({ zone, rack, shelf, bin }).lean().exec();
 
-      // Lấy lô MAIN trong thùng này
+      // Phân biệt Khu Kệ Chính (MAIN) hay Khu Dự Trữ (RESERVE)
+      const isReserveZone = zone === 'RESERVE';
+      const targetSlotType = isReserveZone ? 'RESERVE' : 'MAIN';
+
+      // Lấy các lô hàng thực tế trong thùng này
       const mainBatches = await this.batchModel.find({
         'location.zone': zone,
         'location.rack': rack,
-        'location.shelf': shelf,
-        'location.bin': bin,
-        'location.slotType': 'MAIN',
+        'location.shelf': Number(shelf),
+        'location.bin': Number(bin),
+        'location.slotType': targetSlotType,
         stock: { $gt: 0 },
+        status: { $nin: ['REMOVED', 'DELETED'] },
       }).sort({ expDate: 1 }).lean().exec();
 
-      // Lấy lô RESERVE của thuốc trong thùng này (nếu có medicineId)
+      // Tìm thông tin thuốc: ưu tiên từ locationInfo, nếu không có (Khu Dự Trữ) thì lấy từ lô đầu tiên
+      const primaryMedId = locationInfo?.medicineId || mainBatches[0]?.medicineId || null;
+      let medicineInfo = null;
+      if (primaryMedId) {
+        medicineInfo = await this.medicineModel.findById(primaryMedId, { name: 1, unit: 1, barcode: 1 }).lean().exec();
+      }
+
+      // Lấy lô RESERVE của thuốc trong thùng chính (chỉ áp dụng khi xem kệ chính)
       let reserveBatches = [];
-      if (locationInfo?.medicineId) {
+      if (!isReserveZone && primaryMedId) {
         reserveBatches = await this.batchModel.find({
-          medicineId: locationInfo.medicineId,
+          medicineId: primaryMedId,
           'location.slotType': 'RESERVE',
           stock: { $gt: 0 },
+          status: { $nin: ['REMOVED', 'DELETED'] },
         }).sort({ expDate: 1 }).lean().exec();
       }
 
-      // Lấy thông tin thuốc
-      let medicineInfo = null;
-      if (locationInfo?.medicineId) {
-        medicineInfo = await this.medicineModel.findById(locationInfo.medicineId, { name: 1, unit: 1, barcode: 1 }).lean().exec();
-      }
+      // Nếu trong Khu Dự Trữ có nhiều loại thuốc khác nhau trong cùng 1 thùng, lấy thêm tên thuốc
+      const allMedIds = [...new Set(mainBatches.map(b => b.medicineId?.toString()).filter(Boolean))];
+      const extraMeds = allMedIds.length > 0
+        ? await this.medicineModel.find({ _id: { $in: allMedIds } }, { name: 1, unit: 1 }).lean().exec()
+        : [];
+      const extraMedMap = new Map(extraMeds.map(m => [m._id.toString(), m]));
 
       const now = new Date();
       const enrichBatch = (b: any) => {
@@ -2627,21 +2942,49 @@ export class MedicineService implements OnModuleInit {
           ? Math.floor((new Date(b.expDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           : null;
         let status = 'NORMAL';
-        if (b.expDate && new Date(b.expDate) < now) status = 'EXPIRED';
-        else if (daysToExp !== null && daysToExp <= 90) status = 'NEAR_EXPIRY';
-        return { ...b, status, daysToExpiry: daysToExp };
+        if (b.status === 'QUARANTINED') {
+          status = 'QUARANTINED';
+        } else if (b.expDate && new Date(b.expDate) < now) {
+          status = 'EXPIRED';
+        } else if (daysToExp !== null && daysToExp <= 90) {
+          status = 'NEAR_EXPIRY';
+        }
+
+        const medObj = extraMedMap.get(b.medicineId?.toString()) || medicineInfo;
+        return {
+          ...b,
+          status,
+          daysToExpiry: daysToExp,
+          overdueDays: (daysToExp !== null && daysToExp < 0) ? Math.abs(daysToExp) : null,
+          medicineName: medObj?.name || (isReserveZone ? 'Thuốc dự trữ' : 'Dược phẩm'),
+          unit: medObj?.unit || 'Hộp',
+        };
       };
 
-      const totalMainStock = mainBatches.reduce((s, b) => s + b.stock, 0);
+      const enrichedMainBatches = mainBatches.map(enrichBatch);
+      const enrichedReserveBatches = reserveBatches.map(enrichBatch);
+      const totalMainStock = enrichedMainBatches.reduce((s, b) => s + b.stock, 0);
+
+      // Nếu là Khu Dự Trữ và chưa có locationInfo, tự tạo vị trí hiển thị chuẩn
+      const effectiveLocation = locationInfo || {
+        zone,
+        rack,
+        shelf: Number(shelf),
+        bin: Number(bin),
+        medicineId: primaryMedId,
+        medicineName: medicineInfo?.name || (enrichedMainBatches[0]?.medicineName) || 'Khu Dự Trữ FEFO',
+        unit: medicineInfo?.unit || enrichedMainBatches[0]?.unit || 'Hộp',
+        maxCapacity: 200,
+      };
 
       return {
-        location: locationInfo,
+        location: effectiveLocation,
         medicine: medicineInfo,
-        mainBatches: mainBatches.map(enrichBatch),
-        reserveBatches: reserveBatches.map(enrichBatch),
+        mainBatches: enrichedMainBatches,
+        reserveBatches: enrichedReserveBatches,
         totalMainStock,
-        totalReserveStock: reserveBatches.reduce((s, b) => s + b.stock, 0),
-        hasAlert: reserveBatches.length > 0,
+        totalReserveStock: enrichedReserveBatches.reduce((s, b) => s + b.stock, 0),
+        hasAlert: enrichedReserveBatches.length > 0 || enrichedMainBatches.some(b => b.status === 'EXPIRED'),
       };
     } catch (error) {
       this.logger.error('[getBinDetail] Error:', error);
@@ -2757,21 +3100,25 @@ export class MedicineService implements OnModuleInit {
       const sourceMedId = sourceBatches[0].medicineId?.toString();
 
       // 2. Kiểm tra thùng đích
-      const targetBatches = await this.batchModel.find({
-        'location.zone': toLocation.zone,
-        'location.rack': toLocation.rack,
-        'location.shelf': Number(toLocation.shelf),
-        'location.bin': Number(toLocation.bin),
-        'location.slotType': 'MAIN',
-        status: { $nin: ['REMOVED', 'DELETED'] },
-        stock: { $gt: 0 },
-      }).exec();
+      // Khu RESERVE là Khu Dự Trữ: Cho phép lưu trữ hỗn hợp bất kỳ loại thuốc nào!
+      const isTargetReserve = toLocation.zone === 'RESERVE' || (toLocation as any).slotType === 'RESERVE';
+      if (!isTargetReserve) {
+        const targetBatches = await this.batchModel.find({
+          'location.zone': toLocation.zone,
+          'location.rack': toLocation.rack,
+          'location.shelf': Number(toLocation.shelf),
+          'location.bin': Number(toLocation.bin),
+          'location.slotType': 'MAIN',
+          status: { $nin: ['REMOVED', 'DELETED'] },
+          stock: { $gt: 0 },
+        }).exec();
 
-      if (targetBatches.length > 0) {
-        const targetMedId = targetBatches[0].medicineId?.toString();
-        if (targetMedId && targetMedId !== sourceMedId) {
-          this.logger.error(`[relocateBin] Thùng đích đã chứa thuốc khác (${targetMedId} != ${sourceMedId}). Huỷ thao tác để tuân thủ 1 thùng 1 loại thuốc.`);
-          throw new RpcException('Thùng đích đang chứa thuốc khác. Chuẩn GSP quy định mỗi thùng chỉ chứa 1 loại thuốc!');
+        if (targetBatches.length > 0) {
+          const targetMedId = targetBatches[0].medicineId?.toString();
+          if (targetMedId && targetMedId !== sourceMedId) {
+            this.logger.error(`[relocateBin] Thùng đích đã chứa thuốc khác (${targetMedId} != ${sourceMedId}). Huỷ thao tác để tuân thủ 1 thùng 1 loại thuốc.`);
+            throw new RpcException('Thùng đích đang chứa thuốc khác. Chuẩn GSP quy định mỗi thùng trên kệ chính chỉ chứa 1 loại thuốc!');
+          }
         }
       }
 
@@ -2783,15 +3130,16 @@ export class MedicineService implements OnModuleInit {
           $set: {
             'location.zone': toLocation.zone,
             'location.rack': toLocation.rack,
-            'location.shelf': Number(toLocation.shelf),
-            'location.bin': Number(toLocation.bin),
-            'location.slotType': 'MAIN',
+            'location.shelf': Number(toLocation.shelf || 1),
+            'location.bin': Number(toLocation.bin || 1),
+            'location.slotType': isTargetReserve ? 'RESERVE' : 'MAIN',
           }
         }
       ).exec();
 
-      // 4. Nếu chuyển toàn bộ thùng nguồn, kiểm tra xem vị trí nguồn còn lô nào không
-      if (sourceMedId) {
+      // 4. Nếu chuyển toàn bộ thùng nguồn sang kệ chính khác (không phải dời sang Khu Dự Trữ RESERVE)
+      // Cập nhật vị trí kệ chính MedicineLocation nếu vị trí nguồn không còn lô nào
+      if (sourceMedId && !isTargetReserve) {
         const remainingAtSource = await this.batchModel.countDocuments({
           medicineId: sourceMedId,
           'location.zone': fromLocation.zone,

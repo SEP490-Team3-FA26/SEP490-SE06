@@ -5,7 +5,7 @@ import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper
 import { AppWebsocketGateway } from '../websocket/websocket.gateway';
 
 @ApiTags('🌐 Public RFQ Supplier Portal (Magic Link)')
-@Controller('api/rfq-portal')
+@Controller(['api/rfq-portal', 'api/rfqs/portal', 'api/rfq/portal'])
 export class RfqPortalController implements OnModuleInit {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,

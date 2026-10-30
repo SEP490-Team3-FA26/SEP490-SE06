@@ -25,12 +25,22 @@ export class TelemetryController {
     return await this.telemetryService.getLatest(payload?.deviceId);
   }
 
-  // Lấy dữ liệu chuỗi thời gian lịch sử (5m, 1h, 24h, 7d)
+  // Lấy dữ liệu chuỗi thời gian lịch sử (5m, 1h, 24h, 7d hoặc theo khoảng thời gian quá khứ)
   @MessagePattern('inventory.sensor.get_history')
-  async getHistory(@Payload() payload: { deviceId?: string; range?: string }) {
+  async getHistory(
+    @Payload()
+    payload: {
+      deviceId?: string;
+      range?: string;
+      from?: string | number;
+      to?: string | number;
+    },
+  ) {
     return await this.telemetryService.getHistory(
-      payload?.deviceId || 'ESP32S3_404CCA44C814',
+      payload?.deviceId,
       payload?.range || '1h',
+      payload?.from,
+      payload?.to,
     );
   }
 

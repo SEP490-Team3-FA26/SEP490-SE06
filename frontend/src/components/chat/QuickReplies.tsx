@@ -21,20 +21,22 @@ export const QuickReplies: React.FC<QuickRepliesProps> = ({
   onSelect,
   disabled = false,
 }) => {
+  const safeOptions = options || DEFAULT_OPTIONS;
+
   return (
     <div className="w-full">
-      <div className="flex items-center gap-1.5 mb-2 px-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-        <Sparkles size={12} className="text-amber-500" />
+      <div className="flex items-center gap-1.5 mb-2 px-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+        <Sparkles size={11} className="text-amber-500" />
         <span>Gợi ý triệu chứng nhanh:</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {options.map((opt, idx) => (
+        {(safeOptions || []).map((opt, idx) => (
           <button
             key={idx}
             type="button"
             disabled={disabled}
             onClick={() => onSelect(opt)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-blue-200/80 hover:border-blue-300 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-2xs"
+            className="text-xs font-normal px-3 py-1 rounded-full bg-white hover:bg-slate-50 text-slate-600 hover:text-blue-700 border border-slate-200/80 hover:border-blue-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-2xs"
           >
             {opt}
           </button>

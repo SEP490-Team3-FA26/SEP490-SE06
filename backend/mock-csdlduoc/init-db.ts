@@ -7,10 +7,12 @@ import * as path from "path";
 dotenv.config({ path: path.join(__dirname, "../.env") });
 dotenv.config({ path: path.join(__dirname, "../../.env") });
 
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  process.env.MONGODB_ATLAS_URI ||
-  "mongodb+srv://phuocthde180577_db_user:Phuoc12345@cluster0.ruhl6tb.mongodb.net/WDP201?appName=Cluster0";
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGODB_ATLAS_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ [CSDL Dược] Lỗi: Vui lòng cấu hình biến môi trường MONGODB_URI hoặc MONGODB_ATLAS_URI trong file .env trước khi chạy init database!");
+  process.exit(1);
+}
 
 // Danh mục Cơ sở Cấp phép (Phân định rõ Kho Tổng vs Kho Nhánh)
 const NATIONAL_FACILITIES = [
@@ -89,7 +91,7 @@ const NATIONAL_FACILITIES = [
 async function initializeNationalPharmaDatabase() {
   console.log("================================================================");
   console.log("🚀 BẮT ĐẦU KHỞI TẠO DỮ LIỆU CSDL DƯỢC QUỐC GIA (QĐ 232 v1.1)");
-  console.log(`🌐 MongoDB URI: ${MONGODB_URI.slice(0, 35)}...`);
+  console.log("🌐 MongoDB: Đã tải cấu hình kết nối từ biến môi trường.");
   console.log("================================================================\n");
 
   await mongoose.connect(MONGODB_URI);

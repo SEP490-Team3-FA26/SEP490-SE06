@@ -64,7 +64,7 @@ export function BranchShiftSwap() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
+    <div className="flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Duyệt Yêu Cầu Đổi Ca</h1>
         <p className="text-slate-500 mt-1">Quản lý các yêu cầu đổi ca làm việc của nhân viên</p>

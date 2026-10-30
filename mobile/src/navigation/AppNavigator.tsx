@@ -1,4 +1,4 @@
-// AppNavigator.tsx - Complete Role-based Navigation Routing Hub for Pharma ERP Mobile
+// AppNavigator.tsx - Complete Guest-First Role-based Navigation Routing Hub
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,7 @@ import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
 import { ProfileScreen } from '../screens/common/ProfileScreen';
 import { NotificationListScreen } from '../screens/common/NotificationListScreen';
 import { WebViewScreen } from '../screens/common/WebViewScreen';
-import { FlatComponentsShowcase } from '../screens/common/FlatComponentsShowcase';
+import { SplashScreen } from '../screens/common/SplashScreen';
 
 // Actor Screens
 import { AdminScreen } from '../screens/admin/AdminScreen';
@@ -22,6 +22,7 @@ import { PharmacistScreen } from '../screens/pharmacist/PharmacistScreen';
 import { BranchScreen } from '../screens/branch/BranchScreen';
 import { CustomerScreen } from '../screens/customer/CustomerScreen';
 import { CustomerCheckoutScreen } from '../screens/customer/CustomerCheckoutScreen';
+import { CustomerWishlistScreen } from '../screens/customer/CustomerWishlistScreen';
 import { MedicineReminderScreen } from '../screens/customer/MedicineReminderScreen';
 import { OrderConfirmation } from '../screens/OrderConfirmation';
 
@@ -29,7 +30,12 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { auth, user } = useAuth();
+  const [showSplash, setShowSplash] = React.useState(true);
   const role = user?.role || auth.role;
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   const getInitialActorScreen = () => {
     switch (role) {
@@ -54,45 +60,69 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator
       id="app-stack"
-      key={auth.isAuthenticated ? `auth-${role || 'user'}` : 'unauth'}
-      initialRouteName={auth.isAuthenticated ? getInitialActorScreen() : 'LoginScreen'}
+      key={auth.isAuthenticated ? `auth-${role || 'user'}` : 'guest-flow'}
+      initialRouteName={auth.isAuthenticated ? getInitialActorScreen() : 'CustomerScreen'}
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
-        animationDuration: 250,
+        animationDuration: 220,
         contentStyle: { backgroundColor: '#F8FAFC' },
       }}
     >
       {!auth.isAuthenticated ? (
-        // Auth Flow
+        // ─── Guest Flow (Guest-First E-Commerce Discovery) ──────────────────────
         <Stack.Group>
+          {/* Mở thẳng trang CustomerScreen cho khách vãng lai */}
+          <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
+          {/* Màn hình xác thực khi khách bấm Checkout hoặc Login */}
           <Stack.Screen name="LoginScreen" component={LoginScreen} />
           <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
           <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
-          <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
           <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
-          <Stack.Screen name="FlatComponentsShowcase" component={FlatComponentsShowcase} />
-          <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
+          <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
+          <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
         </Stack.Group>
       ) : (
-        // Authenticated App Flow
+        // ─── Authenticated Role-Based App Flow ──────────────────────────────────
         <Stack.Group>
-          {/* Actor Entry Screens */}
-          <Stack.Screen name="AdminScreen" component={AdminScreen} />
-          <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
-          <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
-          <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
-          <Stack.Screen name="BranchScreen" component={BranchScreen} />
-          <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
+          {role === 'admin' && (
+            <Stack.Screen name="AdminScreen" component={AdminScreen} />
+          )}
 
-          {/* Sub-screens */}
-          <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
-          <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
-          <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
+          {(role === 'director' || role === 'headBranch') && (
+            <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
+          )}
+
+          {role === 'warehouse' && (
+            <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
+          )}
+
+          {role === 'pharmacist' && (
+            <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
+          )}
+
+          {role === 'branch' && (
+            <Stack.Screen name="BranchScreen" component={BranchScreen} />
+          )}
+
+          {(role === 'customer' ||
+            role === 'user' ||
+            !['admin', 'director', 'headBranch', 'warehouse', 'pharmacist', 'branch'].includes(
+              role
+            )) && (
+            <>
+              <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
+              <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
+              <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
+              <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
+              <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
+            </>
+          )}
+
+          {/* Shared Sub-screens for Authenticated Users */}
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
           <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
-          <Stack.Screen name="FlatComponentsShowcase" component={FlatComponentsShowcase} />
         </Stack.Group>
       )}
     </Stack.Navigator>

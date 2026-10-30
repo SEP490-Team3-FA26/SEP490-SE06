@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { MapPin, AlertCircle, Info, CheckCircle2 } from "lucide-react";
+import { MapPin, AlertCircle, Info, CheckCircle2, Loader2 } from "lucide-react";
 import { inventoryMapService } from "../../../services/inventory/inventoryMap.service";
 
 interface BinLocationPickerProps {
@@ -9,6 +9,7 @@ interface BinLocationPickerProps {
   value: { zone: string; rack: string; shelf: number; bin: number; slotType?: 'MAIN' | 'RESERVE' };
   onChange: (loc: { zone: string; rack: string; shelf: number; bin: number; slotType: 'MAIN' | 'RESERVE' }) => void;
   error?: string;
+  isLoading?: boolean;
 }
 
 const ZONE_OPTIONS = [
@@ -36,13 +37,17 @@ export function BinLocationPicker({
   value,
   onChange,
   error,
+  isLoading = false,
 }: BinLocationPickerProps) {
   const [existingBinInfo, setExistingBinInfo] = useState<{
     hasOldBatch: boolean;
     oldBatchCount: number;
     oldStock: number;
     nearestExp?: string;
+    medicineId?: string;
     medicineName?: string;
+    unit?: string;
+    maxCapacity?: number;
   } | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -66,7 +71,10 @@ export function BinLocationPicker({
             oldBatchCount: mainBatches.length,
             oldStock,
             nearestExp: mainBatches[0]?.expDate ? new Date(mainBatches[0].expDate).toLocaleDateString('vi-VN') : undefined,
-            medicineName: data?.medicine?.name || data?.location?.medicineName,
+            medicineId: data?.location?.medicineId || data?.medicine?._id || mainBatches[0]?.medicineId,
+            medicineName: data?.medicine?.name || data?.location?.medicineName || mainBatches[0]?.medicineName,
+            unit: data?.medicine?.unit || data?.location?.unit || mainBatches[0]?.unit,
+            maxCapacity: data?.location?.maxCapacity || 200,
           });
         } else {
           setExistingBinInfo(null);
@@ -99,14 +107,27 @@ export function BinLocationPicker({
     onChange({ ...value, bin: newBin, slotType: 'MAIN' });
   };
 
+  // Xác định thuốc trong thùng có đúng là thuốc đang kiểm đếm hay không
+  const isAutoLocated = (zone !== 'A' || rack !== 'A1' || shelf !== 1 || bin !== 1);
+  const displayUnit = existingBinInfo?.unit || unit;
+  const isSameMedicine = existingBinInfo && (
+    (existingBinInfo.medicineId && String(existingBinInfo.medicineId) === String(medicineId)) ||
+    (existingBinInfo.medicineName && medicineName && existingBinInfo.medicineName.trim().toLowerCase() === medicineName.trim().toLowerCase())
+  );
+
   return (
     <div className="mt-2 pt-2 border-t border-slate-200">
       <div className="flex items-center justify-between mb-1.5">
         <label className="text-[10px] font-bold text-emerald-800 flex items-center gap-1 uppercase tracking-wide">
           <MapPin size={12} className="text-emerald-600" />
           <span>Vị trí xếp hàng: Khu → Kệ → Tầng → Thùng (Bin 1..10)</span>
+          {isAutoLocated && (
+            <span className="ml-1.5 px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold rounded-full normal-case flex items-center gap-1 shadow-xs animate-fadeIn">
+              ✨ Đã tự xác định ô thùng
+            </span>
+          )}
         </label>
-        <span className="text-[10px] text-slate-500">Đơn vị: <b className="text-slate-700">{unit}</b></span>
+        <span className="text-[10px] text-slate-500">Đơn vị: <b className="text-slate-700">{displayUnit}</b></span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -116,9 +137,10 @@ export function BinLocationPicker({
           <select
             value={zone}
             onChange={(e) => handleZoneChange(e.target.value)}
+            disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
               error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
-            }`}
+            } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {ZONE_OPTIONS.map((z) => (
               <option key={z.value} value={z.value}>{z.label}</option>
@@ -132,9 +154,10 @@ export function BinLocationPicker({
           <select
             value={rack}
             onChange={(e) => handleRackChange(e.target.value)}
+            disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
               error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
-            }`}
+            } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {getRackOptions(zone).map((r) => (
               <option key={r} value={r}>Kệ {r}</option>
@@ -148,9 +171,10 @@ export function BinLocationPicker({
           <select
             value={shelf}
             onChange={(e) => handleShelfChange(Number(e.target.value))}
+            disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
               error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
-            }`}
+            } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {SHELF_OPTIONS.map((s) => (
               <option key={s} value={s}>Tầng {s}</option>
@@ -164,9 +188,10 @@ export function BinLocationPicker({
           <select
             value={bin}
             onChange={(e) => handleBinChange(Number(e.target.value))}
+            disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
               error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
-            }`}
+            } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {BIN_OPTIONS.map((b) => (
               <option key={b} value={b}>Thùng B{b}</option>
@@ -175,17 +200,39 @@ export function BinLocationPicker({
         </div>
       </div>
 
-      {/* Cảnh báo lô cũ FEFO nếu thùng đã có thuốc */}
-      {existingBinInfo?.hasOldBatch && (
-        <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-300 flex items-start gap-2 text-xs text-amber-900">
-          <AlertCircle size={15} className="text-amber-600 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <span className="font-bold">⚠️ Thùng {rack}-T{shelf}-B{bin} hiện đã có {existingBinInfo.oldStock} {unit} cũ!</span>
-            <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
-              Khi nghiệm thu lô mới này, hệ thống sẽ <b>tự động dời {existingBinInfo.oldBatchCount} lô cũ sang Khu Dự Trữ</b> để đảm bảo nguyên tắc FEFO (lấy lô cận date xuất trước).
-            </p>
-          </div>
+      {/* Hiển thị trạng thái đang tra cứu */}
+      {isLoading && (
+        <div className="mt-2 p-2 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center gap-2 text-xs text-indigo-700 animate-pulse">
+          <Loader2 size={13} className="animate-spin text-indigo-600 shrink-0" />
+          <span>Hệ thống đang tự động xác định ô thùng quy hoạch của thuốc...</span>
         </div>
+      )}
+
+      {/* Cảnh báo hoặc xác nhận ô thùng dựa trên tính nhất quán thuốc */}
+      {!isLoading && existingBinInfo?.hasOldBatch && (
+        isSameMedicine ? (
+          // ĐÚNG THUỐC: Hiển thị trạng thái xác nhận chuẩn FEFO
+          <div className="mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-300 flex items-start gap-2 text-xs text-emerald-900 animate-fadeIn">
+            <CheckCircle2 size={15} className="text-emerald-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <span className="font-bold">📦 Ô thùng chuẩn của thuốc: Hiện có {existingBinInfo.oldStock} {displayUnit} ({existingBinInfo.oldBatchCount} lô cũ, cận date nhất: {existingBinInfo.nearestExp})</span>
+              <p className="text-[11px] text-emerald-700 mt-0.5 leading-snug">
+                Lô mới sẽ được xếp vào cùng ô thùng này. Khi xuất kho, hệ thống tự động ưu tiên xuất các lô cũ theo chuẩn FEFO.
+              </p>
+            </div>
+          </div>
+        ) : (
+          // KHÁC THUỐC: Cảnh báo chuẩn GSP vi phạm lẫn lộn thuốc
+          <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-300 flex items-start gap-2 text-xs text-amber-900 animate-fadeIn">
+            <AlertCircle size={15} className="text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <span className="font-bold">⚠️ Chú ý: Thùng {rack}-T{shelf}-B{bin} đang chứa thuốc khác: {existingBinInfo.medicineName || 'Thuốc khác'} ({existingBinInfo.oldStock} {displayUnit})!</span>
+              <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
+                Theo chuẩn GSP, mỗi ô Thùng chỉ chứa 1 loại thuốc. Vui lòng chọn đúng ô thùng đã quy hoạch của thuốc hoặc chọn ô trống.
+              </p>
+            </div>
+          </div>
+        )
       )}
 
       {error && <p className="mt-1 text-[10px] font-semibold text-rose-600">{error}</p>}

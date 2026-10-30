@@ -15,6 +15,10 @@ interface HeaderBarProps {
   title: string;
   subtitle?: string;
   onBack?: () => void;
+  leftAction?: {
+    icon?: keyof typeof Ionicons.glyphMap;
+    onPress: () => void;
+  };
   rightAction?: {
     icon: keyof typeof Ionicons.glyphMap;
     onPress: () => void;
@@ -24,10 +28,11 @@ interface HeaderBarProps {
     icon: keyof typeof Ionicons.glyphMap;
     onPress: () => void;
   };
-  gradientVariant?: 'emerald' | 'indigo' | 'ocean' | 'dark';
+  gradientVariant?: 'emerald' | 'indigo' | 'ocean' | 'dark' | 'sky';
 }
 
 const GRADIENTS = {
+  sky: ['#0369A1', '#0284C7', '#38BDF8'] as const,
   emerald: ['#064E3B', '#059669', '#10B981'] as const,
   indigo: ['#1E1B4B', '#3730A3', '#4F46E5'] as const,
   ocean: ['#164E63', '#0891B2', '#06B6D4'] as const,
@@ -38,6 +43,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   title,
   subtitle,
   onBack,
+  leftAction,
   rightAction,
   secondaryRightAction,
   gradientVariant = 'emerald',
@@ -51,7 +57,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     >
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <View style={styles.contentRow}>
-        {onBack ? (
+        {leftAction ? (
+          <AnimatedTouchable onPress={leftAction.onPress} style={styles.iconButton}>
+            <Ionicons name={leftAction.icon || 'menu'} size={24} color="#FFFFFF" />
+          </AnimatedTouchable>
+        ) : onBack ? (
           <AnimatedTouchable onPress={onBack} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </AnimatedTouchable>

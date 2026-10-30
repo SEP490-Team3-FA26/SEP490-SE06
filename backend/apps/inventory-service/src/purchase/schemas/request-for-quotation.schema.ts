@@ -21,6 +21,15 @@ export class RfqItem {
   @Prop({ type: Number, default: 0 })
   targetPrice?: number;
 
+  @Prop({ type: String, default: '' })
+  nationalDrugCode?: string; // Số đăng ký lưu hành / Mã Dược Quốc gia (VD: VN-22012-19)
+
+  @Prop({ type: Number, default: 0 })
+  declaredPrice?: number; // Giá kê khai trần Bộ Y tế theo QĐ 232 / NĐ 54
+
+  @Prop({ type: Boolean, default: true })
+  gppCompliant?: boolean; // Thuốc đạt chuẩn lưu hành và có mã định danh BYT
+
   @Prop({ type: String })
   notes?: string;
 }
@@ -70,6 +79,15 @@ export class SupplierQuotationItem {
 
   @Prop({ type: Number, required: true, min: 0 })
   quotedPrice: number; // Giá chào của NCC
+
+  @Prop({ type: Number, default: 0 })
+  declaredPrice?: number; // Giá trần kê khai BYT đối chiếu
+
+  @Prop({ type: String, default: '' })
+  nationalDrugCode?: string; // SĐK đối chiếu CSDL Dược
+
+  @Prop({ type: Boolean, default: false })
+  isExceedingDeclaredPrice?: boolean; // Cảnh báo vượt giá trần kê khai BYT
 
   @Prop({ type: Number, default: 0 })
   discountPercent: number; // % Chiết khấu

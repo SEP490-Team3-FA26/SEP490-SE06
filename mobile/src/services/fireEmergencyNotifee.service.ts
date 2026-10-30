@@ -1,4 +1,6 @@
-import { Platform, Vibration } from 'react-native';
+import { NativeModules, Platform, Vibration } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 
 export const AndroidImportance = {
   NONE: 0,
@@ -32,6 +34,13 @@ export const EventType = {
 let notifeeInstance: any = null;
 function getNotifee(): any {
   if (Platform.OS !== 'android') return null;
+  // Bỏ qua Notifee trên Expo Go để tránh Invariant Violation TurboModule
+  if (Constants.appOwnership === 'expo' || Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+    return null;
+  }
+  if (!NativeModules || (!NativeModules.NotifeeApiModule && !(NativeModules as any).Notifee)) {
+    return null;
+  }
   if (!notifeeInstance) {
     try {
       const mod = require('react-native-notify-kit');
@@ -114,7 +123,28 @@ class FireEmergencyNotifeeManager {
       `KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP TẠI TRẠM ${payload.deviceId || 'ESP32'} (${payload.temp || '65.0'}°C)!`;
 
     const notifee = getNotifee();
-    if (!notifee) return;
+    if (!notifee) {
+      // Chế độ an toàn cho Expo Go: Dùng expo-notifications để hiển thị thông báo khẩn cấp mà không làm văng app
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            data: {
+              type: 'FIRE_EMERGENCY',
+              deviceId: payload.deviceId || '',
+              temp: payload.temp || '',
+            },
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          },
+          trigger: null,
+        });
+      } catch (e) {
+        console.warn('[FireEmergencyNotifee] Expo notification fallback error:', e);
+      }
+      return;
+    }
 
     try {
       await this.initChannels();
@@ -170,7 +200,12 @@ class FireEmergencyNotifeeManager {
     Vibration.cancel();
 
     const notifee = getNotifee();
-    if (!notifee) return;
+    if (!notifee) {
+      try {
+        await Notifications.dismissAllNotificationsAsync();
+      } catch (_) {}
+      return;
+    }
 
     try {
       if (Platform.OS === 'android') {
@@ -216,7 +251,10 @@ class FireEmergencyNotifeeManager {
 
   private registerEventHandlers(): void {
     const notifee = getNotifee();
-    if (!notifee) return;
+    if (!notifee) {
+      // Chế độ an toàn cho Expo Go: Không kích hoạt Notifee TurboModule để tránh Invariant Violation
+      return;
+    }
 
     try {
       // Đăng ký Foreground Service duy trì còi hú
@@ -239,8 +277,8 @@ class FireEmergencyNotifeeManager {
           await this.stopAlarm();
         }
       });
-    } catch (e) {
-      console.warn('[Notifee] Error registering event handlers:', e);
+    } catch (err) {
+      console.warn('[FireEmergencyNotifee] Không thể đăng ký event handler native:', err);
     }
   }
 }

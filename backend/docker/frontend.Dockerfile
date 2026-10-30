@@ -12,7 +12,6 @@ COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm pkg delete dependencies.wdp301-workspace 2>/dev/null || true
 RUN npm install --legacy-peer-deps
 
-ARG CACHEBUST=1
 COPY frontend/ ./
 RUN npm run build
 

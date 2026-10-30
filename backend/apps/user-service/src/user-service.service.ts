@@ -6,10 +6,16 @@ import { lastValueFrom } from 'rxjs';
 import { User } from '../../auth-service/src/auth/user.schema';
 import { Medicine } from '../../inventory-service/src/medicine/schemas/medicine.schema';
 import { Cart } from './schemas/cart.schema';
+import { Wishlist } from './schemas/wishlist.schema';
 import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema';
 import { Branch, BranchDocument } from './schemas/branch.schema';
 import { BranchFeedback, BranchFeedbackDocument } from './schemas/branch-feedback.schema';
 import { CustomerSegment, CustomerSegmentDocument } from './schemas/customer-segment.schema';
+import { StaffTransferRequest } from './schemas/staff-transfer-request.schema';
+import { StaffNotification } from './schemas/staff-notification.schema';
+import { WorkSchedule } from './schemas/work-schedule.schema';
+import { ShiftSwapRequest } from './schemas/shift-swap-request.schema';
+import { LeaveRequest, LeaveStatus } from './schemas/leave-request.schema';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as zlib from 'zlib';
@@ -40,6 +46,8 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly userModel: Model<User>,
     @InjectModel(Cart.name)
     private readonly cartModel: Model<Cart>,
+    @InjectModel(Wishlist.name)
+    private readonly wishlistModel: Model<Wishlist>,
     @InjectModel(Medicine.name)
     private readonly medicineModel: Model<any>,
     @InjectModel(AuditLog.name)
@@ -50,10 +58,22 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly feedbackModel: Model<BranchFeedbackDocument>,
     @InjectModel(CustomerSegment.name)
     private readonly segmentModel: Model<CustomerSegmentDocument>,
+    @InjectModel(StaffTransferRequest.name)
+    private readonly staffTransferRequestModel: Model<StaffTransferRequest>,
+    @InjectModel(StaffNotification.name)
+    private readonly staffNotificationModel: Model<StaffNotification>,
+    @InjectModel(WorkSchedule.name)
+    private readonly workScheduleModel: Model<WorkSchedule>,
+    @InjectModel(ShiftSwapRequest.name)
+    private readonly shiftSwapRequestModel: Model<ShiftSwapRequest>,
+    @InjectModel(LeaveRequest.name)
+    private readonly leaveRequestModel: Model<LeaveRequest>,
     @InjectConnection()
     private readonly connection: Connection,
     @Inject('INVENTORY_SERVICE')
     private readonly inventoryClient: ClientKafka,
+    @Inject('AUTH_SERVICE')
+    private readonly authClient: ClientKafka,
   ) { }
 
   async onModuleInit() {
@@ -419,6 +439,213 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       await cart.save();
     }
     return { success: true, message: 'Làm trống giỏ hàng thành công!' };
+  }
+
+  // =========================================================================
+  // WISHLIST OPERATIONS (Quản lý danh sách sản phẩm yêu thích)
+  // =========================================================================
+
+  /**
+   * Lấy danh sách sản phẩm yêu thích của người dùng (kèm chi tiết thuốc và tự động dọn rác)
+   * @param userId ID định danh người dùng
+   */
+  async getWishlist(userId: string) {
+    this.logger.log(`[Wishlist] Lấy danh sách yêu thích cho người dùng: ${userId}`);
+    if (!userId) {
+      return { items: [], totalCount: 0 };
+    }
+
+    let wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (!wishlist) {
+      wishlist = new this.wishlistModel({ userId, items: [] });
+      await wishlist.save();
+    }
+
+    if (!wishlist.items || wishlist.items.length === 0) {
+      return { items: [], totalCount: 0 };
+    }
+
+    const itemIds = wishlist.items.map((it) => it.medicineId);
+    let medicineDetails: any[] = [];
+
+    // 1. Ưu tiên truy vấn trực tiếp từ MongoDB thông qua Model Medicine
+    try {
+      medicineDetails = await this.medicineModel.find({ _id: { $in: itemIds } }).lean().exec();
+    } catch (dbErr: any) {
+      this.logger.warn(`[Wishlist] Truy vấn trực tiếp DB thất bại, fallback sang Kafka RPC: ${dbErr.message}`);
+    }
+
+    // 2. Dự phòng: Gửi yêu cầu qua Kafka RPC nếu không tìm thấy trong database nội bộ
+    if (!medicineDetails || medicineDetails.length === 0) {
+      try {
+        const kafkaRes: any = await lastValueFrom(
+          this.inventoryClient.send('inventory.medicine.get_by_ids', { ids: itemIds }).pipe(
+            require('rxjs').timeout(3000)
+          )
+        );
+        if (Array.isArray(kafkaRes)) {
+          medicineDetails = kafkaRes;
+        }
+      } catch (err: any) {
+        this.logger.error(`[Wishlist] Lỗi gọi Kafka topic inventory.medicine.get_by_ids: ${err.message}`);
+      }
+    }
+
+    // Tạo Map tra cứu thuốc theo ID để tối ưu tốc độ map O(1)
+    const medicineMap = new Map<string, any>(
+      medicineDetails.map((med) => [med._id ? med._id.toString() : (med.id ? med.id.toString() : ''), med])
+    );
+
+    let hasHealed = false;
+    const enrichedItems = [];
+
+    for (const item of wishlist.items) {
+      const med = medicineMap.get(item.medicineId);
+      if (!med) {
+        // Tự động dọn rác (Auto-healing): Thuốc đã bị xóa khỏi danh mục sản phẩm của hệ thống
+        hasHealed = true;
+        continue;
+      }
+
+      enrichedItems.push({
+        id: item.medicineId,
+        _id: item.medicineId,
+        name: med.name,
+        active_ingredient: med.active_ingredient || '',
+        category: med.category || 'Dược phẩm',
+        unit: med.unit || 'Hộp',
+        image: med.image || '',
+        price: med.price || 0,
+        stock: med.stock !== undefined ? med.stock : 999,
+        dosage_form: med.dosage_form || '',
+        registration_number: med.registration_number || '',
+        description: med.description || '',
+        prescription_required: med.prescription_required || false,
+        addedAt: item.addedAt || new Date(),
+      });
+    }
+
+    // Cập nhật lại cơ sở dữ liệu nếu có thuốc bị xóa khỏi hệ thống
+    if (hasHealed) {
+      wishlist.items = wishlist.items.filter((it) => medicineMap.has(it.medicineId)) as any;
+      await wishlist.save();
+    }
+
+    return {
+      items: enrichedItems,
+      totalCount: enrichedItems.length,
+    };
+  }
+
+  /**
+   * Thêm sản phẩm vào danh sách yêu thích
+   * @param userId ID định danh người dùng
+   * @param medicineId ID sản phẩm thuốc
+   */
+  async addToWishlist(userId: string, medicineId: string) {
+    this.logger.log(`[Wishlist] Người dùng ${userId} thêm thuốc ${medicineId} vào yêu thích`);
+    if (!userId || !medicineId) {
+      return { error: true, message: 'Dữ liệu không hợp lệ (thiếu userId hoặc medicineId)', statusCode: 400 };
+    }
+
+    // 1. Kiểm tra sản phẩm có tồn tại và còn kinh doanh hay không
+    let medicine: any;
+    try {
+      medicine = await this.medicineModel.findById(medicineId).lean().exec();
+    } catch (dbErr: any) {
+      this.logger.warn(`[Wishlist] Truy vấn DB kiểm tra thuốc thất bại: ${dbErr.message}`);
+    }
+
+    if (!medicine) {
+      try {
+        medicine = await lastValueFrom(
+          this.inventoryClient.send('inventory.medicine.get_by_id', { id: medicineId }).pipe(
+            require('rxjs').timeout(3000)
+          )
+        );
+      } catch (err: any) {
+        this.logger.error(`[Wishlist] Không thể lấy thông tin thuốc qua Kafka: ${err.message}`);
+      }
+    }
+
+    if (!medicine) {
+      return { error: true, message: 'Sản phẩm thuốc không tồn tại hoặc đã ngừng kinh doanh', statusCode: 404 };
+    }
+
+    // 2. Tìm hoặc khởi tạo danh sách yêu thích
+    let wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (!wishlist) {
+      wishlist = new this.wishlistModel({ userId, items: [] });
+    }
+
+    // 3. Kiểm tra tính trùng lặp (Idempotent)
+    const exists = wishlist.items.some((it) => it.medicineId === medicineId);
+    if (exists) {
+      return {
+        success: true,
+        alreadyExists: true,
+        message: 'Sản phẩm đã nằm trong danh sách yêu thích của bạn',
+        totalCount: wishlist.items.length,
+      };
+    }
+
+    wishlist.items.push({ medicineId, addedAt: new Date() } as any);
+    await wishlist.save();
+
+    return {
+      success: true,
+      message: 'Đã thêm sản phẩm vào danh sách yêu thích thành công',
+      totalCount: wishlist.items.length,
+    };
+  }
+
+  /**
+   * Xóa một sản phẩm khỏi danh sách yêu thích
+   * @param userId ID người dùng
+   * @param medicineId ID sản phẩm thuốc cần xóa
+   */
+  async removeFromWishlist(userId: string, medicineId: string) {
+    this.logger.log(`[Wishlist] Người dùng ${userId} xóa thuốc ${medicineId} khỏi yêu thích`);
+    if (!userId || !medicineId) {
+      return { error: true, message: 'Dữ liệu không hợp lệ', statusCode: 400 };
+    }
+
+    const wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (!wishlist) {
+      return { success: true, message: 'Đã xóa sản phẩm khỏi danh sách yêu thích', totalCount: 0 };
+    }
+
+    wishlist.items = wishlist.items.filter((it) => it.medicineId !== medicineId) as any;
+    await wishlist.save();
+
+    return {
+      success: true,
+      message: 'Đã xóa sản phẩm khỏi danh sách yêu thích',
+      totalCount: wishlist.items.length,
+    };
+  }
+
+  /**
+   * Dọn sạch toàn bộ sản phẩm trong danh sách yêu thích của người dùng
+   * @param userId ID người dùng
+   */
+  async clearWishlist(userId: string) {
+    this.logger.log(`[Wishlist] Dọn sạch danh sách yêu thích của người dùng ${userId}`);
+    if (!userId) {
+      return { error: true, message: 'Thiếu thông tin người dùng', statusCode: 400 };
+    }
+
+    const wishlist = await this.wishlistModel.findOne({ userId }).exec();
+    if (wishlist) {
+      wishlist.items = [];
+      await wishlist.save();
+    }
+
+    return {
+      success: true,
+      message: 'Đã làm trống danh sách sản phẩm yêu thích thành công!',
+      totalCount: 0,
+    };
   }
 
   getMemberTier(accumulatedPoints: number): { name: string; multiplier: number } {
@@ -818,7 +1045,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   // --- ADMIN EMPLOYEE MANAGEMENT ---
 
   async createEmployee(data: any) {
-    this.logger.log(`Creating new employee: ${data.email}, phone: ${data.phone}, createdByRole: ${data.createdByRole}`);
+    this.logger.log(`Creating new employee: ${data.email}, phone: ${data.phone}, requesterRole: ${data.requesterRole}`);
     const existing = await this.userModel.findOne({ email: data.email }).exec();
     if (existing) {
       return { error: true, message: 'Email đã tồn tại', statusCode: 409 };
@@ -832,33 +1059,403 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       }
     }
 
-    const passwordHash = await bcrypt.hash(data.password, 12);
+    // Ràng buộc phân quyền: Quản lý chi nhánh chỉ được tạo Dược sĩ cho cơ sở của mình
+    if (data.requesterRole === 'branch') {
+      if (!data.requesterBranchId) {
+        return { error: true, message: 'Tài khoản quản lý không có thông tin chi nhánh', statusCode: 403 };
+      }
+      data.branchId = data.requesterBranchId;
+      data.role = 'pharmacist';
+    }
 
-    // If created by branch manager -> needs admin approval
-    const isBranchCreated = data.createdByRole === 'branch';
+    const rawPassword = data.password && data.password.trim().length > 0 ? data.password.trim() : randomUUID().replace(/-/g, '').slice(0, 16);
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
 
     const newUser = new this.userModel({
       email: data.email,
-      phone: data.phone ? data.phone.trim() : null,
+      phone: data.phone?.trim() || undefined,
       passwordHash,
       fullName: data.fullName,
       role: data.role,
       branchId: data.branchId || null,
-      isActive: !isBranchCreated,       // branch created -> inactive, admin created -> active
-      isEmailVerified: true,            // Auto verify for employee
-      isApproved: isBranchCreated ? 'pending' : 'approved',
+      isActive: true,       // Quản lý cơ sở chịu trách nhiệm cao nhất, nhân viên kích hoạt hoạt động ngay
+      isEmailVerified: true,
+      isApproved: 'approved',
     });
 
     await newUser.save();
 
     // Auto sync manager field in Branch when branch manager is created
-    if (data.role === 'branch' && data.branchId && !isBranchCreated) {
+    if (data.role === 'branch' && data.branchId) {
       await this.syncManagerToBranch(data.branchId, data.fullName);
+    }
+
+    // Phat su kien gui email chao mung va OTP thiet lap mat khau cho nhan vien moi
+    try {
+      this.authClient.emit('auth.employee.welcome_reset_password', {
+        email: data.email,
+        fullName: data.fullName,
+        branchId: data.branchId,
+        role: data.role,
+      });
+    } catch (err: any) {
+      this.logger.warn(`Loi phat su kien gui email chao mung nhan vien: ${err.message}`);
     }
 
     const result = newUser.toObject();
     delete result.passwordHash;
     return result;
+  }
+
+  // --- DIEU CHUYEN NHAN SU GIUA CAC CHI NHANH ---
+
+  async lookupEmployees(query: string) {
+    if (!query || query.trim().length < 2) return [];
+    const q = query.trim();
+    // Escape ky tu dac biet cua regex de tranh loi cu phap va ReDoS
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    const employees = await this.userModel
+      .find({
+        role: 'pharmacist',
+        $or: [{ email: regex }, { phone: regex }, { fullName: regex }],
+      })
+      .select('_id fullName email phone role branchId isActive isApproved')
+      .limit(15)
+      .lean()
+      .exec();
+    return employees;
+  }
+
+  async getEmployeeUpcomingShifts(employeeId: string, branchId: string) {
+    if (!branchId || !employeeId) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const schedules = await this.workScheduleModel
+      .find({
+        branchId,
+        weekEnd: { $gte: today },
+        status: 'published',
+      })
+      .lean()
+      .exec();
+
+    const upcomingShifts: any[] = [];
+    for (const sched of schedules) {
+      for (const a of (sched.assignments || [])) {
+        if (String(a.employeeId) === String(employeeId)) {
+          const shiftDate = new Date(a.date);
+          if (shiftDate >= today) {
+            upcomingShifts.push({
+              date: a.date,
+              dateStr: shiftDate.toISOString().split('T')[0],
+              shiftId: a.shiftId,
+              shiftName: a.shiftName,
+              shiftStart: a.shiftStart,
+              shiftEnd: a.shiftEnd,
+              scheduleId: (sched as any)._id?.toString(),
+            });
+          }
+        }
+      }
+    }
+    return upcomingShifts;
+  }
+
+  async createTransferRequest(data: {
+    employeeId: string;
+    note?: string;
+    requesterId: string;
+    requesterName: string;
+    requesterBranchId: string;
+  }) {
+    if (!data.requesterBranchId) {
+      return { error: true, message: 'Tai khoan quan ly khong co thong tin chi nhanh', statusCode: 403 };
+    }
+
+    const employee = await this.userModel.findById(data.employeeId).exec();
+    if (!employee) {
+      return { error: true, message: 'Khong tim thay thong tin nhan vien', statusCode: 404 };
+    }
+
+    if (employee.role === 'admin' || employee.role === 'warehouse') {
+      return { error: true, message: 'Khong the tiep nhan nhan su vai tro quan tri he thong hoac thu kho', statusCode: 403 };
+    }
+
+    if (employee.branchId === data.requesterBranchId) {
+      return { error: true, message: 'Nhan vien nay da truc thuoc chi nhanh cua ban', statusCode: 400 };
+    }
+
+    // Kiem tra neu dang co yeu cau pending cho nhan vien nay
+    const existingPending = await this.staffTransferRequestModel.findOne({
+      employeeId: data.employeeId,
+      status: 'pending',
+    }).exec();
+
+    if (existingPending) {
+      return { error: true, message: 'Nhan vien nay dang co mot yeu cau dieu chuyen cho duyet', statusCode: 409 };
+    }
+
+    const newRequest = await this.staffTransferRequestModel.create({
+      employeeId: data.employeeId,
+      employeeName: employee.fullName,
+      employeeEmail: employee.email,
+      fromBranchId: employee.branchId || undefined,
+      toBranchId: data.requesterBranchId,
+      requesterId: data.requesterId,
+      requesterName: data.requesterName,
+      status: 'pending',
+      note: data.note || '',
+    });
+
+    // Thong bao in-app cho nhan vien
+    try {
+      await this.staffNotificationModel.create({
+        recipientId: employee._id.toString(),
+        branchId: data.requesterBranchId,
+        type: 'staff_transfer_request',
+        title: 'Yeu cau dieu chuyen cong tac',
+        message: `Quan ly ${data.requesterName} gui yeu cau tiep nhan ban vao chi nhanh ${data.requesterBranchId}. Vui long phan hoi.`,
+        relatedId: newRequest._id.toString(),
+      });
+    } catch (err: any) {
+      this.logger.warn(`Loi tao thong bao dieu chuyen: ${err.message}`);
+    }
+
+    return newRequest.toObject ? newRequest.toObject() : newRequest;
+  }
+
+  async listTransferRequests(filter: { userId?: string; role?: string; branchId?: string; status?: string }) {
+    const query: any = {};
+    if (filter.status) {
+      query.status = filter.status;
+    }
+
+    if (filter.role === 'pharmacist' && filter.userId) {
+      query.employeeId = filter.userId;
+    } else if (filter.role === 'branch' && filter.branchId) {
+      query.$or = [{ toBranchId: filter.branchId }, { fromBranchId: filter.branchId }];
+    }
+
+    const requests = await this.staffTransferRequestModel.find(query).sort({ createdAt: -1 }).lean().exec();
+    return requests;
+  }
+
+  async respondTransferRequest(data: {
+    requestId: string;
+    userId: string;
+    role: string;
+    branchId?: string;
+    action: 'approve' | 'reject';
+    responseNote?: string;
+    scheduleResolution?: 'cancel_upcoming_shifts' | 'defer';
+  }) {
+    const request = await this.staffTransferRequestModel.findById(data.requestId).exec();
+    if (!request) {
+      return { error: true, message: 'Khong tim thay yeu cau dieu chuyen', statusCode: 404 };
+    }
+
+    if (request.status !== 'pending') {
+      return { error: true, message: 'Yeu cau nay da duoc xu ly truoc do', statusCode: 400 };
+    }
+
+    // Kiem tra quyen: chinh nhan vien do hoac quan ly chi nhanh cu hoac admin
+    const isEmployee = String(request.employeeId) === String(data.userId);
+    const isOldManager = Boolean(request.fromBranchId && request.fromBranchId === data.branchId);
+    const isAdmin = data.role === 'admin';
+
+    if (!isEmployee && !isOldManager && !isAdmin) {
+      return { error: true, message: 'Ban khong co quyen phan hoi yeu cau dieu chuyen nay', statusCode: 403 };
+    }
+
+    if (data.action === 'approve') {
+      const fromBranch = request.fromBranchId;
+      const upcomingShifts = fromBranch ? await this.getEmployeeUpcomingShifts(request.employeeId, fromBranch) : [];
+
+      // Neu con ca truc chua hoan thanh va chua lua chon cach xu ly -> Bat buoc tra ve canh bao de nguoi dung lua chon
+      if (upcomingShifts.length > 0 && !data.scheduleResolution) {
+        return {
+          hasConflict: true,
+          code: 'HAS_UPCOMING_SHIFTS',
+          message: `Nhan vien dang co ${upcomingShifts.length} ca truc sap toi tai chi nhanh cu. Vui long chon giai phap xu ly lich lam viec.`,
+          upcomingShiftsCount: upcomingShifts.length,
+          upcomingShifts,
+        };
+      }
+
+      // LUA CHON 1: Tam thoi khong chuyen cho den khi nhan vien xong het lich
+      if (upcomingShifts.length > 0 && data.scheduleResolution === 'defer') {
+        const deferMsg = data.responseNote || `Tam hoan dieu chuyen: Nhan su se hoan thanh not ${upcomingShifts.length} ca truc tai co so hien tai truoc khi chuyen giao.`;
+        request.responseNote = deferMsg;
+        await request.save();
+
+        try {
+          await this.staffNotificationModel.create({
+            recipientId: request.requesterId,
+            branchId: request.toBranchId,
+            type: 'staff_transfer_deferred',
+            title: 'Tam hoan dieu chuyen cho xong ca truc',
+            message: `Yeu cau tiep nhan nhan vien ${request.employeeName} tam hoan chuyen giao cho den khi nhan vien hoan thanh ${upcomingShifts.length} ca truc con lai tai co so cu.`,
+            relatedId: request._id.toString(),
+          });
+        } catch (err: any) {
+          this.logger.warn(`Loi tao thong bao tam hoan: ${err.message}`);
+        }
+
+        return {
+          success: true,
+          deferred: true,
+          message: `Da tam hoan dieu chuyen. Nhan vien se hoan thanh het ${upcomingShifts.length} ca truc con lai tai chi nhanh cu truoc khi chuyen giao.`,
+          request: request.toObject ? request.toObject() : request,
+        };
+      }
+
+      // LUA CHON 2: Huy tat ca lich sap toi cua nhan vien do va chuyen ngay (Cover tat ca truong hop)
+      if (upcomingShifts.length > 0 && data.scheduleResolution === 'cancel_upcoming_shifts') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // 1. Huy ca truc sap toi trong work_schedules cua fromBranch
+        const schedulesToUpdate = await this.workScheduleModel
+          .find({
+            branchId: fromBranch,
+            weekEnd: { $gte: today },
+          })
+          .exec();
+
+        let cancelledShiftCount = 0;
+        for (const sched of schedulesToUpdate) {
+          let modified = false;
+          const remainingAssignments: any[] = [];
+          for (const a of (sched.assignments || [])) {
+            if (String(a.employeeId) === String(request.employeeId) && new Date(a.date) >= today) {
+              cancelledShiftCount++;
+              modified = true;
+            } else {
+              remainingAssignments.push(a);
+            }
+          }
+          if (modified) {
+            sched.assignments = remainingAssignments;
+            await sched.save();
+          }
+        }
+
+        // 2. Huy cac don doi ca (shift_swap_requests) dang pending cua nhan vien tai fromBranch
+        try {
+          await this.shiftSwapRequestModel
+            .updateMany(
+              {
+                branchId: fromBranch,
+                status: 'pending',
+                $or: [{ requesterId: request.employeeId }, { targetId: request.employeeId }],
+              },
+              {
+                $set: {
+                  status: 'rejected',
+                  responseNote: 'Tu dong huy do nhan su da duoc dieu chuyen sang chi nhanh moi',
+                },
+              }
+            )
+            .exec();
+        } catch (err: any) {
+          this.logger.warn(`Loi huy shift swap: ${err.message}`);
+        }
+
+        // 3. Huy cac don nghi phep (leave_requests) dang PENDING cua nhan vien tu hom nay tro di tai fromBranch
+        try {
+          const todayStr = today.toISOString().split('T')[0];
+          await this.leaveRequestModel
+            .updateMany(
+              {
+                branchId: fromBranch,
+                requesterId: request.employeeId,
+                status: LeaveStatus.PENDING,
+                shiftDate: { $gte: todayStr },
+              },
+              {
+                $set: {
+                  status: LeaveStatus.CANCELLED,
+                  rejectionReason: 'Tu dong huy do nhan su da duoc dieu chuyen sang chi nhanh moi',
+                },
+              }
+            )
+            .exec();
+        } catch (err: any) {
+          this.logger.warn(`Loi huy leave request: ${err.message}`);
+        }
+
+        // 4. Ban thong bao canh bao cho quan ly chi nhanh cu vao xep nguoi thay the
+        try {
+          await this.staffNotificationModel.create({
+            recipientId: request.fromBranchId,
+            branchId: request.fromBranchId,
+            type: 'staff_schedule_alert',
+            title: 'Canh bao khuyet nhan su ca truc',
+            message: `Nhan vien ${request.employeeName} da duoc dieu chuyen sang ${request.toBranchId}. He thong da tu dong huy ${cancelledShiftCount} ca truc sap toi. Vui long vao phan cong nhan su thay the ngay.`,
+            relatedId: request._id.toString(),
+          });
+        } catch (err: any) {
+          this.logger.warn(`Loi tao thong bao canh bao khuyet ca: ${err.message}`);
+        }
+      }
+
+      // Chinh thuc cap nhat branchId sang chi nhanh moi
+      request.status = 'approved';
+      request.resolvedBy = data.userId;
+      request.resolvedAt = new Date();
+      if (data.responseNote) request.responseNote = data.responseNote;
+      await request.save();
+
+      await this.userModel
+        .findByIdAndUpdate(request.employeeId, {
+          $set: {
+            branchId: request.toBranchId,
+            role: 'pharmacist',
+            isActive: true,
+            isApproved: 'approved',
+          },
+        })
+        .exec();
+
+      try {
+        await this.staffNotificationModel.create({
+          recipientId: request.requesterId,
+          branchId: request.toBranchId,
+          type: 'staff_transfer_approved',
+          title: 'Yeu cau tiep nhan duoc chap thuan',
+          message: `Nhan vien ${request.employeeName} da chinh thuc duoc dieu chuyen vao chi nhanh ${request.toBranchId}.`,
+          relatedId: request._id.toString(),
+        });
+      } catch (err: any) {
+        this.logger.warn(`Loi tao thong bao chap thuan: ${err.message}`);
+      }
+
+      return request.toObject ? request.toObject() : request;
+    } else {
+      // Action === 'reject'
+      request.status = 'rejected';
+      request.resolvedBy = data.userId;
+      request.resolvedAt = new Date();
+      if (data.responseNote) request.responseNote = data.responseNote;
+      await request.save();
+
+      try {
+        await this.staffNotificationModel.create({
+          recipientId: request.requesterId,
+          branchId: request.toBranchId,
+          type: 'staff_transfer_rejected',
+          title: 'Yeu cau tiep nhan bi tu choi',
+          message: `Yeu cau tiep nhan nhan vien ${request.employeeName} da bi tu choi.`,
+          relatedId: request._id.toString(),
+        });
+      } catch (err: any) {
+        this.logger.warn(`Loi tao thong bao tu choi: ${err.message}`);
+      }
+
+      return request.toObject ? request.toObject() : request;
+    }
   }
 
   async approveEmployee(id: string, action: 'approve' | 'reject') {
@@ -910,10 +1507,19 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async updateEmployee(id: string, data: any) {
-    this.logger.log(`Admin updating employee: ${id}`);
+    this.logger.log(`Updating employee: ${id}`);
     const employee = await this.userModel.findById(id).exec();
     if (!employee) {
       return { error: true, message: 'Nhân viên không tồn tại', statusCode: 404 };
+    }
+
+    // Ràng buộc bảo mật IDOR: Quản lý chi nhánh chỉ được cập nhật nhân sự thuộc cơ sở của mình
+    if (data.requesterRole === 'branch') {
+      if (!data.requesterBranchId || employee.branchId !== data.requesterBranchId) {
+        return { error: true, message: 'Bạn không có quyền chỉnh sửa nhân sự của chi nhánh khác', statusCode: 403 };
+      }
+      data.branchId = data.requesterBranchId;
+      data.role = 'pharmacist';
     }
 
     const oldBranchId = employee.branchId;
@@ -931,7 +1537,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
         }
         employee.phone = data.phone.trim();
       } else {
-        employee.phone = null;
+        employee.set('phone', undefined);
       }
     }
 
@@ -975,11 +1581,27 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  async toggleBanEmployee(id: string) {
-    this.logger.log(`Admin toggling ban for employee: ${id}`);
+  async toggleBanEmployee(id: string, requesterRole?: string, requesterBranchId?: string) {
+    this.logger.log(`Toggling ban for employee: ${id}`);
     const employee = await this.userModel.findById(id).exec();
     if (!employee) {
       return { error: true, message: 'Nhân viên không tồn tại', statusCode: 404 };
+    }
+
+    // Ràng buộc bảo mật IDOR: Quản lý chi nhánh chỉ được thao tác với nhân sự trong cơ sở mình
+    if (requesterRole === 'branch') {
+      if (!requesterBranchId || employee.branchId !== requesterBranchId) {
+        return { error: true, message: 'Bạn không có quyền thao tác với nhân viên của chi nhánh khác', statusCode: 403 };
+      }
+    }
+
+    // Ràng buộc chuẩn GPP: Nếu nhân sự này đang là PTCM và chuẩn bị bị khóa
+    if (employee.isActive && employee.isBranchPIC) {
+      return {
+        error: true,
+        message: 'Dược sĩ này đang là Phụ trách chuyên môn (PTCM) của chi nhánh. Vui lòng chuyển giao vai trò PTCM cho nhân sự khác trước khi khóa tài khoản.',
+        statusCode: 400,
+      };
     }
 
     // Toggle trạng thái isActive
@@ -991,12 +1613,28 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     return result;
   }
 
-  async deleteEmployee(id: string) {
+  async deleteEmployee(id: string, requesterRole?: string, requesterBranchId?: string) {
     this.logger.log(`Deleting employee: ${id}`);
-    const employee = await this.userModel.findByIdAndDelete(id).exec();
+    const employee = await this.userModel.findById(id).exec();
     if (!employee) {
       return { error: true, message: 'Nhân viên không tồn tại', statusCode: 404 };
     }
+
+    // Ràng buộc bảo mật: Quản lý chi nhánh không có quyền xóa tài khoản nhân sự, chỉ được phép khóa (Ban)
+    if (requesterRole === 'branch') {
+      return { error: true, message: 'Quản lý chi nhánh không có thẩm quyền xóa tài khoản nhân viên, chỉ được phép khóa tài khoản', statusCode: 403 };
+    }
+
+    // Ràng buộc chuẩn GPP: Không được xóa trực tiếp nhân sự đang là PTCM cơ sở
+    if (employee.isBranchPIC) {
+      return {
+        error: true,
+        message: 'Không thể xóa Dược sĩ đang đứng tên Phụ trách chuyên môn (PTCM) của chi nhánh. Vui lòng chỉ định PTCM mới trước khi xóa.',
+        statusCode: 400,
+      };
+    }
+
+    await this.userModel.findByIdAndDelete(id).exec();
     return { success: true, message: 'Xóa nhân viên thành công' };
   }
 
@@ -1260,18 +1898,77 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   // =========================================================================
 
   async calculateRFMSegments() {
-    this.logger.log('Starting Adaptive Pharmacy RFM segmentation calculation...');
+    this.logger.log('Bắt đầu tính toán phân cụm khách hàng RFM Thích Ứng (Adaptive Pharmacy RFM)...');
     const ordersCollection = this.connection.collection('orders');
+    const vouchersCollection = this.connection.collection('vouchers');
 
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
+    // 1. Thu thập danh sách voucher đang hoạt động thực tế trong CSDL
+    let availableVouchers: any[] = [];
+    try {
+      availableVouchers = await vouchersCollection
+        .find({
+          $or: [{ isActive: true }, { isActive: { $exists: false } }],
+        })
+        .toArray();
+    } catch (vErr) {
+      this.logger.warn('Không thể truy vấn bảng vouchers, dùng fallback mặc định:', vErr);
+    }
+    const voucherCodes = availableVouchers.map((v) => v.code).filter(Boolean);
+
+    const pickVoucher = (preferredKeywords: string[], defaultFallback = 'TUVANPOS') => {
+      for (const kw of preferredKeywords) {
+        const found = voucherCodes.find((c: string) => c.toUpperCase().includes(kw.toUpperCase()));
+        if (found) return found;
+      }
+      return voucherCodes[0] || defaultFallback;
+    };
+
+    // 2. Pipeline hợp nhất cả 2 nguồn đơn: đơn online PayOS (orders) VÀ đơn bán tại quầy POS (salesorders)
     const pipeline = [
       {
         $match: {
-          patientPhone: { $exists: true, $ne: '', $nin: ['0900000000', 'GUEST_RETAIL'] },
+          patientPhone: { $exists: true, $ne: '', $nin: ['0', '0900000000', 'GUEST_RETAIL'] },
           paymentStatus: 'PAID',
           createdAt: { $gte: oneYearAgo },
+        },
+      },
+      {
+        $project: {
+          patientPhone: 1,
+          patientName: 1,
+          branchId: 1,
+          createdAt: 1,
+          totalAmount: 1,
+          items: 1,
+          type: 1,
+        },
+      },
+      {
+        $unionWith: {
+          coll: 'salesorders',
+          pipeline: [
+            {
+              $match: {
+                patientPhone: { $exists: true, $ne: '', $nin: ['0', '0900000000', 'GUEST_RETAIL'] },
+                totalAmount: { $gt: 0 },
+                createdAt: { $gte: oneYearAgo },
+              },
+            },
+            {
+              $project: {
+                patientPhone: 1,
+                patientName: 1,
+                branchId: 1,
+                createdAt: 1,
+                totalAmount: 1,
+                items: 1,
+                type: 1,
+              },
+            },
+          ],
         },
       },
       {
@@ -1283,15 +1980,23 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
           totalOrders: { $sum: 1 },
           totalSpent: { $sum: '$totalAmount' },
           itemNames: { $push: '$items.name' },
+          orderTypes: { $push: '$type' },
         },
       },
     ];
 
     const aggregated = await ordersCollection.aggregate(pipeline).toArray();
-    this.logger.log(`Aggregated ${aggregated.length} customers with valid phone numbers.`);
+    this.logger.log(`Đã tổng hợp thành công ${aggregated.length} khách hàng có lịch sử mua hàng từ cả Online lẫn Quầy POS.`);
 
     const now = new Date();
-    const chronicKeywords = ['tiểu đường', 'huyết áp', 'tim mạch', 'mỡ máu', 'gout', 'khớp', 'metformin', 'amlodipine', 'losartan', 'atorvastatin'];
+    // Danh mục từ khóa bệnh mãn tính bao quát (tiếng Việt có dấu, không dấu và tên hoạt chất/biệt dược thông dụng)
+    const chronicKeywords = [
+      'tiểu đường', 'đái tháo đường', 'huyết áp', 'tim mạch', 'mỡ máu', 'lipid', 'gout', 'gút',
+      'hen suyễn', 'copd', 'khớp', 'viêm khớp', 'thoái hóa khớp', 'metformin', 'amlodipine',
+      'losartan', 'atorvastatin', 'glucophage', 'concor', 'lipitor', 'januvia', 'micardis',
+      'plavix', 'crestor', 'rosuvastatin', 'telmisartan', 'gliclazide', 'diamicron',
+      'coversyl', 'bisoprolol', 'allopurinol', 'febuxostat'
+    ];
 
     for (const item of aggregated) {
       const phone = item._id;
@@ -1301,61 +2006,70 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       const totalSpent12M = item.totalSpent || 0;
       const avgOrderValue = Math.round(totalSpent12M / totalOrders12M);
 
-      const flattenedNames = (item.itemNames || []).flat().join(' ').toLowerCase();
-      const isChronic = chronicKeywords.some((kw) => flattenedNames.includes(kw));
+      const flattenedNames = (item.itemNames || []).flat().filter(Boolean).join(' ').toLowerCase();
+      const hasPrescription = (item.orderTypes || []).includes('PRESCRIPTION');
+      const hasChronicKeywords = chronicKeywords.some((kw) => flattenedNames.includes(kw));
+      const isChronic = hasChronicKeywords || (hasPrescription && totalOrders12M >= 2);
       const customerType = isChronic ? 'CHRONIC_PATIENT' : 'GENERAL_RETAIL';
 
+      // 3. Chấm điểm R (Recency) theo đặc thù chu kỳ dùng thuốc ngành Dược
       let rScore = 1;
       if (isChronic) {
         if (recencyDays <= 25) rScore = 5;
         else if (recencyDays <= 35) rScore = 4;
-        else if (recencyDays <= 45) rScore = 3;
-        else if (recencyDays <= 60) rScore = 2;
+        else if (recencyDays <= 50) rScore = 3;
+        else if (recencyDays <= 75) rScore = 2;
         else rScore = 1;
       } else {
-        if (recencyDays <= 15) rScore = 5;
-        else if (recencyDays <= 30) rScore = 4;
-        else if (recencyDays <= 60) rScore = 3;
-        else if (recencyDays <= 90) rScore = 2;
+        if (recencyDays <= 20) rScore = 5;
+        else if (recencyDays <= 45) rScore = 4;
+        else if (recencyDays <= 90) rScore = 3;
+        else if (recencyDays <= 150) rScore = 2;
         else rScore = 1;
       }
 
+      // 4. Chấm điểm F (Frequency) thực tế trong 12 tháng
       let fScore = 1;
-      if (totalOrders12M >= 12) fScore = 5;
-      else if (totalOrders12M >= 6) fScore = 4;
+      if (totalOrders12M >= 8) fScore = 5;
+      else if (totalOrders12M >= 5) fScore = 4;
       else if (totalOrders12M >= 3) fScore = 3;
       else if (totalOrders12M >= 2) fScore = 2;
       else fScore = 1;
 
+      // 5. Chấm điểm M (Monetary) phân vị ngành Dược bán lẻ
       let mScore = 1;
-      if (totalSpent12M >= 8000000) mScore = 5;
-      else if (totalSpent12M >= 4000000) mScore = 4;
-      else if (totalSpent12M >= 1500000) mScore = 3;
-      else if (totalSpent12M >= 500000) mScore = 2;
+      if (totalSpent12M >= 3000000) mScore = 5;
+      else if (totalSpent12M >= 1500000) mScore = 4;
+      else if (totalSpent12M >= 700000) mScore = 3;
+      else if (totalSpent12M >= 300000) mScore = 2;
       else mScore = 1;
 
       const rfmScoreStr = `${rScore}${fScore}${mScore}`;
 
       let segment = 'POTENTIAL_LOYALIST';
-      let recommendedVoucher = 'VOUCHER_NEW_5K';
+      let recommendedVoucher = pickVoucher(['WELCOME', 'TUVANPOS', '30K'], 'TUVANPOS');
       let predictedRefillDate: Date | undefined = undefined;
 
+      // 6. Phân cụm và liên kết voucher thực tế
       if (rScore >= 4 && fScore >= 4 && mScore >= 4) {
         segment = 'CHAMPIONS';
-        recommendedVoucher = 'VOUCHER_VIP_DIAMOND';
-      } else if (isChronic && rScore >= 3 && fScore >= 3) {
+        recommendedVoucher = pickVoucher(['VIP', 'DIAMOND', '50%', 'SUMMER30', '30K'], 'SUMMER30');
+      } else if (isChronic && (rScore >= 3 || fScore >= 3)) {
         segment = 'LOYAL_CHRONIC';
-        recommendedVoucher = 'VOUCHER_REFILL_FREESHIP';
+        recommendedVoucher = pickVoucher(['TIMMACH', 'NGUOICAOTUOI', 'CHRONIC', '30K'], 'TIMMACH2026');
         predictedRefillDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-      } else if (rScore <= 2 && (fScore >= 3 || mScore >= 3)) {
+      } else if (rScore <= 2 && (fScore >= 2 || mScore >= 3 || isChronic)) {
         segment = 'AT_RISK';
-        recommendedVoucher = 'VOUCHER_WINBACK_15PCT';
-      } else if (rScore === 1 && fScore <= 2) {
+        recommendedVoucher = pickVoucher(['NGUOICAOTUOI', '30K', 'TUVANPOS', 'WINBACK'], 'NGUOICAOTUOI');
+        if (isChronic) {
+          predictedRefillDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        }
+      } else if (rScore === 1 && fScore === 1) {
         segment = 'HIBERNATING';
-        recommendedVoucher = 'VOUCHER_COMEBACK_10K';
-      } else if (rScore >= 4 && fScore <= 2) {
+        recommendedVoucher = pickVoucher(['30K', 'TUVANPOS', 'WELCOME'], 'TUVANPOS');
+      } else {
         segment = 'POTENTIAL_LOYALIST';
-        recommendedVoucher = 'VOUCHER_WELCOME_2ND';
+        recommendedVoucher = pickVoucher(['TUVANPOS', '30K', '1710'], 'TUVANPOS');
       }
 
       await this.segmentModel.findOneAndUpdate(
@@ -1384,7 +2098,7 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       );
     }
 
-    this.logger.log('Adaptive Pharmacy RFM segmentation completed successfully.');
+    this.logger.log('Hoàn thành tính toán phân cụm RFM thích ứng thành công.');
     return { success: true, totalProcessed: aggregated.length };
   }
 
@@ -1395,13 +2109,18 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
 
     return {
       phone,
+      fullName: 'Khách hàng mới',
       segment: 'POTENTIAL_LOYALIST',
       customerType: 'GENERAL_RETAIL',
-      rScore: 5,
+      rScore: 1,
       fScore: 1,
       mScore: 1,
-      rfmScoreStr: '511',
-      recommendedVoucher: 'VOUCHER_WELCOME',
+      rfmScoreStr: '111',
+      totalOrders12M: 0,
+      totalSpent12M: 0,
+      recencyDays: 0,
+      avgOrderValue: 0,
+      recommendedVoucher: 'TUVANPOS',
     };
   }
 

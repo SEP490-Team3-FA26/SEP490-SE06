@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Modal,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,9 +20,23 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { showToast } from '../../components/ui/toastHelper';
 import { USER_ROLE_LABELS } from '../../types/pharmacy.types';
 import { ApiService } from '../../services/api.service';
+import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
+import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
+import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
+import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
+import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
+import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, logout, updateProfile, refreshUser, switchRole } = useAuth();
+  const {
+    user,
+    logout,
+    updateProfile,
+    refreshUser,
+    isBiometricSupported,
+    isBiometricEnabled,
+    toggleBiometrics,
+  } = useAuth();
 
   const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
   const [name, setName] = useState<string>(user?.name || '');
@@ -34,6 +49,37 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [newPw, setNewPw] = useState<string>('');
   const [confirmPw, setConfirmPw] = useState<string>('');
   const [loadingPw, setLoadingPw] = useState<boolean>(false);
+
+  // Attendance & Payroll Modals
+  const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
+  const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
+  const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
+  const [showShiftSwapModal, setShowShiftSwapModal] = useState<boolean>(false);
+  const [showCertModal, setShowCertModal] = useState<boolean>(false);
+  const [initialSwapShift, setInitialSwapShift] = useState<any>(null);
+  const [leavePrefillShift, setLeavePrefillShift] = useState<any | null>(null);
+
+  // VIP Loyalty Info
+  const [loyaltyInfo, setLoyaltyInfo] = useState<{
+    points?: number;
+    accumulatedPoints?: number;
+    tier?: string;
+    multiplier?: number;
+    conversionRate?: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    ApiService.getMyLoyalty().then((data) => {
+      if (isMounted && data) {
+        setLoyaltyInfo(data);
+      }
+    }).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const roleLabel = user?.role ? USER_ROLE_LABELS[user.role] || user.role : 'Thành viên';
 
@@ -97,15 +143,6 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     ]);
   };
 
-  const handleRoleSwitch = async (roleKey: any, screenName: string) => {
-    await switchRole(roleKey);
-    showToast.success(
-      'Chuyển vai trò thành công',
-      `Đã chuyển sang vai trò: ${USER_ROLE_LABELS[roleKey] || roleKey}.`
-    );
-    navigation.navigate(screenName);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <HeaderBar
@@ -135,6 +172,52 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               <Ionicons name="location-outline" size={14} color="#D1FAE5" /> {user.branchName}
             </Text>
           ) : null}
+        </LinearGradient>
+
+        {/* VIP Loyalty Membership Card */}
+        <LinearGradient
+          colors={
+            loyaltyInfo?.tier === 'Diamond'
+              ? ['#0F172A', '#1E293B', '#334155']
+              : loyaltyInfo?.tier === 'Gold'
+              ? ['#78350F', '#B45309', '#D97706']
+              : loyaltyInfo?.tier === 'Silver'
+              ? ['#334155', '#475569', '#64748B']
+              : ['#064E3B', '#047857', '#059669']
+          }
+          style={styles.loyaltyCard}
+        >
+          <View style={styles.loyaltyTopRow}>
+            <View>
+              <Text style={styles.loyaltySubHeader}>THẺ HỘI VIÊN CHUỖI NHÀ THUỐC</Text>
+              <Text style={styles.loyaltyBrandTitle}>ABC Pharmacy Club</Text>
+            </View>
+            <View style={styles.loyaltyTierTag}>
+              <Ionicons name="sparkles" size={12} color="#FEF3C7" />
+              <Text style={styles.loyaltyTierText}>
+                {loyaltyInfo?.tier ? `HẠNG ${String(loyaltyInfo.tier).toUpperCase()}` : 'HẠNG ĐỒNG'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.loyaltyPointsContainer}>
+            <Text style={styles.loyaltyPointsLabel}>Điểm Thưởng Khả Dụng</Text>
+            <Text style={styles.loyaltyPointsNumber}>
+              {(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')}
+              <Text style={styles.loyaltyPointsUnit}> điểm ({(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')} ₫)</Text>
+            </Text>
+          </View>
+
+          <View style={styles.loyaltyBottomRow}>
+            <View style={styles.loyaltyBenefitItem}>
+              <Ionicons name="checkmark-circle" size={14} color="#A7F3D0" />
+              <Text style={styles.loyaltyBenefitText}>Tích 1% mỗi đơn mua</Text>
+            </View>
+            <View style={styles.loyaltyBenefitItem}>
+              <Ionicons name="checkmark-circle" size={14} color="#A7F3D0" />
+              <Text style={styles.loyaltyBenefitText}>Trừ tiền trực tiếp tại POS & App</Text>
+            </View>
+          </View>
         </LinearGradient>
 
         {/* Info Section */}
@@ -172,73 +255,6 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </View>
 
-        {/* Quick Testing Role Switcher */}
-        <View style={styles.sectionCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Ionicons name="swap-horizontal" size={20} color="#059669" style={{ marginRight: 6 }} />
-            <Text style={styles.sectionTitle}>Chuyển Đổi Nhanh Vai Trò (Testing Hub)</Text>
-          </View>
-          <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
-            Chạm vào bất kỳ vai trò nào để chuyển đổi ngay và trải nghiệm toàn bộ màn hình đã chuyển giao từ Flutter:
-          </Text>
-
-          <View style={styles.roleGrid}>
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'customer' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('customer', 'CustomerScreen')}
-            >
-              <Ionicons name="cart" size={22} color={user?.role === 'customer' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Khách Hàng</Text>
-              <Text style={styles.roleItemSub}>5 Tabs + PayOS</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'warehouse' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('warehouse', 'WarehouseScreen')}
-            >
-              <Ionicons name="cube" size={22} color={user?.role === 'warehouse' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Thủ Kho</Text>
-              <Text style={styles.roleItemSub}>5 Tabs + AI Dự Báo</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, (user?.role === 'director' || user?.role === 'headBranch') && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('director', 'DirectorScreen')}
-            >
-              <Ionicons name="business" size={22} color={(user?.role === 'director' || user?.role === 'headBranch') ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Giám Đốc</Text>
-              <Text style={styles.roleItemSub}>AI Chuỗi & Doanh Thu</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'pharmacist' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('pharmacist', 'PharmacistScreen')}
-            >
-              <Ionicons name="medkit" size={22} color={user?.role === 'pharmacist' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Dược Sĩ</Text>
-              <Text style={styles.roleItemSub}>Kê Đơn Bán Lẻ OCR</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'branch' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('branch', 'BranchScreen')}
-            >
-              <Ionicons name="storefront" size={22} color={user?.role === 'branch' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Quản Lý</Text>
-              <Text style={styles.roleItemSub}>Chi Nhánh & Ca Trực</Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
-              style={[styles.roleItem, user?.role === 'admin' && styles.activeRoleItem]}
-              onPress={() => handleRoleSwitch('admin', 'AdminScreen')}
-            >
-              <Ionicons name="shield-checkmark" size={22} color={user?.role === 'admin' ? '#059669' : '#475569'} />
-              <Text style={styles.roleItemTitle}>Admin</Text>
-              <Text style={styles.roleItemSub}>Hệ Thống & Logs</Text>
-            </AnimatedTouchable>
-          </View>
-        </View>
-
         {/* Actions Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Cài Đặt & Bảo Mật</Text>
@@ -270,6 +286,40 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </AnimatedTouchable>
 
+          {/* Cài đặt Sinh trắc học (Vân tay / Khuôn mặt) */}
+          <View style={[styles.menuItem, { justifyContent: 'space-between' }]}>
+            <View style={styles.menuLeft}>
+              <Ionicons name="finger-print-outline" size={22} color="#059669" />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.menuText}>Đăng nhập Sinh trắc học</Text>
+                <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                  {!isBiometricSupported
+                    ? 'Thiết bị không hỗ trợ'
+                    : isBiometricEnabled
+                    ? 'Đang bật (Vân tay / Khuôn mặt)'
+                    : 'Bật để đăng nhập nhanh 1 chạm'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={isBiometricEnabled}
+              onValueChange={async (val) => {
+                const res = await toggleBiometrics(val);
+                if (res.success) {
+                  showToast.success(
+                    'Thành công',
+                    val ? 'Đã bật đăng nhập sinh trắc học' : 'Đã tắt đăng nhập sinh trắc học'
+                  );
+                } else if (res.message && res.message !== 'HỦY_BỎ') {
+                  showToast.error('Thông báo', res.message);
+                }
+              }}
+              disabled={!isBiometricSupported && !isBiometricEnabled}
+              trackColor={{ false: '#CBD5E1', true: '#059669' }}
+              thumbColor={isBiometricEnabled ? '#FFFFFF' : '#F1F5F9'}
+            />
+          </View>
+
           <AnimatedTouchable
             onPress={() => navigation.navigate('NotificationListScreen')}
             style={styles.menuItem}
@@ -291,6 +341,77 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </AnimatedTouchable>
+
+          {/* HR & Attendance for Staff */}
+          {user?.role !== 'customer' && (
+            <>
+              <AnimatedTouchable
+                onPress={() => setShowCheckInModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="location-outline" size={22} color="#059669" />
+                  <Text style={styles.menuText}>Điểm danh ca trực (GPS)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowPayslipModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="receipt-outline" size={22} color="#0284C7" />
+                  <Text style={styles.menuText}>Phiếu lương cá nhân</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowLeaveModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="calendar-outline" size={22} color="#059669" />
+                  <Text style={styles.menuText}>Nghỉ phép & Quỹ phép năm</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowScheduleModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="calendar" size={22} color="#0284C7" />
+                  <Text style={styles.menuText}>Lịch làm việc của tôi</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowShiftSwapModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="swap-horizontal" size={22} color="#8B5CF6" />
+                  <Text style={styles.menuText}>Đổi ca làm việc</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+
+              <AnimatedTouchable
+                onPress={() => setShowCertModal(true)}
+                style={styles.menuItem}
+              >
+                <View style={styles.menuLeft}>
+                  <Ionicons name="ribbon-outline" size={22} color="#D97706" />
+                  <Text style={styles.menuText}>Chứng chỉ & Bằng cấp (CCHN)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+            </>
+          )}
         </View>
 
         {/* Logout Button */}
@@ -379,6 +500,60 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </View>
       </Modal>
+
+      {/* Attendance Check-in Modal */}
+      <AttendanceCheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+      />
+
+      {/* Staff Payslip Modal */}
+      <StaffPayslipModal
+        visible={showPayslipModal}
+        onClose={() => setShowPayslipModal(false)}
+      />
+
+      {/* Staff Leave Management Modal */}
+      <StaffLeaveModal
+        visible={showLeaveModal}
+        onClose={() => {
+          setShowLeaveModal(false);
+          setLeavePrefillShift(null);
+        }}
+        prefillShift={leavePrefillShift}
+      />
+
+      {/* Staff Schedule Calendar Modal */}
+      <StaffScheduleModal
+        visible={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onRequestSwap={(shift) => {
+          setShowScheduleModal(false);
+          setInitialSwapShift(shift);
+          setShowShiftSwapModal(true);
+        }}
+        onOpenLeave={(shift) => {
+          setShowScheduleModal(false);
+          setLeavePrefillShift(shift);
+          setShowLeaveModal(true);
+        }}
+      />
+
+      {/* Shift Swap Requests Modal */}
+      <ShiftSwapModal
+        visible={showShiftSwapModal}
+        onClose={() => {
+          setShowShiftSwapModal(false);
+          setInitialSwapShift(null);
+        }}
+        initialShift={initialSwapShift}
+      />
+
+      {/* CCHN Certificate Modal */}
+      <StaffCertificateModal
+        visible={showCertModal}
+        onClose={() => setShowCertModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -584,6 +759,93 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     marginTop: 2,
+    fontWeight: '600',
+  },
+  loyaltyCard: {
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  loyaltyTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  loyaltySubHeader: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: '#A7F3D0',
+    textTransform: 'uppercase',
+  },
+  loyaltyBrandTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  loyaltyTierTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  loyaltyTierText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FEF3C7',
+    letterSpacing: 0.5,
+  },
+  loyaltyPointsContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    borderRadius: 14,
+    padding: 12,
+    marginVertical: 4,
+  },
+  loyaltyPointsLabel: {
+    fontSize: 11,
+    color: '#D1FAE5',
+    fontWeight: '600',
+  },
+  loyaltyPointsNumber: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  loyaltyPointsUnit: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A7F3D0',
+  },
+  loyaltyBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  loyaltyBenefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  loyaltyBenefitText: {
+    fontSize: 11,
+    color: '#D1FAE5',
     fontWeight: '600',
   },
 });

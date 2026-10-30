@@ -438,7 +438,7 @@ Trong quá trình triển khai thực tế trên thiết bị di động (Expo G
     * Cấu hình liên kết sâu `linking` cho `NavigationContainer` tại `mobile/App.tsx`:
       ```tsx
       const linking: LinkingOptions<any> = {
-        prefixes: ['wdp301://', 'https://vinapharmacy.vn'],
+        prefixes: ['wdp301://', 'https://abcpharmacy.store'],
         config: {
           screens: {
             OrderConfirmation: 'checkout',

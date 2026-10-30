@@ -5,9 +5,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { AuthAPI } from '../../services/authApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContextType';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SecuritySettings({ navigation }: any) {
-  const [faceId, setFaceId] = useState(true);
+  const { isBiometricSupported, isBiometricEnabled, toggleBiometrics } = useAuth();
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const [twoFactor, setTwoFactor] = useState(false);
   
   // Password change state
@@ -66,10 +68,15 @@ export default function SecuritySettings({ navigation }: any) {
         newPassword,
       });
 
+      // Tự động vô hiệu hóa token sinh trắc học cũ để đảm bảo an toàn
+      try {
+        await toggleBiometrics(false);
+      } catch {}
+
       Toast.show({
         type: 'success',
         text1: 'Thành công',
-        text2: 'Đổi mật khẩu thành công',
+        text2: 'Đổi mật khẩu thành công. Vui lòng kích hoạt lại sinh trắc học nếu muốn.',
       });
       setIsChangingPassword(false);
       setCurrentPassword('');
@@ -84,6 +91,45 @@ export default function SecuritySettings({ navigation }: any) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleBiometrics = async (val: boolean) => {
+    if (!isBiometricSupported && val) {
+      Toast.show({
+        type: 'error',
+        text1: 'Không khả dụng',
+        text2: 'Thiết bị chưa cài đặt vân tay hoặc không hỗ trợ sinh trắc học',
+      });
+      return;
+    }
+
+    try {
+      setBiometricLoading(true);
+      const res = await toggleBiometrics(val);
+      if (res.success) {
+        Toast.show({
+          type: 'success',
+          text1: 'Thành công',
+          text2: val
+            ? 'Đã kích hoạt đăng nhập bằng sinh trắc học'
+            : 'Đã tắt đăng nhập bằng sinh trắc học',
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Thông báo',
+          text2: res.message || 'Không thể thay đổi thiết lập sinh trắc học',
+        });
+      }
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: err?.message || 'Có lỗi xảy ra khi xử lý sinh trắc học',
+      });
+    } finally {
+      setBiometricLoading(false);
     }
   };
 
@@ -192,18 +238,32 @@ export default function SecuritySettings({ navigation }: any) {
           )}
 
           <View className="flex-row items-center justify-between p-5 border-b" style={{ borderBottomColor: colors.border }}>
-            <View className="flex-row items-center">
+            <View className="flex-row items-center flex-1 mr-3">
               <View className="w-10 h-10 rounded-full items-center justify-center mr-4" style={{ backgroundColor: colors.surfaceSecondary }}>
-                <MaterialIcons name="face" size={20} color={colors.accent} />
+                <MaterialIcons name="fingerprint" size={24} color={colors.accent} />
               </View>
-              <Text className="text-base font-bold" style={{ color: colors.text }}>Face ID / Vân tay</Text>
+              <View className="flex-1">
+                <Text className="text-base font-bold" style={{ color: colors.text }}>Sinh trắc học (Vân tay / Khuôn mặt)</Text>
+                <Text className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                  {!isBiometricSupported
+                    ? 'Thiết bị chưa cài đặt vân tay/khuôn mặt'
+                    : isBiometricEnabled
+                    ? 'Đang bật • Đăng nhập an toàn bằng Android Keystore'
+                    : 'Bật để mở khóa nhanh không cần nhập mật khẩu'}
+                </Text>
+              </View>
             </View>
-            <Switch
-              value={faceId}
-              onValueChange={setFaceId}
-              trackColor={{ false: colors.border, true: colors.accent }}
-              thumbColor={faceId ? '#fff' : '#f4f3f4'}
-            />
+            {biometricLoading ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Switch
+                value={isBiometricEnabled}
+                onValueChange={handleToggleBiometrics}
+                disabled={!isBiometricSupported && !isBiometricEnabled}
+                trackColor={{ false: colors.border, true: colors.accent }}
+                thumbColor={isBiometricEnabled ? '#fff' : '#f4f3f4'}
+              />
+            )}
           </View>
 
           <View className="flex-row items-center justify-between p-5">

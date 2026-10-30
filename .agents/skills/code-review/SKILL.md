@@ -33,7 +33,23 @@ Look for the originating spec, in this order:
 
 ### 3. Identify the standards sources
 
-Search the repo for every file that documents how code should be written. When `CODING_STANDARDS.md` or `CONTRIBUTING.md` exists, it must be on the list.
+Search the repo for every file that documents how code should be written. When `CODING_STANDARDS.md`, `CONTRIBUTING.md`, or `.agents/rules/` exists, it must be on the list.
+
+#### Repo Mandatory Hard Standards (Quy chuẩn bắt buộc của dự án)
+These are hard gates. A violation of any of the following MUST be flagged as a hard violation (BLOCKER):
+
+1. **Zero Mock Data Policy (TUYỆT ĐỐI KHÔNG DÙNG MOCK DATA):**
+   - Mã nguồn production (Frontend UI components, Custom Hooks, Service layer, Backend Controllers, Microservices, DB Schemas) **tuyệt đối không được chứa bất kỳ mock data nào**.
+   - Cấm hardcoded mock arrays / objects (ví dụ: `const MOCK_DATA = [...]`, `const dummy...`, `const fake...`, `const sample...`).
+   - Cấm fallback sang mock data khi API rỗng hoặc lỗi (ví dụ: `catch { return MOCK_DATA; }` hoặc `data || DEFAULT_MOCK`).
+   - Mọi dữ liệu hiển thị và thao tác phải được gọi và xử lý thực sự qua API Gateway, Kafka, Redis và MongoDB.
+   - Mock data CHỈ ĐƯỢC PHÉP tồn tại trong các file automated test biệt lập (`*.spec.ts`, `*.test.ts`). Bất kỳ mock data nào trong production code là vi phạm nghiêm trọng (BLOCKER).
+2. **Comment Code Bằng Tiếng Việt:** Toàn bộ chú thích code (`//`, `/* */`) bắt buộc viết bằng Tiếng Việt theo `.agents/rules/sep.md`.
+3. **Fullstack Playbook v2.0 Compliance:**
+   - Thao tác Ghi (`POST`, `PUT`, `DELETE`) trả về HTTP 202 Accepted, giao tiếp qua Kafka.
+   - Frontend bắt buộc có Delayed Re-fetch (500ms - 1000ms), không re-fetch ngay tức thì.
+   - Không gọi HTTP trực tiếp giữa các microservices nội bộ; Frontend chỉ gọi qua API Gateway (`/api/...`).
+   - Read One áp dụng Cache-Aside qua Redis; Update/Delete evict cache.
 
 On top of whatever the repo documents, the Standards axis always carries the **smell baseline** below: a fixed set of Fowler code smells (_Refactoring_, ch.3) that applies even when a repo documents nothing. Two rules bind it:
 
@@ -62,8 +78,8 @@ Issue both sub-agent calls together, in the foreground, and aggregate the report
 **Standards sub-agent prompt** should include:
 
 - The full diff command and commit list.
-- The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full (the sub-agent has no other access to it).
-- The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Distinguish hard violations from judgement calls: documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
+- The list of standards-source files you found in step 3, **plus the repo mandatory hard standards (especially Zero Mock Data Policy) and the smell baseline from step 3** pasted in full (the sub-agent has no other access to it).
+- The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard (including any hardcoded mock data, fake fallbacks, or Playbook/comment violations): cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Distinguish hard violations from judgement calls: documented-standard breaches (especially Zero Mock Data) are hard BLOCKERS, while baseline smells are judgement calls. Skip anything tooling enforces. Under 400 words."
 
 **Spec sub-agent prompt** should include:
 

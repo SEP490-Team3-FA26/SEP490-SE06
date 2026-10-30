@@ -18,6 +18,7 @@ import {
   RecommendationData,
   RecommendedMedicine,
 } from '../../services/recommendation/recommendation.service';
+import { cartService } from '../../services/sales/cart.service';
 
 interface Props {
   onSelectKeyword?: (keyword: string) => void;
@@ -77,32 +78,16 @@ export const PharmaSmartRecommender: React.FC<Props> = ({
     loadRecommendations();
   };
 
-  const handleAddToCart = (item: RecommendedMedicine) => {
+  const handleAddToCart = async (item: RecommendedMedicine) => {
     setAddingId(item._id);
     if (onAddToCart) {
       onAddToCart(item);
     } else {
-      // Fallback add to guest_cart / customer_cart in localStorage
-      const cartKey = localStorage.getItem('token') ? 'customer_cart' : 'guest_cart';
       try {
-        const existing = JSON.parse(localStorage.getItem(cartKey) || '[]');
-        const idx = existing.findIndex((c: any) => c.medicineId === item._id || c.id === item._id);
-        if (idx >= 0) {
-          existing[idx].quantity = (existing[idx].quantity || 1) + 1;
-        } else {
-          existing.push({
-            medicineId: item._id,
-            id: item._id,
-            name: item.name,
-            price: item.price,
-            image: item.image,
-            unit: item.unit || 'Hộp',
-            quantity: 1,
-          });
-        }
-        localStorage.setItem(cartKey, JSON.stringify(existing));
-        window.dispatchEvent(new Event('cartUpdated'));
-      } catch (e) {}
+        await cartService.addProduct(item, 1);
+      } catch (e) {
+        console.error("Lỗi khi thêm sản phẩm gợi ý vào giỏ hàng:", e);
+      }
     }
     setTimeout(() => setAddingId(null), 700);
   };

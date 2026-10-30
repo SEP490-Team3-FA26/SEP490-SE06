@@ -94,10 +94,32 @@ export class PricingService {
       throw new RpcException({ message: `Không tìm thấy thuốc với ID: ${medicineId}`, statusCode: 404 });
     }
 
-    // Sort wholesale tiers by minQuantity ascending
-    const sortedTiers = wholesaleTiers
-      ? [...wholesaleTiers].sort((a, b) => a.minQuantity - b.minQuantity)
-      : undefined;
+    // Validate non-negative numbers
+    if (retailPrice !== undefined && retailPrice !== null && retailPrice < 0) {
+      throw new RpcException({ message: 'Giá bán lẻ tại chi nhánh không được nhỏ hơn 0 đ', statusCode: 400 });
+    }
+    if (wholesalePrice !== undefined && wholesalePrice !== null && wholesalePrice < 0) {
+      throw new RpcException({ message: 'Giá bán sỉ cơ bản tại chi nhánh không được nhỏ hơn 0 đ', statusCode: 400 });
+    }
+
+    // Validate and sort wholesale tiers
+    let sortedTiers: { minQuantity: number; price: number }[] | undefined = undefined;
+    if (wholesaleTiers) {
+      const seenQuantities = new Set<number>();
+      for (const tier of wholesaleTiers) {
+        if (tier.minQuantity < 1) {
+          throw new RpcException({ message: 'Số lượng mua tối thiểu của bậc sỉ phải từ 1 trở lên', statusCode: 400 });
+        }
+        if (tier.price < 0) {
+          throw new RpcException({ message: 'Đơn giá bậc sỉ không được nhỏ hơn 0 đ', statusCode: 400 });
+        }
+        if (seenQuantities.has(tier.minQuantity)) {
+          throw new RpcException({ message: `Số lượng bậc sỉ (${tier.minQuantity}) bị trùng lặp`, statusCode: 400 });
+        }
+        seenQuantities.add(tier.minQuantity);
+      }
+      sortedTiers = [...wholesaleTiers].sort((a, b) => a.minQuantity - b.minQuantity);
+    }
 
     const updateData: any = { updatedBy };
     if (retailPrice !== undefined) updateData.retailPrice = retailPrice;
@@ -108,7 +130,7 @@ export class PricingService {
     const result = await this.priceListModel.findOneAndUpdate(
       { branchId, medicineId },
       { $set: updateData, $setOnInsert: { branchId, medicineId } },
-      { upsert: true, new: true },
+      { upsert: true, new: true, runValidators: true },
     ).exec();
 
     return {

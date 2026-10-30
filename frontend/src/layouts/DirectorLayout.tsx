@@ -1,5 +1,5 @@
 import { BaseDashboardLayout } from "./BaseDashboardLayout";
-import { LayoutDashboard, Banknote, BarChart3, Sparkles, PackageSearch, ShieldCheck, Tag, CreditCard, Link2, HeartHandshake, Pill, Activity } from "lucide-react";
+import { LayoutDashboard, Banknote, BarChart3, Sparkles, PackageSearch, ShieldCheck, Tag, CreditCard, Link2, HeartHandshake, Pill, Activity, FileText, Mail } from "lucide-react";
 
 export function DirectorLayout() {
   const directorNavItems = [
@@ -7,9 +7,11 @@ export function DirectorLayout() {
     { name: "Danh mục Dược phẩm (CSDL Dược)", href: "/director/master-data/products", icon: <Pill size={20} /> },
     { name: "Giám sát CSDL Dược QG", href: "/director/inspector", icon: <Activity size={20} /> },
     { name: "CSKH & Đánh giá Chi nhánh", href: "/director/feedbacks", icon: <HeartHandshake size={20} /> },
+    { name: "Email Marketing (Newsletter)", href: "/director/marketing/email-campaigns", icon: <Mail size={20} /> },
     { name: "Phê duyệt mua hàng (PO)", href: "/director/approvals", icon: <ShieldCheck size={20} /> },
     { name: "Báo cáo Tài chính", href: "/director/finance", icon: <Banknote size={20} /> },
     { name: "Báo cáo Thống kê & Mùa vụ", href: "/director/reports", icon: <BarChart3 size={20} /> },
+    { name: "Yêu cầu Báo giá (RFQ)", href: "/director/rfq", icon: <FileText size={20} /> },
     { name: "Công nợ Nhà cung cấp", href: "/director/supplier-credit", icon: <CreditCard size={20} /> },
     { name: "Chuỗi cung ứng (Real-time)", href: "/director/supply-chain", icon: <Link2 size={20} /> },
     { name: "Dự báo Nhu cầu (AI)", href: "/director/ai-forecast", icon: <Sparkles size={20} /> },

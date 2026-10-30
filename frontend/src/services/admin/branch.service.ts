@@ -26,5 +26,33 @@ export const branchService = {
   async deleteBranch(id: string) {
     const response = await api.delete(API_ENDPOINTS.BRANCHES.DELETE(id));
     return response.data;
-  }
+  },
+
+  async getMyBranch() {
+    const response = await api.get('/api/branches/my-branch');
+    return response.data;
+  },
+
+  async updateBranchLocation(
+    id: string,
+    data: {
+      latitude: number;
+      longitude: number;
+      checkInRadiusMeters?: number;
+      address?: string;
+    },
+  ) {
+    const response = await api.patch(`/api/branches/${encodeURIComponent(id)}/location`, data);
+    return response.data;
+  },
+
+  async updateMyBranchLocation(data: {
+    latitude: number;
+    longitude: number;
+    checkInRadiusMeters?: number;
+    address?: string;
+  }) {
+    const response = await api.patch('/api/branches/my-branch/location', data);
+    return response.data;
+  },
 };

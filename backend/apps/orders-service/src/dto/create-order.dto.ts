@@ -53,6 +53,10 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   dosageInstructions?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isGiftItem?: boolean;
 }
 
 export class CreateOrderDto {

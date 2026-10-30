@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CheckCircle2, Plus, ShoppingBag, AlertCircle } from "lucide-react";
+import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart } from "lucide-react";
 
 interface MedicineCardProps {
   med: any;
@@ -7,9 +7,19 @@ interface MedicineCardProps {
   onAddToCart: (med: any, quantity: number, unit: string) => void;
   onClick: () => void;
   allowOutOfStock?: boolean;
+  isWishlisted?: boolean;
+  onToggleWishlist?: (med: any) => void;
 }
 
-export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToCart, onClick, allowOutOfStock = false }) => {
+export const MedicineCard: React.FC<MedicineCardProps> = ({
+  med,
+  added,
+  onAddToCart,
+  onClick,
+  allowOutOfStock = false,
+  isWishlisted = false,
+  onToggleWishlist,
+}) => {
   const isOutOfStock = med.stock <= 0;
   const isLowStock = med.stock > 0 && med.stock <= 50;
 
@@ -67,10 +77,17 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
     >
       {/* Image Area */}
       <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 h-40 flex items-center justify-center p-4 overflow-hidden">
+        {/* Khối hiển thị ảnh sản phẩm thực tế, có referrerPolicy để tránh bị CDN chặn hotlink */}
         <img
-          src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
+          src={med.image || (Array.isArray(med.images) && med.images.length > 0 ? med.images[0] : "") || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60"}
           alt={med.name}
           loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.onerror = null;
+            target.src = "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60";
+          }}
           className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
         />
 
@@ -84,8 +101,27 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
             </span>
           </div>
         )}
+        {/* Nút yêu thích (Wishlist Heart) */}
+        {onToggleWishlist && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleWishlist(med);
+            }}
+            className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-xs cursor-pointer ${
+              isWishlisted
+                ? "bg-rose-50 text-rose-500 hover:bg-rose-100 ring-1 ring-rose-200"
+                : "bg-white/85 backdrop-blur-xs text-slate-400 hover:text-rose-500 hover:bg-white"
+            }`}
+            title={isWishlisted ? "Bỏ yêu thích" : "Thêm vào danh sách yêu thích"}
+          >
+            <Heart size={15} className={isWishlisted ? "fill-rose-500 text-rose-500" : ""} />
+          </button>
+        )}
+
         {isLowStock && !isOutOfStock && (
-          <div className="absolute top-2 right-2 px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full uppercase tracking-wider flex items-center gap-1">
+          <div className={`absolute top-2 ${onToggleWishlist ? 'right-11' : 'right-2'} px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs`}>
             <AlertCircle size={8} /> Sắp hết
           </div>
         )}
@@ -100,12 +136,31 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
       </div>
 
       {/* Content */}
-      <div className="p-4 flex-1 flex flex-col gap-3">
+      <div className="p-3.5 flex-1 flex flex-col gap-2.5">
 
-        {/* Name */}
-        <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
+        {/* Tên thuốc kèm tooltip hiển thị tên đầy đủ */}
+        <h4 
+          title={med.name}
+          className="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug min-h-[2.4rem]"
+        >
           {med.name}
         </h4>
+
+        {/* Số đăng ký hoặc Quy cách đóng gói phân biệt dung tích/biến thể */}
+        {(med.registrationNumber || med.registration_number || packSpec) && (
+          <div className="flex items-center gap-1.5 flex-wrap -mt-1">
+            {(med.registrationNumber || med.registration_number) && (
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                SĐK: {med.registrationNumber || med.registration_number}
+              </span>
+            )}
+            {packSpec && (
+              <span className="text-[10px] text-slate-500 font-medium truncate max-w-[130px]" title={packSpec}>
+                {packSpec}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Unit pills */}
         {units.length > 1 && (
@@ -126,19 +181,20 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
           </div>
         )}
 
-        {/* Price + Button */}
-        <div className="mt-auto flex items-center justify-between gap-2">
-          <div>
-            <p className="text-base font-black text-blue-600 leading-tight">
+        {/* Price + Button - Khắc phục chống tràn nút bấm (+) sang lề phải */}
+        <div className="mt-auto flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm sm:text-base font-black text-blue-600 leading-tight truncate" title={`${displayPrice.toLocaleString("vi-VN")}₫`}>
               {displayPrice.toLocaleString("vi-VN")}₫
             </p>
-            <p className="text-[10px] text-slate-400 font-semibold">/ {selectedUnit}</p>
+            <p className="text-[10px] text-slate-400 font-semibold truncate">/ {selectedUnit}</p>
           </div>
 
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onAddToCart(med, currentMultiplier, selectedUnit); }}
             disabled={isOutOfStock && !allowOutOfStock}
-            className={`shrink-0 h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
+            className={`shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
               isOutOfStock && !allowOutOfStock
                 ? "bg-slate-100 text-slate-300 cursor-not-allowed"
                 : added
@@ -147,6 +203,7 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({ med, added, onAddToC
                     ? "bg-amber-600 text-white hover:bg-amber-700 shadow-md shadow-amber-200 active:scale-90"
                     : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 active:scale-90"
             }`}
+            title={added ? "Đã có trong đơn" : "Thêm vào đơn"}
           >
             {added ? <CheckCircle2 size={16} /> : <Plus size={16} />}
           </button>

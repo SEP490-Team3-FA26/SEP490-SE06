@@ -5,6 +5,8 @@ export interface MedicineLocation {
   zone: string;
   rack: string;
   shelf: number;
+  bin?: number;        // Số thùng (Bin 1..10)
+  slotType?: 'MAIN' | 'RESERVE'; // Loại ô: chính hay dự trữ
 }
 
 export interface GoodsReceiptItem {
@@ -59,8 +61,18 @@ export const goodsReceiptService = {
     return response.data;
   },
 
-  async verifyInspectionItem(recordId: string, itemId: string, actualQty: number, batchNo?: string, expDate?: string, location?: { zone: string; rack: string; shelf: number }) {
-    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections/verify`, { recordId, itemId, actualQty, batchNo, expDate, location });
+  async verifyInspectionItem(
+    recordId: string,
+    itemId: string,
+    actualQty: number,
+    batchNo?: string,
+    expDate?: string,
+    location?: MedicineLocation // Đầy đủ: zone, rack, shelf, bin, slotType
+  ) {
+    const response = await api.post(
+      `${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections/verify`,
+      { recordId, itemId, actualQty, batchNo, expDate, location }
+    );
     return response.data;
   },
 

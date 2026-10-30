@@ -7,6 +7,9 @@ export interface MedicineQueryParams {
   search?: string;
   category?: string;
   classification?: string;
+  drug_classification?: string;
+  bypassAiSearch?: boolean;
+  directDb?: boolean;
   target?: string;
   targetGroup?: string;
   minPrice?: number | string;
@@ -62,6 +65,16 @@ export const medicineService = {
   async getMedicines(params: MedicineQueryParams = {}) {
     const response = await api.get<PaginatedResult<Medicine>>(API_ENDPOINTS.MEDICINES.LIST, { params });
     return response.data as PaginatedResult<Medicine>;
+  },
+
+  // Truy vấn trực tiếp số lượng thuốc theo danh mục con từ Database
+  async getSubCategoryCounts(category?: string, items?: any[]) {
+    try {
+      const response = await api.post('/api/medicines/subcategories-count', { category, items });
+      return (response.data || {}) as Record<string, number>;
+    } catch (e) {
+      return {} as Record<string, number>;
+    }
   },
 
   async getBranchMedicines(branchId?: string, params: MedicineQueryParams = {}) {

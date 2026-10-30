@@ -25,6 +25,10 @@ infra/**/.build/
 .deepseek/
 phuc/
 agents.md
+AGENTS.md
+mobile/AGENTS.md
+**/AGENTS.md
+.agents/rules/mobile.md
 taste-skill/
 
 # Python Virtual Environments & Packages
@@ -68,8 +72,14 @@ frontend/public/download/
 # Local Quick-Start Scripts
 start-dev.bat
 start-dev.ps1
+start-dev-ai.bat
+start-dev-ai.ps1
 stop-dev.bat
 stop-dev.ps1
+start-emulator.bat
+mode-eco.bat
+mode-full.bat
+capture-screen.bat
 
 # Flutter ephemeral & build artifacts
 **/.dart_tool/
@@ -88,3 +98,11 @@ service_account*.json
 backend/public/uploads/
 public/uploads/
 *.webm
+# Temporary build & artifacts
+.codex-build/
+presentation-output/
+specs/
+
+# Monitoring & Logs Credentials
+gitops/monitoring/dozzle/users.yml
+!gitops/monitoring/dozzle/users.yml.example

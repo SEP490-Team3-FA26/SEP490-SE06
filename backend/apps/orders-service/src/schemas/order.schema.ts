@@ -35,6 +35,9 @@ export class OrderItem {
 
   @Prop({ type: String })
   dosageInstructions?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isGiftItem?: boolean;
 }
 export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
@@ -129,6 +132,22 @@ export class Order extends Document {
 
   @Prop({ type: String })
   pharmacistApprovedBy?: string;
+
+  @Prop({ type: String })
+  soldBy?: string;
+
+  @Prop({ type: String, index: true })
+  pharmacistId?: string;
+
+  // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+  @Prop({ type: Boolean, default: false, index: true })
+  auditFlag?: boolean; // Cờ nghi vấn kiểm toán (Audit Flag) khi phát hiện bất thường
+
+  @Prop({ type: String })
+  flagReason?: string; // Lý do gắn cờ (VD: 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION')
+
+  @Prop({ type: Number, default: 0 })
+  cashierVoucherDailyCount?: number; // Số đơn voucher tiền mặt thu ngân này áp dụng trong ngày
 
   @Prop({ type: String })
   approvedBy?: string;

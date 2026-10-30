@@ -11,6 +11,8 @@ import {
   UseGuards,
   Query,
   Res,
+  ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { ClientKafka, RpcException } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
@@ -24,13 +26,22 @@ import {
   ResolveDiscrepancyDto,
 } from '../dto/payment-reconciliation.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @ApiTags('🛒 Orders & Payment Reconciliation')
 @Controller('api/orders')
 export class OrderController implements OnModuleInit {
   constructor(
     @Inject('ORDER_SERVICE') private readonly orderClient: ClientKafka,
+    @Inject('USER_SERVICE') private readonly userClient: ClientKafka,
+    @Optional() @Inject(CACHE_MANAGER) private readonly cacheManager?: Cache,
   ) {}
+
+  // Tránh reset() toàn bộ Redis làm sập hiệu năng trang chủ và mất session của user
+  private async clearMedicineCache() {
+    // Để TTL tự nhiên (2 phút) của Redis xử lý hoặc evict có chọn lọc
+  }
 
   async onModuleInit() {
     await subscribeToKafkaTopics(this.orderClient, [
@@ -44,31 +55,65 @@ export class OrderController implements OnModuleInit {
       'orders.reconciliation.summary',
       'orders.reconciliation.resolve',
     ]);
+    await subscribeToKafkaTopics(this.userClient, [
+      'hr.attendance.verify_active_shift',
+    ]);
   }
 
   @Post()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Tạo đơn hàng mới' })
   async createOrder(@Body() data: CreateOrderDto, @Req() req: any) {
+    if (req.user?.role === 'pharmacist') {
+      const shiftVerification: any = await sendKafkaMessage(this.userClient, 'hr.attendance.verify_active_shift', {
+        pharmacistId: req.user.sub,
+        branchId: req.user.branchId || data.branchId,
+      });
+      if (!shiftVerification?.allowed) {
+        throw new ForbiddenException(
+          shiftVerification?.reason ||
+            'Dược sĩ chưa đến ca làm việc hoặc chưa điểm danh ca trực hôm nay qua ứng dụng di động. Không thể thực hiện bán hàng!',
+        );
+      }
+    }
+
     if (data.type === 'PRESCRIPTION' && !req.user?.sub) {
       throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được tạo đơn kê đơn', statusCode: 403 });
     }
     if (req.user) {
       const isStaff = ['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role);
       if (!isStaff && req.user.sub && !data.userId) data.userId = req.user.sub;
-      if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
+      if (data.type === 'ONLINE') {
+        // Đơn mua hàng online luôn xuất kho từ Kho Tổng (CENTRAL_WH)
+        data.branchId = 'CENTRAL_WH';
+      } else if (req.user.role === 'pharmacist') {
+        if (req.user.branchId) data.branchId = req.user.branchId;
+        (data as any).soldBy = req.user.fullName;
+        (data as any).pharmacistId = req.user.sub;
+      } else if (req.user.branchId && !data.branchId) {
+        data.branchId = req.user.branchId;
+      }
       if (data.type === 'PRESCRIPTION') {
         data.approvedBy = req.user.sub;
         data.approvedAt = new Date().toISOString();
       }
     }
-    return await sendKafkaMessage(this.orderClient, 'orders.create', { ...data });
+    if (data.type === 'ONLINE') {
+      data.branchId = 'CENTRAL_WH';
+    }
+    const result = await sendKafkaMessage(this.orderClient, 'orders.create', { ...data });
+    await this.clearMedicineCache();
+    return result;
   }
 
   @Get('check/:orderCode')
   @ApiOperation({ summary: 'Kiểm tra trạng thái thanh toán đơn hàng tức thời' })
   async checkOrderPayment(@Param('orderCode') orderCode: string) {
-    return await sendKafkaMessage(this.orderClient, 'orders.check', { orderCode: Number(orderCode) });
+    const result: any = await sendKafkaMessage(this.orderClient, 'orders.check', { orderCode: Number(orderCode) });
+    if (result?.success || result?.status === 'PAID') {
+      await this.clearMedicineCache();
+    }
+    return result;
   }
 
   // =========================================================================
@@ -79,7 +124,9 @@ export class OrderController implements OnModuleInit {
   async handlePayOSWebhook(@Body() body: PayOSWebhookDto) {
     // Signature verification and idempotency are handled in orders-service so an
     // invalid request cannot poison the gateway Redis lock before verification.
-    return await sendKafkaMessage(this.orderClient, 'orders.payment.webhook_received', body);
+    const result = await sendKafkaMessage(this.orderClient, 'orders.payment.webhook_received', body);
+    await this.clearMedicineCache();
+    return result;
   }
 
   // =========================================================================
@@ -90,10 +137,12 @@ export class OrderController implements OnModuleInit {
   @ApiOperation({ summary: 'Dược sĩ xác nhận thanh toán khẩn cấp tại quầy khi mạng đối tác gặp sự cố' })
   async manualOverridePayment(@Body() body: ManualOverridePaymentDto, @Req() req: any) {
     const cashierId = req.user?.sub || req.user?.id || 'POS-CASHIER';
-    return await sendKafkaMessage(this.orderClient, 'orders.reconciliation.manual_override', {
+    const result = await sendKafkaMessage(this.orderClient, 'orders.reconciliation.manual_override', {
       ...body,
       cashierId,
     });
+    await this.clearMedicineCache();
+    return result;
   }
 
   // =========================================================================
@@ -200,13 +249,32 @@ export class OrderController implements OnModuleInit {
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Tạo link thanh toán PayOS' })
   async createPayOSLink(@Body() data: CreatePayOSLinkDto, @Req() req: any) {
+    if (req.user?.role === 'pharmacist') {
+      const shiftVerification: any = await sendKafkaMessage(this.userClient, 'hr.attendance.verify_active_shift', {
+        pharmacistId: req.user.sub,
+        branchId: req.user.branchId || data.branchId,
+      });
+      if (!shiftVerification?.allowed) {
+        throw new ForbiddenException(
+          shiftVerification?.reason ||
+            'Dược sĩ chưa đến ca làm việc hoặc chưa điểm danh ca trực hôm nay qua ứng dụng di động. Không thể thực hiện bán hàng!',
+        );
+      }
+    }
+
     if (data.type === 'PRESCRIPTION' && !req.user?.sub) {
       throw new RpcException({ message: 'Chỉ dược sĩ đã đăng nhập mới được tạo đơn kê đơn', statusCode: 403 });
     }
     if (req.user) {
       const isStaff = ['pharmacist', 'admin', 'director', 'warehouse'].includes(req.user.role);
       if (!isStaff && req.user.sub && !data.userId) data.userId = req.user.sub;
-      if (req.user.branchId && !data.branchId) data.branchId = req.user.branchId;
+      if (req.user.role === 'pharmacist') {
+        if (req.user.branchId) data.branchId = req.user.branchId;
+        (data as any).soldBy = req.user.fullName;
+        (data as any).pharmacistId = req.user.sub;
+      } else if (req.user.branchId && !data.branchId) {
+        data.branchId = req.user.branchId;
+      }
       if (data.type === 'PRESCRIPTION') {
         data.approvedBy = req.user.sub;
         data.approvedAt = new Date().toISOString();

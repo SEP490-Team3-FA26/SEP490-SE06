@@ -11,6 +11,7 @@ import { Medicine } from "../medicine/schemas/medicine.schema";
 import { MedicineBatch } from "../medicine/schemas/medicine-batch.schema";
 import { BranchInventory } from "../medicine/schemas/branch-inventory.schema";
 import { BranchStockBalance } from "../medicine/schemas/branch-stock-balance.schema";
+import { MedicineLocation } from "../medicine/schemas/medicine-location.schema";
 import { firstValueFrom } from "rxjs";
 import {
   subscribeToKafkaTopics,
@@ -52,14 +53,16 @@ export class PurchaseService {
   }
 
   /**
-   * Tự động dời các lô hàng cũ của cùng loại thuốc trong cùng thùng sang Khu Dự Trữ (zone=RESERVE, slotType=RESERVE).
-   * Giúp đảm bảo nguyên tắc FEFO và giải phóng ô thùng chính (MAIN) cho lô mới nhập.
+   * Chỉ dời các lô cũ sang Khu Dự Trữ (zone=RESERVE, slotType=RESERVE)
+   * khi TỔNG số lượng tồn trong thùng (lô cũ + lô mới) VƯỢT QUÁ sức chứa tối đa (maxCapacity).
+   * Nếu thùng vẫn còn sức chứa, tất cả các lô cũ và lô mới cùng nằm trên kệ chính (MAIN).
    */
   private async relocateBatchesToReserve(
     medicineId: string,
     location: { zone: string; rack: string; shelf: number; bin: number; slotType?: string },
     session?: ClientSession | null,
     contextTag: string = 'GRN',
+    incomingQty: number = 0,
   ): Promise<number> {
     if (location.slotType && location.slotType !== 'MAIN') {
       return 0;
@@ -86,6 +89,16 @@ export class PurchaseService {
       });
     }
 
+    // Lấy thông tin quy hoạch và sức chứa tối đa của ô thùng
+    const locInfo = await this.locationModel.findOne({
+      zone: location.zone,
+      rack: location.rack,
+      shelf: location.shelf,
+      bin: location.bin,
+    }).lean().exec();
+
+    const maxCapacity = locInfo?.maxCapacity || 200;
+
     const query = {
       medicineId,
       branchId: 'CENTRAL_WH',
@@ -97,33 +110,60 @@ export class PurchaseService {
       stock: { $gt: 0 },
     };
 
-    let findQuery = this.batchModel.find(query);
+    let findQuery = this.batchModel.find(query).sort({ expDate: 1 });
     if (session) {
       findQuery = findQuery.session(session);
     }
-    const oldMainBatches = await findQuery.exec();
+    const currentMainBatches = await findQuery.exec();
+    const currentStock = currentMainBatches.reduce((acc, b) => acc + (b.stock || 0), 0);
+    const projectedTotal = currentStock + incomingQty;
 
-    if (oldMainBatches.length > 0) {
-      const updateQuery = this.batchModel.updateMany(
-        { _id: { $in: oldMainBatches.map(b => b._id) } },
-        {
-          $set: {
-            'location.zone': 'RESERVE',
-            'location.rack': 'RESERVE',
-            'location.slotType': 'RESERVE',
-            // Giữ nguyên shelf và bin để trace lịch sử vị trí cũ
-          },
-        },
+    // NẾU THÙNG CÒN CHỖ (chưa vượt quá maxCapacity): Giữ nguyên toàn bộ các lô cũ ở Kệ Chính (MAIN)
+    if (projectedTotal <= maxCapacity) {
+      this.logger.log(
+        `[${contextTag}] Thùng ${location.zone}-${location.rack}-T${location.shelf}-B${location.bin} còn đủ sức chứa (${projectedTotal}/${maxCapacity}). Giữ nguyên các lô cũ ở kệ chính.`,
       );
-      if (session) {
-        updateQuery.session(session);
+      return 0;
+    }
+
+    // NẾU BỊ ĐẦY / QUÁ SỨC CHỨA: Chỉ dời các lô thừa sang Khu Dự Trữ
+    let overflow = projectedTotal - maxCapacity;
+    const batchesToRelocate = [];
+
+    for (const b of currentMainBatches) {
+      if (overflow <= 0) break;
+      batchesToRelocate.push(b);
+      overflow -= (b.stock || 0);
+    }
+
+    if (batchesToRelocate.length > 0) {
+      // Phân bổ vào Kệ Dự Trữ (RES1/RES2, Tầng 1..4, Thùng B1..B10)
+      for (let i = 0; i < batchesToRelocate.length; i++) {
+        const b = batchesToRelocate[i];
+        const resShelf = ((i % 4) + 1);
+        const resBin = ((Math.floor(i / 4) % 10) + 1);
+        const resRack = (i >= 40) ? 'RES2' : 'RES1';
+        
+        const updateSingle = this.batchModel.updateOne(
+          { _id: b._id },
+          {
+            $set: {
+              'location.zone': 'RESERVE',
+              'location.rack': resRack,
+              'location.shelf': resShelf,
+              'location.bin': resBin,
+              'location.slotType': 'RESERVE',
+            },
+          },
+        );
+        if (session) updateSingle.session(session);
+        await updateSingle.exec();
       }
-      await updateQuery.exec();
 
       this.logger.log(
-        `[${contextTag}] Đã dời ${oldMainBatches.length} lô cũ của thuốc ${medicineId} sang Khu Dự Trữ (zone=RESERVE)`,
+        `[${contextTag}] Thùng quá sức chứa (${projectedTotal}/${maxCapacity}). Đã dời ${batchesToRelocate.length} lô thừa sang Khu Dự Trữ (kệ RES1/RES2)`,
       );
-      return oldMainBatches.length;
+      return batchesToRelocate.length;
     }
 
     return 0;
@@ -152,6 +192,8 @@ export class PurchaseService {
     private readonly inspectionModel: Model<InspectionRecord>,
     @InjectModel(RequestForQuotation.name)
     private readonly rfqModel: Model<RequestForQuotation>,
+    @InjectModel(MedicineLocation.name)
+    private readonly locationModel: Model<MedicineLocation>,
     private readonly nationalPharmaService: NationalPharmaService,
   ) {}
 
@@ -645,6 +687,7 @@ export class PurchaseService {
         status: "PENDING_APPROVAL",
         paymentType: "CREDIT",
         createdBy: data.createdBy || "Kho Tổng",
+        branchId: data.receivingBranchId || data.branchId || "CENTRAL_WH",
         linkedPrIds: data.prIds || [],
         linkedPrCodes: prCodes,
         remarks:
@@ -958,6 +1001,7 @@ export class PurchaseService {
         }
       }
 
+      const loc = item.shelvedLocation || item.location;
       totalAmount += quantity * unitPrice;
       return {
         medicineId: item.medicineId,
@@ -967,11 +1011,19 @@ export class PurchaseService {
         actualQty: null,
         status: "PENDING",
         unitPrice: unitPrice,
+        shelvedLocation: loc ? {
+          zone: loc.zone || 'A',
+          rack: loc.rack || 'A1',
+          shelf: Number(loc.shelf || 1),
+          bin: Number(loc.bin || 1),
+          slotType: loc.slotType ?? 'MAIN',
+        } : undefined,
       };
     });
 
     const grn = new this.grnModel({
       poId: data.poId,
+      branchId: data.branchId || (po as any)?.branchId || "CENTRAL_WH",
       items,
       totalAmount,
       receivedBy: data.receivedBy || "Thủ Kho",
@@ -1038,10 +1090,12 @@ export class PurchaseService {
     }
 
     if (grn.status === "COMPLETED") {
-      throw new RpcException({
+      this.logger.warn(`GRN ${receiptId} đã được phê duyệt hoàn tất từ trước, trả về kết quả thành công.`);
+      return {
+        success: true,
         message: "Tài liệu tiếp nhận này đã được phê duyệt hoàn tất từ trước",
-        statusCode: 409,
-      });
+        data: grn,
+      };
     }
 
     if (grn.status !== "PENDING_APPROVAL") {
@@ -1133,13 +1187,15 @@ export class PurchaseService {
         .exec();
 
       // === TASK 4: Auto-move lô cũ sang Khu Dự Trữ khi lô mới được xếp vào thùng ===
-      // Chỉ thực hiện khi GRN item có shelvedLocation (thủ kho đã chọn vị trí thùng cụ thể)
-      if (item.shelvedLocation) {
+      // Sử dụng shelvedLocation hoặc location nếu có
+      const locSource = item.shelvedLocation || (item as any).location || null;
+      if (locSource) {
         await this.relocateBatchesToReserve(
           item.medicineId,
-          item.shelvedLocation,
+          locSource,
           null,
           'GRN Approve',
+          item.actualQty ?? 0,
         );
       }
 
@@ -1150,25 +1206,25 @@ export class PurchaseService {
 
         batch.status = batch.expDate < new Date() ? 'EXPIRED' : 'ACTIVE';
         // === TASK 3: Copy shelvedLocation → batch.location ===
-        if (item.shelvedLocation) {
+        if (locSource) {
           batch.location = {
-            zone:     item.shelvedLocation.zone,
-            rack:     item.shelvedLocation.rack,
-            shelf:    item.shelvedLocation.shelf,
-            bin:      item.shelvedLocation.bin,
-            slotType: item.shelvedLocation.slotType ?? 'MAIN',
+            zone:     locSource.zone,
+            rack:     locSource.rack,
+            shelf:    locSource.shelf,
+            bin:      locSource.bin,
+            slotType: locSource.slotType ?? 'MAIN',
           };
         }
         await batch.save();
       } else {
         // Xác định location cho batch mới
-        const batchLocation = item.shelvedLocation
+        const batchLocation = locSource
           ? {
-              zone:     item.shelvedLocation.zone,
-              rack:     item.shelvedLocation.rack,
-              shelf:    item.shelvedLocation.shelf,
-              bin:      item.shelvedLocation.bin,
-              slotType: item.shelvedLocation.slotType ?? 'MAIN',
+              zone:     locSource.zone,
+              rack:     locSource.rack,
+              shelf:    locSource.shelf,
+              bin:      locSource.bin,
+              slotType: locSource.slotType ?? 'MAIN',
             }
           : { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const };
 
@@ -1263,14 +1319,31 @@ export class PurchaseService {
 
     // 6. Tự động liên thông CSDL Dược Quốc gia (Stock-In Hook theo QĐ 232)
     try {
-      const targetBranch = (grn as any).branchId || (po as any).branchId || 'BR-001';
-      const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
-      grn.nationalFacilityCode = gppSync.facilityCode;
-      grn.nationalSyncCode = gppSync.syncCode;
-      grn.nationalSyncStatus = gppSync.syncStatus;
-      grn.nationalSyncedAt = gppSync.syncedAt;
-      grn.nationalSyncMessage = gppSync.message;
-      await grn.save();
+      let targetBranch = grn.branchId || (po as any)?.branchId;
+      if (!targetBranch && po?.linkedPrIds && po.linkedPrIds.length > 0) {
+        const pr = await this.prModel.findById(po.linkedPrIds[0]).lean().exec();
+        if (pr?.branchId) {
+          targetBranch = pr.branchId;
+        }
+      }
+      if (!targetBranch) {
+        targetBranch = 'CENTRAL_WH';
+      }
+
+      if (!targetBranch) {
+        this.logger.error(`[CSDL Dược] Không thể liên thông phiếu nhập ${grn._id}: Không tìm thấy thông tin chi nhánh tiếp nhận!`);
+        grn.nationalSyncStatus = 'FAILED';
+        grn.nationalSyncMessage = 'Không thể liên thông CSDL Dược: Phiếu nhập kho thiếu thông tin chi nhánh tiếp nhận';
+        await grn.save();
+      } else {
+        const gppSync = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+        grn.nationalFacilityCode = gppSync.facilityCode;
+        grn.nationalSyncCode = gppSync.syncCode;
+        grn.nationalSyncStatus = gppSync.syncStatus;
+        grn.nationalSyncedAt = gppSync.syncedAt;
+        grn.nationalSyncMessage = gppSync.message;
+        await grn.save();
+      }
     } catch (gppErr: any) {
       this.logger.warn(`[CSDL Dược GRN Sync Warning] ${gppErr.message}`);
     }
@@ -1478,6 +1551,7 @@ export class PurchaseService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .lean()
         .exec(),
       this.txnModel.countDocuments(filter).exec(),
     ]);
@@ -2815,7 +2889,17 @@ export class PurchaseService {
         if (normalizedBatchNo) grnItem.batchNo = normalizedBatchNo;
         if (normalizedExpDate && !Number.isNaN(normalizedExpDate.getTime()))
           grnItem.expDate = normalizedExpDate;
-        if (location) (grnItem as any).location = location; // Lưu vị trí xếp hàng
+        if (location) {
+          const locAny = location as any;
+          grnItem.shelvedLocation = {
+            zone: locAny.zone || 'A',
+            rack: locAny.rack || 'A1',
+            shelf: Number(locAny.shelf || 1),
+            bin: Number(locAny.bin || 1),
+            slotType: (locAny.slotType || 'MAIN') as 'MAIN' | 'RESERVE',
+          };
+          (grnItem as any).location = location; // Lưu vị trí xếp hàng
+        }
         grnItem.status = "VERIFIED";
       }
       await grn.save();
@@ -2882,6 +2966,7 @@ export class PurchaseService {
             newLocation,
             session,
             'Inspection Approve',
+            item.actualQty ?? 0,
           );
 
           let batch = await this.batchModel.findOne({
@@ -2956,6 +3041,39 @@ export class PurchaseService {
       }
 
       await session.commitTransaction();
+
+      // 🌐 TỰ ĐỘNG LIÊN THÔNG CSDL DƯỢC QUỐC GIA (Mục 5.4 - QĐ 232/QĐ-TTYQG)
+      try {
+        let targetBranch = grn.branchId || (po as any)?.branchId;
+        if (!targetBranch && po?.linkedPrIds && po.linkedPrIds.length > 0) {
+          const pr = await this.prModel.findById(po.linkedPrIds[0]).lean().exec();
+          if (pr?.branchId) {
+            targetBranch = pr.branchId;
+          }
+        }
+        if (!targetBranch) {
+          targetBranch = 'CENTRAL_WH';
+        }
+
+        if (!targetBranch) {
+          this.logger.error(`[CSDL Dược] Lỗi liên thông: Phiếu nhập ${grn._id} không xác định được mã chi nhánh (branchId), từ chối liên thông!`);
+          grn.nationalSyncStatus = 'FAILED';
+          grn.nationalSyncMessage = 'Không thể liên thông CSDL Dược: Phiếu nhập kho thiếu thông tin chi nhánh tiếp nhận';
+          await grn.save();
+        } else {
+          const syncRes = await this.nationalPharmaService.syncGoodsReceipt(grn, targetBranch);
+          grn.nationalFacilityCode = syncRes.facilityCode;
+          grn.nationalSyncCode = syncRes.syncCode;
+          grn.nationalSyncStatus = syncRes.syncStatus;
+          grn.nationalSyncedAt = syncRes.syncedAt;
+          grn.nationalSyncMessage = syncRes.message;
+          await grn.save();
+          this.logger.log(`[CSDL Dược] Tự động liên thông phiếu nhập ${grn._id} kết quả: ${syncRes.syncStatus} (Mã: ${syncRes.syncCode})`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[CSDL Dược] Lỗi liên thông phiếu nhập ngầm: ${err.message}`);
+      }
+
       return {
         success: true,
         message: "Duyệt thành công và đã nhập kho",
@@ -2994,14 +3112,42 @@ export class PurchaseService {
         sentAt: new Date(),
       }));
 
+      // Tự động liên kết thông tin Pháp chế GPP & CSDL Dược Quốc Gia cho từng mặt hàng RFQ
+      const enrichedItems = await Promise.all(
+        (payload.items || []).map(async (it: any) => {
+          let nationalDrugCode = it.nationalDrugCode;
+          let declaredPrice = it.declaredPrice;
+          let gppCompliant = it.gppCompliant;
+
+          try {
+            const med = await this.medicineModel.findById(it.medicineId).lean().exec();
+            if (med) {
+              nationalDrugCode = nationalDrugCode || med.national_drug_code || med.registration_number || '';
+              // Chỉ sử dụng giá kê khai chính thức BYT / GPP, tuyệt đối không dùng giá bán lẻ cửa hàng làm giá trần kê khai
+              const officialDeclared = (med as any)?.declaredPrice || (med as any)?.declared_price || (med as any)?.gppCeilingPrice;
+              declaredPrice = declaredPrice || officialDeclared || undefined;
+              gppCompliant = gppCompliant !== undefined ? gppCompliant : Boolean(med.registration_number || med.national_drug_code);
+            }
+          } catch (_) {}
+
+          return {
+            ...it,
+            nationalDrugCode: nationalDrugCode || '',
+            declaredPrice: declaredPrice !== undefined && Number(declaredPrice) > 0 ? Number(declaredPrice) : undefined,
+            gppCompliant: gppCompliant !== false,
+          };
+        }),
+      );
+
       const rfq = new this.rfqModel({
         ...payload,
+        items: enrichedItems,
         rfqCode,
         targetSuppliers,
         status: 'DRAFT',
       });
       const saved = await rfq.save();
-      this.logger.log(`Created new RFQ: ${rfqCode}`);
+      this.logger.log(`Created new RFQ: ${rfqCode} with GPP/CSDL Duoc metadata`);
       return saved;
     } catch (error) {
       this.logger.error('Error creating RFQ:', error);
@@ -3144,15 +3290,25 @@ export class PurchaseService {
       const quotationId = `QUOTE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const minShelfLife = rfq.minShelfLifeMonths || 18;
 
-      // Kiểm tra và đánh cờ tuân thủ HSD (Chống bẫy hàng cận date từ Bước 3)
+      // Kiểm tra tuân thủ HSD (FEFO) và Chốt chặn Giá trần kê khai CSDL Dược Quốc gia (NĐ 54/2017)
       const formattedItems = (quotationDto.items || []).map((item: any) => {
         const offeredShelfLife = Number(item.committedShelfLifeMonths || item.offeredShelfLifeMonths || 24);
-        const isCompliant = offeredShelfLife >= minShelfLife;
+        const isCompliantShelfLife = offeredShelfLife >= minShelfLife;
+
+        // Đối chiếu giá kê khai và SĐK từ mặt hàng trong RFQ
+        const rfqItem = (rfq.items || []).find((it: any) => it.medicineId === item.medicineId);
+        const declaredPrice = Number(rfqItem?.declaredPrice || rfqItem?.targetPrice || 0);
+        const nationalDrugCode = rfqItem?.nationalDrugCode || item.nationalDrugCode || '';
+        const isExceedingDeclaredPrice = declaredPrice > 0 && Number(item.quotedPrice) > declaredPrice;
+
         return {
           ...item,
           committedShelfLifeMonths: offeredShelfLife,
           offeredShelfLifeMonths: offeredShelfLife,
-          isCompliantShelfLife: isCompliant,
+          isCompliantShelfLife,
+          declaredPrice,
+          nationalDrugCode,
+          isExceedingDeclaredPrice,
         };
       });
 
@@ -3236,6 +3392,7 @@ export class PurchaseService {
         status: 'PENDING_APPROVAL',
         createdBy: awardDto.createdBy || rfq.createdBy || 'ADMIN',
         paymentType: quotation.paymentTermsDays > 0 ? 'CREDIT' : 'PAID',
+        branchId: (rfq as any).branchId || 'CENTRAL_WH',
         linkedPrCodes: [rfq.rfqCode],
       });
 

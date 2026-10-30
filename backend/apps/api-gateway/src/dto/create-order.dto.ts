@@ -52,6 +52,10 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   dosageInstructions?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isGiftItem?: boolean;
 }
 
 export class CreateOrderDto {
@@ -91,6 +95,10 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   voucherCode?: string;
+
+  @IsNumber()
+  @IsOptional()
+  voucherDiscount?: number;
 
   @IsNumber()
   @IsOptional()
@@ -176,6 +184,10 @@ export class CreatePayOSLinkDto {
   @IsString()
   @IsOptional()
   voucherCode?: string;
+
+  @IsNumber()
+  @IsOptional()
+  voucherDiscount?: number;
 
   @IsNumber()
   @IsOptional()

@@ -162,5 +162,19 @@ export const inventoryMapService = {
   }) => {
     const response = await api.post('/api/medicines/relocate-bin', dto);
     return response.data;
-  }
+  },
+
+  /** MỚI — Xử lý xuất hủy lô thuốc hết hạn (DISPOSE) */
+  disposeExpiredBatch: async (dto: {
+    batchId: string;
+    quantity: number;
+    notes?: string;
+  }) => {
+    // Gọi endpoint chuẩn Gateway: /api/medicines/expiration-action
+    const response = await api.post('/api/medicines/expiration-action', {
+      ...dto,
+      action: 'DISPOSE',
+    });
+    return response.data;
+  },
 };

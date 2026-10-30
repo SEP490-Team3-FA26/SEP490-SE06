@@ -42,14 +42,19 @@ export function WarehouseFilterBar({
     zones.forEach((zone: any) => {
       zone.racks?.forEach((rack: any) => {
         rack.shelves?.forEach((shelf: any) => {
-          // Status counts
-          if (["NEAR_EXPIRY", "EXPIRED", "LOW_STOCK"].includes(shelf.status)) {
+          // Status counts (Phương án 1: bao gồm cả các kệ hỗn hợp có hasExpired, hasNearExpiry hoặc hasLowStock)
+          const isExpired = shelf.status === "EXPIRED" || Boolean(shelf.hasExpired) || (shelf.expiredBatchCount > 0);
+          const isNear = shelf.status === "NEAR_EXPIRY" || Boolean(shelf.hasNearExpiry);
+          const isLow = shelf.status === "LOW_STOCK" || Boolean(shelf.hasLowStock);
+          const isWarn = isExpired || isNear || isLow;
+
+          if (isWarn) {
             warnCount++;
           }
-          if (shelf.status === "LOW_STOCK") {
+          if (isLow) {
             lowCount++;
           }
-          if (shelf.status === "EXPIRED") {
+          if (isExpired) {
             expiredCount++;
           }
 
@@ -164,9 +169,11 @@ export function WarehouseFilterBar({
           if (activeChips.size > 0) {
             const isWarn =
               activeChips.has("WARN") &&
-              ["NEAR_EXPIRY", "EXPIRED", "LOW_STOCK"].includes(shelf.status);
-            const isLow = activeChips.has("LOW") && shelf.status === "LOW_STOCK";
-            const isExpired = activeChips.has("EXPIRED") && shelf.status === "EXPIRED";
+              (["NEAR_EXPIRY", "EXPIRED", "LOW_STOCK"].includes(shelf.status) || Boolean(shelf.hasExpired) || Boolean(shelf.hasNearExpiry) || Boolean(shelf.hasLowStock));
+            const isLow = activeChips.has("LOW") && (shelf.status === "LOW_STOCK" || Boolean(shelf.hasLowStock));
+            const isExpired =
+              activeChips.has("EXPIRED") &&
+              (shelf.status === "EXPIRED" || Boolean(shelf.hasExpired) || (shelf.expiredBatchCount > 0));
             matchesStatus = isWarn || isLow || isExpired;
           }
 
@@ -197,7 +204,14 @@ export function WarehouseFilterBar({
     setActiveChips(new Set());
     setQuery(item.name);
     setIsSearchOpen(false);
-    onSearchSelect(item.targetId);
+
+    // Ưu tiên tạo targetId chi tiết tới tận ô thùng (bin-Zone-Rack-Shelf-Bin)
+    const loc = item.location;
+    let target = item.targetId;
+    if (loc?.zone && loc?.rack && loc?.shelf && loc?.bin) {
+      target = `bin-${loc.zone}-${loc.rack}-${loc.shelf}-${loc.bin}`;
+    }
+    onSearchSelect(target);
   };
 
   // Bật/tắt chip lọc nhanh

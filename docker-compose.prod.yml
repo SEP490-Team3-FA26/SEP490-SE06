@@ -7,8 +7,14 @@
 #   docker compose -f docker-compose.prod.yml up -d
 # ============================================================
 
+name: wdp301
+
+x-project-log-labels: &project-log-labels
+  dev.dozzle.group: WDP301 - Full Project
+
 x-backend-common: &backend-common
   image: ${BACKEND_IMAGE:-wdp301-backend:latest}
+  labels: *project-log-labels
   pull_policy: never
   restart: unless-stopped
   env_file:
@@ -51,6 +57,7 @@ services:
   # ──────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    labels: *project-log-labels
     container_name: wdp301-redis
     restart: unless-stopped
     command: redis-server --save 60 1 --loglevel warning --maxmemory 64mb --maxmemory-policy allkeys-lru
@@ -70,6 +77,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
+    labels: *project-log-labels
     container_name: wdp301-kafka
     restart: unless-stopped
     environment:
@@ -102,6 +110,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:latest
+    labels: *project-log-labels
     container_name: wdp301-qdrant
     restart: unless-stopped
     volumes:
@@ -130,8 +139,6 @@ services:
     <<: *backend-common
     container_name: wdp301-gateway
     command: node dist/apps/api-gateway/main.js
-    ports:
-      - "4000:4000"
     environment:
       <<: *backend-env
       PORT: 4000
@@ -169,7 +176,12 @@ services:
     command: node dist/apps/inventory-service/main.js
     environment:
       <<: *backend-env
+      NODE_OPTIONS: "--max-old-space-size=512"
       CSDLDUOC_BASE_URL: http://national-pharma-simulator:4005/v2
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     depends_on:
       kafka:
         condition: service_healthy
@@ -183,8 +195,6 @@ services:
     <<: *backend-common
     container_name: wdp301-csdlduoc
     command: node dist/mock-csdlduoc/server.js
-    ports:
-      - "4005:4005"
     environment:
       <<: *backend-env
       PORT: 4005
@@ -219,6 +229,7 @@ services:
   # 7. AI Service — self-hosted, no third-party API (Pre-built image)
   ai-service:
     image: ${AI_IMAGE:-wdp301-ai:latest}
+    labels: *project-log-labels
     pull_policy: never
     container_name: wdp301-ai
     restart: unless-stopped
@@ -236,8 +247,6 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-    ports:
-      - "8000:8000"
     depends_on:
       - qdrant
       - kafka
@@ -258,13 +267,13 @@ services:
   # ──────────────────────────────────────────────────────────
   frontend:
     image: ${FRONTEND_IMAGE:-wdp301-frontend:latest}
+    labels: *project-log-labels
     pull_policy: never
     container_name: wdp301-frontend
     restart: unless-stopped
     ports:
       - "80:3000"
       - "443:443"
-      - "3000:3000"
     environment:
       TZ: "Asia/Ho_Chi_Minh"
     volumes:
@@ -275,7 +284,7 @@ services:
     depends_on:
       - api-gateway
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/health > /dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -291,28 +300,36 @@ services:
   # ──────────────────────────────────────────────────────────
   dozzle:
     image: amir20/dozzle:latest
+    labels: *project-log-labels
     container_name: wdp301-dozzle
     restart: unless-stopped
     ports:
-      - "8888:8080"
+      - "127.0.0.1:8888:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./gitops/monitoring/dozzle/users.yml:/data/users.yml:ro
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
       DOZZLE_LEVEL: info
       DOZZLE_NO_ANALYTICS: "true"
       DOZZLE_TIME_ZONE: "Asia/Ho_Chi_Minh"
+      DOZZLE_BASE: /dozzle
+      DOZZLE_AUTH_PROVIDER: simple
       TZ: "Asia/Ho_Chi_Minh"
 
     deploy:
       resources:
         limits:
           memory: 64m
-    networks: [wdp301-network]
+    networks:
+      wdp301-network:
+        aliases:
+          - dozzle-svc
 
   node-exporter:
     image: prom/node-exporter:v1.8.0
+    labels: *project-log-labels
     container_name: wdp301-node-exporter
     restart: unless-stopped
     pid: host
@@ -333,6 +350,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.51.0
+    labels: *project-log-labels
     container_name: wdp301-prometheus
     restart: unless-stopped
     command:
@@ -355,16 +373,18 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.0
+    labels: *project-log-labels
     container_name: wdp301-grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=wdp301admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SERVER_ROOT_URL=https://abcpharmacy.store/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-and-api-overview.json
     volumes:
       - ./gitops/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -375,7 +395,10 @@ services:
       resources:
         limits:
           memory: 128m
-    networks: [wdp301-network]
+    networks:
+      wdp301-network:
+        aliases:
+          - grafana-svc
 
 networks:
   wdp301-network:

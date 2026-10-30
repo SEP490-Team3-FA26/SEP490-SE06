@@ -15,6 +15,13 @@ import {
   Bell,
   Flame,
   X,
+  Calendar,
+  Download,
+  History,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Database,
 } from "lucide-react";
 import {
   AreaChart,
@@ -136,9 +143,19 @@ const METRIC_DEFINITIONS: Record<
 
 export function GspTelemetryDashboard() {
   const [station, setStation] = useState<SensorStation | null>(null);
+  const [stations, setStations] = useState<SensorStation[]>([]);
+  const [selectedStationId, setSelectedStationId] = useState<string>("");
+
   const [latestData, setLatestData] = useState<TelemetryRecord | null>(null);
   const [historyRecords, setHistoryRecords] = useState<TelemetryRecord[]>([]);
+
+  // Chế độ lọc thời gian: "recent" (5m, 1h, 24h, 7d) HOẶC "past_date" (Chọn ngày trong quá khứ)
+  const [filterMode, setFilterMode] = useState<"recent" | "past_date">("recent");
   const [range, setRange] = useState<TimeRange>("5m");
+  const [selectedPastDate, setSelectedPastDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -182,7 +199,7 @@ export function GspTelemetryDashboard() {
   const handleExecuteTestAlert = async () => {
     try {
       setTestSending(true);
-      const targetDeviceId = station?.deviceId || (latestData as any)?.deviceId || "ESP32S3_404CCA44C814";
+      const targetDeviceId = selectedStationId || station?.deviceId || (latestData as any)?.deviceId || "ESP32S3_2884855FFFFC";
       await api.post("/api/notifications/test-iot-alert", {
         type: testAlertType,
         deviceId: targetDeviceId,
@@ -204,24 +221,49 @@ export function GspTelemetryDashboard() {
     }
   };
 
-  // 1. Tải dữ liệu ban đầu
+  // 1. Tải danh sách trạm và dữ liệu lịch sử
   const fetchAllData = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
+      // Tải danh sách trạm cảm biến
+      const stationsRes = await sensorTelemetryService.getStations();
+      if (stationsRes.success && Array.isArray(stationsRes.data) && stationsRes.data.length > 0) {
+        setStations(stationsRes.data);
+      }
+
+      // Xác định Device ID mục tiêu
+      const activeDevId = selectedStationId || stationsRes?.data?.[0]?.deviceId || undefined;
+
+      // Tính toán truy vấn lịch sử
+      let historyPromise;
+      if (filterMode === "past_date" && selectedPastDate) {
+        // Khoảng thời gian nguyên ngày: 00:00:00 -> 23:59:59
+        const startSec = Math.floor(new Date(`${selectedPastDate}T00:00:00`).getTime() / 1000);
+        const endSec = Math.floor(new Date(`${selectedPastDate}T23:59:59`).getTime() / 1000);
+        historyPromise = sensorTelemetryService.getHistory(activeDevId, undefined, startSec, endSec);
+      } else {
+        historyPromise = sensorTelemetryService.getHistory(activeDevId, range);
+      }
+
       const [latestRes, historyRes] = await Promise.all([
-        sensorTelemetryService.getLatest(),
-        sensorTelemetryService.getHistory(undefined, range),
+        sensorTelemetryService.getLatest(activeDevId),
+        historyPromise,
       ]);
 
       if (latestRes.success) {
-        if (latestRes.station) setStation(latestRes.station);
+        if (latestRes.station) {
+          setStation(latestRes.station);
+          if (!selectedStationId && latestRes.station.deviceId) {
+            setSelectedStationId(latestRes.station.deviceId);
+          }
+        }
         if (latestRes.data) {
           setLatestData(latestRes.data);
           setHasReceivedAny(true);
           const t = new Date(latestRes.data.timestamp * 1000);
           setLastPacketTime(t);
           const elapsed = Math.round((Date.now() - t.getTime()) / 1000);
-          if (elapsed < 4) {
+          if (elapsed < 10) {
             setIsLiveConnected(true);
             setOfflineElapsedSec(null);
           } else {
@@ -257,7 +299,99 @@ export function GspTelemetryDashboard() {
 
   useEffect(() => {
     fetchAllData();
-  }, [range]);
+  }, [range, filterMode, selectedPastDate, selectedStationId]);
+
+  // Thống kê tóm tắt theo kỳ/ngày đang chọn
+  const periodStats = useMemo(() => {
+    if (!historyRecords || historyRecords.length === 0) return null;
+    const temps = historyRecords
+      .map((r) => r.metrics?.temperature)
+      .filter((v): v is number => v !== undefined && !isNaN(v));
+    const hums = historyRecords
+      .map((r) => r.metrics?.humidity)
+      .filter((v): v is number => v !== undefined && !isNaN(v));
+    const alertCount = historyRecords.filter((r) => r.status?.alert).length;
+
+    const minTemp = temps.length > 0 ? Math.min(...temps) : 0;
+    const maxTemp = temps.length > 0 ? Math.max(...temps) : 0;
+    const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : 0;
+
+    const minHum = hums.length > 0 ? Math.min(...hums) : 0;
+    const maxHum = hums.length > 0 ? Math.max(...hums) : 0;
+    const avgHum = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : 0;
+
+    return {
+      count: historyRecords.length,
+      minTemp,
+      maxTemp,
+      avgTemp,
+      minHum,
+      maxHum,
+      avgHum,
+      alertCount,
+    };
+  }, [historyRecords]);
+
+  // Xuất file CSV báo cáo kiểm định GSP
+  const handleExportCsv = () => {
+    if (!historyRecords || historyRecords.length === 0) {
+      alert("Không có dữ liệu để xuất file CSV!");
+      return;
+    }
+
+    const headers = [
+      "Thời gian",
+      "Mã Trạm (DeviceID)",
+      "Nhiệt độ (°C)",
+      "Độ ẩm (%RH)",
+      "Điểm sương (°C)",
+      "Áp suất hơi (kPa)",
+      "Nhiệt độ Chip (°C)",
+      "Tải CPU (%)",
+      "RAM trống (KB)",
+      "Sóng Wi-Fi (dBm)",
+      "Cảnh báo GSP",
+    ];
+
+    const sanitizeCsvCell = (val: string | number) => {
+      const s = String(val ?? "");
+      if (/^[=+\-@\t\r]/.test(s)) {
+        return `"'${s.replace(/"/g, '""')}"`;
+      }
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    const rows = historyRecords.map((r) => {
+      const d = new Date(r.timestamp * 1000);
+      const timeStr = `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN")}`;
+      const freeKb = r.diagnostics?.freeHeap ? Math.round(r.diagnostics.freeHeap / 1024) : 0;
+      const deviceLabel = selectedStationId || station?.deviceId || "CENTRAL_WH";
+      return [
+        sanitizeCsvCell(timeStr),
+        sanitizeCsvCell(deviceLabel),
+        r.metrics?.temperature ?? "",
+        r.metrics?.humidity ?? "",
+        r.metrics?.dewPoint ?? r.metrics?.dew_point ?? "",
+        r.metrics?.vpd ?? "",
+        r.diagnostics?.chipTemp ?? "",
+        r.diagnostics?.cpuLoad ?? "",
+        freeKb,
+        r.diagnostics?.wifiRssi ?? "",
+        r.status?.alert ? "VI PHAM" : "CHUAN",
+      ].join(",");
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const periodLabel = filterMode === "past_date" ? selectedPastDate : range;
+    link.setAttribute("href", url);
+    link.setAttribute("download", `lich_su_quan_trac_gsp_${selectedStationId || "wh"}_${periodLabel}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // 2. Lắng nghe gói tin Realtime (1s/lần) qua WebSocket / SSE
   useEffect(() => {
@@ -356,10 +490,14 @@ export function GspTelemetryDashboard() {
   const chartData = useMemo(() => {
     return historyRecords.map((r) => {
       const d = new Date(r.timestamp * 1000);
-      const timeLabel =
-        range === "24h" || range === "7d"
-          ? `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")} ${d.getDate()}/${d.getMonth() + 1}`
-          : `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
+      let timeLabel: string;
+      if (filterMode === "past_date") {
+        timeLabel = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+      } else if (range === "24h" || range === "7d") {
+        timeLabel = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")} ${d.getDate()}/${d.getMonth() + 1}`;
+      } else {
+        timeLabel = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
+      }
 
       const rawFreeHeap = r.diagnostics?.freeHeap ?? r.diagnostics?.free_heap;
 
@@ -376,7 +514,7 @@ export function GspTelemetryDashboard() {
         wifiRssi: r.diagnostics?.wifiRssi ?? r.diagnostics?.wifi_rssi,
       };
     });
-  }, [historyRecords, range]);
+  }, [historyRecords, range, filterMode]);
 
   // Thống kê Min, Max, Avg từ dữ liệu đang vẽ
   const stats = useMemo(() => {
@@ -983,78 +1121,217 @@ export function GspTelemetryDashboard() {
 
       {/* ── PHẦN 3: MASTER DETAILED CHART (BIỂU ĐỒ CHI TIẾT TƯƠNG TÁC) ── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 lg:p-6 shadow-xs flex flex-col gap-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-100 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-teal-600" />
-              <h2 className="text-base font-bold text-slate-900">
-                {viewMode === "climate"
-                  ? "Biểu Đồ Toàn Cảnh: Khí Hậu & Môi Trường Kho"
-                  : viewMode === "hardware"
-                  ? "Biểu Đồ Toàn Cảnh: Chẩn Đoán Phần Cứng ESP32-S3"
-                  : `Biểu Đồ Chi Tiết: ${METRIC_DEFINITIONS[selectedMetric].label} (${METRIC_DEFINITIONS[selectedMetric].unit})`}
-              </h2>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                {range === "5m" ? "Realtime 1Hz" : range === "1h" ? "1 Giờ" : range === "24h" ? "24 Giờ" : "7 Ngày"}
-              </span>
+        <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-teal-600" />
+                <h2 className="text-base font-bold text-slate-900">
+                  {viewMode === "climate"
+                    ? "Biểu Đồ Toàn Cảnh: Khí Hậu & Môi Trường Kho"
+                    : viewMode === "hardware"
+                    ? "Biểu Đồ Toàn Cảnh: Chẩn Đoán Phần Cứng ESP32-S3"
+                    : `Biểu Đồ Chi Tiết: ${METRIC_DEFINITIONS[selectedMetric].label} (${METRIC_DEFINITIONS[selectedMetric].unit})`}
+                </h2>
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                  {filterMode === "past_date"
+                    ? `Ngày: ${new Date(selectedPastDate).toLocaleDateString("vi-VN")}`
+                    : range === "5m"
+                    ? "Realtime 1Hz"
+                    : range === "1h"
+                    ? "1 Giờ"
+                    : range === "24h"
+                    ? "24 Giờ"
+                    : "7 Ngày"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                <span>Trạm quan trắc:</span>
+                {stations.length > 1 ? (
+                  <select
+                    value={selectedStationId}
+                    onChange={(e) => setSelectedStationId(e.target.value)}
+                    className="text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-0.5 cursor-pointer"
+                  >
+                    {stations.map((st) => (
+                      <option key={st.deviceId} value={st.deviceId}>
+                        {st.name} ({st.deviceId})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <strong className="text-slate-700 font-mono">
+                    {station?.name || "Kho Tổng CENTRAL_WH"} ({selectedStationId || station?.deviceId || "CENTRAL_WH"})
+                  </strong>
+                )}
+              </p>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Dữ liệu chuỗi thời gian thực tế thu thập từ trạm ESP32-S3 tại kho tổng CENTRAL_WH.
-            </p>
+
+            {/* View Mode Buttons */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
+                <button
+                  onClick={() => setViewMode("climate")}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    viewMode === "climate"
+                      ? "bg-white text-slate-900 font-semibold shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Khí Hậu
+                </button>
+                <button
+                  onClick={() => setViewMode("hardware")}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    viewMode === "hardware"
+                      ? "bg-white text-slate-900 font-semibold shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Phần Cứng
+                </button>
+                <button
+                  onClick={() => setViewMode("single")}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    viewMode === "single"
+                      ? "bg-white text-slate-900 font-semibold shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Đơn Lẻ
+                </button>
+              </div>
+
+              {/* Nút Xuất Báo Cáo CSV */}
+              <button
+                onClick={handleExportCsv}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 flex items-center gap-1.5 text-xs font-medium transition-all cursor-pointer"
+                title="Tải toàn bộ dữ liệu đang xem dạng file CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden sm:inline">Xuất CSV</span>
+              </button>
+            </div>
           </div>
 
-          {/* Controls: Chế độ xem & Dải thời gian */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {/* View Mode Buttons */}
-            <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
-              <button
-                onClick={() => setViewMode("climate")}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                  viewMode === "climate"
-                    ? "bg-white text-slate-900 font-semibold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Khí Hậu
-              </button>
-              <button
-                onClick={() => setViewMode("hardware")}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                  viewMode === "hardware"
-                    ? "bg-white text-slate-900 font-semibold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Phần Cứng
-              </button>
-              <button
-                onClick={() => setViewMode("single")}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                  viewMode === "single"
-                    ? "bg-white text-slate-900 font-semibold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Đơn Lẻ
-              </button>
-            </div>
-
-            {/* Time Range Selector */}
-            <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
-              {(["5m", "1h", "24h", "7d"] as const).map((r) => (
+          {/* Hàng điều khiển thời gian: Tab Gần Đây vs Lịch Sử Quá Khứ */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100/70">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
                 <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                    range === r
+                  onClick={() => setFilterMode("recent")}
+                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    filterMode === "recent"
                       ? "bg-teal-600 text-white font-semibold shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  {r === "5m" ? "5 Phút" : r === "1h" ? "1 Giờ" : r === "24h" ? "24 Giờ" : "7 Ngày"}
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Gần Đây</span>
                 </button>
-              ))}
+                <button
+                  onClick={() => setFilterMode("past_date")}
+                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    filterMode === "past_date"
+                      ? "bg-teal-600 text-white font-semibold shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Xem Ngày Quá Khứ</span>
+                </button>
+              </div>
+
+              {filterMode === "recent" ? (
+                /* Preset thời gian gần đây */
+                <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
+                  {(["5m", "1h", "24h", "7d"] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRange(r)}
+                      className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                        range === r
+                          ? "bg-white text-teal-700 font-semibold shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {r === "5m" ? "5 Phút" : r === "1h" ? "1 Giờ" : r === "24h" ? "24 Giờ" : "7 Ngày"}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* Bộ chọn ngày trong quá khứ */
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs gap-1.5 text-xs">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="date"
+                      value={selectedPastDate}
+                      max={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setSelectedPastDate(e.target.value)}
+                      className="text-xs font-mono font-semibold text-slate-800 bg-transparent outline-none cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 text-xs">
+                    <button
+                      onClick={() => setSelectedPastDate(new Date().toISOString().split("T")[0])}
+                      className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition-all cursor-pointer ${
+                        selectedPastDate === new Date().toISOString().split("T")[0]
+                          ? "bg-teal-50 border-teal-200 text-teal-700 font-bold"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      Hôm nay
+                    </button>
+                    <button
+                      onClick={() => {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        setSelectedPastDate(yesterday.toISOString().split("T")[0]);
+                      }}
+                      className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-[11px] font-medium transition-all cursor-pointer"
+                    >
+                      Hôm qua
+                    </button>
+                    <button
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() - 2);
+                        setSelectedPastDate(d.toISOString().split("T")[0]);
+                      }}
+                      className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-[11px] font-medium transition-all cursor-pointer"
+                    >
+                      2 ngày trước
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Thanh tóm tắt nhanh kỳ xem (Period Stats Strip) */}
+            {periodStats && (
+              <div className="flex items-center gap-2 text-xs font-mono text-slate-500 overflow-x-auto">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 whitespace-nowrap">
+                  Mẫu: <strong>{periodStats.count}</strong>
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100 whitespace-nowrap">
+                  T: <strong>{periodStats.minTemp.toFixed(1)}</strong> ~ <strong>{periodStats.maxTemp.toFixed(1)}°C</strong> (TB {periodStats.avgTemp.toFixed(1)}°)
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-800 border border-cyan-100 whitespace-nowrap">
+                  H: <strong>{periodStats.minHum.toFixed(1)}</strong> ~ <strong>{periodStats.maxHum.toFixed(1)}%</strong>
+                </span>
+                {periodStats.alertCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-bold whitespace-nowrap">
+                    ⚠️ {periodStats.alertCount} vi phạm
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 whitespace-nowrap">
+                    ✓ Đạt chuẩn GSP
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

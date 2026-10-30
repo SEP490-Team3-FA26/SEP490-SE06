@@ -60,7 +60,7 @@ export const reportService = {
   },
 
   trainAiForecast: async (epochs: number = 60, batchSize: number = 64) => {
-    const res = await api.post(API_ENDPOINTS.AI.FORECAST_TRAIN, { epochs, batch_size: batchSize });
+    const res = await api.post(`${API_ENDPOINTS.REPORTS.AI_FORECAST}/train`, { epochs, batch_size: batchSize });
     return res.data;
   },
 

@@ -20,6 +20,13 @@ export class S3StorageService {
   private readonly logger = new Logger(S3StorageService.name);
   private readonly s3 = new S3Client({
     region: process.env.AWS_REGION || 'ap-southeast-1',
+    credentials:
+      process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+        ? {
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+          }
+        : undefined,
   });
   private readonly bucket = process.env.S3_IMAGES_BUCKET;
 
@@ -95,13 +102,8 @@ export class S3StorageService {
         err.message?.includes('Credentials') || 
         err.name?.includes('Credentials')
       ) {
-        this.logger.warn(`AWS Credentials not loaded. Falling back to local filesystem storage for key: ${key}`);
-        const fs = require('fs');
-        const path = require('path');
-        const localPath = path.join(process.cwd(), 'public', key);
-        fs.mkdirSync(path.dirname(localPath), { recursive: true });
-        fs.writeFileSync(localPath, buffer);
-        this.logger.log(`Successfully saved fallback local file to: ${localPath}`);
+        // Tuân thủ quy định dự án: Tuyệt đối CẤM lưu file vật lý vào ổ đĩa cục bộ
+        this.logger.warn(`AWS Credentials chưa được cấu hình cho key: ${key}. Bỏ qua lưu trữ cục bộ.`);
       } else {
         throw err;
       }

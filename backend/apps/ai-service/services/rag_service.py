@@ -108,122 +108,113 @@ VIETNAMESE_STOPWORDS = {
     "cai", "cái", "con", "nguoi", "người", "loai", "loại", "ti", "tí", "chut", "chút"
 }
 
-# Tu dien anh xa trieu chung lam sang sang tu khoa y hoc va thuoc thuc te
-SYMPTOM_KNOWLEDGE_BASE = [
-    {
-        "patterns": ["đau đầu", "nhức đầu", "đau nửa đầu", "dau dau", "nhuc dau", "headache", "migraine"],
-        "keywords": ["đau đầu", "giảm đau", "hạ sốt", "paracetamol", "panadol", "hapacol", "efferalgan", "ibuprofen", "actadol", "tovalgan"],
-        "prefer_oral": True,
-        "penalize_external": True,
-    },
-    {
-        "patterns": ["sốt", "hạ sốt", "nhiệt độ cao", "sot", "nong dau", "fever"],
-        "keywords": ["hạ sốt", "giảm đau", "paracetamol", "panadol", "hapacol", "efferalgan", "ibuprofen", "actadol"],
-        "prefer_oral": True,
-        "penalize_external": True,
-    },
-    {
-        "patterns": ["ho", "đau họng", "rát họng", "viêm họng", "dau hong", "rat hong", "viem hong", "cough", "sore throat"],
-        "keywords": ["viêm họng", "đau họng", "giảm ho", "siro ho", "viên ngậm", "dextromethorphan", "bromhexin", "strepsils", "eugica", "bổ phế", "prospan"],
-        "prefer_oral": True,
-        "penalize_external": True,
-    },
-    {
-        "patterns": ["sổ mũi", "nghẹt mũi", "chảy nước mũi", "cảm cúm", "so mui", "nghet mui", "cam cum", "hắt hơi", "hat hoi", "flu"],
-        "keywords": ["sổ mũi", "nghẹt mũi", "cảm cúm", "clorpheniramin", "decolgen", "tiffy", "nước muối sinh lý", "rhinotrophyl", "otrivin"],
-        "prefer_oral": False,
-        "penalize_external": False,
-    },
-    {
-        "patterns": ["đau dạ dày", "đau bao tử", "trào ngược", "ợ chua", "đau thượng vị", "dau da day", "dau bao tu", "trao nguoc", "stomach"],
-        "keywords": ["dạ dày", "antacid", "kháng acid", "omeprazole", "phosphalugel", "yumangel", "pantoprazole", "gaviscon", "rabeprazole", "esomeprazole"],
-        "prefer_oral": True,
-        "penalize_external": True,
-    },
-    {
-        "patterns": ["tiêu chảy", "đi ngoài", "đau bụng đi ngoài", "tieu chay", "di ngoai", "diarrhea"],
-        "keywords": ["tiêu chảy", "men vi sinh", "oresol", "berberin", "smecta", "loperamid", "hidrasec"],
-        "prefer_oral": True,
-        "penalize_external": True,
-    },
-    {
-        "patterns": ["dị ứng", "mề đay", "ngứa", "phát ban", "di ung", "me day", "ngua", "allergy"],
-        "keywords": ["dị ứng", "mề đay", "cetirizin", "loratadin", "fexofenadin", "clorpheniramin"],
-        "prefer_oral": False,
-        "penalize_external": False,
-    },
-    {
-        "patterns": ["đau cơ", "đau vai", "đau lưng", "xương khớp", "nhức mỏi", "dau lung", "dau vai", "dau co"],
-        "keywords": ["đau cơ", "đau vai", "xương khớp", "giảm đau cơ", "cao dán", "salonpas", "diclofenac", "glucosamine", "salonsip"],
-        "prefer_oral": False,
-        "penalize_external": False,
-    },
-    {
-        "patterns": ["mất ngủ", "khó ngủ", "stress", "căng thẳng", "mat ngu", "kho ngu", "insomnia"],
-        "keywords": ["mất ngủ", "dưỡng tâm", "an thần", "melatonin", "rotunda", "tim sen", "bình vôi"],
-        "prefer_oral": True,
-        "penalize_external": True,
-    },
-]
+# Nhập hàm gọi LLM JSON để phân tích triệu chứng lâm sàng bằng trí tuệ nhân tạo
+from services.llm_service import call_llm_json
+
+# Prompt chuẩn lâm sàng dành cho AI phân tích triệu chứng không phụ thuộc từ khóa cứng
+CLINICAL_INTENT_PROMPT = """Bạn là chuyên gia phân tích dược lý lâm sàng GPP tại Việt Nam.
+Hãy phân tích triệu chứng của người bệnh trong đoạn thoại/văn bản sau và trích xuất thông tin lâm sàng để tìm kiếm thuốc trong cơ sở dữ liệu kho nhà thuốc.
+Tuyệt đối không bị giới hạn bởi danh sách từ khóa cố định, hãy tư duy y khoa toàn diện cho MỌI loại bệnh và triệu chứng (tiêu hóa, dạ dày, đau bụng, cảm sốt, thần kinh, nha khoa, da liễu, mắt, tai mũi họng...).
+
+Trả về DUY NHẤT một chuỗi JSON hợp lệ theo cấu trúc:
+{
+  "symptoms": ["danh sách triệu chứng chính đã chuẩn hóa y khoa"],
+  "categories": ["tên danh mục thuốc liên quan trong kho, vd: Thuốc dạ dày, Thuốc tiêu hoá, Thuốc giảm đau kháng viêm, Thuốc chống dị ứng..."],
+  "active_ingredients": ["các hoạt chất thông dụng nhất theo Dược thư, vd: paracetamol, drotaverin, alverin, almagate, domperidone..."],
+  "brand_or_drug_names": ["các biệt dược OTC phổ biến tại Việt Nam, vd: panadol, hapacol, no-spa, spasfon, phosphalugel, yumangel, berberin..."],
+  "preferred_route": "oral" (uống) | "topical" (bôi/dán) | "ophthalmic" (mắt) | "nasal" (mũi) | "any",
+  "penalize_external": true (nếu bệnh nhân bị bệnh nội khoa, tiêu hóa, sốt... cần tránh tuyệt đối cao dán/dầu xoa) | false
+}"""
 
 
-def extract_search_intent(query: str):
+async def extract_clinical_intent_ai(query: str) -> dict:
     """
-    Phan tich y dinh nguoi dung de tim ra:
-    - Danh sach tu khoa tim kiem mo rong
-    - Che do uu tien thuoc uong hay dung ngoai
+    Sử dụng AI (Gemini 3.8 Flash / DeepSeek) để phân tích động triệu chứng:
+    - Hiểu ngôn ngữ tự nhiên, tiếng lóng, tiếng địa phương Việt Nam.
+    - Tự động suy luận nhóm dược lý, hoạt chất, biệt dược và dạng dùng tối ưu.
+    - Fallback về cơ chế tách từ nếu AI gặp sự cố mạng hoặc quota.
+    """
+    if not query or not query.strip():
+        return {
+            "symptoms": [],
+            "categories": ["Thuốc giảm đau kháng viêm", "Thuốc tiêu hoá"],
+            "active_ingredients": ["paracetamol"],
+            "brand_or_drug_names": ["panadol", "hapacol"],
+            "preferred_route": "oral",
+            "penalize_external": True,
+        }
+
+    try:
+        messages = [
+            {"role": "system", "content": CLINICAL_INTENT_PROMPT},
+            {"role": "user", "content": f"Đoạn thoại/triệu chứng của bệnh nhân: \"{query}\""}
+        ]
+        # Gọi LLM với temperature thấp để đảm bảo kết quả chính xác về dược lý
+        raw_content = await call_llm_json(messages, temperature=0.0)
+        import json
+        intent_data = json.loads(raw_content)
+        return {
+            "symptoms": intent_data.get("symptoms") or [],
+            "categories": intent_data.get("categories") or [],
+            "active_ingredients": intent_data.get("active_ingredients") or [],
+            "brand_or_drug_names": intent_data.get("brand_or_drug_names") or [],
+            "preferred_route": intent_data.get("preferred_route") or "oral",
+            "penalize_external": bool(intent_data.get("penalize_external", True)),
+        }
+    except Exception as exc:
+        print(f"[Warning] [RAG] AI clinical extraction that bai, dung fallback tu khoa: {exc}")
+        return extract_search_intent_fallback(query)
+
+
+def extract_search_intent_fallback(query: str) -> dict:
+    """
+    Cơ chế dự phòng khẩn cấp bằng tách từ thuần túy khi không kết nối được LLM.
     """
     query_lower = query.lower().strip()
-    query_stripped = strip_accents(query_lower)
-
-    matched_keywords = []
-    prefer_oral = False
-    penalize_external = False
-
-    for item in SYMPTOM_KNOWLEDGE_BASE:
-        for pat in item["patterns"]:
-            pat_clean = pat.lower()
-            pat_stripped = strip_accents(pat_clean)
-            if pat_clean in query_lower or pat_stripped in query_stripped:
-                matched_keywords.extend(item["keywords"])
-                if item.get("prefer_oral"):
-                    prefer_oral = True
-                if item.get("penalize_external"):
-                    penalize_external = True
-                break
-
-    # Loc tokens ngu canh tu cau nguoi dung (bo stopwords)
     clean_words = re.sub(r"[^a-zA-Z0-9\s\u00C0-\u1EF9]", " ", query_lower).split()
     user_meaningful_tokens = [
         w for w in clean_words
         if len(w) >= 2 and w not in VIETNAMESE_STOPWORDS and strip_accents(w) not in VIETNAMESE_STOPWORDS
     ]
 
-    # Ket hop keywords
-    all_search_terms = list(dict.fromkeys(matched_keywords + user_meaningful_tokens))
-    if not all_search_terms:
-        all_search_terms = user_meaningful_tokens if user_meaningful_tokens else [query_lower]
+    # Nhận diện cơ bản đau bụng hoặc tiêu hóa
+    is_internal_pain = any(w in query_lower for w in ["bụng", "bung", "bao tử", "dạ dày", "da day", "sốt", "sot", "tiêu chảy"])
 
     return {
-        "search_terms": all_search_terms,
-        "prefer_oral": prefer_oral,
-        "penalize_external": penalize_external,
-        "user_tokens": user_meaningful_tokens,
+        "symptoms": user_meaningful_tokens,
+        "categories": ["Thuốc tiêu hoá", "Thuốc dạ dày", "Thuốc giảm đau kháng viêm"] if is_internal_pain else [],
+        "active_ingredients": ["drotaverin", "alverin", "paracetamol"] if is_internal_pain else [],
+        "brand_or_drug_names": ["no-spa", "spasfon", "phosphalugel", "panadol"] if is_internal_pain else [],
+        "preferred_route": "oral" if is_internal_pain else "any",
+        "penalize_external": is_internal_pain,
     }
 
 
 async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | None = None) -> str:
     """
-    Tim kiem ngu canh y te & danh sach thuoc thuc te tu MongoDB/Qdrant
-    Ket hop tim kiem theo y dinh lam sang, tinh diem do phu hop (Relevance Scoring)
-    va ho tro danh sach ton kho theo chi nhanh (Branch Inventory Awareness).
+    Tìm kiếm ngữ cảnh y tế & danh sách thuốc thực tế từ MongoDB/Qdrant:
+    1. Dùng AI phân tích động triệu chứng, danh mục, hoạt chất và biệt dược.
+    2. Truy vấn song song MongoDB Atlas với bộ điều kiện mở rộng.
+    3. Chấm điểm dược lý (Relevance Scoring): Ưu tiên thuốc còn hàng tại chi nhánh,
+       ưu tiên dạng uống cho nội khoa, loại trừ tuyệt đối cao dán/dầu xoa cho đau bụng/tiêu hóa.
     """
     context_parts = []
     seen_names = set()
 
     branch_stock_map = get_branch_stock_map(branch_id) if branch_id else {}
 
-    # 1. Thu tim Vector DB qua Qdrant neu collection ton tai va co du lieu
+    # Bước 1: Trích xuất thông tin lâm sàng bằng AI
+    intent = await extract_clinical_intent_ai(query)
+    search_terms = list(dict.fromkeys(
+        intent.get("brand_or_drug_names", []) +
+        intent.get("active_ingredients", []) +
+        intent.get("symptoms", [])
+    ))
+    categories = intent.get("categories", [])
+    preferred_route = intent.get("preferred_route", "oral")
+    penalize_external = intent.get("penalize_external", True)
+
+    # Bước 2: Thử tìm Vector DB qua Qdrant nếu có
     if qdrant is not None:
         try:
             if qdrant.collection_exists(QDRANT_COLLECTION):
@@ -264,28 +255,49 @@ async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | 
         except Exception:
             pass
 
-    # 2. Truy van thong minh truc tiep tu MongoDB (Single Source of Truth)
+    # Bước 3: Truy vấn thông minh trực tiếp từ MongoDB Atlas (Single Source of Truth)
     try:
         col = _get_mongo_medicines_collection()
         if col is not None:
-            intent = extract_search_intent(query)
-            search_terms = intent["search_terms"]
-            prefer_oral = intent["prefer_oral"]
-            penalize_external = intent["penalize_external"]
-            user_tokens = intent["user_tokens"]
+            term_pattern = "|".join(re.escape(t) for t in search_terms if len(t) >= 2)
+            cat_pattern = "|".join(re.escape(c) for c in categories if len(c) >= 2)
 
-            # Tao bieu thuc regex tim kiem da truong
-            regex_pattern = "|".join(re.escape(t) for t in search_terms[:12])
-            or_conditions = [
-                {"name": {"$regex": regex_pattern, "$options": "i"}},
-                {"active_ingredient": {"$regex": regex_pattern, "$options": "i"}},
-                {"category": {"$regex": regex_pattern, "$options": "i"}},
-                {"thong_tin_chi_tiet.Thành phần": {"$regex": regex_pattern, "$options": "i"}},
-                {"thong_tin_chi_tiet.Chỉ định": {"$regex": regex_pattern, "$options": "i"}},
-            ]
+            or_conditions = []
+            if term_pattern:
+                or_conditions.extend([
+                    {"name": {"$regex": term_pattern, "$options": "i"}},
+                    {"active_ingredient": {"$regex": term_pattern, "$options": "i"}},
+                    {"thong_tin_chi_tiet.Thành phần": {"$regex": term_pattern, "$options": "i"}},
+                    {"thong_tin_chi_tiet.Chỉ định": {"$regex": term_pattern, "$options": "i"}},
+                ])
+            if cat_pattern:
+                or_conditions.append({"category": {"$regex": cat_pattern, "$options": "i"}})
 
-            # Lay tap hop ung vien lon hon de cham diem phan loai
-            candidates = list(col.find({"$or": or_conditions}).limit(50))
+            if not or_conditions:
+                clean_tokens = [w for w in re.sub(r"[^a-zA-Z0-9\s\u00C0-\u1EF9]", " ", query).split() if len(w) >= 2 and w not in VIETNAMESE_STOPWORDS]
+                safe_pattern = "|".join(re.escape(t) for t in clean_tokens[:8])
+                if safe_pattern:
+                    or_conditions.append({"name": {"$regex": safe_pattern, "$options": "i"}})
+
+            # Lấy tập hợp ứng viên từ truy vấn động
+            candidates = list(col.find({"$or": or_conditions}).limit(50)) if or_conditions else []
+
+            # Ưu tiên đặc biệt: Nạp trực tiếp các thuốc đang CÒN HÀNG tại chi nhánh này vào ứng viên
+            if branch_stock_map:
+                in_stock_ids = [ObjectId(k) for k in branch_stock_map.keys() if len(k) == 24 and branch_stock_map[k] > 0]
+                if in_stock_ids:
+                    branch_meds = list(col.find({"_id": {"$in": in_stock_ids}}))
+                    candidates.extend(branch_meds)
+
+            # Nếu không tìm thấy thuốc nào khớp, tìm các thuốc giảm đau/dạ dày/tiêu hóa thông dụng trong kho
+            if not candidates:
+                fallback_pat = "paracetamol|berberin|phosphalugel|yumangel|drotaverin|panadol"
+                candidates = list(col.find({
+                    "$or": [
+                        {"name": {"$regex": fallback_pat, "$options": "i"}},
+                        {"active_ingredient": {"$regex": fallback_pat, "$options": "i"}},
+                    ]
+                }).limit(15))
 
             scored_drugs = []
             for doc in candidates:
@@ -304,33 +316,45 @@ async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | 
 
                 score = 0
 
-                # 1. Cong diem neu khop truc tiep tu khoa y te nguoi dung
-                for ut in user_tokens:
-                    ut_lower = ut.lower()
-                    if ut_lower in name_lower:
-                        score += 25
-                    if ut_lower in indications:
+                # 1. Chấm điểm khớp từ khóa lâm sàng và hoạt chất
+                for t in search_terms:
+                    t_l = t.lower()
+                    if t_l in name_lower:
+                        score += 35
+                    if t_l in active:
+                        score += 30
+                    if t_l in indications:
                         score += 20
-                    if ut_lower in active:
+                    if t_l in category:
                         score += 15
 
-                # 2. Cong diem khop cac keywords mo rong
-                for kw in search_terms:
-                    kw_lower = kw.lower()
-                    if kw_lower in name_lower:
-                        score += 10
-                    if kw_lower in active:
-                        score += 8
-                    if kw_lower in category:
-                        score += 6
-                    if kw_lower in indications:
-                        score += 5
+                for cat in categories:
+                    if cat.lower() in category:
+                        score += 20
 
-                # 3. Kiem tra ton kho (theo chi nhanh neu co, hoac kho tong)
+                # 2. Kiểm tra dạng dùng (Phân biệt đường uống vs cao dán ngoài da vs tiêm)
+                is_oral = any(w in form or w in name_lower for w in ["viên", "nén", "sủi", "gói", "uống", "siro", "capsule", "tablet", "hỗn dịch", "nang"])
+                is_external = any(w in category or w in form or w in name_lower for w in ["dán", "cao dán", "miếng dán", "dầu xoa", "kem bôi", "rửa", "cao xoa"])
+                is_injection = "tiêm" in category or "tiêm" in form
+
+                if preferred_route == "oral" or penalize_external:
+                    if is_oral:
+                        score += 50
+                    if is_external:
+                        score -= 100  # Trừ điểm nặng cao dán/dầu xoa bóp khi bệnh nhân bị bệnh nội khoa/đau bụng/tiêu hóa
+                    if is_injection:
+                        score -= 80   # Không ưu tiên thuốc tiêm cho bán lẻ thông thường
+                elif preferred_route == "topical":
+                    if is_external:
+                        score += 50
+                    if is_oral:
+                        score += 10
+
+                # 3. Kiểm tra tồn kho tại chi nhánh (Branch Inventory Awareness)
                 if branch_id and branch_stock_map:
                     branch_stock = branch_stock_map.get(mid, 0)
                     if branch_stock > 0:
-                        score += 30  # Uu tien rat cao thuoc dang co san tai chi nhanh
+                        score += 40  # Ưu tiên rất cao thuốc đang có sẵn tại chi nhánh
                         stock_label = f"[CÒN HÀNG TẠI CHI NHÁNH {branch_id}] - Tồn: {branch_stock} {unit}"
                     else:
                         score -= 10
@@ -338,21 +362,11 @@ async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | 
                 else:
                     stock = doc.get("stock") or doc.get("stock_quantity") or 0
                     if stock > 0:
-                        score += 10
-                        stock_label = f"Còn {stock} sản phẩm"
+                        score += 15
+                        stock_label = f"Còn {stock} {unit}"
                     else:
                         score -= 5
                         stock_label = "Tạm hết hàng"
-
-                # 4. Uu tien dang thuoc uong cho benh noi khoa (dau dau, sot, da day, tieu chay...)
-                is_oral = any(w in form or w in name_lower for w in ["viên", "nén", "sủi", "gói", "uống", "siro", "capsule", "tablet"])
-                is_external = any(w in category or w in form or w in name_lower for w in ["dán", "cao dán", "miếng dán", "dầu xoa", "kem bôi", "rửa"])
-
-                if prefer_oral:
-                    if is_oral:
-                        score += 20
-                    if penalize_external and is_external:
-                        score -= 50  # Tru nang neu dang bi dau dau/sot ma dua cao dan co
 
                 scored_drugs.append({
                     "doc": doc,
@@ -361,33 +375,33 @@ async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | 
                     "active": active,
                     "category": category,
                     "indications": indications,
-                    "dosage": details.get("Liều dùng") or doc.get("default_dosage") or "Theo huong dan nha san xuat",
-                    "contra": details.get("Chống chỉ định") or doc.get("contraindications") or "Khong ro",
-                    "form": form or "Thuoc",
+                    "dosage": details.get("Liều dùng") or doc.get("default_dosage") or "Theo hướng dẫn của bác sĩ/dược sĩ",
+                    "contra": details.get("Chống chỉ định") or doc.get("contraindications") or "Xem chi tiết trên bao bì",
+                    "form": form or "Thuốc",
                     "stock_label": stock_label,
                 })
 
-            # Sap xep theo diem so giam dan
+            # Sắp xếp theo điểm số giảm dần
             scored_drugs.sort(key=lambda x: x["score"], reverse=True)
 
-            # Chon top K loai thuoc co diem cao nhat
+            # Chọn top K loại thuốc có điểm cao nhất
             top_medicines = scored_drugs[:top_k]
 
             mongo_parts = []
             for item in top_medicines:
                 mongo_parts.append(
-                    f"**{item['name']}** (Hoạt chất: {item['active'] or 'Theo nhan hang'})\n"
+                    f"**{item['name']}** (Hoạt chất: {item['active'] or 'Theo nhãn hàng'})\n"
                     f"- Danh mục & Dạng bào chế: {item['category']} | {item['form']}\n"
                     f"- TÌNH TRẠNG KHO: {item['stock_label']}\n"
-                    f"- Chỉ định điều trị: {item['indications'] or 'Chi tiet tren bao bi san pham'}\n"
+                    f"- Chỉ định điều trị: {item['indications'] or 'Chi tiết trên bao bì sản phẩm'}\n"
                     f"- Liều dùng khuyến nghị: {item['dosage']}\n"
                     f"- Chống chỉ định: {item['contra']}"
                 )
 
-            # Ket hop ket qua
             if mongo_parts:
                 context_parts = mongo_parts
     except Exception as exc:
         print(f"[Warning] [RAG] Smart retrieval error: {exc}")
 
     return "\n\n".join(context_parts)
+

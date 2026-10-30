@@ -64,9 +64,10 @@ const specialtyPresets = [
 
 interface PrescriptionViewProps {
   showToast: (message: string, type?: "success" | "error" | "warning") => void;
+  isShiftActive?: boolean;
 }
 
-export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
+export default function PrescriptionView({ showToast, isShiftActive = true }: PrescriptionViewProps) {
   const [prescriptionMode, setPrescriptionMode] = useState<"QR" | "MANUAL">("QR");
   const [prescriptionCode, setPrescriptionCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -572,6 +573,10 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
   };
 
   const finalizeSalesOrder = async (payload: any) => {
+    if (isShiftActive === false) {
+      showToast("Bạn chưa đến ca làm việc hoặc chưa điểm danh ca trực hôm nay qua ứng dụng di động!", "warning");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -786,9 +791,9 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
     }
   };
 
-  // Tinh toan tien don thuoc
+  // Tính toán tiền đơn thuốc (Không áp dụng VIP ảo nếu chưa có hồ sơ thành viên)
   const subtotal = prescriptionItems.reduce((sum: number, it: any) => sum + (it.price * it.quantity), 0);
-  const vipDiscount = Math.round(subtotal * 0.05); // 5% discount
+  const vipDiscount = 0; // Đơn kê đơn không áp dụng VIP tự động
   const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
   const vat = Math.round(Math.max(0, subtotal - vipDiscount - voucherDiscount) * 0.08); // 8% VAT
   const total = Math.max(0, subtotal - vipDiscount - voucherDiscount + vat);
@@ -809,7 +814,13 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
 
     setIsValidatingVoucher(true);
     try {
-      const result = await voucherService.validateVoucher(code, subtotal);
+      const itemsPayload = prescriptionItems.map((it: any) => ({
+        medicineId: String(it.medicineId || it.id || it._id),
+        medicineName: it.name || it.medicineName || "",
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || it.salePrice || 0),
+      }));
+      const result = await voucherService.validateVoucher(code, subtotal, itemsPayload);
       if (result?.error) {
         setVoucherError(result.message || "Mã giảm giá không hợp lệ");
         setAppliedVoucher(null);
@@ -818,7 +829,7 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
 
       setAppliedVoucher(result);
       setVoucherCode("");
-      showToast(`Đã áp dụng mã ${result.code}`, "success");
+      showToast(result.message || `Đã áp dụng mã ${result.code}`, "success");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Không thể áp dụng mã giảm giá";
       setVoucherError(msg);
@@ -1468,10 +1479,12 @@ export default function PrescriptionView({ showToast }: PrescriptionViewProps) {
               <span>Tạm tính / Subtotal</span>
               <span className="font-bold text-slate-900">{subtotal.toLocaleString()}₫</span>
             </div>
-            <div className="flex justify-between items-center font-medium">
-              <span className="text-slate-600">Giảm giá VIP (5%)</span>
-              <span className="font-bold text-[#ba1a1a]">-{vipDiscount.toLocaleString()}₫</span>
-            </div>
+            {vipDiscount > 0 && (
+              <div className="flex justify-between items-center font-medium">
+                <span className="text-slate-600">Giảm giá VIP (5%)</span>
+                <span className="font-bold text-[#ba1a1a]">-{vipDiscount.toLocaleString()}₫</span>
+              </div>
+            )}
             {appliedVoucher && (
               <div className="flex justify-between items-center font-medium">
                 <span className="text-slate-600">Mã giảm giá ({appliedVoucher.code})</span>

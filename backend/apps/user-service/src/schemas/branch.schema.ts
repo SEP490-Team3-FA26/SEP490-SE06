@@ -70,6 +70,15 @@ export class Branch {
 
   @Prop({ type: [BranchAlert], default: [] })
   alerts: BranchAlert[];
+
+  @Prop({ type: Number, required: false })
+  latitude?: number;
+
+  @Prop({ type: Number, required: false })
+  longitude?: number;
+
+  @Prop({ default: 200 })
+  checkInRadiusMeters: number;
 }
 
 export const BranchSchema = SchemaFactory.createForClass(Branch);
