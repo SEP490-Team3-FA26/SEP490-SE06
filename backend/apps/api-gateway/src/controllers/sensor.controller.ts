@@ -13,8 +13,11 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { Request, Response } from 'express';
 import * as readline from 'readline';
+import * as crypto from 'crypto';
+import { Socket } from 'net';
 import { ClientKafka } from '@nestjs/microservices';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
@@ -24,22 +27,24 @@ import { PushNotificationService } from '../notification/push-notification.servi
 import { NotificationService } from '../notification/notification.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
-@ApiTags('🌡️ IoT Telemetry Sensor')
+@ApiTags('IoT Telemetry Sensor')
 @Controller('api/sensor')
 export class SensorController implements OnModuleInit {
   private readonly logger = new Logger(SensorController.name);
 
-  // Bộ đệm đếm số mẫu vi phạm liên tiếp (Debounce)
+  // Bộ đệm đếm số mẫu vi phạm liên tiếp nhằm debounce cảnh báo
   private readonly consecutiveViolations = new Map<string, number>();
 
-  // Bộ đệm mốc thời gian bắn push gần nhất (Cooldown - tối thiểu 30s)
+  // Cooldown tối thiểu 30s giữa các lần bắn push notification
   private readonly lastPushTimeMap = new Map<string, number>();
+  private upgradeHookAttached = false;
 
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
     private readonly wsGateway: AppWebsocketGateway,
     private readonly pushService: PushNotificationService,
     private readonly notificationService: NotificationService,
+    private readonly httpAdapterHost: HttpAdapterHost,
   ) {}
 
   async onModuleInit() {
@@ -48,13 +53,179 @@ export class SensorController implements OnModuleInit {
       'inventory.sensor.get_history',
       'inventory.sensor.get_stations',
     ]);
+
+    // Trì hoãn 1s để HTTP server và Socket.IO khởi tạo hoàn tất trước khi bọc listener
+    setTimeout(() => this.attachRawWebSocketTunnel(), 1000);
+  }
+
+  // =========================================================================
+  // ĐƯỜNG ỐNG WEBSOCKET TUNNEL (1 REQUEST DUY NHẤT SUỐT CẢ NGÀY CHO ESP32-S3)
+  // =========================================================================
+  private attachRawWebSocketTunnel() {
+    if (this.upgradeHookAttached) return;
+    const httpServer = this.httpAdapterHost?.httpAdapter?.getHttpServer();
+    if (!httpServer) return;
+
+    this.upgradeHookAttached = true;
+    const existingListeners = httpServer.listeners('upgrade');
+    httpServer.removeAllListeners('upgrade');
+
+    httpServer.on('upgrade', (req: any, socket: Socket, head: Buffer) => {
+      const url = String(req.url || '');
+      if (url.startsWith('/api/sensor')) {
+        this.handleEsp32WebSocketUpgrade(req, socket, head);
+      } else {
+        for (const listener of existingListeners) {
+          listener.call(httpServer, req, socket, head);
+        }
+      }
+    });
+
+    this.logger.log('[WS-Tunnel] Da kich hoat cong WebSocket 1-Request tai /api/sensor cho ESP32-S3');
+  }
+
+  private sendWsTextFrame(socket: Socket, text: string) {
+    if (socket.destroyed || !socket.writable) return;
+    const payload = Buffer.from(text, 'utf8');
+    const len = payload.length;
+    let header: Buffer;
+
+    if (len < 126) {
+      header = Buffer.from([0x81, len]);
+    } else if (len < 65536) {
+      header = Buffer.alloc(4);
+      header[0] = 0x81;
+      header[1] = 126;
+      header.writeUInt16BE(len, 2);
+    } else {
+      return;
+    }
+    socket.write(Buffer.concat([header, payload]));
+  }
+
+  private handleEsp32WebSocketUpgrade(req: any, socket: Socket, head: Buffer) {
+    const rawDeviceId = req.headers['x-device-id'] as string;
+    const deviceId = rawDeviceId ? String(rawDeviceId).trim() : '';
+    const DEVICE_ID_REGEX = /^[A-Za-z0-9_-]{4,32}$/;
+
+    if (!deviceId || !DEVICE_ID_REGEX.test(deviceId)) {
+      socket.write('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    const wsKey = req.headers['sec-websocket-key'];
+    if (!wsKey) {
+      socket.write('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    const acceptKey = crypto
+      .createHash('sha1')
+      .update(wsKey + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+      .digest('base64');
+
+    socket.setNoDelay(true);
+    socket.setKeepAlive(true, 15000);
+
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\n' +
+        'Upgrade: websocket\r\n' +
+        'Connection: Upgrade\r\n' +
+        `Sec-WebSocket-Accept: ${acceptKey}\r\n\r\n`,
+    );
+
+    this.logger.log(`[WS-Tunnel] Tram ${deviceId} da mo luong 1-Request WebSocket thanh cong`);
+
+    let rxBuffer = head && head.length > 0 ? Buffer.from(head) : Buffer.alloc(0);
+
+    socket.on('data', async (chunk: Buffer) => {
+      rxBuffer = Buffer.concat([rxBuffer, chunk]);
+
+      // Gioi han bo dem toi da 1MB de chong flood/DoS
+      if (rxBuffer.length > 1024 * 1024) {
+        socket.destroy();
+        return;
+      }
+
+      while (rxBuffer.length >= 2) {
+        const opcode = rxBuffer[0] & 0x0f;
+        const isMasked = (rxBuffer[1] & 0x80) !== 0;
+        let payloadLen = rxBuffer[1] & 0x7f;
+        let offset = 2;
+
+        if (payloadLen === 126) {
+          if (rxBuffer.length < 4) return;
+          payloadLen = rxBuffer.readUInt16BE(2);
+          offset = 4;
+        } else if (payloadLen === 127) {
+          if (rxBuffer.length < 10) return;
+          payloadLen = Number(rxBuffer.readBigUInt64BE(2));
+          offset = 10;
+        }
+
+        const maskOffset = offset;
+        if (isMasked) offset += 4;
+
+        if (rxBuffer.length < offset + payloadLen) {
+          return;
+        }
+
+        const payloadBuf = Buffer.from(rxBuffer.subarray(offset, offset + payloadLen));
+        if (isMasked) {
+          const mask = rxBuffer.subarray(maskOffset, maskOffset + 4);
+          for (let i = 0; i < payloadLen; i++) {
+            payloadBuf[i] ^= mask[i & 3];
+          }
+        }
+
+        rxBuffer = rxBuffer.subarray(offset + payloadLen);
+
+        if (opcode === 0x08) {
+          socket.end();
+          return;
+        } else if (opcode === 0x09) {
+          if (!socket.destroyed && socket.writable) {
+            socket.write(Buffer.from([0x8a, 0x00]));
+          }
+          continue;
+        } else if (opcode === 0x01 || opcode === 0x02) {
+          const jsonStr = payloadBuf.toString('utf8').trim();
+          if (!jsonStr) continue;
+
+          try {
+            const item = JSON.parse(jsonStr);
+            if (item.batch === true && Array.isArray(item.records)) {
+              const ack = await this.processBatchRecords(deviceId, item.records);
+              this.sendWsTextFrame(socket, JSON.stringify(ack) + '\n');
+            } else {
+              const ack = await this.processSingleRecord(deviceId, item);
+              this.sendWsTextFrame(socket, JSON.stringify(ack) + '\n');
+            }
+          } catch (err: any) {
+            this.sendWsTextFrame(
+              socket,
+              JSON.stringify({ status: 'client_error', message: err?.message }) + '\n',
+            );
+          }
+        }
+      }
+    });
+
+    socket.on('close', () => {
+      this.logger.log(`[WS-Tunnel] Tram ${deviceId} da dong ket noi WebSocket`);
+    });
+
+    socket.on('error', (err: any) => {
+      this.logger.warn(`[WS-Tunnel] Loi socket tu tram ${deviceId}: ${err?.message}`);
+    });
   }
 
   // =========================================================================
   // LOGIC ĐÁNH GIÁ CẢNH BÁO NHIỆT ĐỘ (HỎA HOẠN / QUÁ NHIỆT GSP)
   // =========================================================================
   private async evaluateTemperatureAlerts(deviceId: string, temp: number): Promise<void> {
-    // Chống rò rỉ bộ nhớ: khống chế tối đa 100 trạm trong bộ đệm RAM
     if (this.lastPushTimeMap.size > 100) this.lastPushTimeMap.clear();
     if (this.consecutiveViolations.size > 100) this.consecutiveViolations.clear();
 
@@ -70,7 +241,7 @@ export class SensorController implements OnModuleInit {
       if (isCooldownElapsed) {
         this.lastPushTimeMap.set(deviceId, nowMs);
         this.logger.error(
-          `[IOT FIRE EMERGENCY] Nhiệt độ kho ${temp}°C vượt ngưỡng hỏa hoạn (>= 60°C) -> Bắn chuông báo động hỏa hoạn khẩn cấp tới thủ kho`,
+          `[IOT FIRE EMERGENCY] Nhiet do kho ${temp}C vuot nguong hoa hoan (>= 60C) -> Ban chuong bao dong khan cap`,
         );
 
         this.pushService
@@ -87,7 +258,7 @@ export class SensorController implements OnModuleInit {
               threshold: '60',
             },
           })
-          .catch((e) => this.logger.error(`Lỗi gửi push fire emergency: ${e?.message}`));
+          .catch((e) => this.logger.error(`Loi gui push fire emergency: ${e?.message}`));
 
         this.notificationService
           .create({
@@ -95,7 +266,7 @@ export class SensorController implements OnModuleInit {
             targetRooms: ['warehouse', 'admin'],
             message: `NGUY CẤP: Phát hiện hỏa hoạn tại Kho Tổng! Nhiệt độ ${temp}°C vượt ngưỡng 60°C.`,
           })
-          .catch((e) => this.logger.warn(`Lỗi lưu notification DB: ${e?.message}`));
+          .catch((e) => this.logger.warn(`Loi luu notification DB: ${e?.message}`));
 
         this.pushService
           .recordIotAlert({
@@ -106,7 +277,7 @@ export class SensorController implements OnModuleInit {
             thresholdValue: 60,
             severity: 'EMERGENCY',
           })
-          .catch((e) => this.logger.warn(`Lỗi lưu iot_alert DB: ${e?.message}`));
+          .catch((e) => this.logger.warn(`Loi luu iot_alert DB: ${e?.message}`));
       }
     } else if (isOverTemp) {
       const count = (this.consecutiveViolations.get(deviceId) || 0) + 1;
@@ -120,7 +291,7 @@ export class SensorController implements OnModuleInit {
       if (isDebounced && isCooldownElapsed) {
         this.lastPushTimeMap.set(deviceId, nowMs);
         this.logger.warn(
-          `[IOT PUSH TRIGGERED] Nhiệt độ kho ${temp}°C vượt ngưỡng ${threshold}°C liên tục ${count}s -> Bắn push notification tới thủ kho`,
+          `[IOT PUSH TRIGGERED] Nhiet do kho ${temp}C vuot nguong ${threshold}C lien tuc ${count}s -> Ban push alert`,
         );
 
         this.pushService
@@ -137,7 +308,7 @@ export class SensorController implements OnModuleInit {
               threshold: String(threshold),
             },
           })
-          .catch((e) => this.logger.error(`Lỗi gửi push alert: ${e?.message}`));
+          .catch((e) => this.logger.error(`Loi gui push alert: ${e?.message}`));
 
         this.notificationService
           .create({
@@ -145,7 +316,7 @@ export class SensorController implements OnModuleInit {
             targetRooms: ['warehouse', 'admin'],
             message: `Nhiệt độ Kho Tổng ${temp}°C đã vượt ngưỡng an toàn ${threshold}°C!`,
           })
-          .catch((e) => this.logger.warn(`Lỗi lưu notification DB: ${e?.message}`));
+          .catch((e) => this.logger.warn(`Loi luu notification DB: ${e?.message}`));
 
         this.pushService
           .recordIotAlert({
@@ -156,7 +327,7 @@ export class SensorController implements OnModuleInit {
             thresholdValue: threshold,
             severity: temp > threshold + 3.0 ? 'CRITICAL' : 'WARNING',
           })
-          .catch((e) => this.logger.warn(`Lỗi lưu iot_alert DB: ${e?.message}`));
+          .catch((e) => this.logger.warn(`Loi luu iot_alert DB: ${e?.message}`));
       }
     } else {
       this.consecutiveViolations.set(deviceId, 0);
@@ -183,7 +354,6 @@ export class SensorController implements OnModuleInit {
       receivedAt: new Date().toISOString(),
     };
 
-    // Đẩy Realtime ra WebSocket / SSE Dashboard
     if (this.wsGateway?.server) {
       this.wsGateway.server.emit('sensor:telemetry', {
         deviceId,
@@ -203,7 +373,6 @@ export class SensorController implements OnModuleInit {
     const temp = Number(normalizedRecord.metrics?.temperature ?? 0);
     await this.evaluateTemperatureAlerts(deviceId, temp);
 
-    // Bắn sự kiện vào Kafka để Inventory Service lưu MongoDB
     this.inventoryClient.emit('sensor.telemetry.ingest', JSON.stringify(kafkaPayload));
 
     return {
@@ -235,7 +404,6 @@ export class SensorController implements OnModuleInit {
 
     this.logger.log(`[Batch-Ingest] Received ${normalizedRecords.length} records from ${deviceId}`);
 
-    // Bắn record mới nhất ra WebSocket
     if (normalizedRecords.length > 0 && this.wsGateway?.server) {
       const latest = normalizedRecords[normalizedRecords.length - 1];
       this.wsGateway.server.emit('sensor:telemetry', {
@@ -272,7 +440,6 @@ export class SensorController implements OnModuleInit {
     const rawDeviceId = headerDeviceId || dto?.device_id || (req.headers['x-device-id'] as string);
     const deviceId = rawDeviceId ? String(rawDeviceId).trim() : '';
 
-    // Kiểm tra định dạng Device ID an toàn: chữ, số, dấu gạch nối/dưới, độ dài từ 4-32 ký tự
     const DEVICE_ID_REGEX = /^[A-Za-z0-9_-]{4,32}$/;
     if (!deviceId || !DEVICE_ID_REGEX.test(deviceId)) {
       return res.status(HttpStatus.BAD_REQUEST).json({
@@ -286,7 +453,7 @@ export class SensorController implements OnModuleInit {
       req.headers['x-stream-mode'] === 'true' ||
       String(req.headers['content-type'] || '').includes('x-ndjson');
 
-    // 1. CHẾ ĐỘ 1-REQUEST PERSISTENT STREAM (NDJSON CHUNKED TRANSFER)
+    // 1. Chế độ persistent stream (Transfer-Encoding: chunked)
     if (isStreamMode) {
       req.setTimeout(0);
       res.setTimeout(0);
@@ -297,6 +464,7 @@ export class SensorController implements OnModuleInit {
       res.setHeader('Transfer-Encoding', 'chunked');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('X-Accel-Buffering', 'no');
       if (typeof res.flushHeaders === 'function') {
         res.flushHeaders();
       }
@@ -308,7 +476,6 @@ export class SensorController implements OnModuleInit {
         crlfDelay: Infinity,
       });
 
-      // Helper ghi stream an toàn, triệt tiêu lỗi write-after-end
       const safeWriteStream = (data: string): boolean => {
         if (!res.writableEnded && !res.destroyed && res.writable) {
           try {
@@ -331,7 +498,12 @@ export class SensorController implements OnModuleInit {
         }
         try {
           const item = JSON.parse(trimmed);
-          const ack = await this.processSingleRecord(deviceId, item);
+          let ack: any;
+          if (item.batch === true && Array.isArray(item.records)) {
+            ack = await this.processBatchRecords(deviceId, item.records);
+          } else {
+            ack = await this.processSingleRecord(deviceId, item);
+          }
           safeWriteStream(JSON.stringify(ack) + '\n');
         } catch (err: any) {
           this.logger.error(`[Stream-Ingest] Parse error from ${deviceId}: ${err.message}`);
@@ -366,7 +538,7 @@ export class SensorController implements OnModuleInit {
       return;
     }
 
-    // 2. CHẾ ĐỘ HTTP POST THƯỜNG (HOẶC BATCH INGESTION)
+    // 2. Chế độ HTTP POST thường hoặc batch ingestion
     const isBatch = dto?.batch === true || headerBatchMode === 'true' || req.headers['x-batch-mode'] === 'true';
 
     if (isBatch) {
