@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ShoppingCart, Plus, Minus, Trash2, Tag, Zap } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, Minus, Trash2, Tag, Zap } from 'lucide-react';
 
 // --- Type Definitions ---
 
@@ -255,7 +255,7 @@ export function PosOrderCart({
             className="w-full mt-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-500/20"
           >
             {loading ? (
-              <span className="animate-spin w-4 h-4 border-2 border-white/40 border-t-white rounded-full" />
+              <Loader2 size={16} className="animate-spin text-white" />
             ) : (
               <Zap size={16} />
             )}

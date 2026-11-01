@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import {
+import { Loader2, 
   Search,
   Plus,
   Edit2,
@@ -372,7 +372,7 @@ export function BranchEmployees() {
       {/* Table */}
       {loading ? (
         <div className="flex items-center justify-center p-12 bg-white rounded-2xl border border-slate-200">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
         </div>
       ) : error ? (
         <div className="bg-rose-50 border border-rose-200 p-6 rounded-2xl text-center">

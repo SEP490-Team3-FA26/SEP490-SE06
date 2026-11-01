@@ -941,7 +941,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     value={patientName}
                     onChange={(e) => setPatientName(e.target.value)}
                     placeholder="Nguyễn Văn A"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                   />
                 </div>
                 <div>
@@ -951,7 +951,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     value={patientAge}
                     onChange={(e) => setPatientAge(e.target.value)}
                     placeholder="30"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                   />
                 </div>
                 <div>
@@ -959,7 +959,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   <select
                     value={patientGender}
                     onChange={(e) => setPatientGender(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                   >
                     <option>Nam</option>
                     <option>Nữ</option>
@@ -972,7 +972,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     value={patientPhone}
                     onChange={(e) => setPatientPhone(e.target.value)}
                     placeholder="09xx xxx xxx"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                   />
                 </div>
               </div>
@@ -985,7 +985,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     value={doctorName}
                     onChange={(e) => setDoctorName(e.target.value)}
                     placeholder="BS. Lê Văn B"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                   />
                 </div>
                 <div>
@@ -993,7 +993,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   <select
                     value={specialtyDropdownValue}
                     onChange={(e) => handleSpecialtyChange(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                   >
                     <option value="" disabled>-- Chọn chuyên khoa --</option>
                     {specialtyPresets.map(spec => (
@@ -1006,7 +1006,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       value={doctorSpecialty}
                       onChange={(e) => setDoctorSpecialty(e.target.value)}
                       placeholder="Nhập chuyên khoa khác..."
-                      className="w-full mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                      className="w-full mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                     />
                   )}
                 </div>
@@ -1015,7 +1015,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   <select
                     value={dropdownValue}
                     onChange={(e) => handleHospitalPresetChange(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                   >
                     <option value="" disabled>-- Chọn bệnh viện --</option>
                     {hospitalPresets.map(h => (
@@ -1028,7 +1028,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       value={hospitalName}
                       onChange={(e) => setHospitalName(e.target.value)}
                       placeholder="Nhập tên bệnh viện khác..."
-                      className="w-full mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                      className="w-full mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:bg-white focus:outline-none focus:border-emerald-600"
                     />
                   )}
                 </div>
@@ -1040,7 +1040,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     onChange={(e) => setHospitalCode(e.target.value)}
                     disabled={dropdownValue !== "CUSTOM" && dropdownValue !== ""}
                     placeholder="BM-1029"
-                    className={`w-full p-2.5 rounded-lg text-sm font-semibold focus:outline-none focus:border-[#0057cd] ${dropdownValue !== "CUSTOM" && dropdownValue !== ""
+                    className={`w-full p-2.5 rounded-lg text-sm font-semibold focus:outline-none focus:border-emerald-600 ${dropdownValue !== "CUSTOM" && dropdownValue !== ""
                       ? "bg-slate-100 text-slate-500 border-slate-250 cursor-not-allowed"
                       : "bg-slate-50 border border-slate-200 focus:bg-white"
                       }`}
@@ -1065,7 +1065,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-              {loading ? <Loader2 size={18} className="animate-spin text-[#0057cd]" /> : <SearchIcon size={18} />}
+              {loading ? <Loader2 size={18} className="animate-spin text-emerald-600" /> : <SearchIcon size={18} />}
             </div>
             <input
               type="text"
@@ -1142,7 +1142,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 setSelectedCategory(val);
                 searchMedicines(searchQuery, val, selectedClassification, stockFilter);
               }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="">Tất cả Nhóm thuốc</option>
               {categoriesList.map((cat) => (
@@ -1157,7 +1157,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 setSelectedClassification(val);
                 searchMedicines(searchQuery, selectedCategory, val, stockFilter);
               }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="">Tất cả Phân loại</option>
               <option value="PRESCRIPTION">Thuốc kê đơn (Rx)</option>
@@ -1172,7 +1172,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 setStockFilter(val);
                 searchMedicines(searchQuery, selectedCategory, selectedClassification, val);
               }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="ALL">Tất cả tồn kho</option>
               <option value="IN_STOCK">Còn hàng (Tồn &gt; 0)</option>
@@ -1378,7 +1378,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                                     ));
                                   }}
                                   placeholder="Ví dụ: Ngày uống 2 lần..."
-                                  className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0057cd] focus:border-[#0057cd] transition-all"
+                                  className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0057cd] focus:border-emerald-600 transition-all"
                                 />
                               </div>
                               {/* Quick select presets */}
@@ -1529,7 +1529,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 placeholder="Nhập mã voucher..."
                 value={voucherCode}
                 onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white transition-all uppercase"
+                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white transition-all uppercase"
               />
               <button
                 type="button"
@@ -1714,7 +1714,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
             <div className="p-6 flex flex-col gap-6 items-center">
               {isScanning ? (
                 /* Giao dien quet camera gia lap */
-                <div className="w-64 h-64 border-4 border-[#0057cd] rounded-3xl relative overflow-hidden bg-black flex items-center justify-center shadow-lg">
+                <div className="w-64 h-64 border-4 border-emerald-600 rounded-3xl relative overflow-hidden bg-black flex items-center justify-center shadow-lg">
                   <div className="w-56 h-56 border border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-700 text-xs gap-2 relative">
                     <QrCode size={120} className="text-slate-800 opacity-60 animate-pulse" />
                     <span className="font-bold text-[10px] text-slate-500 uppercase tracking-wider">Đang nhận diện: {scannedCode}</span>
@@ -1733,7 +1733,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   <div className="flex flex-col gap-3">
                     <button
                       onClick={() => handleScanSimulation("RX-99281-HAN")}
-                      className="w-full p-4 rounded-xl border border-blue-200 hover:bg-blue-50/50 hover:border-[#0057cd] transition-all text-left flex items-start gap-3.5 group"
+                      className="w-full p-4 rounded-xl border border-blue-200 hover:bg-blue-50/50 hover:border-emerald-600 transition-all text-left flex items-start gap-3.5 group"
                     >
                       <div className="p-2 bg-[#f2f3ff] text-[#0057cd] rounded-lg border border-blue-50 shrink-0 group-hover:bg-[#0057cd] group-hover:text-white transition-colors">
                         <QrCode size={20} />
@@ -1751,7 +1751,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
 
                     <button
                       onClick={() => handleScanSimulation("RX-112233-DNA")}
-                      className="w-full p-4 rounded-xl border border-slate-200 hover:bg-blue-50/50 hover:border-[#0057cd] transition-all text-left flex items-start gap-3.5 group"
+                      className="w-full p-4 rounded-xl border border-slate-200 hover:bg-blue-50/50 hover:border-emerald-600 transition-all text-left flex items-start gap-3.5 group"
                     >
                       <div className="p-2 bg-slate-100 text-slate-600 rounded-lg shrink-0 group-hover:bg-[#0057cd] group-hover:text-white transition-colors">
                         <QrCode size={20} />
@@ -1769,7 +1769,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
 
                     <button
                       onClick={() => handleScanSimulation("RX-445566-HCM")}
-                      className="w-full p-4 rounded-xl border border-slate-200 hover:bg-blue-50/50 hover:border-[#0057cd] transition-all text-left flex items-start gap-3.5 group"
+                      className="w-full p-4 rounded-xl border border-slate-200 hover:bg-blue-50/50 hover:border-emerald-600 transition-all text-left flex items-start gap-3.5 group"
                     >
                       <div className="p-2 bg-slate-100 text-slate-600 rounded-lg shrink-0 group-hover:bg-[#0057cd] group-hover:text-white transition-colors">
                         <QrCode size={20} />
@@ -2120,7 +2120,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               >
                 {aiLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <Loader2 size={16} className="animate-spin text-white" />
                     AI dang doc & khop du lieu kho...
                   </>
                 ) : (

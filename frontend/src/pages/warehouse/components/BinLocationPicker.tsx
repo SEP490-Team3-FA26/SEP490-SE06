@@ -203,7 +203,7 @@ export function BinLocationPicker({
       {/* Hiển thị trạng thái đang tra cứu */}
       {isLoading && (
         <div className="mt-2 p-2 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center gap-2 text-xs text-indigo-700 animate-pulse">
-          <Loader2 size={13} className="animate-spin text-indigo-600 shrink-0" />
+          <Loader2 size={13} className="animate-spin text-emerald-600 shrink-0" />
           <span>Hệ thống đang tự động xác định ô thùng quy hoạch của thuốc...</span>
         </div>
       )}

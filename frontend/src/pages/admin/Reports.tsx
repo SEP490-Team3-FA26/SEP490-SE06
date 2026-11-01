@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
-import { 
+import { Loader2,  
   Plus, BarChart3, FileText, LayoutDashboard, Package, 
   TrendingUp, ShoppingBag, Users, DollarSign, Activity, 
   AlertTriangle, Clock, RefreshCw, Building2, Sparkles
@@ -200,7 +200,7 @@ export function Reports() {
               className="p-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
               title="Làm mới tổng hợp"
             >
-              <RefreshCw size={18} className={loadingSummary ? "animate-spin" : ""} />
+              <Loader2 size={18} className={loadingSummary ? "animate-spin text-emerald-600" : ""} />
             </button>
           </div>
         )}
@@ -220,7 +220,7 @@ export function Reports() {
         <div className="space-y-6">
           {loadingSummary ? (
             <div className="h-64 flex flex-col items-center justify-center gap-3">
-              <RefreshCw size={36} className="animate-spin text-[#0057cd]" />
+              <Loader2 size={36} className="animate-spin text-emerald-600" />
               <p className="text-sm font-bold text-slate-500">Đang đồng bộ số liệu tổng hợp...</p>
             </div>
           ) : (
@@ -310,7 +310,7 @@ export function Reports() {
       {activeTab === "analytics" && (isAdmin || isBranch) && (
         <Suspense fallback={
           <div className="h-64 flex flex-col items-center justify-center gap-3">
-            <RefreshCw size={36} className="animate-spin text-[#0057cd]" />
+            <Loader2 size={36} className="animate-spin text-emerald-600" />
             <p className="text-sm font-bold text-slate-500">Đang tải phân tích doanh thu...</p>
           </div>
         }>
@@ -328,7 +328,7 @@ export function Reports() {
       {activeTab === "inventory" && (isAdmin || isBranch) && (
         <Suspense fallback={
           <div className="h-64 flex flex-col items-center justify-center gap-3">
-            <RefreshCw size={36} className="animate-spin text-[#0057cd]" />
+            <Loader2 size={36} className="animate-spin text-emerald-600" />
             <p className="text-sm font-bold text-slate-500">Đang tải phân tích tồn kho...</p>
           </div>
         }>
@@ -340,7 +340,7 @@ export function Reports() {
       {activeTab === "trends" && (isAdmin || isBranch) && (
         <Suspense fallback={
           <div className="h-64 flex flex-col items-center justify-center gap-3">
-            <RefreshCw size={36} className="animate-spin text-[#0057cd]" />
+            <Loader2 size={36} className="animate-spin text-emerald-600" />
             <p className="text-sm font-bold text-slate-500">Đang tải phân tích xu hướng mùa vụ bằng AI...</p>
           </div>
         }>

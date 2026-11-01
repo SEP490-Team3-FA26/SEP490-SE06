@@ -562,7 +562,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                   value={grnRejectReason}
                   onChange={(event) => setGrnRejectReason(event.target.value)}
                   rows={4}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-[#0057cd] focus:ring-2 focus:ring-blue-100 resize-none"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-blue-100 resize-none"
                   placeholder={grnRejectAction === "reinspect" ? "VD: Số lượng thực nhận chưa khớp, yêu cầu thủ kho kiểm lại..." : "VD: Chứng từ không hợp lệ hoặc hàng không đạt yêu cầu..."}
                   autoFocus
                 />
@@ -654,7 +654,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
           <button
             onClick={() => setActiveSubTabHandler("grn")}
             className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 ${activeSubTab === "grn"
-                ? "border-[#0057cd] text-[#0057cd]"
+                ? "border-emerald-600 text-[#0057cd]"
                 : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
           >
@@ -664,7 +664,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
           <button
             onClick={() => setActiveSubTabHandler("po")}
             className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 ${activeSubTab === "po"
-                ? "border-[#0057cd] text-[#0057cd]"
+                ? "border-emerald-600 text-[#0057cd]"
                 : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
           >
@@ -691,7 +691,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
         <div className="overflow-x-auto flex-1">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+              <Loader2 className="animate-spin text-emerald-600" size={32} />
               <p className="text-slate-500 text-sm font-semibold">Đang tải dữ liệu từ máy chủ...</p>
             </div>
           ) : error ? (
@@ -1818,10 +1818,7 @@ function GoodsReceiptModal({ po, getMedicineName, onClose, onSuccess }: { po: an
           >
             {isSubmitting ? (
               <>
-                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
+                <Loader2 size={18} className="animate-spin text-white" />
                 Đang tạo phiên...
               </>
             ) : (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, MapPin, Users, Package, AlertTriangle, Clock, X, ChevronRight, Activity, RotateCcw, Building2, Bell, CheckCircle2 } from "lucide-react";
+import { Loader2, Search, MapPin, Users, Package, AlertTriangle, Clock, X, ChevronRight, Activity, RotateCcw, Building2, Bell, CheckCircle2 } from "lucide-react";
 import { branchService } from "../../services/admin/branch.service";
 import { employeeService, Employee } from "../../services/admin/employee.service";
 interface Branch {
@@ -139,7 +139,7 @@ export function Branches() {
          {loading ? (
             <div className="flex items-center justify-center p-12 bg-white rounded-2xl border border-slate-200">
                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+                  <Loader2 size={32} className="animate-spin text-emerald-600" />
                   <p className="text-sm font-semibold text-slate-500">Đang tải danh sách chi nhánh...</p>
                </div>
             </div>

@@ -88,7 +88,7 @@ export function WarehouseMapPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-slate-50 rounded-2xl p-6 m-6">
         <div className="w-16 h-16 rounded-2xl bg-sky-100 flex items-center justify-center mb-4 shadow-sm">
-          <Loader2 className="animate-spin text-sky-500" size={32} />
+          <Loader2 className="animate-spin text-emerald-600" size={32} />
         </div>
         <p className="text-slate-600 font-semibold text-sm">Đang tải sơ đồ kho...</p>
         <p className="text-slate-400 text-xs mt-1">Vui lòng chờ trong giây lát</p>
@@ -189,7 +189,7 @@ export function WarehouseMapPage() {
             className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all border border-slate-200 bg-white"
             title="Làm mới dữ liệu"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <Loader2 size={16} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </header>
@@ -254,7 +254,7 @@ export function WarehouseMapPage() {
           <Suspense
             fallback={
               <div className="w-full h-full flex items-center justify-center bg-[#EEF2F9] text-slate-500 text-xs font-semibold gap-2">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
                 Đang nạp mô hình kho 3D phòng sạch...
               </div>
             }

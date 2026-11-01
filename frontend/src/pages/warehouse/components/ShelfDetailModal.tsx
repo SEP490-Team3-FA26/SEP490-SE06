@@ -19,7 +19,7 @@ interface ShelfDetailModalProps {
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string; icon?: React.ReactNode }> = {
   OUT_OF_STOCK: { label: "Hết hàng", bg: "bg-slate-100", text: "text-slate-500", border: "border-slate-200" },
-  EXPIRED: { label: "Hết hạn", bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300 font-bold", icon: <AlertTriangle size={11} className="text-rose-600" /> },
+  EXPIRED: { label: "Hết hạn", bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300 font-bold", icon: <AlertTriangle size={11} className="text-emerald-600" /> },
   NEAR_EXPIRY: { label: "Cận date", bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300 font-bold", icon: <Clock size={11} className="text-amber-600" /> },
   LOW_STOCK: { label: "Sắp hết hàng", bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200", icon: <AlertTriangle size={11} /> },
   NORMAL: { label: "An toàn", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle size={11} /> },
@@ -153,7 +153,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
-                  <MapPin size={12} className="text-sky-500" />
+                  <MapPin size={12} className="text-emerald-600" />
                   <span>Khu {zone === 'RESERVE' ? 'Dự Trữ (RESERVE)' : zone} · Kệ {rack} · Tầng {shelf} {isBinMode ? `· Thùng ${bin}` : ""}</span>
                   {medicineName && <span className="text-slate-400">• Đơn vị: <b className="text-slate-700">{unit}</b></span>}
                 </div>
@@ -225,7 +225,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
           <div className={`flex-1 overflow-auto bg-white custom-scrollbar ${isBinMode ? "p-6 space-y-6" : "p-0"}`}>
             {loading ? (
               <div className="flex flex-col items-center justify-center h-48 text-slate-400">
-                <Loader2 className="animate-spin mb-3 text-sky-500" size={32} />
+                <Loader2 className="animate-spin mb-3 text-emerald-600" size={32} />
                 <p className="text-xs font-medium text-slate-500">Đang tải dữ liệu chi tiết...</p>
               </div>
             ) : isBinMode ? (
@@ -365,8 +365,8 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                 <td className="px-4 py-3 text-slate-500">{unit}</td>
                                 <td className="px-4 py-3">
                                   {isExpired ? (
-                                    <div className="flex items-center gap-1.5 text-rose-600 font-bold">
-                                      <AlertTriangle size={13} className="text-rose-600 shrink-0" />
+                                    <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                                      <AlertTriangle size={13} className="text-emerald-600 shrink-0" />
                                       <span>
                                         {mb.expDate ? new Date(mb.expDate).toLocaleDateString("vi-VN") : "—"}
                                       </span>
@@ -557,7 +557,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                           ? "Cách ly"
                                           : "Hoạt động";
                                         const statusColor = isExp
-                                          ? "text-rose-600 font-semibold"
+                                          ? "text-emerald-600 font-semibold"
                                           : isNear
                                           ? "text-amber-600 font-semibold"
                                           : b.status === "QUARANTINED"
@@ -593,7 +593,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                                         batches: item.batches,
                                                       });
                                                     }}
-                                                    className="p-1 rounded-md text-rose-600 hover:bg-rose-100 transition cursor-pointer"
+                                                    className="p-1 rounded-md text-emerald-600 hover:bg-rose-100 transition cursor-pointer"
                                                     title="Xuất hủy lô thuốc hết hạn"
                                                   >
                                                     <Trash2 size={11} />
@@ -635,8 +635,8 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                             <td className="px-4 py-3 text-xs text-slate-500">{item.unit || "Hộp"}</td>
                             <td className="px-4 py-3">
                               {item.status === "EXPIRED" ? (
-                                <div className="flex items-center gap-1.5 text-xs text-rose-600 font-bold">
-                                  <AlertTriangle size={12} className="text-rose-600 shrink-0" />
+                                <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
+                                  <AlertTriangle size={12} className="text-emerald-600 shrink-0" />
                                   <span>{item.expDate}</span>
                                   <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 font-bold">
                                     Hết hạn
@@ -714,7 +714,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
           {/* Footer */}
           <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex justify-between items-center shrink-0 text-xs text-slate-600">
             <span className="flex items-center gap-1.5 font-medium">
-              <MapPin size={13} className="text-sky-500" />
+              <MapPin size={13} className="text-emerald-600" />
               Khu {zone} — Kệ {rack} — Tầng {shelf} {isBinMode ? `— Thùng ${bin}` : ""}
             </span>
             <span className="font-medium">

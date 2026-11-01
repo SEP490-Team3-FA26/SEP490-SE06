@@ -176,7 +176,7 @@ export function Profile() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+        <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
       </div>
     );
   }
@@ -248,7 +248,7 @@ export function Profile() {
         {isEditing ? (
           <form onSubmit={handleSaveProfile} className="space-y-4">
             {profileError && (
-              <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
+              <div className="bg-rose-50 border border-rose-200 text-emerald-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
                 <AlertCircle size={16} className="shrink-0" /> {profileError}
               </div>
             )}
@@ -397,7 +397,7 @@ export function Profile() {
               ) : (
                 <form onSubmit={handleChangePassword} className="space-y-4">
                   {passwordError && (
-                    <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl flex items-start gap-2 text-sm font-medium">
+                    <div className="bg-rose-50 border border-rose-200 text-emerald-600 px-4 py-3 rounded-xl flex items-start gap-2 text-sm font-medium">
                       <AlertCircle size={16} className="shrink-0 mt-0.5" /> {passwordError}
                     </div>
                   )}

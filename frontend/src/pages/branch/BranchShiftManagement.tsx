@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit2, CheckCircle2, X, AlertTriangle, Clock, Play, Square, Circle, MapPin } from "lucide-react";
+import { Loader2, Plus, Edit2, CheckCircle2, X, AlertTriangle, Clock, Play, Square, Circle, MapPin } from "lucide-react";
 import { hrService, WorkShift } from "../../services/hr/hr.service";
 import { BranchLocationModal } from "../../components/branch/BranchLocationModal";
 
@@ -122,7 +122,7 @@ export function BranchShiftManagement() {
 
       {loading ? (
         <div className="flex items-center justify-center p-12">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
         </div>
       ) : error ? (
         <div className="bg-rose-50 border border-rose-200 p-6 rounded-2xl text-center">
@@ -144,7 +144,7 @@ export function BranchShiftManagement() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {shifts.map(shift => (
-            <div key={shift._id} className={`bg-white rounded-2xl p-6 border shadow-sm transition-all ${shift.isActive ? 'border-slate-200 hover:border-[#0057cd]/30' : 'border-slate-200 opacity-60'}`}>
+            <div key={shift._id} className={`bg-white rounded-2xl p-6 border shadow-sm transition-all ${shift.isActive ? 'border-slate-200 hover:border-emerald-600/30' : 'border-slate-200 opacity-60'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 rounded-full" style={{ backgroundColor: shift.color }}></div>

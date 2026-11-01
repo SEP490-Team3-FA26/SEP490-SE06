@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import {
+import { Loader2, 
   Thermometer,
   Droplets,
   Gauge,
@@ -590,7 +590,7 @@ export function GspTelemetryDashboard() {
       {/* ── TOP HEADER: THÔNG TIN TRẠM & TRẠNG THÁI KẾT NỐI REALTIME ── */}
       <div className="bg-white border border-slate-200 shadow-xs rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 text-emerald-600 flex items-center justify-center shrink-0">
             <Radio className={`w-6 h-6 ${isLiveConnected ? "animate-pulse text-emerald-600" : "text-slate-400"}`} />
           </div>
           <div>
@@ -628,7 +628,7 @@ export function GspTelemetryDashboard() {
                   : "bg-emerald-50 border-emerald-200 text-emerald-700"
               }`}
             >
-              {isGspAlert ? <AlertTriangle className="w-4 h-4 text-rose-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+              {isGspAlert ? <AlertTriangle className="w-4 h-4 text-emerald-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
               <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : `ĐẠT CHUẨN GSP (15-${station?.tempMax || 40}°C, ≤70%RH)`}</span>
             </div>
           ) : (
@@ -682,7 +682,7 @@ export function GspTelemetryDashboard() {
             className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 flex items-center gap-1.5 text-xs font-semibold transition-all shadow-xs hover:shadow cursor-pointer"
             title="Thử nghiệm chuông báo động hỏa hoạn tới điện thoại Thủ kho"
           >
-            <Flame className="w-3.5 h-3.5 text-rose-600 animate-bounce" />
+            <Flame className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
             <span>Test Báo Động Cháy</span>
           </button>
 
@@ -693,7 +693,7 @@ export function GspTelemetryDashboard() {
             className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all disabled:opacity-50 cursor-pointer"
             title="Tải lại dữ liệu"
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-teal-600" : ""}`} />
+            <Loader2 className={`w-4 h-4 ${refreshing ? "animate-spin text-emerald-600" : ""}`} />
           </button>
         </div>
       </div>
@@ -773,7 +773,7 @@ export function GspTelemetryDashboard() {
                   tempVal === undefined
                     ? "text-slate-400"
                     : tempVal > (station?.tempMax || 40.0)
-                    ? "text-rose-600"
+                    ? "text-emerald-600"
                     : tempVal < 15
                     ? "text-cyan-600"
                     : "text-emerald-600"
@@ -834,7 +834,7 @@ export function GspTelemetryDashboard() {
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>Giới hạn GSP: <strong>≤ 70%</strong></span>
-              <span className={`font-semibold ${humVal !== undefined && humVal > 70 ? "text-rose-600" : "text-cyan-700"}`}>
+              <span className={`font-semibold ${humVal !== undefined && humVal > 70 ? "text-emerald-600" : "text-cyan-700"}`}>
                 {humVal === undefined ? "--" : humVal <= 70 ? "Độ ẩm an toàn" : "Quá ẩm (Nguy cơ hỏng thuốc)"}
               </span>
             </div>
@@ -1046,7 +1046,7 @@ export function GspTelemetryDashboard() {
           >
             <div className="flex items-center justify-between mb-2 gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-teal-700 flex items-center gap-1.5 whitespace-nowrap truncate">
-                <Layers className="w-4 h-4 text-teal-600 shrink-0" />
+                <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
                 RAM Heap Trống
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 whitespace-nowrap shrink-0">
@@ -1104,7 +1104,7 @@ export function GspTelemetryDashboard() {
               <span className="text-3xl font-extrabold font-mono text-sky-700 tracking-tight">
                 {wifiVal !== undefined ? wifiVal : "--"}
               </span>
-              <span className="text-base font-semibold text-sky-500">dBm</span>
+              <span className="text-base font-semibold text-emerald-600">dBm</span>
             </div>
 
             <div className="mt-2">
@@ -1125,7 +1125,7 @@ export function GspTelemetryDashboard() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-teal-600" />
+                <Activity className="w-5 h-5 text-emerald-600" />
                 <h2 className="text-base font-bold text-slate-900">
                   {viewMode === "climate"
                     ? "Biểu Đồ Toàn Cảnh: Khí Hậu & Môi Trường Kho"
@@ -1531,7 +1531,7 @@ export function GspTelemetryDashboard() {
               <div className="flex items-center gap-3">
                 <div
                   className={`p-3 rounded-2xl ${
-                    testAlertType === "FIRE_EMERGENCY" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"
+                    testAlertType === "FIRE_EMERGENCY" ? "bg-rose-100 text-emerald-600" : "bg-amber-100 text-amber-600"
                   }`}
                 >
                   {testAlertType === "FIRE_EMERGENCY" ? <Flame className="w-6 h-6" /> : <Bell className="w-6 h-6" />}
@@ -1595,7 +1595,7 @@ export function GspTelemetryDashboard() {
               >
                 {testSending ? (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>Đang gửi tín hiệu...</span>
                   </>
                 ) : (

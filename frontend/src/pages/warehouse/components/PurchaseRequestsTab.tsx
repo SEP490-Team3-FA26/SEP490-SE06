@@ -106,7 +106,7 @@ export function PurchaseRequestsTab({
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 overflow-auto">
         {loading ? (
           <div className="flex flex-col items-center py-16 gap-3">
-            <Loader2 className="animate-spin text-violet-500" size={28} />
+            <Loader2 className="animate-spin text-emerald-600" size={28} />
             <p className="text-slate-500 text-sm">Đang tải...</p>
           </div>
         ) : filtered.length === 0 ? (

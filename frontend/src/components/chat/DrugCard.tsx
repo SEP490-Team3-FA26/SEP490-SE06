@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pill, Check, Plus, ShieldAlert, Zap } from "lucide-react";
+import { Loader2, Pill, Check, Plus, ShieldAlert, Zap } from 'lucide-react';
 
 export interface ChatDrugItem {
   medicine_id: string | null;
@@ -175,7 +175,7 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
                 </>
               ) : isAdding ? (
                 <>
-                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <Loader2 size={14} className="animate-spin text-white" />
                   <span>Đang thêm</span>
                 </>
               ) : (

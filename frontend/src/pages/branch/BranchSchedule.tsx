@@ -2,8 +2,7 @@ import React, { useState, useEffect } from "react";
 import { hrService, WorkSchedule, WorkShift, WorkScheduleAssignment } from "../../services/hr/hr.service";
 import { employeeService, Employee } from "../../services/admin/employee.service";
 import { authService } from "../../services/auth/auth.service";
-import { 
-  Calendar, 
+import { Loader2, Calendar, 
   ChevronLeft, 
   ChevronRight, 
   User, 
@@ -19,8 +18,7 @@ import {
   AlertCircle,
   Mail,
   Repeat,
-  Check
-} from "lucide-react";
+  Check } from "lucide-react";
 
 import { getLeaveDetails } from "../pharmacist/PharmacistSchedule";
 
@@ -630,7 +628,7 @@ export function BranchSchedule() {
       {/* 3. Main Schedule Matrix Table */}
       {loading ? (
         <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-200">
-          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+          <Loader2 size={36} className="animate-spin text-emerald-600" />
           <span className="mt-4 text-sm font-semibold text-slate-500">Đang tải bảng phân công ca trực...</span>
         </div>
       ) : shifts.length === 0 ? (
@@ -814,7 +812,7 @@ export function BranchSchedule() {
                                 className={`mt-auto w-full py-1 px-2 rounded-xl border border-dashed flex items-center justify-center gap-1 transition-all group/btn cursor-pointer ${
                                   cellAssignments.some(a => Boolean(getLeaveDetails(a.note)))
                                     ? 'border-amber-300 bg-amber-50/50 hover:bg-amber-100/60 text-amber-800'
-                                    : 'border-slate-200 hover:border-[#0057cd] hover:bg-blue-50/60 text-slate-400 hover:text-[#0057cd]'
+                                    : 'border-slate-200 hover:border-emerald-600 hover:bg-blue-50/60 text-slate-400 hover:text-[#0057cd]'
                                 }`}
                               >
                                 <Plus size={12} className={cellAssignments.some(a => Boolean(getLeaveDetails(a.note))) ? "text-amber-700" : "text-slate-400 group-hover/btn:text-[#0057cd]"} />
@@ -1285,7 +1283,7 @@ export function BranchSchedule() {
                 >
                   {submittingFixedShift ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <Loader2 size={14} className="animate-spin text-white" />
                       <span>Đang lưu...</span>
                     </>
                   ) : (

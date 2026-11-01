@@ -255,7 +255,7 @@ export function WarehouseFilterBar({
             className="w-56 lg:w-64 bg-slate-50/90 hover:bg-white focus:bg-white border border-slate-200 text-slate-800 text-xs rounded-xl pl-8 pr-7 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all placeholder:text-slate-400 shadow-sm"
           />
           {loadingSearch && (
-            <Loader2 className="absolute right-2.5 animate-spin text-sky-500" size={13} />
+            <Loader2 className="absolute right-2.5 animate-spin text-emerald-600" size={13} />
           )}
           {!loadingSearch && query && (
             <button

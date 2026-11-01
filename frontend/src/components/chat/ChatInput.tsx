@@ -194,7 +194,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {/* Hiển thị trạng thái Backend đang xử lý âm thanh (nếu dùng Whisper) */}
       {isTranscribingBE && (
         <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-xs animate-in fade-in duration-150">
-          <Loader2 size={13} className="animate-spin text-blue-600" />
+          <Loader2 size={13} className="animate-spin text-emerald-600" />
           <span className="font-medium text-[11px]">Dược sĩ AI đang phân tích âm thanh...</span>
         </div>
       )}

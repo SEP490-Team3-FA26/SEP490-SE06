@@ -41,8 +41,8 @@ export function Select({ options, value, onChange, placeholder = "Chọn một m
           flex items-center justify-between w-full px-3.5 py-2 min-w-[200px]
           bg-white border text-sm font-semibold text-slate-700
           rounded-xl shadow-sm transition-all duration-200
-          focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd]
-          ${isOpen ? "border-[#0057cd] ring-2 ring-[#0057cd]/20" : "border-slate-200 hover:border-slate-300"}
+          focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600
+          ${isOpen ? "border-emerald-600 ring-2 ring-[#0057cd]/20" : "border-slate-200 hover:border-slate-300"}
         `}
       >
         <span className="truncate pr-4">{selectedOption ? selectedOption.label : placeholder}</span>

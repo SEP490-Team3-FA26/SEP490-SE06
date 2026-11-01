@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import {
+import { Loader2, 
   Mail,
   Plus,
   Send,
@@ -28,7 +28,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const configs: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
     DRAFT: { label: "Nháp", color: "#64748b", icon: <Clock size={12} /> },
     SCHEDULED: { label: "Đã lên lịch", color: "#0284c7", icon: <Clock size={12} /> },
-    PROCESSING: { label: "Đang gửi...", color: "#d97706", icon: <RefreshCw size={12} className="animate-spin" /> },
+    PROCESSING: { label: "Đang gửi...", color: "#d97706", icon: <Loader2 size={12} className="animate-spin" /> },
     COMPLETED: { label: "Hoàn tất", color: "#16a34a", icon: <CheckCircle2 size={12} /> },
     PARTIAL_FAILED: { label: "Gửi lỗi một phần", color: "#dc2626", icon: <AlertTriangle size={12} /> },
     CANCELLED: { label: "Đã hủy", color: "#6b7280", icon: <XCircle size={12} /> },
@@ -105,9 +105,9 @@ const StatsModal: React.FC<{
         </div>
 
         {statsLoading && !stats ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#64748b" }}>
-            <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px" }} />
-            <div>Đang tải thống kê...</div>
+          <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+            <Loader2 size={32} className="animate-spin text-emerald-600" />
+            <p className="text-sm font-semibold text-slate-500">Đang tải thống kê chiến dịch...</p>
           </div>
         ) : stats ? (
           <>
@@ -363,7 +363,7 @@ const EmailCampaignListPage: React.FC = () => {
               fontSize: 14, color: "#64748b",
             }}
           >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            <Loader2 size={14} className={loading ? "animate-spin text-emerald-600" : ""} />
             Làm mới
           </button>
         </div>
@@ -385,9 +385,9 @@ const EmailCampaignListPage: React.FC = () => {
         )}
 
         {loading && !campaigns.length ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "#94a3b8" }}>
-            <RefreshCw size={32} style={{ margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
-            <div style={{ fontSize: 15 }}>Đang tải danh sách chiến dịch...</div>
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <Loader2 size={32} className="animate-spin text-emerald-600" />
+            <p className="text-sm font-semibold text-slate-500">Đang tải danh sách chiến dịch...</p>
           </div>
         ) : !filtered.length ? (
           <div
@@ -767,7 +767,7 @@ const EmailCampaignListPage: React.FC = () => {
                   boxShadow: "0 2px 8px rgba(217, 119, 6, 0.3)",
                 }}
               >
-                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <XCircle size={14} />}
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
                 <span>{submitting ? "Đang hủy..." : "Xác nhận hủy lịch"}</span>
               </button>
             </div>
@@ -856,7 +856,7 @@ const EmailCampaignListPage: React.FC = () => {
                   boxShadow: "0 2px 8px rgba(220, 38, 38, 0.3)",
                 }}
               >
-                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 <span>{submitting ? "Đang xóa..." : "Xác nhận xóa"}</span>
               </button>
             </div>
@@ -947,7 +947,7 @@ const EmailCampaignListPage: React.FC = () => {
                   boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
                 }}
               >
-                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 <span>
                   {submitting
                     ? "Đang kích hoạt..."

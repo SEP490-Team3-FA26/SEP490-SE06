@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { hrService, WorkSchedule, WorkShift } from "../../services/hr/hr.service";
 import { authService } from "../../services/auth/auth.service";
-import { 
+import { Loader2,  
   Calendar, 
   ChevronLeft, 
   ChevronRight, 
@@ -405,7 +405,7 @@ export function PharmacistSchedule() {
       {/* 3. Schedule Table */}
       {loading ? (
         <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-200">
-          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+          <Loader2 size={36} className="animate-spin text-emerald-600" />
           <span className="mt-4 text-sm font-semibold text-slate-500">Đang tải lịch trực tuần...</span>
         </div>
       ) : effectiveShifts.length === 0 ? (
@@ -524,7 +524,7 @@ export function PharmacistSchedule() {
                                         ? 'bg-amber-50/80 border-amber-300 border-dashed ring-2 ring-amber-400/30'
                                         : 'bg-slate-100/70 border-slate-300 border-dashed opacity-75'
                                       : isMine 
-                                        ? 'bg-blue-50/80 border-[#0057cd]/50 ring-2 ring-[#0057cd]/20' 
+                                        ? 'bg-blue-50/80 border-emerald-600/50 ring-2 ring-[#0057cd]/20' 
                                         : 'bg-white border-slate-200 opacity-80 hover:opacity-100'
                                   }`}
                                 >
@@ -604,7 +604,7 @@ export function PharmacistSchedule() {
             </div>
             
             <div className="space-y-3 text-xs">
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/70 border border-[#0057cd]/30">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/70 border border-emerald-600/30">
                 <div className="w-3 h-3 rounded-full bg-[#0057cd] mt-0.5 shrink-0 ring-4 ring-blue-100"></div>
                 <div>
                   <div className="font-bold text-slate-900">Ca của bạn (Được phân công)</div>

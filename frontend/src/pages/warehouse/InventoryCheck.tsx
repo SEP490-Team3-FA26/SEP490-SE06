@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, CheckCircle, Clock, AlertTriangle, ChevronRight, X, Trash2, ShieldAlert, FileText, ArrowRightLeft, User, MessageSquare } from "lucide-react";
+import { Loader2, Plus, Search, CheckCircle, Clock, AlertTriangle, ChevronRight, X, Trash2, ShieldAlert, FileText, ArrowRightLeft, User, MessageSquare } from "lucide-react";
 import { inventoryCheckService, InventoryCheckItem } from "../../services/inventory/inventoryCheck.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 
@@ -234,7 +234,7 @@ export function InventoryCheck() {
                     type="text"
                     value={performedBy}
                     onChange={(e) => setPerformedBy(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-[#0057cd] focus:bg-white transition-all font-semibold text-slate-800"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 focus:bg-white transition-all font-semibold text-slate-800"
                   />
                 </div>
               </div>
@@ -249,7 +249,7 @@ export function InventoryCheck() {
                     placeholder="Ví dụ: Kiểm kho định kỳ cuối tháng, bù lệch..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-[#0057cd] focus:bg-white transition-all font-semibold text-slate-800"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 focus:bg-white transition-all font-semibold text-slate-800"
                   />
                 </div>
               </div>
@@ -266,7 +266,7 @@ export function InventoryCheck() {
                   <select
                     value={selectedMedId}
                     onChange={(e) => setSelectedMedId(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-[#0057cd] transition-all font-semibold text-slate-800 cursor-pointer"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 transition-all font-semibold text-slate-800 cursor-pointer"
                   >
                     <option value="">-- Chọn dược phẩm --</option>
                     {medicines.map(m => (
@@ -280,7 +280,7 @@ export function InventoryCheck() {
                   <select
                     value={selectedBatchNo}
                     onChange={(e) => handleBatchChange(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-[#0057cd] transition-all font-semibold text-slate-800 cursor-pointer"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 transition-all font-semibold text-slate-800 cursor-pointer"
                     disabled={availableBatches.length === 0}
                   >
                     <option value="">-- Chọn lô --</option>
@@ -298,7 +298,7 @@ export function InventoryCheck() {
                       placeholder={`Hệ thống: ${systemStock}`}
                       value={actualStockInput}
                       onChange={(e) => setActualStockInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-[#0057cd] transition-all font-semibold text-slate-800"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 transition-all font-semibold text-slate-800"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-extrabold uppercase">
                       {selectedMedicineObj?.unit || 'đơn vị'}
@@ -314,7 +314,7 @@ export function InventoryCheck() {
                       placeholder="Ví dụ: Đổ vỡ, hỏng hóc..."
                       value={reasonInput}
                       onChange={(e) => setReasonInput(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-[#0057cd] transition-all font-semibold text-slate-800"
+                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-600 transition-all font-semibold text-slate-800"
                     />
                     <button
                       type="button"
@@ -422,7 +422,7 @@ export function InventoryCheck() {
           <div className="overflow-x-auto overflow-y-auto relative flex-1 min-h-0 custom-scrollbar">
             {loading ? (
               <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center gap-3 z-10">
-                <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+                <Loader2 className="animate-spin text-emerald-600" size={32} />
                 <p className="text-sm font-semibold text-slate-500">Đang tải lịch sử kiểm kê...</p>
               </div>
             ) : null}
@@ -627,18 +627,4 @@ export function InventoryCheck() {
   );
 }
 
-// Add a dummy Loader2 component if not imported
-function Loader2({ className, size }: { className?: string; size?: number }) {
-  return (
-    <svg 
-      className={`animate-spin ${className}`} 
-      style={{ width: size, height: size }}
-      xmlns="http://www.w3.org/2000/svg" 
-      fill="none" 
-      viewBox="0 0 24 24"
-    >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-  );
-}
+
