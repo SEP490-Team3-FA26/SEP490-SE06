@@ -217,9 +217,48 @@ export class UserController implements OnModuleInit {
     });
   }
 
+  @Get("clinical-safety/me")
+  @ApiOperation({
+    summary: "Người dùng tự xem hồ sơ bệnh án, tiền sử dị ứng & bệnh nền của mình",
+  })
+  async getMyClinicalSafety(@Request() req) {
+    return await sendKafkaMessage(this.kafkaClient, "user.clinical_profile.get", {
+      userId: req.user.sub,
+    });
+  }
+
+  @Put("clinical-safety/me")
+  @ApiOperation({
+    summary: "Người dùng tự cập nhật hồ sơ bệnh án, tiền sử dị ứng & bệnh nền (hoàn thành Onboarding)",
+  })
+  async updateMyClinicalSafety(
+    @Request() req,
+    @Body()
+    body: {
+      allergies?: string[];
+      allergicMedicines?: string[];
+      allergicIngredients?: string[];
+      chronicConditions?: string[];
+      bloodType?: string;
+      medicalNotes?: string;
+      hasCompletedHealthOnboarding?: boolean;
+    },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, "user.clinical_profile.update", {
+      userId: req.user.sub,
+      allergies: body.allergies,
+      allergicMedicines: body.allergicMedicines,
+      allergicIngredients: body.allergicIngredients,
+      chronicConditions: body.chronicConditions,
+      bloodType: body.bloodType,
+      medicalNotes: body.medicalNotes,
+      hasCompletedHealthOnboarding: body.hasCompletedHealthOnboarding ?? true,
+    });
+  }
+
   @Get("clinical-safety/:phone")
   @ApiOperation({
-    summary: "Lấy thông tin dị ứng và bệnh mãn tính của khách hàng (MongoDB)",
+    summary: "Dược sĩ tra cứu hồ sơ bệnh án & tiền sử dị ứng của khách hàng qua SĐT (MongoDB)",
   })
   async getClinicalSafety(@Param("phone") phone: string) {
     return await sendKafkaMessage(this.kafkaClient, "user.clinical_profile.get", {
@@ -229,16 +268,29 @@ export class UserController implements OnModuleInit {
 
   @Put("clinical-safety/:phone")
   @ApiOperation({
-    summary: "Cập nhật thông tin dị ứng và bệnh mãn tính của khách hàng (MongoDB)",
+    summary: "Dược sĩ cập nhật bổ sung hồ sơ bệnh án cho khách hàng tại quầy POS (MongoDB)",
   })
   async updateClinicalSafety(
     @Param("phone") phone: string,
-    @Body() body: { allergies?: string[]; chronicConditions?: string[] },
+    @Body()
+    body: {
+      allergies?: string[];
+      allergicMedicines?: string[];
+      allergicIngredients?: string[];
+      chronicConditions?: string[];
+      bloodType?: string;
+      medicalNotes?: string;
+    },
   ) {
     return await sendKafkaMessage(this.kafkaClient, "user.clinical_profile.update", {
       phone: phone?.trim(),
       allergies: body.allergies,
+      allergicMedicines: body.allergicMedicines,
+      allergicIngredients: body.allergicIngredients,
       chronicConditions: body.chronicConditions,
+      bloodType: body.bloodType,
+      medicalNotes: body.medicalNotes,
+      hasCompletedHealthOnboarding: true,
     });
   }
 

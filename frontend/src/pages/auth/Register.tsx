@@ -26,16 +26,23 @@ export function Register() {
       const user = res?.user || res?.data?.user;
 
       if (token) {
-        setSuccess("Đăng ký thành công! Đang chuyển hướng về trang chủ...");
         const role = user?.role || "user";
-        setTimeout(() => {
-          if (role === "admin") navigate("/admin");
-          else if (role === "director" || role === "head_branch") navigate("/director");
-          else if (role === "warehouse") navigate("/warehouse");
-          else if (role === "branch") navigate("/branch");
-          else if (role === "pharmacist") navigate("/pharmacist");
-          else navigate("/");
-        }, 1000);
+        if (role === "user") {
+          setSuccess("Đăng ký thành công! Đang chuyển đến trang hoàn thiện Hồ sơ Sức khỏe & Bệnh án...");
+          setTimeout(() => {
+            navigate("/customer/medical-record?onboarding=true");
+          }, 800);
+        } else {
+          setSuccess("Đăng ký thành công! Đang chuyển hướng...");
+          setTimeout(() => {
+            if (role === "admin") navigate("/admin");
+            else if (role === "director" || role === "head_branch") navigate("/director");
+            else if (role === "warehouse") navigate("/warehouse");
+            else if (role === "branch") navigate("/branch");
+            else if (role === "pharmacist") navigate("/pharmacist");
+            else navigate("/");
+          }, 800);
+        }
       } else {
         setSuccess("Đăng ký thành công! Vui lòng đăng nhập.");
         setTimeout(() => {

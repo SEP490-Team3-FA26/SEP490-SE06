@@ -36,6 +36,7 @@ import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
 import { AIConsultant } from "./pages/customer/AIConsultant";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
 import { CustomerWishlist } from "./pages/customer/CustomerWishlist";
+import { CustomerMedicalRecord } from "./pages/customer/CustomerMedicalRecord";
 import { CustomerOrders } from "./pages/customer/CustomerOrders";
 import { FeedbackPage } from "./pages/customer/FeedbackPage";
 import { BranchFeedbackPage } from "./pages/branch/BranchFeedbackPage";
@@ -128,6 +129,7 @@ export default function App() {
 
           {/* Cũ (Redirect để tương thích trong trường hợp back lại) */}
           <Route path="/login" element={<RedirectWithSearch to="/auth/login" />} />
+          <Route path="/dev-login" element={<Navigate to="/auth/login?dev=true" replace />} />
           <Route path="/register" element={<RedirectWithSearch to="/auth/register" />} />
           <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
           <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
@@ -145,6 +147,7 @@ export default function App() {
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
             <Route path="wishlist" element={<CustomerWishlist />} />
+            <Route path="medical-record" element={<CustomerMedicalRecord />} />
             <Route path="orders" element={<CustomerOrders />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="feedback/:orderCode" element={<FeedbackPage />} />

@@ -15,8 +15,18 @@ export interface CustomerLoyaltyData {
 }
 
 export interface CustomerClinicalSafety {
+  userId?: string;
+  fullName?: string;
+  phone?: string;
+  email?: string;
+  tier?: string;
   allergies?: string[];
+  allergicMedicines?: string[];
+  allergicIngredients?: string[];
   chronicConditions?: string[];
+  bloodType?: string;
+  medicalNotes?: string;
+  hasCompletedHealthOnboarding?: boolean;
   refillReminder?: {
     isDue: boolean;
     daysRemaining: number;
@@ -32,6 +42,35 @@ export interface CustomerClinicalSafety {
   totalSpent12M?: number;
   avgOrderValue?: number;
   lastOrderDate?: string;
+}
+
+export interface AllergyConflict {
+  medicineName: string;
+  activeIngredient: string;
+  conflictType: 'ALLERGY_MEDICINE' | 'ALLERGY_INGREDIENT' | 'CROSS_REACTIVITY' | 'CONTRAINDICATION_CHRONIC';
+  severity: 'CRITICAL' | 'HIGH' | 'MODERATE';
+  reason: string;
+  clinicalExplanation: string;
+  suggestedAction: string;
+  safeAlternatives: Array<{
+    name: string;
+    activeIngredient: string;
+    indication: string;
+    reason: string;
+  }>;
+}
+
+export interface AllergyCheckResult {
+  hasConflict: boolean;
+  severity: 'CRITICAL' | 'HIGH' | 'MODERATE' | 'SAFE';
+  conflicts: AllergyConflict[];
+  safeAlternatives: Array<{
+    name: string;
+    activeIngredient: string;
+    indication: string;
+    reason: string;
+  }>;
+  message: string;
 }
 
 export interface FullCustomerProfile {
@@ -282,27 +321,121 @@ export const customerService = {
   },
 
   /**
-   * Update clinical flags (allergies & chronic conditions) directly in MongoDB via API Gateway
+   * Cập nhật hồ sơ bệnh án (Dược sĩ hoặc Quản trị viên cập nhật cho khách hàng qua SĐT)
    */
-  async updateClinicalSafety(phone: string, data: { allergies?: string[]; chronicConditions?: string[] }): Promise<any> {
+  async updateClinicalSafety(
+    phone: string,
+    data: {
+      allergies?: string[];
+      allergicMedicines?: string[];
+      allergicIngredients?: string[];
+      chronicConditions?: string[];
+      bloodType?: string;
+      medicalNotes?: string;
+    },
+  ): Promise<any> {
     const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
     const res = await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone), data);
     return res.data;
   },
 
   /**
-   * Get clinical flags (allergies & chronic conditions) directly from MongoDB
+   * Lấy hồ sơ bệnh án qua SĐT khách hàng
    */
-  async getClinicalSafety(phone: string): Promise<{ allergies: string[]; chronicConditions: string[] }> {
+  async getClinicalSafety(phone: string): Promise<CustomerClinicalSafety> {
     const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
     try {
       const res = await api.get(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone));
       return {
         allergies: res.data?.allergies || [],
+        allergicMedicines: res.data?.allergicMedicines || [],
+        allergicIngredients: res.data?.allergicIngredients || [],
         chronicConditions: res.data?.chronicConditions || [],
+        bloodType: res.data?.bloodType || null,
+        medicalNotes: res.data?.medicalNotes || null,
+        hasCompletedHealthOnboarding: res.data?.hasCompletedHealthOnboarding ?? false,
       };
     } catch {
-      return { allergies: [], chronicConditions: [] };
+      return {
+        allergies: [],
+        allergicMedicines: [],
+        allergicIngredients: [],
+        chronicConditions: [],
+        hasCompletedHealthOnboarding: false,
+      };
     }
   },
+
+  /**
+   * Khách hàng tự lấy hồ sơ bệnh án & tiền sử y tế của mình
+   */
+  async getMyClinicalProfile(): Promise<CustomerClinicalSafety> {
+    try {
+      const res = await api.get(API_ENDPOINTS.USERS.CLINICAL_SAFETY_ME);
+      return {
+        userId: res.data?.userId,
+        fullName: res.data?.fullName,
+        phone: res.data?.phone,
+        email: res.data?.email,
+        tier: res.data?.tier,
+        allergies: res.data?.allergies || [],
+        allergicMedicines: res.data?.allergicMedicines || [],
+        allergicIngredients: res.data?.allergicIngredients || [],
+        chronicConditions: res.data?.chronicConditions || [],
+        bloodType: res.data?.bloodType || null,
+        medicalNotes: res.data?.medicalNotes || null,
+        hasCompletedHealthOnboarding: res.data?.hasCompletedHealthOnboarding ?? false,
+      };
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        throw new Error('UNAUTHORIZED');
+      }
+      return {
+        allergies: [],
+        allergicMedicines: [],
+        allergicIngredients: [],
+        chronicConditions: [],
+        hasCompletedHealthOnboarding: false,
+      };
+    }
+  },
+
+  /**
+   * Khách hàng tự cập nhật hồ sơ bệnh án của mình (hoặc hoàn tất Onboarding lần đầu)
+   */
+  async updateMyClinicalProfile(data: {
+    allergies?: string[];
+    allergicMedicines?: string[];
+    allergicIngredients?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    medicalNotes?: string;
+    hasCompletedHealthOnboarding?: boolean;
+  }): Promise<any> {
+    const res = await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY_ME, data);
+    return res.data;
+  },
+
+  /**
+   * UC-107: Đối soát chéo giỏ hàng với tiền sử dị ứng và bệnh lý nền của bệnh nhân
+   * Trả về phân tích nguy cơ lâm sàng và gợi ý các thuốc thay thế an toàn
+   */
+  async checkCartAllergyContraindications(payload: {
+    customerProfile: Partial<CustomerClinicalSafety>;
+    cartItems: Array<{
+      id?: string;
+      _id?: string;
+      medicineId?: string;
+      name: string;
+      activeIngredient?: string;
+      contraindications?: string;
+      indications?: string;
+      category?: string;
+      price?: number;
+    }>;
+  }): Promise<AllergyCheckResult> {
+    const res = await api.post(API_ENDPOINTS.PRESCRIPTIONS.ALLERGY_CHECK, payload);
+    return res.data;
+  },
 };
+

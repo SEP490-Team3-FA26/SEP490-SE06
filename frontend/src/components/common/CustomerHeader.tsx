@@ -1228,10 +1228,18 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                         <Link
                           to="/customer/profile"
                           onClick={() => setShowProfileDropdown(false)}
-                          className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-[#0057cd] hover:bg-blue-50 transition-colors"
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-[#0057cd] hover:bg-blue-50 transition-colors"
                         >
                           <User size={16} className="text-[#0057cd]" />
                           <span>Hồ sơ & Điểm tích lũy</span>
+                        </Link>
+                        <Link
+                          to="/customer/medical-record"
+                          onClick={() => setShowProfileDropdown(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 transition-colors"
+                        >
+                          <HeartPulse size={16} className="text-teal-600" />
+                          <span>Sổ Sức Khỏe & Bệnh Án</span>
                         </Link>
                         <Link
                           to="/customer/orders"

@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   ScrollView,
-  Alert,
   Modal,
   RefreshControl,
   Clipboard,
   Image,
   StatusBar,
+  TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,6 +22,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiService } from '../../services/api.service';
 import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import { HeaderBar } from '../../components/ui/HeaderBar';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
@@ -37,7 +39,30 @@ import {
   ClinicalModalSheet,
   ClinicalSkeleton,
   ClinicalMedicineSkeletonGrid,
+  DigitalHealthPassportModal,
 } from '../../components/clinical';
+import { FlatModal } from '../../components/flat/FlatModal';
+import { FullSearchModal } from '../../components/search/FullSearchModal';
+import {
+  SEASONAL_BLOGS,
+  filterRecommendedMedicines,
+  HealthBlogCategory,
+} from '../../services/healthBlog.service';
+import { getTopBestSellers, BestSellerProduct } from '../../services/bestSeller.service';
+import {
+  formatMinimalVoucherBadge,
+  LoyaltyGiftItem,
+  PointsHistoryItem,
+  DEFAULT_LOYALTY_GIFTS,
+  DEFAULT_POINTS_HISTORY,
+  filterGiftsByPointsTier,
+  calculatePointsAfterRedeem,
+  formatPointsDisplay,
+} from '../../services/loyaltyRewards.service';
+import { PointsHistoryScreen } from './PointsHistoryScreen';
+import { CustomerAccountService } from '../../services/customerAccount.service';
+import { HomeBannerCarousel, CarouselBannerItem } from '../../components/carousel/HomeBannerCarousel';
+import { ClinicalSidebarDrawer, DrawerMenuItem } from '../../components/clinical/ClinicalSidebarDrawer';
 import {
   ColorTokens,
   TypographyTokens,
@@ -90,11 +115,48 @@ const FlashSaleCountdown: React.FC = React.memo(() => {
   );
 });
 
-export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, auth } = useAuth();
+export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
+  const { user, auth, logout } = useAuth();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS'>('STORE');
+  const { unreadCount = 0 } = useNotification();
+  // 5 Tabs chuẩn: Trang chủ (STORE) - Điểm thưởng (REWARDS) - Tư vấn AI (AI_CHAT) - Giỏ hàng (CART) - Tài khoản (ACCOUNT)
+  const [activeTab, setActiveTab] = useState<'STORE' | 'REWARDS' | 'AI_CHAT' | 'CART' | 'ACCOUNT' | 'VOUCHERS' | 'ORDERS'>('STORE');
+
+  useEffect(() => {
+    if (route?.params?.initialTab) {
+      setActiveTab(route.params.initialTab);
+    }
+  }, [route?.params?.initialTab]);
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
+
+  // Mở màn hình tìm kiếm lớn (Full Search Modal) & Menu Drawer Hamburger
+  const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  const [showDrawer, setShowDrawer] = useState<boolean>(false);
+
+  // Sản phẩm đã xem gần đây (Recently Viewed)
+  const [recentlyViewed, setRecentlyViewed] = useState<Medicine[]>([]);
+
+  // Modals in-app thay thế OS Alert
+  const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
+  const [showLoginPromptModal, setShowLoginPromptModal] = useState<boolean>(false);
+
+  // Thông tin Loyalty / Điểm thưởng thành viên
+  const [loyaltyInfo, setLoyaltyInfo] = useState<{
+    points?: number;
+    accumulatedPoints?: number;
+    tier?: string;
+    multiplier?: number;
+    conversionRate?: number;
+  } | null>(null);
+
+  // State quản lý Điểm Thưởng & Đổi Quà FPT Long Châu
+  const [showPointsHistoryModal, setShowPointsHistoryModal] = useState<boolean>(false);
+  const [showRedeemGiftModal, setShowRedeemGiftModal] = useState<boolean>(false);
+  const [selectedGiftToRedeem, setSelectedGiftToRedeem] = useState<LoyaltyGiftItem | null>(null);
+  const [redeemQuantity, setRedeemQuantity] = useState<number>(1);
+  const [selectedGiftPointsTier, setSelectedGiftPointsTier] = useState<number>(1500);
+  const [loyaltyGifts] = useState<LoyaltyGiftItem[]>(DEFAULT_LOYALTY_GIFTS);
+  const [pointsHistory] = useState<PointsHistoryItem[]>(DEFAULT_POINTS_HISTORY);
 
   // Landing Page Tri-Pharmacy States (Pharmacity + Long Châu + An Khang)
   const [flashSaleSlot, setFlashSaleSlot] = useState<'SLOT_1' | 'SLOT_2' | 'SLOT_3'>('SLOT_1');
@@ -109,13 +171,18 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [selectedMedDetail, setSelectedMedDetail] = useState<Medicine | null>(null);
   const [showScanner, setShowScanner] = useState<boolean>(false);
+  const [visibleMedicineCount, setVisibleMedicineCount] = useState<number>(24);
 
   // Advanced Filters & Sorting for Store Tab
   const [selectedPriceFilter, setSelectedPriceFilter] = useState<'ALL' | 'UNDER_100' | '100_300' | 'OVER_300'>('ALL');
   const [selectedRxFilter, setSelectedRxFilter] = useState<'ALL' | 'RX' | 'OTC'>('ALL');
   const [sortBy, setSortBy] = useState<'DEFAULT' | 'PRICE_ASC' | 'PRICE_DESC'>('DEFAULT');
+
+  // Tự động reset số lượng thuốc hiển thị khi đổi bộ lọc
+  useEffect(() => {
+    setVisibleMedicineCount(24);
+  }, [searchQuery, selectedCategory, selectedRxFilter, selectedPriceFilter, sortBy]);
 
   // Order status filter tab
   const [orderStatusTab, setOrderStatusTab] = useState<'ALL' | 'PENDING' | 'SHIPPING' | 'COMPLETED' | 'CANCELLED'>('ALL');
@@ -129,6 +196,9 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   // Wishlist State (Danh sách sản phẩm yêu thích)
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const [wishlistTotalCount, setWishlistTotalCount] = useState<number>(0);
+
+  // Tìm kiếm mã Voucher trong tab Điểm Thưởng & Săn Voucher
+  const [voucherSearchInput, setVoucherSearchInput] = useState<string>('');
 
   // AI Chat & Voice Consultant
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string; recommendedMeds?: Medicine[] }>>([
@@ -151,6 +221,81 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [feedbackTags, setFeedbackTags] = useState<string[]>([]);
   const [feedbackComment, setFeedbackComment] = useState<string>('');
   const [feedbackSubmitting, setFeedbackSubmitting] = useState<boolean>(false);
+
+  // Sổ Sức Khỏe Số & Onboarding khai báo ban đầu (UC-106)
+  const [showPassportModal, setShowPassportModal] = useState<boolean>(false);
+  const [isOnboardingHealth, setIsOnboardingHealth] = useState<boolean>(false);
+  const [clinicalSafety, setClinicalSafety] = useState<any>(null);
+
+  // Tự động kiểm tra nếu khách hàng đăng nhập chưa hoàn thành onboarding y tế
+  useEffect(() => {
+    if (!user) return;
+    let isMounted = true;
+    ApiService.getMyClinicalSafety()
+      .then((data) => {
+        if (isMounted && data) {
+          setClinicalSafety(data);
+          if (data.hasCompletedHealthOnboarding === false) {
+            setIsOnboardingHealth(true);
+            setShowPassportModal(true);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Khôi phục danh sách sản phẩm đã xem và điểm thưởng từ AsyncStorage / API
+  useEffect(() => {
+    AsyncStorage.getItem('abc_recently_viewed')
+      .then((stored) => {
+        if (stored) {
+          try {
+            const list = JSON.parse(stored);
+            if (Array.isArray(list)) setRecentlyViewed(list);
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    ApiService.getMyLoyalty()
+      .then((data) => {
+        if (data) setLoyaltyInfo(data);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  // Thêm sản phẩm vào danh sách xem gần đây (tối đa 12 sản phẩm)
+  const addRecentlyViewed = useCallback((med: Medicine) => {
+    if (!med) return;
+    setRecentlyViewed((prev) => {
+      const filtered = prev.filter((m) => (m.id || (m as any)._id) !== (med.id || (med as any)._id));
+      const nextList = [med, ...filtered].slice(0, 12);
+      AsyncStorage.setItem('abc_recently_viewed', JSON.stringify(nextList)).catch(() => {});
+      return nextList;
+    });
+  }, []);
+
+  // Chuyển hướng sang Màn hình Chi Tiết Thuốc riêng biệt và tự động lưu vào sản phẩm đã xem
+  const openMedicineDetail = useCallback(
+    (med: Medicine) => {
+      if (!med) return;
+      addRecentlyViewed(med);
+      navigation.navigate('MedicineDetailScreen', {
+        medicine: med,
+        medicineId: med.id || (med as any)._id,
+      });
+    },
+    [addRecentlyViewed, navigation]
+  );
+
+  // Xóa trực tiếp sản phẩm khỏi giỏ hàng
+  const removeFromCart = useCallback((medId: string) => {
+    setCart((prev) => prev.filter((i) => i.medicine.id !== medId));
+    showToast.info('Đã xóa', 'Đã bỏ sản phẩm khỏi giỏ hàng.');
+  }, []);
 
   const handleOpenFeedback = (ord: Order) => {
     setFeedbackOrder(ord);
@@ -197,6 +342,15 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
+
+  // Xử lý điều hướng khi bấm vào banner khuyến mãi trong Carousel
+  const handleSelectBanner = useCallback((banner: CarouselBannerItem) => {
+    if (banner.actionTab) {
+      setActiveTab(banner.actionTab as any);
+    } else if (banner.category) {
+      setSelectedCategory(banner.category);
+    }
+  }, []);
 
   const categoriesList = useMemo(() => {
     const unique = new Set<string>();
@@ -287,7 +441,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     loadData();
   }, [loadData]);
 
-  // Tự động làm tươi Wishlist mỗi khi màn hình CustomerScreen được focus lại
+  // Tự động làm tươi Wishlist và Giỏ hàng mỗi khi màn hình CustomerScreen được focus lại
   useFocusEffect(
     useCallback(() => {
       ApiService.getWishlist()
@@ -295,6 +449,19 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           if (res) {
             setWishlistItems(res.items || []);
             setWishlistTotalCount(res.totalCount || (res.items || []).length);
+          }
+        })
+        .catch(() => {});
+
+      AsyncStorage.getItem(GUEST_CART_KEY)
+        .then((cached) => {
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed)) {
+                setCart(parsed);
+              }
+            } catch {}
           }
         })
         .catch(() => {});
@@ -349,39 +516,25 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     setShowBranchModal(false);
   }, []);
 
-  const TRENDING_KEYWORDS = [
-    'Hạ sốt & Cảm cúm',
-    'Khẩu trang 4D',
-    'Men vi sinh Bio',
-    'Đo huyết áp Omron',
-    'Vitamin C sủi',
-    'Dạ dày Gaviscon',
-    'Dầu cá Omega-3',
-    'Xịt mũi thảo dược',
-  ];
+  // Ref điều khiển cuộn trang chủ mượt mà
+  const mainScrollRef = useRef<any>(null);
 
-  const SEASONAL_ADVICE = {
-    FLU: {
-      title: 'Cảm Cúm & Viêm Họng Giao Mùa',
-      desc: 'Thời tiết thay đổi đột ngột làm suy giảm niêm mạc hô hấp. Giữ ấm cổ họng, bổ sung Vitamin C và dùng thuốc giảm đau hạ sốt đúng liều.',
-      tags: ['Sốt nhẹ', 'Đau họng', 'Nghẹt mũi'],
-    },
-    STOMACH: {
-      title: 'Đau Dạ Dày & Trào Ngược Axit',
-      desc: 'Ăn uống thất thường hoặc stress kích thích tăng tiết dịch vị. Khuyến nghị dùng men vi sinh cân bằng hệ tiêu hóa và thuốc kháng acid.',
-      tags: ['Đầy hơi', 'Ợ chua', 'Trào ngược'],
-    },
-    ALLERGY: {
-      title: 'Dị Ứng Thời Tiết & Viêm Da',
-      desc: 'Bụi mịn và phấn hoa gây ngứa mũi, dị ứng mẩn đỏ. Sử dụng nước muối sinh lý xịt rửa hằng ngày và thuốc kháng histamine thế hệ mới.',
-      tags: ['Mẩn ngứa', 'Hắt hơi', 'Khô da'],
-    },
-    IMMUNITY: {
-      title: 'Tăng Đề Kháng & Phòng Ngừa Dịch',
-      desc: 'Bổ sung Kẽm, Vitamin C sủi, Đông trùng hạ thảo giúp củng cố hệ miễn dịch tự nhiên cho người lớn tuổi và trẻ nhỏ.',
-      tags: ['Đề kháng khỏe', 'Vitamin C', 'Kẽm Gluconat'],
-    },
-  };
+  // Lọc danh sách thuốc gợi ý phù hợp theo từng chủ đề blog y khoa từ dịch vụ
+  const seasonalMedicines = useMemo(() => {
+    return filterRecommendedMedicines(medicines, seasonalCategory);
+  }, [medicines, seasonalCategory]);
+
+  // Top 3 sản phẩm bán chạy nhất kèm chỉ số bán hàng nổi bật
+  const topBestSellers = useMemo(() => {
+    return getTopBestSellers(medicines, 3);
+  }, [medicines]);
+
+  // Xử lý khi người dùng ấn nút "Xem tất cả" tại khối Sản Phẩm Bán Chạy
+  const handleViewAllBestSellers = useCallback(() => {
+    setSelectedCategory('ALL');
+    mainScrollRef.current?.scrollTo({ y: 1550, animated: true });
+    showToast.info('Xem tất cả', 'Đang chuyển đến danh sách sản phẩm chính hãng');
+  }, []);
 
   const handleSaveSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
@@ -399,10 +552,12 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
   }, []);
 
-  // Sync cart to storage whenever it changes
+  // Đồng bộ giỏ hàng vào storage, xóa bỏ giỏ khi rỗng để tránh bug hồi sinh giỏ hàng ma
   useEffect(() => {
     if (cart.length > 0) {
       AsyncStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart)).catch(() => {});
+    } else {
+      AsyncStorage.removeItem(GUEST_CART_KEY).catch(() => {});
     }
   }, [cart]);
 
@@ -536,7 +691,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     try {
       const res = await ApiService.getByBarcode(code);
       if (res && res.medicine) {
-        setSelectedMedDetail(res.medicine);
+        openMedicineDetail(res.medicine);
         showToast.success('Tìm Thấy Thuốc', `Đã nhận diện: ${res.medicine.name}`);
       } else {
         const local = medicines.find(
@@ -547,7 +702,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             m.units?.some((u) => u.barcode === code)
         );
         if (local) {
-          setSelectedMedDetail(local);
+          openMedicineDetail(local);
           showToast.success('Tìm Thấy Thuốc', `Đã nhận diện: ${local.name}`);
         } else {
           setSearchQuery(code);
@@ -691,6 +846,22 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     });
   }, [orders, orderStatusTab]);
 
+  // Thống kê đơn hàng và định dạng thông tin tài khoản chuẩn Long Châu
+  const orderCounts = useMemo(
+    () => CustomerAccountService.getOrderStatusCounts(orders),
+    [orders]
+  );
+
+  const formattedProfile = useMemo(
+    () => CustomerAccountService.formatUserDisplay(user, loyaltyInfo),
+    [user, loyaltyInfo]
+  );
+
+  const healthSummary = useMemo(
+    () => CustomerAccountService.getHealthSummaryBadges(clinicalSafety),
+    [clinicalSafety]
+  );
+
   // Map category keyword sang Ionicons icon
   const getCategoryIcon = (label: string): keyof typeof Ionicons.glyphMap => {
     const l = label.toLowerCase();
@@ -715,202 +886,287 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const hasActiveFilter = selectedRxFilter !== 'ALL' || selectedPriceFilter !== 'ALL';
   const activeFilterCount = (selectedRxFilter !== 'ALL' ? 1 : 0) + (selectedPriceFilter !== 'ALL' ? 1 : 0);
 
+  // Danh mục menu Drawer trượt trái chuẩn Apple iOS
+  const drawerMenuItems: DrawerMenuItem[] = useMemo(
+    () => [
+      {
+        id: 'store',
+        label: 'Trang chủ mua sắm',
+        iconName: 'home-outline',
+        onPress: () => {
+          setShowDrawer(false);
+          setActiveTab('STORE');
+        },
+        active: activeTab === 'STORE',
+      },
+      {
+        id: 'rewards',
+        label: 'Điểm thưởng ABC Club',
+        iconName: 'gift-outline',
+        badge: loyaltyInfo?.points ? `${loyaltyInfo.points}đ` : 'Ưu đãi',
+        badgeVariant: 'warning',
+        onPress: () => {
+          setShowDrawer(false);
+          setActiveTab('REWARDS');
+        },
+        active: activeTab === 'REWARDS',
+      },
+      {
+        id: 'passport',
+        label: 'Sổ sức khỏe số (Health QR)',
+        iconName: 'qr-code-outline',
+        badge: 'AI Safe',
+        badgeVariant: 'success',
+        onPress: () => {
+          setShowDrawer(false);
+          setIsOnboardingHealth(false);
+          setShowPassportModal(true);
+        },
+      },
+      {
+        id: 'wishlist',
+        label: 'Sản phẩm yêu thích',
+        iconName: 'heart-outline',
+        badge: wishlistTotalCount > 0 ? `${wishlistTotalCount}` : undefined,
+        badgeVariant: 'danger',
+        onPress: () => {
+          setShowDrawer(false);
+          navigation.navigate('CustomerWishlistScreen', {
+            onAddToCart: (item: any) => addToCart(item),
+          });
+        },
+      },
+      {
+        id: 'reminder',
+        label: 'Lịch nhắc uống thuốc',
+        iconName: 'alarm-outline',
+        onPress: () => {
+          setShowDrawer(false);
+          navigation.navigate('MedicineReminderScreen');
+        },
+      },
+      {
+        id: 'branches',
+        label: 'Hệ thống nhà thuốc GPP',
+        iconName: 'storefront-outline',
+        onPress: () => {
+          setShowDrawer(false);
+          setShowBranchModal(true);
+        },
+      },
+      {
+        id: 'ai_chat',
+        label: 'Tư vấn Dược sĩ AI 24/7',
+        iconName: 'chatbubbles-outline',
+        badge: '24/7',
+        badgeVariant: 'info',
+        onPress: () => {
+          setShowDrawer(false);
+          setActiveTab('AI_CHAT');
+        },
+        active: activeTab === 'AI_CHAT',
+      },
+      {
+        id: 'cart',
+        label: 'Giỏ hàng của tôi',
+        iconName: 'cart-outline',
+        badge: cartTotalCount > 0 ? `${cartTotalCount}` : undefined,
+        badgeVariant: 'info',
+        onPress: () => {
+          setShowDrawer(false);
+          setActiveTab('CART');
+        },
+        active: activeTab === 'CART',
+      },
+      {
+        id: 'account',
+        label: 'Tài khoản & Đơn mua',
+        iconName: 'person-circle-outline',
+        onPress: () => {
+          setShowDrawer(false);
+          setActiveTab('ACCOUNT');
+        },
+        active: activeTab === 'ACCOUNT',
+      },
+    ],
+    [activeTab, loyaltyInfo, wishlistTotalCount, cartTotalCount, navigation]
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* ─── Modern Medical Sky Blue Header (Pharmacity & Long Châu & An Khang) ── */}
-      <LinearGradient
-        colors={['#0369A1', '#0284C7', '#38BDF8']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0.9 }}
-        style={styles.customHeader}
-      >
-        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-
-        {/* Top Branding & Auth Action Row */}
-        <View style={styles.headerTopRow}>
-          <View style={styles.brandTitleRow}>
-            <View style={styles.brandIconCircle}>
-              <Ionicons name="medkit" size={14} color="#0284C7" />
-            </View>
-            <Text style={styles.brandTitleText}>ABC PHARMACY</Text>
-          </View>
-
-          <View style={styles.headerActionRow}>
-            {/* Guest / User Profile Pill Button */}
-            {!user ? (
-              <AnimatedTouchable
-                onPress={() => navigation.navigate('LoginScreen')}
-                style={styles.headerLoginPill}
-              >
-                <Ionicons name="person-circle" size={16} color="#0284C7" style={{ marginRight: 4 }} />
-                <Text style={styles.headerLoginPillText}>Đăng nhập</Text>
-              </AnimatedTouchable>
-            ) : (
-              <AnimatedTouchable
-                onPress={() => navigation.navigate('ProfileScreen')}
-                style={styles.headerUserPill}
-              >
-                <Ionicons name="person-circle" size={16} color="#0284C7" style={{ marginRight: 4 }} />
-                <Text style={styles.headerUserPillText} numberOfLines={1}>
-                  {user.name || (user as any).fullName || 'Cá nhân'}
-                </Text>
-              </AnimatedTouchable>
-            )}
-
-            {/* Notification Bell */}
-            <AnimatedTouchable
-              onPress={() => navigation.navigate('NotificationListScreen')}
-              style={styles.headerRoundBtn}
-            >
-              <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
-            </AnimatedTouchable>
-
-            {/* Wishlist Button with Heart Icon & Count Badge */}
-            <AnimatedTouchable
-              onPress={() =>
-                navigation.navigate('CustomerWishlistScreen', {
-                  onAddToCart: (item: any) => addToCart(item),
-                })
-              }
-              style={styles.headerRoundBtn}
-            >
-              <Ionicons
-                name={wishlistTotalCount > 0 ? 'heart' : 'heart-outline'}
-                size={20}
-                color={wishlistTotalCount > 0 ? '#EF4444' : '#FFFFFF'}
-              />
-              {wishlistTotalCount > 0 && (
-                <View style={[styles.headerCartBadge, { backgroundColor: '#EF4444' }]}>
-                  <Text style={styles.headerCartBadgeText}>
-                    {wishlistTotalCount > 99 ? '99+' : wishlistTotalCount}
-                  </Text>
-                </View>
-              )}
-            </AnimatedTouchable>
-
-            {/* Cart Button with Count Badge */}
-            <AnimatedTouchable
-              onPress={() => setActiveTab('CART')}
-              style={styles.headerRoundBtn}
-            >
-              <Ionicons name="cart-outline" size={20} color="#FFFFFF" />
-              {cartTotalCount > 0 && (
-                <View style={styles.headerCartBadge}>
-                  <Text style={styles.headerCartBadgeText}>
-                    {cartTotalCount > 99 ? '99+' : cartTotalCount}
-                  </Text>
-                </View>
-              )}
-            </AnimatedTouchable>
-          </View>
-        </View>
-
-        {/* Location Delivery Selector Row (Tách riêng hàng độc lập, không bị đè) */}
-        <AnimatedTouchable
-          onPress={() => setShowBranchModal(true)}
-          style={styles.locationBar}
-          activeOpacity={0.85}
+      {/* ─── Modern Medical Sky Blue Header (Chuẩn FPT Long Châu Tối Giản) ── */}
+      {activeTab !== 'ACCOUNT' && activeTab !== 'ORDERS' && activeTab !== 'REWARDS' && (
+        <LinearGradient
+          colors={['#0369A1', '#0284C7', '#0EA5E9']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0.9 }}
+          style={styles.customHeader}
         >
-          <Ionicons name="location-sharp" size={12} color="#BAE6FD" style={{ marginRight: 4 }} />
-          <Text style={styles.locationBarText} numberOfLines={1}>
-            {selectedBranch ? `Giao tại: ${selectedBranch.name}` : 'Giao tại: Chọn chi nhánh ABC'}
-          </Text>
-          <Ionicons name="chevron-down" size={12} color="#BAE6FD" style={{ marginLeft: 4 }} />
-        </AnimatedTouchable>
+          <StatusBar barStyle="light-content" />
 
-        {/* Floating Pill Search Bar */}
-        <View style={styles.floatingSearchContainer}>
-          <View style={styles.floatingSearchBox}>
-            <Ionicons name="search" size={18} color="#0284C7" style={styles.searchIcon} />
-            <TextInput
-              style={styles.floatingSearchInput}
-              placeholder="Tìm thuốc, bệnh lý, vitamin, dược mỹ phẩm..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={() => handleSaveSearch(searchQuery)}
-              returnKeyType="search"
-            />
-            {searchQuery ? (
-              <AnimatedTouchable onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-                <Ionicons name="close-circle" size={16} color="#94A3B8" />
+          {/* HÀNG 1: Brand & Vị trí giao hàng (Trái) + 4 Nút chức năng tròn 34px tối giản (Phải) */}
+          <View style={styles.headerTopRow}>
+            {/* Cụm Bên Trái: Nút Menu Hamburger + Thương Hiệu ABC Pharmacy Tối Giản */}
+            <View style={styles.headerLeftGroup}>
+              <AnimatedTouchable
+                onPress={() => setShowDrawer(true)}
+                style={styles.headerHamburgerBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="menu" size={24} color="#FFFFFF" />
               </AnimatedTouchable>
-            ) : (
-              <View style={styles.searchActionGroup}>
-                <AnimatedTouchable
-                  onPress={() => setActiveTab('AI_CHAT')}
-                  style={styles.searchSubBtn}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                >
-                  <Ionicons name="mic-outline" size={18} color="#0284C7" />
-                </AnimatedTouchable>
-                <AnimatedTouchable
-                  onPress={() => setShowScanner(true)}
-                  style={styles.searchSubBtn}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                >
-                  <Ionicons name="barcode-outline" size={18} color="#0284C7" />
-                </AnimatedTouchable>
+
+              {/* Tên thương hiệu ABC Pharmacy Tối Giản Căn Giữa Đẹp Mắt */}
+              <View style={styles.brandTitleRow}>
+                <View style={styles.brandIconCircle}>
+                  <Ionicons name="medkit" size={13} color="#0284C7" />
+                </View>
+                <Text style={styles.brandTitleText}>ABC PHARMACY</Text>
               </View>
-            )}
-          </View>
-        </View>
+            </View>
 
-        {/* Trending Search Chips (Dải từ khóa tìm kiếm thịnh hành) */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.trendingScroll}
-        >
-          {TRENDING_KEYWORDS.map((kw, idx) => (
-            <AnimatedPressable
-              key={`trend-${idx}`}
-              onPress={() => {
-                setSearchQuery(kw);
-                handleSaveSearch(kw);
-              }}
-              style={styles.trendingChip}
-              pressedScale={0.94}
+            {/* Cụm Bên Phải: 4 Nút Tròn 34px Đồng Nhất - Tối Giản & Hiện Đại */}
+            <View style={styles.headerActionRow}>
+              {/* 1. Sổ Sức Khỏe Số QR */}
+              {user && (
+                <AnimatedTouchable
+                  onPress={() => {
+                    setIsOnboardingHealth(false);
+                    setShowPassportModal(true);
+                  }}
+                  style={styles.headerRoundBtn}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons name="qr-code-outline" size={18} color="#FFFFFF" />
+                </AnimatedTouchable>
+              )}
+
+              {/* 2. Chuông Thông Báo (kèm chấm đỏ khi có tin mới) */}
+              <AnimatedTouchable
+                onPress={() => navigation.navigate('NotificationListScreen')}
+                style={styles.headerRoundBtn}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Ionicons name="notifications-outline" size={18} color="#FFFFFF" />
+                {unreadCount > 0 && <View style={styles.headerNotificationDot} />}
+              </AnimatedTouchable>
+
+              {/* 3. Giỏ Hàng Nhanh (kèm badge đếm số lượng thuốc) */}
+              <AnimatedTouchable
+                onPress={() => setActiveTab('CART')}
+                style={styles.headerRoundBtn}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Ionicons name="cart-outline" size={19} color="#FFFFFF" />
+                {cartTotalCount > 0 && (
+                  <View style={styles.headerCartBadge}>
+                    <Text style={styles.headerCartBadgeText}>
+                      {cartTotalCount > 99 ? '99+' : cartTotalCount}
+                    </Text>
+                  </View>
+                )}
+              </AnimatedTouchable>
+
+              {/* 4. Tài Khoản / Đăng Nhập Nút Tròn Tinh Tế */}
+              {user ? (
+                <AnimatedTouchable
+                  onPress={() => setActiveTab('ACCOUNT')}
+                  style={styles.headerAvatarCircle}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons name="person" size={16} color="#0284C7" />
+                </AnimatedTouchable>
+              ) : (
+                <AnimatedTouchable
+                  onPress={() => navigation.navigate('LoginScreen')}
+                  style={styles.headerRoundBtn}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons name="person-outline" size={18} color="#FFFFFF" />
+                </AnimatedTouchable>
+              )}
+            </View>
+          </View>
+
+          {/* HÀNG 2: Thanh Tìm Kiếm - Phân luồng: Tab Voucher tìm Voucher, Tab Store tìm Thuốc */}
+          {(activeTab === 'VOUCHERS') ? (
+            <View style={styles.floatingSearchContainer}>
+              <View style={styles.floatingSearchBox}>
+                <Ionicons name="pricetag-outline" size={17} color="#0284C7" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.voucherSearchTextInput}
+                  placeholder="Nhập mã voucher, tìm ưu đãi..."
+                  placeholderTextColor="#94A3B8"
+                  value={voucherSearchInput}
+                  onChangeText={setVoucherSearchInput}
+                  autoCapitalize="characters"
+                  returnKeyType="search"
+                />
+                {voucherSearchInput.length > 0 ? (
+                  <AnimatedTouchable
+                    onPress={() => setVoucherSearchInput('')}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ padding: 4 }}
+                  >
+                    <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+                ) : (
+                  <View style={styles.applyVoucherPillBadge}>
+                    <Text style={styles.applyVoucherPillText}>Voucher</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : (
+            <AnimatedTouchable
+              onPress={() => setShowSearchModal(true)}
+              activeOpacity={0.92}
+              style={styles.floatingSearchContainer}
             >
-              <Ionicons name="trending-up" size={11} color="#BAE6FD" style={{ marginRight: 4 }} />
-              <Text style={styles.trendingChipText}>{kw}</Text>
-            </AnimatedPressable>
-          ))}
-        </ScrollView>
-      </LinearGradient>
+              <View style={styles.floatingSearchBox}>
+                <Ionicons name="search" size={17} color="#0284C7" style={styles.searchIcon} />
+                <Text style={styles.floatingSearchPlaceholder} numberOfLines={1}>
+                  {searchQuery || 'Tìm tên thuốc, triệu chứng, TPCN...'}
+                </Text>
+                <View style={styles.searchActionGroup}>
+                  {/* Mic Tư Vấn Dược Sĩ AI */}
+                  <AnimatedTouchable
+                    onPress={() => setActiveTab('AI_CHAT')}
+                    style={styles.searchSubBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="mic-outline" size={18} color="#0284C7" />
+                  </AnimatedTouchable>
+
+                  {/* Vách ngăn mỏng divider */}
+                  <View style={styles.searchDivider} />
+
+                  {/* Quét Mã Vạch Thuốc & Đơn Hàng */}
+                  <AnimatedTouchable
+                    onPress={() => setShowScanner(true)}
+                    style={styles.searchSubBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="barcode-outline" size={18} color="#0284C7" />
+                  </AnimatedTouchable>
+                </View>
+              </View>
+            </AnimatedTouchable>
+          )}
+        </LinearGradient>
+      )}
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        ref={mainScrollRef}
+        contentContainerStyle={[
+          styles.scrollContent,
+          (activeTab === 'ACCOUNT' || activeTab === 'ORDERS' || activeTab === 'REWARDS' || activeTab === 'VOUCHERS') && { padding: 0 },
+        ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
         {/* TAB 1: STORE - Master Tri-Pharmacy Landing Page */}
         <View style={{ display: activeTab === 'STORE' ? 'flex' : 'none' }}>
           <View>
-            {/* 5 Từ Khóa Tìm Kiếm Gần Nhất */}
-            {!searchQuery && recentSearches.length > 0 && (
-              <View style={styles.recentSearchBox}>
-                <View style={styles.recentSearchHeader}>
-                  <Text style={styles.recentSearchTitle}>Tìm kiếm gần đây (5 từ):</Text>
-                  <AnimatedTouchable onPress={handleClearRecentSearches}>
-                    <Text style={styles.clearRecentText}>Xóa tất cả</Text>
-                  </AnimatedTouchable>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentSearchScroll}>
-                  {recentSearches.map((kw, i) => (
-                    <AnimatedPressable
-                      key={`recent-${i}`}
-                      onPress={() => setSearchQuery(kw)}
-                      style={styles.recentChip}
-                      pressedScale={0.94}
-                    >
-                      <Ionicons name="time-outline" size={13} color="#0284C7" style={{ marginRight: 4 }} />
-                      <Text style={styles.recentChipText}>{kw}</Text>
-                    </AnimatedPressable>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
             {/* 1. Interactive Callout: Dược Sĩ AI & Tư Vấn 24/7 (Long Châu & An Khang) */}
             <View style={styles.consultantCalloutCard}>
               <View style={styles.consultantCalloutLeft}>
@@ -935,17 +1191,16 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </AnimatedTouchable>
             </View>
 
-            {/* 2. Hai Thẻ Tiện Ích Đột Phá (Chuẩn An Khang) */}
+            {/* 2. Hai Thẻ Tiện Ích Chuẩn FPT Long Châu Tối Giản */}
             <View style={styles.twoPillarsRow}>
               <AnimatedTouchable
                 onPress={() => setShowScanner(true)}
                 style={[styles.pillarCard, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
               >
                 <View style={[styles.pillarIconBox, { backgroundColor: '#E0F2FE' }]}>
-                  <Ionicons name="barcode-outline" size={24} color="#0284C7" />
+                  <Ionicons name="barcode-outline" size={26} color="#0284C7" />
                 </View>
                 <Text style={styles.pillarTitle}>Tra cứu toa & Quét mã</Text>
-                <Text style={styles.pillarSub}>Quét mã vạch vỏ hộp thuốc</Text>
               </AnimatedTouchable>
 
               <AnimatedTouchable
@@ -953,24 +1208,23 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 style={[styles.pillarCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
               >
                 <View style={[styles.pillarIconBox, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="alarm" size={24} color="#16A34A" />
+                  <Ionicons name="alarm" size={26} color="#16A34A" />
                 </View>
                 <Text style={[styles.pillarTitle, { color: '#15803D' }]}>Nhắc uống thuốc</Text>
-                <Text style={[styles.pillarSub, { color: '#16A34A' }]}>Offline 100% không mất báo</Text>
               </AnimatedTouchable>
             </View>
 
-            {/* 3. Lưới Hành Động Nhanh (Quick Action Grid 2x4 chuẩn 3 ông lớn) */}
+            {/* 3. Lưới Hành Động Nhanh Chuẩn FPT Long Châu (Cỡ chữ to rõ, 1 dòng sạch sẽ, không chữ phụ rối mắt) */}
             <View style={styles.quickActionGridContainer}>
               {[
-                { id: 'STORE', title: 'Tủ thuốc', sub: 'Toàn diện', icon: 'medkit', color: '#0284C7', bg: '#E0F2FE', action: () => { setSelectedCategory('ALL'); setSearchQuery(''); } },
-                { id: 'AI_CHAT', title: 'Dược sĩ AI', sub: 'Tư vấn 24/7', icon: 'chatbubble-ellipses', color: '#0EA5E9', bg: '#E0F2FE', action: () => setActiveTab('AI_CHAT') },
-                { id: 'REMINDER', title: 'Nhắc thuốc', sub: 'Cữ chuẩn', icon: 'alarm', color: '#F59E0B', bg: '#FEF3C7', action: () => navigation.navigate('MedicineReminderScreen') },
-                { id: 'SCAN', title: 'Quét mã', sub: 'Chính hãng', icon: 'barcode', color: '#8B5CF6', bg: '#EDE9FE', action: () => setShowScanner(true) },
-                { id: 'BRANCHES', title: 'Nhà thuốc', sub: 'Chi nhánh', icon: 'storefront', color: '#0EA5E9', bg: '#E0F2FE', action: () => setShowBranchModal(true) },
-                { id: 'VOUCHERS', title: 'Săn voucher', sub: 'Ưu đãi sốc', icon: 'pricetags', color: '#EC4899', bg: '#FCE7F3', action: () => setActiveTab('VOUCHERS') },
-                { id: 'SEASONAL', title: 'Bệnh mùa', sub: 'Phác đồ', icon: 'fitness', color: '#0284C7', bg: '#E0F2FE', action: () => setSeasonalCategory('FLU') },
-                { id: 'ORDERS', title: 'Đơn của tôi', sub: 'Lịch sử mua', icon: 'receipt', color: '#6366F1', bg: '#E0E7FF', action: () => setActiveTab('ORDERS') },
+                { id: 'STORE', title: 'Tủ thuốc', icon: 'medkit', color: '#0284C7', bg: '#E0F2FE', action: () => { setSelectedCategory('ALL'); setSearchQuery(''); } },
+                { id: 'AI_CHAT', title: 'Dược sĩ AI', icon: 'chatbubble-ellipses', color: '#0EA5E9', bg: '#E0F2FE', action: () => setActiveTab('AI_CHAT') },
+                { id: 'REMINDER', title: 'Nhắc thuốc', icon: 'alarm', color: '#F59E0B', bg: '#FEF3C7', action: () => navigation.navigate('MedicineReminderScreen') },
+                { id: 'SCAN', title: 'Quét mã', icon: 'barcode', color: '#8B5CF6', bg: '#EDE9FE', action: () => setShowScanner(true) },
+                { id: 'BRANCHES', title: 'Nhà thuốc', icon: 'storefront', color: '#0EA5E9', bg: '#E0F2FE', action: () => setShowBranchModal(true) },
+                { id: 'VOUCHERS', title: 'Săn voucher', icon: 'pricetags', color: '#EC4899', bg: '#FCE7F3', action: () => setActiveTab('VOUCHERS') },
+                { id: 'HEALTH_PASSPORT', title: 'Sổ sức khỏe', icon: 'shield-checkmark', color: '#0D9488', bg: '#CCFBF1', action: () => { setIsOnboardingHealth(false); setShowPassportModal(true); } },
+                { id: 'ORDERS', title: 'Đơn của tôi', icon: 'receipt', color: '#6366F1', bg: '#E0E7FF', action: () => setActiveTab('ORDERS') },
               ].map((item) => (
                 <AnimatedTouchable
                   key={item.id}
@@ -978,231 +1232,327 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   style={styles.quickGridItem}
                 >
                   <View style={[styles.quickGridIconBox, { backgroundColor: item.bg }]}>
-                    <Ionicons name={item.icon as any} size={22} color={item.color} />
+                    <Ionicons name={item.icon as any} size={25} color={item.color} />
                   </View>
                   <Text style={styles.quickGridTitle} numberOfLines={1}>
                     {item.title}
-                  </Text>
-                  <Text style={styles.quickGridSub} numberOfLines={1}>
-                    {item.sub}
                   </Text>
                 </AnimatedTouchable>
               ))}
             </View>
 
-            {/* 4. Banner Khuyến Mãi Sức Khỏe Toàn Diện */}
-            <View style={styles.heroPromoBanner}>
+            {/* 4. Banner Carousel Khuyến Mãi Tự Động Trượt Chuẩn FPT Long Châu */}
+            <HomeBannerCarousel onSelectBanner={handleSelectBanner} />
+
+            {/* 5. Khung Giờ Vàng Flash Sale Full Màn Hình (Edge-to-Edge) Chuẩn E-Commerce Y Tế */}
+            <View style={styles.flashSaleFullSection}>
+              {/* Nền Gradient mờ nhẹ y tế ấm áp */}
               <LinearGradient
-                colors={['#0284C7', '#0EA5E9']}
+                colors={['#FFF5F5', '#FFF1F2', '#FEF2F2']}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.heroPromoInner}
+                end={{ x: 0, y: 1 }}
+                style={styles.flashSaleGradientInner}
               >
-                <View style={{ flex: 1 }}>
-                  <View style={styles.promoBadge}>
-                    <Text style={styles.promoBadgeText}>ƯU ĐÃI THÁNG Y TẾ</Text>
+                {/* 5.1. Header Khung Giờ Săn Sale (Tabs Khung Giờ) */}
+                <View style={styles.flashSlotTabsRow}>
+                  <AnimatedTouchable
+                    onPress={() => setFlashSaleSlot('SLOT_1')}
+                    style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_1' && styles.flashSlotTabActive]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_1' && styles.flashSlotTimeActive]}>
+                      08:00 - 12:00
+                    </Text>
+                    <View style={styles.flashStatusBadgeRow}>
+                      {flashSaleSlot === 'SLOT_1' && (
+                        <Ionicons name="flame" size={12} color="#FFFFFF" style={{ marginRight: 2 }} />
+                      )}
+                      <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_1' && styles.flashSlotStatusActive]}>
+                        Đang diễn ra
+                      </Text>
+                    </View>
+                  </AnimatedTouchable>
+
+                  <AnimatedTouchable
+                    onPress={() => setFlashSaleSlot('SLOT_2')}
+                    style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_2' && styles.flashSlotTabActive]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_2' && styles.flashSlotTimeActive]}>
+                      12:00 - 18:00
+                    </Text>
+                    <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_2' && styles.flashSlotStatusActive]}>
+                      Sắp diễn ra
+                    </Text>
+                  </AnimatedTouchable>
+
+                  <AnimatedTouchable
+                    onPress={() => setFlashSaleSlot('SLOT_3')}
+                    style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_3' && styles.flashSlotTabActive]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_3' && styles.flashSlotTimeActive]}>
+                      18:00 - 22:00
+                    </Text>
+                    <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_3' && styles.flashSlotStatusActive]}>
+                      Tối nay
+                    </Text>
+                  </AnimatedTouchable>
+                </View>
+
+                {/* 5.2. Thanh Tiêu Đề Flash Sale & Bộ Đếm Giờ Ngược Countdown */}
+                <View style={styles.flashCountdownBar}>
+                  <View style={styles.flashTitleGroup}>
+                    <View style={styles.flashIconBadge}>
+                      <Ionicons name="flash" size={15} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.flashSaleTitle}>FLASH SALE GIÁ TỐT</Text>
                   </View>
-                  <Text style={styles.promoMainTitle}>
-                    Sức Khỏe Cả Nhà • Ngàn Deal Cực Xịn
-                  </Text>
-                  <Text style={styles.promoSubTitle}>
-                    Giảm đến 35% Vitamin & Dược mỹ phẩm • Freeship đơn từ 150K
-                  </Text>
+
+                  {/* Bộ Đếm Ngược Countdown */}
+                  <FlashSaleCountdown />
                 </View>
-                <View style={styles.promoArtBox}>
-                  <Ionicons name="sparkles" size={32} color="#FDE047" />
-                </View>
+
+                {/* 5.3. Danh Sách Sản Phẩm Flash Sale Vuốt Ngang (To Rõ, Đẹp Mắt) */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.flashProductsScroll}
+                >
+                  {(medicines.length > 0 ? medicines.slice(0, 8) : []).map((med, idx) => {
+                    const originalPrice = Math.round((med.price || 50000) * 1.35);
+                    const soldCount = 15 + (idx * 3);
+                    const percentSold = Math.min(95, 60 + ((idx * 7) % 35));
+                    return (
+                      <AnimatedPressable
+                        key={`flash-${med.id || idx}`}
+                        onPress={() => openMedicineDetail(med)}
+                        style={styles.flashCard}
+                        pressedScale={0.97}
+                      >
+                        {/* Badge Giảm Giá Đỏ Cam Nổi Bật */}
+                        <View style={styles.flashDiscountBadge}>
+                          <Text style={styles.flashDiscountText}>-35%</Text>
+                        </View>
+
+                        {/* Nút Tim Yêu Thích Tròn Nhẹ Nhàng */}
+                        <AnimatedTouchable
+                          onPress={() => toggleWishlist(med)}
+                          style={styles.flashWishlistBtn}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons
+                            name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
+                            size={16}
+                            color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
+                          />
+                        </AnimatedTouchable>
+
+                        {/* Hộp Ảnh Thuốc Có Nền Sáng */}
+                        <View style={styles.flashThumbBox}>
+                          <Image
+                            source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
+                            style={styles.flashThumb}
+                            resizeMode="contain"
+                          />
+                        </View>
+
+                        {/* Tên Thuốc To Rõ 2 Dòng */}
+                        <Text style={styles.flashMedName} numberOfLines={2}>
+                          {med.name}
+                        </Text>
+
+                        {/* Giá Gốc Gạch Ngang & Giá Flash Sale Siêu Tốt */}
+                        <View style={styles.flashPriceRow}>
+                          <Text style={styles.flashOriginalPrice}>
+                            {originalPrice.toLocaleString('vi-VN')} ₫
+                          </Text>
+                          <Text style={[styles.flashSalePrice, TypographyTokens.tabularNums]}>
+                            {med.price.toLocaleString('vi-VN')} ₫
+                          </Text>
+                        </View>
+
+                        {/* Thanh Tiến Độ Đã Bán Lửa Nhiệt (Fire Stock Bar) */}
+                        <View style={styles.flashStockBar}>
+                          <View style={[styles.flashStockProgress, { width: `${percentSold}%` }]} />
+                          <View style={styles.flashStockTextWrap}>
+                            <Ionicons name="flame" size={11} color="#DC2626" style={{ marginRight: 2 }} />
+                            <Text style={styles.flashStockText}>
+                              Đã bán {soldCount}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Nút Chọn Mua Thân Thiện To Rõ */}
+                        <AnimatedTouchable
+                          onPress={() => {
+                            addToCart(med);
+                            showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                          }}
+                          style={styles.flashAddToCartBtn}
+                        >
+                          <Ionicons name="cart" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                          <Text style={styles.flashAddToCartText}>Chọn mua</Text>
+                        </AnimatedTouchable>
+                      </AnimatedPressable>
+                    );
+                  })}
+                </ScrollView>
               </LinearGradient>
             </View>
 
-            {/* 5. Khung Giờ Vàng Flash Sale (Pharmacity & An Khang) */}
-            <View style={styles.flashSaleSection}>
-              {/* Flash sale slots header */}
-              <View style={styles.flashSlotTabsRow}>
-                <AnimatedTouchable
-                  onPress={() => setFlashSaleSlot('SLOT_1')}
-                  style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_1' && styles.flashSlotTabActive]}
-                >
-                  <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_1' && styles.flashSlotTimeActive]}>
-                    08:00 - 12:00
-                  </Text>
-                  <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_1' && styles.flashSlotStatusActive]}>
-                    Đang diễn ra
-                  </Text>
-                </AnimatedTouchable>
-
-                <AnimatedTouchable
-                  onPress={() => setFlashSaleSlot('SLOT_2')}
-                  style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_2' && styles.flashSlotTabActive]}
-                >
-                  <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_2' && styles.flashSlotTimeActive]}>
-                    12:00 - 18:00
-                  </Text>
-                  <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_2' && styles.flashSlotStatusActive]}>
-                    Sắp diễn ra
-                  </Text>
-                </AnimatedTouchable>
-
-                <AnimatedTouchable
-                  onPress={() => setFlashSaleSlot('SLOT_3')}
-                  style={[styles.flashSlotTab, flashSaleSlot === 'SLOT_3' && styles.flashSlotTabActive]}
-                >
-                  <Text style={[styles.flashSlotTime, flashSaleSlot === 'SLOT_3' && styles.flashSlotTimeActive]}>
-                    18:00 - 22:00
-                  </Text>
-                  <Text style={[styles.flashSlotStatus, flashSaleSlot === 'SLOT_3' && styles.flashSlotStatusActive]}>
-                    Tối nay
-                  </Text>
-                </AnimatedTouchable>
-              </View>
-
-              {/* Flash sale countdown header bar */}
-              <View style={styles.flashCountdownBar}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons name="flash" size={18} color="#EF4444" style={{ marginRight: 6 }} />
-                  <Text style={styles.flashSaleTitle}>FLASH SALE GIÁ TỐT</Text>
+            {/* 6. Top 3 Sản Phẩm Bán Chạy Nhất (Layout To Đùng + Xem Tất Cả) - KHÔNG DÙNG BORDER */}
+            <View style={styles.bestSellerSection}>
+              {/* Header: Tiêu Đề Nổi Bật & Nút Xem Tất Cả */}
+              <View style={styles.bestSellerHeaderRow}>
+                <View style={styles.bestSellerTitleGroup}>
+                  <View style={styles.bestSellerIconBadge}>
+                    <Ionicons name="flame" size={17} color="#FFFFFF" />
+                  </View>
+                  <View>
+                    <Text style={styles.bestSellerSectionTitle}>Sản Phẩm Bán Chạy</Text>
+                    <Text style={styles.bestSellerSectionSub}>Top 3 sản phẩm tin dùng nhiều nhất tuần này</Text>
+                  </View>
                 </View>
-
-                {/* Countdown Box Numbers */}
-                <FlashSaleCountdown />
+                <AnimatedTouchable
+                  onPress={handleViewAllBestSellers}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.bestSellerViewAllBtn}
+                >
+                  <Text style={styles.bestSellerViewAllText}>Xem tất cả</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+                </AnimatedTouchable>
               </View>
 
-              {/* Flash sale horizontal product cards */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.flashProductsScroll}
-              >
-                {(medicines.length > 0 ? medicines.slice(0, 6) : []).map((med, idx) => {
-                  const originalPrice = Math.round((med.price || 50000) * 1.35);
+              {/* Danh Sách 3 Thẻ Sản Phẩm To Đùng */}
+              <View style={styles.bestSellerCardsList}>
+                {topBestSellers.map((med, index) => {
+                  const wishlisted = isWishlisted(med.id);
                   return (
                     <AnimatedPressable
-                      key={`flash-${med.id || idx}`}
-                      onPress={() => setSelectedMedDetail(med)}
-                      style={styles.flashCard}
-                      pressedScale={0.97}
+                      key={`bestseller-${med.id || index}`}
+                      onPress={() => openMedicineDetail(med)}
+                      style={styles.bestSellerBigCard}
+                      pressedScale={0.98}
                     >
-                      <View style={styles.flashDiscountBadge}>
-                        <Text style={styles.flashDiscountText}>-35%</Text>
-                      </View>
-                      <AnimatedTouchable
-                        onPress={() => toggleWishlist(med)}
-                        style={styles.flashWishlistBtn}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Ionicons
-                          name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
-                          size={16}
-                          color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
-                        />
-                      </AnimatedTouchable>
-                      <Image
-                        source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
-                        style={styles.flashThumb}
-                        resizeMode="cover"
-                      />
-                      <Text style={styles.flashMedName} numberOfLines={2}>
-                        {med.name}
-                      </Text>
-                      <Text style={styles.flashOriginalPrice}>
-                        {originalPrice.toLocaleString('vi-VN')} ₫
-                      </Text>
-                      <Text style={[styles.flashSalePrice, TypographyTokens.tabularNums]}>
-                        {med.price.toLocaleString('vi-VN')} ₫
-                      </Text>
+                      {/* Hàng Top Thẻ: Huy Hiệu TOP RANK & Nút Tim Yêu Thích */}
+                      <View style={styles.bestSellerCardTopRow}>
+                        <View style={[styles.bestSellerRankBadge, { backgroundColor: med.badgeColor }]}>
+                          <Ionicons
+                            name={med.rank === 1 ? 'trophy' : med.rank === 2 ? 'ribbon' : 'medal'}
+                            size={12}
+                            color="#FFFFFF"
+                            style={{ marginRight: 4 }}
+                          />
+                          <Text style={styles.bestSellerRankBadgeText}>{med.badgeLabel}</Text>
+                        </View>
 
-                      {/* Stock Progress Bar */}
-                      <View style={styles.flashStockBar}>
-                        <View style={[styles.flashStockProgress, { width: `${60 + (idx * 6) % 35}%` }]} />
-                        <Text style={styles.flashStockText}>
-                          Đã bán {15 + (idx * 3)} suất
-                        </Text>
+                        <View style={styles.bestSellerTopRightGroup}>
+                          <Text style={styles.bestSellerRatingText}>⭐ {med.ratingText}</Text>
+                          <AnimatedTouchable
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              toggleWishlist(med);
+                            }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={styles.bestSellerWishlistBtn}
+                          >
+                            <Ionicons
+                              name={wishlisted ? 'heart' : 'heart-outline'}
+                              size={18}
+                              color={wishlisted ? '#EF4444' : '#94A3B8'}
+                            />
+                          </AnimatedTouchable>
+                        </View>
                       </View>
 
-                      <AnimatedTouchable
-                        onPress={() => {
-                          addToCart(med);
-                          showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
-                        }}
-                        style={styles.flashAddToCartBtn}
-                      >
-                        <Text style={styles.flashAddToCartText}>Chọn mua</Text>
-                      </AnimatedTouchable>
+                      {/* Thân Thẻ To Đùng: Ảnh lớn bên trái (110x110), Chi tiết bên phải */}
+                      <View style={styles.bestSellerBodyRow}>
+                        <View style={styles.bestSellerBigImageBox}>
+                          <Image
+                            source={{
+                              uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                            }}
+                            style={styles.bestSellerBigImage}
+                            resizeMode="contain"
+                          />
+                          <View style={styles.bestSellerDiscountBadge}>
+                            <Text style={styles.bestSellerDiscountText}>-{med.discountPercent}%</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.bestSellerDetailsCol}>
+                          <Text style={styles.bestSellerMedName} numberOfLines={2}>
+                            {med.name}
+                          </Text>
+
+                          {med.active ? (
+                            <View style={styles.bestSellerActiveRow}>
+                              <Ionicons name="medical" size={11} color="#0284C7" style={{ marginRight: 4 }} />
+                              <Text style={styles.bestSellerActiveText} numberOfLines={1}>
+                                {med.active}
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          <View style={styles.bestSellerCategoryUnitRow}>
+                            <View style={styles.bestSellerCategoryTag}>
+                              <Text style={styles.bestSellerCategoryTagText}>
+                                {med.category || 'Thuốc chính hãng'}
+                              </Text>
+                            </View>
+                            <Text style={styles.bestSellerUnitText}>{med.unit || 'Hộp'}</Text>
+                          </View>
+
+                          <View style={styles.bestSellerPriceBlock}>
+                            <Text style={[styles.bestSellerPrice, TypographyTokens.tabularNums]}>
+                              {med.price.toLocaleString('vi-VN')} ₫
+                            </Text>
+                            <Text style={[styles.bestSellerOriginalPrice, TypographyTokens.tabularNums]}>
+                              {med.originalPrice.toLocaleString('vi-VN')} ₫
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Hàng Chân Thẻ: Thanh Nhiệt Tiến Độ Bán & Nút Chọn Mua To Rõ */}
+                      <View style={styles.bestSellerFooterRow}>
+                        <View style={styles.bestSellerProgressCol}>
+                          <View style={styles.bestSellerProgressBarTrack}>
+                            <View
+                              style={[
+                                styles.bestSellerProgressBarFill,
+                                { width: `${med.progressPercent}%` },
+                              ]}
+                            />
+                          </View>
+                          <Text style={styles.bestSellerSoldText}>🔥 {med.soldCountText}</Text>
+                        </View>
+
+                        <AnimatedTouchable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            addToCart(med);
+                            showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                          }}
+                          style={styles.bestSellerAddToCartBtn}
+                        >
+                          <Ionicons name="cart" size={15} color="#FFFFFF" style={{ marginRight: 4 }} />
+                          <Text style={styles.bestSellerAddToCartText}>Chọn mua</Text>
+                        </AnimatedTouchable>
+                      </View>
                     </AnimatedPressable>
                   );
                 })}
-              </ScrollView>
-            </View>
-
-            {/* 6. Chuyên Mục Bệnh Theo Mùa (FPT Long Châu) */}
-            <View style={styles.seasonalSection}>
-              <View style={styles.seasonalHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons name="shield-half-outline" size={18} color="#0284C7" style={{ marginRight: 6 }} />
-                  <Text style={styles.seasonalSectionTitle}>Bệnh Phổ Biến Theo Mùa</Text>
-                </View>
-              </View>
-
-              {/* Seasonal Category Tabs */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.seasonalTabsScroll}>
-                {[
-                  { id: 'FLU', label: 'Cảm cúm & Sốt' },
-                  { id: 'STOMACH', label: 'Dạ dày & Tiêu hóa' },
-                  { id: 'ALLERGY', label: 'Dị ứng & Da liễu' },
-                  { id: 'IMMUNITY', label: 'Tăng sức đề kháng' },
-                ].map((s) => (
-                  <AnimatedTouchable
-                    key={s.id}
-                    onPress={() => setSeasonalCategory(s.id as any)}
-                    style={[
-                      styles.seasonalTabPill,
-                      seasonalCategory === s.id && styles.seasonalTabPillActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.seasonalTabPillText,
-                        seasonalCategory === s.id && styles.seasonalTabPillTextActive,
-                      ]}
-                    >
-                      {s.label}
-                    </Text>
-                  </AnimatedTouchable>
-                ))}
-              </ScrollView>
-
-              {/* Seasonal Advice Callout Card */}
-              <View style={styles.seasonalAdviceCard}>
-                <Text style={styles.seasonalAdviceTitle}>
-                  {SEASONAL_ADVICE[seasonalCategory]?.title}
-                </Text>
-                <Text style={styles.seasonalAdviceDesc}>
-                  {SEASONAL_ADVICE[seasonalCategory]?.desc}
-                </Text>
-                <View style={styles.seasonalTagsRow}>
-                  {SEASONAL_ADVICE[seasonalCategory]?.tags.map((t, ti) => (
-                    <View key={`stag-${ti}`} style={styles.seasonalTagPill}>
-                      <Ionicons name="checkmark-circle" size={12} color="#0284C7" style={{ marginRight: 4 }} />
-                      <Text style={styles.seasonalTagText}>{t}</Text>
-                    </View>
-                  ))}
-                </View>
               </View>
             </View>
 
-            {/* Banner cảnh báo dữ liệu ngoại tuyến (nếu có) */}
-            {isOfflineMode && (
-              <View style={styles.offlineBanner}>
-                <Ionicons name="cloud-offline-outline" size={16} color="#B45309" style={{ marginRight: 8 }} />
-                <Text style={styles.offlineBannerText}>
-                  Đang hiển thị dữ liệu mẫu y tế. Kéo xuống để đồng bộ khi máy chủ sẵn sàng.
-                </Text>
-              </View>
-            )}
-
-            {/* 7. Category Icon Grid */}
+            {/* 7. Danh Mục Nổi Bật (Featured Categories) - Nền Phẳng, Không Border */}
             <View style={styles.categoryHeaderRow}>
-              <Text style={styles.sectionTitle}>Danh Mục Dược Phẩm</Text>
+              <View style={styles.categoryHeaderTitleGroup}>
+                <Ionicons name="grid" size={16} color="#0284C7" style={{ marginRight: 6 }} />
+                <Text style={styles.sectionTitle}>Danh Mục Nổi Bật</Text>
+              </View>
               <Text style={styles.sectionSubtitle}>
                 {categoriesList.length} nhóm thuốc chuẩn hóa
               </Text>
@@ -1240,6 +1590,172 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 </AnimatedTouchable>
               ))}
             </View>
+
+            {/* 8. Góc Sức Khỏe & Cẩm Nang Bệnh (Blog Y Khoa & Thuốc Gợi Ý) - KHÔNG DÙNG BORDER */}
+            <View style={styles.healthBlogSection}>
+              {/* Tiêu đề mục Blog */}
+              <View style={styles.healthBlogHeaderRow}>
+                <View style={styles.healthBlogTitleGroup}>
+                  <View style={styles.healthBlogIconBadge}>
+                    <Ionicons name="newspaper" size={16} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.healthBlogSectionTitle}>Góc Sức Khỏe & Cẩm Nang Bệnh</Text>
+                </View>
+                <AnimatedTouchable
+                  onPress={() => setActiveTab('AI_CHAT')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.healthBlogMoreText}>Hỏi Dược Sĩ AI ›</Text>
+                </AnimatedTouchable>
+              </View>
+
+              {/* Dải Tabs Phân Loại Chủ Đề Blog (Flat, Không Border) */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.healthBlogTabsScroll}
+              >
+                {[
+                  { id: 'FLU', label: 'Cảm cúm & Sốt' },
+                  { id: 'STOMACH', label: 'Dạ dày & Tiêu hóa' },
+                  { id: 'ALLERGY', label: 'Dị ứng & Da liễu' },
+                  { id: 'IMMUNITY', label: 'Tăng sức đề kháng' },
+                ].map((s) => (
+                  <AnimatedTouchable
+                    key={s.id}
+                    onPress={() => setSeasonalCategory(s.id as any)}
+                    style={[
+                      styles.healthBlogTabPill,
+                      seasonalCategory === s.id && styles.healthBlogTabPillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.healthBlogTabPillText,
+                        seasonalCategory === s.id && styles.healthBlogTabPillTextActive,
+                      ]}
+                    >
+                      {s.label}
+                    </Text>
+                  </AnimatedTouchable>
+                ))}
+              </ScrollView>
+
+              {/* Thẻ Bài Viết Blog Y Khoa Lớn (Không Border, Shadow Mềm) */}
+              <View style={styles.blogArticleCard}>
+                <Image
+                  source={{ uri: SEASONAL_BLOGS[seasonalCategory]?.imageUrl }}
+                  style={styles.blogArticleImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.blogArticleContent}>
+                  <View style={styles.blogCategoryBadge}>
+                    <Text style={styles.blogCategoryBadgeText}>
+                      {SEASONAL_BLOGS[seasonalCategory]?.categoryName}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.blogArticleTitle} numberOfLines={2}>
+                    {SEASONAL_BLOGS[seasonalCategory]?.title}
+                  </Text>
+
+                  <View style={styles.blogAuthorRow}>
+                    <Ionicons name="person-circle-outline" size={14} color="#0284C7" style={{ marginRight: 4 }} />
+                    <Text style={styles.blogAuthorText}>
+                      {SEASONAL_BLOGS[seasonalCategory]?.author}
+                    </Text>
+                    <Text style={styles.blogDotSeparator}>•</Text>
+                    <Ionicons name="time-outline" size={13} color="#64748B" style={{ marginRight: 3 }} />
+                    <Text style={styles.blogReadTimeText}>
+                      {SEASONAL_BLOGS[seasonalCategory]?.readTime}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.blogArticleSummary}>
+                    {SEASONAL_BLOGS[seasonalCategory]?.summary}
+                  </Text>
+
+                  <View style={styles.blogAdviceBox}>
+                    <Text style={styles.blogAdviceLabel}>Lời khuyên dược sĩ:</Text>
+                    <Text style={styles.blogAdviceText}>
+                      {SEASONAL_BLOGS[seasonalCategory]?.advice}
+                    </Text>
+                  </View>
+
+                  {/* Triệu chứng nhận biết (Không border) */}
+                  <View style={styles.blogSymptomsRow}>
+                    {SEASONAL_BLOGS[seasonalCategory]?.symptoms.map((symptom, si) => (
+                      <View key={`sym-${si}`} style={styles.blogSymptomChip}>
+                        <Ionicons name="checkmark-circle" size={12} color="#0284C7" style={{ marginRight: 4 }} />
+                        <Text style={styles.blogSymptomText}>{symptom}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {/* KHU VỰC THUỐC GỢI Ý ĐIỀU TRỊ / HỖ TRỢ (Không Border) */}
+                <View style={styles.recommendedMedsSection}>
+                  <View style={styles.recommendedMedsHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="medkit" size={15} color="#0284C7" style={{ marginRight: 6 }} />
+                      <Text style={styles.recommendedMedsTitle}>Thuốc & Sản phẩm khuyên dùng</Text>
+                    </View>
+                    <Text style={styles.recommendedMedsCount}>
+                      {seasonalMedicines.length} gợi ý
+                    </Text>
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.recommendedMedsScroll}
+                  >
+                    {seasonalMedicines.map((med, idx) => (
+                      <AnimatedPressable
+                        key={`rec-${med.id || idx}`}
+                        onPress={() => openMedicineDetail(med)}
+                        style={styles.recommendedMedCard}
+                        pressedScale={0.96}
+                      >
+                        <View style={styles.recommendedMedThumbBox}>
+                          <Image
+                            source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&auto=format&fit=crop&q=80' }}
+                            style={styles.recommendedMedThumb}
+                            resizeMode="contain"
+                          />
+                        </View>
+                        <Text style={styles.recommendedMedName} numberOfLines={2}>
+                          {med.name}
+                        </Text>
+                        <Text style={[styles.recommendedMedPrice, TypographyTokens.tabularNums]}>
+                          {med.price.toLocaleString('vi-VN')} ₫
+                        </Text>
+                        <AnimatedTouchable
+                          onPress={() => {
+                            addToCart(med);
+                            showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                          }}
+                          style={styles.recommendedMedAddBtn}
+                        >
+                          <Ionicons name="cart-outline" size={13} color="#FFFFFF" style={{ marginRight: 3 }} />
+                          <Text style={styles.recommendedMedAddText}>Chọn mua</Text>
+                        </AnimatedTouchable>
+                      </AnimatedPressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+            </View>
+
+            {/* Banner cảnh báo dữ liệu ngoại tuyến (nếu có) */}
+            {isOfflineMode && (
+              <View style={styles.offlineBanner}>
+                <Ionicons name="cloud-offline-outline" size={16} color="#B45309" style={{ marginRight: 8 }} />
+                <Text style={styles.offlineBannerText}>
+                  Đang hiển thị dữ liệu mẫu y tế. Kéo xuống để đồng bộ khi máy chủ sẵn sàng.
+                </Text>
+              </View>
+            )}
 
             {/* 8. Filter & Sort bar */}
             <View style={styles.filterBarRow}>
@@ -1293,74 +1809,89 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             {refreshing && medicines.length === 0 ? (
               <ClinicalMedicineSkeletonGrid count={4} />
             ) : (
-              filteredMedicines.map((med, idx) => (
-                <View
-                  key={med.id || (med as any)._id || (med as any).sku || `med-${idx}`}
-                  style={styles.productCardWrapper}
-                >
-                  <View style={styles.productCard}>
-                    <AnimatedPressable
-                      onPress={() => setSelectedMedDetail(med)}
-                      style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-                      pressedScale={0.98}
-                    >
-                      <Image
-                        source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
-                        style={styles.productThumb}
-                        resizeMode="cover"
-                      />
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <Text style={styles.productName} numberOfLines={2}>{med.name}</Text>
-                          {med.isRx ? (
-                            <View style={styles.rxBadge}>
-                              <Text style={styles.rxBadgeText}>Rx</Text>
-                            </View>
-                          ) : (
-                            <View style={styles.otcBadge}>
-                              <Text style={styles.otcBadgeText}>OTC</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={styles.productActive} numberOfLines={1}>
-                          {med.active || med.active_ingredient || 'Đang cập nhật hoạt chất'}
-                        </Text>
-                        <Text style={[styles.productPrice, TypographyTokens.tabularNums]}>
-                          {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
-                        </Text>
-                      </View>
-                    </AnimatedPressable>
-
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <>
+                {filteredMedicines.slice(0, visibleMedicineCount).map((med, idx) => (
+                  <View
+                    key={med.id || (med as any)._id || (med as any).sku || `med-${idx}`}
+                    style={styles.productCardWrapper}
+                  >
+                    <View style={styles.productCard}>
                       <AnimatedPressable
-                        onPress={() => toggleWishlist(med)}
-                        style={[
-                          styles.wishlistCardBtn,
-                          isWishlisted(med.id || (med as any)._id) && styles.wishlistCardBtnActive,
-                        ]}
-                        pressedScale={0.88}
+                        onPress={() => openMedicineDetail(med)}
+                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                        pressedScale={0.98}
                       >
-                        <Ionicons
-                          name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
-                          size={18}
-                          color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
+                        <Image
+                          source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
+                          style={styles.productThumb}
+                          resizeMode="cover"
                         />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Text style={styles.productName} numberOfLines={2}>{med.name}</Text>
+                            {med.isRx ? (
+                              <View style={styles.rxBadge}>
+                                <Text style={styles.rxBadgeText}>Rx</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.otcBadge}>
+                                <Text style={styles.otcBadgeText}>OTC</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.productActive} numberOfLines={1}>
+                            {med.active || med.active_ingredient || 'Đang cập nhật hoạt chất'}
+                          </Text>
+                          <Text style={[styles.productPrice, TypographyTokens.tabularNums]}>
+                            {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
+                          </Text>
+                        </View>
                       </AnimatedPressable>
 
-                      <AnimatedPressable
-                        onPress={() => {
-                          addToCart(med);
-                          showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
-                        }}
-                        style={styles.addToCartBtn}
-                        pressedScale={0.90}
-                      >
-                        <Ionicons name="add" size={20} color="#FFFFFF" />
-                      </AnimatedPressable>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <AnimatedPressable
+                          onPress={() => toggleWishlist(med)}
+                          style={[
+                            styles.wishlistCardBtn,
+                            isWishlisted(med.id || (med as any)._id) && styles.wishlistCardBtnActive,
+                          ]}
+                          pressedScale={0.88}
+                        >
+                          <Ionicons
+                            name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
+                            size={18}
+                            color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
+                          />
+                        </AnimatedPressable>
+
+                        <AnimatedPressable
+                          onPress={() => {
+                            addToCart(med);
+                            showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                          }}
+                          style={styles.addToCartBtn}
+                          pressedScale={0.90}
+                        >
+                          <Ionicons name="add" size={20} color="#FFFFFF" />
+                        </AnimatedPressable>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))
+                ))}
+
+                {filteredMedicines.length > visibleMedicineCount && (
+                  <TouchableOpacity
+                    onPress={() => setVisibleMedicineCount((prev) => prev + 24)}
+                    style={styles.loadMoreMedicinesBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.loadMoreMedicinesText}>
+                      Xem thêm ({filteredMedicines.length - visibleMedicineCount} sản phẩm khác)
+                    </Text>
+                    <Ionicons name="chevron-down" size={16} color="#0284C7" />
+                  </TouchableOpacity>
+                )}
+              </>
             )}
 
             {/* 10. Bốn Cam Kết Vàng Dịch Vụ Y Tế (FPT Long Châu Footer) */}
@@ -1402,84 +1933,121 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           </View>
         </View>
 
-        {/* TAB 2: CART */}
+        {/* TAB 4 (TRƯỚC ĐÂY LÀ TAB 2): CART - GIỎ HÀNG TỐI GIẢN UI/UX */}
         <View style={{ display: activeTab === 'CART' ? 'flex' : 'none' }}>
           <View>
             {cart.length === 0 ? (
               <View style={styles.emptyCart}>
                 <Ionicons name="cart-outline" size={64} color="#CBD5E1" />
                 <Text style={styles.emptyCartTitle}>Giỏ hàng của bạn đang trống</Text>
-                <Text style={styles.emptyCartSub}>Hãy chọn các loại thuốc cần thiết từ Cửa hàng.</Text>
+                <Text style={styles.emptyCartSub}>Hãy chọn các loại dược phẩm cần thiết từ Cửa hàng.</Text>
+                <AnimatedTouchable
+                  onPress={() => setActiveTab('STORE')}
+                  style={styles.emptyCartExploreBtn}
+                >
+                  <Ionicons name="storefront-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.emptyCartExploreText}>Khám Phá Nhà Thuốc Ngay</Text>
+                </AnimatedTouchable>
               </View>
             ) : (
               <>
-                <Text style={styles.sectionTitle}>Danh Sách Sản Phẩm Đã Chọn ({cart.length})</Text>
+                <View style={styles.cartHeaderBar}>
+                  <Text style={styles.sectionTitle}>Giỏ Hàng Của Bạn ({cart.length})</Text>
+                  <AnimatedTouchable onPress={() => setCart([])}>
+                    <Text style={styles.clearCartText}>Xóa tất cả</Text>
+                  </AnimatedTouchable>
+                </View>
+
                 {cart.map((item, idx) => (
-                  <View key={item.medicine.id || (item.medicine as any)._id || `cart-${idx}`} style={styles.cartCard}>
+                  <View key={item.medicine.id || (item.medicine as any)._id || `cart-${idx}`} style={styles.cartCardMinimal}>
                     <Image
                       source={{ uri: item.medicine.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
-                      style={styles.cartThumb}
+                      style={styles.cartThumbMinimal}
                       resizeMode="cover"
                     />
                     <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.cartItemName}>{item.medicine.name}</Text>
-                      <Text style={styles.cartItemPrice}>
-                        {item.medicine.price.toLocaleString('vi-VN')} ₫ / {item.medicine.unit}
+                      <Text style={styles.cartItemNameMinimal} numberOfLines={2}>{item.medicine.name}</Text>
+                      <Text style={styles.cartItemPriceMinimal}>
+                        {item.medicine.price.toLocaleString('vi-VN')} ₫ <Text style={styles.cartItemUnitText}>/ {item.medicine.unit || 'Hộp'}</Text>
                       </Text>
                     </View>
 
-                    <View style={styles.qtyControlRow}>
+                    <View style={styles.cartRightActions}>
+                      <View style={styles.qtyCapsule}>
+                        <AnimatedTouchable
+                          onPress={() => updateQuantity(item.medicine.id, -1)}
+                          style={styles.qtyCapsuleBtn}
+                        >
+                          <Ionicons name="remove" size={14} color="#334155" />
+                        </AnimatedTouchable>
+                        <Text style={styles.qtyCapsuleVal}>{item.quantity}</Text>
+                        <AnimatedTouchable
+                          onPress={() => updateQuantity(item.medicine.id, 1)}
+                          style={styles.qtyCapsuleBtn}
+                        >
+                          <Ionicons name="add" size={14} color="#334155" />
+                        </AnimatedTouchable>
+                      </View>
+
                       <AnimatedTouchable
-                        onPress={() => updateQuantity(item.medicine.id, -1)}
-                        style={styles.qtyBtn}
+                        onPress={() => removeFromCart(item.medicine.id)}
+                        style={styles.cartDeleteBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Text style={styles.qtyBtnText}>-</Text>
-                      </AnimatedTouchable>
-                      <Text style={styles.qtyValText}>{item.quantity}</Text>
-                      <AnimatedTouchable
-                        onPress={() => updateQuantity(item.medicine.id, 1)}
-                        style={styles.qtyBtn}
-                      >
-                        <Text style={styles.qtyBtnText}>+</Text>
+                        <Ionicons name="trash-outline" size={17} color="#EF4444" />
                       </AnimatedTouchable>
                     </View>
                   </View>
                 ))}
 
-                {/* Voucher input */}
-                <View style={styles.voucherBox}>
+                {/* Voucher input & Phím tắt xem Điểm Thưởng */}
+                <View style={styles.voucherBoxMinimal}>
                   <TextInput
-                    style={styles.voucherInput}
-                    placeholder="Nhập mã voucher (PHARMA10, FREESHIP...)"
+                    style={styles.voucherInputMinimal}
+                    placeholder="Nhập mã ưu đãi (PHARMA10...)"
                     placeholderTextColor="#94A3B8"
                     value={voucherCodeInput}
                     onChangeText={setVoucherCodeInput}
                     autoCapitalize="characters"
                   />
-                  <AnimatedTouchable onPress={() => applyVoucher()} style={styles.applyVoucherBtn}>
+                  <AnimatedTouchable onPress={() => applyVoucher()} style={styles.applyVoucherBtnMinimal}>
                     <Text style={styles.applyVoucherText}>ÁP DỤNG</Text>
                   </AnimatedTouchable>
                 </View>
 
-                {/* Summary Card */}
-                <View style={styles.priceSummaryCard}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Tạm tính:</Text>
-                    <Text style={styles.summaryVal}>{subtotal.toLocaleString('vi-VN')} ₫</Text>
+                {/* Phím tắt xem Điểm thưởng & Kho Voucher */}
+                <AnimatedTouchable
+                  onPress={() => setActiveTab('REWARDS')}
+                  style={styles.rewardsShortcutBar}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="gift-outline" size={16} color="#0284C7" />
+                    <Text style={styles.rewardsShortcutText}>
+                      Kho Voucher & Điểm Thưởng của bạn ({vouchers.length} ưu đãi)
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+                </AnimatedTouchable>
+
+                {/* Summary Card Tối Giản */}
+                <View style={styles.priceSummaryCardMinimal}>
+                  <View style={styles.summaryRowMinimal}>
+                    <Text style={styles.summaryLabelMinimal}>Tạm tính:</Text>
+                    <Text style={styles.summaryValMinimal}>{subtotal.toLocaleString('vi-VN')} ₫</Text>
                   </View>
                   {appliedVoucher ? (
-                    <View style={styles.summaryRow}>
-                      <Text style={[styles.summaryLabel, { color: '#0284C7' }]}>
-                        Giảm giá ({appliedVoucher.code}):
+                    <View style={styles.summaryRowMinimal}>
+                      <Text style={[styles.summaryLabelMinimal, { color: '#0284C7' }]}>
+                        Khuyến mãi ({appliedVoucher.code}):
                       </Text>
-                      <Text style={[styles.summaryVal, { color: '#0284C7' }]}>
+                      <Text style={[styles.summaryValMinimal, { color: '#0284C7', fontWeight: '800' }]}>
                         -{discount.toLocaleString('vi-VN')} ₫
                       </Text>
                     </View>
                   ) : null}
-                  <View style={[styles.summaryRow, { borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 8, marginTop: 4 }]}>
-                    <Text style={styles.totalLabel}>Tổng Thanh Toán:</Text>
-                    <Text style={styles.totalVal}>{finalTotal.toLocaleString('vi-VN')} ₫</Text>
+                  <View style={[styles.summaryRowMinimal, styles.summaryTotalRow]}>
+                    <Text style={styles.totalLabelMinimal}>Tổng Thanh Toán:</Text>
+                    <Text style={styles.totalValMinimal}>{finalTotal.toLocaleString('vi-VN')} ₫</Text>
                   </View>
                 </View>
 
@@ -1487,17 +2055,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   title="TIẾN HÀNH ĐẶT HÀNG"
                   onPress={() => {
                     if (!user) {
-                      Alert.alert(
-                        'Yêu Cầu Đăng Nhập',
-                        'Vui lòng đăng nhập hoặc tạo tài khoản để tiến hành đặt hàng và chọn địa chỉ giao nhận thuốc. Giỏ hàng của bạn vẫn được lưu nguyên vẹn!',
-                        [
-                          { text: 'Để Sau', style: 'cancel' },
-                          {
-                            text: 'Đăng Nhập Ngay',
-                            onPress: () => navigation.navigate('LoginScreen'),
-                          },
-                        ]
-                      );
+                      setShowLoginPromptModal(true);
                       return;
                     }
                     navigation.navigate('CustomerCheckoutScreen', {
@@ -1513,6 +2071,65 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   style={{ marginTop: 14 }}
                 />
               </>
+            )}
+
+            {/* ─── KHU VỰC: SẢN PHẨM ĐÃ XEM GẦN ĐÂY ─── */}
+            {recentlyViewed.length > 0 && (
+              <View style={styles.recentViewedSection}>
+                <View style={styles.recentViewedHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="time" size={18} color="#0284C7" />
+                    <Text style={styles.recentViewedTitle}>Sản Phẩm Đã Xem Gần Đây</Text>
+                  </View>
+                  <Text style={styles.recentViewedCount}>({recentlyViewed.length})</Text>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.recentViewedScroll}
+                >
+                  {recentlyViewed.map((item, idx) => (
+                    <View
+                      key={item.id || (item as any)._id || `recently-${idx}`}
+                      style={styles.recentProductCard}
+                    >
+                      <AnimatedPressable
+                        onPress={() => openMedicineDetail(item)}
+                        pressedScale={0.96}
+                        style={{ flex: 1 }}
+                      >
+                        <Image
+                          source={{
+                            uri:
+                              item.image ||
+                              'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                          }}
+                          style={styles.recentProductThumb}
+                          resizeMode="cover"
+                        />
+                        <Text style={styles.recentProductName} numberOfLines={2}>
+                          {item.name}
+                        </Text>
+                        <Text style={styles.recentProductPrice}>
+                          {(item.price || 0).toLocaleString('vi-VN')} ₫
+                        </Text>
+                      </AnimatedPressable>
+
+                      <AnimatedTouchable
+                        onPress={() => {
+                          addToCart(item);
+                          showToast.success('Đã thêm', `Đã thêm ${item.name} vào giỏ hàng!`);
+                        }}
+                        style={styles.recentQuickAddBtn}
+                      >
+                        <Ionicons name="cart" size={12} color="#0284C7" />
+                        <Text style={styles.recentQuickAddText}>+ Thêm</Text>
+                      </AnimatedTouchable>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
             )}
           </View>
         </View>
@@ -1631,370 +2248,934 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           </View>
         </View>
 
-        {/* TAB 4: KHO VOUCHER */}
-        <View style={{ display: activeTab === 'VOUCHERS' ? 'flex' : 'none' }}>
-          <View>
-            <View style={styles.voucherBanner}>
-              <Ionicons name="gift" size={32} color="#D97706" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.voucherBannerTitle}>Kho Voucher & Ưu Đãi Dược Phẩm</Text>
-                <Text style={styles.voucherBannerSub}>Thu thập mã giảm giá và áp dụng trực tiếp khi thanh toán đơn</Text>
-              </View>
-            </View>
+        {/* TAB 2: ĐIỂM THƯỞNG & KHO VOUCHER (CHUẨN FPT LONG CHÂU - QUÀ TẶNG & LỊCH SỬ ĐIỂM) */}
+        <View style={{ display: (activeTab === 'REWARDS' || activeTab === 'VOUCHERS') ? 'flex' : 'none' }}>
+          {/* 1. Header Điểm Thưởng Chuẩn FPT Long Châu (Xanh Auth Liền Mạch) */}
+          <LinearGradient
+            colors={['#0369A1', '#0284C7', '#0EA5E9']}
+            style={styles.longChauRewardsHeader}
+          >
+            {/* Hàng 2 Nút Pill: [🎁 Quà của tôi] & [📄 Lịch sử] */}
+            <View style={styles.longChauRewardsTopActions}>
+              <AnimatedTouchable
+                style={[styles.longChauActionPill, styles.longChauActionPillActive]}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="gift" size={16} color="#0284C7" />
+                <Text style={styles.longChauActionPillTextActive}>Quà của tôi</Text>
+              </AnimatedTouchable>
 
-            <Text style={styles.sectionTitle}>Mã Khuyến Mãi Khả Dụng ({vouchers.length})</Text>
-            {vouchers.map((v, idx) => (
-              <View key={v.id || (v as any)._id || v.code || `voucher-${idx}`} style={styles.voucherCard}>
-                <View style={styles.voucherLeft}>
-                  <Text style={styles.voucherDiscountTag}>
-                    {v.discountType === 'PERCENT' ? `-${v.discountValue}%` : `-${(v.discountValue / 1000)}k`}
-                  </Text>
-                  <Text style={styles.voucherDiscountLabel}>GIẢM GIÁ</Text>
-                </View>
-
-                <View style={styles.voucherCenter}>
-                  <View style={styles.voucherCodePill}>
-                    <Text style={styles.voucherCodeText}>{v.code}</Text>
-                  </View>
-                  <Text style={styles.voucherDesc}>{v.description || 'Ưu đãi dành cho khách hàng ABC Pharmacy'}</Text>
-                  <Text style={styles.voucherCondition}>
-                    {v.minOrderValue ? `Đơn tối thiểu ${v.minOrderValue.toLocaleString('vi-VN')} ₫` : 'Áp dụng cho mọi đơn hàng'}
-                  </Text>
-                </View>
-
-                <View style={styles.voucherRight}>
-                  <AnimatedTouchable
-                    onPress={() => {
-                      Clipboard.setString(v.code);
-                      applyVoucher(v.code);
-                      setActiveTab('CART');
-                    }}
-                    style={styles.useVoucherBtn}
-                  >
-                    <Text style={styles.useVoucherBtnText}>Dùng Ngay</Text>
-                  </AnimatedTouchable>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* TAB 5: ORDERS */}
-        <View style={{ display: activeTab === 'ORDERS' ? 'flex' : 'none' }}>
-          <View>
-            {/* Phone search bar */}
-            <View style={styles.searchBox}>
-              <Ionicons name="call-outline" size={18} color="#94A3B8" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Nhập SĐT để tra cứu lịch sử đơn..."
-                placeholderTextColor="#94A3B8"
-                value={searchPhone}
-                onChangeText={setSearchPhone}
-                keyboardType="phone-pad"
-              />
-              <AnimatedTouchable onPress={loadData} style={styles.searchPhoneBtn}>
-                <Ionicons name="search" size={16} color="#FFFFFF" />
+              <AnimatedTouchable
+                style={styles.longChauActionPill}
+                onPress={() => setShowPointsHistoryModal(true)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="document-text" size={16} color="#FFFFFF" />
+                <Text style={styles.longChauActionPillText}>Lịch sử</Text>
               </AnimatedTouchable>
             </View>
 
-            <Text style={styles.sectionTitle}>Lịch Sử Đơn Thuốc ({orders.length})</Text>
-
-            {/* Order status chips scroll */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {[
-                { id: 'ALL', label: 'Tất cả', count: orders.length },
-                {
-                  id: 'PENDING',
-                  label: 'Chờ thanh toán',
-                  count: orders.filter((o) => {
-                    const s = String(o.status || '').toUpperCase();
-                    const p = String(o.paymentStatus || '').toUpperCase();
-                    return s === 'PENDING' || s === 'SUBMITTED' || p === 'PENDING';
-                  }).length,
-                },
-                {
-                  id: 'SHIPPING',
-                  label: 'Đang giao',
-                  count: orders.filter((o) => {
-                    const s = String(o.status || '').toUpperCase();
-                    return s === 'DELIVERING' || s === 'SHIPPING' || s === 'PROCESSING' || s === 'CONFIRMED';
-                  }).length,
-                },
-                {
-                  id: 'COMPLETED',
-                  label: 'Đã hoàn tất',
-                  count: orders.filter((o) => {
-                    const s = String(o.status || '').toUpperCase();
-                    const p = String(o.paymentStatus || '').toUpperCase();
-                    return s === 'COMPLETED' || s === 'DELIVERED' || p === 'PAID';
-                  }).length,
-                },
-                {
-                  id: 'CANCELLED',
-                  label: 'Đã hủy',
-                  count: orders.filter((o) => {
-                    const s = String(o.status || '').toUpperCase();
-                    const p = String(o.paymentStatus || '').toUpperCase();
-                    return s === 'CANCELLED' || s === 'FAILED' || p === 'CANCELLED';
-                  }).length,
-                },
-              ].map((tab) => (
+            {/* Khối Điểm Thưởng & Hũ Thủy Tinh Tiết Kiệm Long Châu */}
+            <View style={styles.longChauRewardsHeroRow}>
+              <View style={styles.longChauRewardsHeroCol}>
+                <Text style={styles.longChauRewardsHeroSub}>Điểm thưởng của tôi</Text>
+                <View style={styles.longChauRewardsCoinRow}>
+                  <Text style={styles.longChauRewardsCoinIcon}>🪙</Text>
+                  <Text style={styles.longChauRewardsCoinVal}>
+                    {(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')}
+                  </Text>
+                </View>
                 <AnimatedTouchable
-                  key={tab.id}
-                  onPress={() => setOrderStatusTab(tab.id as any)}
-                  style={[styles.orderStatusPill, orderStatusTab === tab.id && styles.activeOrderStatusPill]}
+                  style={styles.longChauRewardsRulesLink}
+                  onPress={() => showToast.info('Thể lệ tích điểm', 'Tích 1% giá trị đơn hàng, quy đổi trực tiếp 1 điểm = 1đ và đổi quà tặng đặc quyền.')}
                 >
-                  <Text style={[styles.orderStatusPillText, orderStatusTab === tab.id && styles.activeOrderStatusPillText]}>
-                    {tab.label} ({tab.count})
-                  </Text>
+                  <Text style={styles.longChauRewardsRulesText}>Xem thể lệ</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#BAE6FD" />
                 </AnimatedTouchable>
-              ))}
-            </ScrollView>
-
-            {filteredOrders.length === 0 ? (
-              <View style={styles.emptyCart}>
-                <Ionicons name="receipt-outline" size={54} color="#CBD5E1" />
-                <Text style={styles.emptyCartTitle}>Không có đơn hàng nào</Text>
-                <Text style={styles.emptyCartSub}>
-                  {orders.length === 0
-                    ? 'Hãy đặt các đơn thuốc đầu tiên để theo dõi tại đây.'
-                    : 'Không tìm thấy đơn hàng nào phù hợp với bộ lọc trạng thái.'}
-                </Text>
               </View>
-            ) : (
-              filteredOrders.map((ord, idx) => (
-                <View key={ord.id || (ord as any)._id || ord.orderCode || `order-${idx}`} style={styles.orderCard}>
-                  <View style={styles.orderHeader}>
-                    <Text style={styles.orderCode}>{ord.orderCode || ord.id}</Text>
-                    <View
-                      style={[
-                        styles.orderStatusTag,
-                        ord.paymentStatus === 'PAID' ? styles.statusPaid : styles.statusPending,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.orderStatusText,
-                          ord.paymentStatus === 'PAID' ? styles.statusPaidText : styles.statusPendingText,
-                        ]}
-                      >
-                        {ord.paymentStatus === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHỜ THANH TOÁN'}
-                      </Text>
-                    </View>
+
+              {/* Hũ thủy tinh tích điểm 3D */}
+              <View style={styles.longChauRewardsJarContainer}>
+                <View style={styles.longChauJarGraphic}>
+                  <View style={styles.longChauJarCap} />
+                  <View style={styles.longChauJarBody}>
+                    <Text style={{ fontSize: 24 }}>🍯</Text>
                   </View>
-                  <Text style={styles.orderDate}>
-                    Ngày đặt: {new Date(ord.createdAt || Date.now()).toLocaleDateString('vi-VN')}
-                  </Text>
-
-                  <View style={styles.orderItemsBox}>
-                    {ord.items.map((it, idx) => {
-                      const instructionText = it.cach_dung || (it as any).dosageInstructions;
-                      return (
-                        <View key={idx} style={styles.orderItemCardRow}>
-                          <View style={{ flex: 1, marginRight: 8 }}>
-                            <Text style={styles.orderItemTitle}>
-                              • {it.name} x {it.quantity} {it.unit}
-                            </Text>
-                            <Text style={styles.orderItemSub}>
-                              {typeof it.price === 'number' ? `${it.price.toLocaleString('vi-VN')} ₫` : ''}
-                            </Text>
-                            {/* Hiển thị chi tiết cách dùng và liều dùng */}
-                            {instructionText ? (
-                              <View style={styles.instructionBadgeBox}>
-                                <Ionicons name="medical" size={12} color="#0891B2" />
-                                <Text style={styles.instructionBadgeText}>
-                                  {instructionText}
-                                </Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          <AnimatedTouchable
-                            style={styles.setReminderBtn}
-                            onPress={() => {
-                              const parsed = parseOrderToReminder(it, ord.orderCode || ord.id || (ord as any)._id);
-                              navigation.navigate('MedicineReminderScreen', { autoFill: parsed });
-                            }}
-                          >
-                            <Ionicons name="alarm" size={13} color="#0891B2" />
-                            <Text style={styles.setReminderBtnText}>Nhắc Uống</Text>
-                          </AnimatedTouchable>
-                        </View>
-                      );
-                    })}
-
-                    {/* Nút 1-Chạm: Tự Động Tạo Lịch Nhắc Toàn Bộ Đơn Thuốc */}
-                    {ord.items.length > 0 && (
-                      <AnimatedTouchable
-                        style={styles.autoCreateAllRemindersBtn}
-                        onPress={async () => {
-                          try {
-                            const created = await createRemindersFromOrder(ord);
-                            if (created.length > 0) {
-                              // Lên lịch notification báo thức cho từng reminder
-                              for (const rem of created) {
-                                await MedicineReminderService.scheduleReminderSlidingWindow(rem, 7);
-                              }
-                              showToast.success(
-                                'Tạo Lịch Thành Công!',
-                                `Đã tự động tạo lịch và chuông báo thức cho ${created.length} loại thuốc trong đơn ${ord.orderCode || ord.id}!`
-                              );
-                              Alert.alert(
-                                'Đã Tạo Lịch Nhắc Thuốc',
-                                `Hệ thống đã tự động tính liều dùng và hẹn giờ nhắc uống thuốc (08:00 & 20:00 sau ăn) cho toàn bộ đơn hàng ${ord.orderCode || ord.id}. Bạn có muốn chuyển sang màn hình Nhắc Thuốc để xem chi tiết?`,
-                                [
-                                  { text: 'Ở lại đây', style: 'cancel' },
-                                  {
-                                    text: 'Xem Lịch Ngay',
-                                    onPress: () => navigation.navigate('MedicineReminderScreen'),
-                                  },
-                                ]
-                              );
-                            } else {
-                              showToast.info('Thông báo', 'Đơn hàng không có thuốc nào để tạo lịch');
-                            }
-                          } catch (e: any) {
-                            showToast.error('Lỗi', e.message || 'Không thể tạo lịch nhắc');
-                          }
-                        }}
-                      >
-                        <Ionicons name="sparkles" size={14} color="#0284C7" />
-                        <Text style={styles.autoCreateAllRemindersBtnText}>
-                          Tạo Lịch Nhắc Uống Toàn Bộ Đơn ({ord.items.length} thuốc)
-                        </Text>
-                      </AnimatedTouchable>
-                    )}
-                  </View>
-
-                  <View style={styles.orderFooter}>
-                    <View>
-                      <Text style={styles.payMethodText}>Hình thức: {ord.paymentMethod}</Text>
-                      <Text style={styles.orderTotalAmount}>
-                        {ord.finalAmount.toLocaleString('vi-VN')} ₫
-                      </Text>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <AnimatedTouchable
-                        onPress={() => handleOpenFeedback(ord)}
-                        style={[styles.qrOrderBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
-                      >
-                        <Ionicons name="star" size={15} color="#0284C7" />
-                        <Text style={[styles.qrOrderBtnText, { color: '#0284C7', fontWeight: '700' }]}>Đánh Giá</Text>
-                      </AnimatedTouchable>
-
-                      <AnimatedTouchable
-                        onPress={() => setSelectedOrderQR(ord)}
-                        style={styles.qrOrderBtn}
-                      >
-                        <Ionicons name="qr-code-outline" size={16} color="#0284C7" />
-                        <Text style={styles.qrOrderBtnText}>Mã QR</Text>
-                      </AnimatedTouchable>
-                    </View>
+                  <View style={styles.longChauJarTag}>
+                    <Text style={{ fontSize: 9, color: '#0284C7', fontWeight: '800' }}>ABC</Text>
                   </View>
                 </View>
-              ))
-            )}
+              </View>
+            </View>
+          </LinearGradient>
+
+          {/* 2. Banner Chiến Dịch Hope Foundation (Góp Hy Vọng Vì Bệnh Nhân Ung Thư) */}
+          <View style={styles.longChauHopeBanner}>
+            <View style={styles.longChauHopeTopRow}>
+              <Text style={styles.longChauHopeBrand}>HOPE FOUNDATION • ABC PHARMACY</Text>
+              <Ionicons name="heart" size={16} color="#E11D48" />
+            </View>
+            <Text style={styles.longChauHopeTitle}>San sẻ gánh nặng điều trị</Text>
+            <Text style={styles.longChauHopeSub}>GÓP HY VỌNG VÌ BỆNH NHÂN UNG THƯ</Text>
+
+            <AnimatedTouchable
+              style={styles.longChauHopeJoinBtn}
+              onPress={() => showToast.success('Cảm ơn bạn', 'Đã ghi nhận sự quan tâm của bạn đến quỹ Hy Vọng!')}
+            >
+              <Text style={styles.longChauHopeJoinText}>THAM GIA NGAY</Text>
+            </AnimatedTouchable>
+
+            <View style={styles.longChauHopeFooter}>
+              <Ionicons name="heart" size={14} color="#E11D48" />
+              <Text style={styles.longChauHopeFooterText}>
+                Cộng đồng đã quyên góp <Text style={{ fontWeight: '800', color: '#D97706' }}>15.336.500 đồng</Text>
+              </Text>
+            </View>
           </View>
+
+          {/* 3. Khu Vực Quà Tặng Đổi Điểm Chuẩn FPT Long Châu */}
+          <View style={styles.longChauGiftsSection}>
+            <View style={styles.longChauGiftsHeader}>
+              <Text style={styles.longChauGiftsTitle}>Quà tặng</Text>
+              <AnimatedTouchable onPress={() => setSelectedGiftPointsTier(0)}>
+                <Text style={styles.longChauGiftsViewAll}>Xem tất cả</Text>
+              </AnimatedTouchable>
+            </View>
+            <Text style={styles.longChauGiftsSub}>Tích điểm đổi quà với giá 1.000 đồng.</Text>
+
+            {/* Filter Pills Điểm Thưởng: 1.500 điểm ✓ | 3.000 điểm | 4.500 điểm */}
+            <View style={styles.longChauGiftsFilterRow}>
+              {[1500, 3000, 4500].map((tier) => {
+                const isSelected = selectedGiftPointsTier === tier;
+                return (
+                  <AnimatedTouchable
+                    key={`tier-${tier}`}
+                    style={[styles.longChauGiftTierPill, isSelected && styles.longChauGiftTierPillActive]}
+                    onPress={() => setSelectedGiftPointsTier(isSelected ? 0 : tier)}
+                  >
+                    <Text style={[styles.longChauGiftTierText, isSelected && styles.longChauGiftTierTextActive]}>
+                      {tier.toLocaleString('vi-VN')} điểm
+                    </Text>
+                    {isSelected && <Ionicons name="checkmark" size={14} color="#0284C7" />}
+                  </AnimatedTouchable>
+                );
+              })}
+            </View>
+
+            {/* Grid 2 Cột Quà Tặng */}
+            <View style={styles.longChauGiftsGrid}>
+              {filterGiftsByPointsTier(loyaltyGifts, selectedGiftPointsTier).map((gift) => (
+                <View key={gift.id} style={styles.longChauGiftCard}>
+                  <Image source={{ uri: gift.image }} style={styles.longChauGiftImg} resizeMode="contain" />
+                  <Text style={styles.longChauGiftName} numberOfLines={2}>
+                    {gift.name}
+                  </Text>
+                  <Text style={styles.longChauGiftPrice}>
+                    {gift.price.toLocaleString('vi-VN')}đ / {gift.unit}
+                  </Text>
+                  <View style={styles.longChauGiftPointsRow}>
+                    <Text style={styles.longChauGiftPointsText}>🪙 {gift.requiredPoints.toLocaleString('vi-VN')}</Text>
+                    <AnimatedTouchable
+                      style={styles.longChauGiftRedeemBtn}
+                      onPress={() => {
+                        setSelectedGiftToRedeem(gift);
+                        setRedeemQuantity(1);
+                        setShowRedeemGiftModal(true);
+                      }}
+                    >
+                      <Text style={styles.longChauGiftRedeemText}>Đổi ngay</Text>
+                    </AnimatedTouchable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* 4. Danh Sách Voucher Khả Dụng & Thanh Tìm Kiếm Voucher */}
+          <View style={styles.simpleRewardsContainer}>
+            <View style={styles.simpleVouchersSection}>
+              {(() => {
+                const filteredVouchers = vouchers.filter((v) => {
+                  if (!voucherSearchInput.trim()) return true;
+                  const q = voucherSearchInput.trim().toUpperCase();
+                  return (
+                    v.code.toUpperCase().includes(q) ||
+                    (v.description && v.description.toUpperCase().includes(q))
+                  );
+                });
+
+                return (
+                  <>
+                    <View style={styles.simpleVoucherHeader}>
+                      <Text style={styles.simpleSectionTitle}>Mã Giảm Giá Của Bạn</Text>
+                      <Text style={styles.simpleVoucherCount}>{filteredVouchers.length} mã khả dụng</Text>
+                    </View>
+
+                    {filteredVouchers.length === 0 ? (
+                      <View style={styles.voucherSearchEmptyBox}>
+                        <Ionicons name="pricetag-outline" size={32} color="#CBD5E1" />
+                        <Text style={styles.voucherSearchEmptyTitle}>
+                          Không tìm thấy mã voucher "{voucherSearchInput}"
+                        </Text>
+                        <Text style={styles.voucherSearchEmptySub}>
+                          Vui lòng kiểm tra lại ký tự hoặc nhập mã voucher khác.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.simpleVoucherListCard}>
+                        {filteredVouchers.map((v, idx) => (
+                          <View
+                            key={v.id || (v as any)._id || v.code || `voucher-${idx}`}
+                            style={[
+                              styles.simpleVoucherRow,
+                              idx === filteredVouchers.length - 1 && styles.simpleVoucherRowLast,
+                            ]}
+                          >
+                            {/* Badge giảm giá gọn gàng bên trái */}
+                            <View style={styles.simpleVoucherDiscountBox}>
+                              <Text style={styles.simpleVoucherDiscountValue}>
+                                {formatMinimalVoucherBadge(v.discountType, v.discountValue)}
+                              </Text>
+                              <Text style={styles.simpleVoucherDiscountSub}>GIẢM</Text>
+                            </View>
+
+                            {/* Thông tin voucher ở giữa */}
+                            <View style={styles.simpleVoucherInfoCol}>
+                              <Text style={styles.simpleVoucherCode}>{v.code}</Text>
+                              <Text style={styles.simpleVoucherDesc} numberOfLines={1}>
+                                {v.description || 'Ưu đãi dành riêng cho bạn'}
+                              </Text>
+                              <Text style={styles.simpleVoucherCondition}>
+                                {v.minOrderValue
+                                  ? `Đơn từ ${v.minOrderValue.toLocaleString('vi-VN')} ₫`
+                                  : 'Mọi đơn hàng'}
+                              </Text>
+                            </View>
+
+                            {/* Nút Áp Dụng bên phải */}
+                            <AnimatedTouchable
+                              onPress={() => {
+                                Clipboard.setString(v.code);
+                                applyVoucher(v.code);
+                                setActiveTab('CART');
+                                showToast.success('Đã áp dụng mã', `Mã ${v.code} đã sẵn sàng trong giỏ hàng!`);
+                              }}
+                              style={styles.simpleVoucherApplyBtn}
+                            >
+                              <Text style={styles.simpleVoucherApplyText}>Dùng</Text>
+                            </AnimatedTouchable>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
+            </View>
+          </View>
+        </View>
+
+        {/* TAB 5: TÀI KHOẢN & ĐƠN MUA (NAV BAR: TÀI KHOẢN) - GIAO DIỆN CHUẨN FPT LONG CHÂU */}
+        <View style={{ display: (activeTab === 'ACCOUNT' || activeTab === 'ORDERS') ? 'flex' : 'none' }}>
+          {/* Header Thông Tin Khách Hàng Chuẩn Long Châu (Nền Xanh Đại Dương) */}
+          <LinearGradient
+            colors={['#0369A1', '#0284C7', '#0EA5E9']}
+            style={styles.accountLongChauHeader}
+          >
+            <View style={styles.accountLongChauHeaderRow}>
+              <View style={styles.accountLongChauUserInfo}>
+                <View style={styles.accountLongChauAvatar}>
+                  <Ionicons name="person" size={28} color="#0284C7" />
+                </View>
+                <View style={styles.accountLongChauNameCol}>
+                  <Text style={styles.accountLongChauName} numberOfLines={1}>
+                    {formattedProfile.displayName}
+                  </Text>
+                  <Text style={styles.accountLongChauPhone} numberOfLines={1}>
+                    {formattedProfile.displayPhone}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Huy hiệu Điểm Thưởng Xu Vàng */}
+              <AnimatedTouchable
+                onPress={() => setActiveTab('REWARDS')}
+                style={styles.accountLongChauCoinPill}
+              >
+                <Text style={styles.accountLongChauCoinIcon}>🪙</Text>
+                <Text style={styles.accountLongChauCoinText}>{formattedProfile.points}</Text>
+              </AnimatedTouchable>
+            </View>
+          </LinearGradient>
+
+          {activeTab === 'ACCOUNT' ? (
+            /* =========================================================================
+               MÀN HÌNH TÀI KHOẢN CHÍNH (CHUẨN LONG CHÂU - ZERO BORDER - FONT TO DỄ NHÌN)
+               ========================================================================= */
+            <View style={styles.accountLongChauBody}>
+              {/* 1. KHỐI ĐƠN CỦA TÔI */}
+              <View style={styles.accountLongChauSectionHeader}>
+                <Text style={styles.accountLongChauSectionTitle}>Đơn của tôi</Text>
+                <AnimatedTouchable
+                  onPress={() => {
+                    setOrderStatusTab('ALL');
+                    setActiveTab('ORDERS');
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center' }}
+                >
+                  <Text style={styles.accountLongChauViewAllText}>Xem tất cả</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+                </AnimatedTouchable>
+              </View>
+
+              <View style={styles.accountLongChauCard}>
+                <View style={styles.accountOrdersGrid}>
+                  {/* Đang xử lý */}
+                  <AnimatedTouchable
+                    style={styles.accountOrderGridItem}
+                    onPress={() => {
+                      setOrderStatusTab('PENDING');
+                      setActiveTab('ORDERS');
+                    }}
+                  >
+                    <View style={styles.accountOrderIconBox}>
+                      <Ionicons name="cube-outline" size={24} color="#0284C7" />
+                      {orderCounts.pendingCount > 0 && (
+                        <View style={styles.accountOrderBadge}>
+                          <Text style={styles.accountOrderBadgeText}>{orderCounts.pendingCount}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.accountOrderGridLabel}>Đang xử lý</Text>
+                  </AnimatedTouchable>
+
+                  {/* Đang giao */}
+                  <AnimatedTouchable
+                    style={styles.accountOrderGridItem}
+                    onPress={() => {
+                      setOrderStatusTab('SHIPPING');
+                      setActiveTab('ORDERS');
+                    }}
+                  >
+                    <View style={styles.accountOrderIconBox}>
+                      <Ionicons name="car-outline" size={24} color="#0284C7" />
+                    </View>
+                    <Text style={styles.accountOrderGridLabel}>Đang giao</Text>
+                  </AnimatedTouchable>
+
+                  {/* Đã giao */}
+                  <AnimatedTouchable
+                    style={styles.accountOrderGridItem}
+                    onPress={() => {
+                      setOrderStatusTab('COMPLETED');
+                      setActiveTab('ORDERS');
+                    }}
+                  >
+                    <View style={styles.accountOrderIconBox}>
+                      <Ionicons name="checkbox-outline" size={24} color="#0284C7" />
+                    </View>
+                    <Text style={styles.accountOrderGridLabel}>Đã giao</Text>
+                  </AnimatedTouchable>
+
+                  {/* Đổi/Trả */}
+                  <AnimatedTouchable
+                    style={styles.accountOrderGridItem}
+                    onPress={() => {
+                      setOrderStatusTab('CANCELLED');
+                      setActiveTab('ORDERS');
+                    }}
+                  >
+                    <View style={styles.accountOrderIconBox}>
+                      <Ionicons name="swap-horizontal-outline" size={24} color="#0284C7" />
+                    </View>
+                    <Text style={styles.accountOrderGridLabel}>Đổi/Trả</Text>
+                  </AnimatedTouchable>
+                </View>
+              </View>
+
+              {/* 2. KHỐI HỒ SƠ Y TẾ & BỆNH ÁN SỐ (XEM ĐƯỢC HỒ SƠ Y TẾ) */}
+              <View style={styles.accountLongChauSectionHeader}>
+                <Text style={styles.accountLongChauSectionTitle}>Hồ sơ y tế & Sức khỏe</Text>
+                <AnimatedTouchable
+                  onPress={() => {
+                    setIsOnboardingHealth(false);
+                    setShowPassportModal(true);
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center' }}
+                >
+                  <Text style={styles.accountLongChauViewAllText}>Chi tiết</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+                </AnimatedTouchable>
+              </View>
+
+              <AnimatedTouchable
+                style={styles.accountHealthCard}
+                onPress={() => {
+                  setIsOnboardingHealth(false);
+                  setShowPassportModal(true);
+                }}
+              >
+                <View style={styles.accountHealthTopRow}>
+                  <View style={styles.accountHealthIconCircle}>
+                    <Ionicons name="shield-checkmark" size={24} color="#0284C7" />
+                  </View>
+                  <View style={styles.accountHealthMetaCol}>
+                    <View style={styles.accountHealthTitleRow}>
+                      <Text style={styles.accountHealthTitle}>Sổ Sức Khỏe & Mã QR Y Tế</Text>
+                      <View style={styles.accountHealthTag}>
+                        <Text style={styles.accountHealthTagText}>Chuẩn GPP / BYT</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.accountHealthSubtitle}>
+                      Mã QR khám bệnh, lịch sử dị ứng thuốc & tiền sử bệnh nền
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </View>
+
+                {/* Dải thông tin y tế tóm tắt */}
+                <View style={styles.accountHealthDivider} />
+                <View style={styles.accountHealthPillsRow}>
+                  <View style={styles.accountHealthPill}>
+                    <Ionicons name="water" size={12} color="#EF4444" />
+                    <Text style={styles.accountHealthPillText}>Nhóm máu: {healthSummary.bloodType}</Text>
+                  </View>
+                  <View style={styles.accountHealthPill}>
+                    <Ionicons name="warning" size={12} color="#D97706" />
+                    <Text style={styles.accountHealthPillText}>{healthSummary.allergyLabel}</Text>
+                  </View>
+                  <View style={styles.accountHealthPill}>
+                    <Ionicons name="fitness" size={12} color="#0284C7" />
+                    <Text style={styles.accountHealthPillText}>{healthSummary.conditionLabel}</Text>
+                  </View>
+                </View>
+              </AnimatedTouchable>
+
+              {/* 3. KHỐI TÀI KHOẢN (MENU DANH MỤC TIỆN ÍCH) */}
+              <View style={styles.accountLongChauSectionHeader}>
+                <Text style={styles.accountLongChauSectionTitle}>Tài khoản</Text>
+              </View>
+
+              <View style={styles.accountMenuListCard}>
+                {/* Mã QR của tôi */}
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() => {
+                    setIsOnboardingHealth(false);
+                    setShowPassportModal(true);
+                  }}
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="qr-code-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Mã QR của tôi</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                {/* Thông tin cá nhân */}
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() => navigation.navigate('ProfileScreen')}
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="person-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Thông tin cá nhân</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                {/* Quản lý sổ địa chỉ */}
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() => navigation.navigate('ProfileScreen')}
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="location-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Quản lý sổ địa chỉ</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                {/* Quản lý phương thức thanh toán */}
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() =>
+                    showToast.info(
+                      'Phương thức thanh toán',
+                      'Hệ thống hỗ trợ VietQR Napas247 tự động, COD và Thẻ ATM/Visa.'
+                    )
+                  }
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="card-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Quản lý phương thức thanh toán</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                {/* Lịch sử tư vấn */}
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() => setActiveTab('AI_CHAT')}
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="chatbubbles-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Lịch sử tư vấn & Dược sĩ AI</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                {/* Tủ thuốc & Nhắc uống thuốc */}
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() => navigation.navigate('MedicineReminderScreen')}
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="alarm-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Tủ thuốc & Nhắc uống thuốc</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                {/* Danh sách yêu thích */}
+                <AnimatedTouchable
+                  style={[styles.accountMenuItemRow, styles.accountMenuItemLast]}
+                  onPress={() => navigation.navigate('CustomerWishlistScreen')}
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="heart-outline" size={18} color="#EF4444" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Sản phẩm yêu thích ({wishlistTotalCount})</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+              </View>
+
+              {/* 4. KHỐI VỀ NHÀ THUỐC ABC PHARMACY */}
+              <View style={styles.accountLongChauSectionHeader}>
+                <Text style={styles.accountLongChauSectionTitle}>Về Nhà thuốc ABC PHARMACY</Text>
+              </View>
+
+              <View style={styles.accountMenuListCard}>
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() =>
+                    showToast.info(
+                      'Nhà thuốc ABC PHARMACY',
+                      'Hệ thống chuỗi nhà thuốc đạt chuẩn GPP toàn quốc - Cung cấp 100% thuốc và dược mỹ phẩm chính hãng.'
+                    )
+                  }
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="help-circle-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Giới thiệu nhà thuốc</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() =>
+                    showToast.success(
+                      'Chuẩn GPP Bộ Y Tế',
+                      'Giấy chứng nhận Thực hành tốt nhà thuốc GPP số 0108889999/SYT-GPP.'
+                    )
+                  }
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Giấy phép kinh doanh</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                <AnimatedTouchable
+                  style={styles.accountMenuItemRow}
+                  onPress={() =>
+                    showToast.info(
+                      'Quy chế hoạt động',
+                      'Cam kết bán thuốc đúng giá niêm yết, tư vấn chuyên môn bởi Dược sĩ có chứng chỉ hành nghề.'
+                    )
+                  }
+                >
+                  <View style={styles.accountMenuItemIconBox}>
+                    <Ionicons name="document-text-outline" size={18} color="#0284C7" />
+                  </View>
+                  <Text style={styles.accountMenuItemTitle}>Quy chế hoạt động</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+
+                {/* Đăng Xuất hoặc Đăng Nhập */}
+                {user ? (
+                  <AnimatedTouchable
+                    style={[styles.accountMenuItemRow, styles.accountMenuItemLast]}
+                    onPress={() => setShowLogoutModal(true)}
+                  >
+                    <View style={[styles.accountMenuItemIconBox, { backgroundColor: '#FEF2F2' }]}>
+                      <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+                    </View>
+                    <Text style={[styles.accountMenuItemTitle, { color: '#EF4444' }]}>Đăng xuất tài khoản</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+                  </AnimatedTouchable>
+                ) : (
+                  <AnimatedTouchable
+                    style={[styles.accountMenuItemRow, styles.accountMenuItemLast]}
+                    onPress={() => navigation.navigate('LoginScreen')}
+                  >
+                    <View style={[styles.accountMenuItemIconBox, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="log-in-outline" size={18} color="#0284C7" />
+                    </View>
+                    <Text style={[styles.accountMenuItemTitle, { color: '#0284C7' }]}>Đăng nhập / Đăng ký</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#0284C7" />
+                  </AnimatedTouchable>
+                )}
+              </View>
+
+              <View style={{ height: 32 }} />
+            </View>
+          ) : (
+            /* =========================================================================
+               SUB-VIEW: QUẢN LÝ ĐƠN HÀNG CHI TIẾT (activeTab === 'ORDERS')
+               ========================================================================= */
+            <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+              {/* Nút quay lại màn hình Tài khoản */}
+              <AnimatedTouchable
+                onPress={() => setActiveTab('ACCOUNT')}
+                style={styles.ordersBackBtn}
+              >
+                <Ionicons name="chevron-back" size={20} color="#0284C7" />
+                <Text style={styles.ordersBackBtnText}>Quay lại Tài khoản</Text>
+              </AnimatedTouchable>
+
+              {/* Phone search bar */}
+              <View style={styles.searchBox}>
+                <Ionicons name="call-outline" size={18} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Nhập SĐT để tra cứu lịch sử đơn..."
+                  placeholderTextColor="#94A3B8"
+                  value={searchPhone}
+                  onChangeText={setSearchPhone}
+                  keyboardType="phone-pad"
+                />
+                <AnimatedTouchable onPress={loadData} style={styles.searchPhoneBtn}>
+                  <Ionicons name="search" size={16} color="#FFFFFF" />
+                </AnimatedTouchable>
+              </View>
+
+              <Text style={styles.sectionTitle}>Đơn Mua Của Tôi ({orders.length})</Text>
+
+              {/* Order status chips scroll */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                {[
+                  { id: 'ALL', label: 'Tất cả', count: orders.length },
+                  {
+                    id: 'PENDING',
+                    label: 'Chờ thanh toán',
+                    count: orderCounts.pendingCount,
+                  },
+                  {
+                    id: 'SHIPPING',
+                    label: 'Đang giao',
+                    count: orderCounts.deliveringCount,
+                  },
+                  {
+                    id: 'COMPLETED',
+                    label: 'Đã hoàn tất',
+                    count: orderCounts.deliveredCount,
+                  },
+                  {
+                    id: 'CANCELLED',
+                    label: 'Đã hủy',
+                    count: orderCounts.returnedCount,
+                  },
+                ].map((tab) => (
+                  <AnimatedTouchable
+                    key={tab.id}
+                    onPress={() => setOrderStatusTab(tab.id as any)}
+                    style={[styles.orderStatusPill, orderStatusTab === tab.id && styles.activeOrderStatusPill]}
+                  >
+                    <Text style={[styles.orderStatusPillText, orderStatusTab === tab.id && styles.activeOrderStatusPillText]}>
+                      {tab.label} ({tab.count})
+                    </Text>
+                  </AnimatedTouchable>
+                ))}
+              </ScrollView>
+
+              {filteredOrders.length === 0 ? (
+                <View style={styles.emptyCart}>
+                  <Ionicons name="receipt-outline" size={54} color="#CBD5E1" />
+                  <Text style={styles.emptyCartTitle}>Không có đơn hàng nào</Text>
+                  <Text style={styles.emptyCartSub}>
+                    {orders.length === 0
+                      ? 'Hãy đặt các đơn thuốc đầu tiên để theo dõi tại đây.'
+                      : 'Không tìm thấy đơn hàng nào phù hợp với bộ lọc trạng thái.'}
+                  </Text>
+                </View>
+              ) : (
+                filteredOrders.map((ord, idx) => (
+                  <View key={ord.id || (ord as any)._id || ord.orderCode || `order-${idx}`} style={styles.orderCard}>
+                    <View style={styles.orderHeader}>
+                      <Text style={styles.orderCode}>{ord.orderCode || ord.id}</Text>
+                      <View
+                        style={[
+                          styles.orderStatusTag,
+                          ord.paymentStatus === 'PAID' ? styles.statusPaid : styles.statusPending,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.orderStatusText,
+                            ord.paymentStatus === 'PAID' ? styles.statusPaidText : styles.statusPendingText,
+                          ]}
+                        >
+                          {ord.paymentStatus === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHỜ THANH TOÁN'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.orderDate}>
+                      Ngày đặt: {new Date(ord.createdAt || Date.now()).toLocaleDateString('vi-VN')}
+                    </Text>
+
+                    <View style={styles.orderItemsBox}>
+                      {ord.items.map((it, idx) => {
+                        const instructionText = it.cach_dung || (it as any).dosageInstructions;
+                        return (
+                          <View key={idx} style={styles.orderItemCardRow}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={styles.orderItemTitle}>
+                                • {it.name} x {it.quantity} {it.unit}
+                              </Text>
+                              <Text style={styles.orderItemSub}>
+                                {typeof it.price === 'number' ? `${it.price.toLocaleString('vi-VN')} ₫` : ''}
+                              </Text>
+                              {/* Hiển thị chi tiết cách dùng và liều dùng */}
+                              {instructionText ? (
+                                <View style={styles.instructionBadgeBox}>
+                                  <Ionicons name="medical" size={12} color="#0891B2" />
+                                  <Text style={styles.instructionBadgeText}>
+                                    {instructionText}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
+                            <AnimatedTouchable
+                              style={styles.setReminderBtn}
+                              onPress={() => {
+                                const parsed = parseOrderToReminder(it, ord.orderCode || ord.id || (ord as any)._id);
+                                navigation.navigate('MedicineReminderScreen', { autoFill: parsed });
+                              }}
+                            >
+                              <Ionicons name="alarm" size={13} color="#0891B2" />
+                              <Text style={styles.setReminderBtnText}>Nhắc Uống</Text>
+                            </AnimatedTouchable>
+                          </View>
+                        );
+                      })}
+
+                      {/* Nút 1-Chạm: Tự Động Tạo Lịch Nhắc Toàn Bộ Đơn Thuốc */}
+                      {ord.items.length > 0 && (
+                        <AnimatedTouchable
+                          style={styles.autoCreateAllRemindersBtn}
+                          onPress={async () => {
+                            try {
+                              const created = await createRemindersFromOrder(ord);
+                              if (created.length > 0) {
+                                for (const rem of created) {
+                                  await MedicineReminderService.scheduleReminderSlidingWindow(rem, 7);
+                                }
+                                showToast.success(
+                                  'Tạo Lịch Thành Công!',
+                                  `Đã tự động tạo lịch nhắc uống cho ${created.length} loại thuốc!`
+                                );
+                              } else {
+                                showToast.info('Thông báo', 'Đơn hàng không có thuốc nào để tạo lịch');
+                              }
+                            } catch (e: any) {
+                              showToast.error('Lỗi', e.message || 'Không thể tạo lịch nhắc');
+                            }
+                          }}
+                        >
+                          <Ionicons name="sparkles" size={14} color="#0284C7" />
+                          <Text style={styles.autoCreateAllRemindersBtnText}>
+                            Tạo Lịch Nhắc Uống Toàn Bộ Đơn ({ord.items.length} thuốc)
+                          </Text>
+                        </AnimatedTouchable>
+                      )}
+                    </View>
+
+                    <View style={styles.orderFooter}>
+                      <View>
+                        <Text style={styles.payMethodText}>Hình thức: {ord.paymentMethod}</Text>
+                        <Text style={styles.orderTotalAmount}>
+                          {ord.finalAmount.toLocaleString('vi-VN')} ₫
+                        </Text>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <AnimatedTouchable
+                          onPress={() => handleOpenFeedback(ord)}
+                          style={[styles.qrOrderBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
+                        >
+                          <Ionicons name="star" size={15} color="#0284C7" />
+                          <Text style={[styles.qrOrderBtnText, { color: '#0284C7', fontWeight: '700' }]}>Đánh Giá</Text>
+                        </AnimatedTouchable>
+
+                        <AnimatedTouchable
+                          onPress={() => setSelectedOrderQR(ord)}
+                          style={styles.qrOrderBtn}
+                        >
+                          <Ionicons name="qr-code-outline" size={16} color="#0284C7" />
+                          <Text style={styles.qrOrderBtnText}>Mã QR</Text>
+                        </AnimatedTouchable>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+
+              {/* Nút Đăng Xuất An Toàn hoặc Đăng Nhập */}
+              <View style={{ marginTop: 24, marginBottom: 20 }}>
+                {user ? (
+                  <AnimatedTouchable
+                    onPress={() => setShowLogoutModal(true)}
+                    style={styles.accountLogoutBtn}
+                  >
+                    <Ionicons name="log-out-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                    <Text style={styles.accountLogoutText}>Đăng Xuất Tài Khoản</Text>
+                  </AnimatedTouchable>
+                ) : (
+                  <ClinicalButton
+                    title="ĐĂNG NHẬP / TẠO TÀI KHOẢN"
+                    onPress={() => navigation.navigate('LoginScreen')}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                  />
+                )}
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
 
-      {/* Medication Detail Modal with Indications & Dosage */}
-      <ClinicalModalSheet
-        visible={selectedMedDetail !== null}
-        onClose={() => setSelectedMedDetail(null)}
-        title={selectedMedDetail?.name || 'Chi Tiết Thuốc'}
-        subtitle={`Hoạt chất: ${selectedMedDetail?.active || selectedMedDetail?.active_ingredient || 'Đang cập nhật'}`}
+      {/* ─── Modal Đổi Quà Chuẩn FPT Long Châu ─── */}
+      <Modal
+        visible={showRedeemGiftModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowRedeemGiftModal(false)}
       >
-        {selectedMedDetail?.image ? (
-          <Image
-            source={{ uri: selectedMedDetail.image }}
-            style={styles.detailMedImage}
-            resizeMode="cover"
-          />
-        ) : null}
-        <Text style={[styles.modalPrice, TypographyTokens.tabularNums]}>
-          {selectedMedDetail?.price?.toLocaleString('vi-VN')} ₫ / {selectedMedDetail?.unit || 'Hộp'}
-        </Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.redeemModalCard}>
+            {/* Header */}
+            <View style={styles.redeemModalHeader}>
+              <Text style={styles.redeemModalTitle}>Đổi quà</Text>
+              <AnimatedTouchable
+                onPress={() => setShowRedeemGiftModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={24} color="#64748B" />
+              </AnimatedTouchable>
+            </View>
 
-        <ScrollView style={{ maxHeight: 240, marginVertical: 8 }}>
-          <View style={styles.modalSection}>
-            <Text style={styles.secTitle}>Chỉ định & Công dụng:</Text>
-            <Text style={styles.secText}>
-              {selectedMedDetail?.cong_dung || selectedMedDetail?.indications || 'Điều trị các triệu chứng theo chỉ định của bác sĩ/dược sĩ.'}
-            </Text>
-          </View>
+            {/* Sản phẩm đổi quà */}
+            {selectedGiftToRedeem && (
+              <View style={styles.redeemModalItemBox}>
+                <Image
+                  source={{ uri: selectedGiftToRedeem.image }}
+                  style={styles.redeemModalItemThumb}
+                  resizeMode="contain"
+                />
+                <Text style={styles.redeemModalItemName} numberOfLines={2}>
+                  {selectedGiftToRedeem.name}
+                </Text>
+              </View>
+            )}
 
-          <View style={styles.modalSection}>
-            <Text style={styles.secTitle}>Liều lượng & Cách dùng:</Text>
-            <Text style={styles.secText}>
-              {selectedMedDetail?.cach_dung || selectedMedDetail?.default_dosage || 'Uống theo đơn hoặc hướng dẫn trên bao bì thuốc.'}
-            </Text>
-          </View>
+            {/* Hàng chọn số lượng */}
+            <View style={styles.redeemModalQtyRow}>
+              <Text style={styles.redeemModalQtyLabel}>Số lượng:</Text>
+              <View style={styles.redeemModalStepper}>
+                <AnimatedTouchable
+                  style={styles.redeemModalStepBtn}
+                  onPress={() => setRedeemQuantity(Math.max(1, redeemQuantity - 1))}
+                >
+                  <Ionicons name="remove" size={18} color="#64748B" />
+                </AnimatedTouchable>
+                <Text style={styles.redeemModalQtyVal}>{redeemQuantity}</Text>
+                <AnimatedTouchable
+                  style={styles.redeemModalStepBtn}
+                  onPress={() => setRedeemQuantity(redeemQuantity + 1)}
+                >
+                  <Ionicons name="add" size={18} color="#64748B" />
+                </AnimatedTouchable>
+              </View>
+            </View>
 
-          <View style={styles.modalSection}>
-            <Text style={styles.secTitle}>Chống chỉ định & Thận trọng:</Text>
-            <Text style={styles.secText}>
-              {selectedMedDetail?.luu_y || selectedMedDetail?.contraindications || 'Mẫn cảm với bất kỳ thành phần nào của thuốc.'}
-            </Text>
-          </View>
+            {/* Điểm sử dụng */}
+            <View style={styles.redeemModalPointsRow}>
+              <Text style={styles.redeemModalPointsLabel}>Điểm sử dụng:</Text>
+              <Text style={styles.redeemModalPointsUsed}>
+                🪙 -{((selectedGiftToRedeem?.requiredPoints || 1500) * redeemQuantity).toLocaleString('vi-VN')}
+              </Text>
+            </View>
 
-          <View style={styles.modalSection}>
-            <Text style={styles.secTitle}>Tác dụng phụ:</Text>
-            <Text style={styles.secText}>
-              {selectedMedDetail?.tac_dung_phu || selectedMedDetail?.side_effects || 'Buồn nôn, dị ứng nhẹ (ngưng dùng nếu gặp triệu chứng lạ).'}
-            </Text>
-          </View>
-        </ScrollView>
+            {/* Điểm hiện có */}
+            <View style={styles.redeemModalPointsRow}>
+              <Text style={styles.redeemModalPointsLabel}>Điểm hiện có:</Text>
+              <Text style={styles.redeemModalPointsCurrent}>
+                {(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')}
+              </Text>
+            </View>
 
-        <View style={styles.modalBtnRow}>
-          <ClinicalButton
-            title="Đóng"
-            variant="outline"
-            size="md"
-            onPress={() => setSelectedMedDetail(null)}
-            style={{ flex: 1, marginRight: 8 }}
-          />
-          {selectedMedDetail && (
-            <AnimatedPressable
-              onPress={() => toggleWishlist(selectedMedDetail)}
+            {/* Thông báo lỗi không đủ điểm (giống hệt ảnh user gửi) */}
+            {(loyaltyInfo?.points ?? (user as any)?.points ?? 0) < ((selectedGiftToRedeem?.requiredPoints || 1500) * redeemQuantity) && (
+              <View style={styles.redeemModalWarning}>
+                <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                <Text style={styles.redeemModalWarningText}>Không đủ điểm thưởng.</Text>
+              </View>
+            )}
+
+            {/* Nút Xác Nhận */}
+            <AnimatedTouchable
               style={[
-                styles.modalWishlistBtn,
-                isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id) &&
-                  styles.modalWishlistBtnActive,
+                styles.redeemModalConfirmBtn,
+                ((loyaltyInfo?.points ?? (user as any)?.points ?? 0) < ((selectedGiftToRedeem?.requiredPoints || 1500) * redeemQuantity)) &&
+                  styles.redeemModalConfirmBtnDisabled,
               ]}
-              pressedScale={0.90}
+              disabled={((loyaltyInfo?.points ?? (user as any)?.points ?? 0) < ((selectedGiftToRedeem?.requiredPoints || 1500) * redeemQuantity))}
+              onPress={() => {
+                showToast.success('Đổi quà thành công!', 'Quà tặng đã được lưu vào ví quà của bạn.');
+                setShowRedeemGiftModal(false);
+              }}
             >
-              <Ionicons
-                name={
-                  isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id)
-                    ? 'heart'
-                    : 'heart-outline'
-                }
-                size={22}
-                color={
-                  isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id)
-                    ? '#EF4444'
-                    : '#64748B'
-                }
-              />
-            </AnimatedPressable>
-          )}
-          <ClinicalButton
-            title="THÊM VÀO GIỎ"
-            variant="primary"
-            size="md"
-            onPress={() => {
-              if (selectedMedDetail) {
-                addToCart(selectedMedDetail);
-                showToast.success('Thành công', `Đã thêm ${selectedMedDetail.name} vào giỏ hàng!`);
-              }
-              setSelectedMedDetail(null);
-            }}
-            style={{ flex: 2 }}
-          />
+              <Text
+                style={[
+                  styles.redeemModalConfirmText,
+                  ((loyaltyInfo?.points ?? (user as any)?.points ?? 0) < ((selectedGiftToRedeem?.requiredPoints || 1500) * redeemQuantity)) &&
+                    styles.redeemModalConfirmTextDisabled,
+                ]}
+              >
+                Xác nhận
+              </Text>
+            </AnimatedTouchable>
+          </View>
         </View>
-      </ClinicalModalSheet>
+      </Modal>
+
+      {/* ─── Modal Màn Hình Lịch Sử Điểm Thưởng FPT Long Châu ─── */}
+      <Modal
+        visible={showPointsHistoryModal}
+        animationType="slide"
+        onRequestClose={() => setShowPointsHistoryModal(false)}
+      >
+        <PointsHistoryScreen
+          currentPoints={(loyaltyInfo?.points ?? (user as any)?.points ?? 0)}
+          tierName={loyaltyInfo?.tier ? `Hạng ${loyaltyInfo.tier}` : 'Hạng Vàng'}
+          onBack={() => setShowPointsHistoryModal(false)}
+          transactions={pointsHistory}
+        />
+      </Modal>
 
       {/* Order QR Code Modal */}
       <Modal visible={selectedOrderQR !== null} animationType="fade" transparent>
@@ -2319,7 +3500,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           </View>
                           <AnimatedTouchable
                             onPress={() => handleSelectBranch(b)}
-                            style={[styles.selectBranchBtn, isSelected && { backgroundColor: '#059669' }]}
+                            style={[styles.selectBranchBtn, isSelected && { backgroundColor: '#0284C7' }]}
                           >
                             <Text style={styles.selectBranchBtnText}>
                               {isSelected ? 'Đang chọn' : 'Chọn cơ sở'}
@@ -2353,21 +3534,18 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           </Text>
         </AnimatedTouchable>
 
-        {/* Tab 2: Danh mục */}
+        {/* Tab 2: Điểm thưởng (thay thế Danh mục) */}
         <AnimatedTouchable
-          onPress={() => {
-            setActiveTab('STORE');
-            setSelectedCategory('ALL');
-          }}
+          onPress={() => setActiveTab('REWARDS')}
           style={styles.bottomNavItem}
         >
           <Ionicons
-            name="grid-outline"
+            name={activeTab === 'REWARDS' ? 'gift' : 'gift-outline'}
             size={22}
-            color="#94A3B8"
+            color={activeTab === 'REWARDS' ? '#0284C7' : '#94A3B8'}
           />
-          <Text style={styles.bottomNavLabel}>
-            Danh mục
+          <Text style={[styles.bottomNavLabel, activeTab === 'REWARDS' && styles.bottomNavLabelActive]}>
+            Điểm thưởng
           </Text>
         </AnimatedTouchable>
 
@@ -2415,21 +3593,102 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           </Text>
         </AnimatedTouchable>
 
-        {/* Tab 5: Tài khoản / Đơn mua */}
+        {/* Tab 5: Tài khoản (thay thế Đơn mua) */}
         <AnimatedTouchable
-          onPress={() => setActiveTab('ORDERS')}
+          onPress={() => setActiveTab('ACCOUNT')}
           style={styles.bottomNavItem}
         >
           <Ionicons
-            name={activeTab === 'ORDERS' ? 'receipt' : 'receipt-outline'}
+            name={(activeTab === 'ACCOUNT' || activeTab === 'ORDERS') ? 'person-circle' : 'person-circle-outline'}
             size={22}
-            color={activeTab === 'ORDERS' ? '#0284C7' : '#94A3B8'}
+            color={(activeTab === 'ACCOUNT' || activeTab === 'ORDERS') ? '#0284C7' : '#94A3B8'}
           />
-          <Text style={[styles.bottomNavLabel, activeTab === 'ORDERS' && styles.bottomNavLabelActive]}>
-            Đơn mua
+          <Text style={[styles.bottomNavLabel, (activeTab === 'ACCOUNT' || activeTab === 'ORDERS') && styles.bottomNavLabelActive]}>
+            Tài khoản
           </Text>
         </AnimatedTouchable>
       </View>
+
+      {/* Sổ Sức Khỏe Số Modal (Digital Health Passport - UC-106) */}
+      <DigitalHealthPassportModal
+        visible={showPassportModal}
+        isOnboardingMode={isOnboardingHealth}
+        onClose={() => setShowPassportModal(false)}
+        onSaved={() => {
+          setIsOnboardingHealth(false);
+          setShowPassportModal(false);
+          if (user) {
+            ApiService.getMyClinicalSafety().then((data) => setClinicalSafety(data)).catch(() => {});
+          }
+        }}
+      />
+
+      {/* Modal Xác Nhận Đăng Xuất Chuẩn In-App UI (thay thế Alert OS) */}
+      <FlatModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        title="Đăng Xuất Tài Khoản"
+        message="Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không? Mọi thông tin giỏ hàng và dữ liệu sẽ được lưu an toàn."
+        icon="log-out-outline"
+        iconColor="#EF4444"
+        confirmText="Đăng xuất"
+        confirmVariant="danger"
+        cancelText="Hủy bỏ"
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          logout();
+        }}
+      />
+
+      {/* Modal Nhắc Nhở Đăng Nhập Chuẩn In-App UI (thay thế Alert OS) */}
+      <FlatModal
+        visible={showLoginPromptModal}
+        onClose={() => setShowLoginPromptModal(false)}
+        title="Yêu Cầu Đăng Nhập"
+        message="Vui lòng đăng nhập hoặc tạo tài khoản để thực hiện đặt hàng và tích lũy điểm thưởng thành viên ABC Pharmacy Club."
+        icon="person-circle-outline"
+        iconColor="#0284C7"
+        confirmText="Đăng nhập ngay"
+        confirmVariant="primary"
+        cancelText="Để sau"
+        onCancel={() => setShowLoginPromptModal(false)}
+        onConfirm={() => {
+          setShowLoginPromptModal(false);
+          navigation.navigate('LoginScreen');
+        }}
+      />
+
+      {/* ─── Trang Tìm Kiếm Toàn Diện Lớn (FullSearchModal - Chuẩn Hình 2) ─── */}
+      <FullSearchModal
+        visible={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        medicines={medicines}
+        onSelectMedicine={openMedicineDetail}
+        onAddToCart={addToCart}
+        onOpenScanner={() => {
+          setShowSearchModal(false);
+          setShowScanner(true);
+        }}
+        onOpenVoiceAI={() => {
+          setShowSearchModal(false);
+          setActiveTab('AI_CHAT');
+        }}
+        initialQuery={searchQuery}
+      />
+
+      {/* ─── Menu Ngăn Kéo Hamburger Chuẩn Apple iOS (ClinicalSidebarDrawer) ─── */}
+      <ClinicalSidebarDrawer
+        visible={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        user={user}
+        roleTitle={user ? 'Khách Hàng Thành Viên' : 'Khách Vãng Lai'}
+        menuItems={drawerMenuItems}
+        onLogout={() => {
+          setShowDrawer(false);
+          setShowLogoutModal(true);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -2439,106 +3698,92 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F0F9FF',
   },
-  // ─── Custom Medical Sky Blue Header ──────────────────────
+  // ─── Custom Medical Sky Blue Header (Chuẩn FPT Long Châu Tối Giản) ───
   customHeader: {
-    paddingTop: 10,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+    paddingTop: 6,
+    paddingBottom: 10,
+    paddingHorizontal: 14,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
   },
   headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
     marginTop: 2,
+  },
+  headerLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  headerHamburgerBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
   },
   brandTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   brandIconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 6,
   },
   brandTitleText: {
-    fontSize: 16.5,
+    fontSize: 16,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 0.4,
-  },
-  locationBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.20)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  locationBarText: {
-    fontSize: 11.5,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    maxWidth: 280,
+    letterSpacing: 0.5,
   },
   headerActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  headerLoginPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  headerLoginPillText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-  headerUserPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    maxWidth: 105,
-  },
-  headerUserPillText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
   headerRoundBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: 'rgba(255, 255, 255, 0.20)',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
+  headerAvatarCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#BAE6FD',
+  },
+  headerNotificationDot: {
+    position: 'absolute',
+    top: 5,
+    right: 6,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#EF4444',
+    borderWidth: 1,
+    borderColor: '#0284C7',
+  },
   headerCartBadge: {
     position: 'absolute',
-    top: -3,
-    right: -3,
+    top: -2,
+    right: -2,
     backgroundColor: '#EF4444',
     minWidth: 16,
     height: 16,
@@ -2546,62 +3791,89 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#0284C7',
   },
   headerCartBadgeText: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '800',
     color: '#FFFFFF',
   },
   floatingSearchContainer: {
-    marginTop: 4,
-    marginBottom: 8,
+    marginBottom: 2,
+    marginTop: 2,
   },
   floatingSearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 999,
     paddingHorizontal: 12,
-    height: 44,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
+    height: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
-  floatingSearchInput: {
+  floatingSearchPlaceholder: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  voucherSearchTextInput: {
     flex: 1,
     fontSize: 13,
     color: '#0F172A',
-    paddingVertical: 0,
+    paddingVertical: 4,
+  },
+  applyVoucherPillBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  applyVoucherPillText: {
+    color: '#0284C7',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  voucherSearchEmptyBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  voucherSearchEmptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  voucherSearchEmptySub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 4,
+    textAlign: 'center',
   },
   searchActionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
   searchSubBtn: {
     padding: 4,
   },
-  trendingScroll: {
-    paddingVertical: 2,
-    gap: 6,
-  },
-  trendingChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  trendingChipText: {
-    fontSize: 11,
-    color: '#FFFFFF',
-    fontWeight: '600',
+  searchDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 4,
   },
 
   // ─── Interactive Callout & Feature Pillars ────────────────
@@ -2661,259 +3933,296 @@ const styles = StyleSheet.create({
   },
   twoPillarsRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 14,
   },
   pillarCard: {
     flex: 1,
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1.5,
   },
   pillarIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  pillarTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0284C7',
-    marginBottom: 2,
-  },
-  pillarSub: {
-    fontSize: 10.5,
-    color: '#64748B',
-  },
-
-  // ─── Quick Action Grid 2x4 ────────────────────────────────
-  quickActionGridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap: 10,
-    columnGap: 8,
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 14,
-  },
-  quickGridItem: {
-    width: '22.5%',
-    alignItems: 'center',
-  },
-  quickGridIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  quickGridTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-  },
-  quickGridSub: {
-    fontSize: 9.5,
-    color: '#64748B',
-    textAlign: 'center',
-  },
-
-  // ─── Hero Promo Banner ────────────────────────────────────
-  heroPromoBanner: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 14,
-  },
-  heroPromoInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-  },
-  promoBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 4,
-  },
-  promoBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  promoMainTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  promoSubTitle: {
-    fontSize: 11,
-    color: '#E0F2FE',
-  },
-  promoArtBox: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginBottom: 8,
+  },
+  pillarTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0284C7',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  pillarSub: {
+    display: 'none',
   },
 
-  // ─── Flash Sale Section ───────────────────────────────────
-  flashSaleSection: {
+  // ─── Quick Action Grid 2x4 Chuẩn Long Châu (Cỡ chữ to rõ, 1 dòng sạch sẽ) ───
+  quickActionGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 16,
+    justifyContent: 'flex-start',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#E2E8F0',
     marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  quickGridItem: {
+    width: '25%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickGridIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  quickGridTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  quickGridSub: {
+    display: 'none',
+  },
+
+  // ─── Flash Sale Full Width Section (Tràn Viền 100% Màn Hình Mobile) ───
+  flashSaleFullSection: {
+    marginHorizontal: -16, // Phá vỡ padding của ScrollView để tràn sát 2 mép màn hình
+    marginBottom: 16,
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#FECDD3',
+  },
+  flashSaleGradientInner: {
+    paddingVertical: 14,
   },
   flashSlotTabsRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 10,
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
   flashSlotTab: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   flashSlotTabActive: {
-    backgroundColor: '#EF4444',
-    borderColor: '#EF4444',
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   flashSlotTime: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 1,
   },
   flashSlotTimeActive: {
     color: '#FFFFFF',
   },
+  flashStatusBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   flashSlotStatus: {
-    fontSize: 9.5,
-    color: '#94A3B8',
+    fontSize: 10.5,
+    color: '#64748B',
+    fontWeight: '500',
   },
   flashSlotStatusActive: {
-    color: '#FEE2E2',
-    fontWeight: '600',
+    color: '#FEF08A',
+    fontWeight: '700',
   },
   flashCountdownBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
     marginBottom: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#FEE2E2',
+  },
+  flashTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  flashIconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   flashSaleTitle: {
-    fontSize: 13.5,
+    fontSize: 15,
     fontWeight: '900',
-    color: '#EF4444',
-    letterSpacing: -0.3,
+    color: '#DC2626',
+    letterSpacing: 0.2,
   },
   countdownRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 3,
   },
   countdownLabel: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: '#64748B',
+    fontWeight: '500',
+    marginRight: 2,
   },
   timerBox: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 5,
+    minWidth: 22,
+    alignItems: 'center',
   },
   timerText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
   timerColon: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#EF4444',
-    marginHorizontal: 2,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginHorizontal: 1,
   },
   flashProductsScroll: {
-    gap: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 16,
+    gap: 12,
+    paddingBottom: 4,
   },
   flashCard: {
-    width: 140,
+    width: 155,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 8,
+    borderColor: '#FFE4E6',
+    padding: 10,
     position: 'relative',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 2,
   },
   flashDiscountBadge: {
     position: 'absolute',
-    top: 6,
-    left: 6,
+    top: 8,
+    left: 8,
     zIndex: 2,
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
   },
   flashDiscountText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  flashThumb: {
+  flashWishlistBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flashThumbBox: {
     width: '100%',
-    height: 90,
-    borderRadius: 8,
-    marginBottom: 6,
+    height: 105,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  flashThumb: {
+    width: '90%',
+    height: '90%',
   },
   flashMedName: {
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#0F172A',
-    minHeight: 30,
+    minHeight: 34,
+    lineHeight: 17,
+    marginBottom: 4,
+  },
+  flashPriceRow: {
+    marginBottom: 6,
   },
   flashOriginalPrice: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94A3B8',
     textDecorationLine: 'line-through',
-    marginTop: 2,
   },
   flashSalePrice: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#EF4444',
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#DC2626',
+    marginTop: 1,
   },
   flashStockBar: {
-    height: 14,
+    height: 16,
     backgroundColor: '#FEE2E2',
-    borderRadius: 7,
+    borderRadius: 8,
     overflow: 'hidden',
     justifyContent: 'center',
-    marginTop: 4,
-    marginBottom: 6,
+    marginBottom: 8,
     position: 'relative',
   },
   flashStockProgress: {
@@ -2921,123 +4230,524 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: '#F87171',
-    borderRadius: 7,
+    backgroundColor: '#FCA5A5',
+    borderRadius: 8,
   },
-  flashStockText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#991B1B',
-    textAlign: 'center',
+  flashStockTextWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 1,
   },
+  flashStockText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
   flashAddToCartBtn: {
-    backgroundColor: '#0284C7',
-    paddingVertical: 5,
-    borderRadius: 6,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0284C7',
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
   flashAddToCartText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
   },
 
-  // ─── Seasonal Illness Section ─────────────────────────────
-  seasonalSection: {
+  // ─── Sản Phẩm Bán Chạy (Top Best Sellers - Thẻ To Đùng, Flat, Không Border) ─────
+  bestSellerSection: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  bestSellerHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 14,
   },
-  seasonalHeaderRow: {
+  bestSellerTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bestSellerIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#EA580C',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bestSellerSectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  bestSellerSectionSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  bestSellerViewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  bestSellerViewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0284C7',
+    marginRight: 2,
+  },
+  bestSellerCardsList: {
+    gap: 12,
+  },
+  bestSellerBigCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+  },
+  bestSellerCardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  seasonalSectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  seasonalTabsScroll: {
-    marginBottom: 10,
-  },
-  seasonalTabPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    marginRight: 6,
-  },
-  seasonalTabPillActive: {
-    backgroundColor: '#0284C7',
-    borderColor: '#0284C7',
-  },
-  seasonalTabPillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#0284C7',
-  },
-  seasonalTabPillTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  seasonalAdviceCard: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  seasonalAdviceTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0369A1',
-    marginBottom: 4,
-  },
-  seasonalAdviceDesc: {
-    fontSize: 11.5,
-    color: '#334155',
-    lineHeight: 16,
-    marginBottom: 8,
-  },
-  seasonalTagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  seasonalTagPill: {
+  bestSellerRankBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
   },
-  seasonalTagText: {
+  bestSellerRankBadgeText: {
     fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  bestSellerTopRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bestSellerRatingText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  bestSellerWishlistBtn: {
+    padding: 2,
+  },
+  bestSellerBodyRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  bestSellerBigImageBox: {
+    width: 105,
+    height: 105,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bestSellerBigImage: {
+    width: '90%',
+    height: '90%',
+  },
+  bestSellerDiscountBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  bestSellerDiscountText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  bestSellerDetailsCol: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'space-between',
+  },
+  bestSellerMedName: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 20,
+    marginBottom: 3,
+  },
+  bestSellerActiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  bestSellerActiveText: {
+    fontSize: 11.5,
     color: '#0284C7',
     fontWeight: '600',
+    flex: 1,
+  },
+  bestSellerCategoryUnitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  bestSellerCategoryTag: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  bestSellerCategoryTagText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#0369A1',
+  },
+  bestSellerUnitText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  bestSellerPriceBlock: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  bestSellerPrice: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#DC2626',
+  },
+  bestSellerOriginalPrice: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  bestSellerFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 8,
+    marginTop: 2,
+  },
+  bestSellerProgressCol: {
+    flex: 1,
+    marginRight: 12,
+  },
+  bestSellerProgressBarTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#F1F5F9',
+    overflow: 'hidden',
+    marginBottom: 3,
+  },
+  bestSellerProgressBarFill: {
+    height: '100%',
+    backgroundColor: '#EA580C',
+    borderRadius: 999,
+  },
+  bestSellerSoldText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#EA580C',
+  },
+  bestSellerAddToCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0284C7',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  bestSellerAddToCartText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // ─── Góc Sức Khỏe & Cẩm Nang Bệnh (Blog Y Khoa & Thuốc Gợi Ý - Flat, Không Border) ─────
+  healthBlogSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  healthBlogHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  healthBlogTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  healthBlogIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#0284C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  healthBlogSectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  healthBlogMoreText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  healthBlogTabsScroll: {
+    paddingBottom: 4,
+    marginBottom: 12,
+  },
+  healthBlogTabPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#F1F5F9',
+    marginRight: 8,
+  },
+  healthBlogTabPillActive: {
+    backgroundColor: '#0284C7',
+  },
+  healthBlogTabPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  healthBlogTabPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  blogArticleCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  blogArticleImage: {
+    width: '100%',
+    height: 145,
+    backgroundColor: '#E2E8F0',
+  },
+  blogArticleContent: {
+    padding: 14,
+  },
+  blogCategoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  blogCategoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  blogArticleTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  blogAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  blogAuthorText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  blogDotSeparator: {
+    marginHorizontal: 6,
+    color: '#94A3B8',
+    fontSize: 12,
+  },
+  blogReadTimeText: {
+    fontSize: 11.5,
+    color: '#64748B',
+  },
+  blogArticleSummary: {
+    fontSize: 12.5,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  blogAdviceBox: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  blogAdviceLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    marginBottom: 2,
+  },
+  blogAdviceText: {
+    fontSize: 12,
+    color: '#1E40AF',
+    lineHeight: 17,
+  },
+  blogSymptomsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  blogSymptomChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  blogSymptomText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0369A1',
+  },
+  recommendedMedsSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingTop: 12,
+    paddingBottom: 14,
+    marginTop: 8,
+  },
+  recommendedMedsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  recommendedMedsTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  recommendedMedsCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0284C7',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  recommendedMedsScroll: {
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  recommendedMedCard: {
+    width: 130,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 8,
+    alignItems: 'center',
+  },
+  recommendedMedThumbBox: {
+    width: '100%',
+    height: 85,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  recommendedMedThumb: {
+    width: '90%',
+    height: '90%',
+  },
+  recommendedMedName: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#1E293B',
+    textAlign: 'center',
+    marginBottom: 4,
+    height: 32,
+  },
+  recommendedMedPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#DC2626',
+    marginBottom: 6,
+  },
+  recommendedMedAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0284C7',
+    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    width: '100%',
+  },
+  recommendedMedAddText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 
   // ─── Category Header & Product Badges ─────────────────────
   categoryHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 10,
     marginTop: 4,
   },
+  categoryHeaderTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   sectionSubtitle: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#64748B',
   },
   productListHeader: {
@@ -3247,28 +4957,30 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   categoryGridItemActive: {
     backgroundColor: '#0284C7',
-    borderColor: '#0284C7',
   },
   categoryGridIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E0F2FE',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   categoryGridIconBoxActive: {
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
   categoryGridLabel: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: '#334155',
     textAlign: 'center',
     paddingHorizontal: 2,
@@ -3396,22 +5108,6 @@ const styles = StyleSheet.create({
   modalWishlistBtnActive: {
     backgroundColor: '#FFE4E6',
     borderColor: '#FECDD3',
-  },
-  flashWishlistBtn: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    zIndex: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   scrollContent: {
     padding: 16,
@@ -4497,5 +6193,1188 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  // ─── Tối Giản Giỏ Hàng & Sản Phẩm Đã Xem (Playbook & UX v2.0) ───
+  cartHeaderBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  clearCartText: {
+    fontSize: 13,
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  cartCardMinimal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cartThumbMinimal: {
+    width: 58,
+    height: 58,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  cartItemNameMinimal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+    lineHeight: 18,
+  },
+  cartItemPriceMinimal: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+  cartItemUnitText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  cartRightActions: {
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 58,
+  },
+  qtyCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  qtyCapsuleBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyCapsuleVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  cartDeleteBtn: {
+    padding: 4,
+  },
+  voucherBoxMinimal: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  voucherInputMinimal: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 44,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  applyVoucherBtnMinimal: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 16,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rewardsShortcutBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    marginBottom: 16,
+  },
+  rewardsShortcutText: {
+    fontSize: 12,
+    color: '#0369A1',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  priceSummaryCardMinimal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    marginBottom: 20,
+  },
+  summaryRowMinimal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  summaryTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    marginTop: 4,
+  },
+  summaryLabelMinimal: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  summaryValMinimal: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  totalLabelMinimal: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  totalValMinimal: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+  emptyCartExploreBtn: {
+    marginTop: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#0284C7',
+    borderRadius: 12,
+  },
+  emptyCartExploreText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  // ─── Recently Viewed Section ───
+  recentViewedSection: {
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  recentViewedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  recentViewedTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  recentViewedCount: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  recentViewedScroll: {
+    paddingBottom: 8,
+  },
+  recentProductCard: {
+    width: 140,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 10,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  recentProductThumb: {
+    width: '100%',
+    height: 90,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    marginBottom: 8,
+  },
+  recentProductName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+    lineHeight: 16,
+    height: 32,
+  },
+  recentProductPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0284C7',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  recentQuickAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 8,
+    paddingVertical: 5,
+  },
+  recentQuickAddText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+    marginLeft: 4,
+  },
+  // ─── Loyalty Rewards Tab Styles (Tối Giản Chuẩn Long Châu) ───
+  // ─── Loyalty Rewards Tab Styles (Tối Giản, Không Card Bao Bọc, Zero-Border) ───
+  simpleRewardsContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+  simpleRewardsSummary: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  simpleRewardsTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  simpleRewardsLabel: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  simpleTierBadge: {
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  simpleTierText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  simplePointsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  simplePointsValue: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+  },
+  simplePointsSuffix: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748B',
+    marginLeft: 6,
+    alignSelf: 'flex-end',
+    marginBottom: 4,
+  },
+  simpleCashNote: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  simpleBenefitsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    marginBottom: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  simpleBenefitItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  simpleBenefitIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  simpleBenefitTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  simpleBenefitSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  simpleVouchersSection: {
+    marginTop: 2,
+  },
+  simpleVoucherHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  simpleSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  simpleVoucherCount: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  simpleVoucherListCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  simpleVoucherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  simpleVoucherRowLast: {
+    borderBottomWidth: 0,
+  },
+  simpleVoucherDiscountBox: {
+    width: 58,
+    height: 48,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  simpleVoucherDiscountValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  simpleVoucherDiscountSub: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  simpleVoucherInfoCol: {
+    flex: 1,
+    marginRight: 8,
+  },
+  simpleVoucherCode: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  simpleVoucherDesc: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  simpleVoucherCondition: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  simpleVoucherApplyBtn: {
+    backgroundColor: '#0284C7',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  simpleVoucherApplyText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  // ─── Account Tab Styles (Chuẩn FPT Long Châu & Zero Border) ───
+  accountLongChauHeader: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+  },
+  accountLongChauHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  accountLongChauUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  accountLongChauAvatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  accountLongChauNameCol: {
+    marginLeft: 14,
+    flex: 1,
+  },
+  accountLongChauName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  accountLongChauPhone: {
+    fontSize: 13.5,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 3,
+    fontWeight: '500',
+  },
+  accountLongChauCoinPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginLeft: 8,
+  },
+  accountLongChauCoinIcon: {
+    fontSize: 15,
+    marginRight: 4,
+  },
+  accountLongChauCoinText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  accountLongChauBody: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+  },
+  accountLongChauSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    marginTop: 14,
+    paddingHorizontal: 4,
+  },
+  accountLongChauSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  accountLongChauViewAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  accountLongChauCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 4,
+  },
+  accountOrdersGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  accountOrderGridItem: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  accountOrderIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F0F9FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    position: 'relative',
+  },
+  accountOrderBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  accountOrderBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  accountOrderGridLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  accountHealthCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 4,
+  },
+  accountHealthTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accountHealthIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountHealthMetaCol: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  accountHealthTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  accountHealthTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  accountHealthTag: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  accountHealthTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  accountHealthSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  accountHealthDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
+  },
+  accountHealthPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  accountHealthPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 5,
+  },
+  accountHealthPillText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  accountMenuListCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 4,
+  },
+  accountMenuItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  accountMenuItemLast: {
+    borderBottomWidth: 0,
+  },
+  accountMenuItemIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0F9FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  accountMenuItemTitle: {
+    flex: 1,
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  accountLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  accountLogoutText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  ordersBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    alignSelf: 'flex-start',
+  },
+  ordersBackBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0284C7',
+    marginLeft: 4,
+  },
+  // ─── Giao diện Điểm Thưởng & Đổi Quà Chuẩn FPT Long Châu ───
+  longChauRewardsHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  longChauRewardsTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  longChauActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  longChauActionPillActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  longChauActionPillText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  longChauActionPillTextActive: {
+    color: '#0284C7',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  longChauRewardsHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  longChauRewardsHeroCol: {
+    flex: 1,
+  },
+  longChauRewardsHeroSub: {
+    color: '#E0F2FE',
+    fontSize: 13.5,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  longChauRewardsCoinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  longChauRewardsCoinIcon: {
+    fontSize: 28,
+    marginRight: 6,
+  },
+  longChauRewardsCoinVal: {
+    color: '#FFFFFF',
+    fontSize: 36,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  longChauRewardsRulesLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  longChauRewardsRulesText: {
+    color: '#BAE6FD',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  longChauRewardsJarContainer: {
+    width: 90,
+    height: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  longChauJarGraphic: {
+    width: 68,
+    height: 80,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  longChauJarCap: {
+    position: 'absolute',
+    top: -6,
+    width: 44,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#F59E0B',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+  },
+  longChauJarBody: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  longChauJarTag: {
+    position: 'absolute',
+    top: 4,
+    right: -8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  // Chiến dịch Hope Foundation
+  longChauHopeBanner: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: -12,
+    padding: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+    marginBottom: 16,
+  },
+  longChauHopeTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  longChauHopeBrand: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.4,
+  },
+  longChauHopeTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  longChauHopeSub: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#E11D48',
+    marginBottom: 12,
+  },
+  longChauHopeJoinBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  longChauHopeJoinText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  longChauHopeFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFF1F2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  longChauHopeFooterText: {
+    color: '#9F1239',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // Quà tặng section
+  longChauGiftsSection: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  longChauGiftsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  longChauGiftsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  longChauGiftsViewAll: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  longChauGiftsSub: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginBottom: 12,
+  },
+  longChauGiftsFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  longChauGiftTierPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  longChauGiftTierPillActive: {
+    borderColor: '#0284C7',
+    backgroundColor: '#F0F9FF',
+  },
+  longChauGiftTierText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  longChauGiftTierTextActive: {
+    color: '#0284C7',
+    fontWeight: '700',
+  },
+  longChauGiftsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  longChauGiftCard: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  longChauGiftImg: {
+    width: '100%',
+    height: 110,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    marginBottom: 8,
+  },
+  longChauGiftName: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#0F172A',
+    height: 34,
+    lineHeight: 17,
+    marginBottom: 4,
+  },
+  longChauGiftPrice: {
+    fontSize: 12,
+    color: '#0284C7',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  longChauGiftPointsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  longChauGiftPointsText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#D97706',
+  },
+  longChauGiftRedeemBtn: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  longChauGiftRedeemText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  // Modal Đổi Quà (Chuẩn ảnh 2 Long Châu)
+  redeemModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 36,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+  },
+  redeemModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  redeemModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  redeemModalItemBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  redeemModalItemThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  redeemModalItemName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+    lineHeight: 18,
+  },
+  redeemModalQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  redeemModalQtyLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  redeemModalStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  redeemModalStepBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  redeemModalQtyVal: {
+    width: 36,
+    textAlign: 'center',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  redeemModalPointsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  redeemModalPointsLabel: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  redeemModalPointsUsed: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#EA580C',
+  },
+  redeemModalPointsCurrent: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  redeemModalWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  redeemModalWarningText: {
+    fontSize: 13,
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  redeemModalConfirmBtn: {
+    backgroundColor: '#0284C7',
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  redeemModalConfirmBtnDisabled: {
+    backgroundColor: '#E2E8F0',
+  },
+  redeemModalConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  redeemModalConfirmTextDisabled: {
+    color: '#94A3B8',
+  },
+  loadMoreMedicinesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginVertical: 12,
+    marginHorizontal: 4,
+    gap: 8,
+  },
+  loadMoreMedicinesText: {
+    color: '#0284C7',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

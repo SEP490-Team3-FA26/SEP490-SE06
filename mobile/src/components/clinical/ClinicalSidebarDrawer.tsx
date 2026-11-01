@@ -122,21 +122,8 @@ export const ClinicalSidebarDrawer: React.FC<ClinicalSidebarDrawerProps> = ({
   };
 
   const handleLogoutPress = () => {
-    Alert.alert(
-      'Xác nhận đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất ca làm việc hiện tại không?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: () => {
-            onClose();
-            onLogout();
-          },
-        },
-      ]
-    );
+    onClose();
+    onLogout();
   };
 
   // Pan Gesture kéo vuốt mép đóng Drawer
