@@ -1,0 +1,14 @@
+{
+  "planned": 360,
+  "passed": 295,
+  "failed": 2,
+  "pending": 63,
+  "na": 0,
+  "executed": 297,
+  "executionRate": "82.50%",
+  "passRate": "99.33%",
+  "passedOverPlanned": "81.94%",
+  "source": "Canva slide 34",
+  "accessed": "2026-10-18",
+  "newTestRun": false
+}

@@ -1,0 +1,99 @@
+SOURCE EVIDENCE — 17/10/2026
+Local HEAD: 288a3a302e085c48b792d721c197e8cdc75d6f6c
+Source code inspection; deployed revision not verified.
+
+FILE: backend/apps/ai-service/services/stt_service.py
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/ai-service/services/stt_service.py#L5-L26
+    5: async def transcribe_audio(audio_file: UploadFile) -> str:
+    6:     """
+    7:     Sử dụng Groq Whisper để chuyển đổi âm thanh thành văn bản qua Groq REST API
+    8:     """
+    9:     api_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
+   10:     if not api_key:
+   11:         raise RuntimeError("GROQ_API_KEY is not configured")
+   12: 
+   13:     content = await audio_file.read()
+   14:     filename = audio_file.filename or "audio.wav"
+   15:     content_type = audio_file.content_type or "audio/wav"
+   16: 
+   17:     async with httpx.AsyncClient(timeout=60.0) as client:
+   18:         response = await client.post(
+   19:             "https://api.groq.com/openai/v1/audio/transcriptions",
+   20:             headers={"Authorization": f"Bearer {api_key}"},
+   21:             files={"file": (filename, content, content_type)},
+   22:             data={
+   23:                 "model": "whisper-large-v3",
+   24:                 "language": "vi",
+   25:                 "temperature": "0",
+   26:                 "prompt": (
+
+FILE: backend/apps/ai-service/services/ocr_service.py
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/ai-service/services/ocr_service.py#L148-L181
+  148: async def extract_prescription_from_image(
+  149:     image_bytes: bytes,
+  150:     filename: str = "prescription.jpg",
+  151: ) -> dict:
+  152:     """
+  153:     Gửi ảnh đơn thuốc bản in tới provider Vision OCR để trích xuất nội dung.
+  154:     Ưu tiên OpenRouter (Gemini 2.5 Flash), fallback Hugging Face.
+  155:     Chỉ xử lý bản in; nếu phát hiện chữ viết tay sẽ trả về lỗi từ chối.
+  156:     """
+  157:     provider_errors = []
+  158: 
+  159:     # Xác định MIME type từ filename
+  160:     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else "jpg"
+  161:     mime_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}
+  162:     mime_type = mime_map.get(ext, "image/jpeg")
+  163: 
+  164:     # Encode ảnh sang base64
+  165:     base64_image = base64.b64encode(image_bytes).decode("utf-8")
+  166:     image_url = f"data:{mime_type};base64,{base64_image}"
+  167: 
+  168:     # Strategy 1: OpenRouter Gemini 2.5 Flash
+  169:     open_router_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
+  170:     if open_router_key:
+  171:         try:
+  172:             import httpx
+  173:             async with httpx.AsyncClient() as client:
+  174:                 response = await client.post(
+  175:                     "https://openrouter.ai/api/v1/chat/completions",
+  176:                     headers={
+  177:                         "Authorization": f"Bearer {open_router_key}",
+  178:                         "Content-Type": "application/json",
+  179:                     },
+  180:                     json={
+  181:                         "model": "google/gemini-2.5-flash",
+
+FILE: backend/apps/ai-service/services/rag_service.py
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/ai-service/services/rag_service.py#L7-L14
+    7: from qdrant_client import QdrantClient
+    8: from services.db_service import get_branch_stock_map
+    9: 
+   10: QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+   11: QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "medical_knowledge")
+   12: COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+   13: EMBEDDING_MODEL = "embed-multilingual-light-v3.0"
+   14: EMBEDDING_SIZE = 384
+
+FILE: backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts#L333-L351
+  333:       pharmacistFinalDecision: {
+  334:         selectedDrugs: (aiResponseData.prescription?.recommended_drugs || []).map((d: any) => ({
+  335:           name: d.name,
+  336:           active_ingredient: d.active_ingredient,
+  337:           dosage: d.dosage,
+  338:           quantity: 1,
+  339:           unit: 'Hộp',
+  340:           price: 50000,
+  341:         })),
+  342:         clinicalNotes: 'Dược sĩ đồng thuận tư vấn đơn thuốc AI ban đầu',
+  343:       },
+  344:       pharmacistAgreement: true,
+  345:       pharmacistInfo: {
+  346:         name: userContext?.fullName || 'Dược sĩ tư vấn',
+  347:         license: userContext?.license || 'CCHN-GPP/02849-HN',
+  348:         userId: userContext?.userId || userContext?.sub,
+  349:         confirmedAt: new Date(),
+  350:       },
+  351:       status: 'RECORDED',
+

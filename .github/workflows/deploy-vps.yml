@@ -6,22 +6,33 @@ on:
       - demo
       - dev
       - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'loi/**'
+      - 'nam/**'
+      - 'phuoc/**'
+      - 'dat/**'
   pull_request:
     branches:
       - demo
       - dev
       - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'loi/**'
+      - 'nam/**'
+      - 'phuoc/**'
+      - 'dat/**'
   workflow_dispatch:
 
-# All branches deploy to the same checkout and VPS. Finish an active deployment
-# before starting the newest queued run; never interrupt a deployment mid-update.
+# Tối ưu concurrency theo từng nhánh để test chạy song song, hủy build cũ khi push dồn dập
 concurrency:
-  group: production-inet-vps
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # ============================================================
-  # 1. CI: Bắt buộc chạy FULL Test Case & Test Rules đạt 100% mới cho deploy
+  # 1. CI: Bắt buộc chạy FULL Test Case & Test Rules đạt 100% (Chạy trên mọi nhánh push)
   # ============================================================
   test-and-verify:
     name: 🧪 Full Test Suites & Architecture Rules Audit
@@ -57,12 +68,16 @@ jobs:
           npm run test:ci
 
   # ============================================================
-  # 2. CD: Tự động SSH vào VPS và triển khai Production (Chỉ khi FULL TEST PASS và là sự kiện PUSH)
+  # 2. CD: Tự động SSH vào VPS và triển khai Production (Chỉ cho main, dev, demo khi FULL TEST PASS)
   # ============================================================
   deploy-to-vps:
     name: 🚢 Deploy to Cloud VPS
     needs: test-and-verify
-    if: success() && github.event_name == 'push'
+    # Chặn an toàn: Chỉ deploy lên VPS khi push vào dev, main, demo; các nhánh cá nhân chỉ chạy CI Test
+    if: success() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/demo')
+    concurrency:
+      group: production-inet-vps
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - name: Execute Remote SSH Commands on iNet VPS

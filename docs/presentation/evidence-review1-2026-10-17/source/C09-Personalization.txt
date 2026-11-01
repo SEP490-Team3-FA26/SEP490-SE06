@@ -1,0 +1,85 @@
+SOURCE EVIDENCE — 17/10/2026
+Local HEAD: 288a3a302e085c48b792d721c197e8cdc75d6f6c
+Source code inspection; deployed revision not verified.
+
+FILE: backend/apps/inventory-service/src/medicine/recommendation.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/inventory-service/src/medicine/recommendation.service.ts#L122-L140
+  122:   async getPersonalizedRecommendations(
+  123:     params: UserClientIdentifier & { branchId?: string },
+  124:   ): Promise<RecommendationResponse> {
+  125:     try {
+  126:       let rfmSegment: string | undefined = undefined;
+  127:       let chronicReminder: RecommendationResponse['chronicReminder'] = null;
+  128: 
+  129:       // -----------------------------------------------------------------------
+  130:       // BƯỚC A: KIỂM TRA PHÂN KHÚC KHÁCH HÀNG RFM (Nhắc nạp thuốc mãn tính)
+  131:       // -----------------------------------------------------------------------
+  132:       if (params.phone) {
+  133:         const segCollection = this.connection.collection('customer_segments');
+  134:         const segment = await segCollection.findOne({ phone: params.phone });
+  135: 
+  136:         if (segment) {
+  137:           rfmSegment = segment.segment;
+  138: 
+  139:           // Nếu là bệnh nhân mãn tính hoặc có lịch dự báo tái mua
+  140:           if (segment.customerType === 'CHRONIC_PATIENT' || segment.segment === 'LOYAL_CHRONIC' || segment.predictedRefillDate) {
+
+FILE: backend/apps/inventory-service/src/medicine/recommendation.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/inventory-service/src/medicine/recommendation.service.ts#L182-L207
+  182:       // BƯỚC B: LẤY LỊCH SỬ TÌM KIẾM 14 NGÀY GẦN NHẤT
+  183:       // -----------------------------------------------------------------------
+  184:       const recentKeywords = await this.getRecentSearches({
+  185:         phone: params.phone,
+  186:         userId: params.userId,
+  187:         deviceId: params.deviceId,
+  188:       });
+  189: 
+  190:       // -----------------------------------------------------------------------
+  191:       // BƯỚC C: PHÂN TÍCH Ý ĐỊNH LÂM SÀNG & QUY TẮC PHARMA CROSS-SELL
+  192:       // -----------------------------------------------------------------------
+  193:       let targetCategories: string[] = [];
+  194:       let nameKeywordsRegex: RegExp[] = [];
+  195:       let recommendationReason = 'Sản phẩm chăm sóc sức khỏe thiết yếu cho gia đình';
+  196:       let recommendationType: RecommendationResponse['recommendationType'] = 'POPULAR_FAMILY_CARE';
+  197: 
+  198:       if (recentKeywords.length > 0) {
+  199:         const combinedQuery = recentKeywords.join(' ').toLowerCase();
+  200: 
+  201:         // 1. Nhóm Cảm sốt / Đau đầu / Giảm đau
+  202:         if (/(sot|sốt|panadol|paracetamol|hapacol|efferalgan|dau dau|đau đầu|cam cum|cảm cúm)/i.test(combinedQuery)) {
+  203:           targetCategories = ['Thuốc bổ, vitamin', 'Thuốc bổ sung vitamin và khoáng chất', 'Dung dịch súc miệng', 'Thuốc bù điện giải'];
+  204:           nameKeywordsRegex = [/vitamin\s*c/i, /oresol/i, /xịt\s*mũi/i, /khẩu\s*trang/i, /súc\s*miệng/i];
+  205:           recommendationReason = `Dựa trên tìm kiếm gần đây về giảm sốt/cảm cúm: Đề xuất TPCN tăng đề kháng & bù điện giải`;
+  206:           recommendationType = 'CROSS_SELL_HEALTH_BOOST';
+  207:         }
+
+FILE: backend/apps/api-gateway/src/controllers/recommendation.controller.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/api-gateway/src/controllers/recommendation.controller.ts#L109-L135
+  109:   @Get("recent-searches")
+  110:   @ApiOperation({ summary: "Lấy các từ khóa tìm kiếm gần đây của khách hàng" })
+  111:   @ApiQuery({ name: "phone", required: false })
+  112:   @ApiQuery({ name: "userId", required: false })
+  113:   @ApiQuery({ name: "deviceId", required: false })
+  114:   async getRecentSearches(
+  115:     @Query("phone") phone?: string,
+  116:     @Query("userId") userId?: string,
+  117:     @Query("deviceId") deviceId?: string,
+  118:   ) {
+  119:     return await sendKafkaMessage(
+  120:       this.inventoryClient,
+  121:       "inventory.recommendation.recent_searches",
+  122:       { phone, userId, deviceId },
+  123:     );
+  124:   }
+  125: 
+  126:   // =========================================================================
+  127:   // 4. XÓA LỊCH SỬ TÌM KIẾM (Bảo mật quyền riêng tư cá nhân theo NĐ 13/2023)
+  128:   // =========================================================================
+  129:   @Delete("recent-searches")
+  130:   @HttpCode(HttpStatus.ACCEPTED)
+  131:   @ApiOperation({ summary: "Xóa lịch sử tìm kiếm cá nhân (Async Kafka Event)" })
+  132:   async clearRecentSearches(
+  133:     @Body() dto: { phone?: string; userId?: string; deviceId?: string },
+  134:   ) {
+  135:     this.inventoryClient.emit("recommendation.event.clear_searches", JSON.stringify(dto));
+

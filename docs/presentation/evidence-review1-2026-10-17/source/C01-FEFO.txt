@@ -1,0 +1,173 @@
+SOURCE EVIDENCE — 17/10/2026
+Local HEAD: 288a3a302e085c48b792d721c197e8cdc75d6f6c
+Source code inspection; deployed revision not verified.
+
+FILE: backend/apps/inventory-service/src/sales/sales.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/inventory-service/src/sales/sales.service.ts#L251-L357
+  251:       // Truy cập các lô hoạt động sắp xếp tăng dần hạn sử dụng expDate ASC -> FIFO/FEFO
+  252:       const batchQuery: any = {
+  253:         $or: [
+  254:           { medicineId: medIdStr },
+  255:           { medicineId: medicine._id },
+  256:           { medicineId: item.medicineId }
+  257:         ],
+  258:         status: 'ACTIVE',
+  259:         stock: { $gt: 0 }
+  260:       };
+  261:       let batches: any[] = [];
+  262:       let isBranchInventoryUsed = false;
+  263: 
+  264:       // KIẾN TRÚC PHÂN TÁCH KHO VẬT LÝ (Phương án 2):
+  265:       // Nếu bán tại chi nhánh cụ thể, truy vấn trực tiếp vào collection vật lý riêng `branch_inventories`
+  266:       if (data.branchId && data.branchId !== 'CENTRAL_WH') {
+  267:         batches = await this.branchInvModel.find({
+  268:           branchId: data.branchId,
+  269:           $or: [
+  270:             { medicineId: medIdStr },
+  271:             { medicineId: medicine._id },
+  272:             { medicineId: item.medicineId }
+  273:           ],
+  274:           status: 'ACTIVE',
+  275:           stock: { $gt: 0 }
+  276:         }).sort({ expDate: 1 }).exec();
+  277: 
+  278:         if (batches.length > 0) {
+  279:           isBranchInventoryUsed = true;
+  280:         }
+  281:       }
+  282: 
+  283:       // Fallback: Nếu không tìm thấy trong branch_inventories hoặc là Kho Tổng, tra cứu medicinebatches
+  284:       if (batches.length === 0) {
+  285:         if (data.branchId) {
+  286:           batchQuery.branchId = data.branchId;
+  287:         } else {
+  288:           // Nếu đơn hàng online không gán chi nhánh, ưu tiên trừ kho tổng CENTRAL_WH
+  289:           batchQuery.branchId = 'CENTRAL_WH';
+  290:         }
+  291:         batches = await this.batchModel.find(batchQuery).sort({ expDate: 1 }).exec();
+  292:       }
+  293: 
+  294:       // Nếu vẫn không có lô hàng nào hợp lệ tại chi nhánh
+  295:       if (batches.length === 0 && data.branchId) {
+  296:         throw new RpcException({
+  297:           message: `Chi nhánh ${data.branchId} không có tồn kho khả dụng cho thuốc "${medicine.name}". Vui lòng liên hệ kho tổng để chuyển hàng.`
+  298:         });
+  299:       }
+  300: 
+  301:       let totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
+  302: 
+  303:       // Tính toán quy đổi đơn vị từ danh mục thuốc, không tin hệ số client gửi lên.
+  304:       const requestedQuantity = Number(item.quantity);
+  305:       if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+  306:         throw new RpcException({ message: `Số lượng bán của thuốc "${medicine.name}" phải là số nguyên dương` });
+  307:       }
+  308:       const baseDeductQty = Math.max(1, requestedQuantity * exchangeValue);
+  309: 
+  310:       if (totalAvailable < baseDeductQty) {
+  311:         throw new RpcException({
+  312:           message: `Thuốc "${medicine.name}" không đủ tồn kho khả dụng (Yêu cầu quy đổi: ${baseDeductQty} ${medicine.unit || 'đơn vị'}, Khả dụng: ${totalAvailable})`
+  313:         });
+  314:       }
+  315: 
+  316:       let remainingQty = baseDeductQty;
+  317:       const allocatedBatches = [];
+  318: 
+  319:       for (const batch of batches) {
+  320:         if (remainingQty <= 0) break;
+  321: 
+  322:         // Nếu lô hàng đã quá ngày hết hạn
+  323:         if (batch.expDate < today) {
+  324:           batch.status = 'EXPIRED';
+  325:           await batch.save();
+  326:           continue;
+  327:         }
+  328: 
+  329:         // Kiểm tra cảnh báo cận HSD (dưới 6 tháng = 180 ngày)
+  330:         const diffTime = batch.expDate.getTime() - today.getTime();
+  331:         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  332:         if (diffDays <= 180) {
+  333:           allWarnings.push(
+  334:             `Lô "${batch.batchNo}" của thuốc "${medicine.name}" sắp hết hạn (HSD: ${batch.expDate.toLocaleDateString()} - Còn ${diffDays} ngày)`
+  335:           );
+  336:         }
+  337: 
+  338:         const deductQty = Math.min(batch.stock, remainingQty);
+  339:         const stockBefore = batch.stock;
+  340:         // Conditional atomic decrement prevents two concurrent sales from
+  341:         // both consuming the same last units of a batch.
+  342:         const inventoryModel: any = isBranchInventoryUsed ? this.branchInvModel : this.batchModel;
+  343:         const updatedBatch = await inventoryModel.findOneAndUpdate(
+  344:           { _id: batch._id, status: 'ACTIVE', stock: { $gte: deductQty } },
+  345:           { $inc: { stock: -deductQty } },
+  346:           { new: true },
+  347:         ).exec();
+  348:         if (!updatedBatch) {
+  349:           throw new RpcException({ message: `Tồn kho lô ${batch.batchNo} vừa thay đổi, vui lòng thử lại` });
+  350:         }
+  351:         remainingQty -= deductQty;
+  352: 
+  353:         allocatedBatches.push({
+  354:           batchNo: batch.batchNo,
+  355:           quantity: deductQty,
+  356:           importPrice: batch.importPrice || 0
+  357:         });
+
+FILE: backend/apps/inventory-service/src/purchase/purchase.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/inventory-service/src/purchase/purchase.service.ts#L1683-L1738
+ 1683:       // Kiểm định và trừ tồn kho tại Kho nguồn (fromBranchId)
+ 1684:       for (const item of pr.items) {
+ 1685:         const batches = await this.batchModel
+ 1686:           .find({
+ 1687:             medicineId: item.medicineId,
+ 1688:             branchId: fromBranchId,
+ 1689:             status: "ACTIVE",
+ 1690:             stock: { $gt: 0 },
+ 1691:           })
+ 1692:           .sort({ expDate: 1 })
+ 1693:           .session(session)
+ 1694:           .exec(); // FEFO: First Expiry First Out
+ 1695: 
+ 1696:         const totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
+ 1697:         if (totalAvailable < item.requestedQuantity) {
+ 1698:           throw new RpcException({
+ 1699:             message: `Không đủ tồn kho tại ${sourceName} cho thuốc "${item.medicineName}" (Yêu cầu: ${item.requestedQuantity}, Khả dụng: ${totalAvailable})`,
+ 1700:             statusCode: 400,
+ 1701:           });
+ 1702:         }
+ 1703: 
+ 1704:         let needed = item.requestedQuantity;
+ 1705:         for (const batch of batches) {
+ 1706:           if (needed <= 0) break;
+ 1707:           const deductQty = Math.min(batch.stock, needed);
+ 1708: 
+ 1709:           const stockBefore = batch.stock;
+ 1710: 
+ 1711:           // Sử dụng OCC / Atomic Update để trừ tồn kho an toàn chống Race Condition
+ 1712:           const updatedBatch = await this.batchModel
+ 1713:             .findOneAndUpdate(
+ 1714:               {
+ 1715:                 _id: batch._id,
+ 1716:                 stock: { $gte: deductQty },
+ 1717:               },
+ 1718:               {
+ 1719:                 $inc: { stock: -deductQty },
+ 1720:               },
+ 1721:               { new: true, session },
+ 1722:             )
+ 1723:             .exec();
+ 1724: 
+ 1725:           if (!updatedBatch) {
+ 1726:             throw new RpcException({
+ 1727:               message: `Lỗi tranh chấp tồn kho (Race Condition) khi trừ kho thuốc "${item.medicineName}" tại lô ${batch.batchNo}. Vui lòng thử lại.`,
+ 1728:               statusCode: 409,
+ 1729:             });
+ 1730:           }
+ 1731: 
+ 1732:           allocatedItems.push({
+ 1733:             medicineId: item.medicineId,
+ 1734:             medicineName: item.medicineName,
+ 1735:             batchNo: batch.batchNo,
+ 1736:             quantity: deductQty,
+ 1737:             unit: item.unit || "Hộp",
+ 1738:           });
+

@@ -83,6 +83,7 @@ import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
 import BranchPayroll from "./pages/branch/BranchPayroll";
 
 import { Sales } from "./pages/pharmacist/Sales";
+import { MobilePosScanner } from "./pages/pharmacist/MobilePosScanner";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
 import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
 import { PharmacistLeaveRequest } from "./pages/pharmacist/PharmacistLeaveRequest";
@@ -110,6 +111,7 @@ export default function App() {
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
           <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
+          <Route path="/pos/mobile-scanner" element={<MobilePosScanner />} />
 
           {/* Auth Routes */}
           <Route path="/auth" element={<AuthLayout />}>

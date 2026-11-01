@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
-  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap,
+  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap, Wifi,
   Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
@@ -15,6 +15,7 @@ import { reconciliationService } from "../../../services/sales/reconciliation.se
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import { WifiScannerModal } from "./WifiScannerModal";
 import {
   buildRetailDosageInstruction,
   buildUnitOptions,
@@ -968,6 +969,57 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   }, [cart, isScanActive]);
 
   const { onEvent, offEvent } = useSocket();
+
+  // =========================================================================
+  // KẾT NỐI SÚNG QUÉT BARCODE WI-FI / ĐIỆN THOẠI DI ĐỘNG (REALTIME POS BRIDGE)
+  // =========================================================================
+  useEffect(() => {
+    // 1. Kênh BroadcastChannel (đồng bộ tức thì 0ms giữa các tab cùng trình duyệt)
+    let channel: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        channel = new BroadcastChannel('pos_barcode_channel');
+        channel.onmessage = (event) => {
+          if (event.data?.barcode && (!event.data.sessionId || event.data.sessionId === posSessionId)) {
+            console.log('⚡ [POS Bridge] Nhận mã vạch từ Mobile qua BroadcastChannel:', event.data.barcode);
+            handleBarcodeScanned(event.data.barcode);
+            showToast(`📱 Súng quét Mobile đã gửi mã: ${event.data.barcode}`, 'success');
+          }
+        };
+      } catch (_) {}
+    }
+
+    // 2. Kênh Storage Event (dự phòng nội bộ)
+    const handleStorageBridge = (e: StorageEvent) => {
+      if (e.key === 'POS_BARCODE_BRIDGE' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          if (data?.barcode && (!data.sessionId || data.sessionId === posSessionId)) {
+            console.log('⚡ [POS Bridge] Nhận mã vạch từ Mobile qua LocalStorage:', data.barcode);
+            handleBarcodeScanned(data.barcode);
+            showToast(`📱 Súng quét Mobile đã gửi mã: ${data.barcode}`, 'success');
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageBridge);
+
+    // 3. Kênh Server-Sent Events (SSE Bridge qua mạng Wi-Fi cục bộ / Internet)
+    const handleSseBarcode = (data: any) => {
+      if (data?.barcode && (!data.sessionId || data.sessionId === posSessionId)) {
+        console.log('⚡ [POS Bridge] Nhận mã vạch từ Mobile qua SSE Bridge:', data.barcode);
+        handleBarcodeScanned(data.barcode);
+        showToast(`📱 Súng quét Wi-Fi đã gửi mã: ${data.barcode}`, 'success');
+      }
+    };
+    onEvent('pos.barcode_received', handleSseBarcode);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorageBridge);
+      offEvent('pos.barcode_received', handleSseBarcode);
+    };
+  }, [posSessionId, onEvent, offEvent, cart]);
 
   useEffect(() => {
     const handleInventoryUpdate = (data: any) => {

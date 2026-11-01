@@ -1,0 +1,63 @@
+SOURCE EVIDENCE — 17/10/2026
+Local HEAD: 288a3a302e085c48b792d721c197e8cdc75d6f6c
+Source code inspection; deployed revision not verified.
+
+FILE: backend/apps/api-gateway/src/ai-clinical/ai-clinical.controller.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/api-gateway/src/ai-clinical/ai-clinical.controller.ts#L41-L46
+   41: @ApiTags('🤖 AI Clinical Services (UC-69 & UC-70)')
+   42: @ApiBearerAuth()
+   43: @UseGuards(JwtAuthGuard, RolesGuard)
+   44: @Roles('pharmacist', 'admin')
+   45: @Controller('api/ai')
+   46: export class AiClinicalController {
+
+FILE: backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts#L51-L74
+   51:   async saveUploadedFiles(
+   52:     files: Express.Multer.File[],
+   53:     subDir: 'ocr' | 'audio',
+   54:   ): Promise<string[]> {
+   55:     const savedUrls: string[] = [];
+   56:     for (const file of files) {
+   57:       try {
+   58:         const { key } = await this.s3Storage.uploadImage(file, `uploads/${subDir}`);
+   59:         const presigned = await this.s3Storage.getPresignedUrl(key, 86400 * 7);
+   60:         savedUrls.push(presigned);
+   61:       } catch (err: any) {
+   62:         this.logger.warn(`S3 upload fallback to local storage: ${err.message}`);
+   63:         const targetDir = path.join(process.cwd(), 'public', 'uploads', subDir);
+   64:         if (!fs.existsSync(targetDir)) {
+   65:           fs.mkdirSync(targetDir, { recursive: true });
+   66:         }
+   67:         const ext = (file.originalname?.split('.').pop() || 'jpg').toLowerCase();
+   68:         const fileName = `${Date.now()}_${randomUUID().substring(0, 8)}.${ext}`;
+   69:         const filePath = path.join(targetDir, fileName);
+   70:         fs.writeFileSync(filePath, file.buffer);
+   71:         savedUrls.push(`/public/uploads/${subDir}/${fileName}`);
+   72:       }
+   73:     }
+   74:     return savedUrls;
+
+FILE: backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts#L175-L185
+  175:   async getOcrHistory(query: {
+  176:     branchId?: string;
+  177:     status?: string;
+  178:     search?: string;
+  179:     page?: number;
+  180:     limit?: number;
+  181:   }) {
+  182:     const filter: any = {};
+  183:     if (query.branchId && query.branchId !== 'ALL') {
+  184:       filter.branchId = query.branchId;
+  185:     }
+
+FILE: backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/api-gateway/src/ai-clinical/ai-clinical.service.ts#L225-L230
+  225:   async getOcrLogById(scanId: string) {
+  226:     const log = await this.ocrLogModel.findOne({ scanId }).lean().exec();
+  227:     if (!log) {
+  228:       throw new NotFoundException(`OCR scan ${scanId} not found`);
+  229:     }
+  230:     return { success: true, data: log };
+

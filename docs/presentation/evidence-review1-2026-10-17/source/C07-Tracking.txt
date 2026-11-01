@@ -1,0 +1,43 @@
+SOURCE EVIDENCE — 17/10/2026
+Local HEAD: 288a3a302e085c48b792d721c197e8cdc75d6f6c
+Source code inspection; deployed revision not verified.
+
+FILE: frontend/src/pages/customer/CustomerOrders.tsx
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/frontend/src/pages/customer/CustomerOrders.tsx#L508-L526
+  508:   const getCustomerShipmentInfo = (order: any): CustomerShipmentLogistics => {
+  509:     const code = order.orderCode || order._id?.slice(-6).toUpperCase() || "ORD889";
+  510:     
+  511:     // Mốc thời gian đặt đơn thực tế từ Database
+  512:     const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  513:     const now = new Date();
+  514:     const elapsedMinutes = Math.floor((now.getTime() - createdDate.getTime()) / (60 * 1000));
+  515: 
+  516:     const formatTime = (d: Date) => d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  517:     const formatFullDateTime = (d: Date) => `${formatTime(d)} - ${d.toLocaleDateString('vi-VN')}`;
+  518: 
+  519:     const tCreated = formatFullDateTime(createdDate);
+  520:     const dPacked = new Date(createdDate.getTime() + 8 * 60 * 1000);
+  521:     const dPicked = new Date(createdDate.getTime() + 18 * 60 * 1000);
+  522:     const dInTransit = new Date(createdDate.getTime() + 30 * 60 * 1000);
+  523:     const dDelivered = new Date(createdDate.getTime() + 45 * 60 * 1000);
+  524: 
+  525:     // Xác định trạng thái thực tế dựa trên thời gian đã trôi qua
+  526:     const isDelivered = elapsedMinutes >= 45 || order.deliveryStatus === 'DELIVERED';
+
+FILE: frontend/src/pages/customer/CustomerOrders.tsx
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/frontend/src/pages/customer/CustomerOrders.tsx#L625-L638
+  625:     return {
+  626:       trackingCode: `SHIP-MED-${code}-VN`,
+  627:       carrierName: "AhaMove Pharma Express (Giao Nhanh Y Tế)",
+  628:       shipperName: "Lê Minh Tuấn",
+  629:       shipperPhone: "0912.883.991",
+  630:       vehiclePlate: "29G1-774.22 (Xe máy chuyên dụng thùng lạnh)",
+  631:       deliveryType: "Giao Hỏa Tốc Dược Phẩm (Bảo Quản Túi Lạnh GPP)",
+  632:       coldChainPackaging: true,
+  633:       temperature: 4.5,
+  634:       tempStatus: "4.5°C • Chuẩn GPP (Dải an toàn 2°C - 8°C)",
+  635:       currentLocation,
+  636:       distanceKm: "2.4 km",
+  637:       estimatedMinutes,
+  638:       isDelivered,
+

@@ -1,0 +1,128 @@
+{
+  "date": "2026-10-17",
+  "timezone": "Asia/Saigon",
+  "sourceCommit": "288a3a302e085c48b792d721c197e8cdc75d6f6c",
+  "deployedCommitVerified": false,
+  "records": [
+    {
+      "id": "E01",
+      "file": "E01-live-home.jpg",
+      "title": "Website đang triển khai",
+      "url": "https://abcpharmacy.store/",
+      "claim": "Trang chủ truy cập được và có danh mục sản phẩm.",
+      "limit": "Các cam kết marketing/chứng nhận trên UI không phải bằng chứng kiểm định hay số liệu vận hành."
+    },
+    {
+      "id": "E02",
+      "file": "E02-live-ai-chat-response.jpg",
+      "title": "Chatbot trả lời câu hỏi demo",
+      "url": "https://abcpharmacy.store/",
+      "claim": "Đã gửi câu hỏi giới thiệu chức năng, không chứa dữ liệu cá nhân; đã nhận phản hồi trong chat.",
+      "limit": "Chứng minh vòng gửi/nhận chat, không chứng minh độ chính xác y khoa, model thực chạy hoặc chất lượng RAG."
+    },
+    {
+      "id": "E03",
+      "file": "E03-live-prescription-upload-form.jpg",
+      "title": "Biểu mẫu gửi đơn thuốc",
+      "url": "https://abcpharmacy.store/",
+      "claim": "Mở được biểu mẫu nhận thông tin và tệp đơn thuốc.",
+      "limit": "Chưa upload ảnh; không dùng ảnh này để khẳng định OCR đã đọc đúng hoặc file được lưu an toàn."
+    },
+    {
+      "id": "E04",
+      "file": "E04-live-branches.jpg",
+      "title": "Quản lý nhiều chi nhánh",
+      "url": "https://abcpharmacy.store/admin/branches",
+      "claim": "Danh sách tải được nhiều cơ sở với trạng thái, địa chỉ, nhân sự và tồn kho.",
+      "limit": "Chưa kiểm thử tạo/sửa, cách tính chỉ số hay cách ly dữ liệu giữa chi nhánh. UI còn tên VinaPharmacy và ảnh lỗi."
+    },
+    {
+      "id": "E05",
+      "file": "E05-live-supplier-gdp.jpg",
+      "title": "Hồ sơ và cảnh báo GDP nhà cung cấp",
+      "url": "https://abcpharmacy.store/admin/master-data/suppliers",
+      "claim": "Có hạn GDP và nhãn HỢP LỆ / HẾT HẠN GDP. Một số hàng hết hạn vẫn có trạng thái Đang hoạt động.",
+      "limit": "Ảnh chứng minh cảnh báo; chưa thực hiện PO để kiểm tra chặn. Code PO tự động hiện có đường chỉ cảnh báo rồi tiếp tục."
+    },
+    {
+      "id": "E06",
+      "file": "E06-live-disposal-loading.jpg",
+      "title": "Xuất hủy chưa tải được lịch sử",
+      "url": "https://abcpharmacy.store/admin/inventory/dispose",
+      "claim": "Mở được trang xuất hủy nhưng lịch sử giữ trạng thái đang tải trong các lần kiểm tra.",
+      "limit": "Không phải evidence biên bản hủy hoàn chỉnh. Không lấy 0 phiếu khi đang tải làm dữ liệu cuối; nhãn 100% không được kiểm chứng."
+    },
+    {
+      "id": "E07",
+      "file": "E07-live-batch-expiry-details.jpg",
+      "title": "Tồn kho theo số lô và HSD",
+      "url": "https://abcpharmacy.store/admin/inventory",
+      "claim": "Mở được chi tiết nhiều lô của cùng thuốc, có mã lô và ngày hết hạn.",
+      "limit": "Chưa bán/chuyển kho; chưa có chứng cứ lô nào bị trừ trước. Dropdown còn bị cắt ở mép bảng."
+    },
+    {
+      "id": "E08",
+      "file": "E08-live-ocr-history-empty.jpg",
+      "title": "Lịch sử OCR chi nhánh demo đang rỗng",
+      "url": "https://abcpharmacy.store/pharmacist/ocr-history",
+      "claim": "Trang audit OCR tải xong, chi nhánh được chọn chưa có lịch sử.",
+      "limit": "Không chứng minh OCR không hoạt động ở mọi chi nhánh; chưa chạy lượt OCR mới trong phiên này."
+    },
+    {
+      "id": "E09",
+      "file": "E09-live-voice-audit-history.jpg",
+      "title": "Bản ghi voice và trạng thái audit",
+      "url": "https://abcpharmacy.store/pharmacist/ai-consultation",
+      "claim": "Màn hình tải 10 bản ghi, có văn bản STT, gợi ý AI và trạng thái dược sĩ; tại thời điểm chụp chỉ số là 3 xác nhận, 0 đồng bộ đơn.",
+      "limit": "Đây là bản ghi đã tồn tại; chưa chạy ghi âm mới, nghe đối chiếu audio hay kiểm chứng tính đúng đắn của xác nhận."
+    },
+    {
+      "id": "E10",
+      "file": "E10-live-voice-ai-vs-pharmacist.jpg",
+      "title": "Đối soát gợi ý AI và lựa chọn dược sĩ",
+      "url": "https://abcpharmacy.store/pharmacist/ai-consultation",
+      "claim": "Bản ghi CS-1791205166467-2EA5B4 mở được văn bản STT và hai cột 3 thuốc AI / 3 thuốc dược sĩ.",
+      "limit": "Chứng minh có lưu và xem hồ sơ; chưa chứng minh quyết định được xác nhận đúng người/đúng thời điểm. Code khởi tạo tự đồng thuận vẫn cần sửa."
+    },
+    {
+      "id": "E11",
+      "file": "E11-live-invoice-history-loading.jpg",
+      "title": "Lịch sử hóa đơn phía dược sĩ đang tải",
+      "url": "https://abcpharmacy.store/pharmacist/sales",
+      "claim": "Tab đổi trả/hóa đơn đã mở nhưng danh sách chưa tải xong trong thời gian quan sát.",
+      "limit": "Chưa có bản in POS từ tab này. Đã tìm được chứng từ phía khách ở E14, có vấn đề dữ liệu ghi cứng."
+    },
+    {
+      "id": "E12",
+      "file": "E12-live-pos-shift-guard.jpg",
+      "title": "POS thông báo chưa có ca/điểm danh",
+      "url": "https://abcpharmacy.store/pharmacist/sales",
+      "claim": "UI thông báo khóa tạo đơn khi chưa đến ca hoặc chưa điểm danh.",
+      "limit": "Chỉ quan sát UI, không giả lập check-in hoặc tạo đơn để kiểm thử backend guard. Chuẩn bị ca hợp lệ trước demo FEFO."
+    },
+    {
+      "id": "E13",
+      "file": "E13-live-personalized-rfm.jpg",
+      "title": "Nhắc mua lại theo RFM",
+      "url": "https://abcpharmacy.store/",
+      "claim": "Sau đăng nhập khách demo xuất hiện khối nhắc mua lại và mã voucher.",
+      "limit": "Tên tài khoản Nguyễn Văn An nhưng khối nhắc gọi Trần. Cần kiểm tra ánh xạ profile–phone–RFM/cache; chưa đủ bằng chứng quy nguyên nhân hay kết luận lộ dữ liệu."
+    },
+    {
+      "id": "E14",
+      "file": "E14-live-invoice-table-hardcoded-expiry.jpg",
+      "title": "Hóa đơn có cột lô/HSD nhưng dữ liệu ghi cứng",
+      "url": "https://abcpharmacy.store/customer/orders",
+      "claim": "Chứng từ POS-D02358 hiển thị lô L-202604 và HSD 12/2027. Ảnh chỉ chụp bảng thuốc, không có thông tin liên hệ khách.",
+      "limit": "CustomerOrders.tsx dòng 1055 dùng batchNo fallback; dòng 1056 ghi HSD cố định. Không dùng ảnh này để khẳng định truy vết lô/HSD chính xác."
+    },
+    {
+      "id": "E15",
+      "file": "E15-live-tracking-ui.jpg",
+      "title": "Tracking có giao diện nhưng chưa chứng minh event thật",
+      "url": "https://abcpharmacy.store/customer/orders",
+      "claim": "Mở được bản đồ/tracking cho đơn 10651976, có hành trình và dữ liệu giao nhận.",
+      "limit": "Code tạo mốc theo +8/+18/+30/+45 phút, shipper và nhiệt độ ghi cứng. Đây là evidence UI, không phải evidence tích hợp vận chuyển hay IoT thật."
+    }
+  ]
+}

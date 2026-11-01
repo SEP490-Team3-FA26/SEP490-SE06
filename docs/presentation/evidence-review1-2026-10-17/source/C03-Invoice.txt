@@ -1,0 +1,48 @@
+SOURCE EVIDENCE — 17/10/2026
+Local HEAD: 288a3a302e085c48b792d721c197e8cdc75d6f6c
+Source code inspection; deployed revision not verified.
+
+FILE: backend/apps/inventory-service/src/sales/schemas/sales-order.schema.ts
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/backend/apps/inventory-service/src/sales/schemas/sales-order.schema.ts#L4-L14
+    4: @Schema({ _id: false })
+    5: export class SalesOrderBatchItem {
+    6:   @Prop({ type: String, required: true })
+    7:   batchNo: string;
+    8: 
+    9:   @Prop({ type: Number, required: true })
+   10:   quantity: number;
+   11: 
+   12:   @Prop({ type: Number, required: true, default: 0 })
+   13:   importPrice: number;
+   14: }
+
+FILE: frontend/src/pages/pharmacist/components/RetailView.tsx
+https://github.com/SEP490-Team3-FA26/SEP490-SE06/blob/288a3a302e085c48b792d721c197e8cdc75d6f6c/frontend/src/pages/pharmacist/components/RetailView.tsx#L2366-L2392
+ 2366:                 {/* Chi tiết xuất kho allocated */}
+ 2367:                 <div>
+ 2368:                   <div className="font-bold border-b border-slate-200 pb-1.5 mb-2 uppercase">Chi tiết xuất kho (FIFO)</div>
+ 2369:                   <div className="space-y-3">
+ 2370:                     {(invoiceData.data?.items || []).map((it: any) => (
+ 2371:                       <div key={it.medicineId} className="flex flex-col">
+ 2372:                         <div className="flex justify-between font-bold text-slate-900">
+ 2373:                           <span>{it.name}</span>
+ 2374:                           <span>{it.quantity} {it.unit}</span>
+ 2375:                         </div>
+ 2376:                         <div className="text-[11px] text-slate-500 italic mt-0.5 pl-2">
+ 2377:                           Lô xuất: {it.batches?.map((b: any) => `${b.batchNo} (${b.quantity} ${it.unit})`).join(", ") || "Kho quầy"}
+ 2378:                         </div>
+ 2379:                       </div>
+ 2380:                     ))}
+ 2381:                   </div>
+ 2382:                 </div>
+ 2383: 
+ 2384:                 <div className="border-t border-slate-200 pt-3 flex flex-col gap-1.5">
+ 2385:                   <div className="flex justify-between text-slate-600">
+ 2386:                     <span>Tổng tiền thanh toán:</span>
+ 2387:                     <span className="font-bold">{(invoiceData.data?.totalAmount || total).toLocaleString()}₫</span>
+ 2388:                   </div>
+ 2389:                   {(invoiceData.data?.redeemedPoints || 0) > 0 && (
+ 2390:                     <div className="flex justify-between text-[#ba1a1a]">
+ 2391:                       <span>Tiêu điểm tích lũy:</span>
+ 2392:                       <span>-{invoiceData.data.redeemedPoints.toLocaleString()}₫</span>
+
