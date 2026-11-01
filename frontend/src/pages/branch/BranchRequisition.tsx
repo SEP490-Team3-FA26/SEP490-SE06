@@ -169,7 +169,10 @@ export function BranchRequisition() {
         </div>
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3"><Loader2 className="animate-spin text-blue-600" size={28} /><p className="text-slate-500 text-sm">Đang tải...</p></div>
+            <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 size={32} className="animate-spin text-emerald-600" />
+            <p className="text-sm font-semibold text-slate-500">Đang tải danh sách yêu cầu điều chuyển...</p>
+          </div>
           ) : prList.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
               <ClipboardList size={40} />

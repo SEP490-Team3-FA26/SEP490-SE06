@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import {
-  Tag,
+import { Loader2, Tag,
   Search,
   Plus,
   Edit2,
@@ -14,8 +13,7 @@ import {
   Gift,
   ShoppingBag,
   Info,
-  Pill
-} from "lucide-react";
+  Pill } from "lucide-react";
 import { VoucherPayload, VoucherRuleType } from "../../services/sales/voucher.service";
 import { useVoucherManagement } from "../../hooks/useVoucherManagement";
 import { medicineService } from "../../services/inventory/medicine.service";
@@ -650,7 +648,7 @@ export function VoucherManagement() {
         <div className="overflow-x-auto flex-1">
           {loading ? (
             <div className="p-12 text-center text-slate-400 font-semibold flex flex-col items-center justify-center gap-2">
-              <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              <Loader2 size={32} className="animate-spin text-emerald-600" />
               <span>Đang tải danh sách khuyến mãi...</span>
             </div>
           ) : filteredVouchers.length === 0 ? (

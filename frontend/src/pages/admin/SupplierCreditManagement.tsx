@@ -754,7 +754,7 @@ export function SupplierCreditManagement() {
               <div className="p-5 overflow-y-auto space-y-5 flex-1">
                 {loadingDetail ? (
                   <div className="flex flex-col items-center py-16 gap-3">
-                    <Loader2 className="animate-spin text-indigo-600" size={28} />
+                    <Loader2 className="animate-spin text-emerald-600" size={28} />
                     <p className="text-slate-500 text-sm">Đang tải chi tiết...</p>
                   </div>
                 ) : (

@@ -223,6 +223,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
 
   // Orders & Feedback
   const [orders, setOrders] = useState<Order[]>([]);
+  const [medImageMap, setMedImageMap] = useState<Record<string, string>>({});
   const [searchPhone, setSearchPhone] = useState<string>('');
   const [selectedOrderQR, setSelectedOrderQR] = useState<Order | null>(null);
   const [feedbackOrder, setFeedbackOrder] = useState<Order | null>(null);
@@ -230,6 +231,91 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
   const [feedbackTags, setFeedbackTags] = useState<string[]>([]);
   const [feedbackComment, setFeedbackComment] = useState<string>('');
   const [feedbackSubmitting, setFeedbackSubmitting] = useState<boolean>(false);
+  // Tự động tải hình ảnh thuốc chuẩn xác từ Database cho lịch sử đơn hàng
+  useEffect(() => {
+    if (orders.length > 0) {
+      const missingIds = new Set<string>();
+      const existingMap: Record<string, string> = { ...medImageMap };
+
+      orders.forEach((ord) => {
+        (ord.items || []).forEach((it) => {
+          const mId = it.medicineId || (it as any).id || (it as any)._id;
+          if (mId && !existingMap[mId]) {
+            const matched = medicines.find(
+              (m) => (m.id && String(m.id) === String(mId)) ||
+                     (m._id && String(m._id) === String(mId)) ||
+                     (m.name && it.name && m.name.toLowerCase().trim() === it.name.toLowerCase().trim())
+            );
+            if (matched && (matched.image || matched.image_url)) {
+              existingMap[mId] = matched.image || matched.image_url || '';
+            } else {
+              missingIds.add(mId);
+            }
+          }
+        });
+      });
+
+      if (missingIds.size > 0) {
+        Promise.all(
+          Array.from(missingIds).slice(0, 15).map(async (id) => {
+            try {
+              const med = await ApiService.getMedicineById(id);
+              if (med && (med.image || med.image_url)) {
+                return { id, image: med.image || med.image_url || (med.images && med.images[0]) || '' };
+              }
+            } catch (e) {}
+            return null;
+          })
+        ).then((results) => {
+          results.forEach((r) => {
+            if (r && r.image) existingMap[r.id] = r.image;
+          });
+          setMedImageMap(existingMap);
+        });
+      } else {
+        setMedImageMap(existingMap);
+      }
+    }
+  }, [orders, medicines]);
+
+  // Hàm lấy hình ảnh thuốc chuẩn từ Database hoặc danh mục đã tải
+  const getMedicineImage = (item: any): string => {
+    if (item.image && typeof item.image === 'string' && item.image.trim().length > 0) return item.image;
+    if (item.imageUrl && typeof item.imageUrl === 'string' && item.imageUrl.trim().length > 0) return item.imageUrl;
+    if (item.image_url && typeof item.image_url === 'string' && item.image_url.trim().length > 0) return item.image_url;
+
+    const mId = item.medicineId || item.id || item._id;
+    if (mId && medImageMap[mId]) {
+      return medImageMap[mId];
+    }
+
+    const cleanName = String(item.name || '').toLowerCase().trim();
+    const matched = medicines.find(
+      (m) =>
+        (m.id && String(m.id) === String(mId)) ||
+        (m._id && String(m._id) === String(mId)) ||
+        (m.name && m.name.toLowerCase().trim() === cleanName) ||
+        (cleanName.length > 5 && m.name && m.name.toLowerCase().includes(cleanName.slice(0, 15)))
+    );
+
+    if (matched) {
+      if (matched.image && matched.image.trim().length > 0) return matched.image;
+      if (matched.image_url && matched.image_url.trim().length > 0) return matched.image_url;
+      if (Array.isArray(matched.images) && matched.images.length > 0 && matched.images[0]) return matched.images[0];
+    }
+
+    const defaultMedImages: Record<string, string> = {
+      'Kháng sinh': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+      'Giảm đau': 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=80',
+      'Hô hấp': 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
+      'Tiêu hóa': 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
+      'Vitamin': 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=80',
+    };
+    const cat = matched?.category || '';
+    const matchedKey = Object.keys(defaultMedImages).find((k) => cat.includes(k));
+    return matchedKey ? defaultMedImages[matchedKey] : 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80';
+  };
+
 
   // Sổ Sức Khỏe Số & Onboarding khai báo ban đầu (UC-106)
   const [showPassportModal, setShowPassportModal] = useState<boolean>(false);
@@ -2357,7 +2443,6 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                   <Ionicons name="chevron-forward" size={13} color="#BAE6FD" />
                 </AnimatedTouchable>
               </View>
-
               {/* Hũ thủy tinh tích điểm 3D */}
               <View style={styles.longChauRewardsJarContainer}>
                 <View style={styles.longChauJarGraphic}>
@@ -2367,6 +2452,9 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                   </View>
                   <View style={styles.longChauJarTag}>
                     <Text style={{ fontSize: 9, color: '#0284C7', fontWeight: '800' }}>ABC</Text>
+                  </View>
+                </View>
+              </View>
                   </View>
                 </View>
               </View>
@@ -5769,6 +5857,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  orderHeaderLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
+  orderHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  qrHeaderBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   orderCode: {
     fontSize: 14,
@@ -5777,7 +5885,7 @@ const styles = StyleSheet.create({
   },
   orderStatusTag: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   orderStatusText: {
@@ -5789,7 +5897,7 @@ const styles = StyleSheet.create({
   },
   statusPaidText: {
     color: '#0284C7',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
   },
   statusPending: {
@@ -5797,14 +5905,29 @@ const styles = StyleSheet.create({
   },
   statusPendingText: {
     color: '#D97706',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
   },
   orderDate: {
     fontSize: 11,
     color: '#94A3B8',
-    marginTop: 3,
-    marginBottom: 8,
+    marginTop: 2,
+  },
+  serviceFeedbackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 5,
+  },
+  serviceFeedbackBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
   },
   orderItemsBox: {
     backgroundColor: '#F8FAFC',
@@ -5817,13 +5940,91 @@ const styles = StyleSheet.create({
     color: '#475569',
     marginVertical: 2,
   },
-  orderItemCardRow: {
+  orderItemCard: {
+    paddingVertical: 8,
+  },
+  orderItemMainRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  orderItemThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  orderItemInfoCol: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  orderItemMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    marginTop: 4,
+  },
+  orderItemPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+  orderItemQty: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  orderItemActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: '#E2E8F0',
+  },
+  orderItemReminderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderItemReminderBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  orderItemReviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderItemReviewBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  orderItemDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 8,
   },
   orderItemTitle: {
     fontSize: 13,
@@ -5838,9 +6039,9 @@ const styles = StyleSheet.create({
   setReminderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -5849,23 +6050,23 @@ const styles = StyleSheet.create({
   setReminderBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0891B2',
+    color: '#0284C7',
   },
   instructionBadgeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     marginTop: 4,
     gap: 4,
     borderWidth: 0.5,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
   },
   instructionBadgeText: {
     fontSize: 11,
-    color: '#0E7490',
+    color: '#0369A1',
     fontWeight: '600',
     flex: 1,
   },

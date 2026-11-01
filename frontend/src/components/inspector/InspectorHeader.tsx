@@ -1,6 +1,6 @@
 // Component Banner Tiêu Đề Giám Sát CSDL Dược Quốc Gia
 import React from "react";
-import { ShieldCheck, RefreshCw, ExternalLink } from "lucide-react";
+import { Loader2,  ShieldCheck, RefreshCw, ExternalLink } from "lucide-react";
 
 interface InspectorHeaderProps {
   loading: boolean;
@@ -49,7 +49,7 @@ export const InspectorHeader: React.FC<InspectorHeaderProps> = ({ loading, onRef
             title="Làm mới dữ liệu từ chuỗi"
             aria-label="Làm mới dữ liệu"
           >
-            <RefreshCw size={15} className={`text-[#0057cd] ${loading ? "animate-spin" : ""}`} />
+            <Loader2 size={15} className={`text-emerald-600 ${loading ? "animate-spin" : ""}`} />
             <span>Làm mới dữ liệu</span>
           </button>
         </div>

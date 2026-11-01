@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { XCircle, Check, ShoppingCart, Info, Activity, ShieldAlert, Tag, ShieldCheck, Truck, RefreshCw } from "lucide-react";
+import { XCircle, Check, ShoppingCart, Info, Activity, ShieldAlert, Tag, ShieldCheck, Truck, RefreshCw, Star, MessageSquare } from "lucide-react";
 import { BarcodeLabelModal } from "./BarcodeLabelModal";
 import { isPrescriptionMedicine } from "../utils/prescriptionUtils";
+import { ProductReviewModal } from "./customer/ProductReviewModal";
 
 export interface MedicineDetailModalProps {
   medicine: any | null;
@@ -14,6 +15,8 @@ export interface MedicineDetailModalProps {
 export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, addedItems }: MedicineDetailModalProps) {
   const [modalQuantity, setModalQuantity] = useState<number>(1);
   const [showBarcodeModal, setShowBarcodeModal] = useState<boolean>(false);
+  const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
+  const [reviewModalMode, setReviewModalMode] = useState<'WRITE' | 'VIEW_ALL'>('VIEW_ALL');
 
   // Đặt lại số lượng khi mở thuốc mới
   useEffect(() => {
@@ -63,6 +66,35 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
             <h3 className="text-base sm:text-lg md:text-xl font-black text-slate-800 leading-snug mt-1">
               {med.name}
             </h3>
+            {/* Đánh giá sao & Xem tất cả đánh giá (UC-77) */}
+            <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setReviewModalMode('VIEW_ALL');
+                  setShowReviewModal(true);
+                }}
+                className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 transition-all cursor-pointer shadow-xs"
+                title="Xem tất cả đánh giá của khách hàng về thuốc này"
+              >
+                <Star size={13} className="fill-amber-400 text-amber-400" />
+                <span>{med.averageRating ? med.averageRating.toFixed(1) : "5.0"}</span>
+                <span className="text-slate-500 font-medium">({med.reviewCount || 0} đánh giá)</span>
+                <span className="text-blue-600 font-bold ml-1 hover:underline">Xem tất cả</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setReviewModalMode('WRITE');
+                  setShowReviewModal(true);
+                }}
+                className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition-all cursor-pointer shadow-xs"
+              >
+                <MessageSquare size={13} />
+                <span>Viết đánh giá</span>
+              </button>
+            </div>
           </div>
           <button 
             type="button"
@@ -196,6 +228,17 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
             <button
               type="button"
+              onClick={() => {
+                setReviewModalMode('VIEW_ALL');
+                setShowReviewModal(true);
+              }}
+              className="px-3 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-200 hover:border-amber-400 bg-amber-50/60 hover:bg-amber-100/70 text-amber-800 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Star size={13} className="fill-amber-500 text-amber-500" /> Đánh giá ({med.reviewCount || 0})
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowBarcodeModal(true)}
               className="px-3 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 transition-all cursor-pointer whitespace-nowrap"
             >
@@ -245,6 +288,14 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
         isOpen={showBarcodeModal} 
         onClose={() => setShowBarcodeModal(false)} 
         medicine={med} 
+      />
+
+      {/* Modal Đánh Giá & Xem Tất Cả Nhận Xét (UC-77) */}
+      <ProductReviewModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        medicine={med}
+        initialMode={reviewModalMode}
       />
     </div>
   );

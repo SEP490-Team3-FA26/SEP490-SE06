@@ -1,4 +1,4 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+﻿import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 @Schema({ _id: false })
@@ -145,6 +145,13 @@ export class Medicine extends Document {
 
   @Prop({ default: 'Bảo quản nơi khô ráo, tránh ánh sáng, nhiệt độ dưới 30°C' })
   storage_condition?: string; // Điều kiện bảo quản GSP
+
+  // UC-77: Đánh giá & review sản phẩm
+  @Prop({ default: 0, min: 0, max: 5 })
+  averageRating?: number;
+
+  @Prop({ default: 0, min: 0 })
+  reviewCount?: number;
 }
 
 export const MedicineSchema = SchemaFactory.createForClass(Medicine);

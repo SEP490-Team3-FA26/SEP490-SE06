@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, TrendingUp, TrendingDown, RefreshCw, CalendarDays, Search, Building } from 'lucide-react';
+import { Loader2,  Package, TrendingUp, TrendingDown, RefreshCw, CalendarDays, Search, Building } from 'lucide-react';
 import { branchService, reportService } from '../../services';
 
 export function InventoryPerformanceDashboard() {
@@ -90,14 +90,14 @@ export function InventoryPerformanceDashboard() {
             className="p-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
             title="Làm mới dữ liệu"
           >
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            <Loader2 size={18} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
 
       {loading ? (
         <div className="h-64 flex flex-col items-center justify-center gap-3">
-          <RefreshCw size={36} className="animate-spin text-[#0057cd]" />
+          <Loader2 size={36} className="animate-spin text-emerald-600" />
           <p className="text-sm font-bold text-slate-500">Đang tổng hợp dữ liệu thời gian thực...</p>
         </div>
       ) : (

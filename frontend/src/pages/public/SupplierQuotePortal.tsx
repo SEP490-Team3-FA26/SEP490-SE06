@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  Building2,
+import { Loader2, Building2,
   Calendar,
   Clock,
   ShieldCheck,
@@ -14,8 +13,7 @@ import {
   UserCheck,
   FileText,
   CreditCard,
-  Truck
-} from 'lucide-react';
+  Truck } from 'lucide-react';
 import { rfqService } from '../../services/purchase/rfq.service';
 
 interface QuotationItemInput {
@@ -181,7 +179,7 @@ export const SupplierQuotePortal: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full space-y-4">
-          <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <Loader2 size={44} className="animate-spin text-emerald-600 mx-auto" />
           <p className="text-slate-700 font-bold text-sm">Đang xác thực liên kết báo giá...</p>
           <p className="text-xs text-slate-400">Vui lòng chờ trong giây lát.</p>
         </div>

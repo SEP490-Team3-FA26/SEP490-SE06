@@ -122,7 +122,7 @@ export const InspectorFilterBar: React.FC<InspectorFilterBarProps> = ({
           <select
             value={selectedFacility}
             onChange={(e) => setSelectedFacility(e.target.value)}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd]"
+            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-emerald-600"
             aria-label="Lọc theo cơ sở"
           >
             <option value="">Tất cả cơ sở (1 Kho Tổng + 4 Chi nhánh)</option>
@@ -136,7 +136,7 @@ export const InspectorFilterBar: React.FC<InspectorFilterBarProps> = ({
           <select
             value={selectedTxnType}
             onChange={(e) => setSelectedTxnType(e.target.value)}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd]"
+            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-emerald-600"
             aria-label="Lọc theo loại giao dịch"
           >
             <option value="">Tất cả loại giao dịch</option>
@@ -152,7 +152,7 @@ export const InspectorFilterBar: React.FC<InspectorFilterBarProps> = ({
               placeholder="Tìm mã giao dịch, số chứng từ, nhà cung cấp, khách hàng..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#0057cd] focus:ring-1 focus:ring-[#0057cd]"
+              className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-[#0057cd]"
               aria-label="Tìm kiếm giao dịch"
             />
           </div>
@@ -177,7 +177,7 @@ export const InspectorFilterBar: React.FC<InspectorFilterBarProps> = ({
             placeholder="Tìm biệt dược, hoạt chất, số đăng ký..."
             value={drugSearch}
             onChange={(e) => setDrugSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#0057cd] focus:ring-1 focus:ring-[#0057cd]"
+            className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-[#0057cd]"
             aria-label="Tìm kiếm thuốc"
           />
         </div>

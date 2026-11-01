@@ -1,3 +1,4 @@
+import { Loader2 } from 'lucide-react';
 // ============================================================================
 // Mô Hình 40 Thùng Hàng Của Dãy Kệ Đang Xem (RackBins - 4 Tầng x 10 Thùng)
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
@@ -441,7 +442,7 @@ export const RackBins: React.FC<RackBinsProps> = React.memo(({
       {status === 'loading' && (
         <Html position={[0, 2.2, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
           <div className="bg-slate-900/90 text-white px-4 py-2 rounded-xl text-xs font-semibold backdrop-blur-md shadow-xl flex items-center gap-2 border border-slate-700">
-            <span className="w-2.5 h-2.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+            <Loader2 size={14} className="animate-spin text-emerald-600 shrink-0" />
             Đang tải sơ đồ 40 thùng kệ {rack}...
           </div>
         </Html>

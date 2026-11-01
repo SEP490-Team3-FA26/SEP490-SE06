@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Loader2,
   TrendingUp,
   Users,
   ShoppingCart,
@@ -94,6 +95,7 @@ export default function PharmacistKpiReport() {
               tiến độ chỉ tiêu (Quota) của từng dược sĩ tại chi nhánh.
             </p>
           </div>
+
         </div>
 
         {/* Month/Year Picker & Refresh */}
@@ -292,7 +294,7 @@ export default function PharmacistKpiReport() {
         {/* Table Content */}
         {loading ? (
           <div className="py-20 text-center">
-            <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <Loader2 size={36} className="animate-spin text-emerald-600 mx-auto mb-3" />
             <p className="text-xs text-slate-500 font-bold">Đang tổng hợp dữ liệu KPI...</p>
           </div>
         ) : filteredList.length === 0 ? (

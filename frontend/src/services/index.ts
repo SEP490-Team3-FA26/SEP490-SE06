@@ -18,6 +18,7 @@ export { certificateService } from './hr/certificate.service';
 
 // Inventory & Warehouse
 export { medicineService } from './inventory/medicine.service';
+export { productReviewService } from './inventory/productReview.service';
 export { stockTransferService } from './inventory/stockTransfer.service';
 export { inventoryCheckService } from './inventory/inventoryCheck.service';
 export { inventoryMapService } from './inventory/inventoryMap.service';

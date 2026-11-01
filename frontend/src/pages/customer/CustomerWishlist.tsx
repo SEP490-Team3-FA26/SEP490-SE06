@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  Heart,
+import { Loader2, Heart,
   ShoppingCart,
   Trash2,
   ArrowLeft,
@@ -12,8 +11,7 @@ import {
   PackageOpen,
   ArrowRight,
   Sparkles,
-  ExternalLink,
-} from 'lucide-react';
+  ExternalLink, } from 'lucide-react';
 import { useWishlist } from '../../hooks/useWishlist';
 import { cartService } from '../../services/sales/cart.service';
 
@@ -268,7 +266,7 @@ export function CustomerWishlist() {
       {/* ========================================================================= */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 gap-3">
-          <div className="w-12 h-12 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+          <Loader2 size={44} className="animate-spin text-emerald-600" />
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
             Đang tải danh sách yêu thích...
           </span>
@@ -413,7 +411,7 @@ export function CustomerWishlist() {
                       }`}
                     >
                       {isAdding ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <Loader2 size={16} className="animate-spin text-white" />
                       ) : isAdded ? (
                         <>
                           <CheckCircle2 size={14} />

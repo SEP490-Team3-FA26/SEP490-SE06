@@ -506,7 +506,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
       <HeaderBar
         title="Nhắc Uống Thuốc"
         subtitle="100% Báo thức Ngoại Tuyến khi Mất Mạng"
-        gradientVariant="ocean"
+        gradientVariant="sky"
         onBack={() => navigation.goBack()}
         rightAction={{
           icon: 'add-circle-outline',
@@ -521,7 +521,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
       {/* Testing & Status Quick Banner */}
       <View style={styles.quickBarContainer}>
         <View style={styles.quickBarStats}>
-          <Ionicons name="alarm-outline" size={18} color="#0891B2" />
+          <Ionicons name="alarm-outline" size={18} color="#0284C7" />
           <Text style={styles.quickBarStatsText}>
             Hàng đợi OS: <Text style={styles.boldText}>{scheduledCount} thông báo</Text>
           </Text>
@@ -540,7 +540,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
             style={styles.scanQuickBtn}
             onPress={() => setShowScanner(true)}
           >
-            <Ionicons name="barcode-outline" size={16} color="#0891B2" />
+            <Ionicons name="barcode-outline" size={16} color="#0284C7" />
             <Text style={styles.scanQuickBtnText}>Quét Hộp</Text>
           </AnimatedTouchable>
 
@@ -569,7 +569,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
           <Ionicons
             name="calendar-outline"
             size={18}
-            color={activeTab === 'REMINDERS' ? '#0891B2' : '#64748B'}
+            color={activeTab === 'REMINDERS' ? '#0284C7' : '#64748B'}
           />
           <Text
             style={[styles.tabText, activeTab === 'REMINDERS' && styles.tabTextActive]}
@@ -585,7 +585,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
           <Ionicons
             name="pie-chart-outline"
             size={18}
-            color={activeTab === 'SCHEDULE' ? '#0891B2' : '#64748B'}
+            color={activeTab === 'SCHEDULE' ? '#0284C7' : '#64748B'}
           />
           <Text
             style={[styles.tabText, activeTab === 'SCHEDULE' && styles.tabTextActive]}
@@ -601,7 +601,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
           <Ionicons
             name="checkmark-done-circle-outline"
             size={18}
-            color={activeTab === 'LOGS' ? '#0891B2' : '#64748B'}
+            color={activeTab === 'LOGS' ? '#0284C7' : '#64748B'}
           />
           <Text style={[styles.tabText, activeTab === 'LOGS' && styles.tabTextActive]}>
             Nhật Ký ({logs.length})
@@ -627,7 +627,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 <GradientButton
                   title="+ Thêm Lịch Nhắc Mới"
                   onPress={handleOpenCreate}
-                  gradientVariant="cyan"
+                  gradientVariant="sky"
                 />
               </View>
             </View>
@@ -642,7 +642,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                   <View style={styles.cardHeader}>
                     <View style={styles.cardTitleBlock}>
                       <View style={styles.iconCircle}>
-                        <Ionicons name="medical" size={20} color="#0891B2" />
+                        <Ionicons name="medical" size={20} color="#0284C7" />
                       </View>
                       <View style={{ marginLeft: 10, flex: 1 }}>
                         <Text style={styles.medNameText} numberOfLines={1}>
@@ -658,8 +658,8 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                     <Switch
                       value={reminder.isEnabled}
                       onValueChange={() => handleToggleReminder(reminder)}
-                      trackColor={{ false: '#CBD5E1', true: '#06B6D4' }}
-                      thumbColor={reminder.isEnabled ? '#0891B2' : '#F1F5F9'}
+                      trackColor={{ false: '#CBD5E1', true: '#38BDF8' }}
+                      thumbColor={reminder.isEnabled ? '#0284C7' : '#F1F5F9'}
                     />
                   </View>
 
@@ -691,7 +691,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                   <View style={styles.timesRow}>
                     {reminder.times.map((t) => (
                       <View key={t} style={styles.timeBadge}>
-                        <Ionicons name="time-outline" size={14} color="#0E7490" />
+                        <Ionicons name="time-outline" size={14} color="#0369A1" />
                         <Text style={styles.timeBadgeText}>{t}</Text>
                       </View>
                     ))}
@@ -749,7 +749,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                         style={styles.actionIconButton}
                         onPress={() => handleOpenEdit(reminder)}
                       >
-                        <Ionicons name="create-outline" size={18} color="#0891B2" />
+                        <Ionicons name="create-outline" size={18} color="#0284C7" />
                       </AnimatedTouchable>
                       <AnimatedTouchable
                         style={[styles.actionIconButton, { backgroundColor: '#FEE2E2' }]}
@@ -774,7 +774,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.scheduleIntroBox}>
-            <Ionicons name="shield-checkmark" size={24} color="#0891B2" />
+            <Ionicons name="shield-checkmark" size={24} color="#0284C7" />
             <View style={{ marginLeft: 10, flex: 1 }}>
               <Text style={styles.scheduleIntroTitle}>Theo Dõi Tiến Trình Liệu Trình</Text>
               <Text style={styles.scheduleIntroSub}>
@@ -794,7 +794,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 <GradientButton
                   title="+ Thêm Lịch Nhắc Mới"
                   onPress={handleOpenCreate}
-                  gradientVariant="cyan"
+                  gradientVariant="sky"
                 />
               </View>
             </View>
@@ -997,7 +997,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                     setShowScanner(true);
                   }}
                 >
-                  <Ionicons name="barcode-outline" size={18} color="#0891B2" />
+                  <Ionicons name="barcode-outline" size={18} color="#0284C7" />
                   <Text style={styles.scanModalRowBtnText}>Quét Mã Vạch</Text>
                 </TouchableOpacity>
 
@@ -1120,7 +1120,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 <View style={styles.selectedTimesRow}>
                   {times.map((t) => (
                     <View key={t} style={styles.timeTag}>
-                      <Ionicons name="time" size={14} color="#0891B2" />
+                      <Ionicons name="time" size={14} color="#0284C7" />
                       <Text style={styles.timeTagText}>{t}</Text>
                       <TouchableOpacity
                         onPress={() => handleRemoveTime(t)}
@@ -1182,7 +1182,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
               {/* SECTION: THÔNG TIN HỘP THUỐC & NHẮC MUA LẠI */}
               <View style={styles.sectionDividerBox}>
                 <View style={styles.sectionHeaderRow}>
-                  <Ionicons name="cube-outline" size={18} color="#0891B2" />
+                  <Ionicons name="cube-outline" size={18} color="#0284C7" />
                   <Text style={styles.sectionTitleText}>Thông Tin Hộp Thuốc & Nhắc Mua Lại</Text>
                 </View>
 
@@ -1237,8 +1237,8 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                   <Switch
                     value={refillEnabled}
                     onValueChange={setRefillEnabled}
-                    trackColor={{ false: '#CBD5E1', true: '#06B6D4' }}
-                    thumbColor={refillEnabled ? '#0891B2' : '#F1F5F9'}
+                    trackColor={{ false: '#CBD5E1', true: '#38BDF8' }}
+                    thumbColor={refillEnabled ? '#0284C7' : '#F1F5F9'}
                   />
                 </View>
               </View>
@@ -1268,7 +1268,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 <GradientButton
                   title={editingReminder ? 'Cập Nhật' : 'Lưu Lịch Nhắc'}
                   onPress={handleSaveReminder}
-                  gradientVariant="cyan"
+                  gradientVariant="sky"
                 />
               </View>
             </View>
@@ -1295,7 +1295,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
 
             {/* Phone Filter Row */}
             <View style={styles.orderSearchRow}>
-              <Ionicons name="call-outline" size={18} color="#0891B2" style={{ marginRight: 6 }} />
+              <Ionicons name="call-outline" size={18} color="#0284C7" style={{ marginRight: 6 }} />
               <TextInput
                 style={styles.orderSearchInput}
                 placeholder="Nhập SĐT khách hàng (0705248921)..."
@@ -1315,7 +1315,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
             {/* Orders Content */}
             {loadingOrders ? (
               <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                <Ionicons name="hourglass-outline" size={32} color="#0891B2" />
+                <Ionicons name="hourglass-outline" size={32} color="#0284C7" />
                 <Text style={{ marginTop: 8, color: '#64748B', fontSize: 13 }}>
                   Đang tải đơn hàng cho {orderSearchPhone}...
                 </Text>
@@ -1325,7 +1325,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 <Ionicons name="receipt-outline" size={48} color="#CBD5E1" />
                 <Text style={styles.orderEmptyTitle}>Không tìm thấy đơn hàng</Text>
                 <Text style={styles.orderEmptySub}>
-                  Hãy thử tìm kiếm với SĐT <Text style={{ fontWeight: '700', color: '#0891B2' }}>0705248921</Text> để xem các đơn thuốc mẫu tại nhà thuốc.
+                  Hãy thử tìm kiếm với SĐT <Text style={{ fontWeight: '700', color: '#0284C7' }}>0705248921</Text> để xem các đơn thuốc mẫu tại nhà thuốc.
                 </Text>
                 <TouchableOpacity
                   style={styles.samplePhoneBtn}
@@ -1372,7 +1372,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
 
                               {/* Chi tiết cách dùng từ đơn */}
                               <View style={styles.orderImportInstructionBox}>
-                                <Ionicons name="medical" size={13} color="#0891B2" />
+                                <Ionicons name="medical" size={13} color="#0284C7" />
                                 <Text style={styles.orderImportInstructionText}>
                                   {it.dosageInstructions || it.cach_dung || 'Theo hướng dẫn dược sĩ'}
                                 </Text>
@@ -1454,12 +1454,12 @@ const styles = StyleSheet.create({
   },
   boldText: {
     fontWeight: '700',
-    color: '#0891B2',
+    color: '#0284C7',
   },
   testButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -1491,7 +1491,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   tabButtonActive: {
-    borderColor: '#0891B2',
+    borderColor: '#0284C7',
   },
   tabText: {
     fontSize: 14,
@@ -1500,7 +1500,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   tabTextActive: {
-    color: '#0891B2',
+    color: '#0284C7',
   },
   scrollContainer: {
     flex: 1,
@@ -1578,7 +1578,7 @@ const styles = StyleSheet.create({
   timeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#CFFAFE',
+    backgroundColor: '#E0F2FE',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1586,7 +1586,7 @@ const styles = StyleSheet.create({
   timeBadgeText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0E7490',
+    color: '#0369A1',
     marginLeft: 4,
   },
   daysRow: {
@@ -1603,7 +1603,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dayChipActive: {
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
   },
   dayChipText: {
     fontSize: 12,
@@ -1671,11 +1671,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
-    shadowColor: '#0891B2',
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
@@ -1803,7 +1803,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   mealPillActive: {
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
   },
   mealPillText: {
     fontSize: 12,
@@ -1826,7 +1826,7 @@ const styles = StyleSheet.create({
   },
   presetTimeBtnText: {
     fontSize: 11,
-    color: '#0891B2',
+    color: '#0284C7',
     fontWeight: '600',
   },
   selectedTimesRow: {
@@ -1838,7 +1838,7 @@ const styles = StyleSheet.create({
   timeTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#CFFAFE',
+    backgroundColor: '#E0F2FE',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
@@ -1846,7 +1846,7 @@ const styles = StyleSheet.create({
   timeTagText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0891B2',
+    color: '#0284C7',
     marginLeft: 4,
   },
   customTimeRow: {
@@ -1855,7 +1855,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addTimeBtn: {
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
     width: 44,
     height: 44,
     borderRadius: 10,
@@ -1875,7 +1875,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   daySelectBtnActive: {
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
   },
   daySelectBtnText: {
     fontSize: 13,
@@ -1917,7 +1917,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   scanQuickBtnText: {
-    color: '#0891B2',
+    color: '#0284C7',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1925,9 +1925,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
     paddingVertical: 10,
     borderRadius: 12,
     gap: 8,
@@ -1936,7 +1936,7 @@ const styles = StyleSheet.create({
   scanModalRowBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0891B2',
+    color: '#0284C7',
   },
   /* Alerts & Refill Badges */
   refillAlertBanner: {
@@ -1978,17 +1978,17 @@ const styles = StyleSheet.create({
   scheduleIntroBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
     marginBottom: 16,
   },
   scheduleIntroTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0E7490',
+    color: '#0369A1',
   },
   scheduleIntroSub: {
     fontSize: 12,
@@ -2069,7 +2069,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
     paddingVertical: 10,
     borderRadius: 10,
     marginTop: 12,
@@ -2158,7 +2158,7 @@ const styles = StyleSheet.create({
   orderSearchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
@@ -2265,18 +2265,18 @@ const styles = StyleSheet.create({
   orderImportInstructionBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 6,
     marginTop: 4,
     gap: 4,
     borderWidth: 0.5,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
   },
   orderImportInstructionText: {
     fontSize: 11,
-    color: '#0E7490',
+    color: '#0369A1',
     fontWeight: '600',
     flex: 1,
   },
@@ -2291,7 +2291,7 @@ const styles = StyleSheet.create({
   orderImportSelectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0891B2',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 8,

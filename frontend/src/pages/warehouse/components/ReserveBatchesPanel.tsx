@@ -237,7 +237,7 @@ export function ReserveBatchesPanel({
       <div className="flex-1 overflow-auto p-4 custom-scrollbar bg-slate-50/50">
         {loading ? (
           <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-            <Loader2 size={18} className="animate-spin text-amber-500" /> Đang tải danh sách lô dự trữ...
+            <Loader2 size={18} className="animate-spin text-emerald-600" /> Đang tải danh sách lô dự trữ...
           </div>
         ) : viewMode === "RACK_GRID" ? (
           /* ======================================================== */
@@ -278,7 +278,7 @@ export function ReserveBatchesPanel({
 
             {loadingLayout ? (
               <div className="py-10 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-                <Loader2 size={16} className="animate-spin text-amber-500" /> Đang tải sơ đồ các tầng và thùng của Kệ {selectedRack}...
+                <Loader2 size={16} className="animate-spin text-emerald-600" /> Đang tải sơ đồ các tầng và thùng của Kệ {selectedRack}...
               </div>
             ) : shelfLayouts.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">

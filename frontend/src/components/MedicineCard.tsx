@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart, ShieldAlert, Star } from "lucide-react";
 import { isPrescriptionMedicine } from "../utils/prescriptionUtils";
 
 interface MedicineCardProps {
@@ -158,6 +158,21 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
         >
           {med.name}
         </h4>
+
+        {/* Rating sao & lượt đánh giá nếu có (UC-77) */}
+        {med.averageRating > 0 && (
+          <div className="flex items-center gap-1.5 -mt-1">
+            <div className="flex items-center gap-1 text-[11px] font-bold text-amber-500">
+              <Star size={11} className="fill-amber-400 text-amber-400" />
+              <span>{med.averageRating.toFixed(1)}</span>
+            </div>
+            {med.reviewCount > 0 && (
+              <span className="text-[10px] text-slate-400 font-medium">
+                ({med.reviewCount} đánh giá)
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Số đăng ký hoặc Quy cách đóng gói phân biệt dung tích/biến thể */}
         {(med.registrationNumber || med.registration_number || packSpec) && (

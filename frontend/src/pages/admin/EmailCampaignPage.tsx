@@ -1,24 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
-import {
-  Mail,
-  Image,
-  Calendar,
-  Users,
-  Send,
-  Eye,
-  Save,
-  ArrowLeft,
-  Tag,
-  FileText,
-  Monitor,
-  Smartphone,
-  CheckCircle2,
-  AlertTriangle,
-  X,
-  Sparkles,
-  Clock,
-} from "lucide-react";
+import { Loader2, Mail, Image, Calendar, Users, Send, Eye, Save, ArrowLeft, Tag, FileText, Monitor, Smartphone, CheckCircle2, AlertTriangle, X, Sparkles, Clock } from 'lucide-react';
 import { useEmailCampaignManagement } from "../../hooks/useEmailCampaignManagement";
 import { emailCampaignService, EmailCampaignData } from "../../services/sales/emailCampaign.service";
 // Import Rich Text Editor — cho phép soạn thảo văn bản phong phú với định dạng tự do
@@ -396,6 +378,7 @@ const EmailCampaignPage: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loadingCampaign, setLoadingCampaign] = useState(false);
 
   const showToast = (type: "success" | "error", msg: string) => {
     setToast({ type, msg });
@@ -405,6 +388,7 @@ const EmailCampaignPage: React.FC = () => {
   // Tải thông tin chiến dịch nếu có ID trên URL (Chế độ chỉnh sửa)
   useEffect(() => {
     if (id && id !== "new") {
+      setLoadingCampaign(true);
       emailCampaignService
         .getCampaignById(id)
         .then((camp) => {
@@ -425,6 +409,9 @@ const EmailCampaignPage: React.FC = () => {
             "error",
             "Không thể tải chi tiết chiến dịch: " + (err.message || "Lỗi")
           );
+        })
+        .finally(() => {
+          setLoadingCampaign(false);
         });
     }
   }, [id]);
@@ -1268,7 +1255,10 @@ const EmailCampaignPage: React.FC = () => {
               }`}
             >
               {submitting ? (
-                <span>Đang xử lý...</span>
+                <>
+                  <Loader2 size={15} className="animate-spin text-white" />
+                  <span>Đang xử lý...</span>
+                </>
               ) : (
                 <>
                   <Send size={15} />

@@ -75,7 +75,7 @@ export function WarehouseSearchBar({ onSelect }: WarehouseSearchBarProps) {
           className="w-72 bg-slate-50/80 hover:bg-white focus:bg-white border border-slate-200 text-slate-800 text-sm rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all placeholder:text-slate-400 shadow-sm"
         />
         {loading && (
-          <Loader2 className="absolute right-3 animate-spin text-sky-500" size={14} />
+          <Loader2 className="absolute right-3 animate-spin text-emerald-600" size={14} />
         )}
         {!loading && query && (
           <button onClick={clearSearch} className="absolute right-3 text-slate-400 hover:text-slate-600">

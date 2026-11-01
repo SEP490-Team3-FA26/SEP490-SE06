@@ -617,7 +617,7 @@ export function Landing() {
 
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-sky-200 text-[11px] font-black uppercase tracking-widest mb-4">
-                <Sparkles size={13} className="animate-spin" />
+                <Loader2 size={13} className="animate-spin" />
                 {heroSlides[currentSlide].tag}
               </div>
 
@@ -1007,7 +1007,7 @@ export function Landing() {
               <select
                 value={selectedPrice}
                 onChange={(e) => setSelectedPrice(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer shadow-sm"
               >
                 {priceFilterOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1023,7 +1023,7 @@ export function Landing() {
               <select
                 value={selectedTargetGroup}
                 onChange={(e) => setSelectedTargetGroup(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer shadow-sm"
               >
                 {targetGroupOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1039,7 +1039,7 @@ export function Landing() {
               <select
                 value={selectedClassification}
                 onChange={(e) => setSelectedClassification(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer shadow-sm"
               >
                 {classificationOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1055,7 +1055,7 @@ export function Landing() {
               <select
                 value={selectedDosageForm}
                 onChange={(e) => setSelectedDosageForm(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer shadow-sm"
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer shadow-sm"
               >
                 {dosageFormOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1083,7 +1083,7 @@ export function Landing() {
           {/* Live Medicines Grid */}
           {loadingProducts ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="w-9 h-9 border-3 border-[#0057cd] border-t-transparent rounded-full animate-spin"></div>
+              <Loader2 size={32} className="animate-spin text-emerald-600" />
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Đang kết nối kho thuốc trung tâm...</span>
             </div>
           ) : medicines.length > 0 ? (
@@ -1497,7 +1497,7 @@ export function Landing() {
                   placeholder="Ví dụ: Nguyễn Văn A"
                   value={prescriptionForm.fullName}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, fullName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1509,7 +1509,7 @@ export function Landing() {
                   placeholder="Ví dụ: 0912 345 678"
                   value={prescriptionForm.phoneNumber}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, phoneNumber: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1520,13 +1520,13 @@ export function Landing() {
                   placeholder="Số nhà, tên đường, phường/xã, quận/huyện..."
                   value={prescriptionForm.address}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, address: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Ảnh chụp toa thuốc / bệnh án</label>
-                <div className="border-2 border-dashed border-slate-200 hover:border-[#0057cd] rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition-colors">
+                <div className="border-2 border-dashed border-slate-200 hover:border-emerald-600 rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition-colors">
                   <UploadCloud size={28} className="mx-auto text-slate-400 mb-1" />
                   <p className="text-xs font-bold text-slate-700">Kéo thả ảnh hoặc bấm để chọn tệp</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, PDF (Tối đa 10MB)</p>
@@ -1554,7 +1554,7 @@ export function Landing() {
                   placeholder="Ví dụ: Người bệnh dị ứng Penicillin, cần giao trước 17h..."
                   value={prescriptionForm.note}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, note: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-[#0057cd] outline-none resize-none"
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-600 outline-none resize-none"
                 />
               </div>
 

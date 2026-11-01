@@ -723,7 +723,7 @@ export function GoodsReceiptInspectionPage() {
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 bg-amber-100/90 text-amber-800 font-black px-2.5 py-1 rounded-lg text-[10px]">
-                            <Scan size={12} className="animate-spin" />
+                            <Loader2 size={12} className="animate-spin text-emerald-600" />
                             ĐANG QUÉT (-{diff})
                           </span>
                         )}

@@ -36,7 +36,7 @@ const CERT_TYPE_LABELS: Record<CertificateType, { label: string; badge: string; 
   PHARMACIST_COLLEGE: {
     label: 'Dược sĩ Cao đẳng',
     badge: 'bg-teal-100 text-teal-800 border-teal-200',
-    color: 'text-teal-600',
+    color: 'text-emerald-600',
   },
   PHARMACIST_INTERMEDIATE: {
     label: 'Dược sĩ Trung cấp',
@@ -291,7 +291,7 @@ export function StaffCertificateSection({ userRole }: Props) {
       )}
 
       {error && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
+        <div className="bg-rose-50 border border-rose-200 text-emerald-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
           <AlertCircle size={18} className="shrink-0" />
           {error}
         </div>
@@ -360,7 +360,7 @@ export function StaffCertificateSection({ userRole }: Props) {
       {/* ── Danh sách văn bằng ── */}
       {loading ? (
         <div className="flex justify-center items-center py-10">
-          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
         </div>
       ) : certificates.length === 0 ? (
         <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
@@ -500,7 +500,7 @@ export function StaffCertificateSection({ userRole }: Props) {
                       <button
                         type="button"
                         onClick={() => handleDeleteCert(cert._id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-emerald-600 hover:bg-rose-50 rounded-lg text-xs font-semibold transition-colors"
                       >
                         <Trash2 size={13} /> Xóa
                       </button>
@@ -537,7 +537,7 @@ export function StaffCertificateSection({ userRole }: Props) {
             </div>
 
             {formError && (
-              <div className="bg-rose-50 border border-rose-200 text-rose-600 p-3 rounded-xl text-xs flex items-center gap-2">
+              <div className="bg-rose-50 border border-rose-200 text-emerald-600 p-3 rounded-xl text-xs flex items-center gap-2">
                 <AlertCircle size={15} className="shrink-0" />
                 {formError}
               </div>
@@ -708,7 +708,7 @@ export function StaffCertificateSection({ userRole }: Props) {
                   ) : (
                     <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-indigo-400 bg-white transition-colors">
                       {isUploadingFront ? (
-                        <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+                        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
                       ) : (
                         <>
                           <Upload className="w-6 h-6 text-slate-400 mb-1" />
@@ -749,7 +749,7 @@ export function StaffCertificateSection({ userRole }: Props) {
                   ) : (
                     <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-indigo-400 bg-white transition-colors">
                       {isUploadingBack ? (
-                        <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+                        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
                       ) : (
                         <>
                           <Upload className="w-6 h-6 text-slate-400 mb-1" />

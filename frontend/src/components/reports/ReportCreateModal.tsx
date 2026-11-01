@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw } from 'lucide-react';
+import { Loader2,  X, RefreshCw } from 'lucide-react';
 import api from '../../services/core/api';
 
 interface ReportCreateModalProps {
@@ -141,7 +141,7 @@ export function ReportCreateModal({ isOpen, onClose, onSuccess, userDetails }: R
               value={reportType}
               onChange={(e) => setReportType(e.target.value as any)}
               disabled={!isAdmin}
-              className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-100 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0057cd] focus:border-[#0057cd]"
+              className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-100 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0057cd] focus:border-emerald-600"
             >
               <option value="revenue">Báo cáo doanh thu (Revenue Report)</option>
               {isAdmin && <option value="profit">Báo cáo lợi nhuận (Profit Report)</option>}
@@ -206,7 +206,7 @@ export function ReportCreateModal({ isOpen, onClose, onSuccess, userDetails }: R
             >
               {isCreating ? (
                 <>
-                  <RefreshCw size={14} className="animate-spin" /> Đang tạo...
+                  <Loader2 size={14} className="animate-spin" /> Đang tạo...
                 </>
               ) : (
                 'Tạo báo cáo'

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Plus, Search, PackageSearch, Activity, Pill, AlertCircle, Edit2, X, CheckCircle2, XCircle, Filter, FileText, ExternalLink, ShieldCheck, Copy } from "lucide-react";
+import { Loader2, Plus, Search, PackageSearch, Activity, Pill, AlertCircle, Edit2, X, CheckCircle2, XCircle, Filter, FileText, ExternalLink, ShieldCheck, Copy } from 'lucide-react';
 import { AnimatePresence, motion } from "motion/react";
 import { medicineService, type Medicine } from "../../services/inventory/medicine.service";
 import { Pagination } from "../../components/Pagination";
@@ -346,7 +346,7 @@ export function Products() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Tìm kiếm theo mã SKU, tên thuốc, mã Dược QG..." 
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] transition-all bg-white"
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 transition-all bg-white"
               />
             </div>
             
@@ -414,7 +414,14 @@ export function Products() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <tr><td colSpan={7} className="text-center py-8">Đang tải dữ liệu...</td></tr>
+              <tr>
+                <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <Loader2 size={32} className="animate-spin text-emerald-600" />
+                    <p className="text-sm font-semibold text-slate-500">Đang tải danh mục sản phẩm...</p>
+                  </div>
+                </td>
+              </tr>
                 ) : displayedProducts.length === 0 ? (
                   <tr><td colSpan={7} className="text-center py-8">Không có dữ liệu phù hợp với bộ lọc</td></tr>
                 ) : displayedProducts.map((product) => {

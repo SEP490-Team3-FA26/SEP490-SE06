@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { 
+import { Loader2,  
   CheckCircle2, AlertTriangle, RefreshCw, Search, Filter, 
   FileText, ShieldCheck, ExternalLink, Calendar, Printer, 
   Eye, Check, ArrowUpRight, Activity, Building2, Send,
@@ -263,7 +263,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                 placeholder="Tìm mã đơn, mã DQG, khách hàng..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-[#0057cd]"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-600"
               />
             </div>
 
@@ -271,7 +271,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
             <select
               value={directionFilter}
               onChange={(e) => setDirectionFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="ALL">Tất cả Luồng (Xuất, Nhập & Kiểm kê)</option>
               <option value="OUTWARD">📤 Xuất Bán Hàng (DQG-...)</option>
@@ -283,7 +283,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="ALL">Tất cả Trạng thái</option>
               <option value="SYNCED">🟢 Đã liên thông (SYNCED)</option>
@@ -295,7 +295,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="ALL">Tất cả Kiểu bán</option>
               <option value="RETAIL">Bán lẻ (OTC / Phác đồ)</option>
@@ -319,7 +319,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
               title="Làm mới danh sách"
             >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              <Loader2 size={16} className={loading ? "animate-spin" : ""} />
             </button>
           </div>
         </div>
@@ -343,7 +343,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
               {loading ? (
                 <tr>
                   <td colSpan={8} className="text-center py-12 text-slate-400">
-                    <div className="w-6 h-6 border-2 border-[#0057cd] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <Loader2 size={24} className="animate-spin text-emerald-600 mx-auto mb-2" />
                     Đang nạp danh sách dữ liệu liên thông Dược Quốc gia...
                   </td>
                 </tr>
@@ -438,7 +438,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                           </span>
                         ) : syncStatus === "PENDING" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
-                            <RefreshCw size={12} className="animate-spin text-amber-600" /> ĐANG TRUYỀN
+                            <Loader2 size={12} className="animate-spin text-emerald-600" /> ĐANG TRUYỀN
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-200">
@@ -466,7 +466,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                             className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                             title="Đồng bộ lại (Re-sync)"
                           >
-                            <RefreshCw size={15} className={isResyncing === ord._id ? "animate-spin text-emerald-600" : ""} />
+                            <Loader2 size={15} className={isResyncing === ord._id ? "animate-spin text-emerald-600" : ""} />
                           </button>
                         </div>
                       </td>

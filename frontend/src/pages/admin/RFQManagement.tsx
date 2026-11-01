@@ -686,7 +686,7 @@ export function RFQManagement() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
-            <Loader2 className="animate-spin text-blue-600" size={28} />
+            <Loader2 className="animate-spin text-emerald-600" size={28} />
             <span className="text-xs">Đang tải danh sách Yêu cầu báo giá...</span>
           </div>
         ) : filteredRfqs.length === 0 ? (

@@ -227,7 +227,7 @@ export function BranchCertificateApproval() {
       )}
 
       {errorMessage && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
+        <div className="bg-rose-50 border border-rose-200 text-emerald-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
           <AlertCircle size={18} className="shrink-0" />
           {errorMessage}
         </div>
@@ -367,7 +367,7 @@ export function BranchCertificateApproval() {
         {/* Danh sách table */}
         {loading ? (
           <div className="flex justify-center items-center py-16">
-            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
           </div>
         ) : filteredCerts.length === 0 ? (
           <div className="text-center py-16">
@@ -673,7 +673,7 @@ export function BranchCertificateApproval() {
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                <XCircle size={18} className="text-rose-600" />
+                <XCircle size={18} className="text-emerald-600" />
                 Từ Chối Hồ Sơ Văn Bằng
               </h3>
               <button

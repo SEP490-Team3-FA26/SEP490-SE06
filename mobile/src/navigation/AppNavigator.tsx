@@ -25,6 +25,7 @@ import { CustomerScreen } from '../screens/customer/CustomerScreen';
 import { CustomerCheckoutScreen } from '../screens/customer/CustomerCheckoutScreen';
 import { CustomerWishlistScreen } from '../screens/customer/CustomerWishlistScreen';
 import { MedicineReminderScreen } from '../screens/customer/MedicineReminderScreen';
+import { ProductReviewScreen } from '../screens/customer/ProductReviewScreen';
 import { OrderConfirmation } from '../screens/OrderConfirmation';
 
 const Stack = createNativeStackNavigator();
@@ -112,6 +113,7 @@ export default function AppNavigator() {
           <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
           <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
           <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
+          <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
         </Stack.Group>
       ) : (
@@ -148,6 +150,7 @@ export default function AppNavigator() {
               <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
               <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
               <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
+              <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
             </>
           )}
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { reportService, supplierService, purchaseOrderService } from "../../services";
-import { 
+import { Loader2,  
   Sparkles, 
   ShoppingCart, 
   AlertTriangle, 
@@ -452,7 +452,7 @@ export function AIForecast() {
             className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
             title="Kích hoạt mô hình PyTorch huấn luyện lại trên GPU RTX 3050 CUDA"
           >
-            <Zap size={14} className={isRetraining ? "animate-spin" : ""} />
+            {isRetraining ? <Loader2 size={14} className="animate-spin text-white" /> : <Zap size={14} />}
             {isRetraining ? "Đang Train GPU..." : "Huấn Luyện Lại (GPU)"}
           </button>
 
@@ -492,7 +492,7 @@ export function AIForecast() {
 
       {retrainMsg && (
         <div className="mb-4 p-3 bg-purple-50 border border-purple-200 text-purple-800 rounded-xl text-xs font-bold flex items-center gap-2">
-          <Sparkles size={16} className="animate-spin text-purple-600 shrink-0" />
+          <Loader2 size={16} className="animate-spin text-emerald-600 shrink-0" />
           {retrainMsg}
         </div>
       )}
@@ -550,7 +550,10 @@ export function AIForecast() {
             exit={{ opacity: 0 }}
             className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200 shadow-sm"
           >
-            <div className="w-12 h-12 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin mb-4" />
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <Loader2 size={36} className="animate-spin text-emerald-600" />
+              <p className="text-sm font-semibold text-slate-500">AI đang dự báo nhu cầu dược phẩm chuỗi...</p>
+            </div>
             <p className="text-slate-600 font-bold text-sm">AI Engine đang phân tích 100% kho dữ liệu Dược phẩm...</p>
             <p className="text-xs text-slate-400 mt-1">Tính toán dự báo số lượng tiêu thụ và cân đối điểm đặt hàng lại.</p>
           </motion.div>
@@ -1069,7 +1072,7 @@ export function AIForecast() {
                     >
                       {isSubmittingPo ? (
                         <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin" />
                           Đang Tách Đơn & Sinh PO...
                         </>
                       ) : (

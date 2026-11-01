@@ -116,7 +116,7 @@ export function Suppliers() {
             <input 
               type="text" 
               placeholder="Tìm kiếm theo tên, số điện thoại..." 
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 transition-all"
             />
           </div>
         </div>

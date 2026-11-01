@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Loader2,
   User,
   MapPin,
+  Phone,
+  Mail,
+  Edit2,
   Lock,
   X,
   Eye,
@@ -9,12 +13,22 @@ import {
   CheckCircle2,
   AlertCircle,
   Save,
+  ShieldCheck,
   Award,
+  Sparkles,
   Gift,
+  Star,
   Copy,
   Check,
-  HeartPulse,
+  ChevronRight,
   ArrowRight,
+  ShoppingBag,
+  Tag,
+  CreditCard,
+  TrendingUp,
+  Percent,
+  Compass,
+  HeartPulse,
   ExternalLink,
 } from 'lucide-react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
@@ -930,8 +944,17 @@ export function CustomerProfile() {
                   disabled={isSavingProfile}
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <Save size={14} />
-                  <span>{isSavingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
+                  {isSavingProfile ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin text-white" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} />
+                      <span>Lưu thay đổi</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -476,7 +476,7 @@ export function DashboardHome() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#0057cd]/10 text-[#0057cd] border border-[#0057cd]/20 flex items-center gap-1.5">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#0057cd]/10 text-[#0057cd] border border-emerald-600/20 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#0057cd] animate-ping inline-block" />
                 {data.badge}
               </span>

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Layers, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronRight, Package, Plus, Archive, TrendingDown } from "lucide-react";
+import { Loader2, Layers, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronRight, Package, Plus, Archive, TrendingDown } from 'lucide-react';
 import { inventoryMapService, ShelfLayout, BinData } from "../../../services/inventory/inventoryMap.service";
 
 interface WarehouseMap2DProps {
@@ -153,7 +153,7 @@ function RackBinGrid({
   if (loading) {
     return (
       <div className="mt-2 py-4 flex justify-center text-xs text-slate-400 gap-2">
-        <span className="animate-spin rounded-full w-3 h-3 border-2 border-slate-300 border-t-blue-500" />
+        <Loader2 size={14} className="animate-spin text-emerald-600 shrink-0" />
         Đang tải sơ đồ kệ...
       </div>
     );

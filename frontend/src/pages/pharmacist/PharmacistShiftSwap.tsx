@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { hrService, ShiftSwapRequest, WorkSchedule, WorkShift } from "../../services/hr/hr.service";
 import { authService } from "../../services/auth/auth.service";
-import { 
+import { Loader2,  
   ArrowRightLeft, 
   CheckCircle2, 
   XCircle, 
@@ -362,7 +362,7 @@ export function PharmacistShiftSwap() {
             onClick={() => setActiveTab("outgoing")}
             className={`flex-1 py-4 px-6 text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "outgoing"
-                ? "border-[#0057cd] text-[#0057cd] bg-white"
+                ? "border-emerald-600 text-[#0057cd] bg-white"
                 : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
             }`}
           >
@@ -376,7 +376,7 @@ export function PharmacistShiftSwap() {
             onClick={() => setActiveTab("incoming")}
             className={`flex-1 py-4 px-6 text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "incoming"
-                ? "border-[#0057cd] text-[#0057cd] bg-white"
+                ? "border-emerald-600 text-[#0057cd] bg-white"
                 : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
             }`}
           >
@@ -397,7 +397,7 @@ export function PharmacistShiftSwap() {
         <div className="p-6">
           {loading ? (
             <div className="flex flex-col items-center justify-center p-16">
-              <div className="w-8 h-8 border-3 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+              <Loader2 size={32} className="animate-spin text-emerald-600" />
               <span className="mt-3 text-xs font-semibold text-slate-500">Đang tải danh sách đổi ca...</span>
             </div>
           ) : activeTab === "outgoing" ? (
@@ -623,7 +623,7 @@ export function PharmacistShiftSwap() {
             {/* Modal Body */}
             {modalLoading ? (
               <div className="p-12 text-center flex flex-col items-center justify-center">
-                <div className="w-8 h-8 border-3 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div>
+                <Loader2 size={32} className="animate-spin text-emerald-600" />
                 <span className="mt-3 text-xs font-semibold text-slate-500">Đang nạp lịch trực và danh sách đồng nghiệp...</span>
               </div>
             ) : (
@@ -641,7 +641,7 @@ export function PharmacistShiftSwap() {
                   ) : (
                     <select
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] outline-none transition-all"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 outline-none transition-all"
                       value={formData.myShiftInfo}
                       onChange={(e) => setFormData({ ...formData, myShiftInfo: e.target.value })}
                     >
@@ -667,7 +667,7 @@ export function PharmacistShiftSwap() {
                   ) : (
                     <select
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] outline-none transition-all"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 outline-none transition-all"
                       value={formData.targetId}
                       onChange={(e) => setFormData({ ...formData, targetId: e.target.value, targetShiftInfo: "" })}
                     >
@@ -698,7 +698,7 @@ export function PharmacistShiftSwap() {
                   ) : (
                     <select
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] outline-none transition-all"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 outline-none transition-all"
                       value={formData.targetShiftInfo}
                       onChange={(e) => setFormData({ ...formData, targetShiftInfo: e.target.value })}
                     >
@@ -733,7 +733,7 @@ export function PharmacistShiftSwap() {
                     required
                     rows={2}
                     placeholder="Nhập lý do đổi ca của bạn..."
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] outline-none"
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 outline-none"
                     value={formData.reason}
                     onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                   />
@@ -764,7 +764,7 @@ export function PharmacistShiftSwap() {
                   >
                     {submittingAction ? (
                       <>
-                        <RefreshCw size={13} className="animate-spin" />
+                        <Loader2 size={13} className="animate-spin" />
                         Đang gửi...
                       </>
                     ) : (

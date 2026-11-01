@@ -341,14 +341,14 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
         {/* Search Input */}
         <div className="relative mb-4">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-            {loadingOrders ? <Loader2 size={16} className="animate-spin text-[#0057cd]" /> : <Search size={16} />}
+            {loadingOrders ? <Loader2 size={16} className="animate-spin text-emerald-600" /> : <Search size={16} />}
           </div>
           <input
             type="text"
             placeholder="Tìm theo Mã hóa đơn, SĐT hoặc Tên khách..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-9 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0057cd] transition-all"
+            className="w-full pl-10 pr-9 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-600 transition-all"
           />
           {searchQuery && (
             <button
@@ -386,7 +386,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
         <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar">
           {loadingOrders ? (
             <div className="h-40 flex items-center justify-center text-slate-400 text-xs font-bold gap-2">
-              <RefreshCw className="animate-spin" size={16} /> Đang tải hóa đơn...
+              <Loader2 className="animate-spin text-emerald-600" size={16} /> Đang tải hóa đơn...
             </div>
           ) : salesOrders.length === 0 ? (
             <div className="h-40 flex flex-col items-center justify-center text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl p-4">
@@ -404,7 +404,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                   onClick={() => handleSelectOrder(order)}
                   className={`p-4 border rounded-2xl cursor-pointer transition-all hover:bg-slate-50 relative ${
                     selectedOrder?._id === order._id
-                      ? "border-[#0057cd] bg-blue-50/20 shadow-sm"
+                      ? "border-emerald-600 bg-blue-50/20 shadow-sm"
                       : "border-slate-100 bg-white"
                   }`}
                 >
@@ -534,7 +534,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                   onClick={() => setActiveSubTab(tab.key as any)}
                   className={`py-3.5 border-b-2 text-xs font-black uppercase tracking-wider transition-all ${
                     activeSubTab === tab.key
-                      ? "border-[#0057cd] text-[#0057cd]"
+                      ? "border-emerald-600 text-[#0057cd]"
                       : "border-transparent text-slate-400 hover:text-slate-600"
                   }`}
                 >
@@ -718,7 +718,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                         <div
                           key={item.medicineId}
                           className={`p-4 border rounded-2xl flex flex-col gap-3 transition-all ${
-                            currentVal > 0 ? "border-[#0057cd] bg-blue-50/10" : "border-slate-100 bg-white"
+                            currentVal > 0 ? "border-emerald-600 bg-blue-50/10" : "border-slate-100 bg-white"
                           }`}
                         >
                           <div className="flex justify-between items-start">
@@ -768,7 +768,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                                 <select
                                   value={returnReasons[item.medicineId] || "CHANGE_OF_MIND"}
                                   onChange={(e) => handleReasonChange(item.medicineId, e.target.value)}
-                                  className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 focus:outline-none focus:border-[#0057cd]"
+                                  className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-600"
                                 >
                                   <option value="CHANGE_OF_MIND">Lý do: Thay đổi ý định (Hoàn kho)</option>
                                   <option value="DAMAGED_PRODUCT">Lý do: Hàng hỏng/Lỗi (Hủy kho)</option>
@@ -798,7 +798,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                       className="bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-2xl py-3 px-6 text-xs font-black uppercase tracking-wide flex items-center gap-2 shadow-sm transition-all"
                     >
                       {isSubmittingReturn ? (
-                        <RefreshCw className="animate-spin" size={14} />
+                        <Loader2 className="animate-spin" size={14} />
                       ) : (
                         <RotateCcw size={14} />
                       )}
@@ -825,7 +825,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                           <div
                             key={item.medicineId}
                             className={`p-3 border rounded-xl flex flex-col gap-2.5 transition-all ${
-                              currentVal > 0 ? "border-[#0057cd] bg-blue-50/5" : "border-slate-100 bg-white"
+                              currentVal > 0 ? "border-emerald-600 bg-blue-50/5" : "border-slate-100 bg-white"
                             }`}
                           >
                             <div className="flex justify-between items-center text-xs font-bold">
@@ -886,7 +886,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                     <div className="relative flex flex-col gap-2">
                       <div className="relative">
                         <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                          {loadingMedicines ? <Loader2 size={14} className="animate-spin text-[#0057cd]" /> : <Search size={14} />}
+                          {loadingMedicines ? <Loader2 size={14} className="animate-spin text-emerald-600" /> : <Search size={14} />}
                         </div>
                         <input
                           type="text"
@@ -894,7 +894,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                           value={medicineSearchQuery}
                           onFocus={() => { if (medicineSearchResults.length > 0) setIsExchangeDropdownOpen(true); }}
                           onChange={(e) => setMedicineSearchQuery(e.target.value)}
-                          className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold placeholder-slate-400 focus:outline-none focus:border-[#0057cd]"
+                          className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold placeholder-slate-400 focus:outline-none focus:border-emerald-600"
                         />
                         {medicineSearchQuery && (
                           <button
@@ -915,7 +915,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                           <select
                             value={selectedExchangeCategory}
                             onChange={(e) => setSelectedExchangeCategory(e.target.value)}
-                            className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+                            className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
                           >
                             <option value="">Tất cả Nhóm thuốc</option>
                             {categoriesList.map((cat) => (
@@ -1029,7 +1029,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                       className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-2xl py-4 shadow-sm transition-all flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wide"
                     >
                       {isSubmittingExchange ? (
-                        <RefreshCw className="animate-spin" size={14} />
+                        <Loader2 className="animate-spin" size={14} />
                       ) : (
                         <ArrowLeftRight size={14} />
                       )}

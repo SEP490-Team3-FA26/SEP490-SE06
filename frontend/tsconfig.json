@@ -23,5 +23,11 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["next.config.ts"]
+  "exclude": [
+    "next.config.ts",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import {
+import { Loader2, 
   X,
   Banknote,
   ShieldCheck,
@@ -132,7 +132,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {loading ? (
             <div className="py-20 text-center">
-              <div className="w-10 h-10 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <Loader2 size={36} className="animate-spin text-emerald-600 mx-auto mb-3" />
               <p className="text-xs font-bold text-slate-500">Đang tổng hợp dữ liệu giao dịch và quét két tiền...</p>
             </div>
           ) : (
@@ -611,7 +611,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
             onClick={loadData}
             className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <Loader2 size={13} className={loading ? 'animate-spin' : ''} />
             <span>Cập nhật dữ liệu</span>
           </button>
 
@@ -633,7 +633,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
             >
               {submitting ? (
                 <>
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <Loader2 size={14} className="animate-spin text-white" />
                   <span>Đang chốt ca...</span>
                 </>
               ) : (

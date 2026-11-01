@@ -1,3 +1,4 @@
+import { Loader2 } from 'lucide-react';
 // Component Bảng Danh Mục Thuốc Quốc Gia Đã Liên Thông
 import React from "react";
 
@@ -24,8 +25,11 @@ export const NationalDrugsCatalog: React.FC<NationalDrugsCatalogProps> = ({ drug
         <tbody className="divide-y divide-slate-100">
           {loading ? (
             <tr>
-              <td colSpan={7} className="text-center py-12 text-slate-400 font-medium">
-                Đang tra cứu danh mục thuốc quốc gia...
+              <td colSpan={7} className="text-center py-16 text-slate-500">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <Loader2 size={32} className="animate-spin text-emerald-600" />
+                  <p className="text-sm font-semibold text-slate-500">Đang tra cứu danh mục thuốc quốc gia...</p>
+                </div>
               </td>
             </tr>
           ) : drugs.length === 0 ? (
