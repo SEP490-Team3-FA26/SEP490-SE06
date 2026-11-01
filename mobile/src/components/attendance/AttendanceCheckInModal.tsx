@@ -66,9 +66,16 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
         }
       }
       if (!branch) {
+        try {
+          branch = await ApiService.getMyBranch();
+        } catch {
+          // Bỏ qua lỗi
+        }
+      }
+      if (!branch) {
         const branches = await ApiService.getBranches();
         if (branches && branches.length > 0) {
-          branch = branches.find((b: any) => b.id === branchId || b._id === branchId) || branches[0];
+          branch = branches.find((b: any) => b.branchCode === branchId || b.id === branchId || b._id === branchId) || branches[0];
         }
       }
       setBranchInfo(branch);

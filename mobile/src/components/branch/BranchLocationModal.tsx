@@ -102,20 +102,37 @@ export const BranchLocationModal: React.FC<BranchLocationModalProps> = ({
       return;
     }
 
-    const branchTargetId = branch?._id || branch?.id || (branch as any)?.branchCode || '';
-
     try {
       setIsSaving(true);
-      await ApiService.updateBranchLocation(branchTargetId, {
-        latitude: lat,
-        longitude: lng,
-        checkInRadiusMeters: radiusMeters,
-        address: address.trim() || undefined,
-      });
+      // Ưu tiên cập nhật chi nhánh của chính mình (chuẩn spec IDOR, Backend tự gán theo token)
+      let updateSuccess = false;
+      try {
+        updateSuccess = await ApiService.updateMyBranchLocation({
+          latitude: lat,
+          longitude: lng,
+          checkInRadiusMeters: radiusMeters,
+          address: address.trim() || undefined,
+        });
+      } catch (myBranchErr) {
+        // Fallback cập nhật theo branchTargetId nếu gọi my-branch không thành công (VD tài khoản admin)
+        const branchTargetId = branch?._id || branch?.id || (branch as any)?.branchCode || '';
+        if (branchTargetId) {
+          updateSuccess = await ApiService.updateBranchLocation(branchTargetId, {
+            latitude: lat,
+            longitude: lng,
+            checkInRadiusMeters: radiusMeters,
+            address: address.trim() || undefined,
+          });
+        } else {
+          throw myBranchErr;
+        }
+      }
 
-      showToast.success('Cập nhật thành công', 'Vị trí GPS cơ sở đã được cập nhật cho hệ thống điểm danh');
-      onSuccess?.();
-      onClose();
+      if (updateSuccess) {
+        showToast.success('Cập nhật thành công', 'Vị trí GPS cơ sở đã được cập nhật cho hệ thống điểm danh');
+        onSuccess?.();
+        onClose();
+      }
     } catch (err: any) {
       showToast.error('Lưu thất bại', err.message || 'Có lỗi xảy ra khi lưu vị trí');
     } finally {

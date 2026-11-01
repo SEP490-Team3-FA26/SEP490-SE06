@@ -1055,7 +1055,11 @@ export class ApiService {
       if (res.ok) {
         const decoded = await res.json();
         const list = Array.isArray(decoded) ? decoded : decoded?.data || [];
-        return list;
+        return list.map((b: any) => ({
+          ...b,
+          id: b.id || b._id?.toString() || b.branchCode || '',
+          branchCode: b.branchCode || b.code || '',
+        }));
       }
     } catch (e) {
       console.warn('Failed to fetch branches:', e);
@@ -1069,12 +1073,28 @@ export class ApiService {
         headers: this.authHeaders,
       });
       if (res.ok) {
-        return await res.json();
+        const b = await res.json();
+        if (b) {
+          return {
+            ...b,
+            id: b.id || b._id?.toString() || b.branchCode || '',
+            branchCode: b.branchCode || b.code || '',
+          };
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch my branch:', e);
     }
     return null;
+  }
+
+  public static async updateMyBranchLocation(data: {
+    latitude: number;
+    longitude: number;
+    checkInRadiusMeters?: number;
+    address?: string;
+  }): Promise<boolean> {
+    return this.updateBranchLocation('', data);
   }
 
   public static async updateBranchLocation(
@@ -1087,7 +1107,7 @@ export class ApiService {
     },
   ): Promise<boolean> {
     try {
-      const targetUrl = branchId
+      const targetUrl = branchId && branchId.trim() !== ''
         ? `${this.baseUrl}/api/branches/${encodeURIComponent(branchId)}/location`
         : `${this.baseUrl}/api/branches/my-branch/location`;
 

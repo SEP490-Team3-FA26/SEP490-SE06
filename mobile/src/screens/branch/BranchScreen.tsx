@@ -134,13 +134,14 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [employees, lowStock, branches, transferList, summary, attendances] = await Promise.all([
+      const [employees, lowStock, branches, transferList, summary, attendances, myBranch] = await Promise.all([
         ApiService.getEmployees(),
         ApiService.getLowStockReport(),
         ApiService.getBranches(),
         ApiService.getStockTransfers(),
         ApiService.getDashboardSummary().catch(() => null),
         ApiService.getBranchTodayAttendance().catch(() => []),
+        ApiService.getMyBranch().catch(() => null),
       ]);
 
       if (employees && employees.length > 0) {
@@ -159,8 +160,17 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         setInvoiceCount(Number(summary.todayOrders || summary.totalOrders || 0));
       }
 
-      if (branches && branches.length > 0) {
-        const currentBranch = branches.find((b) => b.id === user?.branchId || (b as any)._id === user?.branchId) || branches[0];
+      let currentBranch: any = myBranch;
+      if (!currentBranch && branches && branches.length > 0) {
+        currentBranch = branches.find(
+          (b) =>
+            b.branchCode === user?.branchId ||
+            b.id === user?.branchId ||
+            (b as any)._id === user?.branchId ||
+            (b.name && user?.branchName && b.name.toLowerCase() === user.branchName.toLowerCase())
+        ) || branches[0];
+      }
+      if (currentBranch) {
         setBranchName(currentBranch.name.toUpperCase());
         setCurrentBranchObj(currentBranch);
       }
