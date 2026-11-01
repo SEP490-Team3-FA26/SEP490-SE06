@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, Info, Gift, Sparkles } from "lucide-react";
+import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, Info, Gift, Sparkles, ShieldAlert } from "lucide-react";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { cartService } from "../../services/sales/cart.service";
 import { voucherService } from "../../services/sales/voucher.service";
 import { medicineService } from "../../services/inventory/medicine.service";
@@ -287,6 +288,13 @@ export function CustomerCart() {
   };
 
   const handleProceedToCheckout = () => {
+    if (hasPrescriptionItems) {
+      showAlert(
+        `Giỏ hàng chứa thuốc kê đơn (${prescriptionItems.map(i => i.name).join(", ")}). Theo quy định Bộ Y Tế, thuốc kê đơn không được phép bán trực tuyến. Quý khách vui lòng xóa sản phẩm này khỏi giỏ hàng hoặc mang đơn thuốc đến trực tiếp quầy thuốc!`,
+        "Chặn thanh toán thuốc kê đơn"
+      );
+      return;
+    }
     const token = localStorage.getItem("token");
     if (!token) {
       showAlert(
@@ -304,6 +312,10 @@ export function CustomerCart() {
     }
     navigate("/customer/checkout");
   };
+
+  // Phân loại thuốc kê đơn
+  const prescriptionItems = cartItems.filter(isPrescriptionMedicine);
+  const hasPrescriptionItems = prescriptionItems.length > 0;
 
   // Pricing calculations
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * (Number(item.quantity) || 0), 0);
@@ -407,6 +419,22 @@ export function CustomerCart() {
               </div>
             )}
 
+            {hasPrescriptionItems && (
+              <div className="bg-rose-50 border-2 border-rose-300 rounded-[20px] p-5 shadow-sm flex items-start gap-3.5 text-rose-950 animate-fade-in">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-700 shrink-0 shadow-inner mt-0.5">
+                  <ShieldAlert size={22} className="text-rose-600" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-black text-rose-950 text-sm uppercase tracking-wide">
+                    Phát hiện {prescriptionItems.length} mặt hàng thuốc kê đơn (Rx) trong giỏ
+                  </h4>
+                  <p className="text-[12px] text-rose-800 font-medium leading-relaxed">
+                    Theo quy định của Bộ Y Tế, thuốc kê đơn không được phép thanh toán trực tuyến. Quý khách vui lòng xóa các thuốc kê đơn khỏi giỏ hàng để tiếp tục thanh toán, hoặc mang đơn thuốc đến trực tiếp cơ sở ABC Pharmacy gần nhất để mua hàng.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Cart Items Table container */}
             <div className="bg-white border border-slate-200 rounded-[20px] shadow-sm overflow-hidden">
               <table className="w-full text-left border-collapse text-sm">
@@ -429,6 +457,12 @@ export function CustomerCart() {
                           <div className="text-[11px] text-slate-400 font-medium mt-0.5">{item.category}</div>
                           {item.active_ingredient && (
                             <div className="text-[10px] font-semibold text-[#0d6efd] mt-1">Hoạt chất: {item.active_ingredient}</div>
+                          )}
+                          {isPrescriptionMedicine(item) && (
+                            <div className="inline-flex items-center gap-1.5 text-[10px] font-black text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-2 py-0.5 mt-1.5">
+                              <ShieldAlert size={12} className="text-rose-600 shrink-0" />
+                              Thuốc kê đơn (Rx) - Không thể thanh toán online
+                            </div>
                           )}
                           {appliedVoucher?.giftReward && (String(itemId) === String(appliedVoucher.giftReward.medicineId)) && (
                             <div className="inline-flex items-center gap-1.5 text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5 mt-1.5">
@@ -588,9 +622,23 @@ export function CustomerCart() {
 
               <button
                 onClick={handleProceedToCheckout}
-                className="w-full mt-2.5 bg-[#0d6efd] hover:bg-[#0a58ca] text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md shadow-blue-150 transition-all active:scale-98"
+                disabled={hasPrescriptionItems}
+                className={`w-full mt-2.5 py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                  hasPrescriptionItems
+                    ? "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none"
+                    : "bg-[#0d6efd] hover:bg-[#0a58ca] text-white shadow-md shadow-blue-150 active:scale-98 cursor-pointer"
+                }`}
+                title={hasPrescriptionItems ? "Vui lòng xóa thuốc kê đơn để thanh toán" : "Tiến hành đặt hàng"}
               >
-                Tiến hành đặt hàng <ArrowRight size={14} />
+                {hasPrescriptionItems ? (
+                  <>
+                    <ShieldAlert size={15} className="text-rose-600" /> Xóa thuốc kê đơn để đặt hàng
+                  </>
+                ) : (
+                  <>
+                    Tiến hành đặt hàng <ArrowRight size={14} />
+                  </>
+                )}
               </button>
             </div>
 

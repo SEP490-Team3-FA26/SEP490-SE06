@@ -15,13 +15,19 @@ describe('[UC-10] Online Customer Checkout (Đặt Hàng Trực Tuyến)', () =>
     customerName: string;
     phone: string;
     address: string;
-    items: Array<{ medicineId: string; name: string; quantity: number; price: number }>;
+    items: Array<{ medicineId: string; name: string; quantity: number; price: number; prescription_status?: number; is_prescription?: boolean }>;
   }) => {
     if (!orderData.customerName || !orderData.phone || !orderData.address) {
       throw new Error('Vui lòng cung cấp đầy đủ tên, số điện thoại và địa chỉ nhận hàng!');
     }
     if (!orderData.items || orderData.items.length === 0) {
       throw new Error('Giỏ hàng không được để trống!');
+    }
+
+    // Chặn 100% thuốc kê đơn đặt online
+    const rxItem = orderData.items.find(it => it.prescription_status === 1 || it.is_prescription === true);
+    if (rxItem) {
+      throw new Error(`Mặt hàng "${rxItem.name}" là thuốc kê đơn (Rx). Theo quy định Bộ Y Tế, thuốc kê đơn không được phép mua bán trực tuyến.`);
     }
 
     let totalAmount = 0;
@@ -114,6 +120,19 @@ describe('[UC-10] Online Customer Checkout (Đặt Hàng Trực Tuyến)', () =>
       };
 
       expect(() => processCheckout(payload)).toThrow(/phải lớn hơn 0/);
+    });
+
+    it('TC-UC10-ABNORM-04: Ném lỗi khi giỏ hàng online chứa thuốc kê đơn (Rx)', () => {
+      const payload = {
+        customerName: 'Lê Văn C',
+        phone: '0988776655',
+        address: 'Hà Nội',
+        items: [
+          { medicineId: 'MED-01', name: 'Bột Auclanityl 500/62.5mg', quantity: 1, price: 373000, prescription_status: 1, is_prescription: true },
+        ],
+      };
+
+      expect(() => processCheckout(payload)).toThrow(/là thuốc kê đơn \(Rx\)/);
     });
   });
 });

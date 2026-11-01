@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
-  Award,
   Users,
   ShoppingCart,
   DollarSign,
@@ -74,72 +73,67 @@ export default function PharmacistKpiReport() {
   const avgOtcRate =
     kpiList.length > 0
       ? Number(
-          (kpiList.reduce((sum: number, it: any) => sum + (it.otcAttachmentRate || 0), 0) / kpiList.length).toFixed(1)
-        )
+        (kpiList.reduce((sum: number, it: any) => sum + (it.otcAttachmentRate || 0), 0) / kpiList.length).toFixed(1)
+      )
       : 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Top Banner & Title */}
-      <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold uppercase tracking-wider">
-              <Award size={14} />
-              <span>UC-111 • SCRUM-106</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <TrendingUp size={22} />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Báo Cáo Hiệu Suất Nhân Viên Bán Hàng (KPI)
             </h1>
-            <p className="text-slate-300 text-xs sm:text-sm max-w-2xl font-medium">
+            <p className="text-slate-500 text-xs sm:text-sm font-medium mt-0.5">
               Đo lường doanh số bán buôn/bán lẻ, tỷ lệ tư vấn kèm sản phẩm OTC/TPBVSK, chỉ số trung thực két tiền mặt và
               tiến độ chỉ tiêu (Quota) của từng dược sĩ tại chi nhánh.
             </p>
           </div>
-
-          {/* Month/Year Picker & Refresh */}
-          <div className="flex items-center gap-3 bg-white/10 p-2 rounded-2xl backdrop-blur-md border border-white/15">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-xl text-xs font-bold">
-              <Calendar size={14} className="text-emerald-400" />
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m} className="bg-slate-900 text-white">
-                    Tháng {m}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-xl text-xs font-bold">
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
-              >
-                {[2025, 2026, 2027].map((y) => (
-                  <option key={y} value={y} className="bg-slate-900 text-white">
-                    Năm {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              onClick={loadKpiReport}
-              disabled={loading}
-              className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer disabled:opacity-50"
-              title="Tải lại dữ liệu"
-            >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
         </div>
 
-        <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        {/* Month/Year Picker & Refresh */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 bg-slate-50 p-1.5 px-3 rounded-2xl border border-slate-200">
+            <Calendar size={15} className="text-emerald-600 shrink-0" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m} className="bg-white text-slate-800">
+                  Tháng {m}
+                </option>
+              ))}
+            </select>
+            <span className="text-slate-300">|</span>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              {[2025, 2026, 2027].map((y) => (
+                <option key={y} value={y} className="bg-white text-slate-800">
+                  Năm {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={loadKpiReport}
+            disabled={loading}
+            className="p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer disabled:opacity-50 shadow-xs flex items-center justify-center"
+            title="Tải lại dữ liệu"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* Error Alert */}
@@ -343,21 +337,20 @@ export default function PharmacistKpiReport() {
                   const avatarChar = isOnlineOrUnassigned
                     ? 'ON'
                     : isTopRank
-                    ? '★'
-                    : mainName.replace(/^(DS\.|Dược sĩ)\s*/i, '').trim().charAt(0).toUpperCase() || 'DS';
+                      ? '★'
+                      : mainName.replace(/^(DS\.|Dược sĩ)\s*/i, '').trim().charAt(0).toUpperCase() || 'DS';
 
                   return (
                     <tr key={item.pharmacistId || idx} className="hover:bg-slate-50/80 transition">
                       {/* Name & ID */}
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 ${
-                            isOnlineOrUnassigned
+                          <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 ${isOnlineOrUnassigned
                               ? 'bg-slate-100 text-slate-600 border border-slate-300'
                               : isTopRank
-                              ? 'bg-gradient-to-tr from-amber-400 to-yellow-300 text-amber-950 shadow-xs'
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}>
+                                ? 'bg-gradient-to-tr from-amber-400 to-yellow-300 text-amber-950 shadow-xs'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
                             {avatarChar}
                           </div>
                           <div>
@@ -371,8 +364,8 @@ export default function PharmacistKpiReport() {
                                 {isOnlineOrUnassigned
                                   ? 'Kênh Online / POS'
                                   : item.pharmacistId && /^[0-9a-fA-F]{24}$/.test(item.pharmacistId)
-                                  ? `ID: #${item.pharmacistId.slice(-6).toUpperCase()}`
-                                  : `Mã: DS-${(idx + 1).toString().padStart(2, '0')}`}
+                                    ? `ID: #${item.pharmacistId.slice(-6).toUpperCase()}`
+                                    : `Mã: DS-${(idx + 1).toString().padStart(2, '0')}`}
                               </span>
                             </p>
                           </div>
@@ -398,15 +391,14 @@ export default function PharmacistKpiReport() {
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                quotaRate >= 100
+                              className={`h-full rounded-full transition-all duration-500 ${quotaRate >= 100
                                   ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
                                   : quotaRate >= 70
-                                  ? 'bg-emerald-500'
-                                  : quotaRate >= 40
-                                  ? 'bg-amber-500'
-                                  : 'bg-rose-400'
-                              }`}
+                                    ? 'bg-emerald-500'
+                                    : quotaRate >= 40
+                                      ? 'bg-amber-500'
+                                      : 'bg-rose-400'
+                                }`}
                               style={{ width: `${Math.min(100, quotaRate)}%` }}
                             ></div>
                           </div>
@@ -426,11 +418,10 @@ export default function PharmacistKpiReport() {
                       {/* OTC Attachment */}
                       <td className="py-4 px-4 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.8 rounded-full text-[11px] font-extrabold ${
-                            item.otcAttachmentRate >= 35
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.8 rounded-full text-[11px] font-extrabold ${item.otcAttachmentRate >= 35
                               ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-amber-100 text-amber-800'
-                          }`}
+                            }`}
                         >
                           <Sparkles size={11} />
                           <span>{item.otcAttachmentRate}%</span>
@@ -440,11 +431,10 @@ export default function PharmacistKpiReport() {
                       {/* Cash Drawer Integrity */}
                       <td className="py-4 px-4 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.8 rounded-full text-[11px] font-extrabold ${
-                            cashRate >= 95
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.8 rounded-full text-[11px] font-extrabold ${cashRate >= 95
                               ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-rose-100 text-rose-800'
-                          }`}
+                            }`}
                           title={`Tổng tiền lệch: ${item.cashDiscrepancyTotal ? item.cashDiscrepancyTotal.toLocaleString('vi-VN') + '₫' : '0₫'}`}
                         >
                           <Coins size={11} />

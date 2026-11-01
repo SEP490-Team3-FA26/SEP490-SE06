@@ -481,7 +481,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             if (recordingRef.current && recognitionRef.current) {
               try {
                 recognitionRef.current.start();
-              } catch (e) {}
+              } catch (e) { }
             }
           };
 
@@ -502,13 +502,13 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     if (mediaRecorderRef.current && recording) {
       try {
         mediaRecorderRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
       setRecording(false);
     }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
     }
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
@@ -516,7 +516,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     if (audioContextRef.current) {
       try {
         audioContextRef.current.close();
-      } catch (e) {}
+      } catch (e) { }
     }
     setAudioVolume(0);
 
@@ -554,7 +554,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       try {
         mediaRecorderRef.current.stop();
         setRecording(false);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Lấy blob hiện tại hoặc tái tạo từ các audio chunks đã thu thập
@@ -1185,7 +1185,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       if (altMed) {
         const unitOptions = buildUnitOptions(altMed);
         const defaultUnit = getDefaultUnitOption(altMed);
-        const baseUnit = altMed.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
+        const baseUnit = (altMed as any).baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
         const dosePerTime = 1;
         const timesPerDay = 2;
         const durationDays = 7;
@@ -1197,7 +1197,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         });
         const dosageInstructions = buildRetailDosageInstruction({
           unitName: defaultUnit.unitName,
-          dosageForm: altMed.dosage_form,
+          dosageForm: (altMed as any).dosage_form || (altMed as any).dosageForm,
           dosePerTime,
           timesPerDay,
           durationDays,
@@ -1240,10 +1240,10 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       const newQty = isPackageOnlyUnit(opt.unitName)
         ? 1
         : calculateRetailQuantity({
-            unit: opt,
-            dailyDose: it.dailyDose || 2,
-            durationDays: it.durationDays || 7,
-          });
+          unit: opt,
+          dailyDose: it.dailyDose || 2,
+          durationDays: it.durationDays || 7,
+        });
       const baseUnit = getBaseUnitOption(it.unitOptions || [opt]);
       return {
         ...it,
@@ -1820,8 +1820,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 )}
                 <div
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider select-none transition-all ${isBarcodeLoading
-                      ? 'bg-emerald-500 text-white animate-pulse shadow-sm shadow-emerald-500/50'
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                    ? 'bg-emerald-500 text-white animate-pulse shadow-sm shadow-emerald-500/50'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                     }`}
                   title="Máy quét Barcode USB / Camera sẵn sàng"
                 >
@@ -2159,14 +2159,14 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 {isCheckingAllergy ? (
                   <div className="flex items-center gap-2 p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-700 text-xs font-semibold animate-pulse">
                     <Loader2 size={16} className="animate-spin text-blue-600" />
-                    <span>Đang kiểm tra chéo tiền sử dị ứng, hoạt chất & bệnh nền lâm sàng (UC-107)...</span>
+                    <span>Đang kiểm tra chéo tiền sử dị ứng, hoạt chất & bệnh nền lâm sàng...</span>
                   </div>
-                ) : allergyCheckResult && !allergyCheckResult.safe ? (
+                ) : allergyCheckResult && allergyCheckResult.hasConflict ? (
                   <div className="flex flex-col gap-2.5 p-3.5 bg-rose-50/90 border-2 border-rose-300 rounded-xl text-rose-900 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 font-black text-[13px] text-rose-700">
                         <AlertTriangle size={18} className="text-rose-600 shrink-0" />
-                        <span>CẢNH BÁO LÂM SÀNG (UC-107): PHÁT HIỆN {allergyCheckResult.conflictCount} NGUY CƠ DỊ ỨNG / CHỐNG CHỈ ĐỊNH</span>
+                        <span>CẢNH BÁO LÂM SÀNG: PHÁT HIỆN {allergyCheckResult.conflicts?.length || 0} NGUY CƠ DỊ ỨNG / CHỐNG CHỈ ĐỊNH</span>
                       </div>
                       <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-black rounded uppercase">
                         AI Safety Alert
@@ -2174,48 +2174,53 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     </div>
 
                     <div className="space-y-2 text-xs">
-                      {allergyCheckResult.conflicts.map((conf, idx) => (
-                        <div key={idx} className="bg-white/95 border border-rose-200 rounded-lg p-2.5 space-y-1.5 shadow-2xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-slate-800 text-[13px]">
-                              💊 Thuốc trong đơn: <span className="text-rose-600 underline">{conf.medicineName}</span>
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              conf.severity === 'HIGH' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'
-                            }`}>
-                              Mức độ: {conf.severity === 'HIGH' ? 'Nguy hiểm cao' : 'Cảnh báo'}
-                            </span>
-                          </div>
-                          <p className="text-rose-800 font-medium">
-                            ⚠️ {conf.reason}
-                          </p>
-                          {conf.suggestedAlternatives && conf.suggestedAlternatives.length > 0 && (
-                            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                              <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
-                                <Sparkles size={12} className="text-emerald-600" /> Gợi ý thay thế an toàn:
+                      {(allergyCheckResult.conflicts || []).map((conf, idx) => {
+                        const alternatives = (conf.safeAlternatives || (conf as any).suggestedAlternatives || []);
+                        return (
+                          <div key={idx} className="bg-white/95 border border-rose-200 rounded-lg p-2.5 space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-slate-800 text-[13px]">
+                                💊 Thuốc trong đơn: <span className="text-rose-600 underline">{conf.medicineName}</span>
                               </span>
-                              {conf.suggestedAlternatives.map((alt, aIdx) => (
-                                <button
-                                  key={aIdx}
-                                  type="button"
-                                  onClick={() => handleSwapSafeAlternative(conf.medicineName, alt)}
-                                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95"
-                                  title={`Đổi ${conf.medicineName} sang ${alt}`}
-                                >
-                                  🔄 1-Click Đổi sang <b>{alt}</b>
-                                </button>
-                              ))}
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${conf.severity === 'HIGH' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'
+                                }`}>
+                                Mức độ: {conf.severity === 'HIGH' ? 'Nguy hiểm cao' : 'Cảnh báo'}
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            <p className="text-rose-800 font-medium">
+                              ⚠️ {conf.reason}
+                            </p>
+                            {alternatives && alternatives.length > 0 && (
+                              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                                  <Sparkles size={12} className="text-emerald-600" /> Gợi ý thay thế an toàn:
+                                </span>
+                                {alternatives.map((altItem: any, aIdx: number) => {
+                                  const altName = typeof altItem === 'string' ? altItem : (altItem.name || '');
+                                  return (
+                                    <button
+                                      key={aIdx}
+                                      type="button"
+                                      onClick={() => handleSwapSafeAlternative(conf.medicineName, altName)}
+                                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95"
+                                      title={`Đổi ${conf.medicineName} sang ${altName}`}
+                                    >
+                                      🔄 1-Click Đổi sang <b>{altName}</b>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ) : allergyCheckResult && allergyCheckResult.safe ? (
+                ) : allergyCheckResult && !allergyCheckResult.hasConflict ? (
                   <div className="flex items-center justify-between p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold">
                     <div className="flex items-center gap-2">
                       <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
-                      <span>An toàn lâm sàng (UC-107): Không phát hiện dị ứng hoặc bệnh nền chống chỉ định cho <b>{loyaltyInfo.fullName}</b>.</span>
+                      <span>An toàn lâm sàng: Không phát hiện dị ứng hoặc bệnh nền chống chỉ định cho <b>{loyaltyInfo.fullName}</b>.</span>
                     </div>
                     <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
                       Verified
@@ -2249,8 +2254,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   <div
                     key={it.id}
                     className={`rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-sm ${isOverStock
-                        ? "bg-rose-50/40 border-2 border-rose-300"
-                        : "bg-slate-50/60 border border-slate-200/80 hover:border-[#0057cd]/50"
+                      ? "bg-rose-50/40 border-2 border-rose-300"
+                      : "bg-slate-50/60 border border-slate-200/80 hover:border-[#0057cd]/50"
                       }`}
                   >
                     {/* Cảnh báo vượt tồn kho */}
@@ -2422,8 +2427,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                               type="button"
                               onClick={() => handleQuickPreset(it.id, d)}
                               className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${it.durationDays === d
-                                  ? "bg-[#0057cd] text-white shadow-xs"
-                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                ? "bg-[#0057cd] text-white shadow-xs"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                 }`}
                             >
                               {d}N
@@ -2442,7 +2447,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             onChange={(e) => handleDosageChange(it.id, 'dosageInstructions', e.target.value)}
                             placeholder={packageOnlyUnit
                               ? "Ví dụ: Bôi một lượng vừa đủ theo hướng dẫn trên nhãn..."
-                             : `Nhập hướng dẫn liều dùng (${baseUnitName})...`}
+                              : `Nhập hướng dẫn liều dùng (${baseUnitName})...`}
                             className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-[#0057cd] focus:bg-white"
                           />
                         </div>
@@ -2451,17 +2456,17 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                         <div className="flex flex-wrap items-center gap-1.5 pl-16">
                           {(packageOnlyUnit
                             ? [
-                                "Bôi một lượng vừa đủ theo hướng dẫn trên nhãn",
-                                "Dùng theo hướng dẫn trên nhãn/đơn thuốc",
-                                "Không bôi lên vùng da trầy xước",
-                              ]
+                              "Bôi một lượng vừa đủ theo hướng dẫn trên nhãn",
+                              "Dùng theo hướng dẫn trên nhãn/đơn thuốc",
+                              "Không bôi lên vùng da trầy xước",
+                            ]
                             : [
-                                `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
-                                `Ngày 2 lần sau ăn`,
-                                `Dùng khi đau, cách 4-6h`,
-                                `Trước ăn 30 phút`,
-                                `Dùng với nhiều nước`,
-                              ]
+                              `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
+                              `Ngày 2 lần sau ăn`,
+                              `Dùng khi đau, cách 4-6h`,
+                              `Trước ăn 30 phút`,
+                              `Dùng với nhiều nước`,
+                            ]
                           ).map((tag, idx) => (
                             <button
                               key={idx}
@@ -2978,16 +2983,16 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     ⭐ ĐÁNH GIÁ DỊCH VỤ - NHẬN QUÀ NGAY ⭐
                   </div>
                   <div className="bg-white p-1 rounded-lg border border-slate-200 print:border-black shadow-sm">
-                    <img 
+                    <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
                         `${window.location.origin}/feedback/${invoiceData.data?.orderCode || invoiceData.data?._id || payosOrderCode || ""}`
                       )}`}
-                      alt="QR Đánh giá dịch vụ" 
+                      alt="QR Đánh giá dịch vụ"
                       className="w-[100px] h-[100px] object-contain"
                     />
                   </div>
                   <div className="text-[11px] text-slate-600 print:text-black font-medium leading-tight">
-                    Quét mã nhận ngay <span className="font-bold text-emerald-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br/>
+                    Quét mã nhận ngay <span className="font-bold text-emerald-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br />
                     và Voucher giảm giá cho lần mua sau!
                   </div>
                 </div>
@@ -3239,10 +3244,10 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     {recording
                       ? "🎙️ Đang nghe giọng nói... (nói tới đâu chữ nhảy tới đó)"
                       : isTranscribing
-                      ? "✨ AI đang bóc tách âm thanh thành văn bản..."
-                      : voiceBlob
-                      ? `Đã lưu bản ghi âm (${timer}s) sẵn sàng`
-                      : "Nhấp nút tròn để ghi âm triệu chứng"}
+                        ? "✨ AI đang bóc tách âm thanh thành văn bản..."
+                        : voiceBlob
+                          ? `Đã lưu bản ghi âm (${timer}s) sẵn sàng`
+                          : "Nhấp nút tròn để ghi âm triệu chứng"}
                   </span>
                 </div>
 
@@ -3271,8 +3276,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                       recording
                         ? "🎙️ Đang lắng nghe... Lời nói của bạn sẽ xuất hiện tại đây theo thời gian thực..."
                         : isTranscribing
-                        ? "✨ AI Whisper đang phiên âm giọng nói của bạn, vui lòng đợi giây lát..."
-                        : "Ví dụ: Bệnh nhân sốt cao 39 độ, đau rát họng, ho có đờm 2 ngày..."
+                          ? "✨ AI Whisper đang phiên âm giọng nói của bạn, vui lòng đợi giây lát..."
+                          : "Ví dụ: Bệnh nhân sốt cao 39 độ, đau rát họng, ho có đờm 2 ngày..."
                     }
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white resize-none"
                   />
@@ -3332,7 +3337,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             const match = aiResult.inventory_status?.available?.find(
                               (av: any) => av.name.toLowerCase() === drug.name.toLowerCase()
                             );
-                            const altList: any[] = match?.suggested_alternatives || 
+                            const altList: any[] = match?.suggested_alternatives ||
                               aiResult.inventory_status?.out_of_stock_details?.find((d: any) => d.name.toLowerCase() === drug.name.toLowerCase())?.suggested_alternatives || [];
 
                             return (

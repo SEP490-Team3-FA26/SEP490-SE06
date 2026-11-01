@@ -25,7 +25,10 @@ import {
 
 interface CustomerClinicalModalProps {
   isOpen: boolean;
-  customer: FullCustomerProfile | null;
+  customer?: FullCustomerProfile | null;
+  customerPhone?: string;
+  customerName?: string;
+  initialProfile?: CustomerClinicalSafety;
   onClose: () => void;
   onUpdated?: (updatedClinical: CustomerClinicalSafety) => void;
 }
@@ -33,6 +36,9 @@ interface CustomerClinicalModalProps {
 export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
   isOpen,
   customer,
+  customerPhone,
+  customerName,
+  initialProfile,
   onClose,
   onUpdated,
 }) => {
@@ -56,22 +62,26 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
   const [condInput, setCondInput] = useState('');
 
   useEffect(() => {
-    if (customer?.clinical) {
-      setAllergies(customer.clinical.allergies || []);
-      setAllergicMedicines(customer.clinical.allergicMedicines || []);
-      setAllergicIngredients(customer.clinical.allergicIngredients || []);
-      setChronicConditions(customer.clinical.chronicConditions || []);
-      setBloodType(customer.clinical.bloodType || 'Chưa rõ');
-      setMedicalNotes(customer.clinical.medicalNotes || '');
+    const clin = customer?.clinical || initialProfile;
+    if (clin) {
+      setAllergies(clin.allergies || []);
+      setAllergicMedicines(clin.allergicMedicines || []);
+      setAllergicIngredients(clin.allergicIngredients || []);
+      setChronicConditions(clin.chronicConditions || []);
+      setBloodType(clin.bloodType || 'Chưa rõ');
+      setMedicalNotes(clin.medicalNotes || '');
     }
     setIsEditing(false);
     setSuccessMsg('');
     setErrorMsg('');
-  }, [customer, isOpen]);
+  }, [customer, initialProfile, isOpen]);
 
-  if (!isOpen || !customer) return null;
+  if (!isOpen) return null;
 
-  const { loyalty, clinical } = customer;
+  const phone = customer?.loyalty?.phone || customerPhone || '';
+  const name = customer?.loyalty?.fullName || customerName || 'Khách hàng';
+  const loyalty = customer?.loyalty;
+  const clinical = customer?.clinical || initialProfile;
 
   const handleSave = async () => {
     try {
@@ -88,7 +98,7 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
         medicalNotes: medicalNotes.trim() || undefined,
       };
 
-      await customerService.updateClinicalSafety(loyalty.phone, payload);
+      await customerService.updateClinicalSafety(phone, payload);
 
       const updatedClinical: CustomerClinicalSafety = {
         ...clinical,
@@ -120,13 +130,15 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black text-slate-800">{loyalty.fullName}</h2>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 uppercase">
-                  {loyalty.tier}
-                </span>
+                <h2 className="text-base font-black text-slate-800">{name}</h2>
+                {loyalty?.tier && (
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 uppercase">
+                    {loyalty.tier}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 font-mono mt-0.5">
-                SĐT: {loyalty.phone} {loyalty.email && `• ${loyalty.email}`}
+                SĐT: {phone} {loyalty?.email && `• ${loyalty.email}`}
               </p>
             </div>
           </div>

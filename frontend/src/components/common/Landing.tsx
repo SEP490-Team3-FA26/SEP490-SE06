@@ -24,6 +24,7 @@ import { CustomerHeader } from "./CustomerHeader";
 import { PharmaSmartRecommender } from "../customer/PharmaSmartRecommender";
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import { notifyAuthLoginRequired } from "../../utils/authEvents";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -1089,7 +1090,7 @@ export function Landing() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {medicines.map((med) => {
                 const medId = med.id || med._id;
-                const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
+                const isRx = isPrescriptionMedicine(med);
                 const isOutOfStock = med.stock <= 0;
 
                 return (
@@ -1147,31 +1148,46 @@ export function Landing() {
                           </span>
                         </div>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddToCart(med, e);
-                          }}
-                          disabled={isOutOfStock}
-                          className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${isOutOfStock
-                            ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                            : addedItems[medId]
-                              ? "bg-emerald-600 text-white"
-                              : "bg-[#0057cd] hover:bg-[#0b5ed7] text-white active:scale-95 shadow-md shadow-blue-500/15"
-                            }`}
-                        >
-                          {isOutOfStock ? (
-                            "Hết hàng"
-                          ) : addedItems[medId] ? (
-                            <>
-                              <Check size={14} /> Đã thêm vào giỏ!
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart size={14} /> Thêm vào giỏ
-                            </>
-                          )}
-                        </button>
+                        {isRx ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMedicineForModal(med);
+                            }}
+                            disabled
+                            className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-none bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80"
+                            title="Thuốc kê đơn (Rx) - Theo quy định Bộ Y Tế, chỉ bán tại quầy theo đơn bác sĩ"
+                          >
+                            <ShieldAlert size={14} className="text-amber-500 shrink-0" /> Thuốc kê đơn - Mua tại quầy
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToCart(med, e);
+                            }}
+                            disabled={isOutOfStock}
+                            className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${isOutOfStock
+                              ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                              : addedItems[medId]
+                                ? "bg-emerald-600 text-white"
+                                : "bg-[#0057cd] hover:bg-[#0b5ed7] text-white active:scale-95 shadow-md shadow-blue-500/15"
+                              }`}
+                          >
+                            {isOutOfStock ? (
+                              "Hết hàng"
+                            ) : addedItems[medId] ? (
+                              <>
+                                <Check size={14} /> Đã thêm vào giỏ!
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart size={14} /> Thêm vào giỏ
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1560,7 +1576,7 @@ export function Landing() {
       {selectedMedicineForModal && (() => {
         const med = selectedMedicineForModal;
         const medId = med.id || med._id;
-        const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
+        const isRx = isPrescriptionMedicine(med);
         const isOutOfStock = med.stock <= 0;
 
         return (
@@ -1624,12 +1640,25 @@ export function Landing() {
                       </span>
                     </div>
 
+                    {isRx && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5 text-left">
+                        <ShieldAlert size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div className="text-[11px] space-y-0.5">
+                          <p className="font-bold text-amber-900 uppercase">Thuốc kê đơn (Rx) - Không bán trực tuyến</p>
+                          <p className="text-amber-700 leading-normal">
+                            Theo quy định Bộ Y Tế, quý khách vui lòng mang đơn thuốc của bác sĩ đến trực tiếp quầy thuốc để được phục vụ.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between border-t border-slate-200/60 pt-3">
                       <span className="text-xs font-bold text-slate-600">Số lượng:</span>
                       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
                         <button
                           onClick={() => setModalQuantity(q => Math.max(1, q - 1))}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100"
+                          disabled={isRx}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
                         >
                           -
                         </button>
@@ -1638,25 +1667,37 @@ export function Landing() {
                         </span>
                         <button
                           onClick={() => setModalQuantity(q => Math.min(med.stock, q + 1))}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100"
+                          disabled={isRx}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
                         >
                           +
                         </button>
                       </div>
                     </div>
 
-                    <button
-                      onClick={(e) => handleAddToCart(med, e, modalQuantity)}
-                      disabled={isOutOfStock}
-                      className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${isOutOfStock
-                        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        : addedItems[medId]
-                          ? "bg-emerald-600 text-white"
-                          : "bg-[#0057cd] hover:bg-[#0b5ed7] text-white active:scale-95"
-                        }`}
-                    >
-                      {isOutOfStock ? "Hết hàng" : addedItems[medId] ? "Đã thêm vào giỏ!" : "Thêm vào giỏ hàng"}
-                    </button>
+                    {isRx ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80 shadow-none"
+                        title="Thuốc kê đơn (Rx) - Chỉ bán trực tiếp tại quầy theo đơn bác sĩ"
+                      >
+                        <ShieldAlert size={15} className="text-amber-500 shrink-0" /> Thuốc kê đơn - Chỉ bán tại quầy
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => handleAddToCart(med, e, modalQuantity)}
+                        disabled={isOutOfStock}
+                        className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${isOutOfStock
+                          ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                          : addedItems[medId]
+                            ? "bg-emerald-600 text-white"
+                            : "bg-[#0057cd] hover:bg-[#0b5ed7] text-white active:scale-95"
+                          }`}
+                      >
+                        {isOutOfStock ? "Hết hàng" : addedItems[medId] ? "Đã thêm vào giỏ!" : "Thêm vào giỏ hàng"}
+                      </button>
+                    )}
                   </div>
                 </div>
 

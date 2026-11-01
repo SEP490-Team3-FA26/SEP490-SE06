@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CreditCard, Banknote, QrCode, ClipboardList, Printer, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, XCircle } from "lucide-react";
+import { CreditCard, Banknote, QrCode, ClipboardList, Printer, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, XCircle, ShieldAlert } from "lucide-react";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { orderService } from "../../services/sales/order.service";
 import { cartService } from "../../services/sales/cart.service";
 import { voucherService } from "../../services/sales/voucher.service";
@@ -338,6 +339,14 @@ export function CustomerCheckout() {
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    const rxItems = cartItems.filter(isPrescriptionMedicine);
+    if (rxItems.length > 0) {
+      showAlert(
+        `Đơn hàng chứa thuốc kê đơn (${rxItems.map(i => i.name).join(", ")}). Theo quy định Bộ Y Tế, thuốc kê đơn không được phép bán trực tuyến. Quý khách vui lòng quay lại giỏ hàng để bỏ thuốc kê đơn hoặc mua trực tiếp tại quầy thuốc!`,
+        "Chặn thanh toán thuốc kê đơn"
+      );
+      return;
+    }
       if (!fullname.trim() || !phone.trim() || !address.trim()) {
         showAlert("Vui lòng điền đầy đủ các thông tin giao hàng!");
         return;
@@ -411,6 +420,8 @@ export function CustomerCheckout() {
     };
 
 
+    const hasRxItems = cartItems.some(isPrescriptionMedicine);
+
     return (
       <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in relative">
         {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
@@ -472,6 +483,19 @@ export function CustomerCheckout() {
           <div className="flex flex-col xl:flex-row gap-8 items-start">
             {/* Left: Form Giao Hàng */}
             <div className="flex-1 w-full bg-white border border-slate-200 rounded-[20px] p-6 shadow-sm">
+              {hasRxItems && (
+                <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 flex items-start gap-3 text-rose-950 mb-5 animate-fade-in">
+                  <ShieldAlert size={22} className="text-rose-600 shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-1">
+                    <p className="font-extrabold uppercase tracking-wide text-rose-900">
+                      Đơn hàng chứa thuốc kê đơn (Rx) - Không thể thanh toán trực tuyến
+                    </p>
+                    <p className="text-rose-800 leading-relaxed">
+                      Theo quy định của Bộ Y Tế, thuốc kê đơn chỉ được cấp phát trực tiếp tại cơ sở nhà thuốc theo đơn bác sĩ. Quý khách vui lòng <Link to="/customer/cart" className="underline font-bold text-rose-950">quay lại giỏ hàng</Link> để xóa thuốc kê đơn trước khi thanh toán.
+                    </p>
+                  </div>
+                </div>
+              )}
               <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider mb-5 pb-2 border-b border-slate-100">
                 1. Thông tin giao nhận hàng
               </h3>
@@ -561,10 +585,22 @@ export function CustomerCheckout() {
                 {/* Form submit button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full mt-6 bg-[#0d6efd] hover:bg-[#0a58ca] disabled:bg-slate-100 disabled:text-slate-400 text-white font-black text-xs uppercase tracking-wider py-4 rounded-xl shadow-md transition-all active:scale-98"
+                  disabled={isSubmitting || hasRxItems}
+                  className={`w-full mt-6 font-black text-xs uppercase tracking-wider py-4 rounded-xl shadow-md transition-all ${
+                    hasRxItems
+                      ? "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none"
+                      : "bg-[#0d6efd] hover:bg-[#0a58ca] disabled:bg-slate-100 disabled:text-slate-400 text-white active:scale-98 cursor-pointer"
+                  }`}
                 >
-                  {isSubmitting ? "Hệ thống đang xử lý..." : "Xác nhận đặt & thanh toán"}
+                  {hasRxItems ? (
+                    <span className="flex items-center justify-center gap-1.5 text-rose-600">
+                      <ShieldAlert size={16} /> Đơn chứa thuốc kê đơn - Không thể thanh toán
+                    </span>
+                  ) : isSubmitting ? (
+                    "Hệ thống đang xử lý..."
+                  ) : (
+                    "Xác nhận đặt & thanh toán"
+                  )}
                 </button>
               </form>
             </div>

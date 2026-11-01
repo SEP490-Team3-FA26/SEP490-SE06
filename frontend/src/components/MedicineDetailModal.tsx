@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { XCircle, Check, ShoppingCart, Info, Activity, ShieldAlert, Tag, ShieldCheck, Truck, RefreshCw } from "lucide-react";
 import { BarcodeLabelModal } from "./BarcodeLabelModal";
+import { isPrescriptionMedicine } from "../utils/prescriptionUtils";
 
 export interface MedicineDetailModalProps {
   medicine: any | null;
@@ -25,7 +26,7 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
 
   const med = medicine;
   const medId = med.id || med._id;
-  const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
+  const isRx = isPrescriptionMedicine(med);
   const isOutOfStock = (med.stock !== undefined && med.stock <= 0);
 
   return (
@@ -110,6 +111,19 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
 
           {/* Cột thông tin chi tiết dược lý */}
           <div className="md:col-span-7 flex flex-col gap-4">
+            {isRx && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-left">
+                <ShieldAlert size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h5 className="font-extrabold text-amber-900 text-xs sm:text-sm uppercase tracking-wide">
+                    Thuốc kê đơn (Rx) - Không bán trực tuyến
+                  </h5>
+                  <p className="text-amber-800 text-xs leading-relaxed">
+                    Theo quy định của Bộ Y Tế, sản phẩm này chỉ được bán khi có đơn thuốc hợp lệ từ bác sĩ. Quý khách vui lòng mang đơn thuốc đến trực tiếp cơ sở ABC Pharmacy gần nhất để Dược sĩ tư vấn và cấp phát thuốc.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3.5 flex flex-col gap-1">
                 <span className="text-[9px] font-black text-blue-600 uppercase tracking-wider">Hoạt chất chính</span>
@@ -163,7 +177,7 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
                 type="button"
                 onClick={() => setModalQuantity(q => Math.max(1, q - 1))}
                 className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-white transition-all cursor-pointer disabled:opacity-40"
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || isRx}
               >
                 -
               </button>
@@ -172,7 +186,7 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
                 type="button"
                 onClick={() => setModalQuantity(q => Math.min(med.stock || 999, q + 1))}
                 className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-white transition-all cursor-pointer disabled:opacity-40"
-                disabled={isOutOfStock || modalQuantity >= (med.stock || 999)}
+                disabled={isOutOfStock || isRx || modalQuantity >= (med.stock || 999)}
               >
                 +
               </button>
@@ -188,30 +202,41 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
               <Tag size={13} className="text-emerald-600" /> In Tem
             </button>
 
-            <button 
-              type="button"
-              onClick={() => onAddToCart(med, modalQuantity)}
-              disabled={isOutOfStock}
-              className={`flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 ${
-                isOutOfStock 
-                  ? "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none" 
-                  : addedItems[medId] 
-                    ? "bg-emerald-500 text-white shadow-emerald-200" 
-                    : "bg-[#0057cd] hover:bg-[#0047a5] text-white cursor-pointer shadow-blue-200"
-              }`}
-            >
-              {isOutOfStock ? (
-                "Tạm hết hàng"
-              ) : addedItems[medId] ? (
-                <>
-                  <Check size={16} /> Đã thêm vào giỏ!
-                </>
-              ) : (
-                <>
-                  <ShoppingCart size={16} /> Thêm vào giỏ hàng
-                </>
-              )}
-            </button>
+            {isRx ? (
+              <button 
+                type="button"
+                disabled
+                className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80 shadow-none"
+                title="Thuốc kê đơn (Rx) - Theo quy định Bộ Y Tế, chỉ bán tại quầy theo đơn bác sĩ"
+              >
+                <ShieldAlert size={16} className="text-amber-500 shrink-0" /> Thuốc kê đơn - Chỉ bán tại quầy
+              </button>
+            ) : (
+              <button 
+                type="button"
+                onClick={() => onAddToCart(med, modalQuantity)}
+                disabled={isOutOfStock}
+                className={`flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 ${
+                  isOutOfStock 
+                    ? "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none" 
+                    : addedItems[medId] 
+                      ? "bg-emerald-500 text-white shadow-emerald-200" 
+                      : "bg-[#0057cd] hover:bg-[#0047a5] text-white cursor-pointer shadow-blue-200"
+                }`}
+              >
+                {isOutOfStock ? (
+                  "Tạm hết hàng"
+                ) : addedItems[medId] ? (
+                  <>
+                    <Check size={16} /> Đã thêm vào giỏ!
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart size={16} /> Thêm vào giỏ hàng
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
