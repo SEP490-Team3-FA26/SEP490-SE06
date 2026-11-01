@@ -36,6 +36,7 @@ import { EmailNewsletterController } from "./controllers/email-newsletter.contro
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
 import { FeedbackController } from "./controllers/feedback.controller";
+import { ProductReviewController } from "./controllers/product-review.controller";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { GoogleStrategy } from "./strategies/google.strategy";
@@ -207,6 +208,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     ReportController,
     FinanceController,
     FeedbackController,
+    ProductReviewController,
     HrController,
     RfqController,
     RfqPortalController,
@@ -243,6 +245,11 @@ export class AppGatewayModule implements OnModuleInit {
     // 1. INVENTORY_SERVICE Reply Topics
     const inventoryTopics = [
       "inventory.medicine.list",
+      "product.review.create",
+      "product.review.get_list",
+      "product.review.get_summary",
+      "product.review.get_by_customer",
+      "product.review.vote_helpful",
       "inventory.medicine.subcategory_counts",
       "inventory.medicine.get_by_id",
       "inventory.medicine.update_status",

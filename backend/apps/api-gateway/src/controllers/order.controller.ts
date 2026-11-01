@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Post,
   Get,
@@ -296,7 +296,7 @@ export class OrderController implements OnModuleInit {
 
   @Get('my-orders')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Danh sách đơn hàng của khách hàng hiện tại' })
+  @ApiOperation({ summary: 'Danh sách đơn hàng của khách hàng hiện tại (Cache-Aside Redis)' })
   async getMyOrders(@Req() req: any, @Query('phone') phone?: string) {
     const userId = req.user?.sub;
     if (!userId) {
@@ -305,7 +305,23 @@ export class OrderController implements OnModuleInit {
 
     const fullName = req.user?.fullName || '';
     const userPhone = phone || req.user?.phone || '';
+    const cacheKey = 'orders:my:' + userId + ':' + userPhone;
 
-    return await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId, fullName, phone: userPhone });
+    // Kiểm tra Cache Redis trước (Cache Hit)
+    if (this.cacheManager) {
+      const cached = await this.cacheManager.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const result = await sendKafkaMessage(this.orderClient, 'orders.my-orders', { userId, fullName, phone: userPhone });
+
+    // Lưu vào Cache Redis với TTL 30 giây để tối ưu tốc độ phản hồi cho trang web/app
+    if (this.cacheManager && result) {
+      await this.cacheManager.set(cacheKey, result, 30000);
+    }
+
+    return result;
   }
 }
