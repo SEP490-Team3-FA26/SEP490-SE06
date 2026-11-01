@@ -19,6 +19,7 @@ import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { StarRatingInput } from '../../components/ui/StarRatingInput';
 import { ReviewCard } from '../../components/ui/ReviewCard';
 import { showToast } from '../../components/ui/toastHelper';
+import { ApiService } from '../../services/api.service';
 import { useAuth } from '../../context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -48,6 +49,31 @@ export const ProductReviewScreen: React.FC<{ navigation: any; route: any }> = ({
   const currentMedicineName = currentItem.name || currentItem.medicineName || 'Sản phẩm thuốc';
   const orderId = order?.id || order?._id || paramOrderId || 'ORD-UNKNOWN';
   const orderCode = String(order?.orderCode || paramOrderCode || orderId);
+
+  
+  // Tải thông tin chi tiết và hình ảnh thuốc chuẩn từ Database
+  const [medDetail, setMedDetail] = useState<any>(currentItem);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (currentMedicineId) {
+      setImageError(false);
+      ApiService.getMedicineById(currentMedicineId).then((data) => {
+        if (data) {
+          setMedDetail((prev: any) => ({ ...prev, ...data }));
+        }
+      });
+    }
+  }, [currentMedicineId]);
+
+  const displayImage =
+    currentItem.image ||
+    currentItem.imageUrl ||
+    currentItem.image_url ||
+    medDetail?.image ||
+    medDetail?.image_url ||
+    (Array.isArray(medDetail?.images) && medDetail.images[0]) ||
+    'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80';
 
   // Tab chuyển đổi: 'FORM' (Viết đánh giá) hoặc 'LIST' (Xem đánh giá)
   const [viewMode, setViewMode] = useState<'FORM' | 'LIST'>('FORM');
@@ -326,17 +352,28 @@ export const ProductReviewScreen: React.FC<{ navigation: any; route: any }> = ({
           </View>
         )}
 
-        {/* Thông tin sản phẩm được chọn */}
+        {/* Thông tin sản phẩm được chọn với ảnh chuẩn từ Database */}
         <View style={styles.productBanner}>
-          <View style={styles.medicineIconBox}>
-            <Ionicons name="medical" size={24} color="#0284C7" />
+          <View style={styles.bannerImageContainer}>
+            {!imageError ? (
+              <Image
+                source={{ uri: displayImage }}
+                style={styles.bannerMedicineImage}
+                resizeMode="cover"
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <View style={styles.medicineIconFallback}>
+                <Ionicons name="medical" size={24} color="#0284C7" />
+              </View>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerMedicineName} numberOfLines={2}>
               {currentMedicineName}
             </Text>
             <Text style={styles.bannerSub}>
-              {currentItem.unit ? `Đơn vị: ${currentItem.unit}` : 'Dược phẩm chuẩn GPP'}
+              {currentItem.unit || medDetail?.unit ? `Đơn vị: ${currentItem.unit || medDetail?.unit}` : 'Dược phẩm chuẩn GPP'}
               {summary?.averageRating ? ` • ⭐ ${summary.averageRating}/5` : ''}
             </Text>
           </View>
@@ -635,13 +672,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  medicineIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#E0F2FE',
-    alignItems: 'center',
+  bannerImageContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerMedicineImage: {
+    width: '100%',
+    height: '100%',
+  },
+  medicineIconFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bannerMedicineName: {
     fontSize: 14,
