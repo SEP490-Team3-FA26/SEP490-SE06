@@ -67,7 +67,14 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Hiển thị toast thông báo tương tác trong modal
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3500);
+  }, []);
 
   // Reviews List State
   const [reviews, setReviews] = useState<ProductReviewItem[]>([]);
@@ -183,13 +190,13 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
     if (!files || files.length === 0) return;
 
     if (images.length >= 3) {
-      alert('Bạn chỉ có thể tải lên tối đa 3 ảnh đánh giá.');
+      showToast('Bạn chỉ có thể tải lên tối đa 3 ảnh đánh giá.', 'warning');
       return;
     }
 
     const file = files[0];
     if (file.size > 5 * 1024 * 1024) {
-      alert('Dung lượng ảnh tối đa là 5MB.');
+      showToast('Dung lượng ảnh tối đa là 5MB.', 'warning');
       return;
     }
 
@@ -302,6 +309,16 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
         className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col relative animate-in fade-in zoom-in-95 duration-200 max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Toast Thông báo tương tác */}
+        {toast && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[130] flex items-center gap-2.5 px-4 py-2 rounded-2xl shadow-xl border text-xs font-bold animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-auto bg-slate-900/95 text-white border-slate-700/80">
+            {toast.type === 'error' && <AlertCircle size={16} className="text-rose-400 shrink-0" />}
+            {toast.type === 'warning' && <AlertCircle size={16} className="text-amber-400 shrink-0" />}
+            {toast.type === 'success' && <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />}
+            {toast.type === 'info' && <Sparkles size={16} className="text-sky-400 shrink-0" />}
+            <span>{toast.message}</span>
+          </div>
+        )}
         {/* Modal Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-3">
