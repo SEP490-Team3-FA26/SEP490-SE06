@@ -44,6 +44,34 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  // [REVIEWER_HOOK_DIRECTOR]
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab && ['OVERVIEW', 'PO_APPROVAL', 'TRANSFERS'].includes(tab)) {
+        setActiveTab(tab as any);
+      }
+      if (modal === 'ai_forecast') setAiModalVisible(true);
+      if (modal === 'po_detail') {
+        setSelectedPO({
+          id: 'PO-2026-DHG-01',
+          poCode: 'PO-2026-DHG-01',
+          supplierName: 'Dược Hậu Giang (DHG Pharma)',
+          totalAmount: 145000000,
+          status: 'PENDING_APPROVAL',
+          createdAt: new Date().toISOString(),
+          items: [
+            { name: 'Hapacol 650mg', qty: 2000, price: 35000 },
+            { name: 'Klamentin 1g', qty: 500, price: 150000 },
+          ],
+        });
+        setPoDetailModal(true);
+      }
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);

@@ -86,6 +86,7 @@ import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
 import BranchPayroll from "./pages/branch/BranchPayroll";
 import PharmacistKpiReport from "./pages/branch/PharmacistKpiReport";
+import { BranchAttendanceHistory } from "./pages/branch/BranchAttendanceHistory";
 
 import { Sales } from "./pages/pharmacist/Sales";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
@@ -261,6 +262,7 @@ export default function App() {
               <Route path="schedule" element={<BranchSchedule />} />
               <Route path="shift-swaps" element={<BranchShiftSwap />} />
               <Route path="leave-approvals" element={<BranchLeaveApproval />} />
+              <Route path="attendance-history" element={<BranchAttendanceHistory />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="requisitions" element={<BranchRequisition />} />
               <Route path="receive-transfers" element={<BranchStockReceive />} />

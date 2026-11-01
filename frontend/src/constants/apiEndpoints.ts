@@ -324,6 +324,7 @@ export const API_ENDPOINTS = {
     ATTENDANCE_CHECK_OUT: '/api/hr/attendance/check-out',
     ATTENDANCE_MY_CURRENT_SHIFT: '/api/hr/attendance/my-current-shift',
     ATTENDANCE_TODAY: '/api/hr/attendance/today',
+    ATTENDANCE_BRANCH_HISTORY: '/api/hr/attendance/branch-history',
     SHIFT_HANDOVER_LIVE_STATS: '/api/hr/shift-handover/live-stats',
     SHIFT_HANDOVER_SUBMIT: '/api/hr/shift-handover/submit',
     SHIFT_HANDOVER_ACCEPT: (id: string) => `/api/hr/shift-handover/${encodeURIComponent(id)}/accept`,

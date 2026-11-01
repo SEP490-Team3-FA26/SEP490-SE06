@@ -16,6 +16,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
     findOne: jest.fn(),
     create: jest.fn(),
     find: jest.fn(),
+    countDocuments: jest.fn(),
   };
 
   const mockBranchModel: any = {
@@ -448,4 +449,73 @@ describe('AttendanceService (Unit & Security Tests)', () => {
       expect(mockExisting.save).toHaveBeenCalled();
     });
   });
+
+  describe('T-BRANCH-HISTORY: getBranchAttendanceHistory', () => {
+    it('should query attendances with pagination and compute summary KPI and durationMinutes', () => {
+      const mockRecords = [
+        {
+          _id: 'att-1',
+          branchId: 'BR-001',
+          employeeId: '507f1f77bcf86cd799439011',
+          employeeName: 'Dược sĩ A',
+          date: '2026-11-01',
+          checkInTime: new Date('2026-11-01T08:00:00Z'),
+          checkOutTime: new Date('2026-11-01T16:30:00Z'),
+          status: 'COMPLETED',
+        },
+        {
+          _id: 'att-2',
+          branchId: 'BR-001',
+          employeeId: '507f1f77bcf86cd799439012',
+          employeeName: 'Dược sĩ B',
+          date: '2026-11-01',
+          checkInTime: new Date('2026-11-01T08:25:00Z'),
+          checkOutTime: null,
+          status: 'LATE',
+        },
+      ];
+
+      mockAttendanceModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(2),
+      });
+
+      mockAttendanceModel.find.mockImplementation((filter: any) => {
+        // Nếu là query select status
+        return {
+          sort: () => ({
+            skip: () => ({
+              limit: () => ({
+                lean: () => ({
+                  exec: jest.fn().mockResolvedValue(mockRecords),
+                }),
+              }),
+            }),
+          }),
+          select: () => ({
+            lean: () => ({
+              exec: jest.fn().mockResolvedValue(mockRecords),
+            }),
+          }),
+        };
+      });
+
+      return service.getBranchAttendanceHistory('BR-001', {
+        startDate: '2026-11-01',
+        endDate: '2026-11-01',
+        page: 1,
+        limit: 20,
+      }).then((res) => {
+        expect(res.total).toBe(2);
+        expect(res.items.length).toBe(2);
+        // att-1: 8h30 = 510 minutes
+        expect(res.items[0].durationMinutes).toBe(510);
+        // att-2: checkOutTime is null
+        expect(res.items[1].durationMinutes).toBeNull();
+        expect(res.summary.lateCount).toBe(1);
+        expect(res.summary.completedCount).toBe(1);
+        expect(res.summary.totalRecords).toBe(2);
+      });
+    });
+  });
+
 });

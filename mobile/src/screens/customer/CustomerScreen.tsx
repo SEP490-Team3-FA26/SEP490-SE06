@@ -93,7 +93,16 @@ const FlashSaleCountdown: React.FC = React.memo(() => {
 export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, auth } = useAuth();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS'>('STORE');
+  const initialWebTab = useMemo(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const p = new URLSearchParams(window.location.search).get('tab');
+      if (p && ['STORE', 'CART', 'AI_CHAT', 'VOUCHERS', 'ORDERS'].includes(p)) {
+        return p as 'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS';
+      }
+    }
+    return 'STORE';
+  }, []);
+  const [activeTab, setActiveTab] = useState<'STORE' | 'CART' | 'AI_CHAT' | 'VOUCHERS' | 'ORDERS'>(initialWebTab);
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
 
   // Landing Page Tri-Pharmacy States (Pharmacity + Long Châu + An Khang)
@@ -158,6 +167,61 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     setFeedbackTags(['Dược sĩ tận tâm', 'Thuốc chuẩn chính hãng']);
     setFeedbackComment('');
   };
+
+  // [REVIEWER_HOOK_CUSTOMER]
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const modal = params.get('modal');
+      const search = params.get('search');
+      if (search) {
+        setSearchQuery(search);
+      }
+      if (modal === 'branch') setShowBranchModal(true);
+      if (modal === 'filter') setShowFilterModal(true);
+      if (modal === 'scanner') setShowScanner(true);
+      if (modal === 'med_detail') {
+        const demoMed = medicines[0] || {
+          id: 'med_demo_01',
+          name: 'Viên sủi Berocca Performance bồi bổ năng lượng, giảm mệt mỏi (Hộp 10 viên)',
+          active: 'Vitamin C 500mg, Vitamin B-Complex, Kẽm 10mg',
+          category: 'Vitamin & Khoáng chất',
+          price: 92000,
+          unit: 'Hộp',
+          stock: 85,
+          rating: 4.9,
+          dosage: '1 viên/ngày hòa tan trong 200ml nước',
+          indication: 'Hỗ trợ tăng cường sức đề kháng, giảm căng thẳng thần kinh',
+          sku: 'MED-BEROCCA-10T',
+          barcode: '8935001709999',
+        };
+        setSelectedMedDetail(demoMed as any);
+      }
+      if (modal === 'order_qr') {
+        const demoOrder = orders[0] || {
+          id: 'ORD-ABC-9921',
+          code: 'ORD-ABC-9921',
+          totalAmount: 185000,
+          status: 'PENDING',
+          createdAt: new Date().toISOString(),
+          customerName: 'Nguyễn Văn A',
+          customerPhone: '0901234567',
+        };
+        setSelectedOrderQR(demoOrder as any);
+      }
+      if (modal === 'order_feedback') {
+        const demoOrder = orders[0] || {
+          id: 'ORD-ABC-9921',
+          code: 'ORD-ABC-9921',
+          totalAmount: 185000,
+          status: 'COMPLETED',
+          createdAt: new Date().toISOString(),
+          customerName: 'Nguyễn Văn A',
+        };
+        handleOpenFeedback(demoOrder as any);
+      }
+    }
+  }, [medicines, orders]);
 
   const handleToggleTag = (tag: string) => {
     setFeedbackTags((prev) =>

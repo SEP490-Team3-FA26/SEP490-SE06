@@ -1,6 +1,52 @@
 import api from '../core/api';
 import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
+export interface BranchAttendanceRecord {
+  _id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeRole: string;
+  branchId: string;
+  shiftId: string;
+  shiftName: string;
+  date: string;
+  checkInTime?: string;
+  checkInLatitude?: number;
+  checkInLongitude?: number;
+  checkInDistanceMeters?: number;
+  checkOutTime?: string;
+  checkOutLatitude?: number;
+  checkOutLongitude?: number;
+  durationMinutes?: number | null;
+  status: 'CHECKED_IN' | 'COMPLETED' | 'LATE' | 'ABSENT' | 'ON_LEAVE_PAID' | 'ON_LEAVE_UNPAID';
+  isMockLocation: boolean;
+  handoverId?: string;
+  isHandoverSubmitted?: boolean;
+  isHandoverCompleted?: boolean;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceHistorySummary {
+  totalRecords: number;
+  onTimeCount: number;
+  lateCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  onLeaveCount: number;
+}
+
+export interface BranchAttendanceHistoryResponse {
+  items: BranchAttendanceRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  summary: AttendanceHistorySummary;
+}
+
+
 export interface WorkShift { 
   _id: string; 
   branchId: string; 
@@ -208,6 +254,20 @@ export const hrService = {
   getBranchTodayAttendance: async (date?: string) => {
     const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_TODAY, { params: { date } });
     return response.data;
+  },
+
+  getBranchAttendanceHistory: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    employeeId?: string;
+    shiftId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    branchId?: string;
+  }) => {
+    const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_BRANCH_HISTORY, { params });
+    return response.data as BranchAttendanceHistoryResponse;
   },
 
   // --- SHIFT HANDOVER & CASH DRAWER RECONCILIATION ---

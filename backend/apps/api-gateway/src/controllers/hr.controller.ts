@@ -72,6 +72,7 @@ export class HrController implements OnModuleInit {
       'hr.attendance.verify_active_shift',
       'hr.attendance.branch_today',
       'hr.attendance.history',
+      'hr.attendance.branch_history',
       'hr.shift_handover.live_stats',
       'hr.shift_handover.submit',
       'hr.shift_handover.accept',
@@ -560,6 +561,33 @@ export class HrController implements OnModuleInit {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_today', {
       branchId: req.user.branchId,
       date,
+    });
+  }
+
+  @Get('attendance/branch-history')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Quản lý xem lịch sử điểm danh chi nhánh có phân trang & bộ lọc' })
+  async getBranchAttendanceHistory(
+    @Request() req,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('shiftId') shiftId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('branchId') queryBranchId?: string,
+  ) {
+    const branchId = req.user.role === 'branch' ? req.user.branchId : (queryBranchId || req.user.branchId || 'BR-001');
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_history', {
+      branchId,
+      startDate,
+      endDate,
+      employeeId,
+      shiftId,
+      status,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
     });
   }
 

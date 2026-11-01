@@ -472,4 +472,127 @@ export class AttendanceService {
       .lean()
       .exec();
   }
+
+  /**
+   * Lấy lịch sử điểm danh & chấm công toàn diện của chi nhánh (cho Quản lý theo dõi & đối soát)
+   */
+  async getBranchAttendanceHistory(
+    branchId: string,
+    query: {
+      startDate?: string;
+      endDate?: string;
+      employeeId?: string;
+      shiftId?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    const filter: any = { branchId };
+
+    // Lọc theo khoảng ngày (YYYY-MM-DD)
+    if (query.startDate && query.endDate) {
+      filter.date = { $gte: query.startDate, $lte: query.endDate };
+    } else if (query.startDate) {
+      filter.date = { $gte: query.startDate };
+    } else if (query.endDate) {
+      filter.date = { $lte: query.endDate };
+    }
+
+    // Lọc theo nhân viên cụ thể
+    if (query.employeeId) {
+      if (Types.ObjectId.isValid(query.employeeId)) {
+        filter.employeeId = new Types.ObjectId(query.employeeId);
+      } else {
+        filter.employeeId = query.employeeId;
+      }
+    }
+
+    // Lọc theo ca làm việc
+    if (query.shiftId) {
+      filter.shiftId = query.shiftId;
+    }
+
+    // Lọc theo trạng thái
+    if (query.status && query.status !== 'ALL') {
+      filter.status = query.status;
+    }
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const [total, records, allFiltered] = await Promise.all([
+      this.attendanceModel.countDocuments(filter).exec(),
+      this.attendanceModel
+        .find(filter)
+        .sort({ date: -1, checkInTime: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.attendanceModel
+        .find(filter)
+        .select('status checkInTime checkOutTime checkInDistanceMeters isMockLocation')
+        .lean()
+        .exec(),
+    ]);
+
+    let onTimeCount = 0;
+    let lateCount = 0;
+    let completedCount = 0;
+    let onLeaveCount = 0;
+    let inProgressCount = 0;
+
+    for (const rec of allFiltered) {
+      const isShiftEnded = rec.status === AttendanceStatus.COMPLETED || !!rec.checkOutTime || !!rec.isHandoverSubmitted;
+
+      if (rec.status === AttendanceStatus.LATE && !isShiftEnded) {
+        lateCount++;
+      } else if (isShiftEnded) {
+        completedCount++;
+        if (rec.status === AttendanceStatus.LATE) {
+          lateCount++;
+        }
+      } else if (rec.status === AttendanceStatus.CHECKED_IN) {
+        inProgressCount++;
+      } else if (rec.status === AttendanceStatus.ON_LEAVE_PAID || rec.status === AttendanceStatus.ON_LEAVE_UNPAID) {
+        onLeaveCount++;
+      }
+
+      if (rec.checkInTime && rec.status !== AttendanceStatus.LATE && rec.status !== AttendanceStatus.ABSENT) {
+        onTimeCount++;
+      }
+    }
+
+    const items = records.map((rec: any) => {
+      let durationMinutes: number | null = null;
+      const effectiveCheckOut = rec.checkOutTime || (rec.isHandoverSubmitted ? (rec.updatedAt || rec.createdAt) : null);
+      if (rec.checkInTime && effectiveCheckOut) {
+        durationMinutes = Math.max(1, Math.round((new Date(effectiveCheckOut).getTime() - new Date(rec.checkInTime).getTime()) / 60000));
+      }
+      return {
+        ...rec,
+        checkOutTime: effectiveCheckOut,
+        durationMinutes,
+      };
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+      summary: {
+        totalRecords: total,
+        onTimeCount,
+        lateCount,
+        completedCount,
+        inProgressCount,
+        onLeaveCount,
+      },
+    };
+  }
+
 }

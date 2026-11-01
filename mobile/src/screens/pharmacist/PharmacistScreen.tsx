@@ -78,6 +78,61 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  // Hỗ trợ mở trực tiếp Modal / Sub-view khi xem qua Web Reviewer
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const modal = params.get('modal');
+      const tab = params.get('tab');
+      if (tab === 'OCR') setActiveTab('OCR');
+      if (tab === 'CART') setActiveTab('CART');
+      if (modal === 'checkin') setShowCheckInModal(true);
+      if (modal === 'schedule') setShowScheduleModal(true);
+      if (modal === 'payslip') setShowPayslipModal(true);
+      if (modal === 'leave') setShowLeaveModal(true);
+      if (modal === 'swap') setShowSwapModal(true);
+      if (modal === 'drawer') setShowDrawer(true);
+      if (modal === 'scanner') setShowScanner(true);
+      if (modal === 'med_detail') {
+        const demoMed = medicines[0] || {
+          id: 'med_demo_01',
+          name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu giảm đau cơ (15 gói x 2 miếng)',
+          active: 'Diclofenac sodium 1.5% w/w',
+          category: 'Giảm đau',
+          price: 65000,
+          unit: 'Hộp',
+          stock: 120,
+          sku: 'MED-SALONPAS-DICLO',
+          barcode: '8935001701125',
+          expDate: '2027-02-03',
+        };
+        handleSelectMedicine(demoMed as any);
+      }
+      if (modal === 'alternatives') {
+        const demoMed = medicines[0] || {
+          id: 'med_demo_01',
+          name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu giảm đau cơ (15 gói x 2 miếng)',
+          active: 'Diclofenac sodium 1.5% w/w',
+          category: 'Giảm đau',
+          price: 65000,
+          unit: 'Hộp',
+          stock: 120,
+        };
+        handleOpenAlternatives(demoMed as any);
+      }
+      if (modal === 'label') {
+        const demoMed = medicines[0] || {
+          id: 'med_demo_01',
+          name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu',
+          price: 65000,
+          unit: 'Hộp',
+          barcode: '8935001701125',
+        };
+        handleOpenLabelModal(demoMed as any);
+      }
+    }
+  }, [medicines]);
+
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
@@ -711,7 +766,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                       ) : null}
                     </View>
                     <Text style={styles.medActive} numberOfLines={1}>Hoạt chất: {med.active}</Text>
-                    
+
                     <View style={styles.codeRow}>
                       {med.sku ? (
                         <View style={styles.codeBadge}>
@@ -732,8 +787,8 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                           {expStatus.status === 'EXPIRED'
                             ? 'HẾT HẠN'
                             : expStatus.status === 'NEAR_EXPIRY'
-                            ? `CẬN HẠN (${expStatus.daysLeft}d)`
-                            : `HSD: ${expStatus.expDateFormatted}`}
+                              ? `CẬN HẠN (${expStatus.daysLeft}d)`
+                              : `HSD: ${expStatus.expDateFormatted}`}
                         </Text>
                       </View>
                     </View>
@@ -1048,8 +1103,8 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                         {exp.status === 'EXPIRED'
                           ? '⛔ CẢNH BÁO: LÔ THUỐC ĐÃ HẾT HẠN'
                           : exp.status === 'NEAR_EXPIRY'
-                          ? '⚠️ CẢNH BÁO: CẬN HẠN SỬ DỤNG (FEFO)'
-                          : 'KIỂM SOÁT HẠN DÙNG & LÔ FEFO'}
+                            ? '⚠️ CẢNH BÁO: CẬN HẠN SỬ DỤNG (FEFO)'
+                            : 'KIỂM SOÁT HẠN DÙNG & LÔ FEFO'}
                       </Text>
                     </View>
                     <Text style={[styles.fefoMessage, { color: exp.badgeColor }]}>

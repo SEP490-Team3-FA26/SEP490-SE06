@@ -1,5 +1,6 @@
 // AppNavigator.tsx - Complete Guest-First Role-based Navigation Routing Hub
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 
@@ -30,8 +31,18 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { auth, user } = useAuth();
-  const [showSplash, setShowSplash] = React.useState(true);
   const role = user?.role || auth.role;
+
+  // Hỗ trợ chế độ Review / Showcase URL param trên nền Web
+  const isWeb = Platform.OS === 'web';
+  const reviewScreen = useMemo(() => {
+    if (isWeb && typeof window !== 'undefined' && window.location) {
+      return new URLSearchParams(window.location.search).get('screen');
+    }
+    return null;
+  }, [isWeb]);
+
+  const [showSplash, setShowSplash] = React.useState(!reviewScreen);
 
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
@@ -57,11 +68,13 @@ export default function AppNavigator() {
     }
   };
 
+  const initialRoute = reviewScreen || (auth.isAuthenticated ? getInitialActorScreen() : 'CustomerScreen');
+
   return (
     <Stack.Navigator
       id="app-stack"
-      key={auth.isAuthenticated ? `auth-${role || 'user'}` : 'guest-flow'}
-      initialRouteName={auth.isAuthenticated ? getInitialActorScreen() : 'CustomerScreen'}
+      key={isWeb ? `web-mode-${reviewScreen || 'default'}` : (auth.isAuthenticated ? `auth-${role || 'user'}` : 'guest-flow')}
+      initialRouteName={initialRoute}
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
@@ -69,12 +82,31 @@ export default function AppNavigator() {
         contentStyle: { backgroundColor: '#F8FAFC' },
       }}
     >
-      {!auth.isAuthenticated ? (
+      {isWeb ? (
+        // ─── Web & Reviewer Showcase Flow: Cung cấp đầy đủ các màn để kiểm thử và chụp ảnh ───
+        <Stack.Group>
+          <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
+          <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
+          <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
+          <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
+          <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
+          <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+          <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />
+          <Stack.Screen name="LoginScreen" component={LoginScreen} />
+          <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
+          <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
+          <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
+          <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
+          <Stack.Screen name="BranchScreen" component={BranchScreen} />
+          <Stack.Screen name="AdminScreen" component={AdminScreen} />
+          <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
+          <Stack.Screen name="SplashScreen" component={SplashScreen} />
+          <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
+        </Stack.Group>
+      ) : !auth.isAuthenticated ? (
         // ─── Guest Flow (Guest-First E-Commerce Discovery) ──────────────────────
         <Stack.Group>
-          {/* Mở thẳng trang CustomerScreen cho khách vãng lai */}
           <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
-          {/* Màn hình xác thực khi khách bấm Checkout hoặc Login */}
           <Stack.Screen name="LoginScreen" component={LoginScreen} />
           <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
           <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />

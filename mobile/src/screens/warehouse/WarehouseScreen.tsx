@@ -108,6 +108,42 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  // [REVIEWER_HOOK_WAREHOUSE]
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab && ['MAP', 'INVENTORY', 'RECEIPTS', 'TRANSFERS', 'EXPIRATION', 'TRACE', 'FORECAST'].includes(tab)) {
+        setActiveTab(tab as any);
+      }
+      if (modal === 'checkin') setShowCheckInModal(true);
+      if (modal === 'payslip') setShowPayslipModal(true);
+      if (modal === 'shelf') {
+        setSelectedShelfForDetail({ zone: 'A', rack: 'A1', shelf: 2 });
+      }
+      if (modal === 'transfer_qr') {
+        setSelectedTransferForQR({
+          id: 'TR-ABC-001',
+          sourceBranchId: 'warehouse_hub',
+          targetBranchId: 'branch_q1',
+          status: 'APPROVED',
+          items: [{ medicineName: 'Paracetamol 500mg', qty: 200, unit: 'Hộp' }],
+        } as any);
+      }
+      if (modal === 'inspect') {
+        setSelectedReceiptForInspection({
+          id: 'PO-REC-01',
+          supplierName: 'Dược Hậu Giang (DHG Pharma)',
+          poCode: 'PO-2026-001',
+          status: 'INSPECTING',
+          items: [{ name: 'Hapacol 650mg', expectedQty: 500, unit: 'Hộp' }],
+        });
+        setInspectModalVisible(true);
+      }
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);

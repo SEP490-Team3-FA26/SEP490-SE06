@@ -484,6 +484,20 @@ export class UserServiceController {
     return this.attendanceService.getMyAttendanceHistory(data.employeeId, data.startDate, data.endDate);
   }
 
+  @MessagePattern('hr.attendance.branch_history')
+  handleGetBranchAttendanceHistory(@Payload() data: {
+    branchId: string;
+    startDate?: string;
+    endDate?: string;
+    employeeId?: string;
+    shiftId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    return this.attendanceService.getBranchAttendanceHistory(data.branchId, data);
+  }
+
   // --- HR: SHIFT HANDOVER (BÀN GIAO CA & CHỐT KÉT) ---
   @MessagePattern('hr.shift_handover.live_stats')
   handleGetShiftLiveStats(@Payload() data: { employeeId: string; branchId?: string; shiftId?: string }) {

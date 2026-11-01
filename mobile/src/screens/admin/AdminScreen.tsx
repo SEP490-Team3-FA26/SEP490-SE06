@@ -60,6 +60,19 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  // [REVIEWER_HOOK_ADMIN]
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab && ['HEALTH', 'EMPLOYEES', 'AUDIT'].includes(tab)) {
+        setActiveTab(tab as any);
+      }
+      if (modal === 'create_emp') setCreateModalVisible(true);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);

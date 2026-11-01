@@ -110,6 +110,27 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  // [REVIEWER_HOOK_BRANCH]
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab && ['REVENUE', 'ALERTS', 'RECEIVE_STOCK'].includes(tab)) {
+        setActiveTab(tab as any);
+      }
+      if (modal === 'location') setShowLocationModal(true);
+      if (modal === 'payroll') setShowBranchPayrollModal(true);
+      if (modal === 'cert') setShowCertModal(true);
+      if (modal === 'pr_request') setRequestModalVisible(true);
+      if (modal === 'checkin') setShowCheckInModal(true);
+      if (modal === 'schedule') setShowScheduleModal(true);
+      if (modal === 'swap') setShowShiftSwapModal(true);
+      if (modal === 'leave') setShowLeaveModal(true);
+      if (modal === 'payslip') setShowPayslipModal(true);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
@@ -373,22 +394,28 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 shiftLabel = att.shiftName || 'Ca trực';
                 if (att.checkInTime) {
                   const timeStr = new Date(att.checkInTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-                  shiftLabel += ` (Vào ${timeStr})`;
+                  shiftLabel += ` (Vào ${timeStr}`;
+                  if (att.checkOutTime) {
+                    const outTimeStr = new Date(att.checkOutTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                    shiftLabel += ` - Ra ${outTimeStr}`;
+                  }
+                  shiftLabel += ')';
                 }
                 showGps = true;
                 isGpsValid = att.isLocationValid !== false;
 
-                if (att.status === 'CHECKED_IN') {
-                  dutyText = 'ĐANG TRỰC';
-                  dutyBadgeBg = '#ECFDF5';
-                  dutyTextColor = '#059669';
-                } else if (att.status === 'CHECKED_OUT') {
-                  dutyText = 'ĐÃ TAN CA';
+                const isEnded = Boolean(att.checkOutTime || att.isHandoverSubmitted || att.status === 'CHECKED_OUT' || att.status === 'COMPLETED');
+                if (isEnded) {
+                  dutyText = att.status === 'LATE' ? 'ĐÃ TAN CA (MUỘN)' : 'ĐÃ TAN CA';
                   dutyBadgeBg = '#F1F5F9';
                   dutyTextColor = '#64748B';
                   showGps = false;
+                } else if (att.status === 'CHECKED_IN') {
+                  dutyText = 'ĐANG TRỰC';
+                  dutyBadgeBg = '#ECFDF5';
+                  dutyTextColor = '#059669';
                 } else if (att.status === 'LATE') {
-                  dutyText = 'ĐI MUỘN';
+                  dutyText = 'ĐI MUỘN (ĐANG TRỰC)';
                   dutyBadgeBg = '#FEF3C7';
                   dutyTextColor = '#D97706';
                 } else if (att.status === 'ON_LEAVE') {
