@@ -493,7 +493,7 @@ export function Inventory() {
                 placeholder="Tìm kiếm theo mã, tên..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200/80 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-[#0057cd] outline-none transition-all shadow-sm"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200/80 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-emerald-600 outline-none transition-all shadow-sm"
               />
             </div>
 
@@ -502,7 +502,7 @@ export function Inventory() {
                 <select
                   value={selectedClassification}
                   onChange={(e) => setSelectedClassification(e.target.value)}
-                  className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200/80 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-[#0057cd] outline-none shadow-sm appearance-none cursor-pointer"
+                  className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200/80 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-emerald-600 outline-none shadow-sm appearance-none cursor-pointer"
                 >
                   <option value="">Tất cả phân loại</option>
                   {filterOptions.classifications.map(c => (
@@ -519,7 +519,7 @@ export function Inventory() {
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200/80 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-[#0057cd] outline-none shadow-sm appearance-none cursor-pointer"
+                  className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200/80 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-emerald-600 outline-none shadow-sm appearance-none cursor-pointer"
                 >
                   <option value="">Tất cả danh mục</option>
                   {filterOptions.categories.map(c => (
@@ -535,7 +535,7 @@ export function Inventory() {
           <div className="overflow-x-auto overflow-y-auto relative flex-1 min-h-0 custom-scrollbar">
             {loading ? (
               <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center gap-3 z-10">
-                <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+                <Loader2 className="animate-spin text-emerald-600" size={32} />
                 <p className="text-sm font-semibold text-slate-500">Đang tải danh sách thuốc...</p>
               </div>
             ) : null}
@@ -805,7 +805,7 @@ export function Inventory() {
           <div className="overflow-x-auto overflow-y-auto relative flex-1 min-h-0 custom-scrollbar">
             {expirationLoading ? (
               <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center gap-3 z-10">
-                <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+                <Loader2 className="animate-spin text-emerald-600" size={32} />
                 <p className="text-sm font-semibold text-slate-500">Đang tải báo cáo hết hạn...</p>
               </div>
             ) : null}
@@ -913,7 +913,7 @@ export function Inventory() {
           <div className="overflow-x-auto overflow-y-auto relative flex-1 min-h-0 custom-scrollbar">
             {lowStockLoading ? (
               <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center gap-3 z-10">
-                <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+                <Loader2 className="animate-spin text-emerald-600" size={32} />
                 <p className="text-sm font-semibold text-slate-500">Đang tải danh sách thuốc...</p>
               </div>
             ) : null}
@@ -1144,7 +1144,7 @@ export function Inventory() {
           <div className="overflow-x-auto overflow-y-auto relative flex-1 min-h-0 custom-scrollbar">
             {reportLoading ? (
               <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center gap-3 z-10">
-                <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+                <Loader2 className="animate-spin text-emerald-600" size={32} />
                 <p className="text-sm font-semibold text-slate-500">Đang tổng hợp báo cáo...</p>
               </div>
             ) : null}
@@ -1217,7 +1217,7 @@ export function Inventory() {
             <div className="p-6 overflow-y-auto flex-1">
               {fetchingDetails ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
-                  <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+                  <Loader2 className="animate-spin text-emerald-600" size={32} />
                   <p className="text-slate-500 font-medium">Đang tải dữ liệu y khoa...</p>
                 </div>
               ) : selectedMedicine ? (
@@ -1402,7 +1402,7 @@ export function Inventory() {
                       placeholder="Ví dụ: 10"
                       value={newMinQty}
                       onChange={(e) => setNewMinQty(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-[#0057cd] transition-all"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-emerald-600 transition-all"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1412,7 +1412,7 @@ export function Inventory() {
                       placeholder="Ví dụ: 45000"
                       value={newTierPrice}
                       onChange={(e) => setNewTierPrice(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-[#0057cd] transition-all"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-emerald-600 transition-all"
                     />
                   </div>
                 </div>

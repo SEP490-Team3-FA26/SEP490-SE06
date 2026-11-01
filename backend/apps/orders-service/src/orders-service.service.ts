@@ -760,6 +760,57 @@ export class OrdersServiceService implements OnModuleInit {
     );
 
     this.logger.log(`[getMyOrders] Tìm thấy ${results.length} đơn online/QR và ${normalizedSales.length} đơn POS (Tổng: ${allOrders.length})`);
+
+    // Tự động phân giải hình ảnh thực tế (image) cho các món thuốc trong đơn hàng từ collection medicines
+    try {
+      const allMedIds = new Set<string>();
+      allOrders.forEach((o: any) => {
+        (o.items || []).forEach((it: any) => {
+          if (it.medicineId && !it.image) {
+            allMedIds.add(String(it.medicineId));
+          }
+        });
+      });
+
+      if (allMedIds.size > 0) {
+        const objectIds: any[] = [];
+        const stringIds: string[] = [];
+        allMedIds.forEach((id) => {
+          stringIds.push(id);
+          if (Types.ObjectId.isValid(id)) {
+            objectIds.push(new Types.ObjectId(id));
+          }
+        });
+
+        const queryObj: any = { $or: [{ _id: { $in: objectIds } }, { id: { $in: stringIds } }] };
+        const meds = await this.orderModel.db
+          .collection('medicines')
+          .find(queryObj, { projection: { image: 1, images: 1, name: 1 } })
+          .toArray();
+
+        const medMap = new Map<string, string>();
+        meds.forEach((m: any) => {
+          const img =
+            m.image ||
+            (Array.isArray(m.images) && m.images.length > 0 ? m.images[0] : null);
+          if (img) {
+            medMap.set(String(m._id), img);
+            if (m.id) medMap.set(String(m.id), img);
+          }
+        });
+
+        allOrders.forEach((o: any) => {
+          (o.items || []).forEach((it: any) => {
+            if (!it.image && it.medicineId) {
+              it.image = medMap.get(String(it.medicineId)) || null;
+            }
+          });
+        });
+      }
+    } catch (err: any) {
+      this.logger.warn(`Lỗi khi nạp ảnh thuốc cho đơn hàng: ${err.message}`);
+    }
+
     return allOrders;
   }
 

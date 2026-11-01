@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {
+import { Loader2, 
   CheckCircle2,
   AlertTriangle,
   XCircle,
@@ -216,7 +216,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
           disabled={loading}
           className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <Loader2 size={14} className={loading ? 'animate-spin' : ''} />
           Làm mới dữ liệu
         </button>
       </div>
@@ -242,7 +242,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
               {loading ? (
                 <tr>
                   <td colSpan={9} className="py-10 text-center text-slate-400">
-                    <RefreshCw className="animate-spin inline-block mr-2" size={16} />
+                    <Loader2 className="animate-spin inline-block mr-2" size={16} />
                     Đang tải dữ liệu đối soát...
                   </td>
                 </tr>
@@ -436,7 +436,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
                 onClick={handleSubmitResolve}
                 className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {resolving && <RefreshCw size={14} className="animate-spin" />}
+                {resolving && <Loader2 size={14} className="animate-spin" />}
                 Lưu Biên Bản & Khép Hồ Sơ
               </button>
             </div>

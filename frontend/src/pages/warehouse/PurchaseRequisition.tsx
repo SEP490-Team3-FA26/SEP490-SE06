@@ -188,7 +188,10 @@ export function PurchaseRequisition() {
 
         <div className="overflow-auto flex-1">
           {loading ? (
-            <div className="flex flex-col items-center py-16 gap-3"><Loader2 className="animate-spin text-amber-600" size={28} /><p className="text-slate-500 text-sm">Đang tải...</p></div>
+            <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 size={32} className="animate-spin text-emerald-600" />
+            <p className="text-sm font-semibold text-slate-500">Đang tải danh sách phiếu PR mua hàng...</p>
+          </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center py-16 gap-3 text-slate-400"><ClipboardList size={36} /><p className="text-sm font-semibold">Không có phiếu PR nào ở trạng thái này.</p></div>
           ) : (

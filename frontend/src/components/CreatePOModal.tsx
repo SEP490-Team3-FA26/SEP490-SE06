@@ -356,7 +356,7 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
               <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50 custom-scrollbar relative">
                 {isPrefilling ? (
                   <div className="h-full flex flex-col items-center justify-center text-emerald-600 gap-3">
-                    <Loader2 size={28} className="animate-spin" />
+                    <Loader2 size={28} className="animate-spin text-emerald-600" />
                     <p className="text-sm font-bold">Đang tải dữ liệu từ PR...</p>
                   </div>
                 ) : cart.length === 0 ? (

@@ -131,7 +131,14 @@ export function MobileAIInspection() {
     }
   };
 
-  if (!grnId) return <div className="p-4">Loading...</div>;
+  if (!grnId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+        <Loader2 size={32} className="animate-spin text-emerald-600" />
+        <p className="text-sm font-semibold text-slate-500">Đang chuẩn bị phiên kiểm định...</p>
+      </div>
+    );
+  }
 
   const isItemVerified = (item: any) => Number(item.actualQty) > 0 && !!item.batchNo && !!item.expDate;
   const isAllVerified = inspectionRecord?.items?.every(isItemVerified);
@@ -167,7 +174,7 @@ export function MobileAIInspection() {
 
         {loading && !inspectionRecord && (
           <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="animate-spin text-emerald-500 mb-2" size={32} />
+            <Loader2 className="animate-spin text-emerald-600 mb-2" size={32} />
             <p className="text-sm font-bold text-slate-500">Đang khởi tạo phiên kiểm đếm...</p>
           </div>
         )}

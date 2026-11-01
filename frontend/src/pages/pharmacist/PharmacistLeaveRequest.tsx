@@ -1,19 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { hrService, LeaveRequest, LeaveType } from "../../services/hr/hr.service";
-import {
-  Calendar,
-  Clock,
-  Plus,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  FileText,
-  Upload,
-  ShieldAlert,
-  Trash2,
-  CalendarDays,
-  FileCheck2,
-} from "lucide-react";
+import { Loader2, Calendar, Clock, Plus, CheckCircle2, XCircle, AlertCircle, FileText, Upload, ShieldAlert, Trash2, CalendarDays, FileCheck2 } from 'lucide-react';
 
 const LEAVE_TYPE_CONFIG: Record<LeaveType, { label: string; desc: string; badgeClass: string }> = {
   ANNUAL_PAID: {
@@ -356,7 +343,10 @@ export function PharmacistLeaveRequest() {
 
       {/* Danh sách đơn xin nghỉ */}
       {loading ? (
-        <div className="py-12 text-center text-slate-400 text-sm">Đang tải dữ liệu đơn xin nghỉ...</div>
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
+          <p className="text-sm font-semibold text-slate-500">Đang tải dữ liệu đơn xin nghỉ...</p>
+        </div>
       ) : filteredLeaves.length === 0 ? (
         <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl">
           <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />

@@ -316,7 +316,7 @@ export function RelocateBinModal({
                 <span>Chọn Lô Thuốc Cần Chuyển:</span>
                 {loadingBatches && (
                   <span className="text-[11px] text-slate-400 font-normal flex items-center gap-1">
-                    <Loader2 size={11} className="animate-spin text-sky-500" /> Đang tải danh sách lô...
+                    <Loader2 size={11} className="animate-spin text-emerald-600" /> Đang tải danh sách lô...
                   </span>
                 )}
               </label>
@@ -448,7 +448,7 @@ export function RelocateBinModal({
 
               {loadingLayout ? (
                 <div className="py-8 flex justify-center items-center text-xs text-slate-400 gap-2">
-                  <Loader2 size={16} className="animate-spin text-amber-500" />
+                  <Loader2 size={16} className="animate-spin text-emerald-600" />
                   Đang tải thông tin các ô thùng...
                 </div>
               ) : (

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {
+import { Loader2, 
   Banknote,
   Printer,
   TrendingUp,
@@ -132,7 +132,7 @@ export function Finance() {
             className="h-9 w-9 bg-white hover:bg-slate-50 text-slate-600 rounded-xl transition-colors border border-slate-200/80 flex items-center justify-center shadow-xs disabled:opacity-50"
             title="Làm mới dữ liệu từ Database"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <Loader2 size={15} className={loading ? 'animate-spin text-emerald-600' : ''} />
           </button>
 
           {/* Button: Create Payment Voucher */}
@@ -454,7 +454,7 @@ export function Finance() {
 
           {loading ? (
             <div className="h-64 flex flex-col items-center justify-center gap-3">
-              <RefreshCw size={36} className="animate-spin text-blue-600" />
+              <Loader2 size={36} className="animate-spin text-emerald-600" />
               <p className="text-sm font-semibold text-slate-500">
                 Đang tổng hợp dữ liệu thu chi & dòng tiền thực tế...
               </p>

@@ -123,7 +123,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 placeholder="Ví dụ: Panadol Extra 500mg"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               />
             </div>
 
@@ -136,7 +136,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 placeholder="Tự động tạo nếu để trống"
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all font-mono"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all font-mono"
               />
             </div>
 
@@ -149,7 +149,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 placeholder="Nhập mã vạch hoặc để trống"
                 value={formData.barcode}
                 onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all font-mono"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all font-mono"
               />
             </div>
 
@@ -160,7 +160,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
               <select
                 value={formData.drug_classification}
                 onChange={(e) => setFormData({ ...formData, drug_classification: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               >
                 <option value="NORMAL">Thuốc thường</option>
                 <option value="PRESCRIPTION">Thuốc kê đơn (Rx)</option>
@@ -178,7 +178,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 placeholder="VD: Thuốc giảm đau, Kháng sinh, ..."
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               />
             </div>
 
@@ -191,7 +191,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 placeholder="VD: Paracetamol 500mg, Caffeine 65mg"
                 value={formData.active_ingredient}
                 onChange={(e) => setFormData({ ...formData, active_ingredient: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               />
             </div>
 
@@ -206,7 +206,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 required
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all font-semibold text-slate-900"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all font-semibold text-slate-900"
               />
             </div>
 
@@ -217,7 +217,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
               <select
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               >
                 <option value="Hộp">Hộp</option>
                 <option value="Vỉ">Vỉ</option>
@@ -236,7 +236,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
               <select
                 value={formData.supplierId}
                 onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               >
                 <option value="">-- Chọn Nhà cung cấp (Tùy chọn) --</option>
                 {suppliers.map((s) => (
@@ -256,7 +256,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 placeholder="VD: Dược Hậu Giang, Sanofi, ..."
                 value={formData.manufacturer}
                 onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               />
             </div>
 
@@ -276,7 +276,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                     national_drug_code: prev.national_drug_code === prev.registration_number || !prev.national_drug_code ? regNo : prev.national_drug_code,
                   }));
                 }}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               />
             </div>
 
@@ -349,7 +349,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 min="0"
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               />
             </div>
 
@@ -362,7 +362,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 min="0"
                 value={formData.safetyStock}
                 onChange={(e) => setFormData({ ...formData, safetyStock: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all"
               />
             </div>
 
@@ -375,7 +375,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                 placeholder="Mô tả ngắn gọn công dụng của thuốc..."
                 value={formData.cong_dung}
                 onChange={(e) => setFormData({ ...formData, cong_dung: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-[#0057cd] transition-all resize-none"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/30 focus:border-emerald-600 transition-all resize-none"
               />
             </div>
           </div>

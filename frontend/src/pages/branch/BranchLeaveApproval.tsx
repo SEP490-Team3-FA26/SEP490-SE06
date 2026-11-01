@@ -1,17 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { hrService, LeaveRequest, LeaveType } from "../../services/hr/hr.service";
-import {
-  CalendarDays,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  FileText,
-  User,
-  ShieldAlert,
-  Search,
-  Filter,
-} from "lucide-react";
+import { Loader2, CalendarDays, Clock, CheckCircle2, XCircle, AlertTriangle, FileText, User, ShieldAlert, Search, Filter } from 'lucide-react';
 
 const LEAVE_TYPE_CONFIG: Record<LeaveType, { label: string; badgeClass: string }> = {
   ANNUAL_PAID: {
@@ -224,7 +213,10 @@ export function BranchLeaveApproval() {
 
       {/* Danh sach don */}
       {loading ? (
-        <div className="py-12 text-center text-slate-400 text-sm">Đang tải danh sách đơn xin nghỉ...</div>
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
+          <p className="text-sm font-semibold text-slate-500">Đang tải danh sách đơn xin nghỉ...</p>
+        </div>
       ) : filteredRequests.length === 0 ? (
         <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl">
           <CalendarDays className="w-10 h-10 text-slate-300 mx-auto mb-2" />

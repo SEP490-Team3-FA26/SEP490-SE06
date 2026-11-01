@@ -15,7 +15,7 @@ interface GradientButtonProps {
   title: string;
   onPress: () => void;
   colors?: readonly [string, string, ...string[]];
-  gradientVariant?: 'primary' | 'success' | 'warning' | 'danger' | 'indigo' | 'cyan' | 'purple';
+  gradientVariant?: 'primary' | 'success' | 'warning' | 'danger' | 'indigo' | 'cyan' | 'purple' | 'sky';
   loading?: boolean;
   disabled?: boolean;
   icon?: React.ReactNode;
@@ -25,7 +25,8 @@ interface GradientButtonProps {
 }
 
 const GRADIENT_PRESETS = {
-  primary: ['#059669', '#10B981'] as const, // Emerald Medical
+  sky: ['#0284C7', '#0EA5E9'] as const,     // Medical Sky Blue (Customer Theme)
+  primary: ['#0284C7', '#0EA5E9'] as const, // Default Customer Sky Blue
   success: ['#10B981', '#34D399'] as const, // Fresh Mint
   warning: ['#D97706', '#F59E0B'] as const, // Amber
   danger: ['#DC2626', '#EF4444'] as const,  // Rose
@@ -38,7 +39,7 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
   title,
   onPress,
   colors,
-  gradientVariant = 'primary',
+  gradientVariant = 'sky',
   loading = false,
   disabled = false,
   icon,
@@ -46,13 +47,19 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
   textStyle,
   size = 'md',
 }) => {
-  const selectedColors = colors || GRADIENT_PRESETS[gradientVariant];
+  const selectedColors = colors || GRADIENT_PRESETS[gradientVariant] || GRADIENT_PRESETS.sky;
 
   const sizeStyles = {
-    sm: { paddingVertical: 8, paddingHorizontal: 14, fontSize: 13, borderRadius: 10 },
-    md: { paddingVertical: 13, paddingHorizontal: 20, fontSize: 15, borderRadius: 14 },
-    lg: { paddingVertical: 16, paddingHorizontal: 26, fontSize: 17, borderRadius: 16 },
-  }[size];
+    sm: styles.sizeSm,
+    md: styles.sizeMd,
+    lg: styles.sizeLg,
+  };
+
+  const textSizes = {
+    sm: styles.textSm,
+    md: styles.textMd,
+    lg: styles.textLg,
+  };
 
   return (
     <AnimatedTouchable
@@ -61,32 +68,17 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
       style={[styles.container, style]}
     >
       <LinearGradient
-        colors={selectedColors}
+        colors={disabled ? ['#CBD5E1', '#94A3B8'] : selectedColors}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0.9 }}
-        style={[
-          styles.gradient,
-          {
-            paddingVertical: sizeStyles.paddingVertical,
-            paddingHorizontal: sizeStyles.paddingHorizontal,
-            borderRadius: sizeStyles.borderRadius,
-          },
-        ]}
+        end={{ x: 1, y: 1 }}
+        style={[styles.gradient, sizeStyles[size]]}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" size="small" />
         ) : (
           <View style={styles.contentRow}>
-            {icon ? <View style={styles.iconWrapper}>{icon}</View> : null}
-            <Text
-              style={[
-                styles.text,
-                { fontSize: sizeStyles.fontSize },
-                textStyle,
-              ]}
-            >
-              {title}
-            </Text>
+            {icon && <View style={styles.iconContainer}>{icon}</View>}
+            <Text style={[styles.text, textSizes[size], textStyle]}>{title}</Text>
           </View>
         )}
       </LinearGradient>
@@ -96,27 +88,50 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    shadowColor: '#059669',
+    borderRadius: 14,
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
   gradient: {
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sizeSm: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  sizeMd: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  sizeLg: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
   },
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapper: {
+  iconContainer: {
     marginRight: 8,
   },
   text: {
     color: '#FFFFFF',
     fontWeight: '700',
-    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  textSm: {
+    fontSize: 13,
+  },
+  textMd: {
+    fontSize: 15,
+  },
+  textLg: {
+    fontSize: 17,
   },
 });

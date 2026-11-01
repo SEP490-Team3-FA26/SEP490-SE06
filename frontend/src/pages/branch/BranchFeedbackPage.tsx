@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
+import { Loader2, 
   Star,
   MessageSquare,
   AlertTriangle,
@@ -84,7 +84,7 @@ export const BranchFeedbackPage: React.FC = () => {
           disabled={loading}
           className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới dữ liệu
+          <Loader2 size={14} className={loading ? 'animate-spin text-emerald-600' : ''} /> Làm mới dữ liệu
         </button>
       </div>
 
@@ -193,7 +193,7 @@ export const BranchFeedbackPage: React.FC = () => {
       <div className="space-y-3">
         {loading ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-500 text-sm">
-            <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-emerald-600" />
+            <Loader2 size={24} className="animate-spin mx-auto mb-2 text-emerald-600" />
             Đang tải dữ liệu đánh giá chi nhánh...
           </div>
         ) : filteredFeedbacks.length === 0 ? (

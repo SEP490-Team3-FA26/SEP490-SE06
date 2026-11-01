@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CreditCard, Banknote, QrCode, ClipboardList, Printer, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, XCircle } from "lucide-react";
+import { Loader2, CreditCard, Banknote, QrCode, ClipboardList, Printer, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, XCircle } from "lucide-react";
 import { orderService } from "../../services/sales/order.service";
 import { cartService } from "../../services/sales/cart.service";
 import { voucherService } from "../../services/sales/voucher.service";
@@ -452,7 +452,7 @@ export function CustomerCheckout() {
 
         {checkingPayment && (
           <div className="bg-white border border-slate-200 rounded-[24px] p-16 flex flex-col items-center justify-center text-center">
-            <div className="w-12 h-12 border-4 border-[#0d6efd] border-t-transparent rounded-full animate-spin mb-4"></div>
+            <Loader2 size={44} className="animate-spin text-emerald-600 mb-4" />
             <h3 className="font-bold text-slate-700 text-md">Đang kiểm tra giao dịch PayOS...</h3>
             <p className="text-slate-400 text-xs mt-1.5 max-w-xs">
               Hệ thống đang đối chiếu dữ liệu thanh toán từ PayOS, vui lòng giữ nguyên trình duyệt.

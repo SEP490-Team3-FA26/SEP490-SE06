@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { QrCode, X, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Loader2, QrCode, X, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 // --- Type Definitions ---
 
@@ -251,7 +251,7 @@ export function VietQRPopup({
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-500/20"
                 >
                   {isConfirming ? (
-                    <span className="animate-spin w-4 h-4 border-2 border-white/40 border-t-white rounded-full" />
+                    <Loader2 size={16} className="animate-spin text-white" />
                   ) : (
                     <CheckCircle size={15} />
                   )}

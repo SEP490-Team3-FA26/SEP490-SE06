@@ -24,7 +24,7 @@ export function Tabs<T extends string>({ tabs, activeTab, onChange, className = 
             onClick={() => onChange(tab.id)}
             className={`px-5 py-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all ${
               isActive
-                ? "border-[#0057cd] text-[#0057cd]"
+                ? "border-emerald-600 text-[#0057cd]"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >

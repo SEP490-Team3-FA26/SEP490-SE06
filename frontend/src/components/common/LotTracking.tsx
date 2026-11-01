@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { 
-  Search, 
+import { Loader2, Search, 
   History, 
   Package, 
   Truck, 
@@ -32,8 +31,7 @@ import {
   QrCode,
   Sparkles,
   Printer,
-  X
-} from "lucide-react";
+  X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams } from "react-router-dom";
 import { medicineService } from "../../services/inventory/medicine.service";
@@ -383,7 +381,10 @@ export function LotTracking() {
             exit={{ opacity: 0 }}
             className="flex flex-col items-center justify-center py-20"
           >
-            <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <Loader2 size={36} className="animate-spin text-emerald-600" />
+              <p className="text-sm font-semibold text-slate-500">Đang truy xuất lô & hạn dùng dược phẩm...</p>
+            </div>
             <p className="text-slate-500 font-semibold text-sm">Hệ thống đang truy vấn phả hệ Lô và Hồ sơ Lưu trữ Y tế 50 năm...</p>
           </motion.div>
         )}
@@ -733,7 +734,7 @@ export function LotTracking() {
                               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1 disabled:opacity-50"
                               title="Xác thực đối chiếu tính toàn vẹn dữ liệu gốc"
                             >
-                              <ShieldCheck size={14} className={isVerifying ? "animate-spin" : ""} />
+                              {isVerifying ? <Loader2 size={14} className="animate-spin text-white" /> : <ShieldCheck size={14} />}
                               {isVerifying ? "Đang xác thực..." : "Xác thực số"}
                             </button>
                           </div>

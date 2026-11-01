@@ -1079,7 +1079,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                       {/* Loading state */}
                       {isSearchingLive ? (
                         <div className="py-16 text-center text-xs text-slate-400 font-bold flex flex-col items-center justify-center gap-2.5">
-                          <Loader2 size={24} className="animate-spin text-[#0057cd]" />
+                          <Loader2 size={24} className="animate-spin text-emerald-600" />
                           <span>Đang tra cứu kho dược phẩm và giá bán...</span>
                         </div>
                       ) : (searchQuery.trim() ? searchResults : suggestedMedicines).length > 0 ? (
@@ -1387,7 +1387,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                       }}
                       className={`px-3 py-2.5 flex items-center gap-1 transition-all whitespace-nowrap cursor-pointer text-xs font-bold border-b-2 -mb-[1px] ${
                         isTabActive
-                          ? "text-[#0057cd] font-black border-[#0057cd] bg-blue-50/40"
+                          ? "text-[#0057cd] font-black border-emerald-600 bg-blue-50/40"
                           : "text-slate-700 hover:text-[#0057cd] border-transparent"
                       }`}
                     >
@@ -1724,7 +1724,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Ví dụ: Nguyễn Văn A"
                   value={prescriptionForm.fullName}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, fullName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1738,7 +1738,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Ví dụ: 0912 345 678"
                   value={prescriptionForm.phoneNumber}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, phoneNumber: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1751,7 +1751,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Số nhà, tên đường, phường/xã, quận/huyện..."
                   value={prescriptionForm.address}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, address: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1759,7 +1759,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Ảnh chụp toa thuốc / bệnh án
                 </label>
-                <div className="border-2 border-dashed border-slate-200 hover:border-[#0057cd] rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition-colors">
+                <div className="border-2 border-dashed border-slate-200 hover:border-emerald-600 rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition-colors">
                   <UploadCloud size={28} className="mx-auto text-slate-400 mb-1" />
                   <p className="text-xs font-bold text-slate-700">Kéo thả ảnh hoặc bấm để chọn tệp</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, PDF (Tối đa 10MB)</p>
@@ -1789,7 +1789,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Ví dụ: Người bệnh dị ứng Penicillin, cần giao trước 17h..."
                   value={prescriptionForm.note}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, note: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-[#0057cd] outline-none resize-none"
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-600 outline-none resize-none"
                 />
               </div>
 

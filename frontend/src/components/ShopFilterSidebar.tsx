@@ -81,7 +81,7 @@ export function ShopFilterSidebar({
                 onClick={() => setSelectedPriceRange(selectedPriceRange === item.value ? "" : item.value)}
                 className={`w-full py-2 px-3 rounded-xl text-xs font-bold text-left transition-all flex items-center justify-between cursor-pointer border ${
                   selectedPriceRange === item.value
-                    ? 'bg-blue-50 text-[#0057cd] border-[#0057cd] shadow-2xs font-black'
+                    ? 'bg-blue-50 text-[#0057cd] border-emerald-600 shadow-2xs font-black'
                     : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
                 }`}
               >

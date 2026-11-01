@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { hrService, ShiftSwapRequest } from "../../services/hr/hr.service";
-import { Clock, CheckCircle2, XCircle, ArrowRightLeft, AlertTriangle } from "lucide-react";
+import { Loader2, Clock, CheckCircle2, XCircle, ArrowRightLeft, AlertTriangle } from "lucide-react";
 
 export function BranchShiftSwap() {
   const [requests, setRequests] = useState<ShiftSwapRequest[]>([]);
@@ -89,7 +89,7 @@ export function BranchShiftSwap() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center p-12"><div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin"></div></div>
+        <div className="flex justify-center p-12"><Loader2 size={32} className="animate-spin text-emerald-600" /></div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <table className="w-full text-left border-collapse min-w-[900px]">

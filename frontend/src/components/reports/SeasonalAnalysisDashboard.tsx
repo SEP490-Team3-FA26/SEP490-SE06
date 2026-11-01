@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { 
+import { Loader2,  
   Sparkles, 
   TrendingUp, 
   AlertTriangle, 
@@ -278,7 +278,7 @@ export function SeasonalAnalysisDashboard() {
             className="px-4 py-2 bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 font-bold border border-slate-200 hover:border-purple-200 rounded-xl transition-all shadow-sm flex items-center gap-2 text-xs"
             title="Xóa cache và chạy lại LLM phân tích"
           >
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            <Loader2 size={14} className={refreshing ? "animate-spin" : ""} />
             Làm mới phân tích
           </button>
         </div>
@@ -307,7 +307,7 @@ export function SeasonalAnalysisDashboard() {
             <p className="text-sm font-black text-slate-800">Đang khởi tạo công cụ phân tích lai (Hybrid Forecaster)...</p>
             <p className="text-xs text-slate-400 font-semibold">Tích hợp mô hình dự báo toán học và lập luận Groq LLM</p>
           </div>
-          <RefreshCw size={24} className="animate-spin text-purple-500 mt-2" />
+          <Loader2 size={24} className="animate-spin text-emerald-600 mt-2" />
         </div>
       ) : !data ? (
         <div className="h-64 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-slate-400 font-semibold">

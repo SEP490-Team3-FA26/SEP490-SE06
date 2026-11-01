@@ -1,33 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  User,
-  MapPin,
-  Phone,
-  Mail,
-  Edit2,
-  Lock,
-  X,
-  Eye,
-  EyeOff,
-  CheckCircle2,
-  AlertCircle,
-  Save,
-  ShieldCheck,
-  Award,
-  Sparkles,
-  Gift,
-  Star,
-  Copy,
-  Check,
-  ChevronRight,
-  ArrowRight,
-  ShoppingBag,
-  Tag,
-  CreditCard,
-  TrendingUp,
-  Percent,
-  Compass,
-} from 'lucide-react';
+import { Loader2, User, MapPin, Phone, Mail, Edit2, Lock, X, Eye, EyeOff, CheckCircle2, AlertCircle, Save, ShieldCheck, Award, Sparkles, Gift, Star, Copy, Check, ChevronRight, ArrowRight, ShoppingBag, Tag, CreditCard, TrendingUp, Percent, Compass } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../../services/auth/auth.service';
 import { userService } from '../../services/auth/user.service';
@@ -835,7 +807,7 @@ export function CustomerProfile() {
                     >
                       {isSavingProfile ? (
                         <>
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <Loader2 size={18} className="animate-spin text-white" />
                           Đang lưu vào Database...
                         </>
                       ) : (
@@ -976,7 +948,7 @@ export function CustomerProfile() {
                     >
                       {isChangingPassword ? (
                         <>
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <Loader2 size={18} className="animate-spin text-white" />
                           Đang xử lý...
                         </>
                       ) : (

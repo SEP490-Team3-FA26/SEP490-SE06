@@ -1,5 +1,5 @@
 import React from 'react';
-import {
+import { Loader2, 
   Users,
   HeartPulse,
   Crown,
@@ -111,14 +111,14 @@ export const CustomerRFMTab: React.FC<Props> = ({ selectedBranch }) => {
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors border border-slate-200"
             title="Làm mới dữ liệu"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <Loader2 size={16} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={handleRecalculate}
             disabled={calculating}
             className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
           >
-            <RefreshCw size={14} className={calculating ? 'animate-spin' : ''} />
+            <Loader2 size={14} className={calculating ? 'animate-spin' : ''} />
             {calculating ? 'Đang phân tích...' : 'Tính Toán Lại RFM'}
           </button>
         </div>
@@ -199,7 +199,7 @@ export const CustomerRFMTab: React.FC<Props> = ({ selectedBranch }) => {
               {loading ? (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-slate-400">
-                    <RefreshCw className="animate-spin inline-block mr-2" size={16} />
+                    <Loader2 className="animate-spin inline-block mr-2" size={16} />
                     Đang tải danh sách phân cụm...
                   </td>
                 </tr>

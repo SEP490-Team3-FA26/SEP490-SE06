@@ -139,6 +139,7 @@ export const CustomerWishlistScreen: React.FC<{ navigation: any; route?: any }> 
       <HeaderBar
         title="Sản phẩm yêu thích"
         onBack={() => navigation.goBack()}
+        gradientVariant="sky"
         rightAction={
           items.length > 0
             ? {

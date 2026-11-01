@@ -1633,7 +1633,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 {isBarcodeLoading ? (
                   <Loader2 size={18} className="animate-spin text-emerald-600" />
                 ) : loading ? (
-                  <Loader2 size={18} className="animate-spin text-[#0057cd]" />
+                  <Loader2 size={18} className="animate-spin text-emerald-600" />
                 ) : (
                   <SearchIcon size={18} />
                 )}
@@ -1695,7 +1695,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 setSelectedCategory(val);
                 searchMedicines(searchQuery, val, selectedClassification, stockFilter);
               }}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="">Tất cả Nhóm thuốc</option>
               {categoriesList.length > 0 ? (
@@ -1723,7 +1723,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 setSelectedClassification(val);
                 searchMedicines(searchQuery, selectedCategory, val, stockFilter);
               }}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="">Tất cả Phân loại</option>
               <option value="PRESCRIPTION">Thuốc kê đơn (Rx)</option>
@@ -1740,7 +1740,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 setStockFilter(val);
                 searchMedicines(searchQuery, selectedCategory, selectedClassification, val);
               }}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="ALL">Tất cả tồn kho</option>
               <option value="IN_STOCK">Còn hàng (Tồn &gt; 0)</option>
@@ -2022,7 +2022,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     key={it.id}
                     className={`rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-sm ${isOverStock
                         ? "bg-rose-50/40 border-2 border-rose-300"
-                        : "bg-slate-50/60 border border-slate-200/80 hover:border-[#0057cd]/50"
+                        : "bg-slate-50/60 border border-slate-200/80 hover:border-emerald-600/50"
                       }`}
                   >
                     {/* Cảnh báo vượt tồn kho */}
@@ -2153,7 +2153,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                                 max="10"
                                 value={it.dosePerTime || 1}
                                 onChange={(e) => handleDosageChange(it.id, 'dosePerTime', e.target.value)}
-                                className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-[#0057cd]"
+                                className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-emerald-600"
                               />
                               <span className="text-[11px] text-slate-500 font-bold">{baseUnitName}</span>
                             </>
@@ -2168,7 +2168,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             max="6"
                             value={it.timesPerDay || 2}
                             onChange={(e) => handleDosageChange(it.id, 'timesPerDay', e.target.value)}
-                            className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-[#0057cd]"
+                            className="w-12 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-center font-black focus:outline-none focus:border-emerald-600"
                           />
                           <span className="text-[11px] text-slate-400">lần</span>
                         </div>
@@ -2181,7 +2181,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             max="90"
                             value={it.durationDays || 7}
                             onChange={(e) => handleDosageChange(it.id, 'durationDays', e.target.value)}
-                            className="w-14 px-2 py-1 bg-blue-50 border border-blue-200 text-[#0057cd] rounded-lg text-center font-black focus:outline-none focus:border-[#0057cd]"
+                            className="w-14 px-2 py-1 bg-blue-50 border border-blue-200 text-[#0057cd] rounded-lg text-center font-black focus:outline-none focus:border-emerald-600"
                           />
                           <span className="text-[11px] text-[#0057cd]">ngày</span>
                         </div>
@@ -2215,7 +2215,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             placeholder={packageOnlyUnit
                               ? "Ví dụ: Bôi một lượng vừa đủ theo hướng dẫn trên nhãn..."
                              : `Nhập hướng dẫn liều dùng (${baseUnitName})...`}
-                            className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                            className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-emerald-600 focus:bg-white"
                           />
                         </div>
 
@@ -2281,7 +2281,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   placeholder="SĐT khách hàng..."
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white"
                 />
                 <button
                   type="button"
@@ -2297,7 +2297,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 placeholder="Email nhận HDĐT (tùy chọn)..."
                 value={patientEmail}
                 onChange={(e) => setPatientEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white"
               />
               <div className="text-[11px] text-slate-400 font-bold text-left italic">
                 * Nhập số điện thoại để tích điểm & quy đổi ưu đãi thành viên.
@@ -2387,7 +2387,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   placeholder="Nhập email khách hàng..."
                   value={patientEmail}
                   onChange={(e) => setPatientEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white"
                 />
               </div>
 
@@ -2426,7 +2426,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             const pts = Math.min(loyaltyInfo.points, maxRedeem, rawVal);
                             setRedeemedPoints(pts);
                           }}
-                          className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white"
+                          className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white"
                         />
                         <span className="text-xs font-bold text-slate-500">
                           điểm (Giảm {redeemedPoints.toLocaleString()}₫)
@@ -2483,7 +2483,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 placeholder="Nhập mã voucher..."
                 value={voucherCode}
                 onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#0057cd] focus:bg-white transition-all uppercase font-mono"
+                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white transition-all uppercase font-mono"
               />
               <button
                 type="button"
@@ -2549,7 +2549,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             <button
               onClick={() => setPaymentMethod("CASH")}
               className={`flex items-center justify-center gap-2 py-3.5 border-2 rounded-xl font-bold text-sm transition-all ${paymentMethod === "CASH"
-                ? "border-[#0057cd] bg-[#f0f6ff] text-[#0057cd]"
+                ? "border-emerald-600 bg-[#f0f6ff] text-[#0057cd]"
                 : "border-slate-200 text-slate-700 hover:bg-slate-50"
                 }`}
             >
@@ -2558,7 +2558,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             <button
               onClick={() => setPaymentMethod("QR_PAY")}
               className={`flex items-center justify-center gap-2 py-3.5 border-2 rounded-xl font-bold text-sm transition-all ${paymentMethod === "QR_PAY"
-                ? "border-[#0057cd] bg-[#f0f6ff] text-[#0057cd]"
+                ? "border-emerald-600 bg-[#f0f6ff] text-[#0057cd]"
                 : "border-slate-200 text-slate-700 hover:bg-slate-50"
                 }`}
             >
@@ -3047,7 +3047,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               <div className="md:col-span-7 flex flex-col gap-4">
                 {aiLoading && (
                   <div className="flex flex-col items-center justify-center py-20 gap-3 border border-dashed border-purple-200 rounded-2xl bg-purple-50/20">
-                    <div className="w-10 h-10 border-3 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                    <Loader2 size={36} className="animate-spin text-emerald-600" />
                     <span className="text-xs font-black text-purple-700 uppercase tracking-widest">AI đang bóc tách triệu chứng & đối soát kho...</span>
                   </div>
                 )}
@@ -3239,13 +3239,13 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
               {loadingAlternatives ? (
                 <div className="flex flex-col items-center justify-center py-8">
-                  <div className="w-8 h-8 border-4 border-slate-200 border-t-[#0057cd] rounded-full animate-spin mb-3"></div>
+                  <Loader2 size={32} className="animate-spin text-emerald-600 mb-3" />
                   <p className="text-slate-500 text-sm font-semibold">Đang tìm kiếm thuốc thay thế...</p>
                 </div>
               ) : alternativesList.length > 0 ? (
                 <div className="space-y-3">
                   {alternativesList.map(alt => (
-                    <div key={alt.id} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-[#0057cd] hover:shadow-md transition-all group bg-white">
+                    <div key={alt.id} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-emerald-600 hover:shadow-md transition-all group bg-white">
                       <div>
                         <div className="font-bold text-slate-900 text-[15px]">{alt.name}</div>
                         <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-2">

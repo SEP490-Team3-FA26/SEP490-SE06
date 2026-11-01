@@ -3,7 +3,10 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MedicineController } from './medicine.controller';
 import { MedicineService } from './medicine.service';
 import { RecommendationService } from './recommendation.service';
+import { ProductReviewController } from './product-review.controller';
+import { ProductReviewService } from './product-review.service';
 import { Medicine, MedicineSchema } from './schemas/medicine.schema';
+import { ProductReview, ProductReviewSchema } from './schemas/product-review.schema';
 import { MedicineBatch, MedicineBatchSchema } from './schemas/medicine-batch.schema';
 import { MedicineLocation, MedicineLocationSchema } from './schemas/medicine-location.schema';
 import { BranchInventory, BranchInventorySchema } from './schemas/branch-inventory.schema';
@@ -17,6 +20,7 @@ import { NationalPharmaModule } from '../national-pharma/national-pharma.module'
   imports: [
     MongooseModule.forFeature([
       { name: Medicine.name, schema: MedicineSchema },
+      { name: ProductReview.name, schema: ProductReviewSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
       { name: MedicineLocation.name, schema: MedicineLocationSchema },
       { name: BranchInventory.name, schema: BranchInventorySchema },
@@ -27,9 +31,8 @@ import { NationalPharmaModule } from '../national-pharma/national-pharma.module'
     ]),
     NationalPharmaModule,
   ],
-  controllers: [MedicineController],
-  providers: [MedicineService, RecommendationService],
-  exports: [MongooseModule, RecommendationService], // Export MongooseModule & RecommendationService so other modules can use them
+  controllers: [MedicineController, ProductReviewController],
+  providers: [MedicineService, RecommendationService, ProductReviewService],
+  exports: [MongooseModule, RecommendationService, ProductReviewService],
 })
 export class MedicineModule {}
-

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {
+import { Loader2, 
   FileText,
   Search,
   Filter,
@@ -83,7 +83,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
             aria-label="Refresh OCR history list"
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer active:scale-95 disabled:opacity-50"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <Loader2 size={14} className={loading ? 'animate-spin' : ''} />
             <span>Làm mới</span>
           </button>
         </div>
@@ -192,7 +192,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
               {loading && logs.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-12 text-center text-slate-400">
-                    <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-emerald-600" />
+                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-emerald-600" />
                     <span>Đang tải lịch sử quét đơn OCR...</span>
                   </td>
                 </tr>

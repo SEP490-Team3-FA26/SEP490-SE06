@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
+import { Loader2, 
   TrendingUp,
   Award,
   Users,
@@ -134,7 +134,7 @@ export default function PharmacistKpiReport() {
               className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer disabled:opacity-50"
               title="Tải lại dữ liệu"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              <Loader2 size={16} className={loading ? 'animate-spin text-emerald-600' : ''} />
             </button>
           </div>
         </div>
@@ -298,7 +298,7 @@ export default function PharmacistKpiReport() {
         {/* Table Content */}
         {loading ? (
           <div className="py-20 text-center">
-            <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <Loader2 size={36} className="animate-spin text-emerald-600 mx-auto mb-3" />
             <p className="text-xs text-slate-500 font-bold">Đang tổng hợp dữ liệu KPI...</p>
           </div>
         ) : filteredList.length === 0 ? (

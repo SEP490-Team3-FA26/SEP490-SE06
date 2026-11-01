@@ -110,6 +110,7 @@ export function InspectorDashboard() {
         {/* Tab 1: Sổ Cái Giao Dịch Toàn Chuỗi */}
         {activeTab === "ledger" && (
           <LedgerTable
+            loading={loading}
             transactions={filteredTxns}
             copiedId={copiedId}
             onCopyId={handleCopyId}

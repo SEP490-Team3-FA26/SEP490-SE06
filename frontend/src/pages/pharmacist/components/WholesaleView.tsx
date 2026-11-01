@@ -345,7 +345,7 @@ export default function WholesaleView() {
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-              {loading ? <Loader2 size={18} className="animate-spin text-[#0057cd]" /> : <SearchIcon size={18} />}
+              {loading ? <Loader2 size={18} className="animate-spin text-emerald-600" /> : <SearchIcon size={18} />}
             </div>
             <input
               type="text"
@@ -403,7 +403,7 @@ export default function WholesaleView() {
                 setSelectedCategory(val);
                 searchMedicines(searchQuery, val, selectedClassification, stockFilter);
               }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="">Tất cả Nhóm thuốc</option>
               {categoriesList.map((cat) => (
@@ -418,7 +418,7 @@ export default function WholesaleView() {
                 setSelectedClassification(val);
                 searchMedicines(searchQuery, selectedCategory, val, stockFilter);
               }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="">Tất cả Phân loại</option>
               <option value="PRESCRIPTION">Thuốc kê đơn (Rx)</option>
@@ -433,7 +433,7 @@ export default function WholesaleView() {
                 setStockFilter(val);
                 searchMedicines(searchQuery, selectedCategory, selectedClassification, val);
               }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-[#0057cd] cursor-pointer"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-600 cursor-pointer"
             >
               <option value="ALL">Tất cả tồn kho</option>
               <option value="IN_STOCK">Còn hàng (Tồn &gt; 0)</option>
@@ -613,7 +613,7 @@ export default function WholesaleView() {
                 type="button"
                 onClick={() => setPaymentMethod("CASH")}
                 className={`py-3.5 px-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all text-center focus:outline-none ${paymentMethod === "CASH"
-                  ? "border-[#0057cd] bg-[#f2f3ff] text-[#0057cd] font-black"
+                  ? "border-emerald-600 bg-[#f2f3ff] text-[#0057cd] font-black"
                   : "border-slate-200 bg-slate-50/50 text-slate-500 hover:bg-slate-50"
                   }`}
               >
@@ -625,7 +625,7 @@ export default function WholesaleView() {
                 type="button"
                 onClick={() => setPaymentMethod("CARD")}
                 className={`py-3.5 px-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all text-center focus:outline-none ${paymentMethod === "CARD"
-                  ? "border-[#0057cd] bg-[#f2f3ff] text-[#0057cd] font-black"
+                  ? "border-emerald-600 bg-[#f2f3ff] text-[#0057cd] font-black"
                   : "border-slate-200 bg-slate-50/50 text-slate-500 hover:bg-slate-50"
                   }`}
               >
@@ -637,7 +637,7 @@ export default function WholesaleView() {
                 type="button"
                 onClick={() => setPaymentMethod("QR_PAY")}
                 className={`py-3.5 px-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all text-center focus:outline-none ${paymentMethod === "QR_PAY"
-                  ? "border-[#0057cd] bg-[#f2f3ff] text-[#0057cd] font-black"
+                  ? "border-emerald-600 bg-[#f2f3ff] text-[#0057cd] font-black"
                   : "border-slate-200 bg-slate-50/50 text-slate-500 hover:bg-slate-50"
                   }`}
               >

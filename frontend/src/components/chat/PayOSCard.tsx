@@ -1,5 +1,5 @@
 import React from "react";
-import {
+import { Loader2, 
   QrCode,
   ExternalLink,
   Clock,
@@ -201,7 +201,7 @@ export const PayOSCard: React.FC<PayOSCardProps> = ({
                 aria-label="Kiểm tra trạng thái thanh toán"
                 className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                <RefreshCw size={12} className={isChecking ? "animate-spin" : ""} />
+                <Loader2 size={12} className={isChecking ? "animate-spin" : ""} />
                 <span>{isChecking ? "Đang kiểm tra..." : "Kiểm tra"}</span>
               </button>
 

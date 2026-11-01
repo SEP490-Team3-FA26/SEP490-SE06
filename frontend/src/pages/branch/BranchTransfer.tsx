@@ -187,7 +187,7 @@ export function BranchTransfer() {
                   const bObj = branches.find(b => b.branchCode === bCode);
                   setSelectedToBranch(bObj || null);
                 }}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 focus:ring-4 focus:ring-blue-500/10 focus:border-[#0057cd] outline-none shadow-sm cursor-pointer"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 focus:ring-4 focus:ring-blue-500/10 focus:border-emerald-600 outline-none shadow-sm cursor-pointer"
                 defaultValue=""
               >
                 <option value="" disabled>--- Chọn chi nhánh đích ---</option>
@@ -262,14 +262,14 @@ export function BranchTransfer() {
               placeholder="Tìm thuốc để chuyển..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#0057cd] transition-all"
+              className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-emerald-600 transition-all"
             />
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
             {loadingInv ? (
               <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <Loader2 className="animate-spin text-[#0057cd]" size={20} />
+                <Loader2 className="animate-spin text-emerald-600" size={20} />
                 <p className="text-xs text-slate-500 font-semibold">Đang tải tồn kho chi nhánh...</p>
               </div>
             ) : filteredInventory.length === 0 ? (
