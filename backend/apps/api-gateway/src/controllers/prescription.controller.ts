@@ -477,6 +477,11 @@ export class PrescriptionController implements OnModuleInit {
       age_group?: string;
       gender?: string;
       allergies?: string[];
+      allergic_medicines?: string[];
+      allergic_ingredients?: string[];
+      chronic_conditions?: string[];
+      blood_type?: string;
+      medical_notes?: string;
       image_base64?: string;
     },
   ) {
@@ -491,13 +496,18 @@ export class PrescriptionController implements OnModuleInit {
     }
 
     try {
-      // Data minimization: Không gửi PII (họ tên, email, sđt) sang AI service
+      // Data minimization: Không gửi PII (họ tên, email, sđt) sang AI service, chỉ gửi thông tin lâm sàng an toàn
       const sanitizedPayload = {
         message: body.message ? body.message.trim() : "",
-        history: Array.isArray(body.history) ? body.history.slice(-10) : [],
+        history: Array.isArray(body.history) ? body.history.slice(-30) : [],
         age_group: body.age_group || null,
         gender: body.gender || null,
         allergies: Array.isArray(body.allergies) ? body.allergies : [],
+        allergic_medicines: Array.isArray(body.allergic_medicines) ? body.allergic_medicines : [],
+        allergic_ingredients: Array.isArray(body.allergic_ingredients) ? body.allergic_ingredients : [],
+        chronic_conditions: Array.isArray(body.chronic_conditions) ? body.chronic_conditions : [],
+        blood_type: body.blood_type || null,
+        medical_notes: body.medical_notes || null,
         image_base64: hasImage ? body.image_base64 : null,
       };
 

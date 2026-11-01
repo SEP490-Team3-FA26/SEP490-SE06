@@ -458,6 +458,11 @@ class ChatRequest(BaseModel):
     age_group: str | None = None
     gender: str | None = None
     allergies: list[str] = []
+    allergic_medicines: list[str] = []
+    allergic_ingredients: list[str] = []
+    chronic_conditions: list[str] = []
+    blood_type: str | None = None
+    medical_notes: str | None = None
     image_base64: str | None = None
 
 @router.post("/api/ai/chat")
@@ -480,7 +485,7 @@ async def chat_consult(req: ChatRequest):
 
         context = await retrieve_medical_context(rag_query) if rag_query else ""
 
-        # Bước 2: Gọi LLM Chatbot đa lượt (hỗ trợ cả text và vision)
+        # Bước 2: Gọi LLM Chatbot đa lượt (hỗ trợ cả text, vision và hồ sơ y tế chuyên sâu)
         history_dicts = [{"role": h.role, "content": h.content} for h in req.history]
         chat_res = await generate_chat_consultation(
             message=req.message or "Tư vấn hình ảnh đính kèm",
@@ -489,6 +494,11 @@ async def chat_consult(req: ChatRequest):
             age_group=req.age_group,
             gender=req.gender,
             allergies=req.allergies,
+            allergic_medicines=req.allergic_medicines,
+            allergic_ingredients=req.allergic_ingredients,
+            chronic_conditions=req.chronic_conditions,
+            blood_type=req.blood_type,
+            medical_notes=req.medical_notes,
             image_base64=req.image_base64,
             vision_context=vision_context
         )

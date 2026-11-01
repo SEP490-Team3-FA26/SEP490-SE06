@@ -388,11 +388,15 @@ Nhiệm vụ của bạn là lắng nghe triệu chứng của khách hàng tron
 {rag_context}
 -----------------------------------------------
 
---- THÔNG TIN KHÁCH HÀNG THAM KHẢO ---
-- Nhóm tuổi: {age_group}
-- Giới tính: {gender}
-- Tiền sử dị ứng: {allergies}
---------------------------------------
+--- THÔNG TIN KHÁCH HÀNG & HỒ SƠ Y TẾ THAM KHẢO ---
+- Nhóm tuổi: {age_group} | Giới tính: {gender}
+- Nhóm dị ứng thuốc chung: {allergies}
+- Biệt dược / Thuốc cụ thể bị dị ứng: {allergic_medicines}
+- Hoạt chất dược lý bị dị ứng: {allergic_ingredients}
+- Tiền sử bệnh nền / Mãn tính (Chống chỉ định): {chronic_conditions}
+- Nhóm máu: {blood_type}
+- Ghi chú y tế đặc biệt: {medical_notes}
+---------------------------------------------------
 
 NGUYÊN TẮC BẮT BUỘC:
 1. Xưng hô lịch sự, thân thiện, ân cần (Dược sĩ - bạn/anh/chị). Trả lời bằng tiếng Việt chuẩn mực y khoa nhưng gần gũi, súc tích, dễ hiểu.
@@ -443,14 +447,25 @@ async def generate_chat_consultation(
     age_group: str | None = None,
     gender: str | None = None,
     allergies: list[str] | None = None,
+    allergic_medicines: list[str] | None = None,
+    allergic_ingredients: list[str] | None = None,
+    chronic_conditions: list[str] | None = None,
+    blood_type: str | None = None,
+    medical_notes: str | None = None,
     image_base64: str | None = None,
     vision_context: str = ""
 ) -> dict:
     """
     Tạo phản hồi tư vấn hội thoại đa lượt (multi-turn chat) cho khách hàng nhà thuốc.
     Ưu tiên DeepSeek Flash (PHUC_DEEPSEEK_V4_FLASH) với fallback sang Groq.
+    Đã bỏ giới hạn 6 tin nhắn để nhớ toàn bộ phiên hội thoại và tích hợp hồ sơ y tế chuyên sâu.
     """
-    allergies_str = ", ".join(allergies) if allergies else "Không có hoặc chưa cung cấp"
+    allergies_str = ", ".join(allergies) if allergies else "Không ghi nhận"
+    allergic_meds_str = ", ".join(allergic_medicines) if allergic_medicines else "Không ghi nhận"
+    allergic_ingr_str = ", ".join(allergic_ingredients) if allergic_ingredients else "Không ghi nhận"
+    chronic_str = ", ".join(chronic_conditions) if chronic_conditions else "Không ghi nhận bệnh nền"
+    blood_str = blood_type if blood_type else "Chưa rõ"
+    notes_str = medical_notes if medical_notes else "Không có ghi chú đặc biệt"
     age_str = age_group if age_group else "Chưa rõ"
     gender_str = gender if gender else "Chưa rõ"
 
@@ -464,14 +479,18 @@ async def generate_chat_consultation(
         .replace("{age_group}", age_str)
         .replace("{gender}", gender_str)
         .replace("{allergies}", allergies_str)
+        .replace("{allergic_medicines}", allergic_meds_str)
+        .replace("{allergic_ingredients}", allergic_ingr_str)
+        .replace("{chronic_conditions}", chronic_str)
+        .replace("{blood_type}", blood_str)
+        .replace("{medical_notes}", notes_str)
     )
 
     messages = [{"role": "system", "content": system_prompt}]
 
-    # Multi-turn history: Lấy tối đa 6 message gần nhất để đảm bảo token limit
+    # Multi-turn history: Giữ tối đa 30 tin nhắn gần nhất (~15 lượt đối thoại) để đảm bảo ngữ cảnh phong phú mà không vượt ngưỡng token
     if history:
-        recent_history = history[-6:]
-        for h in recent_history:
+        for h in history[-30:]:
             role = "user" if h.get("role") == "user" else "assistant"
             content = str(h.get("content") or "").strip()
             if content:
