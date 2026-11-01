@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -1802,13 +1802,14 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                             {/* Hiển thị chi tiết cách dùng và liều dùng */}
                             {instructionText ? (
                               <View style={styles.instructionBadgeBox}>
-                                <Ionicons name="medical" size={12} color="#0891B2" />
+                                <Ionicons name="medical" size={12} color="#0284C7" />
                                 <Text style={styles.instructionBadgeText}>
                                   {instructionText}
                                 </Text>
                               </View>
                             ) : null}
                           </View>
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
                           <AnimatedTouchable
                             style={styles.setReminderBtn}
                             onPress={() => {
@@ -1816,9 +1817,25 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                               navigation.navigate('MedicineReminderScreen', { autoFill: parsed });
                             }}
                           >
-                            <Ionicons name="alarm" size={13} color="#0891B2" />
+                            <Ionicons name="alarm" size={13} color="#0284C7" />
                             <Text style={styles.setReminderBtnText}>Nhắc Uống</Text>
                           </AnimatedTouchable>
+                          <AnimatedTouchable
+                            style={[styles.setReminderBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
+                            onPress={() => {
+                              navigation.navigate('ProductReviewScreen', {
+                                order: ord,
+                                medicine: it,
+                                orderId: ord.id || (ord as any)._id,
+                                orderCode: ord.orderCode,
+                                medicineId: it.medicineId || (it as any).id || (it as any)._id,
+                              });
+                            }}
+                          >
+                            <Ionicons name="star" size={12} color="#D97706" />
+                            <Text style={[styles.setReminderBtnText, { color: '#B45309' }]}>Review</Text>
+                          </AnimatedTouchable>
+                          </View>
                         </View>
                       );
                     })}
@@ -1939,6 +1956,24 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             </Text>
           </View>
 
+          <View style={{ marginVertical: 8, alignItems: 'flex-start' }}>
+            <AnimatedTouchable
+              style={[styles.qrOrderBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
+              onPress={() => {
+                const med = selectedMedDetail;
+                setSelectedMedDetail(null);
+                navigation.navigate('ProductReviewScreen', {
+                  medicine: med,
+                  medicineId: med?.id || (med as any)?._id,
+                });
+              }}
+            >
+              <Ionicons name="star" size={14} color="#D97706" />
+              <Text style={[styles.qrOrderBtnText, { color: '#B45309', fontWeight: '700' }]}>
+                Xem & Viết Đánh Giá Thuốc
+              </Text>
+            </AnimatedTouchable>
+          </View>
           <View style={styles.modalSection}>
             <Text style={styles.secTitle}>Tác dụng phụ:</Text>
             <Text style={styles.secText}>
@@ -4078,9 +4113,9 @@ const styles = StyleSheet.create({
   setReminderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -4089,23 +4124,23 @@ const styles = StyleSheet.create({
   setReminderBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0891B2',
+    color: '#0284C7',
   },
   instructionBadgeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     marginTop: 4,
     gap: 4,
     borderWidth: 0.5,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
   },
   instructionBadgeText: {
     fontSize: 11,
-    color: '#0E7490',
+    color: '#0369A1',
     fontWeight: '600',
     flex: 1,
   },
