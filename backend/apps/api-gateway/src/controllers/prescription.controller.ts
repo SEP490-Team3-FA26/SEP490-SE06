@@ -53,6 +53,19 @@ export class PrescriptionController implements OnModuleInit {
     return configured || "http://localhost:8000";
   }
 
+  private getInternalHeaders(includeJsonContentType = true): Record<string, string> {
+    const headers: Record<string, string> = {
+      "X-Internal-Token":
+        process.env.INTERNAL_SERVICE_TOKEN ||
+        process.env.JWT_SECRET ||
+        "wdp301-super-secret-key-change-in-production",
+    };
+    if (includeJsonContentType) {
+      headers["Content-Type"] = "application/json";
+    }
+    return headers;
+  }
+
   @Post("scan-ai")
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FilesInterceptor("images", 5))
@@ -85,11 +98,7 @@ export class PrescriptionController implements OnModuleInit {
         `${aiServiceHost}/api/ai/scan-prescription-v2`,
         {
           method: "POST",
-          headers: {
-            "X-Internal-Token":
-              process.env.JWT_SECRET ||
-              "wdp301-super-secret-key-change-in-production",
-          },
+          headers: this.getInternalHeaders(false),
           body: formData,
           signal: controller.signal,
         },
@@ -98,11 +107,7 @@ export class PrescriptionController implements OnModuleInit {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/ai/scan-prescription-v2`, {
           method: "POST",
-          headers: {
-            "X-Internal-Token":
-              process.env.JWT_SECRET ||
-              "wdp301-super-secret-key-change-in-production",
-          },
+          headers: this.getInternalHeaders(false),
           body: formData,
           signal: controller.signal,
         });
@@ -159,22 +164,14 @@ export class PrescriptionController implements OnModuleInit {
         `${aiServiceHost}/api/ai/scan-prescription`,
         {
           method: "POST",
-          headers: {
-            "X-Internal-Token":
-              process.env.JWT_SECRET ||
-              "wdp301-super-secret-key-change-in-production",
-          },
+          headers: this.getInternalHeaders(false),
           body: formData,
         },
       ).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/ai/scan-prescription`, {
           method: "POST",
-          headers: {
-            "X-Internal-Token":
-              process.env.JWT_SECRET ||
-              "wdp301-super-secret-key-change-in-production",
-          },
+          headers: this.getInternalHeaders(false),
           body: formData,
         });
       });
@@ -210,9 +207,12 @@ export class PrescriptionController implements OnModuleInit {
       const aiServiceHost = this.getAiServiceHost();
       const response = await fetch(
         `${aiServiceHost}/api/ai/sample-prescriptions`,
+        { headers: this.getInternalHeaders(false) },
       ).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
-        return await fetch(`${aiUrl}/api/ai/sample-prescriptions`);
+        return await fetch(`${aiUrl}/api/ai/sample-prescriptions`, {
+          headers: this.getInternalHeaders(false),
+        });
       });
       if (!response.ok) {
         return { success: true, samples: [] };
@@ -238,24 +238,14 @@ export class PrescriptionController implements OnModuleInit {
         `${aiServiceHost}/api/ai/scan-sample-prescription`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Token":
-              process.env.JWT_SECRET ||
-              "wdp301-super-secret-key-change-in-production",
-          },
+          headers: this.getInternalHeaders(true),
           body: JSON.stringify({ filename }),
         },
       ).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/ai/scan-sample-prescription`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Token":
-              process.env.JWT_SECRET ||
-              "wdp301-super-secret-key-change-in-production",
-          },
+          headers: this.getInternalHeaders(true),
           body: JSON.stringify({ filename }),
         });
       });
@@ -325,22 +315,14 @@ export class PrescriptionController implements OnModuleInit {
       const aiServiceHost = this.getAiServiceHost();
       const response = await fetch(`${aiServiceHost}/api/prescription`, {
         method: "POST",
-        headers: {
-          "X-Internal-Token":
-            process.env.JWT_SECRET ||
-            "wdp301-super-secret-key-change-in-production",
-        },
+        headers: this.getInternalHeaders(false),
         body: formData,
         signal: controller.signal,
       }).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/prescription`, {
           method: "POST",
-          headers: {
-            "X-Internal-Token":
-              process.env.JWT_SECRET ||
-              "wdp301-super-secret-key-change-in-production",
-          },
+          headers: this.getInternalHeaders(false),
           body: formData,
           signal: controller.signal,
         });
@@ -390,11 +372,7 @@ export class PrescriptionController implements OnModuleInit {
       const aiServiceHost = this.getAiServiceHost();
       const response = await fetch(`${aiServiceHost}/api/ai/transcribe`, {
         method: "POST",
-        headers: {
-          "X-Internal-Token":
-            process.env.JWT_SECRET ||
-            "wdp301-super-secret-key-change-in-production",
-        },
+        headers: this.getInternalHeaders(false),
         body: formData,
       });
 
@@ -435,17 +413,13 @@ export class PrescriptionController implements OnModuleInit {
       const aiServiceHost = this.getAiServiceHost();
       const response = await fetch(`${aiServiceHost}/api/ai/symptom-consult`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: this.getInternalHeaders(true),
         body: JSON.stringify(payload),
       }).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/ai/symptom-consult`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: this.getInternalHeaders(true),
           body: JSON.stringify(payload),
         });
       });
@@ -514,17 +488,13 @@ export class PrescriptionController implements OnModuleInit {
       const aiServiceHost = this.getAiServiceHost();
       const response = await fetch(`${aiServiceHost}/api/ai/chat`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: this.getInternalHeaders(true),
         body: JSON.stringify(sanitizedPayload),
       }).catch(async () => {
         const aiUrl = process.env.AI_SERVICE_URL || "http://ai-service:8000";
         return await fetch(`${aiUrl}/api/ai/chat`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: this.getInternalHeaders(true),
           body: JSON.stringify(sanitizedPayload),
         });
       });
@@ -558,7 +528,9 @@ export class PrescriptionController implements OnModuleInit {
         return { success: true, sessions: [] };
       }
       const aiServiceHost = this.getAiServiceHost();
-      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions?user_id=${userId}`);
+      const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions?user_id=${userId}`, {
+        headers: this.getInternalHeaders(false),
+      });
       if (!response.ok) {
         return { success: true, sessions: [] };
       }
@@ -588,7 +560,7 @@ export class PrescriptionController implements OnModuleInit {
 
       const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getInternalHeaders(true),
         body: JSON.stringify(payload),
       });
 
@@ -613,6 +585,7 @@ export class PrescriptionController implements OnModuleInit {
       const aiServiceHost = this.getAiServiceHost();
       const response = await fetch(`${aiServiceHost}/api/ai/chat/sessions/${sessionId}?user_id=${userId}`, {
         method: "DELETE",
+        headers: this.getInternalHeaders(false),
       });
       if (!response.ok) {
         return { success: false };

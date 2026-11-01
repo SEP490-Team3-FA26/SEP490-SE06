@@ -14,6 +14,8 @@ export interface ChatDrugItem {
   category?: string;
   image?: string;
   drug_classification?: string;
+  is_prescription?: boolean;
+  prescription_status?: number;
   is_supplement?: boolean;
   in_stock: boolean;
 }
@@ -146,7 +148,7 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
 
         {drug.in_stock && drug.medicine_id ? (
           isRx ? (
-            <span 
+            <span
               className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg flex items-center gap-1 cursor-default shrink-0 opacity-90"
               title="Thuốc kê đơn (Rx) - Theo quy định Bộ Y Tế, chỉ bán trực tiếp tại quầy theo đơn bác sĩ"
             >
@@ -172,11 +174,10 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
                 onClick={handleAdd}
                 disabled={isAdding}
                 aria-label={`Thêm ${drug.name} vào giỏ hàng`}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
-                  isAdded
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${isAdded
                     ? "bg-emerald-500 text-white"
                     : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
-                }`}
+                  }`}
               >
                 {isAdded ? (
                   <>

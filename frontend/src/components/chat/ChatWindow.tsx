@@ -28,6 +28,7 @@ import { QuickReplies } from "./QuickReplies";
 import { ChatDrugItem } from "./DrugCard";
 import { prescriptionService } from "../../services/sales/prescription.service";
 import { cartService } from "../../services/sales/cart.service";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { useChatPayOSCheckout } from "../../hooks/useChatPayOSCheckout";
 import { notifyAuthLoginRequired, AUTH_TOKEN_CHANGED_EVENT } from "../../utils/authEvents";
 import { DoveFigure } from "../mascot/DoveFigure";
@@ -379,9 +380,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  // Add single drug to cart for both guests and authenticated users
+  // Add single drug to cart for both guests and authenticated users (Chặn cứng thuốc kê đơn Rx)
   const addToCartItem = async (drug: ChatDrugItem): Promise<boolean> => {
-    if (!drug.medicine_id || !drug.in_stock) return false;
+    if (!drug.medicine_id || !drug.in_stock || isPrescriptionMedicine(drug)) return false;
     try {
       const token = localStorage.getItem("token");
       if (!token) {
@@ -444,7 +445,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     try {
       let count = 0;
       for (const d of drugs) {
-        if (d.in_stock && d.medicine_id) {
+        if (d.in_stock && d.medicine_id && !isPrescriptionMedicine(d)) {
           const ok = await addToCartItem(d);
           if (ok) count++;
         }
