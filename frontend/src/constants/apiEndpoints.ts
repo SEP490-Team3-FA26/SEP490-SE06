@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
     WISHLIST_CLEAR: '/api/users/wishlist/clear',
     AUDIT_LOGS: '/api/users/audit-logs',
     CLINICAL_SAFETY: (phone: string) => `/api/users/clinical-safety/${encodeURIComponent(phone)}`,
+    CLINICAL_SAFETY_ME: '/api/users/clinical-safety/me',
     RFM_OVERVIEW: '/api/users/rfm/overview',
     RFM_CUSTOMER: (phone: string) => `/api/users/rfm/customer/${encodeURIComponent(phone)}`,
     RFM_AT_RISK: '/api/users/rfm/at-risk',
@@ -231,6 +232,7 @@ export const API_ENDPOINTS = {
     CHAT_SESSIONS: '/api/prescriptions/chat/sessions',
     CHAT_SESSION_DETAIL: (id: string) => `/api/prescriptions/chat/sessions/${encodeURIComponent(id)}`,
     CHAT_SESSION_DELETE: (id: string) => `/api/prescriptions/chat/sessions/${encodeURIComponent(id)}`,
+    ALLERGY_CHECK: '/api/prescriptions/allergy-check',
   },
 
   // 🤖 AI & Clinical

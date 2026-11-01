@@ -486,6 +486,56 @@ export class ApiService {
     return null;
   }
 
+  // --- HỒ SƠ SỨC KHỎE SỐ & BỆNH ÁN ĐIỆN TỬ (UC-106 & UC-107) ---
+  /**
+   * Lấy chi tiết hồ sơ bệnh án, tiền sử dị ứng & bệnh nền của người dùng hiện tại
+   */
+  public static async getMyClinicalSafety(): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/clinical-safety/me`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Lỗi khi lấy hồ sơ bệnh án:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Cập nhật hồ sơ bệnh án, hoàn tất onboarding khai báo sức khỏe ban đầu
+   */
+  public static async updateMyClinicalSafety(payload: {
+    allergies?: string[];
+    allergicMedicines?: string[];
+    allergicIngredients?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    medicalNotes?: string;
+    hasCompletedHealthOnboarding?: boolean;
+  }): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/clinical-safety/me`, {
+        method: 'PUT',
+        headers: {
+          ...this.authHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Lỗi khi cập nhật hồ sơ bệnh án:', e);
+    }
+    return null;
+  }
+
   // --- MEDICINES & INVENTORY APIS (Strictly from Database & Backend) ---
   public static async getMedicines(params?: {
     page?: number;

@@ -15,6 +15,8 @@ import { reconciliationService } from "../../../services/sales/reconciliation.se
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import CustomerClinicalModal from "./CustomerClinicalModal";
+import { customerService, AllergyCheckResult } from "../../../services/sales/customer.service";
 import {
   buildRetailDosageInstruction,
   buildUnitOptions,
@@ -137,6 +139,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
 
+  // UC-107: Quản lý hồ sơ bệnh án & Cảnh báo tương kỵ dị ứng
+  const [isClinicalModalOpen, setIsClinicalModalOpen] = useState(false);
+  const [allergyCheckResult, setAllergyCheckResult] = useState<AllergyCheckResult | null>(null);
+  const [isCheckingAllergy, setIsCheckingAllergy] = useState(false);
+
   // Emergency Manual Override States (POS Fallback)
   const [showEmergencyOverrideModal, setShowEmergencyOverrideModal] = useState(false);
   const [bankTransactionId, setBankTransactionId] = useState("");
@@ -205,7 +212,49 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setRedeemedPoints(0);
     setPatientEmail("");
     clearCustomerSegment();
+    setAllergyCheckResult(null);
   };
+
+  // UC-107: Tự động kiểm tra chéo tiền sử dị ứng, hoạt chất & bệnh nền lâm sàng với giỏ hàng
+  useEffect(() => {
+    if (!loyaltyInfo || cart.length === 0) {
+      setAllergyCheckResult(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsCheckingAllergy(true);
+        const cartItemsPayload = cart.map((item) => ({
+          name: item.name || "",
+          active_ingredient: item.active_ingredient || "",
+          category: item.category || "",
+        }));
+
+        const result = await customerService.checkCartAllergyContraindications({
+          customerProfile: {
+            phone: loyaltyInfo.phone,
+            fullName: loyaltyInfo.fullName,
+            allergies: loyaltyInfo.allergies || [],
+            allergicMedicines: loyaltyInfo.allergicMedicines || [],
+            allergicIngredients: loyaltyInfo.allergicIngredients || [],
+            chronicConditions: loyaltyInfo.chronicConditions || [],
+            bloodType: loyaltyInfo.bloodType || "",
+            medicalNotes: loyaltyInfo.medicalNotes || "",
+          },
+          cartItems: cartItemsPayload,
+        });
+
+        setAllergyCheckResult(result);
+      } catch (err) {
+        console.error("Lỗi khi kiểm tra dị ứng đơn hàng:", err);
+      } finally {
+        setIsCheckingAllergy(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [cart, loyaltyInfo]);
 
   const finalizeSalesOrder = async (payload: any) => {
     if (isShiftActive === false) {
@@ -840,6 +889,50 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setLastScannedCode(cleanBarcode);
     setIsBarcodeLoading(true);
 
+    // ==========================================
+    // NHẬN DIỆN MÃ QR SỔ SỨC KHỎE SỐ (DIGITAL HEALTH PASSPORT)
+    // ==========================================
+    try {
+      let detectedPhone = '';
+      let detectedName = '';
+
+      if (cleanBarcode.startsWith('{') && cleanBarcode.includes('HEALTH_PASSPORT')) {
+        const passportData = JSON.parse(cleanBarcode);
+        detectedPhone = passportData.phone || '';
+        detectedName = passportData.name || '';
+      } else if (cleanBarcode.startsWith('MED:')) {
+        detectedPhone = cleanBarcode.replace('MED:', '').trim();
+      }
+
+      if (detectedPhone) {
+        setCustomerPhone(detectedPhone);
+        setIsSearchingCustomer(true);
+        setLoyaltyInfo(null);
+        setUsePoints(false);
+        setRedeemedPoints(0);
+
+        const [loyaltyRes] = await Promise.all([
+          api.get(`/api/users/loyalty/lookup?phone=${encodeURIComponent(detectedPhone)}`),
+          lookupCustomerSegment(detectedPhone),
+        ]);
+
+        if (loyaltyRes.data && !loyaltyRes.data.error) {
+          setLoyaltyInfo(loyaltyRes.data);
+          if (loyaltyRes.data.email) {
+            setPatientEmail(loyaltyRes.data.email);
+          }
+          showToast(`✅ Đã nạp Sổ Sức Khỏe Số của khách hàng: ${loyaltyRes.data.fullName || detectedName || detectedPhone}!`, "success");
+        } else {
+          showToast(`⚠️ Không tìm thấy thông tin khách hàng với mã/SĐT: ${detectedPhone}`, "warning");
+        }
+        setIsSearchingCustomer(false);
+        setIsBarcodeLoading(false);
+        return;
+      }
+    } catch (qrErr) {
+      // Không phải định dạng JSON QR -> Tiếp tục tra cứu mã vạch dược phẩm bình thường
+    }
+
     try {
       const { branchId } = getBranchInfoFromToken();
       const res = await medicineService.getByBarcode(cleanBarcode, branchId || '');
@@ -1075,6 +1168,69 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setSearchQuery("");
     setSearchResults([]);
     setShowAlternativesModal(false);
+  };
+
+  // UC-107: 1-Click đổi thuốc trong giỏ sang thuốc thay thế an toàn không dị ứng / không chống chỉ định
+  const handleSwapSafeAlternative = async (conflictedMedicineName: string, alternativeMedicineName: string) => {
+    // 1. Loại bỏ thuốc xung đột khỏi giỏ hàng
+    const updatedCart = cart.filter(
+      (it) => !it.name.toLowerCase().includes(conflictedMedicineName.toLowerCase())
+    );
+
+    try {
+      // 2. Tra cứu kho dược phẩm xem có sẵn thuốc thay thế không
+      const searchRes = await medicineService.getMedicines({ search: alternativeMedicineName, limit: 1 });
+      const altMed = (searchRes?.data && searchRes.data.length > 0) ? searchRes.data[0] : null;
+
+      if (altMed) {
+        const unitOptions = buildUnitOptions(altMed);
+        const defaultUnit = getDefaultUnitOption(altMed);
+        const baseUnit = altMed.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
+        const dosePerTime = 1;
+        const timesPerDay = 2;
+        const durationDays = 7;
+        const dailyDose = dosePerTime * timesPerDay;
+        const qty = calculateRetailQuantity({
+          unit: defaultUnit,
+          dailyDose,
+          durationDays,
+        });
+        const dosageInstructions = buildRetailDosageInstruction({
+          unitName: defaultUnit.unitName,
+          dosageForm: altMed.dosage_form,
+          dosePerTime,
+          timesPerDay,
+          durationDays,
+          baseUnitName: baseUnit,
+        });
+
+        const newMedItem = {
+          ...altMed,
+          id: altMed.id || altMed._id,
+          baseUnit: baseUnit,
+          unitOptions,
+          selectedUnit: defaultUnit.unitName,
+          unit: defaultUnit.unitName,
+          exchangeValue: getUnitFactor(defaultUnit),
+          price: getUnitPrice(altMed, defaultUnit),
+          quantity: qty,
+          dosePerTime,
+          timesPerDay,
+          durationDays,
+          dailyDose,
+          dosageInstructions,
+        };
+
+        setCart([...updatedCart, newMedItem]);
+        showToast(`Đã đổi từ "${conflictedMedicineName}" sang thuốc an toàn "${altMed.name}"!`, "success");
+      } else {
+        setCart(updatedCart);
+        showToast(`Đã gỡ thuốc "${conflictedMedicineName}" khỏi đơn. Chưa tìm thấy tồn kho cho "${alternativeMedicineName}", vui lòng tìm thuốc tương đương.`, "warning");
+      }
+    } catch (err) {
+      setCart(updatedCart);
+      showToast(`Đã gỡ "${conflictedMedicineName}" khỏi giỏ hàng.`, "info");
+    }
   };
 
   const handleUnitChange = (medId: string, unitName: string) => {
@@ -1997,6 +2153,78 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-4 space-y-4">
+            {/* UC-107: CẢNH BÁO TƯƠNG KỴ & DỊ ỨNG BỆNH ÁN LÂM SÀNG */}
+            {loyaltyInfo && cart.length > 0 && (
+              <div className="mb-3">
+                {isCheckingAllergy ? (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-700 text-xs font-semibold animate-pulse">
+                    <Loader2 size={16} className="animate-spin text-blue-600" />
+                    <span>Đang kiểm tra chéo tiền sử dị ứng, hoạt chất & bệnh nền lâm sàng (UC-107)...</span>
+                  </div>
+                ) : allergyCheckResult && !allergyCheckResult.safe ? (
+                  <div className="flex flex-col gap-2.5 p-3.5 bg-rose-50/90 border-2 border-rose-300 rounded-xl text-rose-900 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 font-black text-[13px] text-rose-700">
+                        <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+                        <span>CẢNH BÁO LÂM SÀNG (UC-107): PHÁT HIỆN {allergyCheckResult.conflictCount} NGUY CƠ DỊ ỨNG / CHỐNG CHỈ ĐỊNH</span>
+                      </div>
+                      <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-black rounded uppercase">
+                        AI Safety Alert
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      {allergyCheckResult.conflicts.map((conf, idx) => (
+                        <div key={idx} className="bg-white/95 border border-rose-200 rounded-lg p-2.5 space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-slate-800 text-[13px]">
+                              💊 Thuốc trong đơn: <span className="text-rose-600 underline">{conf.medicineName}</span>
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              conf.severity === 'HIGH' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'
+                            }`}>
+                              Mức độ: {conf.severity === 'HIGH' ? 'Nguy hiểm cao' : 'Cảnh báo'}
+                            </span>
+                          </div>
+                          <p className="text-rose-800 font-medium">
+                            ⚠️ {conf.reason}
+                          </p>
+                          {conf.suggestedAlternatives && conf.suggestedAlternatives.length > 0 && (
+                            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                                <Sparkles size={12} className="text-emerald-600" /> Gợi ý thay thế an toàn:
+                              </span>
+                              {conf.suggestedAlternatives.map((alt, aIdx) => (
+                                <button
+                                  key={aIdx}
+                                  type="button"
+                                  onClick={() => handleSwapSafeAlternative(conf.medicineName, alt)}
+                                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95"
+                                  title={`Đổi ${conf.medicineName} sang ${alt}`}
+                                >
+                                  🔄 1-Click Đổi sang <b>{alt}</b>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : allergyCheckResult && allergyCheckResult.safe ? (
+                  <div className="flex items-center justify-between p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+                      <span>An toàn lâm sàng (UC-107): Không phát hiện dị ứng hoặc bệnh nền chống chỉ định cho <b>{loyaltyInfo.fullName}</b>.</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                      Verified
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center min-h-[250px]">
                 <ShoppingCart size={40} className="text-slate-300 mb-3" />
@@ -2380,6 +2608,31 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   )}
                 </div>
               )}
+
+              {/* UC-107: Hồ sơ Y Khoa & Dị Ứng Khách Hàng (Dược sĩ xem & sửa tại quầy) */}
+              <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/70 flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                    <ShieldAlert size={16} />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] font-black text-slate-800 truncate">Hồ sơ y khoa & Dị ứng</span>
+                    <span className="text-[10px] text-slate-600 truncate">
+                      {((loyaltyInfo.allergies?.length || 0) + (loyaltyInfo.chronicConditions?.length || 0) + (loyaltyInfo.allergicMedicines?.length || 0)) > 0
+                        ? `Có ${loyaltyInfo.allergies?.length || 0} dị ứng, ${loyaltyInfo.chronicConditions?.length || 0} bệnh nền`
+                        : "Chưa ghi nhận tiền sử bệnh/dị ứng"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsClinicalModalOpen(true)}
+                  className="px-2.5 py-1 bg-white hover:bg-blue-100 text-[#0057cd] border border-blue-300 rounded-lg text-[10px] font-black shadow-xs shrink-0 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                >
+                  Xem & Sửa
+                </button>
+              </div>
+
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email nhận hóa đơn</label>
                 <input
@@ -3287,6 +3540,34 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         onClose={() => setShowAuditModal(false)}
         data={aiPharmacistConfirmation}
       />
+
+      {/* =======================================
+       * 🏥 MODAL HỒ SƠ BỆNH ÁN & DỊ ỨNG KHÁCH HÀNG (UC-107)
+       * ======================================= */}
+      {isClinicalModalOpen && loyaltyInfo && (
+        <CustomerClinicalModal
+          isOpen={isClinicalModalOpen}
+          onClose={() => setIsClinicalModalOpen(false)}
+          customerPhone={loyaltyInfo.phone}
+          customerName={loyaltyInfo.fullName}
+          initialProfile={{
+            allergies: loyaltyInfo.allergies || [],
+            allergicMedicines: loyaltyInfo.allergicMedicines || [],
+            allergicIngredients: loyaltyInfo.allergicIngredients || [],
+            chronicConditions: loyaltyInfo.chronicConditions || [],
+            bloodType: loyaltyInfo.bloodType || '',
+            medicalNotes: loyaltyInfo.medicalNotes || '',
+            hasCompletedHealthOnboarding: loyaltyInfo.hasCompletedHealthOnboarding || false,
+          }}
+          onUpdated={(updatedProfile) => {
+            setLoyaltyInfo((prev: any) => ({
+              ...prev,
+              ...updatedProfile,
+            }));
+            showToast("Đã cập nhật hồ sơ bệnh án khách hàng thành công!", "success");
+          }}
+        />
+      )}
     </div>
   );
 }

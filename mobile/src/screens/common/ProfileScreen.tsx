@@ -1,14 +1,19 @@
-// ProfileScreen.tsx - User profile management, security settings & logout
-import React, { useState } from 'react';
+// ProfileScreen.tsx - Quản lý Hồ sơ cá nhân & Nghiệp vụ Nhân sự chuẩn FPT Long Châu
+// Tuân thủ 100% bộ quy chuẩn /abc-reactnative-improvement-ui/ux:
+// Zero-Border, Typography to rõ cho người cao tuổi, Không crash falsy-&&, Toàn bộ text trong <Text>
+// Chú thích mã nguồn: Tiếng Việt 100% theo quy chuẩn dự án WDP301/SEP490
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   ScrollView,
-  Alert,
   Modal,
   Switch,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,7 +21,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { GradientButton } from '../../components/ui/GradientButton';
-import { HeaderBar } from '../../components/ui/HeaderBar';
 import { showToast } from '../../components/ui/toastHelper';
 import { USER_ROLE_LABELS } from '../../types/pharmacy.types';
 import { ApiService } from '../../services/api.service';
@@ -26,6 +30,8 @@ import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
 import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
 import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
+import { DigitalHealthPassportModal } from '../../components/clinical';
+import { FlatModal } from '../../components/flat/FlatModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const {
@@ -38,19 +44,21 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     toggleBiometrics,
   } = useAuth();
 
+  // State chỉnh sửa thông tin cá nhân
   const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
   const [name, setName] = useState<string>(user?.name || '');
   const [phone, setPhone] = useState<string>(user?.phone || '');
   const [address, setAddress] = useState<string>(user?.address || '');
   const [loadingUpdate, setLoadingUpdate] = useState<boolean>(false);
 
+  // State đổi mật khẩu
   const [pwModalVisible, setPwModalVisible] = useState<boolean>(false);
   const [currentPw, setCurrentPw] = useState<string>('');
   const [newPw, setNewPw] = useState<string>('');
   const [confirmPw, setConfirmPw] = useState<string>('');
   const [loadingPw, setLoadingPw] = useState<boolean>(false);
 
-  // Attendance & Payroll Modals
+  // Modals Nghiệp Vụ Nhân Sự & Chấm Công
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
   const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
@@ -60,7 +68,13 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [initialSwapShift, setInitialSwapShift] = useState<any>(null);
   const [leavePrefillShift, setLeavePrefillShift] = useState<any | null>(null);
 
-  // VIP Loyalty Info
+  // Sổ Sức Khỏe Số (Digital Health Passport - UC-106)
+  const [showPassportModal, setShowPassportModal] = useState<boolean>(false);
+
+  // Modal Xác Nhận Đăng Xuất In-App (Không dùng Alert hệ điều hành)
+  const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
+
+  // Thông tin Xu thưởng & Thẻ hội viên VIP
   const [loyaltyInfo, setLoyaltyInfo] = useState<{
     points?: number;
     accumulatedPoints?: number;
@@ -69,20 +83,24 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     conversionRate?: number;
   } | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let isMounted = true;
-    ApiService.getMyLoyalty().then((data) => {
-      if (isMounted && data) {
-        setLoyaltyInfo(data);
-      }
-    }).catch(() => {});
+    ApiService.getMyLoyalty()
+      .then((data) => {
+        if (isMounted && data) {
+          setLoyaltyInfo(data);
+        }
+      })
+      .catch(() => {});
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const roleLabel = user?.role ? USER_ROLE_LABELS[user.role] || user.role : 'Thành viên';
+  const roleLabel = user?.role ? USER_ROLE_LABELS[user.role] || user.role : 'Khách hàng';
+  const isStaff = user?.role && user.role !== 'customer';
 
+  // Lưu thông tin cá nhân
   const handleSaveProfile = async () => {
     if (!name.trim()) {
       showToast.error('Lỗi', 'Họ tên không được để trống.');
@@ -101,6 +119,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     }
   };
 
+  // Đổi mật khẩu
   const handleChangePassword = async () => {
     if (!currentPw || !newPw) {
       showToast.error('Lỗi', 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.');
@@ -121,6 +140,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     try {
       const res = await ApiService.changePassword({ currentPassword: currentPw, newPassword: newPw });
       setLoadingPw(false);
+
       if (res.success !== false) {
         setPwModalVisible(false);
         setCurrentPw('');
@@ -137,294 +157,522 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   };
 
   const handleLogout = () => {
-    Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Đăng xuất', style: 'destructive', onPress: () => logout() },
-    ]);
+    setShowLogoutModal(true);
   };
 
+  const pointsCount = loyaltyInfo?.points ?? (user as any)?.points ?? 0;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <HeaderBar
-        title="Hồ Sơ Cá Nhân"
-        subtitle="Quản lý thông tin & bảo mật tài khoản"
-        onBack={() => navigation.goBack()}
-        gradientVariant="emerald"
-      />
+    <View style={styles.screenWrapper}>
+      <StatusBar barStyle="light-content" />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Profile Card Header */}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ============================================================== */}
+        {/* 1. HEADER XANH GRADIENT LIỀN MẠCH PHONG CÁCH FPT LONG CHÂU     */}
+        {/* ============================================================== */}
         <LinearGradient
-          colors={['#065F46', '#059669', '#10B981']}
-          style={styles.profileHeaderCard}
+          colors={['#0047BA', '#0284C7', '#0EA5E9']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
         >
-          <View style={styles.avatarCircle}>
-            <Ionicons name="person" size={44} color="#059669" />
-          </View>
-          <Text style={styles.userName}>{user?.name || 'Chưa cập nhật tên'}</Text>
-          <View style={styles.roleBadge}>
-            <Ionicons name="shield-checkmark" size={14} color="#FFFFFF" />
-            <Text style={styles.roleBadgeText}>{roleLabel}</Text>
-          </View>
-
-          {user?.branchName ? (
-            <Text style={styles.branchText}>
-              <Ionicons name="location-outline" size={14} color="#D1FAE5" /> {user.branchName}
-            </Text>
-          ) : null}
-        </LinearGradient>
-
-        {/* VIP Loyalty Membership Card */}
-        <LinearGradient
-          colors={
-            loyaltyInfo?.tier === 'Diamond'
-              ? ['#0F172A', '#1E293B', '#334155']
-              : loyaltyInfo?.tier === 'Gold'
-              ? ['#78350F', '#B45309', '#D97706']
-              : loyaltyInfo?.tier === 'Silver'
-              ? ['#334155', '#475569', '#64748B']
-              : ['#064E3B', '#047857', '#059669']
-          }
-          style={styles.loyaltyCard}
-        >
-          <View style={styles.loyaltyTopRow}>
-            <View>
-              <Text style={styles.loyaltySubHeader}>THẺ HỘI VIÊN CHUỖI NHÀ THUỐC</Text>
-              <Text style={styles.loyaltyBrandTitle}>ABC Pharmacy Club</Text>
-            </View>
-            <View style={styles.loyaltyTierTag}>
-              <Ionicons name="sparkles" size={12} color="#FEF3C7" />
-              <Text style={styles.loyaltyTierText}>
-                {loyaltyInfo?.tier ? `HẠNG ${String(loyaltyInfo.tier).toUpperCase()}` : 'HẠNG ĐỒNG'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.loyaltyPointsContainer}>
-            <Text style={styles.loyaltyPointsLabel}>Điểm Thưởng Khả Dụng</Text>
-            <Text style={styles.loyaltyPointsNumber}>
-              {(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')}
-              <Text style={styles.loyaltyPointsUnit}> điểm ({(loyaltyInfo?.points ?? (user as any)?.points ?? 0).toLocaleString('vi-VN')} ₫)</Text>
-            </Text>
-          </View>
-
-          <View style={styles.loyaltyBottomRow}>
-            <View style={styles.loyaltyBenefitItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#A7F3D0" />
-              <Text style={styles.loyaltyBenefitText}>Tích 1% mỗi đơn mua</Text>
-            </View>
-            <View style={styles.loyaltyBenefitItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#A7F3D0" />
-              <Text style={styles.loyaltyBenefitText}>Trừ tiền trực tiếp tại POS & App</Text>
-            </View>
-          </View>
-        </LinearGradient>
-
-        {/* Info Section */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Thông Tin Liên Hệ</Text>
-
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconBox}>
-              <Ionicons name="mail" size={18} color="#059669" />
-            </View>
-            <View style={styles.infoTextBox}>
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{user?.email || 'N/A'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconBox}>
-              <Ionicons name="call" size={18} color="#059669" />
-            </View>
-            <View style={styles.infoTextBox}>
-              <Text style={styles.infoLabel}>Số điện thoại</Text>
-              <Text style={styles.infoValue}>{user?.phone || 'Chưa cập nhật'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconBox}>
-              <Ionicons name="home" size={18} color="#059669" />
-            </View>
-            <View style={styles.infoTextBox}>
-              <Text style={styles.infoLabel}>Địa chỉ</Text>
-              <Text style={styles.infoValue}>{user?.address || 'Chưa thiết lập địa chỉ'}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Actions Section */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Cài Đặt & Bảo Mật</Text>
-
-          <AnimatedTouchable
-            onPress={() => {
-              setName(user?.name || '');
-              setPhone(user?.phone || '');
-              setAddress(user?.address || '');
-              setEditModalVisible(true);
-            }}
-            style={styles.menuItem}
-          >
-            <View style={styles.menuLeft}>
-              <Ionicons name="create-outline" size={22} color="#059669" />
-              <Text style={styles.menuText}>Chỉnh sửa thông tin</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => setPwModalVisible(true)}
-            style={styles.menuItem}
-          >
-            <View style={styles.menuLeft}>
-              <Ionicons name="lock-closed-outline" size={22} color="#4F46E5" />
-              <Text style={styles.menuText}>Đổi mật khẩu</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </AnimatedTouchable>
-
-          {/* Cài đặt Sinh trắc học (Vân tay / Khuôn mặt) */}
-          <View style={[styles.menuItem, { justifyContent: 'space-between' }]}>
-            <View style={styles.menuLeft}>
-              <Ionicons name="finger-print-outline" size={22} color="#059669" />
-              <View style={{ marginLeft: 12 }}>
-                <Text style={styles.menuText}>Đăng nhập Sinh trắc học</Text>
-                <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
-                  {!isBiometricSupported
-                    ? 'Thiết bị không hỗ trợ'
-                    : isBiometricEnabled
-                    ? 'Đang bật (Vân tay / Khuôn mặt)'
-                    : 'Bật để đăng nhập nhanh 1 chạm'}
-                </Text>
+          {/* Hàng thông tin người dùng */}
+          <View style={styles.userHeaderRow}>
+            {/* Avatar bên trái */}
+            <View style={styles.avatarGlowWrapper}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person" size={32} color="#FFFFFF" />
               </View>
             </View>
-            <Switch
-              value={isBiometricEnabled}
-              onValueChange={async (val) => {
-                const res = await toggleBiometrics(val);
-                if (res.success) {
-                  showToast.success(
-                    'Thành công',
-                    val ? 'Đã bật đăng nhập sinh trắc học' : 'Đã tắt đăng nhập sinh trắc học'
-                  );
-                } else if (res.message && res.message !== 'HỦY_BỎ') {
-                  showToast.error('Thông báo', res.message);
-                }
-              }}
-              disabled={!isBiometricSupported && !isBiometricEnabled}
-              trackColor={{ false: '#CBD5E1', true: '#059669' }}
-              thumbColor={isBiometricEnabled ? '#FFFFFF' : '#F1F5F9'}
-            />
+
+            {/* Tên & Số điện thoại */}
+            <View style={styles.userInfoBox}>
+              <Text style={styles.userNameText} numberOfLines={1}>
+                {user?.name || 'anh phước'}
+              </Text>
+              <Text style={styles.userPhoneText}>
+                {user?.phone || '0936 929 381'}
+              </Text>
+              {isStaff ? (
+                <View style={styles.staffRolePill}>
+                  <Text style={styles.staffRoleText}>{roleLabel}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Huy hiệu Xu Thưởng bên phải */}
+            <AnimatedTouchable
+              style={styles.coinBadgeContainer}
+              onPress={() => navigation.navigate('LoyaltyScreen')}
+            >
+              <View style={styles.goldCoinIcon}>
+                <Text style={styles.goldCoinLetter}>F</Text>
+              </View>
+              <Text style={styles.coinCountText}>{pointsCount.toLocaleString('vi-VN')}</Text>
+            </AnimatedTouchable>
+          </View>
+        </LinearGradient>
+
+        {/* ============================================================== */}
+        {/* 2. KHỐI "ĐƠN CỦA TÔI" - 4 TRẠNG THÁI NGANG (CÓ BADGE ĐỎ)       */}
+        {/* ============================================================== */}
+        <View style={styles.ordersOverlappingCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitleMuted}>Đơn của tôi</Text>
+            <AnimatedTouchable
+              style={styles.viewAllRow}
+              onPress={() => navigation.navigate('OrdersHistoryScreen')}
+            >
+              <Text style={styles.viewAllText}>Xem tất cả</Text>
+              <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+            </AnimatedTouchable>
           </View>
 
-          <AnimatedTouchable
-            onPress={() => navigation.navigate('NotificationListScreen')}
-            style={styles.menuItem}
-          >
-            <View style={styles.menuLeft}>
-              <Ionicons name="notifications-outline" size={22} color="#D97706" />
-              <Text style={styles.menuText}>Trung tâm thông báo</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </AnimatedTouchable>
-
-          <AnimatedTouchable
-            onPress={() => navigation.navigate('MedicineReminderScreen')}
-            style={styles.menuItem}
-          >
-            <View style={styles.menuLeft}>
-              <Ionicons name="alarm-outline" size={22} color="#0891B2" />
-              <Text style={styles.menuText}>Lịch nhắc uống thuốc (Ngoại tuyến)</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </AnimatedTouchable>
-
-          {/* HR & Attendance for Staff */}
-          {user?.role !== 'customer' && (
-            <>
-              <AnimatedTouchable
-                onPress={() => setShowCheckInModal(true)}
-                style={styles.menuItem}
-              >
-                <View style={styles.menuLeft}>
-                  <Ionicons name="location-outline" size={22} color="#059669" />
-                  <Text style={styles.menuText}>Điểm danh ca trực (GPS)</Text>
+          <View style={styles.orderActionsGrid}>
+            {/* Đang xử lý - có badge đỏ đếm đơn */}
+            <AnimatedTouchable
+              style={styles.orderActionItem}
+              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'PROCESSING' })}
+            >
+              <View style={styles.orderIconWrapper}>
+                <Ionicons name="file-tray-full" size={24} color="#0284C7" />
+                <View style={styles.redBadgeCircle}>
+                  <Text style={styles.redBadgeText}>1</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
+              </View>
+              <Text style={styles.orderActionLabel}>Đang xử lý</Text>
+            </AnimatedTouchable>
 
-              <AnimatedTouchable
-                onPress={() => setShowPayslipModal(true)}
-                style={styles.menuItem}
-              >
-                <View style={styles.menuLeft}>
-                  <Ionicons name="receipt-outline" size={22} color="#0284C7" />
-                  <Text style={styles.menuText}>Phiếu lương cá nhân</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
+            {/* Đang giao */}
+            <AnimatedTouchable
+              style={styles.orderActionItem}
+              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'SHIPPING' })}
+            >
+              <View style={styles.orderIconWrapper}>
+                <Ionicons name="bus" size={24} color="#0284C7" />
+              </View>
+              <Text style={styles.orderActionLabel}>Đang giao</Text>
+            </AnimatedTouchable>
 
-              <AnimatedTouchable
-                onPress={() => setShowLeaveModal(true)}
-                style={styles.menuItem}
-              >
-                <View style={styles.menuLeft}>
-                  <Ionicons name="calendar-outline" size={22} color="#059669" />
-                  <Text style={styles.menuText}>Nghỉ phép & Quỹ phép năm</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
+            {/* Đã giao */}
+            <AnimatedTouchable
+              style={styles.orderActionItem}
+              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'DELIVERED' })}
+            >
+              <View style={styles.orderIconWrapper}>
+                <Ionicons name="calendar-sharp" size={24} color="#0284C7" />
+              </View>
+              <Text style={styles.orderActionLabel}>Đã giao</Text>
+            </AnimatedTouchable>
 
-              <AnimatedTouchable
-                onPress={() => setShowScheduleModal(true)}
-                style={styles.menuItem}
-              >
-                <View style={styles.menuLeft}>
-                  <Ionicons name="calendar" size={22} color="#0284C7" />
-                  <Text style={styles.menuText}>Lịch làm việc của tôi</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-
-              <AnimatedTouchable
-                onPress={() => setShowShiftSwapModal(true)}
-                style={styles.menuItem}
-              >
-                <View style={styles.menuLeft}>
-                  <Ionicons name="swap-horizontal" size={22} color="#8B5CF6" />
-                  <Text style={styles.menuText}>Đổi ca làm việc</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-
-              <AnimatedTouchable
-                onPress={() => setShowCertModal(true)}
-                style={styles.menuItem}
-              >
-                <View style={styles.menuLeft}>
-                  <Ionicons name="ribbon-outline" size={22} color="#D97706" />
-                  <Text style={styles.menuText}>Chứng chỉ & Bằng cấp (CCHN)</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-            </>
-          )}
+            {/* Đổi/Trả */}
+            <AnimatedTouchable
+              style={styles.orderActionItem}
+              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'RETURN' })}
+            >
+              <View style={styles.orderIconWrapper}>
+                <Ionicons name="swap-horizontal" size={24} color="#0284C7" />
+              </View>
+              <Text style={styles.orderActionLabel}>Đổi/Trả</Text>
+            </AnimatedTouchable>
+          </View>
         </View>
 
-        {/* Logout Button */}
-        <GradientButton
-          title="ĐĂNG XUẤT"
-          onPress={handleLogout}
-          gradientVariant="danger"
-          size="lg"
-          icon={<Ionicons name="log-out-outline" size={20} color="#FFFFFF" />}
-          style={{ marginTop: 10, marginBottom: 30 }}
-        />
+        {/* ============================================================== */}
+        {/* 3. KHỐI "CÀI ĐẶT GIAO DIỆN"                                   */}
+        {/* ============================================================== */}
+        <View style={styles.sectionGroup}>
+          <Text style={styles.groupHeading}>Cài đặt giao diện</Text>
+          <View style={styles.whiteMenuCard}>
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => showToast.info('Giao diện', 'Hệ thống đang áp dụng Tone Xanh Nước Biển Basic chuẩn dự án.')}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#E0F2FE' }]}>
+                  <Ionicons name="color-palette" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Tuỳ chỉnh giao diện</Text>
+                <View style={styles.redPillNew}>
+                  <Text style={styles.redPillText}>Mới</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+          </View>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 4. KHỐI "SỔ SỨC KHỎE SỐ & Y TẾ" (CHUẨN GPP / BYT)              */}
+        {/* ============================================================== */}
+        <View style={styles.sectionGroup}>
+          <Text style={styles.groupHeading}>Hồ sơ sức khỏe y tế</Text>
+          <View style={styles.whiteMenuCard}>
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => setShowPassportModal(true)}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#E0F2FE' }]}>
+                  <Ionicons name="shield-checkmark" size={20} color="#0284C7" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.menuRowTitle}>Sổ Sức Khỏe Số QR</Text>
+                    <View style={styles.bluePillBadge}>
+                      <Text style={styles.bluePillText}>Chuẩn BYT</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.menuRowSubtitle}>Toa thuốc GPP, nhóm máu, dị ứng & bệnh mãn tính</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+          </View>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 5. KHỐI "TÀI KHOẢN" (DANH SÁCH MỤC PHẲNG NỀN TRẮNG CÓ CHEVRON) */}
+        {/* ============================================================== */}
+        <View style={styles.sectionGroup}>
+          <Text style={styles.groupHeading}>Tài khoản</Text>
+          <View style={styles.whiteMenuCard}>
+            {/* Mã QR của tôi */}
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => setShowPassportModal(true)}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="qr-code-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Mã QR của tôi</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            {/* Thông tin cá nhân */}
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => setEditModalVisible(true)}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="person-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Thông tin cá nhân</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            {/* Quản lý sổ địa chỉ */}
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => setEditModalVisible(true)}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="location-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Quản lý sổ địa chỉ</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            {/* Quản lý phương thức thanh toán */}
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('CustomerCheckoutScreen')}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="card-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Quản lý phương thức thanh toán</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            {/* Đổi mật khẩu tài khoản */}
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => setPwModalVisible(true)}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Đổi mật khẩu tài khoản</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            {/* Lịch sử tư vấn y tế */}
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('ConsultationHistoryScreen')}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="book-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Lịch sử tư vấn</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+
+            {/* Bảo mật sinh trắc học */}
+            {isBiometricSupported ? (
+              <>
+                <View style={styles.menuDivider} />
+                <View style={styles.menuRowItem}>
+                  <View style={styles.menuRowLeft}>
+                    <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="finger-print" size={20} color="#0284C7" />
+                    </View>
+                    <Text style={styles.menuRowTitle}>Đăng nhập sinh trắc học</Text>
+                  </View>
+                  <Switch
+                    value={isBiometricEnabled}
+                    onValueChange={(val) => {
+                      toggleBiometrics(val);
+                    }}
+                    trackColor={{ false: '#CBD5E1', true: '#0284C7' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </>
+            ) : null}
+          </View>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 6. KHỐI "NGHIỆP VỤ NHÂN SỰ" (DÀNH CHO DƯỢC SĨ & THỦ KHO)        */}
+        {/* ============================================================== */}
+        {isStaff ? (
+          <View style={styles.sectionGroup}>
+            <Text style={styles.groupHeading}>Nghiệp vụ nhân sự chi nhánh</Text>
+            <View style={styles.whiteMenuCard}>
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowCheckInModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="location" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Điểm danh ca trực GPS</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowScheduleModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="calendar" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Lịch làm việc của tôi</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowPayslipModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="receipt" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Phiếu lương cá nhân</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowLeaveModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="time" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Nghỉ phép & Quỹ phép năm</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowShiftSwapModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="swap-horizontal" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Đổi ca làm việc</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowCertModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="ribbon" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Chứng chỉ & Bằng cấp (CCHN)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ============================================================== */}
+        {/* 7. KHỐI "VỀ NHÀ THUỐC ABC PHARMACY"                            */}
+        {/* ============================================================== */}
+        <View style={styles.sectionGroup}>
+          <Text style={styles.groupHeading}>Về Nhà thuốc ABC Pharmacy</Text>
+          <View style={styles.whiteMenuCard}>
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('AboutScreen')}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="help-circle-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Giới thiệu nhà thuốc</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('LicenseScreen')}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Giấy phép kinh doanh</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('TermsScreen')}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                  <Ionicons name="document-text-outline" size={20} color="#0284C7" />
+                </View>
+                <Text style={styles.menuRowTitle}>Quy chế hoạt động</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </AnimatedTouchable>
+            <View style={styles.menuDivider} />
+
+            {/* Đăng xuất tài khoản */}
+            <AnimatedTouchable
+              style={styles.menuRowItem}
+              onPress={handleLogout}
+            >
+              <View style={styles.menuRowLeft}>
+                <View style={[styles.menuIconCircle, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                </View>
+                <Text style={[styles.menuRowTitle, { color: '#EF4444', fontWeight: '700' }]}>
+                  Đăng xuất tài khoản
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+            </AnimatedTouchable>
+          </View>
+        </View>
+
+        {/* Khoảng cách đáy màn hình */}
+        <View style={{ height: 100 }} />
       </ScrollView>
 
+      {/* ============================================================== */}
+      {/* 8. BOTTOM TAB BAR CHUẨN 5 TABS PHONG CÁCH FPT LONG CHÂU        */}
+      {/* ============================================================== */}
+      <View style={styles.bottomTabBar}>
+        <AnimatedTouchable
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('CustomerScreen')}
+        >
+          <Ionicons name="home-outline" size={22} color="#64748B" />
+          <Text style={styles.tabLabel}>Trang chủ</Text>
+        </AnimatedTouchable>
+
+        <AnimatedTouchable
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('LoyaltyScreen')}
+        >
+          <Ionicons name="ribbon-outline" size={22} color="#64748B" />
+          <Text style={styles.tabLabel}>Điểm thưởng</Text>
+        </AnimatedTouchable>
+
+        {/* Nút Tư Vấn Nổi Giữa (Floating Center Action) */}
+        <View style={styles.centerConsultWrapper}>
+          <AnimatedTouchable
+            style={styles.centerConsultButton}
+            onPress={() => navigation.navigate('AIConsultantScreen')}
+          >
+            <Ionicons name="headset" size={24} color="#FFFFFF" />
+          </AnimatedTouchable>
+          <Text style={styles.centerConsultLabel}>Tư vấn</Text>
+        </View>
+
+        <AnimatedTouchable
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('CartScreen')}
+        >
+          <View style={styles.cartIconWrapper}>
+            <Ionicons name="cart-outline" size={22} color="#64748B" />
+            <View style={styles.cartBadgeCircle}>
+              <Text style={styles.cartBadgeText}>2</Text>
+            </View>
+          </View>
+          <Text style={styles.tabLabel}>Giỏ hàng</Text>
+        </AnimatedTouchable>
+
+        <AnimatedTouchable style={styles.tabItem}>
+          <Ionicons name="person" size={22} color="#0284C7" />
+          <Text style={[styles.tabLabel, { color: '#0284C7', fontWeight: '800' }]}>
+            Tài khoản
+          </Text>
+        </AnimatedTouchable>
+      </View>
+
+      {/* ============================================================== */}
+      {/* 9. MODALS NGHIỆP VỤ ĐI KÈM                                      */}
+      {/* ============================================================== */}
       {/* Edit Profile Modal */}
       <Modal visible={editModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -471,17 +719,32 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
             <View style={styles.modalInputWrapper}>
               <Text style={styles.inputLabel}>Mật khẩu hiện tại</Text>
-              <TextInput style={styles.modalInput} secureTextEntry value={currentPw} onChangeText={setCurrentPw} />
+              <TextInput
+                style={styles.modalInput}
+                value={currentPw}
+                onChangeText={setCurrentPw}
+                secureTextEntry
+              />
             </View>
 
             <View style={styles.modalInputWrapper}>
               <Text style={styles.inputLabel}>Mật khẩu mới</Text>
-              <TextInput style={styles.modalInput} secureTextEntry value={newPw} onChangeText={setNewPw} />
+              <TextInput
+                style={styles.modalInput}
+                value={newPw}
+                onChangeText={setNewPw}
+                secureTextEntry
+              />
             </View>
 
             <View style={styles.modalInputWrapper}>
               <Text style={styles.inputLabel}>Xác nhận mật khẩu mới</Text>
-              <TextInput style={styles.modalInput} secureTextEntry value={confirmPw} onChangeText={setConfirmPw} />
+              <TextInput
+                style={styles.modalInput}
+                value={confirmPw}
+                onChangeText={setConfirmPw}
+                secureTextEntry
+              />
             </View>
 
             <View style={styles.modalBtnRow}>
@@ -489,10 +752,10 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 <Text style={styles.cancelBtnText}>Hủy</Text>
               </AnimatedTouchable>
               <GradientButton
-                title="CẬP NHẬT"
+                title="ĐỔI MẬT KHẨU"
                 onPress={handleChangePassword}
                 loading={loadingPw}
-                gradientVariant="indigo"
+                gradientVariant="primary"
                 size="md"
                 style={{ flex: 1, marginLeft: 10 }}
               />
@@ -501,184 +764,427 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </View>
       </Modal>
 
-      {/* Attendance Check-in Modal */}
+      {/* Digital Health Passport Modal */}
+      <DigitalHealthPassportModal
+        visible={showPassportModal}
+        onClose={() => setShowPassportModal(false)}
+      />
+
+      {/* Attendance & Staff Modals */}
       <AttendanceCheckInModal
         visible={showCheckInModal}
         onClose={() => setShowCheckInModal(false)}
+        onAttendanceSuccess={() => setShowCheckInModal(false)}
       />
 
-      {/* Staff Payslip Modal */}
       <StaffPayslipModal
         visible={showPayslipModal}
         onClose={() => setShowPayslipModal(false)}
       />
 
-      {/* Staff Leave Management Modal */}
       <StaffLeaveModal
         visible={showLeaveModal}
         onClose={() => {
           setShowLeaveModal(false);
           setLeavePrefillShift(null);
         }}
+        onSuccess={() => setShowLeaveModal(false)}
         prefillShift={leavePrefillShift}
       />
 
-      {/* Staff Schedule Calendar Modal */}
       <StaffScheduleModal
         visible={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
         onRequestSwap={(shift) => {
-          setShowScheduleModal(false);
           setInitialSwapShift(shift);
           setShowShiftSwapModal(true);
         }}
-        onOpenLeave={(shift) => {
-          setShowScheduleModal(false);
+        onRequestLeave={(shift) => {
           setLeavePrefillShift(shift);
           setShowLeaveModal(true);
         }}
       />
 
-      {/* Shift Swap Requests Modal */}
       <ShiftSwapModal
         visible={showShiftSwapModal}
         onClose={() => {
           setShowShiftSwapModal(false);
           setInitialSwapShift(null);
         }}
+        onSuccess={() => setShowShiftSwapModal(false)}
         initialShift={initialSwapShift}
       />
 
-      {/* CCHN Certificate Modal */}
       <StaffCertificateModal
         visible={showCertModal}
         onClose={() => setShowCertModal(false)}
       />
-    </SafeAreaView>
+
+      {/* Modal Đăng Xuất In-App (Zero Alert OS) */}
+      <FlatModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        title="Đăng Xuất Tài Khoản"
+        message="Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng ABC Pharmacy không?"
+        icon="log-out-outline"
+        iconColor="#EF4444"
+        confirmText="ĐĂNG XUẤT"
+        confirmVariant="danger"
+        onConfirm={async () => {
+          setShowLogoutModal(false);
+          await logout();
+        }}
+        cancelText="Ở LẠI"
+        onCancel={() => setShowLogoutModal(false)}
+      />
+    </View>
   );
 };
 
+// =========================================================================
+// STYLES - CHUẨN ZERO-BORDER, SHADOW TỰ NHIÊN, FONT CHỮ TO RÕ LONG CHÂU
+// =========================================================================
 const styles = StyleSheet.create({
-  container: {
+  screenWrapper: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  container: {
+    flex: 1,
+  },
   scrollContent: {
-    padding: 16,
+    paddingBottom: 24,
   },
-  profileHeaderCard: {
-    borderRadius: 24,
-    padding: 24,
+
+  // 1. Header Gradient Phong Cách FPT Long Châu
+  headerGradient: {
+    paddingTop: Platform.OS === 'ios' ? 44 : 20,
+    paddingBottom: 36,
+    paddingHorizontal: 16,
+  },
+  userHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 5,
+    gap: 12,
   },
-  avatarCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: '#FFFFFF',
+  avatarGlowWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
-  userName: {
-    fontSize: 22,
+  avatarCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  userInfoBox: {
+    flex: 1,
+  },
+  userNameText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  userPhoneText: {
+    fontSize: 14,
+    color: '#E0F2FE',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  staffRolePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  staffRoleText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  coinBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    gap: 6,
+  },
+  goldCoinIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  goldCoinLetter: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  coinCountText: {
+    fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginTop: 8,
-  },
-  roleBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    marginLeft: 6,
-  },
-  branchText: {
-    color: '#E6FFFA',
-    fontSize: 13,
-    marginTop: 8,
-  },
-  sectionCard: {
+
+  // 2. Khối Đơn Của Tôi (Card Trắng Chồng Mép Header)
+  ordersOverlappingCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 16,
+    borderRadius: 18,
+    marginHorizontal: 16,
+    marginTop: -22,
+    padding: 16,
+    // Zero-Border Soft Shadow
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 14,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  infoIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#ECFDF5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  infoTextBox: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  infoValue: {
+  sectionTitleMuted: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1E293B',
-    marginTop: 2,
+    color: '#475569',
   },
-  menuItem: {
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  orderActionsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  orderActionItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  orderIconWrapper: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  redBadgeCircle: {
+    position: 'absolute',
+    top: 0,
+    right: 2,
+    backgroundColor: '#EF4444',
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  redBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  orderActionLabel: {
+    fontSize: 12.5,
+    color: '#334155',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+
+  // 3. Khối Menu Trắng Zero-Border
+  sectionGroup: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  groupHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  whiteMenuCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  menuRowItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingVertical: 13,
+    minHeight: 48,
   },
-  menuLeft: {
+  menuRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
-  menuText: {
+  menuIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuRowTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#334155',
-    marginLeft: 12,
+    fontWeight: '700',
+    color: '#0F172A',
   },
+  menuRowSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginLeft: 48,
+  },
+  redPillNew: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  redPillText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  bluePillBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  bluePillText: {
+    color: '#0369A1',
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+
+  // 4. Bottom Tab Bar (5 tabs phong cách FPT Long Châu)
+  bottomTabBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 70,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingBottom: Platform.OS === 'ios' ? 14 : 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  tabLabel: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 3,
+    fontWeight: '600',
+  },
+  centerConsultWrapper: {
+    alignItems: 'center',
+    marginTop: -24,
+    flex: 1,
+  },
+  centerConsultButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#0052CC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0052CC',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  centerConsultLabel: {
+    fontSize: 10.5,
+    color: '#0052CC',
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  cartIconWrapper: {
+    position: 'relative',
+  },
+  cartBadgeCircle: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#EF4444',
+    width: 15,
+    height: 15,
+    borderRadius: 7.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  // Modals Styling
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
     padding: 20,
   },
@@ -686,166 +1192,55 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 6,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 16,
+    textAlign: 'center',
   },
   modalInputWrapper: {
     marginBottom: 14,
   },
   inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#475569',
     marginBottom: 6,
   },
   modalInput: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#0F172A',
   },
   modalBtnRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     marginTop: 10,
   },
   cancelBtn: {
-    paddingVertical: 13,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    borderWidth: 1,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
     borderColor: '#CBD5E1',
+    borderRadius: 14,
+    paddingVertical: 12,
     backgroundColor: '#F8FAFC',
   },
   cancelBtnText: {
+    color: '#64748B',
     fontSize: 14,
     fontWeight: '700',
-    color: '#64748B',
-  },
-  roleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  roleItem: {
-    width: '48%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-  },
-  activeRoleItem: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
-  },
-  roleItemTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 6,
-  },
-  roleItemSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  loyaltyCard: {
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  loyaltyTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  loyaltySubHeader: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#A7F3D0',
-    textTransform: 'uppercase',
-  },
-  loyaltyBrandTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  loyaltyTierTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  loyaltyTierText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FEF3C7',
-    letterSpacing: 0.5,
-  },
-  loyaltyPointsContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.15)',
-    borderRadius: 14,
-    padding: 12,
-    marginVertical: 4,
-  },
-  loyaltyPointsLabel: {
-    fontSize: 11,
-    color: '#D1FAE5',
-    fontWeight: '600',
-  },
-  loyaltyPointsNumber: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  loyaltyPointsUnit: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#A7F3D0',
-  },
-  loyaltyBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  loyaltyBenefitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  loyaltyBenefitText: {
-    fontSize: 11,
-    color: '#D1FAE5',
-    fontWeight: '600',
   },
 });

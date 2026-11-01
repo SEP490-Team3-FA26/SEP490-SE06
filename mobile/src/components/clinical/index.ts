@@ -6,3 +6,4 @@ export * from './ClinicalBadge';
 export * from './ClinicalModalSheet';
 export * from './ClinicalSidebarDrawer';
 export * from './ClinicalSkeleton';
+export * from './DigitalHealthPassportModal';

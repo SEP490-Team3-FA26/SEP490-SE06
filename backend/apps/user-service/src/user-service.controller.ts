@@ -142,13 +142,28 @@ export class UserServiceController {
     return this.userService.getUserByPhone(data.phone);
   }
 
+  /** Truy vấn hồ sơ bệnh án & tiền sử y khoa qua SĐT hoặc User ID */
   @MessagePattern('user.clinical_profile.get')
-  handleGetClinicalProfile(@Payload() data: { phone: string }) {
-    return this.userService.lookupLoyaltyByPhone(data.phone);
+  handleGetClinicalProfile(@Payload() data: { phone?: string; userId?: string }) {
+    if (data.userId) {
+      return this.userService.getClinicalProfileByUserId(data.userId);
+    }
+    return this.userService.lookupLoyaltyByPhone(data.phone || '');
   }
 
+  /** Cập nhật hồ sơ bệnh án & tiền sử dị ứng, bệnh nền */
   @MessagePattern('user.clinical_profile.update')
-  handleUpdateClinicalProfile(@Payload() data: { phone?: string; userId?: string; allergies?: string[]; chronicConditions?: string[] }) {
+  handleUpdateClinicalProfile(@Payload() data: {
+    phone?: string;
+    userId?: string;
+    allergies?: string[];
+    allergicMedicines?: string[];
+    allergicIngredients?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    medicalNotes?: string;
+    hasCompletedHealthOnboarding?: boolean;
+  }) {
     return this.userService.updateClinicalProfile(data);
   }
 
