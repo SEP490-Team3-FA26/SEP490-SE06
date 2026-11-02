@@ -1134,46 +1134,47 @@ async def inspect_receipt_item(
     with open(evidence_path, "wb") as f:
         f.write(image_bytes)
 
-    # 5. Call Roboflow Workflow
+    # 5. Call Roboflow Workflow - Ném ngoại lệ khi có lỗi (Tuân thủ Zero Fake Data)
     if not api_key:
-        print("ROBOFLOW_API_KEY environment variable is not set. Using fallback AI count.")
-        ai_count = expected_qty # Dự phòng nếu thiếu API key
-        confidence = 98.0
-    else:
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        url = "https://serverless.roboflow.com/infer/workflows/thanh-le-truong/general-segmentation-api-13"
-        
-        payload = {
-            "api_key": api_key,
-            "inputs": {
-                "image": {
-                    "type": "base64",
-                    "value": base64_image
-                },
-                "classes": "Medicine"
-            }
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ROBOFLOW_API_KEY chưa được cấu hình. Hệ thống AI kiểm đếm tạm thời gián đoạn."
+        )
+    
+    base64_image = base64.b64encode(image_bytes).decode('utf-8')
+    url = "https://serverless.roboflow.com/infer/workflows/thanh-le-truong/general-segmentation-api-13"
+    
+    payload = {
+        "api_key": api_key,
+        "inputs": {
+            "image": {
+                "type": "base64",
+                "value": base64_image
+            },
+            "classes": "Medicine"
         }
-        
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client_http:
-                response = await client_http.post(url, json=payload)
-                if response.status_code == 200:
-                    result = response.json()
-                    parsed_count, parsed_conf = parse_roboflow_workflow_count(result)
-                    if parsed_count > 0:
-                        ai_count = parsed_count
-                        confidence = parsed_conf
-                    else:
-                        ai_count = expected_qty
-                        confidence = 97.0
-                else:
-                    print(f"Roboflow API returned {response.status_code}: {response.text}. Using fallback count.")
-                    ai_count = expected_qty
-                    confidence = 96.0
-        except Exception as rf_err:
-            print(f"Roboflow API call failed: {rf_err}. Using fallback count.")
-            ai_count = expected_qty
-            confidence = 96.0
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client_http:
+            response = await client_http.post(url, json=payload)
+            if response.status_code == 200:
+                result = response.json()
+                parsed_count, parsed_conf = parse_roboflow_workflow_count(result)
+                ai_count = parsed_count
+                confidence = parsed_conf
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Dịch vụ Roboflow Vision phản hồi lỗi {response.status_code}: {response.text}"
+                )
+    except HTTPException:
+        raise
+    except Exception as rf_err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Kết nối tới máy chủ Roboflow Vision thất bại: {str(rf_err)}"
+        )
         
     # 6. Compute discrepancy details using configurable tolerance threshold
     difference = ai_count - expected_qty

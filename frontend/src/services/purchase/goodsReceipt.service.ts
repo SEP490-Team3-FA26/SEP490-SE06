@@ -84,5 +84,17 @@ export const goodsReceiptService = {
   async getItemInspection(grnId: string, itemId: string) {
     const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.INSPECTION(grnId, itemId));
     return response.data;
+  },
+
+  // Gửi hình ảnh kiện hàng lên AI Vision kiểm đếm số lượng thực tế
+  async inspectReceiptItemAI(receiptId: string, itemId: string, file: File | Blob): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/api/goods-receipts/${receiptId}/items/${itemId}/inspection`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
   }
 };

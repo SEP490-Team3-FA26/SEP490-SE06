@@ -81,6 +81,18 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [classificationsList, setClassificationsList] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  // Quản lý kết nối Súng quét Barcode Wi-Fi / Mobile POS Bridge
+  const [isWifiScannerOpen, setIsWifiScannerOpen] = useState(false);
+  const [posSessionId] = useState<string>(() => {
+    const saved = typeof window !== 'undefined' ? sessionStorage.getItem('pos_session_id') : null;
+    if (saved) return saved;
+    const newId = `POS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('pos_session_id', newId);
+    }
+    return newId;
+  });
+
   useEffect(() => {
     medicineService.getFilters().then((res: any) => {
       if (res) {
@@ -1726,6 +1738,13 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               </div>
             </div>
             <button
+              onClick={() => setIsWifiScannerOpen(true)}
+              className="px-4 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
+              title="Biến điện thoại di động thành súng quét Barcode Wi-Fi không dây"
+            >
+              <Wifi size={15} /> Súng quét Wi-Fi
+            </button>
+            <button
               onClick={() => setVoiceModalOpen(true)}
               className="px-5 py-3.5 bg-gradient-to-r from-purple-600 to-[#0057cd] hover:from-purple-700 hover:to-[#00419e] text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
             >
@@ -3338,6 +3357,14 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         isOpen={showAuditModal}
         onClose={() => setShowAuditModal(false)}
         data={aiPharmacistConfirmation}
+      />
+
+      {/* Modal Súng Quét Barcode Wi-Fi / Mobile Scanner Bridge */}
+      <WifiScannerModal
+        isOpen={isWifiScannerOpen}
+        onClose={() => setIsWifiScannerOpen(false)}
+        sessionId={posSessionId}
+        onBarcodeSimulated={handleBarcodeScanned}
       />
     </div>
   );

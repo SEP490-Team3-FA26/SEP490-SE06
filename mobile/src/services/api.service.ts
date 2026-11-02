@@ -1810,36 +1810,11 @@ export class ApiService {
         } catch (_) {}
       }
 
-      // 3. Dự phòng AI Vision thông minh (Resilient Fallback khi kiểm đếm thực địa hoặc ảnh mẫu URL)
-      const mockBatch = `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.floor(100 + Math.random() * 900)}`;
-      return {
-        success: true,
-        inspectionRecordId: `MOCK-INSP-${Date.now()}`,
-        receiptId,
-        receiptItemId,
-        expectedQty: 10,
-        aiCount: 10,
-        confidence: 98.5,
-        difference: 0,
-        batchNo: mockBatch,
-        expDate: '31/12/2028',
-        message: 'AI Vision nhận diện kiện hàng thành công!',
-      };
-    } catch (e) {
+      // Tuân thủ Zero Mock Data Policy: Ném ngoại lệ khi máy chủ AI không phản hồi
+      throw new Error('Không thể kết nối đến máy chủ AI Vision kiểm đếm hoặc dịch vụ đang bận.');
+    } catch (e: any) {
       console.warn('Failed AI inspection of receipt item:', e);
-      return {
-        success: true,
-        inspectionRecordId: `FALLBACK-INSP-${Date.now()}`,
-        receiptId,
-        receiptItemId,
-        expectedQty: 10,
-        aiCount: 10,
-        confidence: 96.0,
-        difference: 0,
-        batchNo: `LOT-${Date.now().toString().slice(-6)}`,
-        expDate: '31/12/2028',
-        message: 'AI Vision nhận diện kiện hàng thành công!',
-      };
+      throw new Error(e?.message || 'Lỗi kết nối đến hệ thống kiểm định AI Vision.');
     }
   }
 

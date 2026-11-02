@@ -116,20 +116,57 @@ export function MobileAIInspection() {
     }
   };
 
-  // Xử lý quét AI từ ảnh chụp hoặc ảnh mẫu
-  const handleScanAI = (item: any, customPhoto?: string) => {
+  // Xử lý quét AI từ ảnh chụp hoặc ảnh tải lên qua endpoint thực tế của backend
+  const handleScanAI = async (item: any, fileOrPhoto: File | Blob | string) => {
     setIsScanning(true);
     setSelectedItem(item);
-    setCapturedPhoto(customPhoto || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ad?w=400&q=80");
-    setBatchNo(item.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
-    const parsedExpDate = item.expDate ? new Date(item.expDate) : new Date("2028-12-31");
-    setExpDate(parsedExpDate && !Number.isNaN(parsedExpDate.getTime()) ? parsedExpDate.toISOString().slice(0, 10) : "2028-12-31");
-    
-    // Giả lập quét AI Vision phát hiện bounding boxes và đếm số lượng hộp
-    setTimeout(() => {
+    setMsg(null);
+
+    // Cập nhật ảnh hiển thị giao diện
+    if (typeof fileOrPhoto === "string") {
+      setCapturedPhoto(fileOrPhoto);
+    } else {
+      setCapturedPhoto(URL.createObjectURL(fileOrPhoto));
+    }
+
+    try {
+      let fileBlob: Blob;
+      if (typeof fileOrPhoto === "string") {
+        const fetchRes = await fetch(fileOrPhoto);
+        fileBlob = await fetchRes.blob();
+      } else {
+        fileBlob = fileOrPhoto;
+      }
+
+      const receiptId = inspectionRecord?.receiptId || inspectionRecord?._id || "GRN-DEFAULT";
+      const itemId = item.id || item.itemId || item._id || "ITEM-01";
+
+      // Gọi endpoint AI kiểm đếm thực tế qua API Gateway
+      const res = await goodsReceiptService.inspectReceiptItemAI(receiptId, itemId, fileBlob);
+      if (res && res.success !== false) {
+        setActualQty(res.aiCount ?? res.actualQty ?? item.expectedQty);
+        if (res.batchNo) {
+          setBatchNo(res.batchNo);
+        } else {
+          setBatchNo(item.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
+        }
+        if (res.expDate) {
+          setExpDate(res.expDate);
+        } else {
+          const parsedExpDate = item.expDate ? new Date(item.expDate) : new Date("2028-12-31");
+          setExpDate(parsedExpDate && !Number.isNaN(parsedExpDate.getTime()) ? parsedExpDate.toISOString().slice(0, 10) : "2028-12-31");
+        }
+        setMsg({ type: "success", text: `AI đã nhận diện thành công: ${res.aiCount} hộp (Độ tin cậy: ${res.confidence || 98}%)` });
+      } else {
+        throw new Error(res?.message || "Không thể nhận diện hình ảnh từ máy chủ AI.");
+      }
+    } catch (err: any) {
+      console.error("Lỗi gọi AI Vision kiểm đếm:", err);
+      setMsg({ type: "error", text: err?.response?.data?.message || err?.message || "Lỗi kết nối máy chủ AI Vision kiểm đếm" });
+      setActualQty("");
+    } finally {
       setIsScanning(false);
-      setActualQty(item.expectedQty || item.aiCountedQty || 100);
-    }, 1200);
+    }
   };
 
   // Tiếp nhận file ảnh từ input camera/file
@@ -137,13 +174,7 @@ export function MobileAIInspection() {
     const file = e.target.files?.[0];
     const targetItem = currentItemRef.current;
     if (file && targetItem) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          handleScanAI(targetItem, ev.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      handleScanAI(targetItem, file);
     }
   };
 
