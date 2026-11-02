@@ -158,7 +158,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <HeaderBar
         title="Admin Dashboard"
         subtitle="Giám sát Microservices & Nhân viên hệ thống"
-        gradientVariant="dark"
+        gradientVariant="sky"
         rightAction={{
           icon: 'person-circle-outline',
           onPress: () => navigation.navigate('ProfileScreen'),
@@ -178,7 +178,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="speedometer"
             size={18}
-            color={activeTab === 'HEALTH' ? '#0F172A' : '#94A3B8'}
+            color={activeTab === 'HEALTH' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'HEALTH' && styles.activeTabText]}>
             Hệ Thống
@@ -192,7 +192,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="people"
             size={18}
-            color={activeTab === 'EMPLOYEES' ? '#0F172A' : '#94A3B8'}
+            color={activeTab === 'EMPLOYEES' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'EMPLOYEES' && styles.activeTabText]}>
             Nhân Viên
@@ -206,7 +206,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="receipt"
             size={18}
-            color={activeTab === 'AUDIT' ? '#0F172A' : '#94A3B8'}
+            color={activeTab === 'AUDIT' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'AUDIT' && styles.activeTabText]}>
             Audit Logs
@@ -216,14 +216,14 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#1E293B']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
 
         {/* TAB 1: SYSTEM HEALTH */}
         {activeTab === 'HEALTH' && (
           <View>
             <View style={styles.kpiRow}>
-              <GradientCard gradientVariant="indigo" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="flash" size={24} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>{healthData.latencyMs} ms</Text>
                 <Text style={styles.kpiLabel}>Độ Trễ Gateway</Text>
@@ -463,7 +463,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 title="TẠO TÀI KHOẢN"
                 onPress={handleCreateEmployee}
                 loading={creating}
-                gradientVariant="indigo"
+                gradientVariant="sky"
                 size="md"
                 style={{ flex: 1, marginLeft: 10 }}
               />
@@ -497,9 +497,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   activeTabItem: {
-    backgroundColor: '#EEF2FF',
-    borderBottomWidth: 2,
-    borderBottomColor: '#4F46E5',
+    backgroundColor: '#E0F2FE',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#0284C7',
   },
   tabText: {
     fontSize: 13,
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   activeTabText: {
-    color: '#4F46E5',
+    color: '#0284C7',
     fontWeight: '800',
   },
   scrollContent: {
@@ -656,7 +656,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0284C7',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -811,8 +811,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   activeRoleChoice: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
+    borderColor: '#0284C7',
+    backgroundColor: '#E0F2FE',
   },
   roleChoiceText: {
     fontSize: 12,
@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   activeRoleChoiceText: {
-    color: '#4F46E5',
+    color: '#0284C7',
     fontWeight: '700',
   },
   modalBtnRow: {

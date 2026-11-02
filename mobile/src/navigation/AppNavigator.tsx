@@ -27,6 +27,7 @@ import { CustomerWishlistScreen } from '../screens/customer/CustomerWishlistScre
 import { MedicineReminderScreen } from '../screens/customer/MedicineReminderScreen';
 import { ProductReviewScreen } from '../screens/customer/ProductReviewScreen';
 import { MedicineDetailScreen } from '../screens/customer/MedicineDetailScreen';
+import { PointsHistoryScreen } from '../screens/customer/PointsHistoryScreen';
 import { OrderConfirmation } from '../screens/OrderConfirmation';
 
 const Stack = createNativeStackNavigator();
@@ -131,6 +132,9 @@ export default function AppNavigator() {
           <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
           <Stack.Screen name="SplashScreen" component={SplashScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
+          <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
+          <Stack.Screen name="PointsHistoryScreen" component={PointsHistoryScreen} />
+          <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
         </Stack.Group>
       ) : !auth.isAuthenticated ? (
         // ─── Guest Flow (Guest-First E-Commerce Discovery) ──────────────────────

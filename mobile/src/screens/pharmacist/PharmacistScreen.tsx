@@ -87,7 +87,6 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       const modal = params.get('modal');
       const tab = params.get('tab');
       if (tab === 'OCR') setActiveTab('OCR');
-      if (tab === 'CART') setActiveTab('CART');
       if (modal === 'checkin') setShowCheckInModal(true);
       if (modal === 'schedule') setShowScheduleModal(true);
       if (modal === 'payslip') setShowPayslipModal(true);
@@ -108,7 +107,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           barcode: '8935001701125',
           expDate: '2027-02-03',
         };
-        handleSelectMedicine(demoMed as any);
+        setSelectedMedDetail(demoMed as any);
       }
       if (modal === 'alternatives') {
         const demoMed = medicines[0] || {
@@ -131,6 +130,15 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           barcode: '8935001701125',
         };
         handleOpenLabelModal(demoMed as any);
+      }
+      if (modal === 'cart_drawer') {
+        const demoMed = medicines[0] || {
+          id: 'med_demo_01',
+          name: 'Cao dán Salonpas Diclofenac Patch Hisamitsu',
+          price: 65000,
+          unit: 'Hộp',
+        };
+        addToCart(demoMed as any, 'Hộp', 65000);
       }
     }
   }, [medicines]);

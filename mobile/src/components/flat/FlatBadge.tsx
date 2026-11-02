@@ -62,10 +62,10 @@ export const FlatBadge: React.FC<FlatBadgeProps> = ({
         };
       case 'info':
         return {
-          solidBg: '#3B82F6',
-          glassBg: 'rgba(59, 130, 246, 0.15)',
-          text: '#1D4ED8',
-          border: 'rgba(59, 130, 246, 0.45)',
+          solidBg: '#0284C7',
+          glassBg: 'rgba(2, 132, 199, 0.12)',
+          text: '#0284C7',
+          border: 'rgba(2, 132, 199, 0.35)',
         };
       case 'purple':
         return {

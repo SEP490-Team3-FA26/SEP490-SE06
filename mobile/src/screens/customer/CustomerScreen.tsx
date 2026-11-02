@@ -443,6 +443,9 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
       if (modal === 'branch') setShowBranchModal(true);
       if (modal === 'filter') setShowFilterModal(true);
       if (modal === 'scanner') setShowScanner(true);
+      if (modal === 'redeem_gift') setShowRedeemGiftModal(true);
+      if (modal === 'points_history') setShowPointsHistoryModal(true);
+      if (modal === 'passport') setShowPassportModal(true);
       if (modal === 'med_detail') {
         const demoMed = medicines[0] || {
           id: 'med_demo_01',
@@ -458,7 +461,10 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
           sku: 'MED-BEROCCA-10T',
           barcode: '8935001709999',
         };
-        setSelectedMedDetail(demoMed as any);
+        navigation.navigate('MedicineDetailScreen', {
+          medicineId: demoMed.id || (demoMed as any)._id,
+          medicine: demoMed,
+        });
       }
       if (modal === 'order_qr') {
         const demoOrder = orders[0] || {
@@ -2499,9 +2505,6 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                   </View>
                 </View>
               </View>
-                  </View>
-                </View>
-              </View>
             </View>
           </LinearGradient>
 
@@ -3297,7 +3300,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                       {ord.items.map((it, idx) => {
                         const instructionText = it.cach_dung || (it as any).dosageInstructions;
                         return (
-                          <View key={idx} style={styles.orderItemCardRow}>
+                          <View key={idx} style={styles.orderItemCard}>
                             <View style={{ flex: 1, marginRight: 8 }}>
                               <Text style={styles.orderItemTitle}>
                                 • {it.name} x {it.quantity} {it.unit}

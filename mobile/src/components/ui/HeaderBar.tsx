@@ -35,7 +35,7 @@ interface HeaderBarProps {
 const GRADIENTS = {
   sky: ['#0369A1', '#0284C7', '#38BDF8'] as const,
   emerald: ['#0369A1', '#0284C7', '#0EA5E9'] as const, // Đồng bộ màu Xanh Auth chuẩn
-  indigo: ['#0C4A6E', '#0369A1', '#0EA5E9'] as const,
+  indigo: ['#0369A1', '#0284C7', '#38BDF8'] as const,  // Đồng bộ màu Xanh Auth chuẩn
   ocean: ['#0369A1', '#0284C7', '#38BDF8'] as const,
   dark: ['#0F172A', '#1E293B', '#334155'] as const,
 };
@@ -50,7 +50,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   gradientVariant = 'emerald',
 }) => {
   const insets = useSafeAreaInsets();
-  const paddingTop = insets.top > 0 ? insets.top + 8 : (Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24) + 8);
+  const paddingTop = insets.top > 0
+    ? insets.top + 10
+    : (Platform.OS === 'ios' || Platform.OS === 'web' ? 48 : (StatusBar.currentHeight || 24) + 12);
 
   return (
     <LinearGradient

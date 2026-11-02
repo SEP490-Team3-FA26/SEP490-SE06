@@ -77,6 +77,22 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [showDirectorStaffScanModal, setShowDirectorStaffScanModal] = useState<boolean>(false);
 
+  // Hỗ trợ mở trực tiếp Modal khi chụp ảnh Playwright hoặc Web Reviewer
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const modal = params.get('modal');
+      if (modal === 'edit') setEditModalVisible(true);
+      if (modal === 'password') setPwModalVisible(true);
+      if (modal === 'cert') setShowCertModal(true);
+      if (modal === 'schedule') setShowScheduleModal(true);
+      if (modal === 'leave') setShowLeaveModal(true);
+      if (modal === 'payslip') setShowPayslipModal(true);
+      if (modal === 'passport') setShowPassportModal(true);
+      if (modal === 'swap') setShowShiftSwapModal(true);
+    }
+  }, []);
+
   // Phân quyền Ban Giám Đốc (Executive Director) & Quản Lý Chi Nhánh (Branch Manager) dựa trên RBAC chuẩn
   const userRole = String(user?.role || auth.role || '').toLowerCase().trim();
   const isDirector = Boolean(

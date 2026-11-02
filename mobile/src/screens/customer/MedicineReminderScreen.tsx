@@ -94,6 +94,19 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
   // Test notification state
   const [testingCountDown, setTestingCountDown] = useState<number | null>(null);
 
+  // Hỗ trợ chọn tab hoặc mở modal qua URL query param khi test / demo
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab === 'SCHEDULE') setActiveTab('SCHEDULE');
+      if (tab === 'LOGS') setActiveTab('LOGS');
+      if (modal === 'add') setModalVisible(true);
+      if (modal === 'import_order') setOrderModalVisible(true);
+    }
+  }, []);
+
   const fetchOrdersForImport = useCallback(async (phoneToSearch?: string) => {
     try {
       setLoadingOrders(true);

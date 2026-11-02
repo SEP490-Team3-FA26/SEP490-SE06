@@ -28,16 +28,40 @@ import { TypographyTokens } from '../../theme/tokens';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GUEST_CART_KEY = '@abc_guest_cart';
 
+const DEFAULT_DEMO_MEDICINE: any = {
+  id: 'med_demo_01',
+  name: 'Viên sủi Berocca Performance bồi bổ năng lượng, giảm mệt mỏi (Hộp 10 viên)',
+  active: 'Vitamin C 500mg, Vitamin B-Complex, Kẽm 10mg',
+  category: 'Vitamin & Khoáng chất',
+  price: 92000,
+  unit: 'Hộp',
+  stock: 85,
+  rating: 4.9,
+  dosage: '1 viên/ngày hòa tan trong 200ml nước',
+  indication: 'Hỗ trợ tăng cường sức đề kháng, giảm căng thẳng thần kinh, hồi phục thể lực sau ốm',
+  contraindication: 'Quá mẫn với bất kỳ thành phần nào của thuốc, suy thận nặng, sỏi thận calci.',
+  sideEffects: 'Rối loạn tiêu hóa nhẹ, phân lỏng hoặc nước tiểu có màu vàng sáng vô hại do Vitamin B2.',
+  storage: 'Bảo quản nơi khô ráo, dưới 30 độ C, tránh ánh sáng mặt trời trực tiếp.',
+  sku: 'MED-BEROCCA-10T',
+  barcode: '8935001709999',
+  image: 'https://cdn.nhathuoclongchau.com.vn/unsafe/375x0/filters:quality(90)/https://cms-prod.s3-sgn09.fptcloud.com/00004944_berocca_performance_mango_10v_3364_60e3_large_79a3205777.jpg',
+  brand: 'Bayer',
+  origin: 'Indonesia',
+  manufacturer: 'PT Bayer Indonesia',
+  registrationNumber: 'VN-18239-14',
+  packaging: 'Hộp 1 tuýp 10 viên sủi',
+};
+
 export const MedicineDetailScreen: React.FC<{
   route: any;
   navigation: any;
 }> = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { medicine: initialMed, medicineId } = route.params || {};
+  const { medicine: initialMed, medicineId } = route?.params || {};
 
-  const [medicine, setMedicine] = useState<Medicine | null>(initialMed || null);
-  const [loading, setLoading] = useState<boolean>(!initialMed);
-  const [selectedUnit, setSelectedUnit] = useState<string>(initialMed?.unit || 'Hộp');
+  const [medicine, setMedicine] = useState<Medicine | null>(initialMed || (medicineId ? null : DEFAULT_DEMO_MEDICINE));
+  const [loading, setLoading] = useState<boolean>(Boolean(medicineId && !initialMed));
+  const [selectedUnit, setSelectedUnit] = useState<string>(initialMed?.unit || DEFAULT_DEMO_MEDICINE.unit);
   const [quantity, setQuantity] = useState<number>(1);
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'INDICATION' | 'DOSAGE' | 'CONTRA' | 'SIDE_EFFECT' | 'STORAGE'>('INDICATION');

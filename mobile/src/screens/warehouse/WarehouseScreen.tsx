@@ -32,6 +32,8 @@ import { TransferQRModal } from '../../components/warehouse/TransferQRModal';
 import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 import { DigitalHealthPassportModal } from '../../components/clinical/DigitalHealthPassportModal';
+import { NearExpiryMedicineModal } from '../../components/warehouse/NearExpiryMedicineModal';
+import { formatDaysLeftLabel, filterNearExpiryList } from '../../services/nearExpiryHelper';
 
 const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; label: string; icon: string }> = {
   A: { bg: 'rgba(2, 132, 199, 0.1)', border: '#0284C7', text: '#0284C7', label: 'Kháng sinh', icon: '💊' },
@@ -102,6 +104,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   // Expiration report state
   const [expiredList, setExpiredList] = useState<any[]>([]);
+  const [expiredFilter, setExpiredFilter] = useState<'ALL' | 'EXPIRED' | 'UNDER_30' | 'UNDER_90'>('ALL');
+  const [selectedExpMedDetail, setSelectedExpMedDetail] = useState<any | null>(null);
 
   // AI Demand Forecast state
   const [forecastPeriod, setForecastPeriod] = useState<number>(30);
@@ -142,6 +146,28 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           items: [{ name: 'Hapacol 650mg', expectedQty: 500, unit: 'Hộp' }],
         });
         setInspectModalVisible(true);
+      }
+      if (modal === 'exp_detail') {
+        setActiveTab('EXPIRATION');
+        setSelectedExpMedDetail({
+          id: 'MED-EXP-01',
+          name: 'Cao dán giảm đau Salonpas Pain Relief Patch dùng trong các cơn đau vai, đau cổ (7cm x 10cm - 3 miếng)',
+          activeIngredient: 'Methyl salicylate 10%, Menthol 3%',
+          category: 'Thuốc dùng ngoài da / Giảm đau',
+          manufacturer: 'Hisamitsu Pharmaceutical Co., Inc. (Nhật Bản)',
+          origin: 'Nhật Bản',
+          dosageForm: 'Cao dán giảm đau (7cm x 10cm)',
+          registrationNumber: 'VN-19842-16',
+          batchNo: 'INIT-BATCH-2026',
+          expDate: '06/10/2026',
+          mfgDate: '06/10/2024',
+          daysLeft: 27,
+          stock: 450,
+          unit: 'Hộp',
+          location: { zone: 'A', rack: 'A2', shelf: 3 },
+          storageCondition: 'Nhiệt độ phòng dưới 30°C, tránh ánh nắng trực tiếp',
+          status: 'NEAR_EXPIRY',
+        });
       }
     }
   }, []);
@@ -1329,41 +1355,241 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         )}
 
         {/* ========================================================= */}
-        {/* TAB 5: EXPIRATION REPORT */}
+        {/* TAB 5: EXPIRATION REPORT - 2-COLUMN COMPACT GRID & DETAIL */}
         {/* ========================================================= */}
-        {activeTab === 'EXPIRATION' && (
-          <View>
-            <Text style={styles.sectionTitle}>Báo Cáo Thuốc Cận Hạn Dùng (&lt; 90 Ngày)</Text>
-            {expiredList.map((item, idx) => (
-              <View key={idx} style={styles.expCard}>
-                <View style={styles.expHeader}>
-                  <Ionicons name="alarm" size={20} color="#DC2626" />
-                  <Text style={styles.expMedName}>{item.name}</Text>
-                  <View style={styles.daysBadge}>
-                    <Text style={styles.daysBadgeText}>Còn {item.daysLeft} ngày</Text>
-                  </View>
-                </View>
-                <Text style={styles.expSub}>
-                  Số Lô: <Text style={{ fontWeight: '700' }}>{item.batchNo}</Text> • Hạn: {item.expDate}
-                </Text>
-                <Text style={styles.expStock}>
-                  Tồn kho cần ưu tiên xuất / đổi trả:{' '}
-                  <Text style={{ fontWeight: '800', color: '#DC2626' }}>
-                    {item.stock} {item.unit}
-                  </Text>
-                </Text>
-              </View>
-            ))}
+        {activeTab === 'EXPIRATION' && (() => {
+          const filteredItems = filterNearExpiryList(expiredList, expiredFilter);
+          const expiredCount = expiredList.filter((i) => (i.daysLeft ?? 999) <= 0).length;
+          const under30Count = expiredList.filter((i) => (i.daysLeft ?? 999) > 0 && (i.daysLeft ?? 999) <= 30).length;
+          const under90Count = expiredList.filter((i) => (i.daysLeft ?? 999) > 30 && (i.daysLeft ?? 999) <= 90).length;
 
-            {expiredList.length === 0 && (
-              <View style={styles.emptyCard}>
-                <Ionicons name="shield-checkmark-outline" size={42} color="#0284C7" />
-                <Text style={[styles.emptyCardTitle, { color: '#0284C7' }]}>Hạn Dùng Đạt Chuẩn GSP</Text>
-                <Text style={styles.emptyCardSub}>Tất cả dược phẩm trong kho đều đảm bảo hạn dùng an toàn theo tiêu chuẩn GSP.</Text>
+          return (
+            <View>
+              {/* Tiêu đề & Tóm tắt FEFO */}
+              <View style={styles.expHeaderSection}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Báo Cáo Cận Hạn Dùng (&lt; 90 Ngày)</Text>
+                  <Text style={styles.expSectionSub}>
+                    Ưu tiên điều phối xuất kho FEFO (First Expired First Out)
+                  </Text>
+                </View>
+                <View style={styles.expTotalBadge}>
+                  <Text style={styles.expTotalBadgeText}>{expiredList.length} Dược Phẩm</Text>
+                </View>
               </View>
-            )}
-          </View>
-        )}
+
+              {/* Bộ lọc phân loại nhanh */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.expFilterRow}
+              >
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('ALL')}
+                  style={[styles.expFilterChip, expiredFilter === 'ALL' && styles.expFilterChipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.expFilterChipText, expiredFilter === 'ALL' && styles.expFilterChipTextActive]}>
+                    Tất Cả ({expiredList.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('EXPIRED')}
+                  style={[
+                    styles.expFilterChip,
+                    expiredFilter === 'EXPIRED' && styles.expFilterChipExpiredActive,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="alert-circle"
+                    size={12}
+                    color={expiredFilter === 'EXPIRED' ? '#FFFFFF' : '#DC2626'}
+                  />
+                  <Text
+                    style={[
+                      styles.expFilterChipText,
+                      { color: expiredFilter === 'EXPIRED' ? '#FFFFFF' : '#DC2626' },
+                    ]}
+                  >
+                    Đã Quá Hạn ({expiredCount})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('UNDER_30')}
+                  style={[
+                    styles.expFilterChip,
+                    expiredFilter === 'UNDER_30' && styles.expFilterChipUnder30Active,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="time"
+                    size={12}
+                    color={expiredFilter === 'UNDER_30' ? '#FFFFFF' : '#D97706'}
+                  />
+                  <Text
+                    style={[
+                      styles.expFilterChipText,
+                      { color: expiredFilter === 'UNDER_30' ? '#FFFFFF' : '#D97706' },
+                    ]}
+                  >
+                    ≤ 30 Ngày ({under30Count})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('UNDER_90')}
+                  style={[
+                    styles.expFilterChip,
+                    expiredFilter === 'UNDER_90' && styles.expFilterChipActive,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="hourglass-outline"
+                    size={12}
+                    color={expiredFilter === 'UNDER_90' ? '#FFFFFF' : '#0284C7'}
+                  />
+                  <Text
+                    style={[
+                      styles.expFilterChipText,
+                      { color: expiredFilter === 'UNDER_90' ? '#FFFFFF' : '#0284C7' },
+                    ]}
+                  >
+                    ≤ 90 Ngày ({under90Count})
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+
+              {/* LƯỚI GRID 2 ELEMENT MỖI ROW (2-COLUMN GRID LAYOUT) */}
+              <View style={styles.expGridContainer}>
+                {filteredItems.map((item, idx) => {
+                  const badge = formatDaysLeftLabel(item.daysLeft);
+                  return (
+                    <AnimatedTouchable
+                      key={idx}
+                      style={[
+                        styles.expGridCard,
+                        badge.isExpired && { borderColor: '#FECACA' },
+                      ]}
+                      onPress={() => setSelectedExpMedDetail(item)}
+                    >
+                      {/* Badge Hạn Dùng góc trên */}
+                      <View
+                        style={[
+                          styles.expGridBadge,
+                          { backgroundColor: badge.bg, borderColor: badge.border },
+                        ]}
+                      >
+                        <Ionicons name={badge.icon} size={11} color={badge.text} />
+                        <Text
+                          style={[styles.expGridBadgeText, { color: badge.text }]}
+                          numberOfLines={1}
+                        >
+                          {badge.label}
+                        </Text>
+                      </View>
+
+                      {/* Header Card: Icon + Category */}
+                      <View style={styles.expGridTopRow}>
+                        <View
+                          style={[
+                            styles.expGridIconWrap,
+                            { backgroundColor: badge.isExpired ? '#FEF2F2' : '#F0F9FF' },
+                          ]}
+                        >
+                          <Ionicons
+                            name="medical"
+                            size={16}
+                            color={badge.isExpired ? '#DC2626' : '#0284C7'}
+                          />
+                        </View>
+                        <View style={styles.expGridZoneTag}>
+                          <Text style={styles.expGridZoneText}>
+                            Khu {item.location?.zone || 'A'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Tên Thuốc (gọn 2 dòng) */}
+                      <Text style={styles.expGridTitle} numberOfLines={2}>
+                        {item.name}
+                      </Text>
+
+                      {/* Hoạt Chất / Quy Cách (1 dòng mờ) */}
+                      <Text style={styles.expGridSub} numberOfLines={1}>
+                        {item.activeIngredient || item.activeSubstance || item.category || 'Dược phẩm GSP'}
+                      </Text>
+
+                      {/* Dải phân cách viền mỏng */}
+                      <View style={styles.expGridDivider} />
+
+                      {/* Thông tin Lô & HSD */}
+                      <View style={styles.expGridMetaRow}>
+                        <Text style={styles.expGridMetaLabel}>Lô:</Text>
+                        <Text style={styles.expGridMetaValue} numberOfLines={1}>
+                          {item.batchNo}
+                        </Text>
+                      </View>
+                      <View style={styles.expGridMetaRow}>
+                        <Text style={styles.expGridMetaLabel}>HSD:</Text>
+                        <Text
+                          style={[
+                            styles.expGridMetaValue,
+                            { color: badge.text, fontWeight: '700' },
+                          ]}
+                        >
+                          {item.expDate}
+                        </Text>
+                      </View>
+
+                      {/* Footer Card: Tồn Kho + Nút Chi Tiết */}
+                      <View style={styles.expGridFooter}>
+                        <View
+                          style={[
+                            styles.expGridStockPill,
+                            badge.isExpired && { backgroundColor: '#FEE2E2' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.expGridStockText,
+                              badge.isExpired && { color: '#DC2626' },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            Tồn: <Text style={{ fontWeight: '800' }}>{item.stock} {item.unit}</Text>
+                          </Text>
+                        </View>
+
+                        <View style={styles.expGridDetailLink}>
+                          <Text style={styles.expGridDetailText}>Chi tiết</Text>
+                          <Ionicons name="chevron-forward" size={11} color="#0284C7" />
+                        </View>
+                      </View>
+                    </AnimatedTouchable>
+                  );
+                })}
+              </View>
+
+              {/* Trạng thái trống khi lọc */}
+              {filteredItems.length === 0 && (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="shield-checkmark-outline" size={42} color="#0284C7" />
+                  <Text style={[styles.emptyCardTitle, { color: '#0284C7' }]}>
+                    Không Có Dược Phẩm Trong Nhóm Này
+                  </Text>
+                  <Text style={styles.emptyCardSub}>
+                    Tất cả các lô thuốc trong kho đang được bảo quản an toàn theo chuẩn GSP.
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ========================================================= */}
         {/* TAB 6: LOT TRACING (TRUY XUẤT LÔ) */}
@@ -1860,6 +2086,22 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       <DigitalHealthPassportModal
         visible={showStaffIdModal}
         onClose={() => setShowStaffIdModal(false)}
+      />
+
+      {/* Modal Chi Tiết Dược Phẩm Cận Hạn GSP & Điều Phối FEFO */}
+      <NearExpiryMedicineModal
+        visible={!!selectedExpMedDetail}
+        medicine={selectedExpMedDetail}
+        onClose={() => setSelectedExpMedDetail(null)}
+        onLocateOnMap={(loc) => {
+          setSelectedExpMedDetail(null);
+          setActiveTab('MAP');
+          setHighlightedTarget(`${loc.zone}-${loc.rack}-${loc.shelf}`);
+          showToast.info(
+            'Định Vị Sơ Đồ Kho GSP',
+            `Đang xem vị trí: Phân Khu ${loc.zone} · Kệ ${loc.rack} · Tầng ${loc.shelf}`
+          );
+        }}
       />
     </SafeAreaView>
   );
@@ -2525,47 +2767,194 @@ const styles = StyleSheet.create({
     color: '#0284C7',
     fontWeight: '600',
   },
-  expCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  expHeader: {
+  /* --- BÁO CÁO CẬN HẠN DÙNG (EXPIRATION) - 2-COLUMN GRID & FILTER --- */
+  expHeaderSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  expMedName: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#0F172A',
-    flex: 1,
-    marginLeft: 6,
-  },
-  daysBadge: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  daysBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#DC2626',
-  },
-  expSub: {
+  expSectionSub: {
     fontSize: 11,
     color: '#64748B',
+    marginTop: 2,
+  },
+  expTotalBadge: {
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  expTotalBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  expFilterRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 4,
+    marginBottom: 10,
+  },
+  expFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  expFilterChipActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
+  },
+  expFilterChipExpiredActive: {
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
+  },
+  expFilterChipUnder30Active: {
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
+  },
+  expFilterChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  expFilterChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  expGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  expGridCard: {
+    width: '48.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  expGridBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  expGridBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  expGridTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  expGridIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expGridZoneTag: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  expGridZoneText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  expGridTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 16,
+    minHeight: 32,
     marginBottom: 2,
   },
-  expStock: {
-    fontSize: 11.5,
+  expGridSub: {
+    fontSize: 10,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  expGridDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  expGridMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  expGridMetaLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  expGridMetaValue: {
+    fontSize: 10.5,
+    fontWeight: '600',
     color: '#334155',
+    maxWidth: '75%',
+  },
+  expGridFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
+  },
+  expGridStockPill: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    maxWidth: '65%',
+  },
+  expGridStockText: {
+    fontSize: 9.5,
+    color: '#15803D',
+    fontWeight: '600',
+  },
+  expGridDetailLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  expGridDetailText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0284C7',
   },
   traceCard: {
     backgroundColor: '#FFFFFF',
