@@ -31,12 +31,12 @@ export const InspectorMetrics: React.FC<InspectorMetricsProps> = ({ metrics }) =
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
         <div>
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Giao Dịch Đã Ghi Sổ</div>
-          <div className="text-2xl font-black text-emerald-600 mt-1 font-mono tabular-nums">{totalTransactions}</div>
+          <div className="text-2xl font-black text-sky-600 mt-1 font-mono tabular-nums">{totalTransactions}</div>
           <div className="text-xs text-slate-500 mt-0.5 font-medium">
             Kho Tổng ({hqCount}) • Chi nhánh ({branchCount})
           </div>
         </div>
-        <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xl">
+        <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-xl">
           <Boxes size={24} />
         </div>
       </div>

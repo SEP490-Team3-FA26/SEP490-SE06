@@ -178,13 +178,13 @@ export function SupplierCreditManagement() {
     if (!agingData || !agingData.aging) {
       // General overview default chart data
       return [
-        { name: "Trong hạn", value: summaryData ? summaryData.totalDebt - (overdueData ? overdueData.totalOverdueAmount : 0) : 100000000, color: "#10b981" },
+        { name: "Trong hạn", value: summaryData ? summaryData.totalDebt - (overdueData ? overdueData.totalOverdueAmount : 0) : 100000000, color: "#0284c7" },
         { name: "Nợ quá hạn", value: overdueData ? overdueData.totalOverdueAmount : 20000000, color: "#f43f5e" }
       ];
     }
     const a = agingData.aging;
     return [
-      { name: "Trong hạn", value: a.current || 0, color: "#10b981" },
+      { name: "Trong hạn", value: a.current || 0, color: "#0284c7" },
       { name: "1 - 30 ngày", value: a.days1_30 || 0, color: "#eab308" },
       { name: "31 - 60 ngày", value: a.days31_60 || 0, color: "#f97316" },
       { name: "61 - 90 ngày", value: a.days61_90 || 0, color: "#ef4444" },
@@ -230,8 +230,8 @@ export function SupplierCreditManagement() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm animate-pulse">
-          <CheckCircle2 size={16} className="text-emerald-500" />
+        <div className="mb-4 p-4 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm animate-pulse">
+          <CheckCircle2 size={16} className="text-sky-500" />
           {successMsg}
         </div>
       )}
@@ -416,7 +416,7 @@ export function SupplierCreditManagement() {
                       <td className="py-3 font-semibold text-slate-800">{s.name}</td>
                       <td className="py-3 text-right font-bold text-slate-500">{s.creditLimit?.toLocaleString("vi-VN")}đ</td>
                       <td className="py-3 text-right font-black text-indigo-600">{s.currentDebt?.toLocaleString("vi-VN")}đ</td>
-                      <td className="py-3 text-right font-bold text-emerald-600">{s.remainingCredit?.toLocaleString("vi-VN")}đ</td>
+                      <td className="py-3 text-right font-bold text-sky-600">{s.remainingCredit?.toLocaleString("vi-VN")}đ</td>
                       <td className="py-3 text-center">
                         <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
                           s.utilizationPercent > 80 ? "bg-rose-50 text-rose-600" : "bg-indigo-50 text-indigo-600"
@@ -476,7 +476,7 @@ export function SupplierCreditManagement() {
                     <td className="px-5 py-4 text-right font-black text-indigo-600">
                       {s.currentDebt?.toLocaleString("vi-VN")}đ
                     </td>
-                    <td className="px-5 py-4 text-right font-bold text-emerald-600">
+                    <td className="px-5 py-4 text-right font-bold text-sky-600">
                       {s.remainingCredit?.toLocaleString("vi-VN")}đ
                     </td>
                     <td className="px-5 py-4">
@@ -512,7 +512,7 @@ export function SupplierCreditManagement() {
                         <button
                           onClick={() => handleOpenPaymentModal(s)}
                           disabled={s.currentDebt <= 0}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold rounded-lg text-xs transition"
+                          className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold rounded-lg text-xs transition"
                         >
                           Thanh toán
                         </button>
@@ -545,7 +545,7 @@ export function SupplierCreditManagement() {
           <div className="overflow-auto flex-1">
             {!overdueData?.suppliers || overdueData.suppliers.length === 0 ? (
               <div className="flex flex-col items-center py-16 gap-3 text-slate-400">
-                <CheckCircle2 size={36} className="text-emerald-500" />
+                <CheckCircle2 size={36} className="text-sky-500" />
                 <p className="text-sm font-semibold text-slate-800">Tuyệt vời! Không có NCC nào bị quá hạn công nợ.</p>
               </div>
             ) : (
@@ -661,11 +661,11 @@ export function SupplierCreditManagement() {
               exit={{ scale: 0.95, opacity: 0 }}
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
             >
-              <div className="p-5 border-b border-slate-100 bg-emerald-50">
-                <h3 className="font-bold text-emerald-950 flex items-center gap-1.5">
-                  <CreditCard size={16} className="text-emerald-600" /> Thanh Toán Cho NCC
+              <div className="p-5 border-b border-slate-100 bg-sky-50">
+                <h3 className="font-bold text-sky-950 flex items-center gap-1.5">
+                  <CreditCard size={16} className="text-sky-600" /> Thanh Toán Cho NCC
                 </h3>
-                <p className="text-xs text-emerald-700 mt-1">{selectedSupplier.name}</p>
+                <p className="text-xs text-sky-700 mt-1">{selectedSupplier.name}</p>
               </div>
               <div className="p-5 space-y-4">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-150 text-xs">
@@ -681,7 +681,7 @@ export function SupplierCreditManagement() {
                     max={selectedSupplier.currentDebt}
                     value={payAmount}
                     onChange={e => setPayAmount(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-emerald-700 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-sky-700 focus:ring-2 focus:ring-sky-500 outline-none"
                   />
                 </div>
                 <div>
@@ -689,7 +689,7 @@ export function SupplierCreditManagement() {
                   <select
                     value={paymentMethod}
                     onChange={e => setPaymentMethod(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-sky-500 outline-none"
                   >
                     <option value="BANK_TRANSFER">Chuyển khoản ngân hàng</option>
                     <option value="CASH">Tiền mặt</option>
@@ -702,7 +702,7 @@ export function SupplierCreditManagement() {
                     value={paymentNotes}
                     onChange={e => setPaymentNotes(e.target.value)}
                     placeholder="Nhập mã UNC, số biên nhận..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none"
                   />
                 </div>
                 <div>
@@ -711,7 +711,7 @@ export function SupplierCreditManagement() {
                     type="text"
                     value={performedBy}
                     onChange={e => setPerformedBy(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 outline-none"
                   />
                 </div>
               </div>
@@ -719,7 +719,7 @@ export function SupplierCreditManagement() {
                 <button onClick={() => setShowPaymentModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-bold">
                   Hủy
                 </button>
-                <button onClick={handleRecordPayment} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm">
+                <button onClick={handleRecordPayment} className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-sm">
                   Xác nhận
                 </button>
               </div>
@@ -765,7 +765,7 @@ export function SupplierCreditManagement() {
                         <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Phân tích tuổi nợ (Aging Analysis)</h4>
                         <div className="grid grid-cols-5 gap-2 text-center">
                           <div className="p-2 bg-white rounded-lg border border-slate-150">
-                            <span className="text-[10px] font-bold text-emerald-600 block">Trong hạn</span>
+                            <span className="text-[10px] font-bold text-sky-600 block">Trong hạn</span>
                             <span className="text-xs font-black text-slate-800">{(agingData.aging.current || 0).toLocaleString("vi-VN")}đ</span>
                           </div>
                           <div className="p-2 bg-white rounded-lg border border-slate-150">
@@ -799,7 +799,7 @@ export function SupplierCreditManagement() {
                             <div key={t.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-150 text-xs">
                               <div>
                                 <span className={`inline-block px-2 py-0.5 rounded font-black text-[9px] uppercase ${
-                                  t.type === "GRN_PAYABLE" ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"
+                                  t.type === "GRN_PAYABLE" ? "bg-orange-50 text-orange-700" : "bg-sky-50 text-sky-700"
                                 }`}>
                                   {t.type === "GRN_PAYABLE" ? "Nhập nợ (GRN)" : t.type === "PAYMENT" ? "Thanh toán" : "Điều chỉnh"}
                                 </span>
@@ -812,7 +812,7 @@ export function SupplierCreditManagement() {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <span className={`font-black text-sm block ${t.amount > 0 ? "text-orange-600" : "text-emerald-600"}`}>
+                                <span className={`font-black text-sm block ${t.amount > 0 ? "text-orange-600" : "text-sky-600"}`}>
                                   {t.amount > 0 ? "+" : ""}{t.amount.toLocaleString("vi-VN")}đ
                                 </span>
                                 <span className="text-[10px] text-slate-400">Dư nợ: {t.balanceAfter.toLocaleString("vi-VN")}đ</span>

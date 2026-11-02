@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Model, Connection } from 'mongoose';
+import { Model, Connection, Types } from 'mongoose';
 import { ClientKafka } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { User } from '../../auth-service/src/auth/user.schema';
@@ -1559,7 +1559,11 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     if (query?.unassigned === 'true' || query?.unassigned === true) {
       filter.branchId = { $in: [null, ""] };
     } else if (query?.branchId) {
-      filter.branchId = query.branchId;
+      const branchConditions: any[] = [{ branchId: query.branchId }, { branchId: String(query.branchId) }];
+      if (Types.ObjectId.isValid(query.branchId)) {
+        branchConditions.push({ branchId: new Types.ObjectId(query.branchId) });
+      }
+      filter.$or = branchConditions;
     }
 
     const employees = await this.userModel.find(filter).select('-passwordHash').sort({ createdAt: -1 }).exec();

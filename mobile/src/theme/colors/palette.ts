@@ -18,18 +18,18 @@ export const palette = {
     900: '#0C4A6E', // Chữ tương phản tối đa
   },
 
-  // Tông Ngọc Bích Y Tế (Medical Emerald) - Dành riêng cho Dược Sĩ (Pharmacist)
+  // Tông Xanh Ngọc Đồng Bộ Sang Xanh Auth (Medical Emerald -> Auth Sky Blue) - Dành riêng cho Dược Sĩ (Pharmacist)
   emerald: {
-    50: '#ECFDF5',  // Nền đơn thuốc, ca trực
-    100: '#D1FAE5', // Badge trạng thái dược sĩ
-    200: '#A7F3D0', // Viền toa thuốc an toàn
-    300: '#6EE7B7',
-    400: '#34D399',
-    500: '#10B981', // Trạng thái thành công / đã duyệt
-    600: '#059669', // Xanh ngọc chủ đạo của Dược Sĩ
-    700: '#047857', // Tiêu đề nghiệp vụ bán thuốc
-    800: '#065F46', // Header Dược sĩ
-    900: '#064E3B', // Tương phản tối đa
+    50: '#F0F9FF',  // Nền đơn thuốc, ca trực (Ánh xạ chuẩn Tone Xanh Auth)
+    100: '#E0F2FE', // Badge trạng thái dược sĩ
+    200: '#BAE6FD', // Viền toa thuốc an toàn
+    300: '#7DD3FC',
+    400: '#38BDF8',
+    500: '#0EA5E9', // Trạng thái thành công / đã duyệt
+    600: '#0284C7', // Xanh chủ đạo của Dược Sĩ (Đồng bộ Xanh Auth)
+    700: '#0369A1', // Tiêu đề nghiệp vụ bán thuốc
+    800: '#075985', // Header Dược sĩ
+    900: '#0C4A6E', // Tương phản tối đa
   },
 
   // Tông Chàm / Tím Công Nghiệp (Industrial Indigo) - Dành riêng cho Thủ Kho (Warehouse)

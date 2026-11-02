@@ -169,13 +169,13 @@ export default function GPPView({ showToast }: GPPViewProps) {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cổng Dược Quốc Gia</div>
-            <div className="text-base font-black text-emerald-600 flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="text-base font-black text-sky-600 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-500 animate-pulse" />
               ĐANG KẾT NỐI (GPP LIVE)
             </div>
             <div className="text-xs text-slate-500 font-medium">Mã cơ sở: <strong className="text-slate-800 font-mono">79-001234</strong></div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
             <ShieldCheck size={26} />
           </div>
         </div>
@@ -185,7 +185,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
           <div className="space-y-1">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Đơn đã liên thông</div>
             <div className="text-2xl font-black text-slate-900">{syncedOrders} <span className="text-xs text-slate-400 font-bold">/ {totalOrders}</span></div>
-            <div className="text-xs text-emerald-600 font-bold flex items-center gap-1">
+            <div className="text-xs text-sky-600 font-bold flex items-center gap-1">
               <Check size={13} /> Tuân thủ 100% Thông tư 02/2018
             </div>
           </div>
@@ -235,7 +235,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
             </p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 shrink-0">
+        <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-200 shrink-0">
           <CheckCircle2 size={16} /> 0 Lô Thuốc Cần Biệt Trữ
         </div>
       </div>
@@ -306,7 +306,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
             {/* Nut Xuat Bao Cao GPP Excel/CSV */}
             <button
               onClick={handleExportGPPReport}
-              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
               title="Xuất file Báo cáo Cân Bằng CSDL Dược Quốc Gia gửi Sở Y Tế"
             >
               <FileSpreadsheet size={15} /> Xuất Báo Cáo GPP
@@ -370,9 +370,9 @@ export default function GPPView({ showToast }: GPPViewProps) {
                       </td>
 
                       {/* Ma Bien nhan QG */}
-                      <td className="px-5 py-4 font-mono font-black text-emerald-700">
+                      <td className="px-5 py-4 font-mono font-black text-sky-700">
                         <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                           {syncCode}
                         </div>
                         <div className="text-[10px] text-slate-400 font-sans font-medium">Mã CS: {ord.nationalFacilityCode || "79-001234"}</div>
@@ -391,7 +391,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {ord.direction === "INWARD" ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-sky-50 text-sky-800 border border-sky-300 flex items-center gap-1">
                               📥 NHẬP KHO GDP
                             </span>
                           ) : ord.direction === "STOCK_TAKING" ? (
@@ -433,8 +433,8 @@ export default function GPPView({ showToast }: GPPViewProps) {
                       {/* Trang thai GPP */}
                       <td className="px-5 py-4 text-center">
                         {syncStatus === "SYNCED" ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            <CheckCircle2 size={12} className="text-emerald-600" /> ĐÃ LIÊN THÔNG
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-50 text-sky-800 border border-sky-200">
+                            <CheckCircle2 size={12} className="text-sky-600" /> ĐÃ LIÊN THÔNG
                           </span>
                         ) : syncStatus === "PENDING" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
@@ -463,10 +463,10 @@ export default function GPPView({ showToast }: GPPViewProps) {
                           <button
                             onClick={() => handleResync(ord._id)}
                             disabled={isResyncing === ord._id}
-                            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 text-slate-500 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                             title="Đồng bộ lại (Re-sync)"
                           >
-                            <Loader2 size={15} className={isResyncing === ord._id ? "animate-spin text-emerald-600" : ""} />
+                            <Loader2 size={15} className={isResyncing === ord._id ? "animate-spin text-sky-600" : ""} />
                           </button>
                         </div>
                       </td>
@@ -486,7 +486,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
               <div className="flex items-center gap-2.5">
-                <ShieldCheck size={20} className="text-emerald-400" />
+                <ShieldCheck size={20} className="text-sky-400" />
                 <div>
                   <h3 className="font-bold text-sm">Gói tin JSON Liên thông CSDL Dược Quốc Gia</h3>
                   <p className="text-[11px] text-slate-400 font-mono">Chuẩn Thông tư 02/2018/TT-BYT & QĐ 412/QĐ-BYT</p>
@@ -501,7 +501,7 @@ export default function GPPView({ showToast }: GPPViewProps) {
             </div>
 
             {/* JSON Content */}
-            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-slate-950 font-mono text-xs text-emerald-400">
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-slate-950 font-mono text-xs text-sky-400">
               <pre className="whitespace-pre-wrap leading-relaxed">
 {JSON.stringify({
   ma_co_so: selectedOrder.nationalFacilityCode || "79-001234",

@@ -57,6 +57,10 @@ export class OrderItemDto {
   @IsBoolean()
   @IsOptional()
   isGiftItem?: boolean;
+
+  @IsString()
+  @IsOptional()
+  note?: string;
 }
 
 export class CreateOrderDto {
@@ -116,6 +120,15 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   cancelUrl?: string;
+
+  // Ghi chú của khách hàng gửi cho Dược sĩ
+  @IsString()
+  @IsOptional()
+  note?: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
 
   // AI decision-support audit trail
   @IsBoolean()

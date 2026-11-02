@@ -358,10 +358,32 @@ export class HrController implements OnModuleInit {
   }
 
   @Get('colleagues')
-  @Roles('branch', 'pharmacist', 'admin')
+  @Roles('branch', 'pharmacist', 'admin', 'warehouse', 'headBranch', 'director', 'head_branch')
   @ApiOperation({ summary: 'Lấy danh sách nhân viên/đồng nghiệp chi nhánh để đổi ca' })
   async getColleagues(@Request() req) {
-    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', { branchId: req.user.branchId });
+    // Lấy thông tin chi nhánh và userId của tài khoản đang đăng nhập
+    const branchId = req.user?.branchId;
+    const currentUserId = req.user?.sub || req.user?.id;
+    const payload: any = {};
+    if (branchId) {
+      payload.branchId = branchId;
+    }
+
+    // Truy vấn danh sách nhân viên chi nhánh qua Kafka
+    const employees = await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', payload);
+    const list = Array.isArray(employees) ? employees : (Array.isArray(employees?.data) ? employees.data : []);
+
+    // Lọc bỏ chính bản thân người gửi yêu cầu đổi ca
+    let availableColleagues = list.filter((e: any) => String(e._id || e.id) !== String(currentUserId));
+
+    // Fallback: nếu chi nhánh chưa có đồng nghiệp nào khác hoặc branchId không khớp, lấy danh sách nhân viên toàn chuỗi
+    if (availableColleagues.length === 0) {
+      const allStaff = await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', {});
+      const allList = Array.isArray(allStaff) ? allStaff : (Array.isArray(allStaff?.data) ? allStaff.data : []);
+      availableColleagues = allList.filter((e: any) => String(e._id || e.id) !== String(currentUserId));
+    }
+
+    return availableColleagues;
   }
 
   // --- HR: CERTIFICATES & CCHN MANAGEMENT ---

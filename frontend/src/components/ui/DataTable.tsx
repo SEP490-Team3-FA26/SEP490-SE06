@@ -86,9 +86,9 @@ function SortIcon({ column, sortState }: { column: ColumnDef<unknown>; sortState
     return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />;
   }
   return sortState.direction === 'asc' ? (
-    <ChevronUp className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
+    <ChevronUp className="w-3.5 h-3.5 text-sky-600" aria-hidden="true" />
   ) : (
-    <ChevronDown className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
+    <ChevronDown className="w-3.5 h-3.5 text-sky-600" aria-hidden="true" />
   );
 }
 
@@ -192,7 +192,7 @@ function DataTable<T extends { id?: string; _id?: string }>({
                       if (el) el.indeterminate = isIndeterminate;
                     }}
                     onChange={toggleAll}
-                    className="w-4 h-4 rounded border-slate-300 text-emerald-500 cursor-pointer focus:ring-emerald-500"
+                    className="w-4 h-4 rounded border-slate-300 text-sky-600 cursor-pointer focus:ring-sky-500"
                   />
                 </th>
               )}
@@ -259,7 +259,7 @@ function DataTable<T extends { id?: string; _id?: string }>({
                     className={[
                       'hover:bg-slate-50/80 transition-colors duration-150',
                       onRowClick ? 'cursor-pointer' : '',
-                      isSelected ? 'bg-emerald-50/40' : '',
+                      isSelected ? 'bg-sky-50/40' : '',
                     ].join(' ')}
                   >
                     {/* Row selection checkbox */}
@@ -277,7 +277,7 @@ function DataTable<T extends { id?: string; _id?: string }>({
                           aria-label={`Select row ${rowIndex + 1}`}
                           checked={isSelected}
                           onChange={() => toggleRow(item, rowId)}
-                          className="w-4 h-4 rounded border-slate-300 text-emerald-500 cursor-pointer focus:ring-emerald-500"
+                          className="w-4 h-4 rounded border-slate-300 text-sky-600 cursor-pointer focus:ring-sky-500"
                         />
                       </td>
                     )}

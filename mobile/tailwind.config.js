@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const medicalColors = require('./tailwind.colors');
+
 module.exports = {
   content: [
     "./App.{js,jsx,ts,tsx}",
@@ -8,7 +10,11 @@ module.exports = {
     "./components/**/*.{js,jsx,ts,tsx}"
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        ...medicalColors,
+      },
+    },
   },
   plugins: [],
-}
+};

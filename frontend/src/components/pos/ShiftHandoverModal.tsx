@@ -88,9 +88,9 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
         {/* Header Modal */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-400/30 flex items-center justify-center">
               <Banknote size={20} />
             </div>
             <div>
@@ -98,7 +98,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                 <h3 className="text-base font-extrabold tracking-tight">
                   Đóng ca làm việc: {liveStats?.shiftName || 'Ca hiện tại'}
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-sky-500/30 text-sky-300 border border-sky-400/30">
                   Chuẩn GPP
                 </span>
               </div>
@@ -132,7 +132,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {loading ? (
             <div className="py-20 text-center">
-              <Loader2 size={36} className="animate-spin text-emerald-600 mx-auto mb-3" />
+              <Loader2 size={36} className="animate-spin text-sky-600 mx-auto mb-3" />
               <p className="text-xs font-bold text-slate-500">Đang tổng hợp dữ liệu giao dịch và quét két tiền...</p>
             </div>
           ) : (
@@ -176,14 +176,14 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                     <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                       <div className="flex items-center justify-between text-slate-500 text-[11px] font-semibold">
                         <span className="flex items-center gap-1">
-                          <Receipt size={13} className="text-emerald-600" />
+                          <Receipt size={13} className="text-sky-600" />
                           Tiền mặt bán
                         </span>
-                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
+                        <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded font-bold">
                           +{systemOrderCount}
                         </span>
                       </div>
-                      <div className="text-sm font-black text-emerald-700 mt-1">
+                      <div className="text-sm font-black text-sky-700 mt-1">
                         {systemCashSales.toLocaleString('vi-VN')}₫
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Thu trực tiếp tại quầy</div>
@@ -232,17 +232,17 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                     </div>
 
                     {/* The 4: So sach ly thuyet */}
-                    <div className="bg-emerald-50/80 p-2.5 rounded-lg border border-emerald-200/90">
-                      <div className="flex items-center justify-between text-emerald-900 text-[11px] font-bold">
+                    <div className="bg-sky-50/80 p-2.5 rounded-lg border border-sky-200/90">
+                      <div className="flex items-center justify-between text-sky-900 text-[11px] font-bold">
                         <span>Tiền sổ sách cần có</span>
-                        <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded font-black">
+                        <span className="text-[10px] bg-sky-200/80 text-sky-900 px-1.5 py-0.2 rounded font-black">
                           Sổ sách
                         </span>
                       </div>
-                      <div className="text-sm font-black text-emerald-950 mt-1">
+                      <div className="text-sm font-black text-sky-950 mt-1">
                         {expectedCashAmount.toLocaleString('vi-VN')}₫
                       </div>
-                      <div className="text-[10px] text-emerald-800 mt-0.5">= Đầu ca + Thu - Chi</div>
+                      <div className="text-[10px] text-sky-800 mt-0.5">= Đầu ca + Thu - Chi</div>
                     </div>
                   </div>
                 </div>
@@ -253,7 +253,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
                   <div>
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                      <Coins size={15} className="text-emerald-600" />
+                      <Coins size={15} className="text-sky-600" />
                       3. Kiểm kê tiền mặt thực tế trong két
                     </h4>
                     <p className="text-[11px] text-slate-500">
@@ -265,7 +265,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                     <button
                       type="button"
                       onClick={handleSyncToExpected}
-                      className="px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition cursor-pointer flex items-center gap-1"
+                      className="px-2.5 py-1 text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded-lg transition cursor-pointer flex items-center gap-1"
                     >
                       <Sparkles size={13} />
                       Khớp sổ sách ({expectedCashAmount.toLocaleString('vi-VN')}₫)
@@ -293,7 +293,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                         type="text"
                         value={actualCashInput}
                         onChange={(e) => handleActualCashChange(e.target.value)}
-                        className="w-full text-lg font-black text-slate-900 bg-white px-3.5 py-2 rounded-lg border-2 border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 transition pr-10"
+                        className="w-full text-lg font-black text-slate-900 bg-white px-3.5 py-2 rounded-lg border-2 border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400/30 transition pr-10"
                         placeholder="0"
                       />
                       <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
@@ -308,7 +308,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                   <div
                     className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
                       isBalanced
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                        ? 'bg-sky-50 border-sky-300 text-sky-950'
                         : cashDiscrepancy < 0
                         ? 'bg-rose-50 border-rose-300 text-rose-950'
                         : 'bg-amber-50 border-amber-300 text-amber-950'
@@ -321,7 +321,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                           isBalanced
-                            ? 'bg-emerald-200 text-emerald-900'
+                            ? 'bg-sky-200 text-sky-900'
                             : cashDiscrepancy < 0
                             ? 'bg-rose-200 text-rose-900'
                             : 'bg-amber-200 text-amber-900'
@@ -336,7 +336,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                       <span
                         className={`text-xl font-black ${
                           isBalanced
-                            ? 'text-emerald-700'
+                            ? 'text-sky-700'
                             : cashDiscrepancy < 0
                             ? 'text-rose-700'
                             : 'text-amber-700'
@@ -425,7 +425,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                       <button
                         type="button"
                         onClick={() => setRetainedFloat(Math.min(openingFloat, actualCashAmount))}
-                        className="text-[10px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                        className="text-[10px] font-bold text-sky-700 hover:underline cursor-pointer"
                       >
                         = Đầu ca ({Math.min(openingFloat, actualCashAmount).toLocaleString('vi-VN')}₫)
                       </button>
@@ -441,7 +441,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                           const val = Math.max(0, parseInt(e.target.value, 10) || 0);
                           setRetainedFloat(Math.min(val, actualCashAmount));
                         }}
-                        className="w-full px-3 py-1.5 text-sm font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-emerald-500 focus:outline-none pr-8"
+                        className="w-full px-3 py-1.5 text-sm font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-sky-500 focus:outline-none pr-8"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                         ₫
@@ -514,7 +514,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                               <div
                                 className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
                                   med.isMatched
-                                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                                    ? 'bg-sky-600 border-sky-600 text-white'
                                     : 'border-slate-300 bg-white'
                                 }`}
                               >
@@ -529,7 +529,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                             </div>
                             <span
                               className={`px-1.5 py-0.2 rounded text-[10px] font-bold shrink-0 ${
-                                med.isMatched ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                med.isMatched ? 'bg-sky-100 text-sky-800' : 'bg-rose-100 text-rose-800'
                               }`}
                             >
                               {med.isMatched ? 'Khớp khay' : 'Lệch'}
@@ -565,7 +565,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                           value={pendingOrdersNote}
                           onChange={(e) => setPendingOrdersNote(e.target.value)}
                           placeholder="VD: Khách hẹn 18h lấy thuốc tim mạch; Đơn Shopee chờ tài xế..."
-                          className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-emerald-500 focus:outline-none"
+                          className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-sky-500 focus:outline-none"
                         />
                       </div>
 
@@ -579,7 +579,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                             value={generalShiftNotes}
                             onChange={(e) => setGeneralShiftNotes(e.target.value)}
                             placeholder="VD: Tủ lạnh vắc xin 4°C ổn định, máy in nhiệt sắp hết giấy..."
-                            className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-emerald-500 focus:outline-none"
+                            className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-sky-500 focus:outline-none"
                           />
                         </div>
                         <div>
@@ -591,7 +591,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
                             value={incomingPharmacistName}
                             onChange={(e) => setIncomingPharmacistName(e.target.value)}
                             placeholder="VD: Dược sĩ Nguyễn Văn B..."
-                            className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-emerald-500 focus:outline-none"
+                            className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-sky-500 focus:outline-none"
                           />
                         </div>
                       </div>
@@ -629,7 +629,7 @@ export function ShiftHandoverModal({ isOpen, onClose, onSuccess, showToast }: Sh
               type="button"
               disabled={submitting || loading}
               onClick={handleSubmit}
-              className="px-5 py-2 rounded-lg text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-lg text-xs font-extrabold text-white bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 transition flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
             >
               {submitting ? (
                 <>

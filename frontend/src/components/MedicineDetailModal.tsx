@@ -58,7 +58,7 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
                   Tạm hết hàng
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-sky-100 text-sky-700 border border-sky-200">
                   Sẵn sàng giao
                 </span>
               )}
@@ -127,7 +127,7 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
             {/* Cam kết chuẩn GPP */}
             <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                <ShieldCheck size={14} className="text-emerald-600 shrink-0" />
+                <ShieldCheck size={14} className="text-sky-600 shrink-0" />
                 <span>100% Thuốc chính hãng có hóa đơn</span>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -240,9 +240,9 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
             <button
               type="button"
               onClick={() => setShowBarcodeModal(true)}
-              className="px-3 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 transition-all cursor-pointer whitespace-nowrap"
+              className="px-3 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 hover:border-sky-500 hover:bg-sky-50 text-slate-700 hover:text-sky-700 transition-all cursor-pointer whitespace-nowrap"
             >
-              <Tag size={13} className="text-emerald-600" /> In Tem
+              <Tag size={13} className="text-sky-600" /> In Tem
             </button>
 
             {isRx ? (
@@ -263,7 +263,7 @@ export function MedicineDetailModal({ medicine, isOpen, onClose, onAddToCart, ad
                   isOutOfStock 
                     ? "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none" 
                     : addedItems[medId] 
-                      ? "bg-emerald-500 text-white shadow-emerald-200" 
+                      ? "bg-sky-500 text-white shadow-sky-200" 
                       : "bg-[#0057cd] hover:bg-[#0047a5] text-white cursor-pointer shadow-blue-200"
                 }`}
               >

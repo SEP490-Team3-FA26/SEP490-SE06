@@ -134,7 +134,7 @@ export function ResetPassword() {
         </div>
 
         {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg font-medium text-center border border-red-100">{error}</div>}
-        {success && <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg font-medium text-center border border-green-100">{success}</div>}
+        {success && <div className="text-sm text-sky-700 bg-sky-50 p-3 rounded-lg font-medium text-center border border-sky-100">{success}</div>}
 
         <button
           type="submit"

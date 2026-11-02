@@ -20,8 +20,12 @@ export default defineConfig(() => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : { usePolling: true },
+      // Cấu hình watch tối ưu cho Docker trên macOS (tránh nghẽn I/O VirtioFS gây treo container)
+      watch: process.env.DISABLE_HMR === 'true' ? null : {
+        usePolling: true,
+        interval: 1000,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
+      },
       proxy: {
         '/api': {
           target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),

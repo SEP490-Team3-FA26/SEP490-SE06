@@ -125,9 +125,9 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50 to-white">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-sky-50 via-teal-50 to-white">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-200">
+            <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white shadow-md shadow-sky-200">
               <MapPin className="w-5 h-5" />
             </div>
             <div>
@@ -155,8 +155,8 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
           )}
 
           {successMsg && (
-            <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-3 text-emerald-700 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="mb-4 p-3.5 bg-sky-50 border border-sky-200 rounded-xl flex items-start space-x-3 text-sky-700 text-sm">
+              <CheckCircle2 className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
               <span>{successMsg}</span>
             </div>
           )}
@@ -172,7 +172,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
 
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center text-slate-400">
-              <Loader2 size={32} className="animate-spin text-emerald-600 mb-3" />
+              <Loader2 size={32} className="animate-spin text-sky-600 mb-3" />
               <p className="text-sm">Đang tải thông tin chi nhánh...</p>
             </div>
           ) : (
@@ -182,7 +182,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                 type="button"
                 onClick={handleGetBrowserLocation}
                 disabled={locating}
-                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium text-sm rounded-xl flex items-center justify-center space-x-2 transition shadow-sm"
+                className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white font-medium text-sm rounded-xl flex items-center justify-center space-x-2 transition shadow-sm"
               >
                 {locating ? (
                   <Loader2 size={16} className="animate-spin text-white" />
@@ -204,7 +204,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                     value={latitudeStr}
                     onChange={(e) => setLatitudeStr(e.target.value)}
                     placeholder="10.776900"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition"
                   />
                 </div>
 
@@ -218,7 +218,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                     value={longitudeStr}
                     onChange={(e) => setLongitudeStr(e.target.value)}
                     placeholder="106.700900"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition"
                   />
                 </div>
               </div>
@@ -229,7 +229,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                   <label className="text-xs font-semibold text-slate-600 uppercase">
                     Bán Kính Geofencing Điểm Danh
                   </label>
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                  <span className="text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
                     {radiusMeters} mét
                   </span>
                 </div>
@@ -244,7 +244,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                         onClick={() => setRadiusMeters(r)}
                         className={`py-2 text-xs font-semibold rounded-lg border transition ${
                           isSelected
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                            ? "bg-sky-600 text-white border-sky-600 shadow-sm"
                             : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
@@ -265,7 +265,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Ví dụ: 123 Nguyễn Huệ, Phường Bến Nghé, Quận 1"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition"
                 />
               </div>
 
@@ -281,7 +281,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center space-x-2 transition shadow-md shadow-emerald-200"
+                  className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center space-x-2 transition shadow-md shadow-sky-200"
                 >
                   {saving ? (
                     <Loader2 size={16} className="animate-spin text-white" />

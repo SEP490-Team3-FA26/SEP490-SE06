@@ -331,7 +331,7 @@ export function InventoryCheck() {
                 <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 flex items-center justify-between text-xs text-[#0057cd]">
                   <span className="font-bold">Hệ thống đang ghi nhận: {systemStock} {selectedMedicineObj?.unit || 'đơn vị'} cho lô {selectedBatchNo}</span>
                   {actualStockInput && (
-                    <span className={`font-black uppercase text-xs ${parseInt(actualStockInput) - systemStock < 0 ? 'text-rose-600' : parseInt(actualStockInput) - systemStock > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    <span className={`font-black uppercase text-xs ${parseInt(actualStockInput) - systemStock < 0 ? 'text-rose-600' : parseInt(actualStockInput) - systemStock > 0 ? 'text-sky-600' : 'text-slate-500'}`}>
                       Chênh lệch: {parseInt(actualStockInput) - systemStock > 0 ? '+' : ''}{parseInt(actualStockInput) - systemStock}
                     </span>
                   )}
@@ -367,7 +367,7 @@ export function InventoryCheck() {
                             ${(item.difference || 0) < 0 
                               ? 'bg-rose-50 text-rose-700' 
                               : (item.difference || 0) > 0 
-                              ? 'bg-emerald-50 text-emerald-700' 
+                              ? 'bg-sky-50 text-sky-700' 
                               : 'bg-slate-50 text-slate-500'
                             }
                           `}>
@@ -448,7 +448,7 @@ export function InventoryCheck() {
                     <td className="px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase shadow-sm inline-flex items-center gap-1
                         ${c.status === 'COMPLETED' 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                          ? 'bg-sky-50 text-sky-700 border-sky-100' 
                           : 'bg-amber-50 text-amber-700 border-amber-100'
                         }
                       `}>
@@ -507,7 +507,7 @@ export function InventoryCheck() {
                   <span>Chi Tiết Biên Bản: {selectedCheck.checkCode}</span>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border
                     ${selectedCheck.status === 'COMPLETED' 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                      ? 'bg-sky-50 text-sky-700 border-sky-100' 
                       : 'bg-amber-50 text-amber-700 border-amber-100'
                     }
                   `}>
@@ -573,7 +573,7 @@ export function InventoryCheck() {
                                 ${diff < 0 
                                   ? 'bg-rose-50 text-rose-700' 
                                   : diff > 0 
-                                  ? 'bg-emerald-50 text-emerald-700' 
+                                  ? 'bg-sky-50 text-sky-700' 
                                   : 'bg-slate-50 text-slate-500'
                                 }
                               `}>

@@ -159,8 +159,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   onClick={handleAddAll}
                   disabled={isAddingAll}
                   aria-label="Thêm tất cả sản phẩm vào giỏ hàng"
-                  className={`text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 cursor-pointer ${addedAllSuccess
-                      ? "bg-emerald-500 text-white"
+                  className={`text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 cursor-pointer ${
+                    addedAllSuccess
+                      ? "bg-sky-500 text-white"
                       : "bg-white text-blue-700 hover:bg-blue-50 border border-slate-200"
                     }`}
                 >

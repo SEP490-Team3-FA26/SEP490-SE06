@@ -208,7 +208,7 @@ export function SeasonalAnalysisDashboard() {
 
   const getConfidenceLevelClass = (level: string) => {
     switch (level?.toLowerCase()) {
-      case "high": return "text-emerald-600 bg-emerald-50";
+      case "high": return "text-sky-600 bg-sky-50";
       case "medium": return "text-amber-600 bg-amber-50";
       case "low": return "text-rose-600 bg-rose-50";
       default: return "text-slate-500 bg-slate-50";
@@ -223,8 +223,8 @@ export function SeasonalAnalysisDashboard() {
           <Sparkles size={20} className="text-purple-600" />
           <span className="font-bold text-slate-800">Báo cáo dự phòng & Xu hướng mùa (AI)</span>
           {data?.cache_hit && (
-            <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-100 shadow-sm flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[10px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded-full font-bold border border-sky-100 shadow-sm flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>
               Cache Hit (Redis)
             </span>
           )}
@@ -285,8 +285,8 @@ export function SeasonalAnalysisDashboard() {
       </div>
 
       {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-sm text-emerald-800 font-semibold flex items-center gap-2.5 shadow-sm">
-          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+        <div className="bg-sky-50 border border-sky-100 p-4 rounded-xl text-sm text-sky-800 font-semibold flex items-center gap-2.5 shadow-sm">
+          <CheckCircle2 size={18} className="text-sky-600 shrink-0" />
           {successMsg}
         </div>
       )}
@@ -404,7 +404,7 @@ export function SeasonalAnalysisDashboard() {
                 </p>
                 <p className="text-[10px] text-slate-400 font-semibold">Khả năng bùng phát bệnh theo mùa vụ khu vực</p>
               </div>
-              <div className={`p-4 rounded-xl shrink-0 ${potentialOutbreaksCount > 0 ? "bg-orange-50 text-orange-600" : "bg-emerald-50 text-emerald-600"}`}>
+              <div className={`p-4 rounded-xl shrink-0 ${potentialOutbreaksCount > 0 ? "bg-orange-50 text-orange-600" : "bg-sky-50 text-sky-600"}`}>
                 {potentialOutbreaksCount > 0 ? <AlertTriangle size={22} /> : <ShieldCheck size={22} />}
               </div>
             </div>
@@ -427,7 +427,7 @@ export function SeasonalAnalysisDashboard() {
                 <div className="flex flex-col flex-1">
                   <div className="flex items-center gap-4 mb-2 justify-end">
                     {chartData.medicines.map((med: any, idx: number) => {
-                      const colors = ["#8B5CF6", "#10B981", "#F59E0B"];
+                      const colors = ["#8B5CF6", "#0284c7", "#F59E0B"];
                       return (
                         <div key={idx} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
                           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors[idx] }}></span>
@@ -447,8 +447,8 @@ export function SeasonalAnalysisDashboard() {
 
                       {/* Render lines and Confidence Interval for the first medicine */}
                       {chartData.medicines.map((med: any, medIdx: number) => {
-                        const colors = ["#8B5CF6", "#10B981", "#F59E0B"];
-                        const fillColors = ["rgba(139, 92, 246, 0.08)", "rgba(16, 185, 129, 0.08)", "rgba(245, 158, 11, 0.08)"];
+                        const colors = ["#8B5CF6", "#0284c7", "#F59E0B"];
+                        const fillColors = ["rgba(139, 92, 246, 0.08)", "rgba(2, 132, 199, 0.08)", "rgba(245, 158, 11, 0.08)"];
                         
                         // X points are mapped across 6 historical months + 1 forecast month (total 7 points)
                         const points: { x: number; y: number }[] = [];
@@ -552,7 +552,7 @@ export function SeasonalAnalysisDashboard() {
               
               {data.potential_outbreaks?.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-xs font-semibold gap-2 py-8">
-                  <ShieldCheck size={36} className="text-emerald-500" />
+                  <ShieldCheck size={36} className="text-sky-500" />
                   Không phát hiện tín hiệu bùng phát dịch bệnh
                 </div>
               ) : (
@@ -642,7 +642,7 @@ export function SeasonalAnalysisDashboard() {
                           </td>
                           <td className="px-4 py-4.5 text-center">
                             <span className={`inline-flex px-2 py-0.5 rounded-full font-bold border text-[10px] uppercase ${
-                              rec.suggestedAction === 'Tăng tồn kho' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              rec.suggestedAction === 'Tăng tồn kho' ? 'bg-sky-50 text-sky-700 border-sky-200' :
                               rec.suggestedAction === 'Giảm tồn kho' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                               'bg-slate-50 text-slate-600 border-slate-200'
                             }`}>

@@ -149,8 +149,8 @@ export const CustomerAccountSidebar: React.FC<CustomerAccountSidebarProps> = ({
             <span className="truncate">{user.email || 'Chưa cập nhật email'}</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-            <span className="text-emerald-700 font-bold">Tài khoản đã kích hoạt GPP</span>
+            <CheckCircle2 size={14} className="text-sky-500 shrink-0" />
+            <span className="text-sky-700 font-bold">Tài khoản đã kích hoạt GPP</span>
           </div>
         </div>
 
@@ -173,7 +173,7 @@ export const CustomerAccountSidebar: React.FC<CustomerAccountSidebarProps> = ({
               {missingItems.join(', ')}
             </p>
           ) : (
-            <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+            <p className="text-[11px] text-sky-600 font-bold flex items-center gap-1">
               <Check size={12} />
               <span>Hồ sơ đã hoàn tất 100%!</span>
             </p>

@@ -154,7 +154,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="Admin Dashboard"
         subtitle="Giám sát Microservices & Nhân viên hệ thống"
@@ -237,7 +237,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
 
             <View style={[styles.kpiRow, { marginTop: -6 }]}>
-              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
                   {employees.filter((e) => e.isActive !== false).length} Hoạt Động
@@ -259,7 +259,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   <View
                     style={[
                       styles.statusDot,
-                      { backgroundColor: s.status === 'ACTIVE' ? '#10B981' : '#F59E0B' },
+                      { backgroundColor: s.status === 'ACTIVE' ? '#0284C7' : '#F59E0B' },
                     ]}
                   />
                   <View>
@@ -272,13 +272,13 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <View
                   style={[
                     styles.loadBadge,
-                    { backgroundColor: s.status === 'ACTIVE' ? '#ECFDF5' : '#FEF3C7' },
+                    { backgroundColor: s.status === 'ACTIVE' ? '#F0F9FF' : '#FEF3C7' },
                   ]}
                 >
                   <Text
                     style={[
                       styles.loadBadgeText,
-                      { color: s.status === 'ACTIVE' ? '#059669' : '#D97706' },
+                      { color: s.status === 'ACTIVE' ? '#0284C7' : '#D97706' },
                     ]}
                   >
                     {s.status === 'ACTIVE' ? 'SẴN SÀNG' : 'STANDBY'}
@@ -327,13 +327,13 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                       <View
                         style={[
                           styles.statusTag,
-                          { backgroundColor: emp.isActive !== false ? '#ECFDF5' : '#FEF2F2' },
+                          { backgroundColor: emp.isActive !== false ? '#F0F9FF' : '#FEF2F2' },
                         ]}
                       >
                         <Text
                           style={[
                             styles.statusTagText,
-                            { color: emp.isActive !== false ? '#059669' : '#DC2626' },
+                            { color: emp.isActive !== false ? '#0284C7' : '#DC2626' },
                           ]}
                         >
                           {emp.isActive !== false ? 'HOẠT ĐỘNG' : 'ĐÃ KHÓA'}
@@ -347,18 +347,18 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   onPress={() => handleToggleBan(emp)}
                   style={[
                     styles.banBtn,
-                    { backgroundColor: emp.isActive !== false ? '#FEE2E2' : '#DCFCE7' },
+                    { backgroundColor: emp.isActive !== false ? '#FEE2E2' : '#F0F9FF' },
                   ]}
                 >
                   <Ionicons
                     name={emp.isActive !== false ? 'lock-closed' : 'lock-open'}
                     size={16}
-                    color={emp.isActive !== false ? '#DC2626' : '#16A34A'}
+                    color={emp.isActive !== false ? '#DC2626' : '#0284C7'}
                   />
                   <Text
                     style={[
                       styles.banBtnText,
-                      { color: emp.isActive !== false ? '#DC2626' : '#16A34A' },
+                      { color: emp.isActive !== false ? '#DC2626' : '#0284C7' },
                     ]}
                   >
                     {emp.isActive !== false ? 'Khóa' : 'Mở'}
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0284C7',
     marginRight: 12,
   },
   serviceName: {

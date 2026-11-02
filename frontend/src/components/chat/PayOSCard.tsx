@@ -80,7 +80,7 @@ export const PayOSCard: React.FC<PayOSCardProps> = ({
         {/* Payment Status Badge */}
         <div>
           {status === "PAID" ? (
-            <span className="bg-emerald-500 text-white font-medium text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className="bg-sky-500 text-white font-medium text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
               <CheckCircle2 size={11} /> Thành công
             </span>
           ) : status === "EXPIRED" ? (
@@ -93,7 +93,7 @@ export const PayOSCard: React.FC<PayOSCardProps> = ({
             </span>
           ) : (
             <span className="bg-white/15 text-slate-200 font-medium text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
               Chờ quét
             </span>
           )}
@@ -135,12 +135,12 @@ export const PayOSCard: React.FC<PayOSCardProps> = ({
 
         {/* QR Code view or success card */}
         {status === "PAID" ? (
-          <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex flex-col items-center justify-center text-center gap-1.5 animate-in zoom-in-98 duration-200">
-            <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+          <div className="p-4 bg-sky-50/70 border border-sky-200/80 rounded-xl flex flex-col items-center justify-center text-center gap-1.5 animate-in zoom-in-98 duration-200">
+            <div className="w-10 h-10 rounded-full bg-sky-500 text-white flex items-center justify-center">
               <CheckCircle2 size={22} />
             </div>
-            <div className="font-bold text-emerald-800 text-xs">Thanh toán hoàn tất!</div>
-            <p className="text-[11px] text-emerald-700 leading-relaxed">
+            <div className="font-bold text-sky-800 text-xs">Thanh toán hoàn tất!</div>
+            <p className="text-[11px] text-sky-700 leading-relaxed">
               Đơn hàng <strong>#{payment.orderCode}</strong> đã được thanh toán thành công. Dược sĩ đang chuẩn bị gửi đến bạn!
             </p>
           </div>
@@ -162,7 +162,7 @@ export const PayOSCard: React.FC<PayOSCardProps> = ({
                 alt="VietQR PayOS"
               />
               <div className="text-[10px] text-slate-400 mt-1.5 font-normal flex items-center gap-1">
-                <ShieldCheck size={11} className="text-emerald-600" />
+                <ShieldCheck size={11} className="text-sky-600" />
                 Quét bằng App Ngân Hàng hoặc Ví điện tử
               </div>
             </div>
@@ -178,7 +178,7 @@ export const PayOSCard: React.FC<PayOSCardProps> = ({
                   className="flex items-center gap-1 font-mono font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
                 >
                   <span>{transferContent}</span>
-                  {copiedField === "content" ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                  {copiedField === "content" ? <Check size={11} className="text-sky-600" /> : <Copy size={11} />}
                 </button>
               </div>
 

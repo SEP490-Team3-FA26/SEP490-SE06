@@ -56,12 +56,12 @@ export function DoveMascotHero() {
     <div className="relative bg-gradient-to-b from-white to-blue-50/60 border border-blue-100 rounded-[32px] p-6 sm:p-7 shadow-xl shadow-blue-500/5 overflow-hidden flex flex-col items-center text-center group">
       {/* Decorative ambient background glows */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-sky-400/10 rounded-full blur-2xl pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-sky-400/10 rounded-full blur-2xl pointer-events-none"></div>
 
       {/* Top Header Badge */}
       <div className="w-full flex items-center justify-between gap-2 mb-3">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200/80 text-sky-700 text-[10px] font-black uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping"></span>
           Trợ Lý Sức Khỏe AI
         </span>
 

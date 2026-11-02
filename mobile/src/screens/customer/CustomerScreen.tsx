@@ -12,6 +12,7 @@ import {
   StatusBar,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -43,6 +44,7 @@ import {
 } from '../../components/clinical';
 import { FlatModal } from '../../components/flat/FlatModal';
 import { FullSearchModal } from '../../components/search/FullSearchModal';
+import { StaffIdCardScanModal } from '../../components/attendance/StaffIdCardScanModal';
 import {
   SEASONAL_BLOGS,
   filterRecommendedMedicines,
@@ -148,6 +150,42 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
   // Modals in-app thay thế OS Alert
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [showLoginPromptModal, setShowLoginPromptModal] = useState<boolean>(false);
+  const [showDirectorStaffScanModal, setShowDirectorStaffScanModal] = useState<boolean>(false);
+
+  // Phân quyền Ban Giám Đốc (Executive Director) - Hỗ trợ cả chữ hoa, role alias và tên Giám Đốc
+  const userFullName = String((user as any)?.fullName || user?.name || '').toLowerCase().trim();
+  const userRole = String(user?.role || auth.role || '').toLowerCase().trim();
+  const userEmail = String(user?.email || (user as any)?.userIdentifier || '').toLowerCase().trim();
+  const userRolesList = Array.isArray((user as any)?.roles)
+    ? (user as any).roles.map((r: any) => String(r).toLowerCase().trim())
+    : [];
+
+  const isDirector = Boolean(
+    ['director', 'headbranch', 'head_branch'].includes(userRole) ||
+    userRolesList.some((r: string) => ['director', 'headbranch', 'head_branch'].includes(r)) ||
+    userEmail === 'director@vinapharmacy.com' ||
+    userEmail.includes('director') ||
+    userFullName.includes('giám đốc') ||
+    userFullName.includes('giam doc') ||
+    userFullName.includes('director') ||
+    user?.phone === '0902 222 333' ||
+    user?.phone === '0902222333'
+  );
+
+  // Tự động điều hướng nhân sự / Ban Giám Đốc về đúng màn hình nghiệp vụ, tuyệt đối không để Giám Đốc ở trang mua sắm bán lẻ
+  useEffect(() => {
+    if (isDirector) {
+      navigation.replace('DirectorScreen');
+    } else if (userRole === 'pharmacist' || userRolesList.includes('pharmacist')) {
+      navigation.replace('PharmacistScreen');
+    } else if (userRole === 'warehouse' || userRolesList.includes('warehouse')) {
+      navigation.replace('WarehouseScreen');
+    } else if (userRole === 'branch' || userRolesList.includes('branch')) {
+      navigation.replace('BranchScreen');
+    } else if (userRole === 'admin' || userRolesList.includes('admin')) {
+      navigation.replace('AdminScreen');
+    }
+  }, [isDirector, userRole, userRolesList, navigation]);
 
   // Thông tin Loyalty / Điểm thưởng thành viên
   const [loyaltyInfo, setLoyaltyInfo] = useState<{
@@ -1142,6 +1180,17 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
     [activeTab, loyaltyInfo, wishlistTotalCount, cartTotalCount, navigation]
   );
 
+  if (isDirector) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F0F9FF', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#0284C7" />
+        <Text style={{ marginTop: 14, fontSize: 13, fontWeight: '700', color: '#0369A1' }}>
+          Đang chuyển hướng đến Trung Tâm Điều Hành Ban Giám Đốc...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* ─── Modern Medical Sky Blue Header (Chuẩn FPT Long Châu Tối Giản) ── */}
@@ -1169,9 +1218,11 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
               {/* Tên thương hiệu ABC Pharmacy Tối Giản Căn Giữa Đẹp Mắt */}
               <View style={styles.brandTitleRow}>
                 <View style={styles.brandIconCircle}>
-                  <Ionicons name="medkit" size={13} color="#0284C7" />
+                  <Ionicons name={activeTab === 'CART' ? 'cart' : 'medkit'} size={13} color="#0284C7" />
                 </View>
-                <Text style={styles.brandTitleText}>ABC PHARMACY</Text>
+                <Text style={styles.brandTitleText}>
+                  {activeTab === 'CART' ? 'GIỎ HÀNG CỦA BẠN' : 'ABC PHARMACY'}
+                </Text>
               </View>
             </View>
 
@@ -1238,8 +1289,8 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
             </View>
           </View>
 
-          {/* HÀNG 2: Thanh Tìm Kiếm - Phân luồng: Tab Voucher tìm Voucher, Tab Store tìm Thuốc */}
-          {(activeTab === 'VOUCHERS') ? (
+          {/* HÀNG 2: Thanh Tìm Kiếm - Chỉ hiển thị trên Store/Home tìm Thuốc, hoặc Vouchers tìm Voucher; Ẩn hoàn toàn trên Giỏ hàng, Tài khoản, Điểm thưởng */}
+          {activeTab === 'VOUCHERS' ? (
             <View style={styles.floatingSearchContainer}>
               <View style={styles.floatingSearchBox}>
                 <Ionicons name="pricetag-outline" size={17} color="#0284C7" style={styles.searchIcon} />
@@ -1267,7 +1318,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                 )}
               </View>
             </View>
-          ) : (
+          ) : activeTab === 'STORE' ? (
             <AnimatedTouchable
               onPress={() => setShowSearchModal(true)}
               activeOpacity={0.92}
@@ -1302,7 +1353,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                 </View>
               </View>
             </AnimatedTouchable>
-          )}
+          ) : null}
         </LinearGradient>
       )}
 
@@ -1355,12 +1406,12 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
 
               <AnimatedTouchable
                 onPress={() => navigation.navigate('MedicineReminderScreen')}
-                style={[styles.pillarCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+                style={[styles.pillarCard, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
               >
-                <View style={[styles.pillarIconBox, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="alarm" size={26} color="#16A34A" />
+                <View style={[styles.pillarIconBox, { backgroundColor: '#E0F2FE' }]}>
+                  <Ionicons name="alarm" size={26} color="#0284C7" />
                 </View>
-                <Text style={[styles.pillarTitle, { color: '#15803D' }]}>Nhắc uống thuốc</Text>
+                <Text style={[styles.pillarTitle, { color: '#0369A1' }]}>Nhắc uống thuốc</Text>
               </AnimatedTouchable>
             </View>
 
@@ -1373,7 +1424,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                 { id: 'SCAN', title: 'Quét mã', icon: 'barcode', color: '#8B5CF6', bg: '#EDE9FE', action: () => setShowScanner(true) },
                 { id: 'BRANCHES', title: 'Nhà thuốc', icon: 'storefront', color: '#0EA5E9', bg: '#E0F2FE', action: () => setShowBranchModal(true) },
                 { id: 'VOUCHERS', title: 'Săn voucher', icon: 'pricetags', color: '#EC4899', bg: '#FCE7F3', action: () => setActiveTab('VOUCHERS') },
-                { id: 'HEALTH_PASSPORT', title: 'Sổ sức khỏe', icon: 'shield-checkmark', color: '#0D9488', bg: '#CCFBF1', action: () => { setIsOnboardingHealth(false); setShowPassportModal(true); } },
+                { id: 'HEALTH_PASSPORT', title: 'Sổ sức khỏe', icon: 'shield-checkmark', color: '#0284C7', bg: '#E0F2FE', action: () => { setIsOnboardingHealth(false); setShowPassportModal(true); } },
                 { id: 'ORDERS', title: 'Đơn của tôi', icon: 'receipt', color: '#6366F1', bg: '#E0E7FF', action: () => setActiveTab('ORDERS') },
               ].map((item) => (
                 <AnimatedTouchable
@@ -2201,7 +2252,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                   </View>
                 </View>
 
-                <ClinicalButton
+                <GradientButton
                   title="TIẾN HÀNH ĐẶT HÀNG"
                   onPress={() => {
                     if (!user) {
@@ -2215,9 +2266,8 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                       finalTotal,
                     });
                   }}
-                  variant="primary"
+                  gradientVariant="primary"
                   size="lg"
-                  fullWidth
                   style={{ marginTop: 14 }}
                 />
               </>
@@ -2637,30 +2687,191 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
             <View style={styles.accountLongChauHeaderRow}>
               <View style={styles.accountLongChauUserInfo}>
                 <View style={styles.accountLongChauAvatar}>
-                  <Ionicons name="person" size={28} color="#0284C7" />
+                  <Ionicons name={isDirector ? "shield-checkmark" : "person"} size={28} color="#0284C7" />
                 </View>
                 <View style={styles.accountLongChauNameCol}>
                   <Text style={styles.accountLongChauName} numberOfLines={1}>
-                    {formattedProfile.displayName}
+                    {isDirector ? (user?.name || 'Giám Đốc Chuỗi Chi Nhánh') : formattedProfile.displayName}
                   </Text>
                   <Text style={styles.accountLongChauPhone} numberOfLines={1}>
-                    {formattedProfile.displayPhone}
+                    {isDirector ? `${user?.phone || '0902 222 333'} • Ban Giám Đốc` : formattedProfile.displayPhone}
                   </Text>
                 </View>
               </View>
 
-              {/* Huy hiệu Điểm Thưởng Xu Vàng */}
-              <AnimatedTouchable
-                onPress={() => setActiveTab('REWARDS')}
-                style={styles.accountLongChauCoinPill}
-              >
-                <Text style={styles.accountLongChauCoinIcon}>🪙</Text>
-                <Text style={styles.accountLongChauCoinText}>{formattedProfile.points}</Text>
-              </AnimatedTouchable>
+              {/* Huy hiệu Điểm Thưởng Xu Vàng HOẶC Badge VIP Giám Đốc */}
+              {isDirector ? (
+                <View style={styles.accountDirectorHqBadge}>
+                  <Ionicons name="shield" size={13} color="#FFFFFF" />
+                  <Text style={styles.accountDirectorHqBadgeText}>HQ • GIÁM ĐỐC</Text>
+                </View>
+              ) : (
+                <AnimatedTouchable
+                  onPress={() => setActiveTab('REWARDS')}
+                  style={styles.accountLongChauCoinPill}
+                >
+                  <Text style={styles.accountLongChauCoinIcon}>🪙</Text>
+                  <Text style={styles.accountLongChauCoinText}>{formattedProfile.points}</Text>
+                </AnimatedTouchable>
+              )}
             </View>
           </LinearGradient>
 
           {activeTab === 'ACCOUNT' ? (
+            isDirector ? (
+              /* =========================================================================
+                 TRUNG TÂM ĐIỀU HÀNH BAN GIÁM ĐỐC (EXECUTIVE DIRECTOR OPERATIONS HUB)
+                 Tối giản, chuyên nghiệp, thông tin chiến lược chuỗi, không hiển thị giỏ hàng/đơn khách
+                 ========================================================================= */
+              <View style={styles.accountLongChauBody}>
+                {/* 1. KHỐI TỔNG QUAN CHIẾN LƯỢC TOÀN CHUỖI */}
+                <View style={styles.directorHeroCard}>
+                  <View style={styles.directorHeroHeader}>
+                    <View style={styles.directorBadgeRow}>
+                      <Ionicons name="shield-checkmark" size={13} color="#FFFFFF" />
+                      <Text style={styles.directorBadgeText}>BAN GIÁM ĐỐC • TOÀN HỆ THỐNG</Text>
+                    </View>
+                    <Text style={styles.directorHeroSub}>DOANH THU TOÀN CHUỖI THÁNG NÀY</Text>
+                    <Text style={styles.directorHeroAmount}>2,845,620,000 ₫</Text>
+                    <View style={styles.directorHeroGrowthRow}>
+                      <Ionicons name="trending-up" size={15} color="#BAE6FD" />
+                      <Text style={styles.directorHeroGrowthText}>+18.4% tăng trưởng so với tháng trước</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.directorKpiRow}>
+                    <View style={styles.directorKpiItem}>
+                      <Ionicons name="cart-outline" size={17} color="#0284C7" />
+                      <Text style={styles.directorKpiVal}>1,420</Text>
+                      <Text style={styles.directorKpiLabel}>Đơn hôm nay</Text>
+                    </View>
+                    <View style={styles.directorKpiDivider} />
+                    <View style={styles.directorKpiItem}>
+                      <Ionicons name="business-outline" size={17} color="#0284C7" />
+                      <Text style={styles.directorKpiVal}>8 Cơ sở</Text>
+                      <Text style={styles.directorKpiLabel}>Đang hoạt động</Text>
+                    </View>
+                    <View style={styles.directorKpiDivider} />
+                    <View style={styles.directorKpiItem}>
+                      <Ionicons name="cube-outline" size={17} color="#0284C7" />
+                      <Text style={styles.directorKpiVal}>100% GSP</Text>
+                      <Text style={styles.directorKpiLabel}>Kho an toàn</Text>
+                    </View>
+                  </View>
+
+                  {/* Nút lớn: Vào Bảng Điều Hành Ban Giám Đốc */}
+                  <AnimatedTouchable
+                    style={styles.directorLaunchBtn}
+                    onPress={() => navigation.navigate('DirectorScreen')}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="speedometer-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.directorLaunchBtnText}>VÀO BẢNG ĐIỀU HÀNH BAN GIÁM ĐỐC</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                  </AnimatedTouchable>
+                </View>
+
+                {/* 2. KHỐI NGHIỆP VỤ GIÁM ĐỐC & QUẢN TRỊ */}
+                <View style={styles.accountLongChauSectionHeader}>
+                  <Text style={styles.accountLongChauSectionTitle}>Nghiệp Vụ Ban Giám Đốc</Text>
+                </View>
+
+                <View style={styles.accountMenuListCard}>
+                  {/* Quét & Tra Cứu Thẻ Nhân Sự GPP */}
+                  <AnimatedTouchable
+                    style={styles.accountMenuItemRow}
+                    onPress={() => setShowDirectorStaffScanModal(true)}
+                  >
+                    <View style={[styles.accountMenuItemIconBox, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="qr-code-outline" size={18} color="#0284C7" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.accountMenuItemTitle}>Quét & Tra Cứu Thẻ Nhân Sự GPP</Text>
+                      <Text style={styles.directorMenuSubtitle}>Kiểm tra CCHN Dược sĩ, chấm công GPS & vị trí chi nhánh</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+
+                  {/* Phê Duyệt Đơn Mua Sắm Chiến Lược (PO) */}
+                  <AnimatedTouchable
+                    style={styles.accountMenuItemRow}
+                    onPress={() => navigation.navigate('DirectorScreen')}
+                  >
+                    <View style={[styles.accountMenuItemIconBox, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="checkbox-outline" size={18} color="#0284C7" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.accountMenuItemTitle}>Phê Duyệt Đơn Mua Sắm Chiến Lược (PO)</Text>
+                      <Text style={styles.directorMenuSubtitle}>Duyệt ngân sách & hợp đồng nhập dược phẩm chuỗi</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+
+                  {/* Dự Báo Tăng Trưởng & Rủi Ro Chuỗi (AI) */}
+                  <AnimatedTouchable
+                    style={styles.accountMenuItemRow}
+                    onPress={() => navigation.navigate('DirectorScreen')}
+                  >
+                    <View style={[styles.accountMenuItemIconBox, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="sparkles" size={18} color="#0284C7" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.accountMenuItemTitle}>Dự Báo Doanh Thu & Rủi Ro Chuỗi (AI)</Text>
+                      <Text style={styles.directorMenuSubtitle}>Mô hình AI dự báo nhu cầu & phòng ngừa đứt gãy cung ứng</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+
+                  {/* Luân Chuyển Hàng Hóa Toàn Mạng Lưới */}
+                  <AnimatedTouchable
+                    style={[styles.accountMenuItemRow, styles.accountMenuItemLast]}
+                    onPress={() => navigation.navigate('DirectorScreen')}
+                  >
+                    <View style={[styles.accountMenuItemIconBox, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="swap-horizontal-outline" size={18} color="#0284C7" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.accountMenuItemTitle}>Luân Chuyển Hàng Hóa Toàn Mạng Lưới</Text>
+                      <Text style={styles.directorMenuSubtitle}>Điều phối tồn kho liên chi nhánh & kho tổng GSP</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+                </View>
+
+                {/* 3. KHỐI BẢO MẬT & HỆ THỐNG */}
+                <View style={styles.accountLongChauSectionHeader}>
+                  <Text style={styles.accountLongChauSectionTitle}>Bảo Mật & Quản Trị Hệ Thống</Text>
+                </View>
+
+                <View style={styles.accountMenuListCard}>
+                  {/* Hồ Sơ Cá Nhân & Đổi Mật Khẩu */}
+                  <AnimatedTouchable
+                    style={styles.accountMenuItemRow}
+                    onPress={() => navigation.navigate('ProfileScreen')}
+                  >
+                    <View style={styles.accountMenuItemIconBox}>
+                      <Ionicons name="person-outline" size={18} color="#0284C7" />
+                    </View>
+                    <Text style={styles.accountMenuItemTitle}>Hồ sơ cá nhân & Đổi mật khẩu</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+
+                  {/* Đăng Xuất Ban Giám Đốc */}
+                  <AnimatedTouchable
+                    style={[styles.accountMenuItemRow, styles.accountMenuItemLast]}
+                    onPress={() => setShowLogoutModal(true)}
+                  >
+                    <View style={[styles.accountMenuItemIconBox, { backgroundColor: '#FEF2F2' }]}>
+                      <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+                    </View>
+                    <Text style={[styles.accountMenuItemTitle, { color: '#EF4444' }]}>Đăng xuất Ban Giám Đốc</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+                  </AnimatedTouchable>
+                </View>
+
+                <View style={{ height: 32 }} />
+              </View>
+            ) : (
             /* =========================================================================
                MÀN HÌNH TÀI KHOẢN CHÍNH (CHUẨN LONG CHÂU - ZERO BORDER - FONT TO DỄ NHÌN)
                ========================================================================= */
@@ -2984,7 +3195,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
 
               <View style={{ height: 32 }} />
             </View>
-          ) : (
+          )) : (
             /* =========================================================================
                SUB-VIEW: QUẢN LÝ ĐƠN HÀNG CHI TIẾT (activeTab === 'ORDERS')
                ========================================================================= */
@@ -3773,6 +3984,13 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
             ApiService.getMyClinicalSafety().then((data) => setClinicalSafety(data)).catch(() => {});
           }
         }}
+      />
+
+      {/* Modal Quét & Tra Cứu Thẻ Nhân Sự GPP Dành Cho Ban Giám Đốc */}
+      <StaffIdCardScanModal
+        visible={showDirectorStaffScanModal}
+        onClose={() => setShowDirectorStaffScanModal(false)}
+        userRole="director"
       />
 
       {/* Modal Xác Nhận Đăng Xuất Chuẩn In-App UI (thay thế Alert OS) */}
@@ -6964,6 +7182,128 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  accountDirectorHqBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    gap: 4,
+  },
+  accountDirectorHqBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  directorHeroCard: {
+    backgroundColor: '#0284C7',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  directorHeroHeader: {
+    marginBottom: 14,
+  },
+  directorBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+    marginBottom: 8,
+  },
+  directorBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  directorHeroSub: {
+    color: '#E0F2FE',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  directorHeroAmount: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  directorHeroGrowthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  directorHeroGrowthText: {
+    color: '#BAE6FD',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  directorKpiRow: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 14,
+  },
+  directorKpiItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  directorKpiVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  directorKpiLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 1,
+    fontWeight: '500',
+  },
+  directorKpiDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#E2E8F0',
+  },
+  directorLaunchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0369A1',
+    borderRadius: 12,
+    paddingVertical: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  directorLaunchBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  directorMenuSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
   accountLongChauBody: {
     paddingHorizontal: 16,
     paddingTop: 14,
@@ -7083,7 +7423,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   accountHealthTag: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#E0F2FE',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
@@ -7091,7 +7431,7 @@ const styles = StyleSheet.create({
   accountHealthTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#166534',
+    color: '#0369A1',
   },
   accountHealthSubtitle: {
     fontSize: 12,

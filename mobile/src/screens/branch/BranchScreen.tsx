@@ -31,6 +31,7 @@ import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal
 import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
 import { BranchPayrollModal } from '../../components/payroll/BranchPayrollModal';
+import { StaffIdCardScanModal } from '../../components/attendance/StaffIdCardScanModal';
 import { ClinicalSidebarDrawer } from '../../components/clinical/ClinicalSidebarDrawer';
 
 // Phân giải tên nhân sự chuyên nghiệp, không để lọt email thô
@@ -54,7 +55,7 @@ const getStaffRoleMeta = (role: string) => {
     case 'branch':
       return { label: 'Quản Lý Cơ Sở', color: '#0284C7', bg: '#F0F9FF' };
     case 'pharmacist':
-      return { label: 'Dược Sĩ Bán Hàng', color: '#059669', bg: '#ECFDF5' };
+      return { label: 'Dược Sĩ Bán Hàng', color: '#0284C7', bg: '#F0F9FF' };
     default:
       return { label: 'Nhân Sự', color: '#64748B', bg: '#F1F5F9' };
   }
@@ -73,6 +74,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
   const [showShiftSwapModal, setShowShiftSwapModal] = useState<boolean>(false);
   const [showCertModal, setShowCertModal] = useState<boolean>(false);
+  const [showStaffScanModal, setShowStaffScanModal] = useState<boolean>(false);
   const [showBranchPayrollModal, setShowBranchPayrollModal] = useState<boolean>(false);
   const [initialSwapShift, setInitialSwapShift] = useState<any>(null);
   const [currentBranchObj, setCurrentBranchObj] = useState<any>(null);
@@ -155,9 +157,23 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       setTransfers(transferList || []);
 
       if (summary) {
-        const rev = Number(summary.todayRevenue || summary.totalRevenue || 0);
+        const summaryData = (summary as any)?.data || summary;
+        const rev = Number(
+          summaryData?.revenue?.netRevenue ??
+          summaryData?.revenue?.todayRevenue ??
+          summaryData?.todayRevenue ??
+          summaryData?.totalRevenue ??
+          0
+        );
+        const orders = Number(
+          summaryData?.revenue?.totalOrders ??
+          summaryData?.revenue?.todayOrders ??
+          summaryData?.todayOrders ??
+          summaryData?.totalOrders ??
+          0
+        );
         setBranchRevenue(`${rev.toLocaleString('vi-VN')} ₫`);
-        setInvoiceCount(Number(summary.todayOrders || summary.totalOrders || 0));
+        setInvoiceCount(orders);
       }
 
       let currentBranch: any = myBranch;
@@ -245,7 +261,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const handleScanMedicineBarcode = (barcode: string) => {
     if (!selectedTransfer) return;
     const item = selectedTransfer.items.find(
-      (it) => it.barcode === barcode || it.medicineId === barcode || it.name.toLowerCase().includes(barcode.toLowerCase())
+      (it) => it.barcode === barcode || it.medicineId === barcode || (it.name || '').toLowerCase().includes((barcode || '').toLowerCase())
     );
     if (item) {
       setScannedItemsCount((prev) => {
@@ -297,11 +313,11 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="ABC Pharmacy"
         subtitle={branchName ? `Quản Lý • ${branchName}` : 'Quản Lý Cơ Sở Chi Nhánh'}
-        gradientVariant="emerald"
+        gradientVariant="sky"
         leftAction={{
           icon: 'menu',
           onPress: () => setShowDrawer(true),
@@ -325,7 +341,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="trending-up"
             size={16}
-            color={activeTab === 'REVENUE' ? '#065F46' : '#94A3B8'}
+            color={activeTab === 'REVENUE' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'REVENUE' && styles.activeTabText]}>
             Doanh Thu
@@ -339,7 +355,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="warning"
             size={16}
-            color={activeTab === 'ALERTS' ? '#065F46' : '#94A3B8'}
+            color={activeTab === 'ALERTS' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'ALERTS' && styles.activeTabText]}>
             Cảnh Báo ({lowStockItems.length})
@@ -353,7 +369,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="qr-code"
             size={16}
-            color={activeTab === 'RECEIVE_STOCK' ? '#065F46' : '#94A3B8'}
+            color={activeTab === 'RECEIVE_STOCK' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'RECEIVE_STOCK' && styles.activeTabText]}>
             Nhận Hàng QR ({transfers.filter((t) => t.status !== 'COMPLETED' && t.status !== 'RECEIVED').length})
@@ -363,12 +379,12 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#059669']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
         {/* TAB 1: REVENUE & STAFF */}
         {activeTab === 'REVENUE' && (
           <View>
-            <GradientCard gradientVariant="emerald" style={styles.revenueCard}>
+            <GradientCard gradientVariant="sky" style={styles.revenueCard}>
               <View style={styles.branchHeaderRow}>
                 <Text style={styles.branchNameText}>{branchName}</Text>
                 <View style={styles.liveBadge}>
@@ -384,6 +400,21 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 </View>
               </View>
             </GradientCard>
+
+            {/* Thanh Phím Tắt Quản Lý: Quét Thẻ Nhân Sự GPP */}
+            <AnimatedTouchable
+              onPress={() => setShowStaffScanModal(true)}
+              style={styles.scanStaffCardBanner}
+            >
+              <View style={styles.scanStaffCardIconBox}>
+                <Ionicons name="qr-code" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.scanStaffCardTitle}>Quét & Tra Cứu Thẻ Nhân Sự GPP</Text>
+                <Text style={styles.scanStaffCardSub}>Đối soát CCHN Dược sĩ, chấm công GPS & phân bổ ca trực</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#0284C7" />
+            </AnimatedTouchable>
 
             <Text style={styles.sectionTitle}>Nhân Sự Trong Ca Trực Hôm Nay</Text>
             {staffs.map((st, idx) => {
@@ -422,8 +453,8 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   showGps = false;
                 } else if (att.status === 'CHECKED_IN') {
                   dutyText = 'ĐANG TRỰC';
-                  dutyBadgeBg = '#ECFDF5';
-                  dutyTextColor = '#059669';
+                  dutyBadgeBg = '#F0F9FF';
+                  dutyTextColor = '#0284C7';
                 } else if (att.status === 'LATE') {
                   dutyText = 'ĐI MUỘN (ĐANG TRỰC)';
                   dutyBadgeBg = '#FEF3C7';
@@ -456,7 +487,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         <Ionicons
                           name="time-outline"
                           size={11}
-                          color={att?.status === 'CHECKED_IN' ? '#059669' : '#94A3B8'}
+                          color={att?.status === 'CHECKED_IN' ? '#0284C7' : '#94A3B8'}
                           style={{ marginRight: 3 }}
                         />
                         <Text style={[styles.shiftTagText, att?.status !== 'CHECKED_IN' && { color: '#64748B' }]}>
@@ -586,10 +617,10 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* TAB 3: RECEIVE STOCK TRANSFERS VIA QR CODE */}
         {activeTab === 'RECEIVE_STOCK' && (
           <View>
-            <GradientCard gradientVariant="emerald" style={styles.qrScanBanner}>
+            <GradientCard gradientVariant="sky" style={styles.qrScanBanner}>
               <View style={styles.qrBannerContent}>
                 <View style={styles.qrIconCircle}>
-                  <Ionicons name="qr-code-outline" size={32} color="#059669" />
+                  <Ionicons name="qr-code-outline" size={32} color="#0284C7" />
                 </View>
                 <Text style={styles.qrBannerTitle}>Quét QR Kiện Hàng Nhập Kho</Text>
                 <Text style={styles.qrBannerSubtitle}>
@@ -625,13 +656,13 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                           <View
                             style={[
                               styles.statusBadge,
-                              { backgroundColor: isCompleted ? '#DCFCE7' : '#FEF3C7' },
+                              { backgroundColor: isCompleted ? '#E0F2FE' : '#FEF3C7' },
                             ]}
                           >
                             <Text
                               style={[
                                 styles.statusBadgeText,
-                                { color: isCompleted ? '#16A34A' : '#D97706' },
+                                { color: isCompleted ? '#0284C7' : '#D97706' },
                               ]}
                             >
                               {isCompleted ? 'ĐÃ NHẬP KHO' : 'ĐANG VẬN CHUYỂN'}
@@ -774,13 +805,13 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     </View>
 
                     <View style={styles.verifyQtyBox}>
-                      <Text style={[styles.verifyCountText, { color: isMatched ? '#16A34A' : '#D97706' }]}>
+                      <Text style={[styles.verifyCountText, { color: isMatched ? '#0284C7' : '#D97706' }]}>
                         {scanned} / {item.quantity} {item.unit}
                       </Text>
                       <Ionicons
                         name={isMatched ? 'checkmark-circle' : 'alert-circle'}
                         size={18}
-                        color={isMatched ? '#16A34A' : '#D97706'}
+                        color={isMatched ? '#0284C7' : '#D97706'}
                       />
                     </View>
                   </View>
@@ -791,7 +822,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 onPress={() => setShowItemScanner(true)}
                 style={styles.scanItemBtn}
               >
-                <Ionicons name="barcode-outline" size={18} color="#059669" />
+                <Ionicons name="barcode-outline" size={18} color="#0284C7" />
                 <Text style={styles.scanItemBtnText}>Quét Barcode Từng Hộp Để Đối Soát (+1)</Text>
               </AnimatedTouchable>
             </ScrollView>
@@ -918,6 +949,13 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         onClose={() => setShowBranchPayrollModal(false)}
       />
 
+      {/* Modal Quét & Tra Cứu Thẻ Định Danh Nhân Sự GPP */}
+      <StaffIdCardScanModal
+        visible={showStaffScanModal}
+        onClose={() => setShowStaffScanModal(false)}
+        userRole="branch"
+      />
+
       {/* Clinical Sidebar Drawer for Branch Manager */}
       <ClinicalSidebarDrawer
         visible={showDrawer}
@@ -926,10 +964,17 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         roleTitle="Quản Lý Cơ Sở Chi Nhánh"
         menuItems={[
           {
+            id: 'scan-staff-id',
+            label: 'Quét Thẻ Nhân Sự GPP',
+            iconName: 'qr-code-outline',
+            color: '#0284C7',
+            onPress: () => setShowStaffScanModal(true),
+          },
+          {
             id: 'attendance',
             label: 'Điểm Danh GPS Cơ Sở',
             iconName: 'location-outline',
-            color: '#059669',
+            color: '#0284C7',
             onPress: () => setShowCheckInModal(true),
           },
           {
@@ -950,7 +995,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             id: 'leave',
             label: 'Duyệt Đơn Nghỉ Phép',
             iconName: 'calendar-outline',
-            color: '#059669',
+            color: '#0284C7',
             onPress: () => setShowLeaveModal(true),
           },
           {
@@ -971,7 +1016,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             id: 'payroll',
             label: 'Duyệt Bảng Lương Chi Nhánh',
             iconName: 'cash-outline',
-            color: '#059669',
+            color: '#0284C7',
             badge: 'TỰ QUYẾT',
             badgeVariant: 'success',
             onPress: () => setShowBranchPayrollModal(true),
@@ -987,7 +1032,7 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             id: 'receiveStock',
             label: 'Nhận Hàng Chuyển Kho QR',
             iconName: 'qr-code-outline',
-            color: '#059669',
+            color: '#0284C7',
             onPress: () => setActiveTab('RECEIVE_STOCK'),
           },
         ]}
@@ -1052,8 +1097,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   checkInBtn: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
   },
   payslipBtn: {
     backgroundColor: '#F0F9FF',
@@ -1084,7 +1129,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   activeTabItem: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
   },
   tabText: {
     fontSize: 12,
@@ -1093,7 +1138,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   activeTabText: {
-    color: '#065F46',
+    color: '#0284C7',
     fontWeight: '800',
   },
   scrollContent: {
@@ -1113,7 +1158,7 @@ const styles = StyleSheet.create({
   branchNameText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#D1FAE5',
+    color: '#E0F2FE',
     letterSpacing: 0.8,
   },
   liveBadge: {
@@ -1153,7 +1198,7 @@ const styles = StyleSheet.create({
   orderBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
   },
   sectionTitle: {
     fontSize: 16,
@@ -1241,17 +1286,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   dutyBadge: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F0F9FF',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#BAE6FD',
   },
   dutyBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#16A34A',
+    color: '#0284C7',
   },
   emptyStaffCard: {
     alignItems: 'center',
@@ -1306,8 +1351,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   activeFilterPill: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
   },
   filterPillText: {
     fontSize: 12,
@@ -1363,7 +1408,7 @@ const styles = StyleSheet.create({
   modalMedName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 4,
     marginBottom: 14,
   },
@@ -1470,7 +1515,7 @@ const styles = StyleSheet.create({
   },
   qrBannerSubtitle: {
     fontSize: 12,
-    color: '#D1FAE5',
+    color: '#E0F2FE',
     textAlign: 'center',
     lineHeight: 18,
     paddingHorizontal: 10,
@@ -1536,7 +1581,7 @@ const styles = StyleSheet.create({
   },
   transferMoreText: {
     fontSize: 11,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '600',
     marginTop: 2,
   },
@@ -1586,11 +1631,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     gap: 6,
     marginTop: 4,
     marginBottom: 8,
@@ -1598,6 +1643,35 @@ const styles = StyleSheet.create({
   scanItemBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#065F46',
+    color: '#0369A1',
+  },
+  scanStaffCardBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1.5,
+    borderColor: '#BAE6FD',
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 6,
+    marginBottom: 14,
+  },
+  scanStaffCardIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#0284C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanStaffCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0369A1',
+  },
+  scanStaffCardSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
 });

@@ -18,8 +18,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build tất cả services (nest build sẽ output vào ./dist)
-RUN npm run build:all || true
+# Build tất cả services (nest build sẽ output vào ./dist) và mock-csdlduoc
+RUN (npm run build:all || true) && (npm run build:mock-csdlduoc || true)
 
 # ============================================================
 # Stage 3: Runner – chỉ chứa file JS đã compiled (ít RAM hơn nhiều)

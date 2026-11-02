@@ -51,7 +51,7 @@ export const FlatComponentsShowcase: React.FC<{ navigation: any }> = ({ navigati
           <Text style={styles.sectionDesc}>Nút bấm hiệu ứng kính, gradient đa tầng và specular highlight:</Text>
           <View style={styles.buttonCol}>
             <FlatButton
-              title="Primary Emerald (Lưu / Đặt Hàng)"
+              title="Primary Auth Blue (Lưu / Đặt Hàng)"
               variant="primary"
               size="md"
               icon="checkmark-outline"
@@ -132,7 +132,7 @@ export const FlatComponentsShowcase: React.FC<{ navigation: any }> = ({ navigati
         title="Xác Nhận Xuất Kho Dược Phẩm"
         message="Hành động này sẽ tạo phiếu xuất kho và đồng bộ sự kiện qua Kafka vào MongoDB của Microservice."
         icon="cube"
-        iconColor="#059669"
+        iconColor="#0284C7"
         confirmText="Đồng Ý Xuất Kho"
         confirmVariant="primary"
         onConfirm={() => setModalVisible(false)}

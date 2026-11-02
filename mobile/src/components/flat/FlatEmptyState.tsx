@@ -18,7 +18,7 @@ export type GlassEmptyStateProps = FlatEmptyStateProps;
 
 export const FlatEmptyState: React.FC<FlatEmptyStateProps> = ({
   icon = 'file-tray-outline',
-  iconColor = '#059669',
+  iconColor = '#0284C7',
   title,
   description,
   actionTitle,

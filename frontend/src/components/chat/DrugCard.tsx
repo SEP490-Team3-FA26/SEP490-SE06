@@ -70,7 +70,7 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
             {isSupplement && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
                 TPCN
               </span>
             )}
@@ -133,8 +133,8 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
           </div>
           <div className="flex items-center gap-1 text-[10px] text-slate-400">
             {drug.in_stock ? (
-              <span className="text-emerald-600 flex items-center gap-1 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span className="text-sky-600 flex items-center gap-1 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                 Còn hàng ({drug.stock})
               </span>
             ) : (
@@ -174,10 +174,11 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
                 onClick={handleAdd}
                 disabled={isAdding}
                 aria-label={`Thêm ${drug.name} vào giỏ hàng`}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${isAdded
-                    ? "bg-emerald-500 text-white"
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                  isAdded
+                    ? "bg-sky-500 text-white"
                     : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
-                  }`}
+                }`}
               >
                 {isAdded ? (
                   <>

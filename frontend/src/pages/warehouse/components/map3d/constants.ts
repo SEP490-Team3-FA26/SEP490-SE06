@@ -69,12 +69,12 @@ export const STATUS_COLORS: Record<WarehouseStatus, {
   border: string;
 }> = {
   NORMAL: {
-    hex: '#22c55e',
+    hex: '#0ea5e9',
     num: 0x22c55e,
     label: 'An toàn (Đủ tồn)',
-    badgeBg: '#DCFCE7',
-    badgeText: '#15803D',
-    border: '#86efac',
+    badgeBg: '#e0f2fe',
+    badgeText: '#0369a1',
+    border: '#7dd3fc',
   },
   LOW_STOCK: {
     hex: '#eab308',
@@ -156,7 +156,7 @@ export const ZONE_METAS: Record<string, ZoneMeta> = {
     code: 'D',
     name: 'Khu D',
     categoryDesc: 'Tiêu hóa, Dạ dày & Gan mật',
-    hex: '#22c55e',
+    hex: '#0ea5e9',
     num: 0x22c55e,
     center: [-21, 6],
     size: [12.5, 13.5],

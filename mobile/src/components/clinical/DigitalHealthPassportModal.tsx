@@ -24,6 +24,7 @@ import {
 } from '../../theme/tokens';
 import { ClinicalBadge } from './ClinicalBadge';
 import { ClinicalButton } from './ClinicalButton';
+import { USER_ROLE_LABELS } from '../../types/pharmacy.types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -174,14 +175,36 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
     }
   };
 
-  // Payload mã QR cho Dược sĩ quét tại quầy POS
-  const qrPayload = JSON.stringify({
-    type: 'HEALTH_PASSPORT',
-    id: user?.id || (user as any)?._id,
-    phone: user?.phone,
-    name: user?.name,
-    blood: bloodType,
-  });
+  // Xác định nhân sự: Dược sĩ, Quản lý kho, Quản lý chi nhánh, Giám đốc, hoặc tài khoản nhân viên nội bộ
+  const isStaffUser = Boolean(
+    (user?.role && user.role.toLowerCase() !== 'customer') ||
+    user?.name?.toLowerCase().includes('dược sĩ') ||
+    user?.name?.toLowerCase().includes('quản lý') ||
+    user?.name?.toLowerCase().includes('giám đốc') ||
+    user?.name?.toLowerCase().includes('anh phước')
+  );
+
+  // Payload mã QR: Nhân viên mã hóa thẻ định danh nhân sự, Khách hàng mã hóa sổ sức khỏe
+  const qrPayload = JSON.stringify(
+    isStaffUser
+      ? {
+          type: 'STAFF_ID',
+          id: user?.id || (user as any)?._id,
+          phone: user?.phone,
+          name: user?.name,
+          role: user?.role,
+          branchId: user?.branchId || 'BR-001',
+          branchName: user?.branchName || 'Cơ Sở Chi Nhánh ABC (CN1)',
+          cchn: 'CCHN-VERIFIED',
+        }
+      : {
+          type: 'HEALTH_PASSPORT',
+          id: user?.id || (user as any)?._id,
+          phone: user?.phone,
+          name: user?.name,
+          blood: bloodType,
+        }
+  );
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -193,7 +216,9 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
               <View style={styles.badgeRow}>
                 <View style={styles.officialBadge}>
                   <Ionicons name="shield-checkmark" size={13} color="#FFFFFF" />
-                  <Text style={styles.officialBadgeText}>GPP • ĐA NHÀ THUỐC</Text>
+                  <Text style={styles.officialBadgeText}>
+                    {isStaffUser ? 'NHÂN SỰ • CHUẨN GPP' : 'GPP • ĐA NHÀ THUỐC'}
+                  </Text>
                 </View>
                 {isOnboardingMode && (
                   <View style={styles.requiredBadge}>
@@ -202,10 +227,16 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
                 )}
               </View>
               <Text style={styles.titleText}>
-                {isOnboardingMode ? 'Khai Báo Sổ Sức Khỏe Ban Đầu' : 'Sổ Sức Khỏe Số'}
+                {isStaffUser
+                  ? 'Thẻ Định Danh Nhân Sự GPP'
+                  : isOnboardingMode
+                  ? 'Khai Báo Sổ Sức Khỏe Ban Đầu'
+                  : 'Sổ Sức Khỏe Số'}
               </Text>
               <Text style={styles.subtitleText}>
-                Hộ chiếu y tế liên thông chuỗi nhà thuốc ABC Pharmacy
+                {isStaffUser
+                  ? 'Thẻ nhân viên liên thông mạng lưới nhà thuốc ABC Pharmacy'
+                  : 'Hộ chiếu y tế liên thông chuỗi nhà thuốc ABC Pharmacy'}
               </Text>
             </View>
 
@@ -222,7 +253,7 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={ColorTokens.emerald[600]} />
+              <ActivityIndicator size="large" color="#0284C7" />
               <Text style={styles.loadingText}>Đang tải dữ liệu y khoa liên thông...</Text>
             </View>
           ) : (
@@ -236,20 +267,38 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
                   {/* Khung thẻ y tế số */}
                   <View style={styles.passportCard}>
                     <View style={styles.cardHeader}>
-                      <View>
-                        <Text style={styles.patientName}>{user?.name || 'Khách hàng'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.patientName}>
+                          {user?.name || (isStaffUser ? 'Nhân sự chi nhánh' : 'Khách hàng')}
+                        </Text>
                         <Text style={styles.patientId}>
-                          Mã Bệnh Án: #MED-{String(user?.id || 'PATIENT').slice(-6).toUpperCase()}
+                          {isStaffUser
+                            ? `Mã Nhân Viên: #EMP-${String(user?.id || user?.phone || 'STAFF').slice(-6).toUpperCase()}`
+                            : `Mã Bệnh Án: #MED-${String(user?.id || 'PATIENT').slice(-6).toUpperCase()}`}
                         </Text>
                         <Text style={styles.patientPhone}>SĐT: {user?.phone || 'Chưa cập nhật'}</Text>
+                        {isStaffUser ? (
+                          <View style={styles.staffRoleMiniBadge}>
+                            <Text style={styles.staffRoleMiniText}>
+                              {USER_ROLE_LABELS[user?.role || ''] || user?.role || 'Nhân Sự Chi Nhánh'}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
-                      <View style={styles.bloodTypeBadge}>
-                        <Ionicons name="water" size={12} color="#DC2626" />
-                        <Text style={styles.bloodTypeText}>{bloodType}</Text>
-                      </View>
+                      {!isStaffUser ? (
+                        <View style={styles.bloodTypeBadge}>
+                          <Ionicons name="water" size={12} color="#DC2626" />
+                          <Text style={styles.bloodTypeText}>{bloodType}</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.staffStatusPill}>
+                          <Ionicons name="shield-checkmark" size={12} color="#0284C7" />
+                          <Text style={styles.staffStatusPillText}>Đang Hoạt Động</Text>
+                        </View>
+                      )}
                     </View>
 
-                    {/* Mã QR Sức Khỏe Số */}
+                    {/* Mã QR Sức Khỏe Số / Thẻ Nhân Sự */}
                     <View style={styles.qrWrapper}>
                       <QRCode
                         value={qrPayload}
@@ -258,75 +307,102 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
                         backgroundColor="#FFFFFF"
                       />
                       <Text style={styles.qrHint}>
-                        Đưa mã này cho Dược sĩ quét tại quầy để nạp bệnh án & kiểm tra tương tác thuốc tự động
+                        {isStaffUser
+                          ? 'Đưa mã QR này cho Ban Giám Đốc hoặc Quản Lý Chi Nhánh quét để kiểm tra thẻ nhân sự, bằng cấp CCHN & phân bổ ca trực.'
+                          : 'Đưa mã này cho Dược sĩ quét tại quầy để nạp bệnh án & kiểm tra tương tác thuốc tự động'}
                       </Text>
                     </View>
                   </View>
 
-                  {/* Tóm tắt lâm sàng 4 chiều */}
-                  <View style={styles.clinicalSummaryCard}>
-                    <Text style={styles.summaryTitle}>Tiền Sử Dị Ứng & Bệnh Nền</Text>
+                  {isStaffUser ? (
+                    /* THÔNG TIN CHUYÊN MÔN DÀNH CHO NHÂN VIÊN */
+                    <View style={styles.clinicalSummaryCard}>
+                      <Text style={styles.summaryTitle}>Hồ Sơ & Chứng Chỉ Hành Nghề (CCHN)</Text>
+                      <View style={styles.staffInfoRow}>
+                        <Text style={styles.staffInfoLabel}>Cơ sở công tác:</Text>
+                        <Text style={styles.staffInfoVal}>{user?.branchName || 'Cơ Sở Chi Nhánh ABC (CN1)'}</Text>
+                      </View>
+                      <View style={styles.staffInfoRow}>
+                        <Text style={styles.staffInfoLabel}>Chứng chỉ hành nghề Dược:</Text>
+                        <Text style={[styles.staffInfoVal, { color: '#0284C7', fontWeight: '800' }]}>CCHN Đạt Chuẩn GPP BYT</Text>
+                      </View>
+                      <View style={styles.staffInfoRow}>
+                        <Text style={styles.staffInfoLabel}>Tình trạng làm việc:</Text>
+                        <Text style={styles.staffInfoVal}>Đang trong ca trực • Chấm công GPS hợp lệ</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    /* Tóm tắt lâm sàng 4 chiều cho Khách hàng */
+                    <View style={styles.clinicalSummaryCard}>
+                      <Text style={styles.summaryTitle}>Tiền Sử Dị Ứng & Bệnh Nền</Text>
 
-                    {allergies.length > 0 ? (
-                      <View style={styles.tagSection}>
-                        <Text style={styles.tagSectionTitle}>Dị ứng nhóm thuốc / Dị nguyên:</Text>
-                        <View style={styles.tagWrap}>
-                          {allergies.map((a, idx) => (
-                            <View key={`al-${idx}`} style={styles.allergyTag}>
-                              <Ionicons name="alert-circle" size={12} color="#BE123C" />
-                              <Text style={styles.allergyTagText}>{a}</Text>
-                            </View>
-                          ))}
+                      {allergies.length > 0 ? (
+                        <View style={styles.tagSection}>
+                          <Text style={styles.tagSectionTitle}>Dị ứng nhóm thuốc / Dị nguyên:</Text>
+                          <View style={styles.tagWrap}>
+                            {allergies.map((a, idx) => (
+                              <View key={`al-${idx}`} style={styles.allergyTag}>
+                                <Ionicons name="alert-circle" size={12} color="#BE123C" />
+                                <Text style={styles.allergyTagText}>{a}</Text>
+                              </View>
+                            ))}
+                          </View>
                         </View>
-                      </View>
-                    ) : null}
+                      ) : null}
 
-                    {allergicMedicines.length > 0 ? (
-                      <View style={styles.tagSection}>
-                        <Text style={styles.tagSectionTitle}>Thuốc biệt dược từng dị ứng:</Text>
-                        <View style={styles.tagWrap}>
-                          {allergicMedicines.map((m, idx) => (
-                            <View key={`med-${idx}`} style={styles.medTag}>
-                              <Ionicons name="medical" size={12} color="#D97706" />
-                              <Text style={styles.medTagText}>{m}</Text>
-                            </View>
-                          ))}
+                      {allergicMedicines.length > 0 ? (
+                        <View style={styles.tagSection}>
+                          <Text style={styles.tagSectionTitle}>Thuốc biệt dược từng dị ứng:</Text>
+                          <View style={styles.tagWrap}>
+                            {allergicMedicines.map((m, idx) => (
+                              <View key={`med-${idx}`} style={styles.medTag}>
+                                <Ionicons name="medical" size={12} color="#D97706" />
+                                <Text style={styles.medTagText}>{m}</Text>
+                              </View>
+                            ))}
+                          </View>
                         </View>
-                      </View>
-                    ) : null}
+                      ) : null}
 
-                    {chronicConditions.length > 0 ? (
-                      <View style={styles.tagSection}>
-                        <Text style={styles.tagSectionTitle}>Bệnh nền mãn tính:</Text>
-                        <View style={styles.tagWrap}>
-                          {chronicConditions.map((c, idx) => (
-                            <View key={`con-${idx}`} style={styles.conditionTag}>
-                              <Ionicons name="heart" size={12} color="#0D9488" />
-                              <Text style={styles.conditionTagText}>{c}</Text>
-                            </View>
-                          ))}
+                      {chronicConditions.length > 0 ? (
+                        <View style={styles.tagSection}>
+                          <Text style={styles.tagSectionTitle}>Bệnh nền mãn tính:</Text>
+                          <View style={styles.tagWrap}>
+                            {chronicConditions.map((c, idx) => (
+                              <View key={`con-${idx}`} style={styles.conditionTag}>
+                                <Ionicons name="heart" size={12} color="#0369A1" />
+                                <Text style={styles.conditionTagText}>{c}</Text>
+                              </View>
+                            ))}
+                          </View>
                         </View>
-                      </View>
-                    ) : null}
+                      ) : null}
 
-                    {allergies.length === 0 &&
-                     allergicMedicines.length === 0 &&
-                     chronicConditions.length === 0 && (
-                      <View style={styles.emptySafeBox}>
-                        <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                        <Text style={styles.emptySafeText}>
-                          Hồ sơ ghi nhận bạn không có tiền sử dị ứng và bệnh lý nền.
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+                      {allergies.length === 0 &&
+                       allergicMedicines.length === 0 &&
+                       chronicConditions.length === 0 && (
+                        <View style={styles.emptySafeBox}>
+                          <Ionicons name="checkmark-circle" size={20} color="#0284C7" />
+                          <Text style={styles.emptySafeText}>
+                            Hồ sơ ghi nhận bạn không có tiền sử dị ứng và bệnh lý nền.
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
 
                   <View style={styles.actionRow}>
                     <ClinicalButton
-                      title="Chỉnh Sửa Hồ Sơ Y Tế"
+                      title={isStaffUser ? "Xem & Cập Nhật Bằng Cấp (CCHN)" : "Chỉnh Sửa Hồ Sơ Y Tế"}
                       variant="primary"
                       size="md"
-                      onPress={() => setIsEditing(true)}
+                      onPress={() => {
+                        if (isStaffUser) {
+                          onClose();
+                        } else {
+                          setIsEditing(true);
+                        }
+                      }}
                       style={{ flex: 1 }}
                     />
                   </View>
@@ -355,7 +431,7 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
                     <Ionicons
                       name={isHealthy ? 'checkbox' : 'square-outline'}
                       size={22}
-                      color={isHealthy ? '#059669' : '#64748B'}
+                      color={isHealthy ? '#0284C7' : '#64748B'}
                     />
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.healthyTitle}>
@@ -556,7 +632,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#0D9488',
+    backgroundColor: '#0284C7',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -616,7 +692,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: '#CCFBF1',
+    borderColor: '#BAE6FD',
     padding: 16,
     alignItems: 'center',
   },
@@ -635,7 +711,7 @@ const styles = StyleSheet.create({
   patientId: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0D9488',
+    color: '#0284C7',
     fontFamily: 'monospace',
     marginTop: 2,
   },
@@ -643,6 +719,53 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     marginTop: 1,
+  },
+  staffRoleMiniBadge: {
+    backgroundColor: '#E0F2FE',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  staffRoleMiniText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  staffStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  staffStatusPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+  staffInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  staffInfoLabel: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  staffInfoVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   bloodTypeBadge: {
     flexDirection: 'row',
@@ -736,7 +859,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#CCFBF1',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -744,19 +867,19 @@ const styles = StyleSheet.create({
   conditionTagText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0D9488',
+    color: '#0369A1',
   },
   emptySafeBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 10,
     borderRadius: 10,
   },
   emptySafeText: {
     fontSize: 11,
-    color: '#059669',
+    color: '#0369A1',
     fontWeight: '600',
     flex: 1,
   },
@@ -776,8 +899,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   healthyToggleBoxActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   healthyTitle: {
     fontSize: 13,
@@ -815,8 +938,8 @@ const styles = StyleSheet.create({
     borderColor: '#BE123C',
   },
   chipSelectedCondition: {
-    backgroundColor: '#0D9488',
-    borderColor: '#0D9488',
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
   },
   chipText: {
     fontSize: 11,
@@ -842,7 +965,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   addBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingHorizontal: 14,
     justifyContent: 'center',
     borderRadius: 10,

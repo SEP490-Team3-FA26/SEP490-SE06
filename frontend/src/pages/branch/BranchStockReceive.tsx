@@ -150,7 +150,7 @@ export function BranchStockReceive() {
   const statusBadge = (s: string) => {
     const styles: Record<string, string> = {
       SHIPPING: "bg-amber-50 text-amber-700 border-amber-200",
-      DELIVERED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      DELIVERED: "bg-sky-50 text-sky-700 border-sky-200",
       CANCELLED: "bg-rose-50 text-rose-700 border-rose-200",
     };
     const labels: Record<string, string> = {
@@ -171,7 +171,7 @@ export function BranchStockReceive() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-700">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-sky-100 text-sky-700">
               <PackageCheck size={20} />
             </div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Nhập Thuốc Chi Nhánh</h1>
@@ -183,10 +183,10 @@ export function BranchStockReceive() {
       </div>
 
       {successMsg && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-bold flex items-center gap-2">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-sm font-bold flex items-center gap-2">
           <CheckCircle2 size={16} />
           {successMsg}
-          <button onClick={() => setSuccessMsg(null)} className="ml-auto text-emerald-400 hover:text-emerald-600">
+          <button onClick={() => setSuccessMsg(null)} className="ml-auto text-sky-400 hover:text-sky-600">
             <X size={14} />
           </button>
         </motion.div>
@@ -211,8 +211,8 @@ export function BranchStockReceive() {
             Khi hàng đến nơi, vui lòng bấm <b>"Kiểm hàng"</b>, xác nhận số lượng thực nhận rồi mới nhập kho chi nhánh.
           </p>
         </div>
-        <span className={`ml-auto shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black border ${isConnected ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
-          <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-500" : "bg-slate-400"}`} />
+        <span className={`ml-auto shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black border ${isConnected ? "bg-sky-50 text-sky-700 border-sky-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+          <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-sky-500" : "bg-slate-400"}`} />
           {isConnected ? "Realtime" : "Offline"}
         </span>
       </div>
@@ -221,14 +221,14 @@ export function BranchStockReceive() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
         <div className="p-4 border-b border-slate-200 bg-slate-50 shrink-0">
           <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-            <ClipboardCheck size={16} className="text-emerald-600" />
+            <ClipboardCheck size={16} className="text-sky-600" />
             Danh sách phiếu chuyển kho
           </h2>
         </div>
         <div className="overflow-auto flex-1 min-h-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Loader2 className="animate-spin text-emerald-600" size={28} />
+              <Loader2 className="animate-spin text-sky-600" size={28} />
               <p className="text-slate-500 text-sm">Đang tải danh sách...</p>
             </div>
           ) : transfers.length === 0 ? (
@@ -277,7 +277,7 @@ export function BranchStockReceive() {
                           <button
                             onClick={() => openInspection(tf)}
                             disabled={actionLoading === tf._id}
-                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1"
+                            className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-200 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1"
                           >
                             {actionLoading === tf._id ? (
                               <Loader2 size={12} className="animate-spin" />
@@ -335,10 +335,10 @@ export function BranchStockReceive() {
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col border border-slate-100"
             >
               {/* Header */}
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-emerald-50">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-sky-50">
                 <div>
                   <h3 className="font-black text-slate-900 text-base">{detailTransfer.transferCode}</h3>
-                  <p className="text-xs text-emerald-700 font-bold mt-1">
+                  <p className="text-xs text-sky-700 font-bold mt-1">
                     {statusBadge(detailTransfer.status)}
                   </p>
                 </div>
@@ -375,7 +375,7 @@ export function BranchStockReceive() {
                     <>
                       <div className="col-span-2 border-t border-slate-200/60 pt-2 mt-1">
                         <span className="text-slate-400 font-bold block">Xác nhận nhận bởi</span>
-                        <span className="font-black text-emerald-700 flex items-center gap-1.5 mt-0.5">
+                        <span className="font-black text-sky-700 flex items-center gap-1.5 mt-0.5">
                           <CheckCircle2 size={13} />
                           {detailTransfer.receivedBy} ({new Date(detailTransfer.receivedAt).toLocaleString("vi-VN")})
                         </span>
@@ -385,7 +385,7 @@ export function BranchStockReceive() {
                 </div>
 
                 <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <ClipboardList size={14} className="text-emerald-600" />
+                  <ClipboardList size={14} className="text-sky-600" />
                   Danh sách thuốc trong đợt chuyển
                 </h4>
                 <div className="space-y-2">
@@ -401,7 +401,7 @@ export function BranchStockReceive() {
                       </div>
                       <div className="flex items-center gap-2 text-sm shrink-0 self-end sm:self-center">
                         <span className="text-slate-400 font-bold uppercase text-[10px]">SL chuyển:</span>
-                        <span className="font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                        <span className="font-black text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-lg">
                           {it.quantity} {it.unit || "Hộp"}
                         </span>
                       </div>
@@ -416,7 +416,7 @@ export function BranchStockReceive() {
                   <button
                     onClick={() => openInspection(detailTransfer)}
                     disabled={actionLoading === detailTransfer._id}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white font-extrabold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-200 text-white font-extrabold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                   >
                     {actionLoading === detailTransfer._id ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -442,10 +442,10 @@ export function BranchStockReceive() {
               exit={{ scale: 0.95, opacity: 0 }}
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-hidden flex flex-col border border-slate-100"
             >
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-emerald-50">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-sky-50">
                 <div>
                   <h3 className="font-black text-slate-900 text-base">Kiểm hàng phiếu {inspectionTransfer.transferCode}</h3>
-                  <p className="text-xs text-emerald-700 font-bold mt-1">Nhập số lượng thực nhận trước khi cộng vào tồn kho chi nhánh</p>
+                  <p className="text-xs text-sky-700 font-bold mt-1">Nhập số lượng thực nhận trước khi cộng vào tồn kho chi nhánh</p>
                 </div>
                 <button
                   onClick={() => setInspectionTransfer(null)}
@@ -483,7 +483,7 @@ export function BranchStockReceive() {
                           max={item.quantity}
                           value={inspectionQuantities[key] ?? ""}
                           onChange={(event) => setInspectionQuantities((prev) => ({ ...prev, [key]: event.target.value }))}
-                          className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-sm font-black text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full px-3 py-2 bg-white border border-sky-300 rounded-lg text-sm font-black text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
                         {discrepancy !== 0 && Number.isFinite(discrepancy) && (
                           <p className="mt-1 text-[10px] font-bold text-amber-600">
@@ -501,7 +501,7 @@ export function BranchStockReceive() {
                     value={inspectionNote}
                     onChange={(event) => setInspectionNote(event.target.value)}
                     rows={3}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     placeholder="Ví dụ: thiếu 1 hộp do kiện hàng rách..."
                   />
                 </div>
@@ -517,7 +517,7 @@ export function BranchStockReceive() {
                 <button
                   onClick={() => handleConfirmReceipt(inspectionTransfer)}
                   disabled={actionLoading === inspectionTransfer._id}
-                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white font-extrabold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-200 text-white font-extrabold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                 >
                   {actionLoading === inspectionTransfer._id ? (
                     <Loader2 size={16} className="animate-spin" />

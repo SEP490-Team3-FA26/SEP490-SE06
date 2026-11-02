@@ -19,12 +19,11 @@ interface BarcodeScannerInputProps {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Barcode scanner input field.
- * - Connects a visible label (via auto-generated id) for accessibility.
- * - Triggers onScan on Enter key or scan button click.
- * - Applies a brief emerald-pulse border animation after a successful scan.
- * - Shows a teal scanning line animation while focused.
- * - Monospace tracking for barcode readability.
+ * Ô nhập và quét mã barcode dược phẩm.
+ * - Hỗ trợ accessibility và phím tắt Enter để quét nhanh.
+ * - Kích hoạt hiệu ứng nháy viền xanh sky khi quét mã thành công.
+ * - Hiệu ứng quét laser chuyển động mượt mà khi focus.
+ * - Font monospace hiển thị rõ ràng từng ký tự barcode.
  */
 export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
   value,
@@ -61,7 +60,7 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
 
   // Compose border/ring classes based on state
   const borderClass = scanned
-    ? "border-emerald-400 ring-4 ring-emerald-500/20 animate-pulse"
+    ? "border-sky-400 ring-4 ring-sky-500/20 animate-pulse"
     : isFocused
       ? "border-teal-400 ring-4 ring-teal-500/20"
       : "border-slate-200 hover:border-slate-300";

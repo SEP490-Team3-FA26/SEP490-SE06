@@ -120,7 +120,7 @@ export const PharmaSmartRecommender: React.FC<Props> = ({
       {/* 1. CHRONIC MEDICATION REFILL ALERT (NHẮC NẠP THUỐC MÃN TÍNH RFM) */}
       {/* ========================================================================= */}
       {data.chronicReminder && data.chronicReminder.isDue && (
-        <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white rounded-2xl p-5 shadow-lg shadow-teal-900/10">
+        <div className="relative overflow-hidden bg-gradient-to-r from-sky-600 via-teal-600 to-cyan-700 text-white rounded-2xl p-5 shadow-lg shadow-teal-900/10">
           <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
             <div className="flex items-start gap-3.5">
@@ -132,14 +132,14 @@ export const PharmaSmartRecommender: React.FC<Props> = ({
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-400 text-slate-900">
                     Nhắc Nạp Thuốc Định Kỳ (RFM)
                   </span>
-                  <span className="text-xs text-emerald-100 flex items-center gap-1 font-medium">
+                  <span className="text-xs text-sky-100 flex items-center gap-1 font-medium">
                     <Clock className="w-3.5 h-3.5" /> Còn {data.chronicReminder.daysRemaining} ngày nữa
                   </span>
                 </div>
                 <h4 className="text-base font-bold text-white leading-tight">
                   Chào {data.chronicReminder.patientName || 'Quý khách'}, đến hẹn tái nạp thuốc định kỳ!
                 </h4>
-                <p className="text-xs text-emerald-100/90 max-w-xl">
+                <p className="text-xs text-sky-100/90 max-w-xl">
                   {data.chronicReminder.message}
                 </p>
               </div>
@@ -151,13 +151,13 @@ export const PharmaSmartRecommender: React.FC<Props> = ({
                   onClick={() => handleApplyVoucher(data.chronicReminder!.recommendedVoucher!)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
                     appliedVoucher === data.chronicReminder.recommendedVoucher
-                      ? 'bg-emerald-800 text-emerald-200 border border-emerald-500'
-                      : 'bg-white text-emerald-800 hover:bg-emerald-50'
+                      ? 'bg-sky-800 text-sky-200 border border-sky-500'
+                      : 'bg-white text-sky-800 hover:bg-sky-50'
                   }`}
                 >
                   {appliedVoucher === data.chronicReminder.recommendedVoucher ? (
                     <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-sky-300" />
                       Đã lưu mã {data.chronicReminder.recommendedVoucher}
                     </>
                   ) : (
@@ -236,7 +236,7 @@ export const PharmaSmartRecommender: React.FC<Props> = ({
                     <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider truncate max-w-[120px]">
                       {item.category || 'TPCN'}
                     </span>
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/50">
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50">
                       <ShieldCheck className="w-2.5 h-2.5" /> An toàn
                     </span>
                   </div>
@@ -278,7 +278,7 @@ export const PharmaSmartRecommender: React.FC<Props> = ({
                     disabled={addingId === item._id}
                     className={`p-2 rounded-lg transition-all duration-200 flex items-center justify-center ${
                       addingId === item._id
-                        ? 'bg-emerald-600 text-white'
+                        ? 'bg-sky-600 text-white'
                         : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow'
                     }`}
                     title="Thêm vào giỏ hàng"
@@ -297,7 +297,7 @@ export const PharmaSmartRecommender: React.FC<Props> = ({
           {/* Footer Cam kết Y khoa */}
           <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400">
             <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-500" />
+              <ShieldCheck className="w-3 h-3 text-sky-500" />
               100% sản phẩm bổ trợ đã qua kiểm định y tế theo quy định Dược
             </span>
             <span className="hidden sm:inline text-slate-400">

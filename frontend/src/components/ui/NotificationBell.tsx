@@ -89,7 +89,7 @@ export function NotificationBell() {
         return <FileText size={20} className="text-blue-500" />;
       case 'PR_APPROVED':
       case 'shift_swap_approved':
-        return <CheckCircle2 size={20} className="text-green-500" />;
+        return <CheckCircle2 size={20} className="text-sky-500" />;
       case 'PR_REJECTED':
       case 'shift_swap_rejected':
         return <XCircle size={20} className="text-red-500" />;
@@ -131,9 +131,9 @@ export function NotificationBell() {
       >
         <Bell size={20} className="text-slate-600" />
         
-        {/* Connection Status Indicator */}
+        {/* Chỉ báo trạng thái kết nối realtime */}
         <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full ${
-          connectionMode === 'realtime' ? 'bg-green-500' : 
+          connectionMode === 'realtime' ? 'bg-sky-500' : 
           connectionMode === 'polling' ? 'bg-yellow-500' : 
           'bg-gray-400'
         }`} title={connectionMode} />

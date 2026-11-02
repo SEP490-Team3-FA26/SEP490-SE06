@@ -403,7 +403,7 @@ export function CustomerProfile() {
       minOrder: '50.000đ',
       desc: 'Áp dụng cho mọi đơn hàng khi mua thuốc tại quầy hoặc online.',
       badge: 'Đặc Quyền Đánh Giá',
-      badgeColor: 'bg-emerald-500 text-white',
+      badgeColor: 'bg-sky-500 text-white',
       expiry: '31/12/2026',
     },
     {
@@ -541,7 +541,7 @@ export function CustomerProfile() {
               </div>
 
               {/* Thẻ liên thông Sổ Sức Khỏe Số (Digital Health Passport Preview) */}
-              <div className="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-6 border border-teal-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-3xl p-6 border border-teal-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-md">
                     <HeartPulse size={24} />
@@ -549,7 +549,7 @@ export function CustomerProfile() {
                   <div>
                     <h4 className="text-sm font-black text-teal-950 flex items-center gap-2">
                       <span>Sổ Sức Khỏe Số (Digital Health Passport)</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-800">
                         {clinical?.hasCompletedHealthOnboarding ? 'Đã kích hoạt' : 'Chưa thiết lập'}
                       </span>
                     </h4>
@@ -584,8 +584,8 @@ export function CustomerProfile() {
               </div>
 
               {addressSuccess && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                <div className="p-3 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
                   <span>{addressSuccess}</span>
                 </div>
               )}
@@ -666,7 +666,7 @@ export function CustomerProfile() {
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                       Giá Trị Quy Đổi
                     </span>
-                    <span className="text-xl font-black text-emerald-300 mt-1 block font-mono">
+                    <span className="text-xl font-black text-sky-300 mt-1 block font-mono">
                       {(loyalty.points || 0).toLocaleString()} <span className="text-xs font-bold">VNĐ</span>
                     </span>
                   </div>
@@ -700,7 +700,7 @@ export function CustomerProfile() {
                       Tích lũy thêm <strong className="text-amber-300">{pointsNeeded.toLocaleString()} điểm</strong> để đạt cấp bậc {nextTierName}.
                     </p>
                   ) : (
-                    <p className="text-[11px] text-emerald-400 font-bold">
+                    <p className="text-[11px] text-sky-400 font-bold">
                       🎉 Bạn đã đạt cấp bậc cao nhất trong hệ thống nhà thuốc!
                     </p>
                   )}
@@ -769,8 +769,8 @@ export function CustomerProfile() {
               </div>
 
               {passwordSuccess && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                <div className="p-3 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
                   <span>{passwordSuccess}</span>
                 </div>
               )}
@@ -878,8 +878,8 @@ export function CustomerProfile() {
             </div>
 
             {editSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <div className="p-3 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
                 <span>{editSuccess}</span>
               </div>
             )}

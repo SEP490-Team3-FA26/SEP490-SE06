@@ -69,8 +69,8 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
     switch (status) {
       case 'MATCHED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 size={13} className="text-emerald-600" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200">
+            <CheckCircle2 size={13} className="text-sky-600" />
             Khớp Chuẩn 100%
           </span>
         );
@@ -126,10 +126,10 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tỷ Lệ Tự Động Khớp</p>
-            <h3 className="text-2xl font-black text-emerald-600 mt-1">{summary.matchRate}%</h3>
+            <h3 className="text-2xl font-black text-sky-600 mt-1">{summary.matchRate}%</h3>
             <p className="text-xs text-slate-400 mt-0.5">Khớp chuẩn & trong dung sai</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
             <CheckCircle2 size={24} />
           </div>
         </div>
@@ -170,7 +170,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Chênh Lệch Dòng Tiền</p>
             <h3
               className={`text-2xl font-black mt-1 ${
-                summary.difference >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                summary.difference >= 0 ? 'text-sky-600' : 'text-rose-600'
               }`}
             >
               {summary.difference >= 0 ? '+' : ''}
@@ -249,7 +249,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
               ) : discrepancies.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center">
-                    <ShieldCheck size={36} className="mx-auto text-emerald-500 mb-2 opacity-60" />
+                    <ShieldCheck size={36} className="mx-auto text-sky-500 mb-2 opacity-60" />
                     <p className="text-sm font-semibold text-slate-700">Tuyệt vời! Không có sai lệch thanh toán nào</p>
                     <p className="text-xs text-slate-400 mt-1">
                       Mọi giao dịch ngân hàng / VietQR đều đã khớp hoàn toàn hoặc nằm trong dung sai cho phép.
@@ -315,7 +315,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ selectedBranch }) =>
                         </span>
                       )}
                       {record.resolutionNotes && (
-                        <span className="text-[11px] text-emerald-700 block italic">
+                        <span className="text-[11px] text-sky-700 block italic">
                           Đã giải trình: {record.resolutionNotes}
                         </span>
                       )}

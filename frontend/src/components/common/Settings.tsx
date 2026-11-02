@@ -73,7 +73,7 @@ export function Settings() {
         {/* Preferences */}
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+            <div className="p-2 bg-sky-50 text-sky-600 rounded-lg">
               <Globe size={20} />
             </div>
             <div>

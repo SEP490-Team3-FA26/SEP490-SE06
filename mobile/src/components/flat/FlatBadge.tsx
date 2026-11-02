@@ -41,10 +41,10 @@ export const FlatBadge: React.FC<FlatBadgeProps> = ({
     switch (status) {
       case 'success':
         return {
-          solidBg: '#10B981',
-          glassBg: 'rgba(16, 185, 129, 0.15)',
-          text: '#047857',
-          border: 'rgba(16, 185, 129, 0.45)',
+          solidBg: '#0284C7',
+          glassBg: 'rgba(2, 132, 199, 0.15)',
+          text: '#0369A1',
+          border: 'rgba(2, 132, 199, 0.45)',
         };
       case 'warning':
         return {
@@ -134,7 +134,7 @@ export const FlatBadge: React.FC<FlatBadgeProps> = ({
         <Ionicons
           name={icon}
           size={iconSize}
-          color={textStyle?.color || getTextColor()}
+          color={(textStyle?.color as string) || getTextColor()}
           style={styles.icon}
         />
       )}

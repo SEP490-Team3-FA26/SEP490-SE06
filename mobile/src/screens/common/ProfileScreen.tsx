@@ -31,11 +31,13 @@ import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal
 import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 import { StaffCertificateModal } from '../../components/certificate/StaffCertificateModal';
 import { DigitalHealthPassportModal } from '../../components/clinical';
+import { StaffIdCardScanModal } from '../../components/attendance/StaffIdCardScanModal';
 import { FlatModal } from '../../components/flat/FlatModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const {
     user,
+    auth,
     logout,
     updateProfile,
     refreshUser,
@@ -73,6 +75,29 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   // Modal Xác Nhận Đăng Xuất In-App (Không dùng Alert hệ điều hành)
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
+  const [showDirectorStaffScanModal, setShowDirectorStaffScanModal] = useState<boolean>(false);
+
+  // Phân quyền Ban Giám Đốc
+  // Phân quyền Ban Giám Đốc (Executive Director) & Quản Lý Chi Nhánh (Branch Manager)
+  const userFullName = String((user as any)?.fullName || user?.name || '').toLowerCase().trim();
+  const userRole = String(user?.role || auth.role || '').toLowerCase().trim();
+  const isDirector = Boolean(
+    ['director', 'headbranch', 'head_branch'].includes(userRole) ||
+    userFullName.includes('giám đốc') ||
+    userFullName.includes('giam doc') ||
+    userFullName.includes('director') ||
+    user?.phone === '0902 222 333' ||
+    user?.phone === '0902222333' ||
+    (Array.isArray((user as any)?.roles) &&
+      (user as any).roles.some((r: string) =>
+        ['director', 'headbranch', 'head_branch'].includes(String(r).toLowerCase())
+      ))
+  );
+
+  const isBranchManager = Boolean(
+    ['branch', 'headbranch', 'head_branch'].includes(userRole) ||
+    userFullName.includes('quản lý')
+  );
 
   // Thông tin Xu thưởng & Thẻ hội viên VIP
   const [loyaltyInfo, setLoyaltyInfo] = useState<{
@@ -180,110 +205,529 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
         >
+          {/* Thanh tiêu đề & nút quay lại điều hướng */}
+          <View style={styles.topNavRow}>
+            <AnimatedTouchable
+              style={styles.topBackBtn}
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else if (isDirector) {
+                  navigation.navigate('DirectorScreen');
+                } else if (isStaff && user?.role === 'pharmacist') {
+                  navigation.navigate('PharmacistScreen');
+                } else if (!isStaff) {
+                  navigation.navigate('CustomerScreen');
+                }
+              }}
+            >
+              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+            </AnimatedTouchable>
+            <Text style={styles.topNavTitle}>
+              {isDirector
+                ? 'Hồ Sơ Ban Giám Đốc'
+                : isStaff
+                ? 'Hồ Sơ Nhân Sự Chi Nhánh'
+                : 'Hồ Sơ Cá Nhân'}
+            </Text>
+            <View style={{ width: 36 }} />
+          </View>
+
           {/* Hàng thông tin người dùng */}
           <View style={styles.userHeaderRow}>
             {/* Avatar bên trái */}
             <View style={styles.avatarGlowWrapper}>
               <View style={styles.avatarCircle}>
-                <Ionicons name="person" size={32} color="#FFFFFF" />
+                <Ionicons
+                  name={isDirector ? 'shield-checkmark' : 'person'}
+                  size={32}
+                  color="#FFFFFF"
+                />
               </View>
             </View>
 
             {/* Tên & Số điện thoại */}
             <View style={styles.userInfoBox}>
               <Text style={styles.userNameText} numberOfLines={1}>
-                {user?.name || 'anh phước'}
+                {user?.name || (isDirector ? 'Ban Giám Đốc' : 'anh phước')}
               </Text>
               <Text style={styles.userPhoneText}>
-                {user?.phone || '0936 929 381'}
+                {user?.phone || '0902 222 333'}
               </Text>
               {isStaff ? (
                 <View style={styles.staffRolePill}>
-                  <Text style={styles.staffRoleText}>{roleLabel}</Text>
+                  <Text style={styles.staffRoleText}>
+                    {isDirector ? 'Giám Đốc Chuỗi' : roleLabel}
+                  </Text>
                 </View>
               ) : null}
             </View>
 
-            {/* Huy hiệu Xu Thưởng bên phải */}
-            <AnimatedTouchable
-              style={styles.coinBadgeContainer}
-              onPress={() => navigation.navigate('LoyaltyScreen')}
-            >
-              <View style={styles.goldCoinIcon}>
-                <Text style={styles.goldCoinLetter}>F</Text>
+            {/* Huy hiệu bên phải: Giám đốc hiển thị HQ, Dược sĩ hiển thị Cơ sở chi nhánh, Khách hàng hiển thị Xu Thưởng */}
+            {isDirector ? (
+              <View style={[styles.staffBranchBadge, { backgroundColor: 'rgba(255, 255, 255, 0.25)' }]}>
+                <Ionicons name="business" size={13} color="#FFFFFF" />
+                <Text style={styles.staffBranchBadgeText}>Trụ Sở Chính (HQ)</Text>
               </View>
-              <Text style={styles.coinCountText}>{pointsCount.toLocaleString('vi-VN')}</Text>
-            </AnimatedTouchable>
+            ) : isStaff ? (
+              <View style={styles.staffBranchBadge}>
+                <Ionicons name="business" size={13} color="#FFFFFF" />
+                <Text style={styles.staffBranchBadgeText}>Cơ Sở CN1</Text>
+              </View>
+            ) : (
+              <AnimatedTouchable
+                style={styles.coinBadgeContainer}
+                onPress={() => navigation.navigate('LoyaltyScreen')}
+              >
+                <View style={styles.goldCoinIcon}>
+                  <Text style={styles.goldCoinLetter}>F</Text>
+                </View>
+                <Text style={styles.coinCountText}>{pointsCount.toLocaleString('vi-VN')}</Text>
+              </AnimatedTouchable>
+            )}
           </View>
         </LinearGradient>
 
         {/* ============================================================== */}
-        {/* 2. KHỐI "ĐƠN CỦA TÔI" - 4 TRẠNG THÁI NGANG (CÓ BADGE ĐỎ)       */}
+        {/* 2. KHỐI THAO TÁC NHANH: GIÁM ĐỐC vs DƯỢC SĨ vs KHÁCH HÀNG       */}
         {/* ============================================================== */}
-        <View style={styles.ordersOverlappingCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitleMuted}>Đơn của tôi</Text>
-            <AnimatedTouchable
-              style={styles.viewAllRow}
-              onPress={() => navigation.navigate('OrdersHistoryScreen')}
-            >
-              <Text style={styles.viewAllText}>Xem tất cả</Text>
-              <Ionicons name="chevron-forward" size={14} color="#0284C7" />
-            </AnimatedTouchable>
-          </View>
+        {isDirector ? (
+          /* KHỐI DÀNH CHO BAN GIÁM ĐỐC: ĐIỀU HÀNH CHIẾN LƯỢC TOÀN CHUỖI */
+          <View style={styles.ordersOverlappingCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="speedometer" size={16} color="#0284C7" />
+                <Text style={styles.sectionTitleMuted}>Điều hành Ban Giám Đốc</Text>
+              </View>
+              <AnimatedTouchable
+                style={styles.viewAllRow}
+                onPress={() => navigation.navigate('DirectorScreen')}
+              >
+                <Text style={styles.viewAllText}>Vào Bảng Điều Hành</Text>
+                <Ionicons name="arrow-forward-circle" size={15} color="#0284C7" />
+              </AnimatedTouchable>
+            </View>
 
-          <View style={styles.orderActionsGrid}>
-            {/* Đang xử lý - có badge đỏ đếm đơn */}
-            <AnimatedTouchable
-              style={styles.orderActionItem}
-              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'PROCESSING' })}
-            >
-              <View style={styles.orderIconWrapper}>
-                <Ionicons name="file-tray-full" size={24} color="#0284C7" />
-                <View style={styles.redBadgeCircle}>
-                  <Text style={styles.redBadgeText}>1</Text>
+            <View style={styles.orderActionsGrid}>
+              {/* Dashboard Chuỗi */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => navigation.navigate('DirectorScreen')}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="pie-chart" size={24} color="#0284C7" />
                 </View>
-              </View>
-              <Text style={styles.orderActionLabel}>Đang xử lý</Text>
-            </AnimatedTouchable>
+                <Text style={styles.orderActionLabel}>Doanh thu</Text>
+              </AnimatedTouchable>
 
-            {/* Đang giao */}
-            <AnimatedTouchable
-              style={styles.orderActionItem}
-              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'SHIPPING' })}
-            >
-              <View style={styles.orderIconWrapper}>
-                <Ionicons name="bus" size={24} color="#0284C7" />
-              </View>
-              <Text style={styles.orderActionLabel}>Đang giao</Text>
-            </AnimatedTouchable>
+              {/* Quét Thẻ Nhân Sự GPP */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => setShowDirectorStaffScanModal(true)}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="qr-code" size={24} color="#0284C7" />
+                  <View style={styles.activeBadgeDot} />
+                </View>
+                <Text style={styles.orderActionLabel}>Quét Thẻ GPP</Text>
+              </AnimatedTouchable>
 
-            {/* Đã giao */}
-            <AnimatedTouchable
-              style={styles.orderActionItem}
-              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'DELIVERED' })}
-            >
-              <View style={styles.orderIconWrapper}>
-                <Ionicons name="calendar-sharp" size={24} color="#0284C7" />
-              </View>
-              <Text style={styles.orderActionLabel}>Đã giao</Text>
-            </AnimatedTouchable>
+              {/* Duyệt PO */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => navigation.navigate('DirectorScreen')}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="checkbox" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Duyệt PO</Text>
+              </AnimatedTouchable>
 
-            {/* Đổi/Trả */}
-            <AnimatedTouchable
-              style={styles.orderActionItem}
-              onPress={() => navigation.navigate('OrdersHistoryScreen', { status: 'RETURN' })}
-            >
-              <View style={styles.orderIconWrapper}>
-                <Ionicons name="swap-horizontal" size={24} color="#0284C7" />
-              </View>
-              <Text style={styles.orderActionLabel}>Đổi/Trả</Text>
-            </AnimatedTouchable>
+              {/* Dự Báo AI */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => navigation.navigate('DirectorScreen')}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="sparkles" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Dự báo AI</Text>
+              </AnimatedTouchable>
+            </View>
           </View>
-        </View>
+        ) : isStaff ? (
+          /* KHỐI DÀNH CHO DƯỢC SĨ / NHÂN VIÊN: CA TRỰC & QUẦY THUỐC */
+          <View style={styles.ordersOverlappingCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="briefcase" size={16} color="#0284C7" />
+                <Text style={styles.sectionTitleMuted}>Nghiệp vụ ca trực</Text>
+              </View>
+              {user?.role === 'pharmacist' ? (
+                <AnimatedTouchable
+                  style={styles.viewAllRow}
+                  onPress={() => navigation.navigate('PharmacistScreen')}
+                >
+                  <Text style={styles.viewAllText}>Vào Quầy POS</Text>
+                  <Ionicons name="arrow-forward-circle" size={15} color="#0284C7" />
+                </AnimatedTouchable>
+              ) : null}
+            </View>
+
+            <View style={styles.orderActionsGrid}>
+              {/* Điểm danh GPS */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => setShowCheckInModal(true)}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="location" size={24} color="#0284C7" />
+                  <View style={styles.activeBadgeDot} />
+                </View>
+                <Text style={styles.orderActionLabel}>Điểm danh GPS</Text>
+              </AnimatedTouchable>
+
+              {/* Lịch trực tuần */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => setShowScheduleModal(true)}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="calendar" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Lịch trực</Text>
+              </AnimatedTouchable>
+
+              {/* Phiếu lương */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => setShowPayslipModal(true)}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="receipt" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Phiếu lương</Text>
+              </AnimatedTouchable>
+
+              {/* Nghỉ phép */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => setShowLeaveModal(true)}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="time" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Nghỉ phép</Text>
+              </AnimatedTouchable>
+            </View>
+          </View>
+        ) : (
+          /* KHỐI DÀNH CHO KHÁCH HÀNG: ĐƠN CỦA TÔI (4 TRẠNG THÁI GIAO HÀNG) */
+          <View style={styles.ordersOverlappingCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitleMuted}>Đơn của tôi</Text>
+              <AnimatedTouchable
+                style={styles.viewAllRow}
+                onPress={() => navigation.navigate('CustomerScreen')}
+              >
+                <Text style={styles.viewAllText}>Xem tất cả</Text>
+                <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+              </AnimatedTouchable>
+            </View>
+
+            <View style={styles.orderActionsGrid}>
+              {/* Đang xử lý */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => navigation.navigate('CustomerScreen')}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="file-tray-full" size={24} color="#0284C7" />
+                  <View style={styles.redBadgeCircle}>
+                    <Text style={styles.redBadgeText}>1</Text>
+                  </View>
+                </View>
+                <Text style={styles.orderActionLabel}>Đang xử lý</Text>
+              </AnimatedTouchable>
+
+              {/* Đang giao */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => navigation.navigate('CustomerScreen')}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="bus" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Đang giao</Text>
+              </AnimatedTouchable>
+
+              {/* Đã giao */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => navigation.navigate('CustomerScreen')}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="calendar-sharp" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Đã giao</Text>
+              </AnimatedTouchable>
+
+              {/* Đổi/Trả */}
+              <AnimatedTouchable
+                style={styles.orderActionItem}
+                onPress={() => navigation.navigate('CustomerScreen')}
+              >
+                <View style={styles.orderIconWrapper}>
+                  <Ionicons name="swap-horizontal" size={24} color="#0284C7" />
+                </View>
+                <Text style={styles.orderActionLabel}>Đổi/Trả</Text>
+              </AnimatedTouchable>
+            </View>
+          </View>
+        )}
 
         {/* ============================================================== */}
-        {/* 3. KHỐI "CÀI ĐẶT GIAO DIỆN"                                   */}
+        {/* 3. KHỐI NGHIỆP VỤ: GIÁM ĐỐC vs DƯỢC SĨ & NHÂN VIÊN CHI NHÁNH  */}
+        {/* ============================================================== */}
+        {isDirector ? (
+          <View style={styles.sectionGroup}>
+            <Text style={styles.groupHeading}>Nghiệp vụ Quản trị Ban Giám Đốc</Text>
+            <View style={styles.whiteMenuCard}>
+              {/* Bảng điều hành toàn chuỗi */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => navigation.navigate('DirectorScreen')}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#E0F2FE' }]}>
+                    <Ionicons name="speedometer" size={20} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuRowTitle}>Bảng Điều Hành Ban Giám Đốc</Text>
+                    <Text style={styles.menuRowSubtitle}>Tổng quan doanh thu chuỗi & KPI các chi nhánh</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Quét Thẻ Nhân Sự GPP */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowDirectorStaffScanModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="qr-code" size={20} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuRowTitle}>Quét & Tra Cứu Thẻ Nhân Sự GPP</Text>
+                    <Text style={styles.menuRowSubtitle}>Kiểm tra CCHN, bằng cấp & trạng thái ca trực nhân viên</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Phê Duyệt PO */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => navigation.navigate('DirectorScreen')}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="checkbox" size={20} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuRowTitle}>Phê Duyệt Đơn Mua Hàng Chiến Lược (PO)</Text>
+                    <Text style={styles.menuRowSubtitle}>Kiểm soát ngân sách & định mức nhập dược phẩm</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Dự báo AI */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => navigation.navigate('DirectorScreen')}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="sparkles" size={20} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuRowTitle}>Dự Báo Nhu Cầu & Rủi Ro Chuỗi (AI)</Text>
+                    <Text style={styles.menuRowSubtitle}>Phân tích biến động doanh thu & cảnh báo đứt gãy</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+            </View>
+          </View>
+        ) : isStaff ? (
+          <View style={styles.sectionGroup}>
+            <Text style={styles.groupHeading}>Nghiệp vụ Dược & Nhân sự chi nhánh</Text>
+            <View style={styles.whiteMenuCard}>
+              {/* Nút vào quầy POS cho Dược sĩ */}
+              {user?.role === 'pharmacist' ? (
+                <>
+                  <AnimatedTouchable
+                    style={styles.menuRowItem}
+                    onPress={() => navigation.navigate('PharmacistScreen')}
+                  >
+                    <View style={styles.menuRowLeft}>
+                      <View style={[styles.menuIconCircle, { backgroundColor: '#E0F2FE' }]}>
+                        <Ionicons name="cart" size={20} color="#0284C7" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.menuRowTitle}>Quầy Bán Lẻ POS Dược Sĩ</Text>
+                        <Text style={styles.menuRowSubtitle}>Kê đơn, tính tiền, trừ kho GSP tự động</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+                  <View style={styles.menuDivider} />
+                </>
+              ) : null}
+
+              {/* Quét & Tra Cứu Thẻ Nhân Sự Dành Cho Quản Lý Chi Nhánh */}
+              {isBranchManager ? (
+                <>
+                  <AnimatedTouchable
+                    style={styles.menuRowItem}
+                    onPress={() => setShowDirectorStaffScanModal(true)}
+                  >
+                    <View style={styles.menuRowLeft}>
+                      <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                        <Ionicons name="qr-code" size={20} color="#0284C7" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.menuRowTitle}>Quét & Tra Cứu Thẻ Nhân Sự GPP</Text>
+                        <Text style={styles.menuRowSubtitle}>Kiểm tra CCHN, chấm công GPS & bằng cấp nhân sự</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </AnimatedTouchable>
+                  <View style={styles.menuDivider} />
+                </>
+              ) : null}
+
+              {/* Thẻ Định Danh Nhân Sự GPP (Mã QR Thẻ Nhân Viên) */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowPassportModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="card" size={20} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuRowTitle}>Thẻ Định Danh Nhân Sự (GPP QR)</Text>
+                    <Text style={styles.menuRowSubtitle}>Mã QR nhân viên, mã hóa CCHN cho Giám đốc / Quản lý quét</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Chứng chỉ & Bằng cấp (CCHN) */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowCertModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="ribbon" size={20} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuRowTitle}>Chứng chỉ & Bằng cấp (CCHN)</Text>
+                    <Text style={styles.menuRowSubtitle}>Chứng chỉ hành nghề Dược, bằng tốt nghiệp</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Điểm danh ca trực GPS */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowCheckInModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="location" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Điểm danh ca trực GPS</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Lịch làm việc của tôi */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowScheduleModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="calendar" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Lịch làm việc của tôi</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Đổi ca làm việc */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowShiftSwapModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="swap-horizontal" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Đổi ca làm việc chéo</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Nghỉ phép & Quỹ phép năm */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowLeaveModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="time" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Nghỉ phép & Quỹ phép năm</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+              <View style={styles.menuDivider} />
+
+              {/* Phiếu lương cá nhân */}
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowPayslipModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Ionicons name="receipt" size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuRowTitle}>Phiếu lương cá nhân</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ============================================================== */}
+        {/* 4. KHỐI "CÀI ĐẶT GIAO DIỆN"                                   */}
         {/* ============================================================== */}
         <View style={styles.sectionGroup}>
           <Text style={styles.groupHeading}>Cài đặt giao diện</Text>
@@ -307,41 +751,43 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </View>
 
         {/* ============================================================== */}
-        {/* 4. KHỐI "SỔ SỨC KHỎE SỐ & Y TẾ" (CHUẨN GPP / BYT)              */}
+        {/* 5. KHỐI "SỔ SỨC KHỎE SỐ & Y TẾ" (CHỈ DÀNH CHO KHÁCH HÀNG)     */}
         {/* ============================================================== */}
-        <View style={styles.sectionGroup}>
-          <Text style={styles.groupHeading}>Hồ sơ sức khỏe y tế</Text>
-          <View style={styles.whiteMenuCard}>
-            <AnimatedTouchable
-              style={styles.menuRowItem}
-              onPress={() => setShowPassportModal(true)}
-            >
-              <View style={styles.menuRowLeft}>
-                <View style={[styles.menuIconCircle, { backgroundColor: '#E0F2FE' }]}>
-                  <Ionicons name="shield-checkmark" size={20} color="#0284C7" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.menuRowTitle}>Sổ Sức Khỏe Số QR</Text>
-                    <View style={styles.bluePillBadge}>
-                      <Text style={styles.bluePillText}>Chuẩn BYT</Text>
-                    </View>
+        {!isStaff ? (
+          <View style={styles.sectionGroup}>
+            <Text style={styles.groupHeading}>Hồ sơ sức khỏe y tế</Text>
+            <View style={styles.whiteMenuCard}>
+              <AnimatedTouchable
+                style={styles.menuRowItem}
+                onPress={() => setShowPassportModal(true)}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={[styles.menuIconCircle, { backgroundColor: '#E0F2FE' }]}>
+                    <Ionicons name="shield-checkmark" size={20} color="#0284C7" />
                   </View>
-                  <Text style={styles.menuRowSubtitle}>Toa thuốc GPP, nhóm máu, dị ứng & bệnh mãn tính</Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.menuRowTitle}>Sổ Sức Khỏe Số QR</Text>
+                      <View style={styles.bluePillBadge}>
+                        <Text style={styles.bluePillText}>Chuẩn BYT</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.menuRowSubtitle}>Toa thuốc GPP, nhóm máu, dị ứng & bệnh mãn tính</Text>
+                  </View>
                 </View>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-            </AnimatedTouchable>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </AnimatedTouchable>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* ============================================================== */}
-        {/* 5. KHỐI "TÀI KHOẢN" (DANH SÁCH MỤC PHẲNG NỀN TRẮNG CÓ CHEVRON) */}
+        {/* 6. KHỐI "TÀI KHOẢN"                                           */}
         {/* ============================================================== */}
         <View style={styles.sectionGroup}>
           <Text style={styles.groupHeading}>Tài khoản</Text>
           <View style={styles.whiteMenuCard}>
-            {/* Mã QR của tôi */}
+            {/* Thẻ định danh / Mã QR */}
             <AnimatedTouchable
               style={styles.menuRowItem}
               onPress={() => setShowPassportModal(true)}
@@ -350,7 +796,9 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
                   <Ionicons name="qr-code-outline" size={20} color="#0284C7" />
                 </View>
-                <Text style={styles.menuRowTitle}>Mã QR của tôi</Text>
+                <Text style={styles.menuRowTitle}>
+                  {isStaff ? 'Thẻ định danh nhân sự QR' : 'Mã QR của tôi'}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </AnimatedTouchable>
@@ -371,35 +819,54 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             </AnimatedTouchable>
             <View style={styles.menuDivider} />
 
-            {/* Quản lý sổ địa chỉ */}
-            <AnimatedTouchable
-              style={styles.menuRowItem}
-              onPress={() => setEditModalVisible(true)}
-            >
-              <View style={styles.menuRowLeft}>
-                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                  <Ionicons name="location-outline" size={20} color="#0284C7" />
-                </View>
-                <Text style={styles.menuRowTitle}>Quản lý sổ địa chỉ</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-            </AnimatedTouchable>
-            <View style={styles.menuDivider} />
+            {/* Quản lý sổ địa chỉ (Chỉ hiển thị cho Khách hàng) */}
+            {!isStaff ? (
+              <>
+                <AnimatedTouchable
+                  style={styles.menuRowItem}
+                  onPress={() => setEditModalVisible(true)}
+                >
+                  <View style={styles.menuRowLeft}>
+                    <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="location-outline" size={20} color="#0284C7" />
+                    </View>
+                    <Text style={styles.menuRowTitle}>Quản lý sổ địa chỉ</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+                <View style={styles.menuDivider} />
 
-            {/* Quản lý phương thức thanh toán */}
-            <AnimatedTouchable
-              style={styles.menuRowItem}
-              onPress={() => navigation.navigate('CustomerCheckoutScreen')}
-            >
-              <View style={styles.menuRowLeft}>
-                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                  <Ionicons name="card-outline" size={20} color="#0284C7" />
-                </View>
-                <Text style={styles.menuRowTitle}>Quản lý phương thức thanh toán</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-            </AnimatedTouchable>
-            <View style={styles.menuDivider} />
+                {/* Quản lý phương thức thanh toán (Chỉ hiển thị cho Khách hàng) */}
+                <AnimatedTouchable
+                  style={styles.menuRowItem}
+                  onPress={() => showToast.info('Thanh toán', 'Phương thức thanh toán VietQR & MoMo tự động kích hoạt khi tạo đơn hàng.')}
+                >
+                  <View style={styles.menuRowLeft}>
+                    <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="card-outline" size={20} color="#0284C7" />
+                    </View>
+                    <Text style={styles.menuRowTitle}>Quản lý phương thức thanh toán</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+                <View style={styles.menuDivider} />
+
+                {/* Lịch sử tư vấn y tế (Chỉ hiển thị cho Khách hàng) */}
+                <AnimatedTouchable
+                  style={styles.menuRowItem}
+                  onPress={() => showToast.info('Tư vấn', 'Lịch sử cuộc hội thoại tư vấn y tế cùng Dược sĩ & AI chuyên môn.')}
+                >
+                  <View style={styles.menuRowLeft}>
+                    <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                      <Ionicons name="book-outline" size={20} color="#0284C7" />
+                    </View>
+                    <Text style={styles.menuRowTitle}>Lịch sử tư vấn</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </AnimatedTouchable>
+                <View style={styles.menuDivider} />
+              </>
+            ) : null}
 
             {/* Đổi mật khẩu tài khoản */}
             <AnimatedTouchable
@@ -411,21 +878,6 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                   <Ionicons name="lock-closed-outline" size={20} color="#0284C7" />
                 </View>
                 <Text style={styles.menuRowTitle}>Đổi mật khẩu tài khoản</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-            </AnimatedTouchable>
-            <View style={styles.menuDivider} />
-
-            {/* Lịch sử tư vấn y tế */}
-            <AnimatedTouchable
-              style={styles.menuRowItem}
-              onPress={() => navigation.navigate('ConsultationHistoryScreen')}
-            >
-              <View style={styles.menuRowLeft}>
-                <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                  <Ionicons name="book-outline" size={20} color="#0284C7" />
-                </View>
-                <Text style={styles.menuRowTitle}>Lịch sử tư vấn</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </AnimatedTouchable>
@@ -456,99 +908,6 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </View>
 
         {/* ============================================================== */}
-        {/* 6. KHỐI "NGHIỆP VỤ NHÂN SỰ" (DÀNH CHO DƯỢC SĨ & THỦ KHO)        */}
-        {/* ============================================================== */}
-        {isStaff ? (
-          <View style={styles.sectionGroup}>
-            <Text style={styles.groupHeading}>Nghiệp vụ nhân sự chi nhánh</Text>
-            <View style={styles.whiteMenuCard}>
-              <AnimatedTouchable
-                style={styles.menuRowItem}
-                onPress={() => setShowCheckInModal(true)}
-              >
-                <View style={styles.menuRowLeft}>
-                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                    <Ionicons name="location" size={20} color="#0284C7" />
-                  </View>
-                  <Text style={styles.menuRowTitle}>Điểm danh ca trực GPS</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-              <View style={styles.menuDivider} />
-
-              <AnimatedTouchable
-                style={styles.menuRowItem}
-                onPress={() => setShowScheduleModal(true)}
-              >
-                <View style={styles.menuRowLeft}>
-                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                    <Ionicons name="calendar" size={20} color="#0284C7" />
-                  </View>
-                  <Text style={styles.menuRowTitle}>Lịch làm việc của tôi</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-              <View style={styles.menuDivider} />
-
-              <AnimatedTouchable
-                style={styles.menuRowItem}
-                onPress={() => setShowPayslipModal(true)}
-              >
-                <View style={styles.menuRowLeft}>
-                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                    <Ionicons name="receipt" size={20} color="#0284C7" />
-                  </View>
-                  <Text style={styles.menuRowTitle}>Phiếu lương cá nhân</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-              <View style={styles.menuDivider} />
-
-              <AnimatedTouchable
-                style={styles.menuRowItem}
-                onPress={() => setShowLeaveModal(true)}
-              >
-                <View style={styles.menuRowLeft}>
-                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                    <Ionicons name="time" size={20} color="#0284C7" />
-                  </View>
-                  <Text style={styles.menuRowTitle}>Nghỉ phép & Quỹ phép năm</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-              <View style={styles.menuDivider} />
-
-              <AnimatedTouchable
-                style={styles.menuRowItem}
-                onPress={() => setShowShiftSwapModal(true)}
-              >
-                <View style={styles.menuRowLeft}>
-                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                    <Ionicons name="swap-horizontal" size={20} color="#0284C7" />
-                  </View>
-                  <Text style={styles.menuRowTitle}>Đổi ca làm việc</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-              <View style={styles.menuDivider} />
-
-              <AnimatedTouchable
-                style={styles.menuRowItem}
-                onPress={() => setShowCertModal(true)}
-              >
-                <View style={styles.menuRowLeft}>
-                  <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
-                    <Ionicons name="ribbon" size={20} color="#0284C7" />
-                  </View>
-                  <Text style={styles.menuRowTitle}>Chứng chỉ & Bằng cấp (CCHN)</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </AnimatedTouchable>
-            </View>
-          </View>
-        ) : null}
-
-        {/* ============================================================== */}
         {/* 7. KHỐI "VỀ NHÀ THUỐC ABC PHARMACY"                            */}
         {/* ============================================================== */}
         <View style={styles.sectionGroup}>
@@ -556,7 +915,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           <View style={styles.whiteMenuCard}>
             <AnimatedTouchable
               style={styles.menuRowItem}
-              onPress={() => navigation.navigate('AboutScreen')}
+              onPress={() => showToast.info('ABC Pharmacy', 'Hệ thống chuỗi nhà thuốc đạt chuẩn GPP toàn quốc. Hotline: 1800 6821.')}
             >
               <View style={styles.menuRowLeft}>
                 <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
@@ -570,13 +929,13 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
             <AnimatedTouchable
               style={styles.menuRowItem}
-              onPress={() => navigation.navigate('LicenseScreen')}
+              onPress={() => showToast.info('Giấy phép GPP', 'Giấy chứng nhận Thực hành Tốt Nhà thuốc GPP số 01/2026/GPP-BYT cấp bởi Sở Y Tế.')}
             >
               <View style={styles.menuRowLeft}>
                 <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
                   <Ionicons name="shield-checkmark-outline" size={20} color="#0284C7" />
                 </View>
-                <Text style={styles.menuRowTitle}>Giấy phép kinh doanh</Text>
+                <Text style={styles.menuRowTitle}>Giấy phép kinh doanh & GPP</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </AnimatedTouchable>
@@ -584,19 +943,19 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
             <AnimatedTouchable
               style={styles.menuRowItem}
-              onPress={() => navigation.navigate('TermsScreen')}
+              onPress={() => showToast.info('Quy chế hoạt động', 'Hệ thống vận hành tuân thủ chặt chẽ Thông tư 02/2018/TT-BYT.')}
             >
               <View style={styles.menuRowLeft}>
                 <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
                   <Ionicons name="document-text-outline" size={20} color="#0284C7" />
                 </View>
-                <Text style={styles.menuRowTitle}>Quy chế hoạt động</Text>
+                <Text style={styles.menuRowTitle}>Quy chế hoạt động Dược</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </AnimatedTouchable>
             <View style={styles.menuDivider} />
 
-            {/* Đăng xuất tài khoản */}
+            {/* Đăng xuất tài khoản / Ca trực */}
             <AnimatedTouchable
               style={styles.menuRowItem}
               onPress={handleLogout}
@@ -606,7 +965,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                   <Ionicons name="log-out-outline" size={20} color="#EF4444" />
                 </View>
                 <Text style={[styles.menuRowTitle, { color: '#EF4444', fontWeight: '700' }]}>
-                  Đăng xuất tài khoản
+                  {isStaff ? 'Đăng xuất ca trực' : 'Đăng xuất tài khoản'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#EF4444" />
@@ -619,56 +978,114 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       </ScrollView>
 
       {/* ============================================================== */}
-      {/* 8. BOTTOM TAB BAR CHUẨN 5 TABS PHONG CÁCH FPT LONG CHÂU        */}
+      {/* 8. BOTTOM TAB BAR: PHÂN BIỆT RÕ DƯỢC SĨ vs KHÁCH HÀNG          */}
       {/* ============================================================== */}
-      <View style={styles.bottomTabBar}>
-        <AnimatedTouchable
-          style={styles.tabItem}
-          onPress={() => navigation.navigate('CustomerScreen')}
-        >
-          <Ionicons name="home-outline" size={22} color="#64748B" />
-          <Text style={styles.tabLabel}>Trang chủ</Text>
-        </AnimatedTouchable>
-
-        <AnimatedTouchable
-          style={styles.tabItem}
-          onPress={() => navigation.navigate('LoyaltyScreen')}
-        >
-          <Ionicons name="ribbon-outline" size={22} color="#64748B" />
-          <Text style={styles.tabLabel}>Điểm thưởng</Text>
-        </AnimatedTouchable>
-
-        {/* Nút Tư Vấn Nổi Giữa (Floating Center Action) */}
-        <View style={styles.centerConsultWrapper}>
+      {isStaff ? (
+        /* Tab Bar dành cho Dược sĩ & Nhân sự chi nhánh */
+        <View style={styles.bottomTabBar}>
           <AnimatedTouchable
-            style={styles.centerConsultButton}
-            onPress={() => navigation.navigate('AIConsultantScreen')}
+            style={styles.tabItem}
+            onPress={() => {
+              if (user?.role === 'pharmacist') {
+                navigation.navigate('PharmacistScreen');
+              } else if (navigation.canGoBack()) {
+                navigation.goBack();
+              }
+            }}
           >
-            <Ionicons name="headset" size={24} color="#FFFFFF" />
+            <Ionicons name="storefront-outline" size={22} color="#64748B" />
+            <Text style={styles.tabLabel}>
+              {user?.role === 'pharmacist' ? 'Quầy POS' : 'Trang chính'}
+            </Text>
           </AnimatedTouchable>
-          <Text style={styles.centerConsultLabel}>Tư vấn</Text>
-        </View>
 
-        <AnimatedTouchable
-          style={styles.tabItem}
-          onPress={() => navigation.navigate('CartScreen')}
-        >
-          <View style={styles.cartIconWrapper}>
-            <Ionicons name="cart-outline" size={22} color="#64748B" />
-            <View style={styles.cartBadgeCircle}>
-              <Text style={styles.cartBadgeText}>2</Text>
-            </View>
+          <AnimatedTouchable
+            style={styles.tabItem}
+            onPress={() => setShowCheckInModal(true)}
+          >
+            <Ionicons name="location-outline" size={22} color="#64748B" />
+            <Text style={styles.tabLabel}>Điểm danh</Text>
+          </AnimatedTouchable>
+
+          {/* Nút Lịch Trực Ca Nổi Giữa (Floating Action) */}
+          <View style={styles.centerConsultWrapper}>
+            <AnimatedTouchable
+              style={styles.centerConsultButton}
+              onPress={() => setShowScheduleModal(true)}
+            >
+              <Ionicons name="calendar" size={24} color="#FFFFFF" />
+            </AnimatedTouchable>
+            <Text style={styles.centerConsultLabel}>Lịch trực</Text>
           </View>
-          <Text style={styles.tabLabel}>Giỏ hàng</Text>
-        </AnimatedTouchable>
 
-        <AnimatedTouchable style={styles.tabItem}>
-          <Ionicons name="person" size={22} color="#0284C7" />
-          <Text style={[styles.tabLabel, { color: '#0284C7', fontWeight: '800' }]}>
-            Tài khoản
-          </Text>
-        </AnimatedTouchable>
-      </View>
+          <AnimatedTouchable
+            style={styles.tabItem}
+            onPress={() => navigation.navigate('NotificationListScreen')}
+          >
+            <View style={styles.cartIconWrapper}>
+              <Ionicons name="notifications-outline" size={22} color="#64748B" />
+            </View>
+            <Text style={styles.tabLabel}>Thông báo</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable style={styles.tabItem}>
+            <Ionicons name="person" size={22} color="#0284C7" />
+            <Text style={[styles.tabLabel, { color: '#0284C7', fontWeight: '800' }]}>
+              Hồ sơ
+            </Text>
+          </AnimatedTouchable>
+        </View>
+      ) : (
+        /* Tab Bar dành cho Khách hàng mua thuốc */
+        <View style={styles.bottomTabBar}>
+          <AnimatedTouchable
+            style={styles.tabItem}
+            onPress={() => navigation.navigate('CustomerScreen')}
+          >
+            <Ionicons name="home-outline" size={22} color="#64748B" />
+            <Text style={styles.tabLabel}>Trang chủ</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            style={styles.tabItem}
+            onPress={() => showToast.info('Điểm thưởng', 'Bạn đang có điểm tích lũy thành viên ABC Club.')}
+          >
+            <Ionicons name="ribbon-outline" size={22} color="#64748B" />
+            <Text style={styles.tabLabel}>Điểm thưởng</Text>
+          </AnimatedTouchable>
+
+          {/* Nút Tư Vấn Nổi Giữa */}
+          <View style={styles.centerConsultWrapper}>
+            <AnimatedTouchable
+              style={styles.centerConsultButton}
+              onPress={() => showToast.info('Tư vấn Dược sĩ', 'Đang kết nối Dược sĩ ABC Pharmacy & AI chuyên môn 24/7.')}
+            >
+              <Ionicons name="headset" size={24} color="#FFFFFF" />
+            </AnimatedTouchable>
+            <Text style={styles.centerConsultLabel}>Tư vấn</Text>
+          </View>
+
+          <AnimatedTouchable
+            style={styles.tabItem}
+            onPress={() => navigation.navigate('CustomerCheckoutScreen')}
+          >
+            <View style={styles.cartIconWrapper}>
+              <Ionicons name="cart-outline" size={22} color="#64748B" />
+              <View style={styles.cartBadgeCircle}>
+                <Text style={styles.cartBadgeText}>1</Text>
+              </View>
+            </View>
+            <Text style={styles.tabLabel}>Giỏ hàng</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable style={styles.tabItem}>
+            <Ionicons name="person" size={22} color="#0284C7" />
+            <Text style={[styles.tabLabel, { color: '#0284C7', fontWeight: '800' }]}>
+              Tài khoản
+            </Text>
+          </AnimatedTouchable>
+        </View>
+      )}
 
       {/* ============================================================== */}
       {/* 9. MODALS NGHIỆP VỤ ĐI KÈM                                      */}
@@ -770,6 +1187,13 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         onClose={() => setShowPassportModal(false)}
       />
 
+      {/* Modal Quét & Tra Cứu Thẻ Định Danh Nhân Sự GPP Dành Cho Ban Giám Đốc */}
+      <StaffIdCardScanModal
+        visible={showDirectorStaffScanModal}
+        onClose={() => setShowDirectorStaffScanModal(false)}
+        userRole="director"
+      />
+
       {/* Attendance & Staff Modals */}
       <AttendanceCheckInModal
         visible={showCheckInModal}
@@ -862,6 +1286,26 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
     paddingHorizontal: 16,
   },
+  topNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  topBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topNavTitle: {
+    fontSize: 16.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
   userHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -943,6 +1387,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  staffBranchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    gap: 5,
+  },
+  staffBranchBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  activeBadgeDot: {
+    position: 'absolute',
+    top: 2,
+    right: 3,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#0284C7',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
 
   // 2. Khối Đơn Của Tôi (Card Trắng Chồng Mép Header)

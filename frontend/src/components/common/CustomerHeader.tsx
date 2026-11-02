@@ -854,7 +854,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
             </a>
             <span className="hidden md:inline-block text-blue-300/30">|</span>
             <div className="hidden md:flex items-center gap-1.5 text-sky-100">
-              <Truck size={12} className="text-emerald-400" />
+              <Truck size={12} className="text-sky-400" />
               <span>Giao siêu tốc <strong className="text-white">2 Giờ</strong> • Freeship từ 150k</span>
             </div>
             <span className="hidden lg:inline-block text-blue-300/30">|</span>
@@ -874,7 +874,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
             </button>
             <span className="text-blue-300/30">|</span>
             <Link to="/customer/shop" className="hover:text-white transition-colors flex items-center gap-1">
-              <MapPin size={12} className="text-emerald-300" /> Hệ thống nhà thuốc
+              <MapPin size={12} className="text-sky-300" /> Hệ thống nhà thuốc
             </Link>
           </div>
         </div>
@@ -1053,7 +1053,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                         href="tel:18006928"
                         className="inline-flex items-center justify-center w-full py-1 bg-white text-[#0057cd] font-black rounded-xl text-[10px] uppercase tracking-wider shadow-sm hover:bg-blue-50 transition-colors"
                       >
-                        <PhoneCall size={11} className="mr-1 text-emerald-600" /> Gọi 1800 6928
+                        <PhoneCall size={11} className="mr-1 text-sky-600" /> Gọi 1800 6928
                       </a>
                     </div>
                   </div>
@@ -1071,7 +1071,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                             <span>Gợi ý Dược phẩm được tin dùng</span>
                           )}
                         </span>
-                        <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1 shrink-0">
+                        <span className="text-[11px] text-sky-600 font-bold flex items-center gap-1 shrink-0">
                           <CheckCircle2 size={12} /> 100% Chính hãng GPP
                         </span>
                       </div>
@@ -1110,7 +1110,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                                 {/* Medicine Info */}
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1 mb-0.5">
-                                    <span className={`text-[8px] font-black px-1.5 py-0.2 rounded uppercase border shrink-0 ${isRx ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
+                                    <span className={`text-[8px] font-black px-1.5 py-0.2 rounded uppercase border shrink-0 ${isRx ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-sky-50 text-sky-700 border-sky-200"}`}>
                                       {isRx ? "Rx Kê Đơn" : "OTC"}
                                     </span>
                                   </div>
@@ -1158,7 +1158,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                           setIsPrescriptionModalOpen(true);
                           setShowSearchDropdown(false);
                         }}
-                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0"
+                        className="text-[11px] font-bold text-sky-700 hover:text-sky-800 flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 transition-colors cursor-pointer shrink-0"
                       >
                         <UploadCloud size={13} /> Gửi toa thuốc
                       </button>
@@ -1417,8 +1417,8 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
 
             {/* Right badges */}
             <div className="hidden xl:flex items-center gap-4 pl-4 border-l border-slate-200 shrink-0 text-[11px] text-slate-500 font-medium">
-              <span className="flex items-center gap-1 text-emerald-700 font-bold"><Award size={13} className="text-amber-500" /> 100% Thuốc chính hãng</span>
-              <span className="flex items-center gap-1 text-blue-700 font-bold"><Truck size={13} className="text-emerald-500" /> Giao hàng 2H</span>
+              <span className="flex items-center gap-1 text-sky-700 font-bold"><Award size={13} className="text-amber-500" /> 100% Thuốc chính hãng</span>
+              <span className="flex items-center gap-1 text-blue-700 font-bold"><Truck size={13} className="text-sky-500" /> Giao hàng 2H</span>
             </div>
           </div>
 
@@ -1641,7 +1641,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               </button>
               <button
                 onClick={() => { setMobileMenuOpen(false); setIsPrescriptionModalOpen(true); }}
-                className="w-full px-4 py-2.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 text-left flex items-center gap-2"
+                className="w-full px-4 py-2.5 rounded-xl text-xs font-bold text-sky-700 bg-sky-50 text-left flex items-center gap-2"
               >
                 <UploadCloud size={15} /> Gửi Toa Thuốc Nhanh
               </button>
@@ -1707,7 +1707,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
           >
             <div className="flex items-start justify-between mb-5">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase">
+                <span className="px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-black uppercase">
                   TƯ VẤN TOA THUỐC 1:1
                 </span>
                 <h3 className="text-xl font-black text-slate-900 mt-1">Gửi Đơn Thuốc Nhanh</h3>
@@ -1804,7 +1804,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               <button
                 type="submit"
                 disabled={prescriptionSubmitted}
-                className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-sky-600/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 {prescriptionSubmitted ? (
                   <>

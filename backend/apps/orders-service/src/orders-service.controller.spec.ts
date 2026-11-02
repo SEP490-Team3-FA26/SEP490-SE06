@@ -79,6 +79,26 @@ describe('Order Management - OrdersServiceController (Report 5: F02 & F03)', () 
       expect(service.createOrder).toHaveBeenCalledWith(createOrderPayload);
     });
 
+    it('TC-10.1b: Tiếp nhận thành công ghi chú khách hàng (note & notes) gửi cho Dược sĩ', async () => {
+      const payloadWithNote = {
+        ...createOrderPayload,
+        note: 'Giao giờ hành chính, gọi trước khi đến',
+        notes: 'Giao giờ hành chính, gọi trước khi đến',
+      };
+      const mockResult = {
+        orderId: 'mock-order-id-note',
+        orderCode: 123457,
+        status: 'PENDING',
+        note: payloadWithNote.note,
+      };
+      mockOrdersService.createOrder.mockResolvedValue(mockResult);
+
+      const result = await controller.createOrder(payloadWithNote);
+
+      expect(result).toEqual(mockResult);
+      expect(service.createOrder).toHaveBeenCalledWith(payloadWithNote);
+    });
+
     it('TC-10.2: Ném lỗi RpcException khi service báo lỗi thiếu thông tin hoặc hết hàng', async () => {
       mockOrdersService.createOrder.mockRejectedValue(new Error('Tồn kho không đủ để đáp ứng đơn hàng'));
 

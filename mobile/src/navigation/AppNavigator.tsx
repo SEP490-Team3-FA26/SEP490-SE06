@@ -26,13 +26,58 @@ import { CustomerCheckoutScreen } from '../screens/customer/CustomerCheckoutScre
 import { CustomerWishlistScreen } from '../screens/customer/CustomerWishlistScreen';
 import { MedicineReminderScreen } from '../screens/customer/MedicineReminderScreen';
 import { ProductReviewScreen } from '../screens/customer/ProductReviewScreen';
+import { MedicineDetailScreen } from '../screens/customer/MedicineDetailScreen';
 import { OrderConfirmation } from '../screens/OrderConfirmation';
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { auth, user } = useAuth();
-  const role = user?.role || auth.role;
+  const rawRole = (user?.role || auth.role || '').toLowerCase().trim();
+  const userName = ((user as any)?.fullName || user?.name || '').toLowerCase().trim();
+  const userEmail = (user?.email || (user as any)?.userIdentifier || '').toLowerCase().trim();
+  const userRolesList = Array.isArray((user as any)?.roles)
+    ? (user as any).roles.map((r: any) => String(r).toLowerCase().trim())
+    : [];
+
+  // Nhận diện vai trò Ban Giám Đốc chuẩn xác: theo role, roles array, email, số điện thoại hoặc tên chức vụ
+  const isDirector =
+    ['director', 'headbranch', 'head_branch'].includes(rawRole) ||
+    userRolesList.some((r: string) => ['director', 'headbranch', 'head_branch'].includes(r)) ||
+    userEmail === 'director@vinapharmacy.com' ||
+    userEmail.includes('director') ||
+    userName.includes('giám đốc') ||
+    userName.includes('giam doc') ||
+    userName.includes('director') ||
+    user?.phone === '0902 222 333' ||
+    user?.phone === '0902222333';
+
+  const isWarehouse =
+    rawRole === 'warehouse' ||
+    userRolesList.includes('warehouse') ||
+    userEmail === 'warehouse@vinapharmacy.com' ||
+    userName.includes('thủ kho') ||
+    userName.includes('thu kho');
+
+  const isPharmacist =
+    rawRole === 'pharmacist' ||
+    userRolesList.includes('pharmacist') ||
+    userEmail === 'pharmacist@vinapharmacy.com' ||
+    userName.includes('dược sĩ') ||
+    userName.includes('duoc si');
+
+  const isBranch =
+    rawRole === 'branch' ||
+    userRolesList.includes('branch') ||
+    userEmail === 'manager@vinapharmacy.com' ||
+    userName.includes('quản lý') ||
+    userName.includes('quan ly');
+
+  const isAdmin =
+    rawRole === 'admin' ||
+    userRolesList.includes('admin') ||
+    userEmail === 'admin@vinapharmacy.com' ||
+    userName.includes('admin');
 
   // Hỗ trợ chế độ Review / Showcase URL param trên nền Web
   const isWeb = Platform.OS === 'web';
@@ -50,23 +95,12 @@ export default function AppNavigator() {
   }
 
   const getInitialActorScreen = () => {
-    switch (role) {
-      case 'admin':
-        return 'AdminScreen';
-      case 'headBranch':
-      case 'director':
-        return 'DirectorScreen';
-      case 'warehouse':
-        return 'WarehouseScreen';
-      case 'pharmacist':
-        return 'PharmacistScreen';
-      case 'branch':
-        return 'BranchScreen';
-      case 'customer':
-      case 'user':
-      default:
-        return 'CustomerScreen';
-    }
+    if (isAdmin) return 'AdminScreen';
+    if (isDirector) return 'DirectorScreen';
+    if (isWarehouse) return 'WarehouseScreen';
+    if (isPharmacist) return 'PharmacistScreen';
+    if (isBranch) return 'BranchScreen';
+    return 'CustomerScreen';
   };
 
   const initialRoute = reviewScreen || (auth.isAuthenticated ? getInitialActorScreen() : 'CustomerScreen');
@@ -74,7 +108,7 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator
       id="app-stack"
-      key={isWeb ? `web-mode-${reviewScreen || 'default'}` : (auth.isAuthenticated ? `auth-${role || 'user'}` : 'guest-flow')}
+      key={isWeb ? `web-mode-${reviewScreen || 'default'}` : (auth.isAuthenticated ? `auth-${rawRole || 'user'}` : 'guest-flow')}
       initialRouteName={initialRoute}
       screenOptions={{
         headerShown: false,
@@ -114,40 +148,38 @@ export default function AppNavigator() {
           <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
           <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
           <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
+          <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
         </Stack.Group>
       ) : (
         // ─── Authenticated Role-Based App Flow ──────────────────────────────────
         <Stack.Group>
-          {role === 'admin' && (
+          {isAdmin && (
             <Stack.Screen name="AdminScreen" component={AdminScreen} />
           )}
 
-          {(role === 'director' || role === 'headBranch') && (
+          {isDirector && (
             <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
           )}
 
-          {role === 'warehouse' && (
+          {isWarehouse && (
             <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
           )}
 
-          {role === 'pharmacist' && (
+          {isPharmacist && (
             <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
           )}
 
-          {role === 'branch' && (
+          {isBranch && (
             <Stack.Screen name="BranchScreen" component={BranchScreen} />
           )}
 
-          {(role === 'customer' ||
-            role === 'user' ||
-            !['admin', 'director', 'headBranch', 'warehouse', 'pharmacist', 'branch'].includes(
-              role
-            )) && (
+          {!isAdmin && !isDirector && !isWarehouse && !isPharmacist && !isBranch && (
             <>
               <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
               <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
               <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
+              <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
               <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
               <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
               <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />

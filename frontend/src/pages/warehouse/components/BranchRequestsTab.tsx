@@ -37,7 +37,7 @@ export function BranchRequestsTab({
   const STATUS_TABS = [
     { key: "SUBMITTED", label: "Chờ xử lý", color: "blue" },
     { key: "SHIPPING", label: "Đang giao", color: "indigo" },
-    { key: "COMPLETED", label: "Hoàn thành", color: "emerald" },
+    { key: "COMPLETED", label: "Hoàn thành", color: "sky" },
     { key: "OUT_OF_STOCK", label: "Hết hàng", color: "orange" },
     { key: "REJECTED", label: "Từ chối", color: "rose" },
   ];

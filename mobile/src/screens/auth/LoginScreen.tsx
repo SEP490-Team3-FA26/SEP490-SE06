@@ -40,14 +40,14 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [biometricLoading, setBiometricLoading] = useState<boolean>(false);
   const [selectedDemoRole, setSelectedDemoRole] = useState<UserRole | null>(null);
 
-  const DEMO_USERS = [
-    { role: UserRole.ADMIN, title: 'Admin IT', subtitle: 'Quản trị hệ thống', email: 'admin@vinapharmacy.com', color: '#EF4444', icon: 'shield-checkmark' },
-    { role: UserRole.HEAD_BRANCH, title: 'Giám Đốc', subtitle: 'Ban điều hành chuỗi', email: 'director@vinapharmacy.com', color: '#8B5CF6', icon: 'business' },
-    { role: UserRole.WAREHOUSE, title: 'Kho Tổng', subtitle: 'Xuất nhập & GRN', email: 'warehouse@vinapharmacy.com', color: '#F59E0B', icon: 'cube' },
+  const DEMO_USERS = __DEV__ ? [
+    { role: UserRole.ADMIN, title: 'Admin IT', subtitle: 'Quản trị hệ thống', email: 'admin@vinapharmacy.com', color: '#0F172A', icon: 'shield-checkmark' },
+    { role: UserRole.HEAD_BRANCH, title: 'Giám Đốc', subtitle: 'Ban điều hành chuỗi', email: 'director@vinapharmacy.com', color: '#6366F1', icon: 'business' },
+    { role: UserRole.WAREHOUSE, title: 'Kho Tổng', subtitle: 'Xuất nhập & GRN', email: 'warehouse@vinapharmacy.com', color: '#4F46E5', icon: 'cube' },
     { role: UserRole.PHARMACIST, title: 'Dược Sĩ', subtitle: 'Bán lẻ POS quầy', email: 'pharmacist@vinapharmacy.com', color: '#0284C7', icon: 'medkit' },
     { role: UserRole.BRANCH, title: 'Quản Lý', subtitle: 'Cơ sở & Duyệt ca', email: 'manager@vinapharmacy.com', color: '#0EA5E9', icon: 'storefront' },
     { role: UserRole.CUSTOMER, title: 'Khách Hàng', subtitle: 'Mua sắm trực tuyến', email: 'user@vinapharmacy.com', color: '#0284C7', icon: 'cart' },
-  ];
+  ] : [];
 
   const handleBiometricLogin = async () => {
     setBiometricLoading(true);
@@ -76,6 +76,38 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (!res.success) {
       showToast.error('Đăng nhập thất bại', res.message || 'Sai thông tin tài khoản hoặc mật khẩu.');
     } else {
+      // Điều hướng ngay lập tức đến đúng màn hình của vai trò tương ứng
+      const loggedUser: any = res.user || {};
+      const loggedRole = String(loggedUser.role || res.role || '').toLowerCase().trim();
+      const loggedName = String(loggedUser.name || (loggedUser as any).fullName || '').toLowerCase().trim();
+      const loggedEmail = String(loggedUser.email || emailOrPhone).toLowerCase().trim();
+      const loggedRolesList = Array.isArray((loggedUser as any).roles)
+        ? (loggedUser as any).roles.map((r: any) => String(r).toLowerCase().trim())
+        : [];
+
+      const isDirectorUser =
+        ['director', 'headbranch', 'head_branch'].includes(loggedRole) ||
+        loggedRolesList.some((r: string) => ['director', 'headbranch', 'head_branch'].includes(r)) ||
+        loggedEmail === 'director@vinapharmacy.com' ||
+        loggedEmail.includes('director') ||
+        loggedName.includes('giám đốc') ||
+        loggedName.includes('giam doc') ||
+        loggedName.includes('director') ||
+        loggedUser.phone === '0902 222 333' ||
+        loggedUser.phone === '0902222333';
+
+      if (isDirectorUser) {
+        navigation.replace('DirectorScreen');
+      } else if (loggedRole === 'pharmacist' || loggedRolesList.includes('pharmacist')) {
+        navigation.replace('PharmacistScreen');
+      } else if (loggedRole === 'warehouse' || loggedRolesList.includes('warehouse')) {
+        navigation.replace('WarehouseScreen');
+      } else if (loggedRole === 'branch' || loggedRolesList.includes('branch')) {
+        navigation.replace('BranchScreen');
+      } else if (loggedRole === 'admin' || loggedRolesList.includes('admin')) {
+        navigation.replace('AdminScreen');
+      }
+
       // Kiểm tra xem tài khoản này đã kích hoạt sinh trắc học trên máy chưa
       const currentIdentifier = emailOrPhone.toLowerCase().trim();
       const savedIdentifier = (savedBiometricUser?.userIdentifier || '').toLowerCase().trim();
@@ -132,7 +164,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Light Sky Blue Medical Gradient Background */}
       <LinearGradient
@@ -276,7 +308,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     style={styles.biometricBtnTouch}
                   >
                     <LinearGradient
-                      colors={['#047857', '#10B981']}
+                      colors={['#0369A1', '#0284C7']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={styles.biometricBtnGradient}
@@ -296,51 +328,54 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   </AnimatedTouchable>
                 )}
 
-                {/* Divider */}
-                <View style={styles.dividerRow}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>HOẶC CHỌN VAI TRÒ MẪU 1 CHẠM</Text>
-                  <View style={styles.dividerLine} />
-                </View>
+                {/* Demo Roles - Chỉ hiển thị trong môi trường DEV nội bộ, tuyệt đối không xuất hiện trên Production */}
+                {__DEV__ && (
+                  <>
+                    <View style={styles.dividerRow}>
+                      <View style={styles.dividerLine} />
+                      <Text style={styles.dividerText}>HOẶC CHỌN VAI TRÒ MẪU 1 CHẠM</Text>
+                      <View style={styles.dividerLine} />
+                    </View>
 
-                {/* Demo Role Grid */}
-                <View style={styles.demoRoleGrid}>
-                  {DEMO_USERS.map((d) => {
-                    const isSelected = selectedDemoRole === d.role;
-                    return (
-                      <AnimatedTouchable
-                        key={d.role}
-                        onPress={() => handleQuickFillRole(d)}
-                        style={[
-                          styles.demoRoleCard,
-                          {
-                            borderColor: isSelected ? d.color : '#E0F2FE',
-                            backgroundColor: isSelected ? `${d.color}12` : '#FFFFFF',
-                          },
-                          isSelected && styles.demoRoleCardSelected,
-                        ]}
-                      >
-                        <View style={[styles.demoIconCircle, { backgroundColor: `${d.color}15` }]}>
-                          <Ionicons name={d.icon as any} size={18} color={d.color} />
-                        </View>
-                        <View style={styles.demoTextCol}>
-                          <Text
+                    <View style={styles.demoRoleGrid}>
+                      {DEMO_USERS.map((d) => {
+                        const isSelected = selectedDemoRole === d.role;
+                        return (
+                          <AnimatedTouchable
+                            key={d.role}
+                            onPress={() => handleQuickFillRole(d)}
                             style={[
-                              styles.demoRoleTitle,
-                              { color: isSelected ? d.color : '#0F172A' },
+                              styles.demoRoleCard,
+                              {
+                                borderColor: isSelected ? d.color : '#E0F2FE',
+                                backgroundColor: isSelected ? `${d.color}12` : '#FFFFFF',
+                              },
+                              isSelected && styles.demoRoleCardSelected,
                             ]}
-                            numberOfLines={1}
                           >
-                            {d.title}
-                          </Text>
-                          <Text style={styles.demoRoleSubtitle} numberOfLines={1}>
-                            {d.subtitle}
-                          </Text>
-                        </View>
-                      </AnimatedTouchable>
-                    );
-                  })}
-                </View>
+                            <View style={[styles.demoIconCircle, { backgroundColor: `${d.color}15` }]}>
+                              <Ionicons name={d.icon as any} size={18} color={d.color} />
+                            </View>
+                            <View style={styles.demoTextCol}>
+                              <Text
+                                style={[
+                                  styles.demoRoleTitle,
+                                  { color: isSelected ? d.color : '#0F172A' },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {d.title}
+                              </Text>
+                              <Text style={styles.demoRoleSubtitle} numberOfLines={1}>
+                                {d.subtitle}
+                              </Text>
+                            </View>
+                          </AnimatedTouchable>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
 
                 {/* Google OAuth Button */}
                 <AnimatedTouchable onPress={handleGoogleLogin} style={styles.googleGlassBtn}>
@@ -621,7 +656,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#059669',
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -762,15 +797,15 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingVertical: 5,
     paddingHorizontal: 12,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F0F9FF',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#BAE6FD',
     alignSelf: 'center',
   },
   serverInfoText: {
     fontSize: 11,
-    color: '#166534',
+    color: '#0369A1',
     fontWeight: '700',
     letterSpacing: 0.2,
   },

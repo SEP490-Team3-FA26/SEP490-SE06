@@ -69,7 +69,7 @@ const TABS: SalesTab[] = [
     label: "Bán Lẻ (POS)",
     icon: ShoppingCart,
     badge: "GS1 Scan",
-    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    badgeColor: "bg-sky-50 text-sky-700 border-sky-200",
   },
   {
     id: "prescription",
@@ -203,20 +203,20 @@ export function Sales() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer select-none ${isActive
-                  ? "bg-white text-emerald-800 shadow-xs border border-emerald-200/70 ring-1 ring-emerald-500/20"
+                  ? "bg-white text-sky-800 shadow-xs border border-sky-200/70 ring-1 ring-sky-500/20"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                   }`}
               >
                 <Icon
                   size={14}
-                  className={`transition-colors ${isActive ? "text-emerald-600" : "text-slate-400"
+                  className={`transition-colors ${isActive ? "text-sky-600" : "text-slate-400"
                     }`}
                 />
                 <span>{tab.label}</span>
                 {tab.badge && (
                   <span
                     className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border transition-all ${isActive
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      ? "bg-sky-50 text-sky-700 border-sky-300"
                       : tab.badgeColor || "bg-slate-200/70 text-slate-600 border-slate-300"
                       }`}
                   >
@@ -232,14 +232,14 @@ export function Sales() {
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={() => setIsHandoverOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs shadow-xs hover:shadow-md transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-800 text-white font-extrabold text-xs shadow-xs hover:shadow-md transition cursor-pointer"
           >
             <Banknote size={15} />
             <span>Bàn Giao Ca & Chốt Két</span>
           </button>
 
           <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-slate-500 pl-2 border-l border-slate-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
             <span>Phân hệ: <strong className="text-slate-800 font-bold">Chuẩn GPP</strong></span>
           </div>
         </div>
@@ -269,10 +269,10 @@ export function Sales() {
                 : toast.type === "warning"
                   ? "bg-amber-50 text-amber-800 border-amber-200 shadow-amber-100/50"
                   : isPharmacistConfirm
-                    ? "bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 text-emerald-950 border-emerald-300 shadow-emerald-200/60 ring-1 ring-emerald-400/40"
+                    ? "bg-gradient-to-r from-sky-50 via-teal-50 to-sky-100 text-sky-950 border-sky-300 shadow-sky-200/60 ring-1 ring-sky-400/40"
                     : toast.type === "info"
                       ? "bg-indigo-50 text-indigo-900 border-indigo-200 shadow-indigo-100/50"
-                      : "bg-emerald-50 text-emerald-800 border-emerald-200 shadow-emerald-100/50"
+                      : "bg-sky-50 text-sky-800 border-sky-200 shadow-sky-100/50"
                 }`}
             >
               <div className="flex items-center gap-2.5">
@@ -281,13 +281,13 @@ export function Sales() {
                 ) : toast.type === "warning" ? (
                   <AlertTriangle className="text-amber-500 shrink-0" size={18} />
                 ) : isPharmacistConfirm ? (
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <ShieldCheck size={14} />
                   </div>
                 ) : toast.type === "info" ? (
                   <Sparkles className="text-indigo-600 shrink-0" size={18} />
                 ) : (
-                  <CheckCircle2 className="text-emerald-500 shrink-0" size={18} />
+                  <CheckCircle2 className="text-sky-500 shrink-0" size={18} />
                 )}
                 <span className="normal-case leading-snug">{toast.message}</span>
               </div>

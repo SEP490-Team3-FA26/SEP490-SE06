@@ -131,8 +131,8 @@ export function Register() {
         )}
         
         {success && (
-          <div className="text-emerald-700 text-sm font-medium text-center bg-emerald-50 border border-emerald-100 py-2.5 px-3 rounded-xl flex items-center justify-center gap-2">
-            <CheckCircle2 size={16} className="text-emerald-600" />
+          <div className="text-sky-700 text-sm font-medium text-center bg-sky-50 border border-sky-100 py-2.5 px-3 rounded-xl flex items-center justify-center gap-2">
+            <CheckCircle2 size={16} className="text-sky-600" />
             {success}
           </div>
         )}

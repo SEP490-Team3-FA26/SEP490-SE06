@@ -31,12 +31,13 @@ import { WarehouseShelfModal } from '../../components/warehouse/WarehouseShelfMo
 import { TransferQRModal } from '../../components/warehouse/TransferQRModal';
 import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
+import { DigitalHealthPassportModal } from '../../components/clinical/DigitalHealthPassportModal';
 
 const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; label: string; icon: string }> = {
   A: { bg: 'rgba(2, 132, 199, 0.1)', border: '#0284C7', text: '#0284C7', label: 'Kháng sinh', icon: '💊' },
   B: { bg: 'rgba(245, 158, 11, 0.1)', border: '#F59E0B', text: '#D97706', label: 'Hạ sốt & Giảm đau', icon: '🌡️' },
   C: { bg: 'rgba(239, 68, 68, 0.1)', border: '#EF4444', text: '#DC2626', label: 'Tim mạch', icon: '❤️' },
-  D: { bg: 'rgba(16, 185, 129, 0.1)', border: '#10B981', text: '#059669', label: 'Tiêu hóa', icon: '🫀' },
+  D: { bg: 'rgba(2, 132, 199, 0.1)', border: '#0284C7', text: '#0369A1', label: 'Tiêu hóa', icon: '🫀' },
   E: { bg: 'rgba(139, 92, 246, 0.1)', border: '#8B5CF6', text: '#7C3AED', label: 'Thực phẩm chức năng', icon: '🌿' },
   F: { bg: 'rgba(100, 116, 139, 0.1)', border: '#64748B', text: '#475569', label: 'Vật tư y tế', icon: '🩺' },
 };
@@ -48,6 +49,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   // Attendance & Shift Modal
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
+  const [showStaffIdModal, setShowStaffIdModal] = useState<boolean>(false);
 
   // --- Sơ Đồ Kho Tổng (Warehouse Map) State ---
   const [warehouseZones, setWarehouseZones] = useState<WarehouseZone[]>(DEFAULT_GSP_ZONES);
@@ -566,11 +568,11 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   }, [transfers, transferFilter]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="Quản Lý Kho Dược GSP"
         subtitle="Sơ đồ 2D, Quét Barcode/QR, Tồn kho & Kiểm nhận"
-        gradientVariant="emerald"
+        gradientVariant="sky"
         rightAction={{
           icon: 'person-circle-outline',
           onPress: () => navigation.navigate('ProfileScreen'),
@@ -592,8 +594,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setShowCheckInModal(true)}
             style={[styles.shiftActionBtn, styles.checkInBtn]}
           >
-            <Ionicons name="location" size={16} color="#059669" />
-            <Text style={[styles.shiftActionText, { color: '#059669' }]}>
+            <Ionicons name="location" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>
               Điểm Danh GPS Kho Tổng
             </Text>
           </AnimatedTouchable>
@@ -604,6 +606,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           >
             <Ionicons name="receipt-outline" size={16} color="#0284C7" />
             <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowStaffIdModal(true)}
+            style={[styles.shiftActionBtn, { borderColor: '#BAE6FD', backgroundColor: '#F0F9FF' }]}
+          >
+            <Ionicons name="card-outline" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7', fontWeight: '700' }]}>Thẻ Nhân Sự GPP</Text>
           </AnimatedTouchable>
 
           <AnimatedTouchable
@@ -626,7 +636,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('MAP')}
             style={[styles.tabItem, activeTab === 'MAP' && styles.activeTabItem]}
           >
-            <Ionicons name="map" size={15} color={activeTab === 'MAP' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="map" size={15} color={activeTab === 'MAP' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'MAP' && styles.activeTabText]}>Sơ Đồ Kho</Text>
           </AnimatedTouchable>
 
@@ -634,7 +644,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('INVENTORY')}
             style={[styles.tabItem, activeTab === 'INVENTORY' && styles.activeTabItem]}
           >
-            <Ionicons name="cube" size={15} color={activeTab === 'INVENTORY' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="cube" size={15} color={activeTab === 'INVENTORY' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'INVENTORY' && styles.activeTabText]}>Tồn Kho</Text>
           </AnimatedTouchable>
 
@@ -642,7 +652,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('TRANSFERS')}
             style={[styles.tabItem, activeTab === 'TRANSFERS' && styles.activeTabItem]}
           >
-            <Ionicons name="swap-horizontal" size={15} color={activeTab === 'TRANSFERS' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="swap-horizontal" size={15} color={activeTab === 'TRANSFERS' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'TRANSFERS' && styles.activeTabText]}>Xuất Chuyển (QR)</Text>
           </AnimatedTouchable>
 
@@ -650,7 +660,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('RECEIPTS')}
             style={[styles.tabItem, activeTab === 'RECEIPTS' && styles.activeTabItem]}
           >
-            <Ionicons name="document-text" size={15} color={activeTab === 'RECEIPTS' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="document-text" size={15} color={activeTab === 'RECEIPTS' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'RECEIPTS' && styles.activeTabText]}>Kiểm Nhận</Text>
           </AnimatedTouchable>
 
@@ -658,7 +668,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('EXPIRATION')}
             style={[styles.tabItem, activeTab === 'EXPIRATION' && styles.activeTabItem]}
           >
-            <Ionicons name="alarm" size={15} color={activeTab === 'EXPIRATION' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="alarm" size={15} color={activeTab === 'EXPIRATION' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'EXPIRATION' && styles.activeTabText]}>Hết Hạn</Text>
           </AnimatedTouchable>
 
@@ -666,7 +676,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('TRACE')}
             style={[styles.tabItem, activeTab === 'TRACE' && styles.activeTabItem]}
           >
-            <Ionicons name="git-branch" size={15} color={activeTab === 'TRACE' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="git-branch" size={15} color={activeTab === 'TRACE' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'TRACE' && styles.activeTabText]}>Truy Lô</Text>
           </AnimatedTouchable>
 
@@ -674,7 +684,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('FORECAST')}
             style={[styles.tabItem, activeTab === 'FORECAST' && styles.activeTabItem]}
           >
-            <Ionicons name="analytics" size={15} color={activeTab === 'FORECAST' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="analytics" size={15} color={activeTab === 'FORECAST' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'FORECAST' && styles.activeTabText]}>Dự Báo AI</Text>
           </AnimatedTouchable>
         </ScrollView>
@@ -682,7 +692,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#059669']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
         {/* ========================================================= */}
         {/* TAB 1: SƠ ĐỒ KHO TỔNG (WAREHOUSE MAP) */}
@@ -696,7 +706,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <Text style={styles.kpiValue}>{warehouseZones.length} Phân Khu</Text>
                 <Text style={styles.kpiLabel}>Chuẩn GSP (Zone A-F)</Text>
               </GradientCard>
-              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="cube" size={20} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
                   {medicines.reduce((sum, m) => sum + m.stock, 0).toLocaleString('vi-VN')}
@@ -860,7 +870,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <Text style={styles.kpiValue}>{medicines.length}</Text>
                 <Text style={styles.kpiLabel}>Tổng loại thuốc</Text>
               </GradientCard>
-              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="layers" size={20} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
                   {medicines.reduce((sum, m) => sum + m.stock, 0).toLocaleString('vi-VN')}
@@ -929,7 +939,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       <Text
                         style={[
                           styles.medStock,
-                          { color: isLowStock ? '#DC2626' : '#059669' },
+                          { color: isLowStock ? '#DC2626' : '#0284C7' },
                         ]}
                       >
                         {med.stock} {med.unit}
@@ -970,7 +980,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                           }}
                           style={styles.locateBtn}
                         >
-                          <Ionicons name="location-outline" size={15} color="#059669" />
+                          <Ionicons name="location-outline" size={15} color="#0284C7" />
                           <Text style={styles.locateBtnText}>Xem Vị Trí Sơ Đồ</Text>
                         </TouchableOpacity>
                       </View>
@@ -1052,13 +1062,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   <View
                     style={[
                       styles.transferStatusBadge,
-                      { backgroundColor: tf.status === 'COMPLETED' ? '#ECFDF5' : '#EFF6FF' },
+                      { backgroundColor: tf.status === 'COMPLETED' ? '#F0F9FF' : '#EFF6FF' },
                     ]}
                   >
                     <Text
                       style={[
                         styles.transferStatusBadgeText,
-                        { color: tf.status === 'COMPLETED' ? '#059669' : '#2563EB' },
+                        { color: tf.status === 'COMPLETED' ? '#0284C7' : '#2563EB' },
                       ]}
                     >
                       {tf.status === 'COMPLETED' ? 'ĐÃ NHẬP KHO' : 'ĐANG GIAO HÀNG'}
@@ -1205,7 +1215,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       {
                         backgroundColor:
                           gr.status === 'COMPLETED'
-                            ? '#ECFDF5'
+                            ? '#F0F9FF'
                             : gr.status === 'INSPECTING'
                             ? '#FEF3C7'
                             : '#EFF6FF',
@@ -1218,7 +1228,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         {
                           color:
                             gr.status === 'COMPLETED'
-                              ? '#059669'
+                              ? '#0284C7'
                               : gr.status === 'INSPECTING'
                               ? '#D97706'
                               : '#2563EB',
@@ -1244,13 +1254,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       <View
                         style={[
                           styles.itemStatusPill,
-                          { backgroundColor: it.status === 'VERIFIED' ? '#ECFDF5' : '#FEF3C7' },
+                          { backgroundColor: it.status === 'VERIFIED' ? '#F0F9FF' : '#FEF3C7' },
                         ]}
                       >
                         <Text
                           style={[
                             styles.itemStatusPillText,
-                            { color: it.status === 'VERIFIED' ? '#059669' : '#D97706' },
+                            { color: it.status === 'VERIFIED' ? '#0284C7' : '#D97706' },
                           ]}
                         >
                           {it.status === 'VERIFIED' ? 'Đã kiểm AI' : 'Chờ kiểm'}
@@ -1280,7 +1290,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   </View>
                 ) : (
                   <View style={styles.completedReceiptBadge}>
-                    <Ionicons name="checkmark-done-circle" size={18} color="#059669" />
+                    <Ionicons name="checkmark-done-circle" size={18} color="#0284C7" />
                     <Text style={styles.completedReceiptText}>
                       Đã hoàn tất kiểm nhận AI & nhập kho lưu trữ GSP
                     </Text>
@@ -1347,8 +1357,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
             {expiredList.length === 0 && (
               <View style={styles.emptyCard}>
-                <Ionicons name="shield-checkmark-outline" size={42} color="#059669" />
-                <Text style={[styles.emptyCardTitle, { color: '#059669' }]}>Hạn Dùng Đạt Chuẩn GSP</Text>
+                <Ionicons name="shield-checkmark-outline" size={42} color="#0284C7" />
+                <Text style={[styles.emptyCardTitle, { color: '#0284C7' }]}>Hạn Dùng Đạt Chuẩn GSP</Text>
                 <Text style={styles.emptyCardSub}>Tất cả dược phẩm trong kho đều đảm bảo hạn dùng an toàn theo tiêu chuẩn GSP.</Text>
               </View>
             )}
@@ -1388,7 +1398,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             {traceResult && (
               <View style={styles.traceCard}>
                 <View style={styles.traceHeader}>
-                  <Ionicons name="shield-checkmark" size={24} color="#059669" />
+                  <Ionicons name="shield-checkmark" size={24} color="#0284C7" />
                   <View style={{ marginLeft: 10 }}>
                     <Text style={styles.traceBatchNo}>Số Lô: {traceResult.batchNo}</Text>
                     <Text style={styles.traceMedName}>{traceResult.medicineName}</Text>
@@ -1406,7 +1416,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   </View>
                   <View style={styles.traceMetaCol}>
                     <Text style={styles.metaLabel}>Tồn kho hiện tại:</Text>
-                    <Text style={[styles.metaVal, { color: '#059669', fontWeight: '800' }]}>
+                    <Text style={[styles.metaVal, { color: '#0284C7', fontWeight: '800' }]}>
                       {traceResult.currentStock}
                     </Text>
                   </View>
@@ -1615,11 +1625,11 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             },
           ]}
         >
-          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <StatusBar barStyle="dark-content" />
           <View style={styles.inspectModalHeader}>
             <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="scan-circle" size={24} color="#059669" style={{ marginRight: 6, flexShrink: 0 }} />
+                <Ionicons name="scan-circle" size={24} color="#0284C7" style={{ marginRight: 6, flexShrink: 0 }} />
                 <Text style={styles.inspectModalTitle} numberOfLines={1}>Kiểm Định AI Vision</Text>
               </View>
               <Text style={styles.inspectModalSub} numberOfLines={1}>
@@ -1656,9 +1666,9 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         paddingHorizontal: 12,
                         paddingVertical: 7,
                         borderRadius: 12,
-                        backgroundColor: isCur ? '#4F46E5' : isDone ? '#ECFDF5' : '#F8FAFC',
+                        backgroundColor: isCur ? '#4F46E5' : isDone ? '#F0F9FF' : '#F8FAFC',
                         borderWidth: 1.5,
-                        borderColor: isCur ? '#4338CA' : isDone ? '#10B981' : '#E2E8F0',
+                        borderColor: isCur ? '#4338CA' : isDone ? '#BAE6FD' : '#E2E8F0',
                         flexDirection: 'row',
                         alignItems: 'center',
                         gap: 4,
@@ -1667,13 +1677,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       <Ionicons
                         name={isDone ? 'checkmark-circle' : isCur ? 'radio-button-on' : 'radio-button-off'}
                         size={13}
-                        color={isCur ? '#FFFFFF' : isDone ? '#059669' : '#94A3B8'}
+                        color={isCur ? '#FFFFFF' : isDone ? '#0284C7' : '#94A3B8'}
                       />
                       <Text
                         style={{
                           fontSize: 11,
                           fontWeight: '700',
-                          color: isCur ? '#FFFFFF' : isDone ? '#065F46' : '#475569',
+                          color: isCur ? '#FFFFFF' : isDone ? '#0369A1' : '#475569',
                         }}
                       >
                         {shortName} ({it.expected} {it.unit || 'hộp'})
@@ -1722,7 +1732,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
             <View style={styles.cameraBtnRow}>
               <AnimatedTouchable onPress={handleTakePhoto} style={styles.cameraActionBtn}>
-                <Ionicons name="camera" size={16} color="#059669" />
+                <Ionicons name="camera" size={16} color="#0284C7" />
                 <Text style={styles.cameraActionBtnText}>Chụp Ảnh</Text>
               </AnimatedTouchable>
               <AnimatedTouchable onPress={handlePickImage} style={styles.galleryActionBtn}>
@@ -1818,7 +1828,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
             {selectedReceiptForInspection?.items?.every((it: any) => it.status === 'VERIFIED') && (
               <View style={styles.finishInspectionBox}>
-                <Ionicons name="ribbon-outline" size={24} color="#059669" />
+                <Ionicons name="ribbon-outline" size={24} color="#0284C7" />
                 <Text style={styles.finishInspectionTitle}>Tất cả mặt hàng đã đạt chuẩn!</Text>
                 <GradientButton
                   title="HOÀN TẤT KIỂM NHẬN & NHẬP TỒN KHO GSP"
@@ -1844,6 +1854,12 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       <StaffPayslipModal
         visible={showPayslipModal}
         onClose={() => setShowPayslipModal(false)}
+      />
+
+      {/* Thẻ Định Danh Nhân Sự GPP Có Mã QR Cho Giám Đốc/Quản Lý Quét */}
+      <DigitalHealthPassportModal
+        visible={showStaffIdModal}
+        onClose={() => setShowStaffIdModal(false)}
       />
     </SafeAreaView>
   );
@@ -1876,8 +1892,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   checkInBtn: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
   },
   payslipBtn: {
     backgroundColor: '#F0F9FF',
@@ -1907,9 +1923,9 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   activeTabItem: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#059669',
+    borderColor: '#0284C7',
   },
   tabText: {
     fontSize: 11,
@@ -1917,7 +1933,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   activeTabText: {
-    color: '#065F46',
+    color: '#0369A1',
     fontWeight: 'bold',
   },
   scrollContent: {
@@ -2113,7 +2129,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0284C7',
   },
   shelfStockText: {
     fontSize: 9.5,
@@ -2231,16 +2247,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#059669',
+    borderColor: '#BAE6FD',
     paddingVertical: 6,
     borderRadius: 8,
     gap: 4,
   },
   locateBtnText: {
     fontSize: 11,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: 'bold',
   },
   batchesHeader: {
@@ -2275,7 +2291,7 @@ const styles = StyleSheet.create({
   batchStock: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#059669',
+    color: '#0284C7',
   },
   noBatchText: {
     fontSize: 11,
@@ -2418,7 +2434,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     borderRadius: 8,
     gap: 5,
@@ -2498,7 +2514,7 @@ const styles = StyleSheet.create({
   completedReceiptBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 10,
     borderRadius: 10,
     marginTop: 8,
@@ -2506,7 +2522,7 @@ const styles = StyleSheet.create({
   },
   completedReceiptText: {
     fontSize: 11.5,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '600',
   },
   expCard: {
@@ -2603,7 +2619,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     marginRight: 10,
   },
   txType: {
@@ -2621,7 +2637,7 @@ const styles = StyleSheet.create({
     color: '#0284C7',
   },
   traceBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -2719,11 +2735,11 @@ const styles = StyleSheet.create({
   },
   riskHigh: { backgroundColor: '#FEE2E2' },
   riskMedium: { backgroundColor: '#FEF3C7' },
-  riskLow: { backgroundColor: '#ECFDF5' },
+  riskLow: { backgroundColor: '#F0F9FF' },
   riskBadgeText: { fontSize: 9.5, fontWeight: 'bold' },
   riskHighText: { color: '#DC2626' },
   riskMediumText: { color: '#D97706' },
-  riskLowText: { color: '#059669' },
+  riskLowText: { color: '#0284C7' },
   forecastGrid: {
     flexDirection: 'row',
     backgroundColor: '#F8FAFC',
@@ -2763,7 +2779,7 @@ const styles = StyleSheet.create({
   stepBadge: { backgroundColor: '#E0F2FE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   stepBadgeText: { fontSize: 9.5, fontWeight: 'bold', color: '#0284C7' },
   inspectCurrentMedName: { fontSize: 13, fontWeight: 'bold', color: '#0F172A' },
-  inspectCurrentPoQty: { fontSize: 11, color: '#059669', marginTop: 2 },
+  inspectCurrentPoQty: { fontSize: 11, color: '#0284C7', marginTop: 2 },
   scannerFrame: {
     height: 180,
     backgroundColor: '#0F172A',
@@ -2794,14 +2810,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#059669',
+    borderColor: '#BAE6FD',
     paddingVertical: 8,
     borderRadius: 10,
     gap: 6,
   },
-  cameraActionBtnText: { color: '#059669', fontSize: 12, fontWeight: 'bold' },
+  cameraActionBtnText: { color: '#0284C7', fontSize: 12, fontWeight: 'bold' },
   galleryActionBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -2820,13 +2836,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     borderWidth: 1.5,
-    borderColor: '#059669',
+    borderColor: '#0284C7',
     marginBottom: 12,
   },
   aiResultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  aiResultTitle: { fontSize: 13, fontWeight: 'bold', color: '#059669' },
-  confidenceBadge: { backgroundColor: '#ECFDF5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  confidenceText: { fontSize: 10, fontWeight: 'bold', color: '#059669' },
+  aiResultTitle: { fontSize: 13, fontWeight: 'bold', color: '#0284C7' },
+  confidenceBadge: { backgroundColor: '#F0F9FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  confidenceText: { fontSize: 10, fontWeight: 'bold', color: '#0284C7' },
   aiRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   aiRowLabel: { fontSize: 11, color: '#64748B' },
   aiRowValue: { fontSize: 11, fontWeight: '600', color: '#0F172A' },
@@ -2847,8 +2863,8 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   unitSuffix: { fontSize: 12, color: '#64748B', fontWeight: '600' },
-  finishInspectionBox: { backgroundColor: '#ECFDF5', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 10 },
-  finishInspectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#059669', marginTop: 4 },
+  finishInspectionBox: { backgroundColor: '#F0F9FF', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 10 },
+  finishInspectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#0284C7', marginTop: 4 },
   emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,

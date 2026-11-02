@@ -67,10 +67,10 @@ export const FlatButton: React.FC<FlatButtonProps> = ({
       case 'outline':
         return {
           gradient: ['rgba(255, 255, 255, 0.85)', 'rgba(255, 255, 255, 0.65)'] as [string, string],
-          border: 'rgba(5, 150, 105, 0.45)',
+          border: 'rgba(2, 132, 199, 0.45)',
           text: styles.outlineText,
-          indicatorColor: '#059669',
-          shadowColor: 'rgba(5, 150, 105, 0.15)',
+          indicatorColor: '#0284C7',
+          shadowColor: 'rgba(2, 132, 199, 0.15)',
         };
       case 'danger':
         return {
@@ -90,11 +90,11 @@ export const FlatButton: React.FC<FlatButtonProps> = ({
         };
       case 'success':
         return {
-          gradient: ['#10B981', '#059669'] as [string, string],
+          gradient: ['#0284C7', '#0EA5E9'] as [string, string],
           border: 'rgba(255, 255, 255, 0.25)',
           text: styles.successText,
           indicatorColor: '#FFFFFF',
-          shadowColor: '#10B981',
+          shadowColor: '#0284C7',
         };
       case 'glass':
       case 'ghost':
@@ -102,17 +102,17 @@ export const FlatButton: React.FC<FlatButtonProps> = ({
           gradient: ['rgba(255, 255, 255, 0.45)', 'rgba(255, 255, 255, 0.2)'] as [string, string],
           border: 'rgba(255, 255, 255, 0.5)',
           text: styles.ghostText,
-          indicatorColor: '#059669',
+          indicatorColor: '#0284C7',
           shadowColor: 'rgba(0, 0, 0, 0.05)',
         };
       case 'primary':
       default:
         return {
-          gradient: ['#059669', '#047857'] as [string, string],
+          gradient: ['#0284C7', '#0369A1'] as [string, string],
           border: 'rgba(255, 255, 255, 0.3)',
           text: styles.primaryText,
           indicatorColor: '#FFFFFF',
-          shadowColor: '#059669',
+          shadowColor: '#0284C7',
         };
     }
   };
@@ -191,7 +191,7 @@ export const FlatButton: React.FC<FlatButtonProps> = ({
               <Ionicons
                 name={icon}
                 size={sizeStyle.iconSize}
-                color={textStyle?.color || (variantStyle.text.color as string)}
+                color={(textStyle?.color as string) || (variantStyle.text.color as string)}
                 style={styles.leftIcon}
               />
             )}
@@ -210,7 +210,7 @@ export const FlatButton: React.FC<FlatButtonProps> = ({
               <Ionicons
                 name={icon}
                 size={sizeStyle.iconSize}
-                color={textStyle?.color || (variantStyle.text.color as string)}
+                color={(textStyle?.color as string) || (variantStyle.text.color as string)}
                 style={styles.rightIcon}
               />
             )}
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   outlineText: {
-    color: '#059669',
+    color: '#0284C7',
   },
   dangerText: {
     color: '#FFFFFF',
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   ghostText: {
-    color: '#059669',
+    color: '#0284C7',
   },
 
   // Disabled

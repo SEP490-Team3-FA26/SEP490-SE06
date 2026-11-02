@@ -798,7 +798,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   type="button"
                   onClick={() => handleSaveRename(sess.id)}
                   aria-label="Lưu tên cuộc trò chuyện"
-                  className="p-1 rounded text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                  className="p-1 rounded text-sky-600 hover:bg-sky-50 cursor-pointer"
                   title="Lưu tên"
                 >
                   <Check size={13} />
@@ -862,7 +862,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       {/* Toast Alert Feedback */}
       {toastMessage && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white text-xs font-medium px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5 animate-in fade-in duration-200">
-          <Check size={13} className="text-emerald-400 shrink-0" />
+          <Check size={13} className="text-sky-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -929,7 +929,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="flex items-center gap-1.5">
               {isLoggedIn ? (
                 <>
-                  <Database size={13} className="text-emerald-500 shrink-0" />
+                  <Database size={13} className="text-sky-500 shrink-0" />
                   <span className="text-[11px] text-slate-600 truncate">
                     Đồng bộ Cloud
                   </span>
@@ -971,7 +971,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {/* Mascot Avatar Figure */}
             <div className="relative w-8 h-8 rounded-full bg-slate-50 border border-slate-200/80 flex items-center justify-center overflow-hidden pt-0.5 shadow-2xs shrink-0">
               <DoveFigure size={28} kaal={true} decoratief={true} />
-              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-white"></span>
+              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-sky-500 border border-white"></span>
             </div>
 
             {/* Title & Online Status */}
@@ -982,7 +982,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   : "Dược Sĩ Bồ Câu AI"}
               </span>
               <span className="text-[10px] flex items-center gap-1 text-slate-400 font-normal">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                 Trực tuyến 24/7 • ABC Pharmacy
               </span>
             </div>
@@ -1095,7 +1095,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="p-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400">
               {isLoggedIn ? (
                 <>
-                  <Database size={12} className="text-emerald-500" />
+                  <Database size={12} className="text-sky-500" />
                   <span>Đồng bộ Cloud</span>
                 </>
               ) : (

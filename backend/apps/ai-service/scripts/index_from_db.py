@@ -7,6 +7,19 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 import uuid
 from dotenv import load_dotenv
 
+# Đảm bảo đường dẫn import hoạt động khi chạy từ thư mục gốc hoặc thư mục scripts
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
+try:
+    from qdrant_helper import get_qdrant_client
+except ImportError:
+    from scripts.qdrant_helper import get_qdrant_client
+
 load_dotenv()
 
 try:
@@ -23,14 +36,14 @@ def get_embedding(text: str) -> list[float]:
 
 def main():
     DATABASE_URL = os.getenv("DATABASE_URL")
-    QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
     
     if not DATABASE_URL:
         print("Missing DATABASE_URL!")
         sys.exit(1)
         
     try:
-        qdrant = QdrantClient(host=QDRANT_HOST, port=6333)
+        # Khởi tạo kết nối Qdrant linh hoạt cho VPS localhost/Docker/Cloud
+        qdrant = get_qdrant_client(timeout=15.0)
     except Exception as e:
         print(f"Failed to connect to Qdrant: {e}")
         sys.exit(1)

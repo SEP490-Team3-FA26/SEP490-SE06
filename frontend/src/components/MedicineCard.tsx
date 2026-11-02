@@ -78,10 +78,10 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className="group relative bg-white rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] transition-all duration-300 flex flex-col overflow-hidden cursor-pointer"
+      className="group relative bg-white rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer h-full"
     >
-      {/* Image Area */}
-      <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 h-40 flex items-center justify-center p-4 overflow-hidden">
+      {/* Image Area - Tỉ lệ vuông 1:1 chuẩn Shopee (Width === Height) */}
+      <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 aspect-square w-full flex items-center justify-center p-4 overflow-hidden">
         {/* Khối hiển thị ảnh sản phẩm thực tế, có referrerPolicy để tránh bị CDN chặn hotlink */}
         <img
           src={med.image || (Array.isArray(med.images) && med.images.length > 0 ? med.images[0] : "") || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60"}
@@ -236,7 +236,7 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
                 isOutOfStock && !allowOutOfStock
                   ? "bg-slate-100 text-slate-300 cursor-not-allowed"
                   : added
-                    ? "bg-emerald-500 text-white shadow-md shadow-emerald-200"
+                    ? "bg-sky-600 text-white shadow-md shadow-sky-200"
                     : isOutOfStock
                       ? "bg-amber-600 text-white hover:bg-amber-700 shadow-md shadow-amber-200 active:scale-90"
                       : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 active:scale-90"

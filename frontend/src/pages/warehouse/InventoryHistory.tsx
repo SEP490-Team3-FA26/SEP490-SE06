@@ -188,13 +188,13 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
   const btnLabel = type === "import" ? "Tạo đơn nhập hàng (PO)" : type === "export" ? "Tạo phiếu xuất" : "Lập Phiếu Xuất Hủy Mới";
 
   const Icon = type === "import" ? ArrowDownToLine : type === "export" ? ArrowUpFromLine : Trash2;
-  const theme = type === "import" ? "blue" : type === "export" ? "emerald" : "rose";
+  const theme = type === "import" ? "blue" : type === "export" ? "sky" : "rose";
   const themeClasses: Record<string, string> = {
     blue: "bg-[#0057cd] hover:bg-[#00419e] text-white",
-    emerald: "bg-emerald-600 hover:bg-emerald-700 text-white",
+    sky: "bg-sky-600 hover:bg-sky-700 text-white",
     rose: "bg-rose-600 hover:bg-rose-700 text-white",
     blueLight: "text-[#0057cd] bg-[#f2f3ff]",
-    emeraldLight: "text-emerald-700 bg-emerald-100",
+    skyLight: "text-sky-700 bg-sky-100",
     roseLight: "text-rose-700 bg-rose-100",
   };
 
@@ -207,7 +207,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
       case "PENDING_APPROVAL":
         return "bg-blue-50 text-blue-700 border-blue-200";
       case "COMPLETED":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
+        return "bg-sky-50 text-sky-700 border-sky-200";
       case "CANCELLED":
         return "bg-rose-50 text-rose-700 border-rose-200";
       default:
@@ -499,14 +499,14 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
             >
               <div className={`p-5 border-b ${
                 approvalNotice.type === "success"
-                  ? "bg-emerald-50 border-emerald-100"
+                  ? "bg-sky-50 border-sky-100"
                   : approvalNotice.type === "error"
                     ? "bg-rose-50 border-rose-100"
                     : "bg-amber-50 border-amber-100"
               }`}>
                 <h3 className="font-black text-slate-900 flex items-center gap-2">
                   {approvalNotice.type === "success" ? (
-                    <CheckCircle2 size={20} className="text-emerald-600" />
+                    <CheckCircle2 size={20} className="text-sky-600" />
                   ) : (
                     <AlertTriangle size={20} className={approvalNotice.type === "error" ? "text-rose-600" : "text-amber-600"} />
                   )}
@@ -636,13 +636,13 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
               </p>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
+          <div className="bg-white p-5 rounded-2xl border border-sky-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-black">
               <CheckCircle2 size={24} />
             </div>
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tuân Thủ Quy Chuẩn Dược</p>
-              <p className="text-sm font-black text-emerald-700">100% Có Biên Bản Hội Đồng GPP</p>
+              <p className="text-sm font-black text-sky-700">100% Có Biên Bản Hội Đồng GPP</p>
               <p className="text-[11px] font-medium text-slate-400">TT 02/2018/TT-BYT & TT 36/2018/TT-BYT</p>
             </div>
           </div>
@@ -876,7 +876,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                       <td className="px-6 py-4 text-right font-bold text-[#0057cd]">{r.totalAmount?.toLocaleString("vi-VN")}đ</td>
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${r.status === "COMPLETED"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            ? "bg-sky-50 text-sky-700 border-sky-200"
                             : r.status === "SHIPPING"
                               ? "bg-blue-50 text-blue-700 border-blue-200"
                               : r.status === "RECEIVING"
@@ -900,7 +900,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                                 e.stopPropagation();
                                 setSelectedPoForReceipt(r);
                               }}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                              className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
                             >
                               <ClipboardCheck size={14} />
                               Mở phiên tiếp nhận hàng
@@ -1165,7 +1165,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                               {selectedGrnDetails.status === "PENDING_APPROVAL" || selectedGrnDetails.status === "COMPLETED" || selectedGrnDetails.status === "CANCELLED" ? (
                                 <>
                                   <td className="p-3 text-right text-slate-600">{item.quantity}</td>
-                                  <td className={`p-3 text-right font-black ${isMismatched ? "text-amber-700 bg-amber-100/50" : "text-emerald-700"}`}>
+                                  <td className={`p-3 text-right font-black ${isMismatched ? "text-amber-700 bg-amber-100/50" : "text-sky-700"}`}>
                                     {item.actualQty ?? "-"}
                                   </td>
                                 </>
@@ -1256,7 +1256,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                       <button
                         onClick={handleApproveGRN}
                         disabled={approvalLoading}
-                        className="px-5 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm"
+                        className="px-5 py-2 font-bold text-white bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm"
                       >
                         {approvalLoading && <Loader2 size={16} className="animate-spin" />}
                         Phê duyệt nhập kho
@@ -1403,10 +1403,10 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
                       <span className="font-black text-[#0057cd] text-right">{selectedInspectionRecord.aiCount} hộp</span>
 
                       <span className="text-slate-500 font-bold">Thủ kho xác nhận:</span>
-                      <span className="font-black text-emerald-700 text-right">{selectedInspectionRecord.actualQty ?? "Chưa xác nhận"} hộp</span>
+                      <span className="font-black text-sky-700 text-right">{selectedInspectionRecord.actualQty ?? "Chưa xác nhận"} hộp</span>
 
                       <span className="text-slate-500 font-bold">Chênh lệch:</span>
-                      <span className={`font-black text-right ${selectedInspectionRecord.actualQty !== null && selectedInspectionRecord.actualQty !== selectedInspectionRecord.expectedQty ? "text-amber-600" : "text-emerald-600"}`}>
+                      <span className={`font-black text-right ${selectedInspectionRecord.actualQty !== null && selectedInspectionRecord.actualQty !== selectedInspectionRecord.expectedQty ? "text-amber-600" : "text-sky-600"}`}>
                         {selectedInspectionRecord.actualQty !== null 
                           ? `${selectedInspectionRecord.actualQty - selectedInspectionRecord.expectedQty} hộp` 
                           : "N/A"}
@@ -1709,14 +1709,14 @@ function GoodsReceiptModal({ po, getMedicineName, onClose, onSuccess }: { po: an
         className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden"
       >
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-sky-50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
               <ClipboardCheck size={20} />
             </div>
             <div>
               <h2 className="text-lg font-black text-slate-900">Mở Phiên Tiếp Nhận Hàng (Receiving Session)</h2>
-              <p className="text-xs font-bold text-emerald-800">Từ đơn đặt hàng: PO-{po._id.substring(18).toUpperCase()}</p>
+              <p className="text-xs font-bold text-sky-800">Từ đơn đặt hàng: PO-{po._id.substring(18).toUpperCase()}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
@@ -1747,7 +1747,7 @@ function GoodsReceiptModal({ po, getMedicineName, onClose, onSuccess }: { po: an
                     placeholder="Ví dụ: LOT-2026A"
                     value={item.batchNo}
                     onChange={(e) => handleItemFieldChange(idx, "batchNo", e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
                   />
                 </div>
 
@@ -1758,7 +1758,7 @@ function GoodsReceiptModal({ po, getMedicineName, onClose, onSuccess }: { po: an
                     required
                     value={item.expDate}
                     onChange={(e) => handleItemFieldChange(idx, "expDate", e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
                   />
                 </div>
 
@@ -1774,7 +1774,7 @@ function GoodsReceiptModal({ po, getMedicineName, onClose, onSuccess }: { po: an
                     required
                     value={item.quantity}
                     onChange={(e) => handleItemFieldChange(idx, "quantity", Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
                   />
                 </div>
               </div>
@@ -1814,7 +1814,7 @@ function GoodsReceiptModal({ po, getMedicineName, onClose, onSuccess }: { po: an
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
+            className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <>

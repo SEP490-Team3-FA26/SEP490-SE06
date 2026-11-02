@@ -31,6 +31,7 @@ import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
 import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
 import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 import { ClinicalSidebarDrawer, DrawerMenuItem } from '../../components/clinical/ClinicalSidebarDrawer';
+import { DigitalHealthPassportModal } from '../../components/clinical/DigitalHealthPassportModal';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, logout } = useAuth();
@@ -43,6 +44,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
   const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
   const [showSwapModal, setShowSwapModal] = useState<boolean>(false);
+  const [showStaffIdModal, setShowStaffIdModal] = useState<boolean>(false);
   const [swapPrefillShift, setSwapPrefillShift] = useState<any | null>(null);
   const [leavePrefillShift, setLeavePrefillShift] = useState<any | null>(null);
   const [activeShift, setActiveShift] = useState<any | null>(null);
@@ -207,6 +209,11 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           },
         ]
       );
+      return;
+    }
+
+    if ((med.stock ?? 0) <= 0) {
+      showToast.error('Hết hàng', `Thuốc "${med.name}" hiện đã hết tồn kho quầy.`);
       return;
     }
 
@@ -515,26 +522,17 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     if (res) {
       setOcrResult(res);
     } else {
-      setOcrResult({
-        diagnosis: 'Viêm họng cấp tính & Sốt xuất huyết nhẹ',
-        doctor: 'BS. CKII Lê Hoàng Minh (BV Chợ Rẫy)',
-        patient: 'Nguyễn Văn Tâm (32 tuổi)',
-        medicines: [
-          { name: 'Amoxicillin 500mg', dosage: 'Uống 1 viên x 2 lần/ngày sau ăn (7 ngày)', qty: 14, unit: 'Viên' },
-          { name: 'Panadol Extra', dosage: 'Uống 1 viên khi sốt trên 38.5°C', qty: 10, unit: 'Viên' },
-          { name: 'Strepsils Cool', dosage: 'Ngậm 1 viên mỗi 3 giờ khi rát họng', qty: 1, unit: 'Hộp' },
-        ],
-      });
+      showToast.error('Lỗi nhận diện', 'Không thể kết nối máy chủ OCR hoặc ảnh không rõ nét. Vui lòng thử lại.');
     }
   };
 
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="ABC Pharmacy"
         subtitle={user?.branchName ? `Quầy POS • ${user.branchName}` : 'Quầy Bán Hàng Dược Sĩ POS'}
-        gradientVariant="emerald"
+        gradientVariant="sky"
         leftAction={{
           icon: 'menu',
           onPress: () => setShowDrawer(true),
@@ -571,7 +569,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           <Ionicons
             name="cart"
             size={18}
-            color={activeTab === 'POS' ? '#065F46' : '#94A3B8'}
+            color={activeTab === 'POS' ? '#0369A1' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'POS' && styles.activeTabText]}>
             POS Bán Hàng ({cart.reduce((a, b) => a + b.quantity, 0)})
@@ -585,7 +583,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           <Ionicons
             name="scan"
             size={18}
-            color={activeTab === 'OCR' ? '#065F46' : '#94A3B8'}
+            color={activeTab === 'OCR' ? '#0369A1' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'OCR' && styles.activeTabText]}>
             Quét Đơn OCR
@@ -596,7 +594,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#059669']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
         {/* TAB 1: POS */}
         {activeTab === 'POS' && (
@@ -628,7 +626,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
             {/* Cart Preview Banner */}
             {cart.length > 0 && (
-              <GradientCard gradientVariant="emerald" style={styles.cartBanner}>
+              <GradientCard gradientVariant="sky" style={styles.cartBanner}>
                 <View style={styles.cartBannerRow}>
                   <View>
                     <Text style={styles.cartCount}>Đã chọn {cart.length} mặt hàng</Text>
@@ -636,7 +634,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                   </View>
                   <AnimatedTouchable onPress={handleCheckout} style={styles.checkoutBtn}>
                     <Text style={styles.checkoutBtnText}>THANH TOÁN</Text>
-                    <Ionicons name="arrow-forward" size={16} color="#059669" />
+                    <Ionicons name="arrow-forward" size={16} color="#0284C7" />
                   </AnimatedTouchable>
                 </View>
 
@@ -736,111 +734,101 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             )}
 
             <Text style={styles.sectionTitle}>Danh Mục Thuốc Tại Quầy (Có Ảnh & Mã Vạch)</Text>
-            {medicines.map((med, idx) => {
-              const opts = ApiService.buildUnitOptions(med);
-              const expStatus = ApiService.getExpiryStatus(med);
-              const isOutStock = (med.stock || 0) <= 0;
+            <View style={styles.medGrid2Col}>
+              {medicines.map((med, idx) => {
+                const opts = ApiService.buildUnitOptions(med);
+                const expStatus = ApiService.getExpiryStatus(med);
+                const isOutStock = (med.stock || 0) <= 0;
 
-              return (
-                <View key={med.id || (med as any)._id || `med-${idx}`} style={styles.medCard}>
-                  <Image
-                    source={{
-                      uri:
-                        med.image ||
-                        med.image_url ||
-                        'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-                    }}
-                    style={styles.medThumb}
-                    resizeMode="cover"
-                  />
-                  <AnimatedTouchable
-                    onPress={() => handleOpenMedDetail(med)}
-                    style={{ flex: 1, marginLeft: 12 }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Text style={styles.medName} numberOfLines={1}>{med.name}</Text>
+                return (
+                  <View key={med.id || (med as any)._id || `med-${idx}`} style={styles.medGridCard}>
+                    {/* Ảnh sản phẩm hình vuông 1:1 tỉ lệ chuẩn Shopee (Width === Height) */}
+                    <View style={styles.medGridImgContainer}>
+                      <Image
+                        source={{
+                          uri:
+                            med.image ||
+                            med.image_url ||
+                            'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+                        }}
+                        style={styles.medGridThumbSquare}
+                        resizeMode="cover"
+                      />
                       {med.isRx ? (
-                        <View style={styles.rxBadge}>
+                        <View style={styles.medGridRxBadge}>
                           <Text style={styles.rxBadgeText}>Rx</Text>
                         </View>
                       ) : null}
                     </View>
-                    <Text style={styles.medActive} numberOfLines={1}>Hoạt chất: {med.active}</Text>
-
-                    <View style={styles.codeRow}>
-                      {med.sku ? (
-                        <View style={styles.codeBadge}>
-                          <Text style={styles.codeBadgeText}>SKU: {med.sku}</Text>
-                        </View>
-                      ) : null}
-                      {med.barcode ? (
-                        <View style={[styles.codeBadge, { backgroundColor: '#F1F5F9' }]}>
-                          <Ionicons name="barcode" size={11} color="#475569" style={{ marginRight: 2 }} />
-                          <Text style={[styles.codeBadgeText, { color: '#475569' }]}>{med.barcode}</Text>
-                        </View>
-                      ) : null}
-
-                      {/* Badge Hạn Dùng / FEFO */}
-                      <View style={[styles.expiryBadge, { backgroundColor: expStatus.badgeBg, borderColor: expStatus.badgeColor }]}>
-                        <Ionicons name={expStatus.icon as any} size={10} color={expStatus.badgeColor} style={{ marginRight: 2 }} />
-                        <Text style={[styles.expiryBadgeText, { color: expStatus.badgeColor }]}>
-                          {expStatus.status === 'EXPIRED'
-                            ? 'HẾT HẠN'
-                            : expStatus.status === 'NEAR_EXPIRY'
-                              ? `CẬN HẠN (${expStatus.daysLeft}d)`
-                              : `HSD: ${expStatus.expDateFormatted}`}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Hiển thị Giá: Gồm cả giá Hộp và giá quy cách lẻ */}
-                    <View style={{ marginTop: 2 }}>
-                      {opts.length > 1 ? (
-                        <View>
-                          <Text style={styles.medPrice}>
-                            {opts[0].price.toLocaleString('vi-VN')} ₫ / {opts[0].unitName}
-                          </Text>
-                          <Text style={styles.medSubPrice}>
-                            hoặc {opts[1].price.toLocaleString('vi-VN')} ₫ / {opts[1].unitName}
-                          </Text>
-                        </View>
-                      ) : (
-                        <Text style={styles.medPrice}>
-                          {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
-                        </Text>
-                      )}
-                    </View>
-                  </AnimatedTouchable>
-
-                  <View style={styles.actionCol}>
+                    {/* Nội dung card thuốc */}
                     <AnimatedTouchable
-                      onPress={() => handleOpenLabelModal(med)}
-                      style={styles.labelIconBtn}
+                      onPress={() => handleOpenMedDetail(med)}
+                      style={styles.medGridBody}
                     >
-                      <Ionicons name="print-outline" size={16} color="#0284C7" />
+                      <Text style={styles.medGridName} numberOfLines={2}>
+                        {med.name}
+                      </Text>
+                      <Text style={styles.medGridActive} numberOfLines={1}>
+                        {med.active ? `Hoạt chất: ${med.active}` : ''}
+                      </Text>
+
+                      {/* Mã SKU & HSD */}
+                      <View style={styles.medGridMetaRow}>
+                        {med.sku ? (
+                          <View style={styles.codeBadge}>
+                            <Text style={styles.codeBadgeText}>SKU: {med.sku}</Text>
+                          </View>
+                        ) : null}
+                        <View style={[styles.expiryBadge, { backgroundColor: expStatus.badgeBg, borderColor: expStatus.badgeColor }]}>
+                          <Text style={[styles.expiryBadgeText, { color: expStatus.badgeColor }]}>
+                            {expStatus.status === 'EXPIRED'
+                              ? 'HẾT HẠN'
+                              : expStatus.status === 'NEAR_EXPIRY'
+                              ? `CẬN HẠN`
+                              : `HSD: ${expStatus.expDateFormatted}`}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Giá niêm yết */}
+                      <Text style={styles.medGridPrice} numberOfLines={1}>
+                        {opts.length > 0 ? opts[0].price.toLocaleString('vi-VN') : (med.price || 0).toLocaleString('vi-VN')} ₫
+                        <Text style={styles.medGridUnit}> / {opts.length > 0 ? opts[0].unitName : med.unit}</Text>
+                      </Text>
                     </AnimatedTouchable>
 
-                    {isOutStock ? (
+                    {/* Nút hành động In Tem & Thêm vào đơn */}
+                    <View style={styles.medGridActionRow}>
                       <AnimatedTouchable
-                        onPress={() => handleOpenAlternatives(med)}
-                        style={styles.altQuickBtn}
+                        onPress={() => handleOpenLabelModal(med)}
+                        style={styles.labelGridIconBtn}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       >
-                        <Ionicons name="swap-horizontal" size={14} color="#7C3AED" />
-                        <Text style={styles.altQuickBtnText}>Thay thế</Text>
+                        <Ionicons name="print-outline" size={15} color="#0284C7" />
                       </AnimatedTouchable>
-                    ) : (
-                      <AnimatedTouchable
-                        onPress={() => handleOpenMedDetail(med)}
-                        style={styles.addCartBtn}
-                      >
-                        <Ionicons name="add" size={18} color="#FFFFFF" />
-                        <Text style={styles.addCartBtnText}>Thêm</Text>
-                      </AnimatedTouchable>
-                    )}
+
+                      {isOutStock ? (
+                        <AnimatedTouchable
+                          onPress={() => handleOpenAlternatives(med)}
+                          style={styles.altQuickGridBtn}
+                        >
+                          <Ionicons name="swap-horizontal" size={13} color="#7C3AED" />
+                          <Text style={styles.altQuickGridBtnText}>Đổi</Text>
+                        </AnimatedTouchable>
+                      ) : (
+                        <AnimatedTouchable
+                          onPress={() => handleOpenMedDetail(med)}
+                          style={styles.addCartGridBtn}
+                        >
+                          <Ionicons name="add" size={15} color="#FFFFFF" />
+                          <Text style={styles.addCartGridBtnText}>Thêm</Text>
+                        </AnimatedTouchable>
+                      )}
+                    </View>
                   </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -866,7 +854,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                 <Text style={styles.ocrCameraBtnText}>Chụp Ảnh Đơn</Text>
               </AnimatedTouchable>
               <AnimatedTouchable onPress={handlePickPrescriptionFromGallery} style={styles.ocrGalleryBtn}>
-                <Ionicons name="images-outline" size={18} color="#059669" />
+                <Ionicons name="images-outline" size={18} color="#0284C7" />
                 <Text style={styles.ocrGalleryBtnText}>Chọn Từ Thư Viện</Text>
               </AnimatedTouchable>
             </View>
@@ -891,7 +879,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                     style={styles.reScanBtn}
                     disabled={scanning}
                   >
-                    <Ionicons name="refresh" size={14} color="#059669" />
+                    <Ionicons name="refresh" size={14} color="#0284C7" />
                     <Text style={styles.reScanBtnText}>Quét lại AI</Text>
                   </AnimatedTouchable>
                 </View>
@@ -901,7 +889,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             {/* Scanning indicator */}
             {scanning && (
               <View style={styles.ocrLoadingBox}>
-                <ActivityIndicator size="small" color="#059669" />
+                <ActivityIndicator size="small" color="#0284C7" />
                 <Text style={styles.ocrLoadingText}>
                   AI Vision LLM & OCR đang trích xuất tên bác sĩ, chẩn đoán và danh mục thuốc...
                 </Text>
@@ -918,7 +906,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                 style={styles.sampleCard}
               >
                 <View style={styles.sampleIconBox}>
-                  <Ionicons name="document-text" size={22} color="#059669" />
+                  <Ionicons name="document-text" size={22} color="#0284C7" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.sampleTitle}>{s.title}</Text>
@@ -931,7 +919,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             {ocrResult && (
               <View style={styles.ocrCard}>
                 <View style={styles.ocrHeader}>
-                  <Ionicons name="scan-circle" size={26} color="#059669" />
+                  <Ionicons name="scan-circle" size={26} color="#0284C7" />
                   <View style={{ flex: 1, marginLeft: 8 }}>
                     <Text style={styles.ocrHeading}>Kết Quả Trích Xuất AI Vision</Text>
                     <Text style={styles.ocrSubHeading}>Đã đối chiếu danh mục kho chi nhánh</Text>
@@ -976,7 +964,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                           }}
                           style={styles.ocrAddBtn}
                         >
-                          <Ionicons name="cart-outline" size={16} color="#059669" />
+                          <Ionicons name="cart-outline" size={16} color="#0284C7" />
                         </AnimatedTouchable>
                       )}
                     </View>
@@ -1237,8 +1225,8 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                           Hoạt chất: {alt.active || alt.active_ingredient || 'N/A'}
                         </Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 4 }}>
-                          <View style={[styles.stockBadge, { backgroundColor: isAvailable ? '#ECFDF5' : '#FEE2E2' }]}>
-                            <Text style={[styles.stockBadgeText, { color: isAvailable ? '#059669' : '#DC2626' }]}>
+                          <View style={[styles.stockBadge, { backgroundColor: isAvailable ? '#F0F9FF' : '#FEE2E2' }]}>
+                            <Text style={[styles.stockBadgeText, { color: isAvailable ? '#0284C7' : '#DC2626' }]}>
                               {isAvailable ? `Tồn: ${alt.stock} ${alt.unit}` : 'Tạm hết kho'}
                             </Text>
                           </View>
@@ -1365,7 +1353,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             id: 'attendance',
             label: activeShift?.isCheckedIn ? 'Đã Vào Ca Trực (GPS)' : 'Điểm Danh Vào Ca (GPS)',
             iconName: activeShift?.isCheckedIn ? 'checkmark-circle' : 'location',
-            color: activeShift?.isCheckedIn ? '#059669' : '#D97706',
+            color: activeShift?.isCheckedIn ? '#0284C7' : '#D97706',
             badge: activeShift?.isCheckedIn ? 'HỢP LỆ' : 'CẦN VÀO CA',
             badgeVariant: activeShift?.isCheckedIn ? 'success' : 'warning',
             onPress: () => setShowCheckInModal(true),
@@ -1374,7 +1362,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             id: 'schedule',
             label: 'Lịch Làm Việc Cơ Sở',
             iconName: 'calendar',
-            color: '#059669',
+            color: '#0284C7',
             onPress: () => setShowScheduleModal(true),
           },
           {
@@ -1383,6 +1371,15 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             iconName: 'swap-horizontal',
             color: '#0284C7',
             onPress: () => setShowSwapModal(true),
+          },
+          {
+            id: 'staffId',
+            label: 'Thẻ Định Danh Nhân Sự GPP',
+            iconName: 'card-outline',
+            color: '#0284C7',
+            badge: 'MÃ QR',
+            badgeVariant: 'info',
+            onPress: () => setShowStaffIdModal(true),
           },
           {
             id: 'leave',
@@ -1402,11 +1399,17 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             id: 'ocr',
             label: 'Quét Đơn Thuốc OCR AI',
             iconName: 'scan-outline',
-            color: '#059669',
+            color: '#0284C7',
             onPress: () => setActiveTab('OCR'),
           },
         ]}
         onLogout={logout}
+      />
+
+      {/* Modal Thẻ Định Danh Nhân Sự GPP Có Mã QR Cho Giám Đốc/Quản Lý Quét */}
+      <DigitalHealthPassportModal
+        visible={showStaffIdModal}
+        onClose={() => setShowStaffIdModal(false)}
       />
     </SafeAreaView>
   );
@@ -1439,8 +1442,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   shiftActiveBtn: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
   },
   shiftInactiveBtn: {
     backgroundColor: '#FEF3C7',
@@ -1488,7 +1491,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   activeTabItem: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
   },
   tabText: {
     fontSize: 11,
@@ -1497,7 +1500,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   activeTabText: {
-    color: '#065F46',
+    color: '#0369A1',
     fontWeight: '800',
   },
   scrollContent: {
@@ -1522,12 +1525,12 @@ const styles = StyleSheet.create({
   scanBarcodeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 11,
     paddingHorizontal: 12,
     borderRadius: 14,
     gap: 4,
-    shadowColor: '#059669',
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -1613,7 +1616,7 @@ const styles = StyleSheet.create({
   },
   cartCount: {
     fontSize: 12,
-    color: '#D1FAE5',
+    color: '#E0F2FE',
   },
   cartTotal: {
     fontSize: 22,
@@ -1632,7 +1635,7 @@ const styles = StyleSheet.create({
   checkoutBtnText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginRight: 4,
   },
   cartItemList: {
@@ -1680,6 +1683,136 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     marginBottom: 12,
   },
+  // ─── Lưới Sản Phẩm 2 Cột Chuẩn Shopee (Width === Height) ───
+  medGrid2Col: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  medGridCard: {
+    width: '48.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+  },
+  medGridImgContainer: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+    position: 'relative',
+    marginBottom: 8,
+  },
+  medGridThumbSquare: {
+    width: '100%',
+    height: '100%',
+    aspectRatio: 1,
+  },
+  medGridRxBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    borderRadius: 4,
+  },
+  medGridBody: {
+    flex: 1,
+  },
+  medGridName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+    lineHeight: 18,
+    height: 36,
+    marginBottom: 2,
+  },
+  medGridActive: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 6,
+  },
+  medGridMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 6,
+  },
+  medGridPrice: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0284C7',
+    fontVariant: ['tabular-nums'],
+    marginBottom: 8,
+  },
+  medGridUnit: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  medGridActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  labelGridIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: '#F0F9FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  addCartGridBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#0284C7',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  addCartGridBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  altQuickGridBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#F5F3FF',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  altQuickGridBtnText: {
+    color: '#7C3AED',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
   medCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -1716,13 +1849,13 @@ const styles = StyleSheet.create({
   medPrice: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 4,
   },
   addCartBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -1748,7 +1881,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1773,7 +1906,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 12,
     borderRadius: 14,
     gap: 8,
@@ -1788,9 +1921,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#059669',
+    borderColor: '#0284C7',
     paddingVertical: 12,
     borderRadius: 14,
     gap: 8,
@@ -1798,7 +1931,7 @@ const styles = StyleSheet.create({
   ocrGalleryBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#065F46',
+    color: '#0369A1',
   },
   capturedPrescriptionCard: {
     flexDirection: 'row',
@@ -1807,7 +1940,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     marginBottom: 12,
   },
   capturedPrescriptionThumb: {
@@ -1829,7 +1962,7 @@ const styles = StyleSheet.create({
   reScanBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -1840,23 +1973,23 @@ const styles = StyleSheet.create({
   reScanBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   ocrLoadingBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     marginBottom: 12,
     gap: 10,
   },
   ocrLoadingText: {
     flex: 1,
     fontSize: 12,
-    color: '#065F46',
+    color: '#0369A1',
     fontWeight: '600',
     lineHeight: 18,
   },
@@ -1876,7 +2009,7 @@ const styles = StyleSheet.create({
   ocrHeading: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
   },
   ocrSubHeading: {
     fontSize: 11,
@@ -1906,7 +2039,7 @@ const styles = StyleSheet.create({
   },
   ocrDosage: {
     fontSize: 12,
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 2,
   },
   modalOverlay: {
@@ -1933,7 +2066,7 @@ const styles = StyleSheet.create({
   modalPrice: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginVertical: 10,
   },
   modalSection: {
@@ -1998,11 +2131,11 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     marginLeft: 8,
   },
   // Cart SubRow & Unit Selector
@@ -2029,14 +2162,14 @@ const styles = StyleSheet.create({
   cartUnitChipText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#E6FFFA',
+    color: '#E0F2FE',
   },
   cartUnitChipTextActive: {
-    color: '#065F46',
+    color: '#0369A1',
   },
   cartUnitStaticText: {
     fontSize: 11,
-    color: '#E6FFFA',
+    color: '#E0F2FE',
     fontWeight: '600',
   },
   cartPriceText: {
@@ -2139,8 +2272,8 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
   },
   activeUnitOptionChip: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   unitOptionChipText: {
     fontSize: 12,
@@ -2148,7 +2281,7 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   activeUnitOptionChipText: {
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '800',
   },
 
@@ -2259,7 +2392,7 @@ const styles = StyleSheet.create({
   altItemPrice: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 3,
   },
   stockBadge: {

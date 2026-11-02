@@ -66,7 +66,6 @@ backend/apps/ai-service/data/synthetic/
 !backend/apps/ai-service/data/splits/*.jsonl
 *.lnk
 *.apk
-railway.exe
 frontend/public/download/
 
 # Local Quick-Start Scripts

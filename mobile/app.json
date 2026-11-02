@@ -29,7 +29,6 @@
     },
     "android": {
       "package": "com.abcpharmacy.mobile",
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#01BAA8",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -37,23 +36,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "usesCleartextTraffic": true,
       "permissions": [
         "READ_CALENDAR",
         "WRITE_CALENDAR",
-        "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM",
-        "POST_NOTIFICATIONS",
-        "USE_FULL_SCREEN_INTENT",
-        "WAKE_LOCK",
-        "DISABLE_KEYGUARD",
         "VIBRATE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR",
         "USE_BIOMETRIC",
         "USE_FINGERPRINT"
       ]
@@ -74,29 +62,6 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Cho phép ứng dụng lấy vị trí GPS để xác nhận điểm danh ca làm việc tại nhà thuốc."
-        }
-      ],
-      [
-        "react-native-notify-kit",
-        {
-          "android": {
-            "foregroundService": {
-              "types": [
-                "mediaPlayback"
-              ]
-            }
-          }
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#0284C7",
-          "defaultChannel": "fire_emergency_ring_v8",
-          "sounds": [
-            "./assets/alarm_gentle.wav"
-          ]
         }
       ]
     ],

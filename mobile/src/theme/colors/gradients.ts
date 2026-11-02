@@ -10,8 +10,8 @@ export const gradients = {
   // Header Khách hàng (Ocean Sky Blue Gradient)
   customerHeader: [palette.sky[700], palette.sky[600], palette.sky[500]] as const, // ['#0369A1', '#0284C7', '#0EA5E9']
 
-  // Header Dược sĩ (Medical Emerald Gradient)
-  pharmacistHeader: [palette.emerald[800], palette.emerald[600], palette.emerald[500]] as const, // ['#065F46', '#059669', '#10B981']
+  // Header Dược sĩ (Auth Sky Blue Gradient)
+  pharmacistHeader: ['#0369A1', '#0284C7', '#0EA5E9'] as const, // ['#0369A1', '#0284C7', '#0EA5E9']
 
   // Header Thủ kho (Industrial Indigo Gradient)
   warehouseHeader: [palette.indigo[800], palette.indigo[600], palette.indigo[500]] as const, // ['#3730A3', '#4F46E5', '#6366F1']
@@ -28,6 +28,6 @@ export const gradients = {
   // Nút bấm & Điểm nhấn đặc biệt
   primaryAction: [palette.sky[600], palette.sky[500]] as const,
   dangerAction: [palette.rose[600], palette.rose[500]] as const,
-  successAction: [palette.emerald[600], palette.emerald[500]] as const,
+  successAction: ['#0284C7', '#0EA5E9'] as const,
 };
 

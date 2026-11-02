@@ -179,7 +179,7 @@ export const FirstTimeHealthOnboardingModal: React.FC<FirstTimeHealthOnboardingM
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
       <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-8 max-h-[90vh]">
         {/* Header cao cấp */}
-        <div className="p-6 bg-gradient-to-r from-teal-600 via-emerald-600 to-blue-700 text-white relative">
+        <div className="p-6 bg-gradient-to-r from-teal-600 via-sky-600 to-blue-700 text-white relative">
           <div className="flex items-center justify-between">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold uppercase tracking-wider text-teal-50">
               <Sparkles size={13} className="text-amber-300" />
@@ -220,19 +220,19 @@ export const FirstTimeHealthOnboardingModal: React.FC<FirstTimeHealthOnboardingM
           )}
 
           {/* Ô lựa chọn nhanh: Hoàn toàn khỏe mạnh */}
-          <label className="flex items-start gap-3 p-4 rounded-2xl bg-emerald-50/70 border-2 border-emerald-300 hover:border-emerald-500 cursor-pointer transition-all">
+          <label className="flex items-start gap-3 p-4 rounded-2xl bg-sky-50/70 border-2 border-sky-300 hover:border-sky-500 cursor-pointer transition-all">
             <input
               type="checkbox"
               checked={isHealthyNoAllergy}
               onChange={handleToggleHealthy}
-              className="w-5 h-5 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              className="w-5 h-5 mt-0.5 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
             />
             <div>
-              <div className="font-extrabold text-emerald-900 text-sm flex items-center gap-1.5">
-                <UserCheck size={16} className="text-emerald-700" />
+              <div className="font-extrabold text-sky-900 text-sm flex items-center gap-1.5">
+                <UserCheck size={16} className="text-sky-700" />
                 <span>Tôi hoàn toàn khỏe mạnh, không có tiền sử dị ứng và không có bệnh lý nền</span>
               </div>
-              <p className="text-xs text-emerald-700 mt-0.5">
+              <p className="text-xs text-sky-700 mt-0.5">
                 Chọn mục này nếu bạn chưa từng bị dị ứng bất kỳ loại thuốc/thực phẩm nào và không mắc các bệnh mạn tính.
               </p>
             </div>

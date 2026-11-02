@@ -49,7 +49,7 @@ describe('Hệ Thống Màu Sắc Mobile & Cấu Hình Tailwind (Color Theme Sys
       expect(tailwindColors.pharmacist.primary).toBe('#0284C7');
       expect(tailwindColors.warehouse.primary).toBe('#0369A1');
       expect(tailwindColors.medical.allergy.DEFAULT).toBe('#DC2626');
-      expect(tailwindColors.status.success.DEFAULT).toBe('#059669');
+      expect(tailwindColors.status.success.DEFAULT).toBe('#0284C7');
       expect(tailwindColors.status.danger.DEFAULT).toBe('#DC2626');
     });
   });

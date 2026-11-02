@@ -8,12 +8,14 @@ import {
   ActivityIndicator,
   ScrollView,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiService } from '../../services/api.service';
 import { useAuth } from '../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showToast } from '../ui/toastHelper';
+import { removeVietnameseTones } from '../../services/colleagueSearch.service';
 
 interface StaffScheduleModalProps {
   visible: boolean;
@@ -66,6 +68,7 @@ export const StaffScheduleModal: React.FC<StaffScheduleModalProps> = ({
   const [shifts, setShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [peerSearchQuery, setPeerSearchQuery] = useState<string>('');
 
   const weekStartStr = useMemo(() => formatDate(currentWeekMonday), [currentWeekMonday]);
 
@@ -163,7 +166,7 @@ export const StaffScheduleModal: React.FC<StaffScheduleModalProps> = ({
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.iconCircle}>
-                <Ionicons name="calendar" size={22} color="#059669" />
+                <Ionicons name="calendar" size={22} color="#0284C7" />
               </View>
               <View>
                 <Text style={styles.sheetTitle}>Lịch Làm Việc Cá Nhân</Text>
@@ -179,7 +182,7 @@ export const StaffScheduleModal: React.FC<StaffScheduleModalProps> = ({
           <View style={styles.summaryBox}>
             <View style={styles.summaryCard}>
               <View style={styles.summaryCardHeader}>
-                <Ionicons name="time" size={16} color="#059669" />
+                <Ionicons name="time" size={16} color="#0284C7" />
                 <Text style={styles.summaryCardTitle}>HÔM NAY ({todayStr.slice(8, 10)}/{todayStr.slice(5, 7)})</Text>
               </View>
               {todayMyShifts.length > 0 ? (
@@ -217,7 +220,7 @@ export const StaffScheduleModal: React.FC<StaffScheduleModalProps> = ({
           {/* Week Navigator */}
           <View style={styles.weekNav}>
             <TouchableOpacity onPress={() => changeWeek(-1)} style={styles.navArrowBtn}>
-              <Ionicons name="chevron-back" size={20} color="#059669" />
+              <Ionicons name="chevron-back" size={20} color="#0284C7" />
             </TouchableOpacity>
 
             <TouchableOpacity onPress={resetToThisWeek} style={styles.weekDisplayBtn}>
@@ -228,19 +231,37 @@ export const StaffScheduleModal: React.FC<StaffScheduleModalProps> = ({
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => changeWeek(1)} style={styles.navArrowBtn}>
-              <Ionicons name="chevron-forward" size={20} color="#059669" />
+              <Ionicons name="chevron-forward" size={20} color="#0284C7" />
             </TouchableOpacity>
+          </View>
+
+          {/* Thanh tìm kiếm lịch trực đồng nghiệp chi nhánh */}
+          <View style={styles.searchBarBox}>
+            <Ionicons name="search" size={16} color="#0284C7" />
+            <TextInput
+              style={styles.searchBarInput}
+              value={peerSearchQuery}
+              onChangeText={setPeerSearchQuery}
+              placeholder="Tìm đồng nghiệp trực cùng tuần (Yến, An, Khang...)"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="none"
+            />
+            {peerSearchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setPeerSearchQuery('')}>
+                <Ionicons name="close-circle" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {loading ? (
             <View style={styles.centerLoading}>
-              <ActivityIndicator size="large" color="#059669" />
+              <ActivityIndicator size="large" color="#0284C7" />
               <Text style={styles.loadingText}>Đang tải lịch trực...</Text>
             </View>
           ) : (
             <ScrollView
               contentContainerStyle={styles.scrollContent}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadScheduleData(true)} colors={['#059669']} />}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadScheduleData(true)} colors={['#0284C7']} />}
             >
               {daysInWeek.map((day) => {
                 const isToday = day.dateStr === todayStr;
@@ -286,7 +307,7 @@ export const StaffScheduleModal: React.FC<StaffScheduleModalProps> = ({
                         {myShifts.map((shift, idx) => (
                           <View key={`my_${idx}`} style={styles.myShiftRow}>
                             <View style={styles.myShiftBadge}>
-                              <Ionicons name="briefcase" size={16} color="#059669" />
+                              <Ionicons name="briefcase" size={16} color="#0284C7" />
                               <Text style={styles.myShiftName}>{shift.shiftName}</Text>
                               <Text style={styles.myShiftHours}>
                                 ({shift.shiftStart} - {shift.shiftEnd})
@@ -338,13 +359,31 @@ export const StaffScheduleModal: React.FC<StaffScheduleModalProps> = ({
                           <Ionicons name="people-outline" size={12} color="#64748B" /> Đồng nghiệp trực:
                         </Text>
                         <View style={styles.peerChipsRow}>
-                          {peerShifts.map((peer, idx) => (
-                            <View key={`peer_${idx}`} style={styles.peerChip}>
-                              <Text style={styles.peerChipName}>
-                                {peer.employeeName || 'Dược sĩ'} ({peer.shiftName || 'Ca'})
-                              </Text>
-                            </View>
-                          ))}
+                          {peerShifts.map((peer, idx) => {
+                            const pName = peer.employeeName || 'Dược sĩ';
+                            const isMatch = Boolean(
+                              peerSearchQuery.trim() &&
+                              removeVietnameseTones(pName).includes(removeVietnameseTones(peerSearchQuery.trim()))
+                            );
+                            return (
+                              <View
+                                key={`peer_${idx}`}
+                                style={[
+                                  styles.peerChip,
+                                  isMatch && styles.peerChipHighlighted,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.peerChipName,
+                                    isMatch && styles.peerChipNameHighlighted,
+                                  ]}
+                                >
+                                  {isMatch ? '⭐ ' : ''}{pName} ({peer.shiftName || 'Ca'})
+                                </Text>
+                              </View>
+                            );
+                          })}
                         </View>
                       </View>
                     ) : (
@@ -412,7 +451,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -452,13 +491,13 @@ const styles = StyleSheet.create({
   summaryCardTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
     letterSpacing: 0.5,
   },
   shiftPillActive: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,
@@ -467,11 +506,11 @@ const styles = StyleSheet.create({
   shiftPillTextActive: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#065F46',
+    color: '#0369A1',
   },
   shiftPillTime: {
     fontSize: 11,
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 1,
   },
   shiftPillOff: {
@@ -539,12 +578,12 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   dayCardToday: {
-    borderColor: '#10B981',
-    backgroundColor: '#F0FDF4',
+    borderColor: '#0284C7',
+    backgroundColor: '#F0F9FF',
   },
   dayCardHasShift: {
     borderLeftWidth: 4,
-    borderLeftColor: '#059669',
+    borderLeftColor: '#0284C7',
   },
   dayHeaderRow: {
     flexDirection: 'row',
@@ -562,14 +601,14 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   todayText: {
-    color: '#059669',
+    color: '#0284C7',
   },
   dayDate: {
     fontSize: 12,
     color: '#64748B',
   },
   todayBadge: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
@@ -598,9 +637,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 10,
@@ -614,11 +653,11 @@ const styles = StyleSheet.create({
   myShiftName: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#065F46',
+    color: '#0369A1',
   },
   myShiftHours: {
     fontSize: 12,
-    color: '#059669',
+    color: '#0284C7',
   },
   swapActionBtn: {
     flexDirection: 'row',
@@ -674,9 +713,36 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
+  peerChipHighlighted: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
+    borderWidth: 1.5,
+  },
   peerChipName: {
     fontSize: 11,
     color: '#334155',
+  },
+  peerChipNameHighlighted: {
+    color: '#0284C7',
+    fontWeight: '800',
+  },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: 16,
+    marginVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  searchBarInput: {
+    flex: 1,
+    paddingVertical: 8,
+    fontSize: 12,
+    marginLeft: 8,
+    color: '#0F172A',
   },
   noPeersText: {
     fontSize: 11,

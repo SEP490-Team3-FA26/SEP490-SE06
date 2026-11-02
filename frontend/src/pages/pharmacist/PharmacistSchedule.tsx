@@ -273,7 +273,7 @@ export function PharmacistSchedule() {
           {schedule && (
             <div className={`px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-2 border ${
               isPublished 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                ? 'bg-sky-50 text-sky-700 border-sky-200' 
                 : 'bg-amber-50 text-amber-700 border-amber-200'
             }`}>
               {isPublished ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
@@ -651,7 +651,7 @@ export function PharmacistSchedule() {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2.5 text-slate-900 font-bold text-base mb-4">
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
                 <ArrowRightLeft size={18} />
               </div>
               <h3>Quy Trình & Luồng Đổi Ca Trực (3 Bước)</h3>
@@ -703,18 +703,18 @@ export function PharmacistSchedule() {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center">
+                    <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 font-black text-xs flex items-center justify-center">
                       3
                     </span>
-                    <ShieldCheck size={15} className="text-emerald-600" />
+                    <ShieldCheck size={15} className="text-sky-600" />
                   </div>
                   <div className="text-xs font-bold text-slate-900 mb-1">Quản lý chi nhánh duyệt</div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
                     Quản lý chi nhánh xem xét và phê duyệt chính thức. Sau khi duyệt, hệ thống tự động hoán đổi lịch trực trên bảng tuần.
                   </p>
                 </div>
-                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-emerald-700 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-sky-700 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                   Trạng thái: Đã duyệt hoàn tất
                 </div>
               </div>

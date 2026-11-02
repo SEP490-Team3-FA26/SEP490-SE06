@@ -179,7 +179,7 @@ export const SupplierQuotePortal: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full space-y-4">
-          <Loader2 size={44} className="animate-spin text-emerald-600 mx-auto" />
+          <Loader2 size={44} className="animate-spin text-sky-600 mx-auto" />
           <p className="text-slate-700 font-bold text-sm">Đang xác thực liên kết báo giá...</p>
           <p className="text-xs text-slate-400">Vui lòng chờ trong giây lát.</p>
         </div>
@@ -215,11 +215,11 @@ export const SupplierQuotePortal: React.FC = () => {
         {/* Top Brand Header */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md shadow-emerald-500/20">
+            <div className="w-12 h-12 bg-gradient-to-tr from-sky-600 to-teal-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md shadow-sky-500/20">
               PC
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+              <span className="text-xs font-bold uppercase tracking-wider text-sky-600">
                 Hệ Thống Chuỗi Nhà Thuốc Pharmachain
               </span>
               <h1 className="text-xl font-black text-slate-900">Cổng Báo Giá Nhà Cung Cấp (RFQ)</h1>
@@ -237,16 +237,16 @@ export const SupplierQuotePortal: React.FC = () => {
         </div>
 
         {/* Identity Recognition Banner (Nhận diện chính xác NCC & Sales phụ trách) */}
-        <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
+        <div className="bg-gradient-to-r from-sky-800 via-teal-900 to-slate-900 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
           <div className="relative z-10 space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-bold">
               <UserCheck size={14} />
               Đã Nhận Diện Nhà Cung Cấp Thành Công
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
               <div>
-                <span className="text-[11px] text-emerald-200 uppercase tracking-wider font-semibold block">
+                <span className="text-[11px] text-sky-200 uppercase tracking-wider font-semibold block">
                   Đơn vị được mời báo giá
                 </span>
                 <p className="text-lg font-black text-white">{supplier.supplierName}</p>
@@ -258,12 +258,12 @@ export const SupplierQuotePortal: React.FC = () => {
 
               {supplier.salesRepName && (
                 <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-                  <span className="text-[11px] text-emerald-200 uppercase tracking-wider font-semibold block">
+                  <span className="text-[11px] text-sky-200 uppercase tracking-wider font-semibold block">
                     Đại diện thương mại / Trình dược viên phụ trách
                   </span>
                   <p className="text-sm font-bold text-white mt-0.5">{supplier.salesRepName}</p>
                   {supplier.salesRepPhone && (
-                    <div className="flex items-center gap-1 text-xs text-emerald-300 font-mono mt-0.5">
+                    <div className="flex items-center gap-1 text-xs text-sky-300 font-mono mt-0.5">
                       <Phone size={12} /> {supplier.salesRepPhone}
                     </div>
                   )}
@@ -275,19 +275,19 @@ export const SupplierQuotePortal: React.FC = () => {
 
         {/* Success Alert if already submitted */}
         {isSuccess && (
-          <div className="bg-emerald-50 border border-emerald-300 p-6 rounded-2xl shadow-sm text-center space-y-3">
-            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+          <div className="bg-sky-50 border border-sky-300 p-6 rounded-2xl shadow-sm text-center space-y-3">
+            <div className="w-14 h-14 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 size={32} />
             </div>
-            <h2 className="text-lg font-bold text-emerald-900">Báo Giá Đã Được Ghi Nhận Thành Công!</h2>
-            <p className="text-xs text-emerald-800 max-w-lg mx-auto leading-relaxed">
+            <h2 className="text-lg font-bold text-sky-900">Báo Giá Đã Được Ghi Nhận Thành Công!</h2>
+            <p className="text-xs text-sky-800 max-w-lg mx-auto leading-relaxed">
               Cảm ơn Quý đối tác <strong>{supplier.supplierName}</strong> đã gửi báo giá cho đơn hàng{' '}
               <strong>[{rfqData.rfqCode}] - {rfqData.title}</strong>. Hệ thống của chuỗi Pharmachain đã lưu trữ dữ liệu chào thầu của quý đối tác.
             </p>
             <div className="pt-2">
               <button
                 onClick={() => setIsSuccess(false)}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
               >
                 Cập nhật lại báo giá (Trước hạn chót)
               </button>
@@ -301,7 +301,7 @@ export const SupplierQuotePortal: React.FC = () => {
             {/* RFQ General Conditions */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <span className="text-xs font-mono font-bold text-emerald-600">Mã RFQ: {rfqData.rfqCode}</span>
+                <span className="text-xs font-mono font-bold text-sky-600">Mã RFQ: {rfqData.rfqCode}</span>
                 <h2 className="text-base font-bold text-slate-800 mt-0.5">{rfqData.title}</h2>
                 {rfqData.notes && <p className="text-xs text-slate-500 mt-1 italic">"{rfqData.notes}"</p>}
               </div>
@@ -342,7 +342,7 @@ export const SupplierQuotePortal: React.FC = () => {
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Package size={16} className="text-emerald-600" />
+                  <Package size={16} className="text-sky-600" />
                   Danh mục Dược phẩm cần báo giá ({items.length} mặt hàng)
                 </h3>
                 <span className="text-xs text-slate-400 font-medium">Đơn vị tiền tệ: VNĐ</span>
@@ -363,7 +363,7 @@ export const SupplierQuotePortal: React.FC = () => {
                       className={`p-4 rounded-xl border transition-all space-y-3 ${
                         item.isExceedingDeclaredPrice
                           ? 'border-rose-300 bg-rose-50/20'
-                          : 'border-slate-200 hover:border-emerald-300 bg-slate-50/50'
+                          : 'border-slate-200 hover:border-sky-300 bg-slate-50/50'
                       }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
@@ -381,7 +381,7 @@ export const SupplierQuotePortal: React.FC = () => {
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                                 item.isExceedingDeclaredPrice
                                   ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                  : 'bg-sky-50 text-sky-700 border-sky-300'
                               }`}>
                                 Trần kê khai BYT: {item.declaredPrice.toLocaleString('vi-VN')} đ
                                 {item.isExceedingDeclaredPrice ? ' (⚠️ VƯỢT TRẦN)' : ' (✓ HỢP LỆ)'}
@@ -394,7 +394,7 @@ export const SupplierQuotePortal: React.FC = () => {
                         </div>
                         <div className="text-right">
                           <span className="text-[11px] text-slate-400 block font-medium">Thành tiền chào:</span>
-                          <span className="text-base font-black text-emerald-700">
+                          <span className="text-base font-black text-sky-700">
                             {Math.round(lineTotal).toLocaleString('vi-VN')} đ
                           </span>
                         </div>
@@ -411,7 +411,7 @@ export const SupplierQuotePortal: React.FC = () => {
                               item.isExceedingDeclaredPrice ? (
                                 <span className="text-[10px] text-rose-600 font-bold">⚠️ Vượt trần</span>
                               ) : (
-                                <span className="text-[10px] text-emerald-600 font-bold">✓ Đạt chuẩn</span>
+                                <span className="text-[10px] text-sky-600 font-bold">✓ Đạt chuẩn</span>
                               )
                             )}
                           </div>
@@ -425,7 +425,7 @@ export const SupplierQuotePortal: React.FC = () => {
                             className={`w-full px-3 py-2 border rounded-lg text-xs font-bold focus:ring-2 bg-white ${
                               item.isExceedingDeclaredPrice
                                 ? 'border-rose-400 bg-rose-50/40 text-rose-700 focus:ring-rose-500'
-                                : 'border-slate-300 focus:ring-emerald-500 focus:border-emerald-500'
+                                : 'border-slate-300 focus:ring-sky-500 focus:border-sky-500'
                             }`}
                             required
                           />
@@ -443,7 +443,7 @@ export const SupplierQuotePortal: React.FC = () => {
                               HSD cam kết (tháng) <span className="text-rose-500">*</span>
                             </label>
                             {isDateCompliant ? (
-                              <span className="text-[10px] text-emerald-600 font-bold">✓ Đạt chuẩn</span>
+                              <span className="text-[10px] text-sky-600 font-bold">✓ Đạt chuẩn</span>
                             ) : (
                               <span className="text-[10px] text-rose-600 font-bold">⚠️ Cận date</span>
                             )}
@@ -458,7 +458,7 @@ export const SupplierQuotePortal: React.FC = () => {
                             }
                             className={`w-full px-3 py-2 border rounded-lg text-xs font-bold focus:ring-2 bg-white ${
                               isDateCompliant
-                                ? 'border-slate-300 focus:ring-emerald-500 focus:border-emerald-500'
+                                ? 'border-slate-300 focus:ring-sky-500 focus:border-sky-500'
                                 : 'border-rose-400 bg-rose-50/50 text-rose-700 focus:ring-rose-500'
                             }`}
                             required
@@ -483,7 +483,7 @@ export const SupplierQuotePortal: React.FC = () => {
                             value={item.discountPercent || ''}
                             onChange={(e) => handleItemChange(idx, 'discountPercent', Number(e.target.value))}
                             placeholder="0%"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 bg-white"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-sky-500 bg-white"
                           />
                         </div>
 
@@ -498,7 +498,7 @@ export const SupplierQuotePortal: React.FC = () => {
                             value={item.availableQuantity || ''}
                             onChange={(e) => handleItemChange(idx, 'availableQuantity', Number(e.target.value))}
                             placeholder="Số lượng..."
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 bg-white"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-sky-500 bg-white"
                           />
                         </div>
                       </div>
@@ -511,7 +511,7 @@ export const SupplierQuotePortal: React.FC = () => {
             {/* Commercial Terms & Submit */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <CreditCard size={16} className="text-emerald-600" />
+                <CreditCard size={16} className="text-sky-600" />
                 Điều kiện thương mại & Thanh toán
               </h3>
 
@@ -526,7 +526,7 @@ export const SupplierQuotePortal: React.FC = () => {
                     max="180"
                     value={paymentTermsDays}
                     onChange={(e) => setPaymentTermsDays(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-sky-500"
                     required
                   />
                   <span className="text-[11px] text-slate-400 block mt-1">
@@ -544,7 +544,7 @@ export const SupplierQuotePortal: React.FC = () => {
                     max="30"
                     value={deliveryDays}
                     onChange={(e) => setDeliveryDays(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-sky-500"
                     required
                   />
                   <span className="text-[11px] text-slate-400 block mt-1">
@@ -562,7 +562,7 @@ export const SupplierQuotePortal: React.FC = () => {
                   value={generalNotes}
                   onChange={(e) => setGeneralNotes(e.target.value)}
                   placeholder="Ví dụ: Miễn phí vận chuyển tận kho GSP của chuỗi, cam kết đủ hóa đơn VAT và phiếu kiểm nghiệm xuất xưởng..."
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 resize-none"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 resize-none"
                 />
               </div>
 
@@ -570,7 +570,7 @@ export const SupplierQuotePortal: React.FC = () => {
               <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                   <span className="text-xs text-slate-400 block font-medium">Tổng giá trị chào thầu dự kiến:</span>
-                  <span className="text-2xl font-black text-emerald-800">
+                  <span className="text-2xl font-black text-sky-800">
                     {Math.round(calculateTotal()).toLocaleString('vi-VN')} đ
                   </span>
                 </div>
@@ -578,7 +578,7 @@ export const SupplierQuotePortal: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting || isExpired}
-                  className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                  className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-600/25 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                 >
                   <Send size={18} />
                   {submitting ? 'Đang gửi bảng giá...' : 'Xác Nhận & Gửi Báo Giá Cho Nhà Thuốc'}

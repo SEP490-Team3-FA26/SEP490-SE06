@@ -231,7 +231,7 @@ export function CustomerMedicalRecord() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-bold text-teal-200 uppercase tracking-wider mb-2">
-                  <ShieldCheck size={14} className="text-emerald-400" />
+                  <ShieldCheck size={14} className="text-sky-400" />
                   <span>Sổ Sức Khỏe Điện Tử 3.0</span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight">
@@ -267,7 +267,7 @@ export function CustomerMedicalRecord() {
                       type="button"
                       onClick={handleSave}
                       disabled={saving}
-                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                      className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
                     >
                       {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                       <span>Lưu thay đổi</span>
@@ -280,7 +280,7 @@ export function CustomerMedicalRecord() {
             {/* Trạng thái bảo vệ y tế */}
             <div className="mt-5 pt-5 border-t border-white/10 flex flex-wrap items-center gap-3 text-xs font-bold">
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
                 <span>AI Cross-Check: Đang kích hoạt</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md">
@@ -288,7 +288,7 @@ export function CustomerMedicalRecord() {
                 <span>Nhóm máu: {profile.bloodType || 'Chưa cập nhật'}</span>
               </div>
               {profile.hasCompletedHealthOnboarding ? (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/20 text-sky-200 border border-sky-400/30">
                   <CheckCircle2 size={13} />
                   <span>Đã hoàn tất khai báo y tế</span>
                 </div>
@@ -454,8 +454,8 @@ export function CustomerMedicalRecord() {
 
           {/* Thông báo kết quả thao tác */}
           {successMsg && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-emerald-600" />
+            <div className="p-4 bg-sky-50 border border-sky-200 text-sky-800 rounded-2xl text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-sky-600" />
               <span>{successMsg}</span>
             </div>
           )}

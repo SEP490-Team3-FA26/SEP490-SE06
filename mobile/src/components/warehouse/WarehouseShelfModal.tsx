@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiService } from '../../services/api.service';
@@ -116,7 +117,7 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
                         <View>
                           <Text style={styles.batchNo}>Số Lô: {b.batchNo}</Text>
                           <Text style={styles.expDate}>
-                            HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString('vi-VN') : '2027-12-31'}
+                            HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
                           </Text>
                         </View>
                         <View style={styles.stockBadge}>
@@ -153,6 +154,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
     maxHeight: '85%',
     borderTopWidth: 1,
     borderTopColor: '#1E293B',
@@ -297,13 +299,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   stockBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: 'rgba(2, 132, 199, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   stockText: {
-    color: '#34D399',
+    color: '#38BDF8',
     fontSize: 11,
     fontWeight: 'bold',
   },

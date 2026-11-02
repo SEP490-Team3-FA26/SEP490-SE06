@@ -303,7 +303,7 @@ export function WarehouseFilterBar({
                         {item.stock !== undefined && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap shrink-0 ${
                             item.stock > 0
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              ? "bg-sky-50 text-sky-700 border border-sky-200"
                               : "bg-slate-100 text-slate-500 border border-slate-200"
                           }`}>
                             {item.stock > 0 ? `Tồn: ${item.stock.toLocaleString("vi-VN")} ${item.unit || 'hộp'}` : "Hết hàng"}

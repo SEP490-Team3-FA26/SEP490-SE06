@@ -354,6 +354,8 @@ export class OrdersServiceService implements OnModuleInit {
       patientPhone: data.patientPhone,
       patientEmail,
       shippingAddress: data.shippingAddress || 'Mua tại quầy',
+      note: data.note || data.notes || '',
+      notes: data.notes || data.note || '',
       items: (data.items || []).map((it: any) => ({
         medicineId: it.medicineId,
         name: it.name,

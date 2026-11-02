@@ -6,12 +6,12 @@
 import { palette } from './palette';
 
 export const semantic = {
-  // Thành công / Đã duyệt / Còn hàng / Đã thanh toán
+  // Thành công / Đã duyệt / Còn hàng / Đã thanh toán (Chuyển 100% sang tone Xanh Auth)
   success: {
-    main: palette.emerald[600],       // #059669
-    bg: palette.emerald[50],          // #ECFDF5
-    border: palette.emerald[200],     // #A7F3D0
-    text: palette.emerald[800],       // #065F46
+    main: '#0284C7',                  // #0284C7 (Auth Blue Chủ Đạo)
+    bg: '#F0F9FF',                    // #F0F9FF (Nền Xanh Siêu Sáng)
+    border: '#BAE6FD',                // #BAE6FD (Viền Xanh Nhạt)
+    text: '#0369A1',                  // #0369A1 (Chữ Xanh Biển Đậm)
   },
 
   // Cảnh báo / Đang chờ duyệt / Tồn kho thấp

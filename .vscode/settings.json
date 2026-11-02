@@ -12,5 +12,8 @@
     },
     "files.exclude": {
         "**/node_modules": true
+    },
+    "files.associations": {
+        "*.html": "html"
     }
 }

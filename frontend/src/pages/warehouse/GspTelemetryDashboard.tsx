@@ -131,7 +131,7 @@ const METRIC_DEFINITIONS: Record<
   MetricKey,
   { label: string; unit: string; color: string; desc: string; minRange: number }
 > = {
-  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#10b981", desc: "Chuẩn GSP 15 - 40°C", minRange: 2.0 },
+  temperature: { label: "Nhiệt Độ Kho", unit: "°C", color: "#0284c7", desc: "Chuẩn GSP 15 - 40°C", minRange: 2.0 },
   humidity: { label: "Độ Ẩm Không Khí", unit: "%RH", color: "#06b6d4", desc: "Chuẩn GSP ≤ 70%RH", minRange: 5.0 },
   dewPoint: { label: "Điểm Sương (Td)", unit: "°C", color: "#6366f1", desc: "Công thức Magnus Eq", minRange: 2.0 },
   vpd: { label: "Áp Suất Hơi (VPD)", unit: "kPa", color: "#a855f7", desc: "Tốc độ bay hơi ẩm dược phẩm", minRange: 0.5 },
@@ -590,8 +590,8 @@ export function GspTelemetryDashboard() {
       {/* ── TOP HEADER: THÔNG TIN TRẠM & TRẠNG THÁI KẾT NỐI REALTIME ── */}
       <div className="bg-white border border-slate-200 shadow-xs rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 text-emerald-600 flex items-center justify-center shrink-0">
-            <Radio className={`w-6 h-6 ${isLiveConnected ? "animate-pulse text-emerald-600" : "text-slate-400"}`} />
+          <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center shrink-0">
+            <Radio className={`w-6 h-6 ${isLiveConnected ? "animate-pulse text-teal-600" : "text-slate-400"}`} />
           </div>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -625,10 +625,10 @@ export function GspTelemetryDashboard() {
               className={`px-3.5 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all ${
                 isGspAlert
                   ? "bg-rose-50 border-rose-200 text-rose-700 animate-pulse"
-                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : "bg-sky-50 border-sky-200 text-sky-700"
               }`}
             >
-              {isGspAlert ? <AlertTriangle className="w-4 h-4 text-emerald-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+              {isGspAlert ? <AlertTriangle className="w-4 h-4 text-rose-600" /> : <ShieldCheck className="w-4 h-4 text-sky-600" />}
               <span>{isGspAlert ? "CẢNH BÁO VI PHẠM GSP" : `ĐẠT CHUẨN GSP (15-${station?.tempMax || 40}°C, ≤70%RH)`}</span>
             </div>
           ) : (
@@ -642,7 +642,7 @@ export function GspTelemetryDashboard() {
           <div
             className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-mono font-medium transition-all ${
               isLiveConnected
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                ? "bg-sky-50 border-sky-200 text-sky-700"
                 : hasReceivedAny
                 ? "bg-rose-50 border-rose-200 text-rose-700"
                 : "bg-slate-100 border-slate-200 text-slate-500"
@@ -651,7 +651,7 @@ export function GspTelemetryDashboard() {
             <span
               className={`w-2 h-2 rounded-full ${
                 isLiveConnected
-                  ? "bg-emerald-500 animate-ping"
+                  ? "bg-sky-500 animate-ping"
                   : hasReceivedAny
                   ? "bg-rose-500"
                   : "bg-slate-400"
@@ -730,8 +730,8 @@ export function GspTelemetryDashboard() {
             }`}
           >
             <div className="flex items-center justify-between mb-2 gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5 whitespace-nowrap truncate">
-                <Thermometer className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="text-xs font-bold uppercase tracking-wider text-sky-700 flex items-center gap-1.5 whitespace-nowrap truncate">
+                <Thermometer className="w-4 h-4 text-sky-600 shrink-0" />
                 Nhiệt Độ Kho
               </span>
               <span
@@ -739,7 +739,7 @@ export function GspTelemetryDashboard() {
                   tempVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
                     : tempVal >= 15 && tempVal <= (station?.tempMax || 40.0)
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    ? "bg-sky-50 text-sky-700 border-sky-200"
                     : tempVal > (station?.tempMax || 40.0)
                     ? "bg-rose-50 text-rose-700 border-rose-200"
                     : "bg-cyan-50 text-cyan-700 border-cyan-200"
@@ -763,7 +763,7 @@ export function GspTelemetryDashboard() {
             </div>
 
             <div className="mt-2">
-              <SparklineCanvas data={sparkSeries.temperature} color="#10b981" minRange={2.0} />
+              <SparklineCanvas data={sparkSeries.temperature} color="#0284c7" minRange={2.0} />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
@@ -776,7 +776,7 @@ export function GspTelemetryDashboard() {
                     ? "text-emerald-600"
                     : tempVal < 15
                     ? "text-cyan-600"
-                    : "text-emerald-600"
+                    : "text-sky-600"
                 }`}
               >
                 {tempVal === undefined
@@ -962,7 +962,7 @@ export function GspTelemetryDashboard() {
                   chipTempVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
                     : chipTempVal < 45
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    ? "bg-sky-50 text-sky-700 border-sky-200"
                     : chipTempVal <= 65
                     ? "bg-teal-50 text-teal-700 border-teal-200"
                     : chipTempVal <= 75
@@ -1090,7 +1090,7 @@ export function GspTelemetryDashboard() {
                   wifiVal === undefined
                     ? "bg-slate-100 text-slate-500 border-slate-200"
                     : wifiVal >= -65
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    ? "bg-sky-50 text-sky-700 border-sky-200"
                     : wifiVal >= -75
                     ? "bg-sky-50 text-sky-700 border-sky-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
@@ -1315,7 +1315,7 @@ export function GspTelemetryDashboard() {
                 <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 whitespace-nowrap">
                   Mẫu: <strong>{periodStats.count}</strong>
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100 whitespace-nowrap">
+                <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-100 whitespace-nowrap">
                   T: <strong>{periodStats.minTemp.toFixed(1)}</strong> ~ <strong>{periodStats.maxTemp.toFixed(1)}°C</strong> (TB {periodStats.avgTemp.toFixed(1)}°)
                 </span>
                 <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-800 border border-cyan-100 whitespace-nowrap">
@@ -1351,7 +1351,7 @@ export function GspTelemetryDashboard() {
                 <LineChart data={chartData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                  <YAxis yAxisId="left" stroke="#10b981" fontSize={11} domain={["auto", "auto"]} tickLine={false} />
+                  <YAxis yAxisId="left" stroke="#0284c7" fontSize={11} domain={["auto", "auto"]} tickLine={false} />
                   <YAxis yAxisId="right" orientation="right" stroke="#06b6d4" fontSize={11} domain={[0, 100]} tickLine={false} />
                   <Tooltip
                     contentStyle={{
@@ -1373,7 +1373,7 @@ export function GspTelemetryDashboard() {
                     type="monotone"
                     dataKey="temperature"
                     name="Nhiệt độ (°C)"
-                    stroke="#10b981"
+                    stroke="#0284c7"
                     strokeWidth={2.2}
                     dot={false}
                     isAnimationActive={false}
@@ -1511,11 +1511,11 @@ export function GspTelemetryDashboard() {
         <div
           className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-3 text-xs font-medium transition-all ${
             toastMessage.type === "success"
-              ? "bg-emerald-950 text-emerald-100 border-emerald-700"
+              ? "bg-sky-950 text-sky-100 border-sky-700"
               : "bg-rose-950 text-rose-100 border-rose-700"
           }`}
         >
-          <div className={`w-2 h-2 rounded-full ${toastMessage.type === "success" ? "bg-emerald-400" : "bg-rose-400"}`} />
+          <div className={`w-2 h-2 rounded-full ${toastMessage.type === "success" ? "bg-sky-400" : "bg-rose-400"}`} />
           <span>{toastMessage.text}</span>
           <button onClick={() => setToastMessage(null)} className="ml-2 hover:opacity-75 cursor-pointer">
             <X className="w-3.5 h-3.5" />

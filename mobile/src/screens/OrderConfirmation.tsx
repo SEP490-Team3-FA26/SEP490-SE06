@@ -151,10 +151,10 @@ export const OrderConfirmation: React.FC<{
               size={56}
               color={
                 isPaid
-                  ? '#059669'
+                  ? '#0284C7'
                   : isPending
                   ? paymentMethod === 'CASH'
-                    ? '#059669'
+                    ? '#0284C7'
                     : '#D97706'
                   : '#DC2626'
               }
@@ -185,7 +185,7 @@ export const OrderConfirmation: React.FC<{
         {/* Order Details Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="receipt-outline" size={20} color="#059669" />
+            <Ionicons name="receipt-outline" size={20} color="#0284C7" />
             <Text style={styles.cardTitle}>Chi Tiết Đơn Hàng</Text>
           </View>
 
@@ -285,9 +285,9 @@ export const OrderConfirmation: React.FC<{
               style={styles.verifyButton}
             >
               {checking ? (
-                <ActivityIndicator size="small" color="#059669" />
+                <ActivityIndicator size="small" color="#0284C7" />
               ) : (
-                <Ionicons name="refresh-outline" size={18} color="#059669" />
+                <Ionicons name="refresh-outline" size={18} color="#0284C7" />
               )}
               <Text style={styles.verifyButtonText}>
                 {checking ? 'Đang kiểm tra...' : 'Kiểm Tra Lại Trạng Thái'}
@@ -343,8 +343,8 @@ const styles = StyleSheet.create({
     borderWidth: 4,
   },
   iconCircleSuccess: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
   },
   iconCirclePending: {
     backgroundColor: '#FFFBEB',
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   detailValueCode: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     letterSpacing: 0.5,
   },
   statusBadge: {
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   badgeSuccess: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
   },
   badgePending: {
     backgroundColor: '#FFFBEB',
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   badgeTextSuccess: {
-    color: '#059669',
+    color: '#0284C7',
   },
   badgeTextPending: {
     color: '#D97706',
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   totalAmount: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
   },
   actionSection: {
     width: '100%',
@@ -502,9 +502,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     paddingVertical: 14,
     borderRadius: 14,
     marginBottom: 12,
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   verifyButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   storeButton: {
     flexDirection: 'row',

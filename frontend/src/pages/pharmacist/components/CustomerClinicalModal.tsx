@@ -181,8 +181,8 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
 
         {/* Thông báo cập nhật */}
         {successMsg && (
-          <div className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5">
-            <CheckCircle2 size={15} className="text-emerald-600" />
+          <div className="mx-6 mt-4 p-3 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl text-xs font-bold flex items-center gap-1.5">
+            <CheckCircle2 size={15} className="text-sky-600" />
             <span>{successMsg}</span>
           </div>
         )}
@@ -199,10 +199,10 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl">
               <div className="text-[11px] text-slate-500 font-bold mb-0.5 flex items-center gap-1">
-                <Sparkles size={13} className="text-emerald-600" />
+                <Sparkles size={13} className="text-sky-600" />
                 Điểm tích lũy khả dụng
               </div>
-              <div className="text-lg font-black font-mono text-emerald-700">
+              <div className="text-lg font-black font-mono text-sky-700">
                 {loyalty.points.toLocaleString()} đ
               </div>
             </div>
@@ -559,7 +559,7 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-60"
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-60"
               >
                 {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                 <span>Lưu hồ sơ bệnh nhân</span>
