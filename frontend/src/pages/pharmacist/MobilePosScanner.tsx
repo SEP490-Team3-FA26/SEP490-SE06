@@ -82,116 +82,6 @@ export function MobilePosScanner() {
     } catch (_) {}
   };
 
-  // Khởi động Camera điện thoại
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-
-    const startCamera = async () => {
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setCameraError(
-            "Trình duyệt không hỗ trợ truy cập camera trực tiếp. Vui lòng cấp quyền hoặc nhập mã thủ công."
-          );
-          return;
-        }
-
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          setIsCameraActive(true);
-        }
-      } catch (err: any) {
-        console.warn("Lỗi mở camera thiết bị:", err);
-        setCameraError(
-          "Không thể truy cập camera. Vui lòng đảm bảo đã cho phép quyền Camera trên điện thoại."
-        );
-      }
-    };
-
-    startCamera();
-
-    // Tự động nhận diện và giải mã mã vạch trực tiếp từ Camera Stream (HTML5 BarcodeDetector API)
-  useEffect(() => {
-    if (!isCameraActive || typeof window === "undefined") return;
-
-    if (!("BarcodeDetector" in window)) {
-      setIsSupportedBarcodeDetector(false);
-      return;
-    }
-
-    let active = true;
-    let detector: any = null;
-    let lastScanTime = 0;
-
-    try {
-      detector = new (window as any).BarcodeDetector({
-        formats: [
-          "qr_code",
-          "ean_13",
-          "ean_8",
-          "code_128",
-          "code_39",
-          "upc_a",
-          "upc_e",
-        ],
-      });
-      setIsSupportedBarcodeDetector(true);
-    } catch (e) {
-      console.warn("Lỗi khởi tạo BarcodeDetector:", e);
-      setIsSupportedBarcodeDetector(false);
-      return;
-    }
-
-    const scanFrame = async () => {
-      if (!active) return;
-      const video = videoRef.current;
-
-      if (
-        video &&
-        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-        detector &&
-        !isSending
-      ) {
-        const now = Date.now();
-        // Giãn cách 1500ms chống bắn lặp dồn dập
-        if (now - lastScanTime > 1500) {
-          try {
-            const barcodes = await detector.detect(video);
-            if (barcodes && barcodes.length > 0) {
-              const detected = barcodes[0].rawValue;
-              if (detected && detected.trim()) {
-                lastScanTime = now;
-                setLastDetectedBarcode(detected.trim());
-                await transmitBarcode(detected.trim());
-              }
-            }
-          } catch (_) {}
-        }
-      }
-
-      if (active) {
-        requestAnimationFrame(scanFrame);
-      }
-    };
-
-    const animId = requestAnimationFrame(scanFrame);
-
-    return () => {
-      active = false;
-      cancelAnimationFrame(animId);
-    };
-  }, [isCameraActive, isSending, sessionId, branchId]);
-
-  return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
-
   // Truyền mã vạch quét được sang Web POS máy tính
   const transmitBarcode = async (rawCode: string, medLabel?: string) => {
     if (!rawCode || !rawCode.trim()) return;
@@ -274,7 +164,115 @@ export function MobilePosScanner() {
     }
   };
 
+  // 1. Hook khởi động Camera điện thoại (Độc lập ở top-level)
+  useEffect(() => {
+    let stream: MediaStream | null = null;
 
+    const startCamera = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setCameraError(
+            "Trình duyệt không hỗ trợ truy cập camera trực tiếp. Vui lòng cấp quyền hoặc nhập mã thủ công."
+          );
+          return;
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          setIsCameraActive(true);
+        }
+      } catch (err: any) {
+        console.warn("Lỗi mở camera thiết bị:", err);
+        setCameraError(
+          "Không thể truy cập camera. Vui lòng đảm bảo đã cho phép quyền Camera trên điện thoại."
+        );
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  // 2. Hook tự động nhận diện và giải mã mã vạch qua HTML5 BarcodeDetector API (Độc lập ở top-level)
+  useEffect(() => {
+    if (!isCameraActive || typeof window === "undefined") return;
+
+    if (!("BarcodeDetector" in window)) {
+      setIsSupportedBarcodeDetector(false);
+      return;
+    }
+
+    let active = true;
+    let detector: any = null;
+    let lastScanTime = 0;
+
+    try {
+      detector = new (window as any).BarcodeDetector({
+        formats: [
+          "qr_code",
+          "ean_13",
+          "ean_8",
+          "code_128",
+          "code_39",
+          "upc_a",
+          "upc_e",
+        ],
+      });
+      setIsSupportedBarcodeDetector(true);
+    } catch (e) {
+      console.warn("Lỗi khởi tạo BarcodeDetector:", e);
+      setIsSupportedBarcodeDetector(false);
+      return;
+    }
+
+    const scanFrame = async () => {
+      if (!active) return;
+      const video = videoRef.current;
+
+      if (
+        video &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        detector &&
+        !isSending
+      ) {
+        const now = Date.now();
+        // Giãn cách 1500ms chống bắn lặp dồn dập
+        if (now - lastScanTime > 1500) {
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes && barcodes.length > 0) {
+              const detected = barcodes[0].rawValue;
+              if (detected && detected.trim()) {
+                lastScanTime = now;
+                setLastDetectedBarcode(detected.trim());
+                await transmitBarcode(detected.trim());
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (active) {
+        requestAnimationFrame(scanFrame);
+      }
+    };
+
+    const animId = requestAnimationFrame(scanFrame);
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(animId);
+    };
+  }, [isCameraActive, isSending, sessionId, branchId]);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-white font-sans">

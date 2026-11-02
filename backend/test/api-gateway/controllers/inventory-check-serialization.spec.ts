@@ -110,3 +110,4 @@ describe('InventoryCheckController - Serialization & Plain Object Protection', (
     });
   });
 });
+
