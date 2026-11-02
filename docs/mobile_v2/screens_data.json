@@ -348,6 +348,42 @@
     "pageHeight": 915
   },
   {
+    "id": "customer_med_detail_screen",
+    "name": "Chi Tiết Dược Phẩm (Medicine Detail Screen)",
+    "category": "3. Khách hàng & Mua sắm",
+    "description": "Màn hình chi tiết thuốc chuyên sâu: hoạt chất, quy cách, tương tác thuốc, đơn vị Hộp/Vỉ/Viên và nút tư vấn Dược sĩ",
+    "url": "/?screen=MedicineDetailScreen",
+    "role": "customer",
+    "hasFullPage": true,
+    "phoneImage": "customer_med_detail_screen_phone.png",
+    "fullImage": "customer_med_detail_screen_fullpage.png",
+    "pageHeight": 1200
+  },
+  {
+    "id": "customer_health_passport_modal",
+    "name": "Sổ Sức Khỏe Số QR (Digital Health Passport)",
+    "category": "3. Khách hàng & Mua sắm",
+    "description": "Sổ sức khỏe điện tử cá nhân hóa: mã QR y tế, nhóm máu, tiền sử dị ứng thuốc và ghi chú bệnh mãn tính",
+    "url": "/?screen=CustomerScreen&modal=passport",
+    "role": "customer",
+    "hasFullPage": false,
+    "phoneImage": "customer_health_passport_phone.png",
+    "fullImage": "customer_health_passport_phone.png",
+    "pageHeight": 915
+  },
+  {
+    "id": "customer_product_review",
+    "name": "Đánh Giá Sản Phẩm & Dược Sĩ (Product Review)",
+    "category": "3. Khách hàng & Mua sắm",
+    "description": "Màn hình đánh giá trải nghiệm sản phẩm thuốc, xếp hạng sao, chọn tag nhận xét và tải ảnh thực tế",
+    "url": "/?screen=ProductReviewScreen",
+    "role": "customer",
+    "hasFullPage": true,
+    "phoneImage": "customer_product_review_phone.png",
+    "fullImage": "customer_product_review_phone.png",
+    "pageHeight": 915
+  },
+  {
     "id": "pharmacist_pos_main",
     "name": "Quầy Bán Hàng Dược Sĩ POS (Pharmacist Desk)",
     "category": "4. Dược sĩ POS & Quầy",
@@ -603,12 +639,24 @@
     "id": "warehouse_expiration_tab",
     "name": "Cảnh Báo Thuốc Cận Hạn Sử Dụng (Expiration)",
     "category": "5. Quản lý Kho Dược GSP",
-    "description": "Hệ thống lọc tự động danh sách thuốc hết hạn trong 30, 60, 90 ngày để ưu tiên xuất theo FEFO",
+    "description": "Hệ thống lọc tự động danh sách thuốc hết hạn trong 30, 60, 90 ngày để ưu tiên xuất theo FEFO với bố cục Grid 2 cột",
     "url": "/?screen=WarehouseScreen&tab=EXPIRATION",
     "role": "warehouse",
     "hasFullPage": true,
     "phoneImage": "warehouse_expiration_tab_phone.png",
     "fullImage": "warehouse_expiration_tab_phone.png",
+    "pageHeight": 915
+  },
+  {
+    "id": "warehouse_exp_detail_modal",
+    "name": "Modal: Chi Tiết Dược Phẩm Cận Hạn & Điều Phối FEFO",
+    "category": "5. Quản lý Kho Dược GSP",
+    "description": "Chi tiết dược lý, số lô, hạn dùng, vị trí kệ lưu kho và khuyến nghị điều phối FEFO chuẩn GSP",
+    "url": "/?screen=WarehouseScreen&modal=exp_detail",
+    "role": "warehouse",
+    "hasFullPage": true,
+    "phoneImage": "warehouse_exp_detail_modal_phone.png",
+    "fullImage": "warehouse_exp_detail_modal_phone.png",
     "pageHeight": 915
   },
   {

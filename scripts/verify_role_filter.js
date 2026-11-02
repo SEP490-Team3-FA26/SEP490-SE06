@@ -41,15 +41,20 @@ const path = require('path');
   await page.screenshot({ path: 'docs/mobile_v2/verified_role_filter_grid_all.png' });
   console.log('📸 Đã lưu verified_role_filter_grid_all.png');
 
+  const fs = require('fs');
+  const screensData = JSON.parse(fs.readFileSync('docs/mobile_v2/screens_data.json', 'utf8'));
+  const expectedPharmacist = screensData.filter(s => s.role === 'pharmacist').length;
+  const expectedWarehouse = screensData.filter(s => s.role === 'warehouse').length;
+
   // 4. Lọc vai trò Dược Sĩ (Pharmacist)
   console.log('💊 Nhấp chọn bộ lọc Dược Sĩ POS (pharmacist)...');
   await page.click('.role-pill[data-role="pharmacist"]');
   await page.waitForTimeout(500);
 
   const pharmacistCards = await page.$$('.grid-card');
-  console.log(`✅ Số lượng thẻ hiển thị cho Dược Sĩ: ${pharmacistCards.length} (Kỳ vọng: 16)`);
-  if (pharmacistCards.length !== 16) {
-    throw new Error(`❌ Kỳ vọng 16 thẻ dược sĩ nhưng có ${pharmacistCards.length}!`);
+  console.log(`✅ Số lượng thẻ hiển thị cho Dược Sĩ: ${pharmacistCards.length} (Kỳ vọng: ${expectedPharmacist})`);
+  if (pharmacistCards.length !== expectedPharmacist) {
+    throw new Error(`❌ Kỳ vọng ${expectedPharmacist} thẻ dược sĩ nhưng có ${pharmacistCards.length}!`);
   }
 
   await page.screenshot({ path: 'docs/mobile_v2/verified_role_filter_grid_pharmacist.png' });
@@ -61,9 +66,9 @@ const path = require('path');
   await page.waitForTimeout(500);
 
   const warehouseCards = await page.$$('.grid-card');
-  console.log(`✅ Số lượng thẻ hiển thị cho Thủ Kho: ${warehouseCards.length} (Kỳ vọng: 12)`);
-  if (warehouseCards.length !== 12) {
-    throw new Error(`❌ Kỳ vọng 12 thẻ thủ kho nhưng có ${warehouseCards.length}!`);
+  console.log(`✅ Số lượng thẻ hiển thị cho Thủ Kho: ${warehouseCards.length} (Kỳ vọng: ${expectedWarehouse})`);
+  if (warehouseCards.length !== expectedWarehouse) {
+    throw new Error(`❌ Kỳ vọng ${expectedWarehouse} thẻ thủ kho nhưng có ${warehouseCards.length}!`);
   }
 
   await page.screenshot({ path: 'docs/mobile_v2/verified_role_filter_grid_warehouse.png' });
@@ -75,9 +80,9 @@ const path = require('path');
   await page.waitForTimeout(500);
 
   const allCards = await page.$$('.grid-card');
-  console.log(`✅ Số lượng thẻ hiển thị khi chọn Tất cả: ${allCards.length} (Kỳ vọng: 70)`);
-  if (allCards.length !== 70) {
-    throw new Error(`❌ Kỳ vọng 70 thẻ nhưng có ${allCards.length}!`);
+  console.log(`✅ Số lượng thẻ hiển thị khi chọn Tất cả: ${allCards.length} (Kỳ vọng: ${screensData.length})`);
+  if (allCards.length !== screensData.length) {
+    throw new Error(`❌ Kỳ vọng ${screensData.length} thẻ nhưng có ${allCards.length}!`);
   }
 
   // 7. Nhấp vào 1 card để mở chế độ Sân Khấu (Stage View)

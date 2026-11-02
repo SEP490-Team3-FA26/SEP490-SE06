@@ -99,7 +99,7 @@ const htmlContent = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ABC PHARMACY - 68 Màn Hình Mobile & Showcase Card Sản Phẩm v2.0 (Auth Blue)</title>
+  <title>ABC PHARMACY - ${screens.length} Màn Hình Mobile & Showcase Card Sản Phẩm v2.0 (Auth Blue)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -927,10 +927,10 @@ const htmlContent = `<!DOCTYPE html>
     .grid-card-order-tag {
       position: absolute;
       top: 10px;
-      left: 10px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #94A3B8;
+      right: 12px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38BDF8;
       font-size: 10px;
       font-family: 'JetBrains Mono', monospace;
       font-weight: 700;
@@ -938,6 +938,7 @@ const htmlContent = `<!DOCTYPE html>
       border-radius: 12px;
       backdrop-filter: blur(8px);
       z-index: 2;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
 
     .grid-card-header-tags {
@@ -1445,10 +1446,10 @@ const htmlContent = `<!DOCTYPE html>
   <!-- WORKSPACE -->
   <div class="main-container">
 
-    <!-- SIDEBAR 70 MÀN HÌNH (MỞ RA / MỞ VÔ) -->
+    <!-- SIDEBAR MÀN HÌNH (MỞ RA / MỞ VÔ) -->
     <aside class="sidebar" id="sidebarContainer">
       <div class="sidebar-header-box">
-        <input type="text" class="search-box" id="screenSearchInput" placeholder="Tìm kiếm trong 70 màn hình..." oninput="handleSearch(this.value)">
+        <input type="text" class="search-box" id="screenSearchInput" placeholder="Tìm kiếm trong ${screens.length} màn hình..." oninput="handleSearch(this.value)">
         <button class="btn-close-sidebar" onclick="toggleSidebar()" title="Đóng Menu (Phím [)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"></polyline></svg>
         </button>
@@ -1457,7 +1458,7 @@ const htmlContent = `<!DOCTYPE html>
         <!-- Render mini-pills qua JS -->
       </div>
       <div class="screen-list" id="screenListContainer">
-        <!-- Render danh sách 70 màn hình bằng JavaScript -->
+        <!-- Render danh sách màn hình bằng JavaScript -->
       </div>
     </aside>
 
@@ -1467,11 +1468,11 @@ const htmlContent = `<!DOCTYPE html>
       <!-- NÚT NỔI FLOATING ĐỂ MỞ LẠI SIDEBAR KHI ĐANG COLLAPSED -->
       <button class="floating-open-sidebar-btn" id="floatingSidebarToggle" onclick="toggleSidebar()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-        <span>Mở Menu 70 Màn Hình</span>
+        <span>Mở Menu ${screens.length} Màn Hình</span>
       </button>
 
       <!-- ============================================================== -->
-      <!-- TAB 1: TOÀN BỘ 70 MÀN HÌNH & MODAL                            -->
+      <!-- TAB 1: TOÀN BỘ ${screens.length} MÀN HÌNH & MODAL                            -->
       <!-- ============================================================== -->
       <div id="tab-all-screens" class="view-tab-content active">
         <!-- ROLE FILTER BAR (PHÂN LOẠI THEO VAI TRÒ) -->
@@ -1786,7 +1787,7 @@ const htmlContent = `<!DOCTYPE html>
     </button>
     <div class="presenter-info">
       <div class="presenter-screen-title" id="presenterTitle">${screens[0].name}</div>
-      <div class="presenter-screen-counter" id="presenterCounter">1 / 68 • Bấm Phím ← / → để chuyển</div>
+      <div class="presenter-screen-counter" id="presenterCounter">1 / ${screens.length} • Bấm Phím ← / → để chuyển</div>
     </div>
     <button class="presenter-btn" onclick="nextScreen()" title="Màn hình kế tiếp (Phím →)">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>

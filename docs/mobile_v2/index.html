@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ABC PHARMACY - 68 Màn Hình Mobile & Showcase Card Sản Phẩm v2.0 (Auth Blue)</title>
+  <title>ABC PHARMACY - 74 Màn Hình Mobile & Showcase Card Sản Phẩm v2.0 (Auth Blue)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -831,10 +831,10 @@
     .grid-card-order-tag {
       position: absolute;
       top: 10px;
-      left: 10px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #94A3B8;
+      right: 12px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38BDF8;
       font-size: 10px;
       font-family: 'JetBrains Mono', monospace;
       font-weight: 700;
@@ -842,6 +842,7 @@
       border-radius: 12px;
       backdrop-filter: blur(8px);
       z-index: 2;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
 
     .grid-card-header-tags {
@@ -1290,7 +1291,7 @@
           <line x1="3" y1="6" x2="21" y2="6"></line>
           <line x1="3" y1="18" x2="21" y2="18"></line>
         </svg>
-        <span id="sidebarToggleLabel">☰ Menu 70 Màn</span>
+        <span id="sidebarToggleLabel">☰ Menu 74 Màn</span>
       </button>
 
       <div class="brand-logo">
@@ -1310,7 +1311,7 @@
     <nav class="topbar-nav">
       <button class="nav-btn active" onclick="switchTab('all-screens')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M12 18h.01"/></svg>
-        70 Màn Hình & Modal
+        74 Màn Hình & Modal
       </button>
       <button class="nav-btn" onclick="switchTab('redesign')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -1338,7 +1339,7 @@
         <span>📐 Cuộn Phone</span>
       </button>
       <button class="btn-pill" id="btn-toggle-grid" onclick="toggleGridMode()">
-        <span>🔲 Lưới Figma (70 Màn)</span>
+        <span>🔲 Lưới Figma (74 Màn)</span>
       </button>
       <button class="btn-pill" id="btnToggleDrawer" onclick="toggleDrawer()" title="Ẩn/Hiện Bảng Chi Tiết & Góp Ý">
         <span>ℹ️ Chi Tiết</span>
@@ -1349,10 +1350,10 @@
   <!-- WORKSPACE -->
   <div class="main-container">
 
-    <!-- SIDEBAR 70 MÀN HÌNH (MỞ RA / MỞ VÔ) -->
+    <!-- SIDEBAR MÀN HÌNH (MỞ RA / MỞ VÔ) -->
     <aside class="sidebar" id="sidebarContainer">
       <div class="sidebar-header-box">
-        <input type="text" class="search-box" id="screenSearchInput" placeholder="Tìm kiếm trong 70 màn hình..." oninput="handleSearch(this.value)">
+        <input type="text" class="search-box" id="screenSearchInput" placeholder="Tìm kiếm trong 74 màn hình..." oninput="handleSearch(this.value)">
         <button class="btn-close-sidebar" onclick="toggleSidebar()" title="Đóng Menu (Phím [)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"></polyline></svg>
         </button>
@@ -1361,7 +1362,7 @@
         <!-- Render mini-pills qua JS -->
       </div>
       <div class="screen-list" id="screenListContainer">
-        <!-- Render danh sách 70 màn hình bằng JavaScript -->
+        <!-- Render danh sách màn hình bằng JavaScript -->
       </div>
     </aside>
 
@@ -1371,11 +1372,11 @@
       <!-- NÚT NỔI FLOATING ĐỂ MỞ LẠI SIDEBAR KHI ĐANG COLLAPSED -->
       <button class="floating-open-sidebar-btn" id="floatingSidebarToggle" onclick="toggleSidebar()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-        <span>Mở Menu 70 Màn Hình</span>
+        <span>Mở Menu 74 Màn Hình</span>
       </button>
 
       <!-- ============================================================== -->
-      <!-- TAB 1: TOÀN BỘ 70 MÀN HÌNH & MODAL                            -->
+      <!-- TAB 1: TOÀN BỘ 74 MÀN HÌNH & MODAL                            -->
       <!-- ============================================================== -->
       <div id="tab-all-screens" class="view-tab-content active">
         <!-- ROLE FILTER BAR (PHÂN LOẠI THEO VAI TRÒ) -->
@@ -1388,7 +1389,7 @@
             <!-- Render các pill tự động qua JavaScript -->
           </div>
           <div class="role-filter-summary" id="roleFilterSummary">
-            <span>Hiển thị: </span><strong id="roleDisplayCount">70 / 70</strong>
+            <span>Hiển thị: </span><strong id="roleDisplayCount">74 / 74</strong>
           </div>
         </div>
 
@@ -1870,7 +1871,7 @@
     </button>
     <div class="presenter-info">
       <div class="presenter-screen-title" id="presenterTitle">Màn Hình Mở Đầu (Splash Screen)</div>
-      <div class="presenter-screen-counter" id="presenterCounter">1 / 68 • Bấm Phím ← / → để chuyển</div>
+      <div class="presenter-screen-counter" id="presenterCounter">1 / 74 • Bấm Phím ← / → để chuyển</div>
     </div>
     <button class="presenter-btn" onclick="nextScreen()" title="Màn hình kế tiếp (Phím →)">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -1883,7 +1884,7 @@
   <!-- STATUS FOOTER -->
   <footer class="status-bar-bottom">
     <div>
-      <span style="color: #38BDF8; font-weight: 700;">● ABC PHARMACY MOBILE v2.0</span> — Toàn bộ 70 Màn Hình & Modal • Tone Xanh Auth #0284C7
+      <span style="color: #38BDF8; font-weight: 700;">● ABC PHARMACY MOBILE v2.0</span> — Toàn bộ 74 Màn Hình & Modal • Tone Xanh Auth #0284C7
     </div>
     <div style="font-family: monospace; font-size: 11px;">
       Phím tắt: [ hoặc Ctrl+B (Ẩn/Hiện Menu) • Phím ← / → (Chuyển Màn) • Esc (Thoát)
@@ -2241,6 +2242,42 @@
     "pageHeight": 915
   },
   {
+    "id": "customer_med_detail_screen",
+    "name": "Chi Tiết Dược Phẩm (Medicine Detail Screen)",
+    "category": "3. Khách hàng & Mua sắm",
+    "description": "Màn hình chi tiết thuốc chuyên sâu: hoạt chất, quy cách, tương tác thuốc, đơn vị Hộp/Vỉ/Viên và nút tư vấn Dược sĩ",
+    "url": "/?screen=MedicineDetailScreen",
+    "role": "customer",
+    "hasFullPage": true,
+    "phoneImage": "customer_med_detail_screen_phone.png",
+    "fullImage": "customer_med_detail_screen_fullpage.png",
+    "pageHeight": 1200
+  },
+  {
+    "id": "customer_health_passport_modal",
+    "name": "Sổ Sức Khỏe Số QR (Digital Health Passport)",
+    "category": "3. Khách hàng & Mua sắm",
+    "description": "Sổ sức khỏe điện tử cá nhân hóa: mã QR y tế, nhóm máu, tiền sử dị ứng thuốc và ghi chú bệnh mãn tính",
+    "url": "/?screen=CustomerScreen&modal=passport",
+    "role": "customer",
+    "hasFullPage": false,
+    "phoneImage": "customer_health_passport_phone.png",
+    "fullImage": "customer_health_passport_phone.png",
+    "pageHeight": 915
+  },
+  {
+    "id": "customer_product_review",
+    "name": "Đánh Giá Sản Phẩm & Dược Sĩ (Product Review)",
+    "category": "3. Khách hàng & Mua sắm",
+    "description": "Màn hình đánh giá trải nghiệm sản phẩm thuốc, xếp hạng sao, chọn tag nhận xét và tải ảnh thực tế",
+    "url": "/?screen=ProductReviewScreen",
+    "role": "customer",
+    "hasFullPage": true,
+    "phoneImage": "customer_product_review_phone.png",
+    "fullImage": "customer_product_review_phone.png",
+    "pageHeight": 915
+  },
+  {
     "id": "pharmacist_pos_main",
     "name": "Quầy Bán Hàng Dược Sĩ POS (Pharmacist Desk)",
     "category": "4. Dược sĩ POS & Quầy",
@@ -2496,12 +2533,24 @@
     "id": "warehouse_expiration_tab",
     "name": "Cảnh Báo Thuốc Cận Hạn Sử Dụng (Expiration)",
     "category": "5. Quản lý Kho Dược GSP",
-    "description": "Hệ thống lọc tự động danh sách thuốc hết hạn trong 30, 60, 90 ngày để ưu tiên xuất theo FEFO",
+    "description": "Hệ thống lọc tự động danh sách thuốc hết hạn trong 30, 60, 90 ngày để ưu tiên xuất theo FEFO với bố cục Grid 2 cột",
     "url": "/?screen=WarehouseScreen&tab=EXPIRATION",
     "role": "warehouse",
     "hasFullPage": true,
     "phoneImage": "warehouse_expiration_tab_phone.png",
     "fullImage": "warehouse_expiration_tab_phone.png",
+    "pageHeight": 915
+  },
+  {
+    "id": "warehouse_exp_detail_modal",
+    "name": "Modal: Chi Tiết Dược Phẩm Cận Hạn & Điều Phối FEFO",
+    "category": "5. Quản lý Kho Dược GSP",
+    "description": "Chi tiết dược lý, số lô, hạn dùng, vị trí kệ lưu kho và khuyến nghị điều phối FEFO chuẩn GSP",
+    "url": "/?screen=WarehouseScreen&modal=exp_detail",
+    "role": "warehouse",
+    "hasFullPage": true,
+    "phoneImage": "warehouse_exp_detail_modal_phone.png",
+    "fullImage": "warehouse_exp_detail_modal_phone.png",
     "pageHeight": 915
   },
   {

@@ -35,12 +35,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
 
       - name: 📦 Install Backend Dependencies
         working-directory: backend
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: 🏗️ Typecheck & Build Verification (Fast Fail)
         working-directory: backend
