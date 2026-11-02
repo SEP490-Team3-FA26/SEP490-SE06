@@ -81,7 +81,7 @@ export class NewsletterCronService implements OnModuleInit {
         }
       },
       {
-        // Múi giờ Việt Nam — Server Cloud (AWS/Railway/Render) thường chạy UTC
+        // Múi giờ Việt Nam — VPS / Server Cloud thường chạy UTC
         // Cần cấu hình rõ ràng để scheduledAt 08:00 SA là đúng 08:00 SA giờ VN
         timezone: 'Asia/Ho_Chi_Minh',
       },

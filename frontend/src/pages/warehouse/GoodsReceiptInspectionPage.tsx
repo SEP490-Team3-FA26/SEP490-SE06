@@ -423,7 +423,7 @@ export function GoodsReceiptInspectionPage() {
             type="button"
             onClick={handleCompleteAndCreateGrn}
             disabled={isSubmitting}
-            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="px-5 py-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -446,8 +446,8 @@ export function GoodsReceiptInspectionPage() {
         <div className="lg:col-span-5 bg-slate-950 text-white rounded-3xl p-5 border border-slate-800 shadow-2xl flex flex-col justify-between space-y-4">
           {/* Header trong hộp scanner */}
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-2 bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 px-3 py-1 rounded-full text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span className="inline-flex items-center gap-2 bg-sky-950/80 text-sky-400 border border-sky-800/80 px-3 py-1 rounded-full text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
               Camera Barcode Scanner Live
             </span>
             <span className="text-[11px] font-mono text-slate-400 font-semibold tracking-wider">
@@ -500,7 +500,7 @@ export function GoodsReceiptInspectionPage() {
             </div>
             <div className="text-xs font-bold text-white flex items-center gap-1.5">
               <span>Khớp sản phẩm:</span>
-              <span className="text-emerald-400">{lastScanned.medicineName}</span>
+              <span className="text-sky-400">{lastScanned.medicineName}</span>
             </div>
             <div className="text-[11px] text-slate-300 font-mono">
               Lô: <span className="text-amber-300 font-bold">{lastScanned.batchNo}</span> | HSD:{" "}
@@ -510,8 +510,8 @@ export function GoodsReceiptInspectionPage() {
 
           {/* Footer thông số IoT & Thiết bị phần cứng */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80 gap-2">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <div className="flex items-center gap-1.5 text-sky-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-sky-400" />
               Điều kiện nhiệt độ xe lạnh: 21.4°C
             </div>
             <div className="text-slate-400 font-medium">
@@ -571,10 +571,10 @@ export function GoodsReceiptInspectionPage() {
               <button
                 type="button"
                 onClick={handleScanAllFull}
-                className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 title="Tự động nghiệm thu đủ 100% tất cả các mặt hàng phục vụ buổi demo"
               >
-                <Sparkles size={13} className="text-emerald-600" />
+                <Sparkles size={13} className="text-sky-600" />
                 <span>Nghiệm Thu Đủ Hàng (+All)</span>
               </button>
 
@@ -591,7 +591,7 @@ export function GoodsReceiptInspectionPage() {
             <div
               className={`h-full transition-all duration-500 ${
                 Number(progressPercent) >= 100
-                  ? "bg-emerald-500"
+                  ? "bg-sky-500"
                   : "bg-gradient-to-r from-blue-500 to-cyan-500"
               }`}
               style={{ width: `${progressPercent}%` }}
@@ -688,7 +688,7 @@ export function GoodsReceiptInspectionPage() {
                           </button>
                         </div>
                         <div className="flex items-center justify-center gap-1 mt-1">
-                          <span className={`text-[10px] font-bold ${isDone ? "text-emerald-700" : "text-amber-700"}`}>
+                          <span className={`text-[10px] font-bold ${isDone ? "text-sky-700" : "text-amber-700"}`}>
                             {item.scannedQty} / {targetQty}
                           </span>
                           {!isDone && (
@@ -717,7 +717,7 @@ export function GoodsReceiptInspectionPage() {
                       </td>
                       <td className="py-3.5 px-3.5 text-right">
                         {isDone ? (
-                          <span className="inline-flex items-center gap-1 bg-emerald-100/90 text-emerald-800 font-black px-2.5 py-1 rounded-lg text-[10px]">
+                          <span className="inline-flex items-center gap-1 bg-sky-100/90 text-sky-800 font-black px-2.5 py-1 rounded-lg text-[10px]">
                             <CheckCircle2 size={12} />
                             ĐỦ HÀNG
                           </span>
@@ -737,7 +737,7 @@ export function GoodsReceiptInspectionPage() {
 
           {/* Ghi Chú Y Tế & Tiêu Chuẩn GSP/GDP */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex items-start gap-3">
-            <ShieldCheck size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+            <ShieldCheck size={20} className="text-sky-600 shrink-0 mt-0.5" />
             <div className="text-xs text-slate-600 space-y-1">
               <p className="font-bold text-slate-800">
                 Quy Trình Nghiệm Thu Nhập Kho Chuẩn GSP & GDP (Thông tư 36/2018/TT-BYT):
@@ -812,7 +812,7 @@ export function GoodsReceiptInspectionPage() {
                   }}
                   className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  {copiedLink ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                  {copiedLink ? <Check size={14} className="text-sky-600" /> : <Copy size={14} />}
                   {copiedLink ? "Đã Sao Chép!" : "Sao Chép Link"}
                 </button>
                 <button
@@ -844,14 +844,14 @@ export function GoodsReceiptInspectionPage() {
                   ? "bg-amber-950/95 text-amber-100 border-amber-800"
                   : t.type === "info"
                   ? "bg-blue-950/95 text-blue-100 border-blue-800"
-                  : "bg-emerald-950/95 text-emerald-100 border-emerald-800"
+                  : "bg-sky-950/95 text-sky-100 border-sky-800"
               }`}
             >
               <div className="shrink-0 mt-0.5">
                 {t.type === "error" && <AlertCircle size={18} className="text-rose-400" />}
                 {t.type === "warning" && <AlertTriangle size={18} className="text-amber-400" />}
                 {t.type === "info" && <Info size={18} className="text-blue-400" />}
-                {t.type === "success" && <CheckCircle2 size={18} className="text-emerald-400" />}
+                {t.type === "success" && <CheckCircle2 size={18} className="text-sky-400" />}
               </div>
               <div className="flex-1 text-xs font-semibold leading-relaxed">
                 {t.message}

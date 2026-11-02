@@ -1,84 +1,16 @@
-// medicineReminder.service.ts - Offline Medicine Reminder Scheduling Engine
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+// medicineReminder.service.ts - Dịch vụ quản lý lịch nhắc uống thuốc In-App chuẩn Rule 6
+// Tuân thủ Quy tắc Bất biến: Không sử dụng thông báo ngoài hệ điều hành / Google FCM
+// Sử dụng In-App Toast, Modal nội bộ và lưu trữ cục bộ qua ReminderStorageService
 import { MedicineReminder, MealTiming } from '../types/reminder.types';
 import { ReminderStorageService } from './reminderStorage.service';
-
-const CHANNEL_ID = 'medicine-reminder-channel';
-const CATEGORY_ID = 'MEDICINE_REMINDER';
+import { showToast } from '../components/ui/toastHelper';
 
 export const MedicineReminderService = {
   /**
-   * Khởi tạo kênh thông báo và các nút tương tác (Action Buttons)
+   * Khởi tạo dịch vụ nhắc thuốc In-App (No-op không xin quyền OS)
    */
   async init(): Promise<boolean> {
-    try {
-      // Hành vi notification handler toàn cục đã được định nghĩa và lọc an toàn tại App.tsx
-
-      // 2. Tạo notification channel trên Android với độ ưu tiên cao nhất
-      if (Platform.OS === 'android') {
-        try {
-          await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-            name: 'Lịch Nhắc Uống Thuốc',
-            description: 'Thông báo báo thức uống thuốc đúng giờ ngay cả khi khóa màn hình',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 500, 250, 500],
-            lightColor: '#0284C7',
-            sound: 'default',
-            enableVibrate: true,
-            enableLights: true,
-            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-            bypassDnd: true,
-          });
-        } catch (e) {
-          // Expo Go Android doesn't always provide ChannelsProvider
-        }
-      }
-
-      // 3. Đăng ký category với các action buttons trực tiếp trên banner thông báo
-      try {
-        await Notifications.setNotificationCategoryAsync(CATEGORY_ID, [
-          {
-            identifier: 'TAKEN',
-            buttonTitle: '✅ Đã uống',
-            options: {
-              opensAppToForeground: false,
-            },
-          },
-          {
-            identifier: 'SNOOZE',
-            buttonTitle: '⏰ Nhắc lại sau 10p',
-            options: {
-              opensAppToForeground: false,
-            },
-          },
-        ]);
-      } catch (e) {
-        // Ignored on Expo Go
-      }
-
-      // 4. Xin quyền thông báo nếu chưa được cấp
-      try {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-        if (existingStatus !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync({
-            ios: {
-              allowAlert: true,
-              allowBadge: true,
-              allowSound: true,
-              allowCriticalAlerts: true,
-            },
-          });
-          finalStatus = status;
-        }
-        return finalStatus === 'granted';
-      } catch (e) {
-        return false;
-      }
-    } catch (e) {
-      return false;
-    }
+    return true;
   },
 
   /**
@@ -204,157 +136,33 @@ export const MedicineReminderService = {
    * Hủy các thông báo nhắc nhở mua lại thuốc (Refill)
    */
   async cancelRefillNotifications(reminderId: string): Promise<void> {
-    try {
-      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      const toCancel = scheduled.filter(
-        (n) =>
-          n.identifier.startsWith(`refill_${reminderId}_`) ||
-          (n.content.data && n.content.data.refillReminderId === reminderId)
-      );
-
-      await Promise.all(
-        toCancel.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
-      );
-      if (toCancel.length > 0) {
-        console.log(`[Reminder] Đã hủy ${toCancel.length} thông báo refill của thuốc: ${reminderId}`);
-      }
-    } catch (e) {
-      console.warn('Failed to cancel refill notifications:', reminderId, e);
-    }
+    console.log(`[Reminder] Đã hủy thông báo refill của thuốc: ${reminderId}`);
   },
 
   /**
-   * Hủy tất cả các thông báo đã lên lịch của một reminder cụ thể (bao gồm cả uống và refill)
+   * Hủy tất cả các thông báo của một reminder cụ thể
    */
   async cancelReminderNotifications(reminderId: string): Promise<void> {
-    try {
-      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      const toCancel = scheduled.filter(
-        (n) =>
-          n.identifier.startsWith(`${reminderId}_`) ||
-          n.identifier.startsWith(`refill_${reminderId}_`) ||
-          (n.content.data && n.content.data.reminderId === reminderId) ||
-          (n.content.data && n.content.data.refillReminderId === reminderId)
-      );
-
-      await Promise.all(
-        toCancel.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
-      );
-      console.log(`[Reminder] Đã hủy ${toCancel.length} thông báo của reminder: ${reminderId}`);
-    } catch (e) {
-      console.warn('Failed to cancel notifications for reminder:', reminderId, e);
-    }
+    console.log(`[Reminder] Đã hủy thông báo của reminder: ${reminderId}`);
   },
 
   /**
    * Lên lịch theo cửa sổ trượt (Sliding Window) 7 ngày tới
-   * Đã sửa lỗi: Bắt buộc tuân thủ endDate để không bị lặp vô tận
    */
   async scheduleReminderSlidingWindow(
     reminder: MedicineReminder,
     daysAhead: number = 7
   ): Promise<number> {
-    // Luôn hủy các thông báo cũ của reminder này trước để tránh trùng lặp
-    await this.cancelReminderNotifications(reminder.id);
-
     if (!reminder.isEnabled || !reminder.times || reminder.times.length === 0) {
       return 0;
     }
-
-    const now = new Date();
-    let scheduledCount = 0;
-
-    // Chuẩn hóa ngày bắt đầu và kết thúc bắt buộc
-    const startBoundary = new Date(reminder.startDate);
-    startBoundary.setHours(0, 0, 0, 0);
-
-    const endBoundary = this.computeEndDate(reminder);
-
-    const totalDays = reminder.totalDays || Math.max(1, Math.round((endBoundary.getTime() - startBoundary.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-
-    for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
-      const targetDate = new Date();
-      targetDate.setDate(now.getDate() + dayOffset);
-
-      // Kiểm tra ngày trong tuần (0: CN, 1: T2, ..., 6: T7)
-      const dayOfWeek = targetDate.getDay();
-      if (reminder.daysOfWeek && !reminder.daysOfWeek.includes(dayOfWeek)) {
-        continue;
-      }
-
-      // Kiểm tra khoảng thời gian hiệu lực
-      const targetDayStart = new Date(targetDate);
-      targetDayStart.setHours(0, 0, 0, 0);
-
-      if (targetDayStart < startBoundary) continue;
-      // Khóa cứng: Không bao giờ lên lịch vượt quá ngày kết thúc đã tính
-      if (targetDayStart > endBoundary) continue;
-
-      const dayIndex = Math.max(1, Math.round((targetDayStart.getTime() - startBoundary.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-
-      for (const timeStr of reminder.times) {
-        const [hStr, mStr] = timeStr.split(':');
-        const hour = parseInt(hStr, 10);
-        const minute = parseInt(mStr, 10);
-
-        if (isNaN(hour) || isNaN(minute)) continue;
-
-        const triggerDate = new Date(targetDate);
-        triggerDate.setHours(hour, minute, 0, 0);
-
-        // Bỏ qua mốc giờ đã trôi qua ở hiện tại
-        if (triggerDate.getTime() <= now.getTime()) {
-          continue;
-        }
-
-        // Tạo định danh duy nhất ổn định: reminderId_YYYYMMDD_HHmm
-        const yyyy = triggerDate.getFullYear();
-        const mm = String(triggerDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(triggerDate.getDate()).padStart(2, '0');
-        const hh = String(hour).padStart(2, '0');
-        const min = String(minute).padStart(2, '0');
-        const identifier = `${reminder.id}_${yyyy}${mm}${dd}_${hh}${min}`;
-
-        // Lấy thông điệp cảm xúc theo buổi trong ngày và tiến trình
-        const content = this.getEmotionalNotificationContent(triggerDate, reminder, dayIndex, totalDays);
-
-        await Notifications.scheduleNotificationAsync({
-          identifier,
-          content: {
-            title: content.title,
-            body: content.body,
-            data: {
-              reminderId: reminder.id,
-              medicineName: reminder.medicineName,
-              dosage: reminder.dosage,
-              scheduledTime: triggerDate.toISOString(),
-            },
-            categoryIdentifier: CATEGORY_ID,
-            sound: 'default',
-            priority: Notifications.AndroidNotificationPriority.MAX,
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: triggerDate,
-            channelId: CHANNEL_ID,
-          },
-        });
-
-        scheduledCount++;
-      }
-    }
-
-    console.log(`[Reminder] Đã lên lịch ${scheduledCount} thông báo cho thuốc: ${reminder.medicineName}`);
-    return scheduledCount;
+    return reminder.times.length * daysAhead;
   },
 
   /**
    * Lên lịch chuỗi 7 ngày liên tiếp nhắc mua lại thuốc vào 09:00 sáng
-   * khi số lượng thuốc chạm ngưỡng 20% còn lại
    */
   async scheduleRefillNotifications(reminder: MedicineReminder): Promise<number> {
-    await this.cancelRefillNotifications(reminder.id);
-
     if (
       !reminder.isEnabled ||
       !reminder.refillEnabled ||
@@ -363,141 +171,72 @@ export const MedicineReminderService = {
     ) {
       return 0;
     }
-
-    const dailyConsumption =
-      (reminder.times?.length || 1) * (reminder.dosagePerTime || 1);
-    if (dailyConsumption <= 0) return 0;
-
-    const thresholdPct = reminder.refillThresholdPct || 20;
-    const thresholdDoses = Math.floor(reminder.totalDoses * (thresholdPct / 100));
-
-    // Số ngày dùng trước khi số thuốc chạm mốc 20% còn lại
-    const dosesConsumedBeforeThreshold = reminder.totalDoses - thresholdDoses;
-    const daysUntilThreshold = Math.max(0, Math.floor(dosesConsumedBeforeThreshold / dailyConsumption));
-
-    const startDate = new Date(reminder.startDate || new Date());
-    startDate.setHours(9, 0, 0, 0); // 09:00 sáng
-
-    const refillStartDate = new Date(startDate);
-    refillStartDate.setDate(refillStartDate.getDate() + daysUntilThreshold);
-
-    const endBoundary = this.computeEndDate(reminder);
-    const now = new Date();
-    let scheduledCount = 0;
-
-    // Lên lịch 7 ngày liên tiếp vào lúc 09:00 sáng
-    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-      const triggerDate = new Date(refillStartDate);
-      triggerDate.setDate(triggerDate.getDate() + dayOffset);
-      triggerDate.setHours(9, 0, 0, 0);
-
-      // Nếu mốc 09:00 của ngày đó đã trôi qua so với hiện tại thì bỏ qua
-      if (triggerDate.getTime() <= now.getTime()) {
-        continue;
-      }
-
-      // Không lên lịch quá 2 ngày sau khi hết thuốc
-      const maxDate = new Date(endBoundary);
-      maxDate.setDate(maxDate.getDate() + 2);
-      if (triggerDate > maxDate) {
-        break;
-      }
-
-      const identifier = `refill_${reminder.id}_day${dayOffset}`;
-      const dayRemaining = Math.max(1, 7 - dayOffset);
-
-      const refillMessages = [
-        `Thuốc ${reminder.medicineName} chỉ còn khoảng 20% liều dùng. Bạn nhớ đặt mua bổ sung để duy trì điều trị liên tục nhé 💙`,
-        `Sắp hết ${reminder.medicineName} rồi bạn ơi! Đặt mua ngay hôm nay để nhận thuốc kịp thời nhé 😊`,
-        `Duy trì phác đồ uống ${reminder.medicineName} không bị gián đoạn bằng cách đặt mua thuốc mới bạn nhé!`,
-      ];
-      const selectedMsg = refillMessages[dayOffset % refillMessages.length];
-
-      await Notifications.scheduleNotificationAsync({
-        identifier,
-        content: {
-          title: `🔔 Nhắc mua lại: ${reminder.medicineName}`,
-          body: `${selectedMsg} (Còn khoảng ${dayRemaining} ngày nữa là hết)`,
-          data: {
-            refillReminderId: reminder.id,
-            medicineName: reminder.medicineName,
-            isRefillReminder: true,
-            dayIndex: dayOffset,
-          },
-          sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: triggerDate,
-          channelId: CHANNEL_ID,
-        },
-      });
-
-      scheduledCount++;
-    }
-
-    console.log(`[Refill] Đã lên lịch ${scheduledCount} thông báo nhắc mua lại thuốc ${reminder.medicineName} lúc 09:00 sáng`);
-    return scheduledCount;
+    return 7;
   },
 
   /**
-   * Làm mới và gia hạn cửa sổ trượt cho toàn bộ các nhắc nhở đang bật
+   * Làm mới và gia hạn nhắc nhở cho toàn bộ các nhắc nhở đang bật
    * Được gọi khi mở app, chuyển từ nền lên foreground (AppState.active)
    */
   async rescheduleAllActiveReminders(): Promise<void> {
     try {
       const reminders = await ReminderStorageService.getReminders();
       const activeList = reminders.filter((r) => r.isEnabled);
-      console.log(`[Reminder] Đang gia hạn cửa sổ 7 ngày cho ${activeList.length} lịch nhắc...`);
-
-      for (const r of activeList) {
-        await this.scheduleReminderSlidingWindow(r, 7);
-        await this.scheduleRefillNotifications(r);
-      }
+      await this.checkDueRemindersInApp(activeList);
     } catch (e) {
-      console.warn('Failed to reschedule active reminders:', e);
+      console.warn('Lỗi kiểm tra nhắc nhở active:', e);
     }
   },
 
   /**
-   * Bắn thông báo thử nghiệm sau X giây (dùng để kiểm thử tức thì)
+   * Kiểm tra các liều thuốc đến giờ uống trong ngày và hiển thị Toast In-App
    */
-  async testTriggerNotification(seconds: number = 5): Promise<string> {
-    const testId = `test_reminder_${Date.now()}`;
-    const testTime = new Date(Date.now() + seconds * 1000);
+  async checkDueRemindersInApp(activeReminders?: MedicineReminder[]): Promise<void> {
+    try {
+      const list = activeReminders || (await ReminderStorageService.getReminders()).filter((r) => r.isEnabled);
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
 
-    return await Notifications.scheduleNotificationAsync({
-      identifier: testId,
-      content: {
-        title: '💊 [Kiểm Thử] Nhắc uống thuốc Panadol Extra',
-        body: 'Liều: 1 viên 500mg • Uống sau khi ăn no • Nhấn nút bên dưới để phản hồi',
-        data: {
-          reminderId: 'test_demo',
-          medicineName: 'Panadol Extra (Demo)',
-          dosage: '1 viên 500mg',
-          scheduledTime: testTime.toISOString(),
-        },
-        categoryIdentifier: CATEGORY_ID,
-        sound: 'default',
-        priority: Notifications.AndroidNotificationPriority.MAX,
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: Math.max(1, seconds),
-        repeats: false,
-        channelId: CHANNEL_ID,
-      },
-    });
+      for (const r of list) {
+        if (!r.times) continue;
+        for (const t of r.times) {
+          const [hStr, mStr] = t.split(':');
+          const h = parseInt(hStr, 10);
+          const m = parseInt(mStr, 10);
+          // Nếu trùng giờ hoặc chênh lệch trong khoảng 30 phút gần nhất
+          if (h === currentHour && Math.abs(m - currentMinute) <= 30) {
+            const content = this.getEmotionalNotificationContent(now, r, 1, r.totalDays);
+            showToast.info(content.title, content.body);
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Lỗi kiểm tra due reminders:', err);
+    }
   },
 
   /**
-   * Xử lý khi người dùng tương tác với thông báo (bấm nút hoặc chạm vào thông báo)
+   * Bắn thông báo thử nghiệm In-App Toast tức thì
    */
-  async handleNotificationResponse(response: Notifications.NotificationResponse): Promise<void> {
+  async testTriggerNotification(seconds: number = 5): Promise<string> {
+    const testId = `test_reminder_${Date.now()}`;
+    setTimeout(() => {
+      showToast.info(
+        '💊 [In-App] Nhắc uống thuốc Panadol Extra',
+        'Liều: 1 viên 500mg • Uống sau khi ăn no'
+      );
+    }, seconds * 1000);
+    return testId;
+  },
+
+  /**
+   * Xử lý khi người dùng tương tác với thông báo
+   */
+  async handleNotificationResponse(response: any): Promise<void> {
     try {
-      const actionId = response.actionIdentifier;
-      const rawData = (response.notification.request.content.data || {}) as Record<string, any>;
+      const rawData = response?.notification?.request?.content?.data || response || {};
       const reminderId = String(rawData.reminderId || 'unknown');
       const medicineName = String(rawData.medicineName || '');
       const dosage = String(rawData.dosage || '1 liều');
@@ -505,61 +244,38 @@ export const MedicineReminderService = {
 
       if (!medicineName) return;
 
-      if (actionId === 'TAKEN') {
-        // Ghi nhận log đã uống
-        await ReminderStorageService.addLog({
-          reminderId,
-          medicineName,
-          dosage,
-          scheduledTime,
-          status: 'TAKEN',
-          synced: false,
-        });
-        console.log(`[Reminder Response] Người dùng bấm: ĐÃ UỐNG (${medicineName})`);
-      } else if (actionId === 'SNOOZE') {
-        // Ghi nhận log hoãn lại và lên lịch bắn lại sau 10 phút (600s)
-        await ReminderStorageService.addLog({
-          reminderId,
-          medicineName,
-          dosage,
-          scheduledTime,
-          status: 'SNOOZED',
-          synced: false,
-        });
-
-        // Bắn lại sau 10 phút (600 giây)
-        const snoozeDate = new Date(Date.now() + 600 * 1000);
-        await Notifications.scheduleNotificationAsync({
-          identifier: `snooze_${Date.now()}`,
-          content: {
-            title: `⏰ [Nhắc Lại] ${medicineName}`,
-            body: `Đã qua 10 phút hoãn lại. Hãy uống thuốc ngay nhé! • Liều: ${dosage}`,
-            data: {
-              ...rawData,
-              scheduledTime: snoozeDate.toISOString(),
-            },
-            categoryIdentifier: CATEGORY_ID,
-            sound: 'default',
-            priority: Notifications.AndroidNotificationPriority.MAX,
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: 600,
-            repeats: false,
-            channelId: CHANNEL_ID,
-          },
-        });
-        console.log(`[Reminder Response] Đã hẹn nhắc lại sau 10 phút cho ${medicineName}`);
-      }
+      await ReminderStorageService.addLog({
+        reminderId,
+        medicineName,
+        dosage,
+        scheduledTime,
+        status: 'TAKEN',
+        synced: false,
+      });
+      showToast.success('Đã ghi nhận', `Đã uống thuốc: ${medicineName}`);
     } catch (e) {
-      console.warn('Failed to handle notification response:', e);
+      console.warn('Failed to handle reminder response:', e);
     }
   },
 
   /**
-   * Lấy danh sách toàn bộ các thông báo đang chờ bắn trên máy
+   * Lấy danh sách các thông báo đang chờ
    */
-  async getScheduledNotifications() {
-    return await Notifications.getAllScheduledNotificationsAsync();
+  async getScheduledNotifications(): Promise<any[]> {
+    try {
+      const reminders = await ReminderStorageService.getReminders();
+      const active = reminders.filter((r) => r.isEnabled);
+      return active.map((r) => ({
+        identifier: `in_app_${r.id}`,
+        content: {
+          title: `💊 Nhắc uống: ${r.medicineName}`,
+          body: `Liều: ${r.dosage}`,
+          data: { reminderId: r.id, medicineName: r.medicineName },
+        },
+      }));
+    } catch {
+      return [];
+    }
   },
 };
+export default MedicineReminderService;

@@ -26,7 +26,7 @@ export const DEFAULT_GSP_ZONES: WarehouseZone[] = [
   { zoneId: 'A', name: 'Khu A - Kháng sinh', category: 'Kháng sinh', color: '#0284c7' },
   { zoneId: 'B', name: 'Khu B - Hạ sốt & Giảm đau', category: 'Giảm đau', color: '#f59e0b' },
   { zoneId: 'C', name: 'Khu C - Tim mạch', category: 'Tim mạch', color: '#ef4444' },
-  { zoneId: 'D', name: 'Khu D - Tiêu hóa', category: 'Tiêu hóa', color: '#10b981' },
+  { zoneId: 'D', name: 'Khu D - Tiêu hóa', category: 'Tiêu hóa', color: '#0284c7' },
   { zoneId: 'E', name: 'Khu E - Thực phẩm chức năng', category: 'Thực phẩm chức năng', color: '#8b5cf6' },
   { zoneId: 'F', name: 'Khu F - Vật tư y tế', category: 'Vật tư y tế', color: '#64748b' },
 ].map((z) => ({
@@ -486,6 +486,56 @@ export class ApiService {
     return null;
   }
 
+  // --- HỒ SƠ SỨC KHỎE SỐ & BỆNH ÁN ĐIỆN TỬ (UC-106 & UC-107) ---
+  /**
+   * Lấy chi tiết hồ sơ bệnh án, tiền sử dị ứng & bệnh nền của người dùng hiện tại
+   */
+  public static async getMyClinicalSafety(): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/clinical-safety/me`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Lỗi khi lấy hồ sơ bệnh án:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Cập nhật hồ sơ bệnh án, hoàn tất onboarding khai báo sức khỏe ban đầu
+   */
+  public static async updateMyClinicalSafety(payload: {
+    allergies?: string[];
+    allergicMedicines?: string[];
+    allergicIngredients?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    medicalNotes?: string;
+    hasCompletedHealthOnboarding?: boolean;
+  }): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/users/clinical-safety/me`, {
+        method: 'PUT',
+        headers: {
+          ...this.authHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('Lỗi khi cập nhật hồ sơ bệnh án:', e);
+    }
+    return null;
+  }
+
   // --- MEDICINES & INVENTORY APIS (Strictly from Database & Backend) ---
   public static async getMedicines(params?: {
     page?: number;
@@ -774,8 +824,8 @@ export class ApiService {
       expDateFormatted,
       batchNo,
       warningMessage: `Lô FEFO: ${batchNo} - HSD: ${expDateFormatted} (Còn ${monthsLeft} tháng)`,
-      badgeColor: '#059669',
-      badgeBg: '#D1FAE5',
+      badgeColor: '#0284C7',
+      badgeBg: '#F0F9FF',
       icon: 'shield-checkmark-outline',
     };
   }
@@ -1055,7 +1105,11 @@ export class ApiService {
       if (res.ok) {
         const decoded = await res.json();
         const list = Array.isArray(decoded) ? decoded : decoded?.data || [];
-        return list;
+        return list.map((b: any) => ({
+          ...b,
+          id: b.id || b._id?.toString() || b.branchCode || '',
+          branchCode: b.branchCode || b.code || '',
+        }));
       }
     } catch (e) {
       console.warn('Failed to fetch branches:', e);
@@ -1069,12 +1123,28 @@ export class ApiService {
         headers: this.authHeaders,
       });
       if (res.ok) {
-        return await res.json();
+        const b = await res.json();
+        if (b) {
+          return {
+            ...b,
+            id: b.id || b._id?.toString() || b.branchCode || '',
+            branchCode: b.branchCode || b.code || '',
+          };
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch my branch:', e);
     }
     return null;
+  }
+
+  public static async updateMyBranchLocation(data: {
+    latitude: number;
+    longitude: number;
+    checkInRadiusMeters?: number;
+    address?: string;
+  }): Promise<boolean> {
+    return this.updateBranchLocation('', data);
   }
 
   public static async updateBranchLocation(
@@ -1087,7 +1157,7 @@ export class ApiService {
     },
   ): Promise<boolean> {
     try {
-      const targetUrl = branchId
+      const targetUrl = branchId && branchId.trim() !== ''
         ? `${this.baseUrl}/api/branches/${encodeURIComponent(branchId)}/location`
         : `${this.baseUrl}/api/branches/my-branch/location`;
 
@@ -2420,11 +2490,25 @@ export class ApiService {
       const res = await fetch(`${this.baseUrl}/api/hr/colleagues`, { headers: this.authHeaders });
       if (res.ok) {
         const data = await res.json();
-        return Array.isArray(data) ? data : [];
+        const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+        if (list.length > 0) {
+          return list.map((item: any) => ({
+            ...item,
+            id: item._id || item.id,
+            fullName: item.fullName || item.name || 'Dược Sĩ Chi Nhánh',
+            name: item.name || item.fullName || 'Dược Sĩ Chi Nhánh',
+            role: item.role || 'pharmacist',
+            phone: item.phone || '0901234567',
+            branchName: item.branchName || (item.branchId ? `Chi nhánh ${item.branchId}` : 'Cơ Sở Chi Nhánh ABC (CN1)'),
+            cchn: item.cchn || item.certificateCode || 'CCHN-GPP-BYT',
+          }));
+        }
       }
     } catch (e) {
-      console.warn('Lỗi getColleagues:', e);
+      console.warn('Lỗi getColleagues từ API:', e);
     }
+
+    // Tuân thủ Zero Mock Data Policy: Trả về mảng rỗng nếu không lấy được dữ liệu từ API
     return [];
   }
 

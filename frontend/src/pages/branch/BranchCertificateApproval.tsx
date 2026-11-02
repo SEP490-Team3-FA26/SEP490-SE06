@@ -220,8 +220,8 @@ export function BranchCertificateApproval() {
 
       {/* ── Banners thông báo ── */}
       {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+        <div className="bg-sky-50 border border-sky-200 text-sky-700 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
+          <CheckCircle2 size={18} className="text-sky-500 shrink-0" />
           {successMessage}
         </div>
       )}
@@ -253,12 +253,12 @@ export function BranchCertificateApproval() {
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hồ sơ đã duyệt hợp lệ</p>
-            <p className="text-2xl font-black text-emerald-600 mt-1">
+            <p className="text-2xl font-black text-sky-600 mt-1">
               {summary?.approvedCount ?? certificates.filter(c => c.status === 'DA_DUYET').length}
             </p>
             <p className="text-xs text-slate-500 mt-0.5">Đã gán phụ cấp</p>
           </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+          <div className="p-3 bg-sky-50 text-sky-600 rounded-2xl">
             <ShieldCheck size={24} />
           </div>
         </div>
@@ -294,18 +294,18 @@ export function BranchCertificateApproval() {
 
       {/* ── Banner người chịu trách nhiệm chuyên môn (PTCM) ── */}
       {summary?.responsiblePharmacist && (
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-md shadow-emerald-500/20">
+            <div className="p-3 bg-sky-500 text-white rounded-xl shadow-md shadow-sky-500/20">
               <ShieldCheck size={22} />
             </div>
             <div>
-              <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+              <p className="text-xs font-bold text-sky-800 uppercase tracking-wider">
                 Dược sĩ Phụ trách Chuyên môn (PTCM) chính thức của cơ sở:
               </p>
               <p className="text-base font-black text-slate-900 mt-0.5">
                 {summary.responsiblePharmacist.fullName}{' '}
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full ml-1">
+                <span className="text-xs font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full ml-1">
                   {summary.responsiblePharmacist.highestDegree || 'Dược sĩ Đại học'}
                 </span>
               </p>
@@ -314,7 +314,7 @@ export function BranchCertificateApproval() {
               </p>
             </div>
           </div>
-          <span className="px-3 py-1 bg-white text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold shadow-sm self-start sm:self-auto">
+          <span className="px-3 py-1 bg-white text-sky-700 border border-sky-200 rounded-xl text-xs font-bold shadow-sm self-start sm:self-auto">
             Bảo lãnh pháp lý GPP
           </span>
         </div>
@@ -474,7 +474,7 @@ export function BranchCertificateApproval() {
                       {/* Mức phụ cấp */}
                       <td className="px-4 py-3.5 font-bold text-slate-900">
                         {cert.status === 'DA_DUYET' ? (
-                          <span className="text-emerald-600">
+                          <span className="text-sky-600">
                             +{(cert.monthlyAllowance || 0).toLocaleString('vi-VN')} đ
                           </span>
                         ) : (
@@ -490,7 +490,7 @@ export function BranchCertificateApproval() {
                           </span>
                         )}
                         {cert.status === 'DA_DUYET' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-full text-xs font-bold">
                             <CheckCircle2 size={12} /> Đã duyệt
                           </span>
                         )}
@@ -512,7 +512,7 @@ export function BranchCertificateApproval() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenApproveModal(cert)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
                               >
                                 <Check size={13} /> Duyệt
                               </button>
@@ -551,7 +551,7 @@ export function BranchCertificateApproval() {
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                <CheckCircle2 size={18} className="text-emerald-600" />
+                <CheckCircle2 size={18} className="text-sky-600" />
                 Phê Duyệt Hồ Sơ Văn Bằng
               </h3>
               <button
@@ -586,7 +586,7 @@ export function BranchCertificateApproval() {
                 step={50000}
                 value={approvalAllowance}
                 onChange={e => setApprovalAllowance(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
               />
 
               {/* Các nút điền nhanh gợi ý */}
@@ -656,7 +656,7 @@ export function BranchCertificateApproval() {
                 type="button"
                 disabled={isSubmittingApproval}
                 onClick={handleConfirmApprove}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-1.5"
+                className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-500/20 disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSubmittingApproval && <Loader2 size={14} className="animate-spin" />}
                 Xác nhận phê duyệt

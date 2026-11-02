@@ -38,7 +38,7 @@ export const FlatModal: React.FC<FlatModalProps> = ({
   title,
   message,
   icon,
-  iconColor = '#059669',
+  iconColor = '#0284C7',
   confirmText = 'Xác nhận',
   confirmVariant = 'primary',
   onConfirm,
@@ -84,7 +84,7 @@ export const FlatModal: React.FC<FlatModalProps> = ({
               {/* Optional Glass Icon Circle */}
               {icon && (
                 <View style={[styles.iconBox, { backgroundColor: `${iconColor}15`, borderColor: `${iconColor}35` }]}>
-                  <Ionicons name={icon} size={28} color={iconColor} />
+                  <Ionicons name={icon} size={34} color={iconColor} />
                 </View>
               )}
 
@@ -137,23 +137,23 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '100%',
-    maxWidth: 390,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    maxWidth: 420,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.65)',
-    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    padding: 26,
     position: 'relative',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 16 },
-        shadowOpacity: 0.25,
-        shadowRadius: 32,
+        shadowOffset: { width: 0, height: 18 },
+        shadowOpacity: 0.28,
+        shadowRadius: 36,
       },
       android: {
-        elevation: 10,
+        elevation: 12,
       },
     }),
   },
@@ -172,37 +172,37 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   closeCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(241, 245, 249, 0.8)',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(241, 245, 249, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+    width: 70,
+    height: 70,
+    borderRadius: 22,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 18,
     alignSelf: 'center',
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 21.5,
+    fontWeight: '900',
     color: '#0F172A',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
     letterSpacing: -0.3,
   },
   message: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 15.5,
+    color: '#334155',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 16,
+    lineHeight: 24,
+    marginBottom: 18,
   },
   childContainer: {
     marginVertical: 12,
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
-    marginTop: 20,
+    marginTop: 22,
   },
   actionBtn: {
     flex: 1,

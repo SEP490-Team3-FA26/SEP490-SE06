@@ -49,7 +49,7 @@ export const UnsubscribePage: React.FC = () => {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #eff6ff 100%)",
+        background: "linear-gradient(135deg, #f0f9ff 0%, #f8fafc 50%, #eff6ff 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -111,14 +111,14 @@ export const UnsubscribePage: React.FC = () => {
                   width: 64,
                   height: 64,
                   borderRadius: "50%",
-                  background: "#dcfce7",
+                  background: "#e0f2fe",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   margin: "0 auto 16px",
                 }}
               >
-                <CheckCircle2 size={36} color="#16a34a" />
+                <CheckCircle2 size={36} color="#0284c7" />
               </div>
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
                 Hủy Đăng Ký Thành Công

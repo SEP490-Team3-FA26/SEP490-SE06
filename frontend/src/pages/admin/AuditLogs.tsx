@@ -217,7 +217,7 @@ const AuditLogRow = React.memo(({
                       {log.payload && (
                         <div>
                           <div className="text-xs text-slate-400 font-bold mb-1">Tham số yêu cầu (Payload Scrubbed):</div>
-                          <pre className="p-3 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-xl overflow-x-auto max-h-[220px]">
+                          <pre className="p-3 bg-slate-950 text-sky-400 font-mono text-[11px] rounded-xl overflow-x-auto max-h-[220px]">
                             {JSON.stringify(log.payload, null, 2)}
                           </pre>
                         </div>
@@ -445,7 +445,7 @@ function AuditLogsContent() {
       case 'WARNING':
         return base + 'bg-amber-100 text-amber-800 border-amber-200';
       default:
-        return base + 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        return base + 'bg-sky-100 text-sky-800 border-sky-200';
     }
   };
 
@@ -453,7 +453,7 @@ function AuditLogsContent() {
     const base = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ';
     if (stat === 'SUCCESS') {
       return (
-        <span className={base + 'bg-green-50 text-green-700 border border-green-200'}>
+        <span className={base + 'bg-sky-50 text-sky-700 border border-sky-200'}>
           <CheckCircle className="w-3.5 h-3.5" /> Thành công
         </span>
       );
@@ -469,8 +469,8 @@ function AuditLogsContent() {
     switch (connectionStatus) {
       case 'LIVE':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> 🟢 Live
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-full text-xs font-bold shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" /> 🟢 Live
           </span>
         );
       case 'RECONNECTING':
@@ -500,7 +500,7 @@ function AuditLogsContent() {
             <tr>
               <th className="px-4 py-2 text-slate-600 font-bold w-1/4">Trường dữ liệu</th>
               <th className="px-4 py-2 text-slate-600 font-bold bg-rose-50/50 text-rose-800 w-3/8">Trước thay đổi (Before)</th>
-              <th className="px-4 py-2 text-slate-600 font-bold bg-emerald-50/50 text-emerald-800 w-3/8">Sau thay đổi (After)</th>
+              <th className="px-4 py-2 text-slate-600 font-bold bg-sky-50/50 text-sky-800 w-3/8">Sau thay đổi (After)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 font-mono">
@@ -512,7 +512,7 @@ function AuditLogsContent() {
                 <tr key={field} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-2 font-bold text-slate-700 border-r border-slate-100">{field}</td>
                   <td className="px-4 py-2 bg-rose-50/20 text-rose-700 break-all border-r border-slate-100">{beforeVal}</td>
-                  <td className="px-4 py-2 bg-emerald-50/20 text-emerald-700 break-all">{afterVal}</td>
+                  <td className="px-4 py-2 bg-sky-50/20 text-sky-700 break-all">{afterVal}</td>
                 </tr>
               );
             })}
@@ -590,7 +590,7 @@ function AuditLogsContent() {
               flushIncomingLogs();
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-full shadow-2xl shadow-emerald-200 border border-emerald-500 transition-all hover:scale-105"
+            className="flex items-center gap-2 px-5 py-3 bg-sky-600 hover:bg-sky-700 text-white font-black text-sm rounded-full shadow-2xl shadow-sky-200 border border-sky-500 transition-all hover:scale-105"
           >
             <ArrowUp className="w-4.5 h-4.5 animate-bounce" />
             Có bản ghi log mới ({incomingLogs.length}). Cuộn lên đầu trang
@@ -649,7 +649,7 @@ function AuditLogsContent() {
               <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
                 Trạng thái: 
                 <span className={`font-bold uppercase ${
-                  exportStatus === 'COMPLETED' ? 'text-green-600' : exportStatus === 'FAILED' ? 'text-red-600' : 'text-amber-500'
+                  exportStatus === 'COMPLETED' ? 'text-sky-600' : exportStatus === 'FAILED' ? 'text-red-600' : 'text-amber-500'
                 }`}>
                   {exportStatus === 'PENDING' && 'Đang chuẩn bị'}
                   {exportStatus === 'PROCESSING' && 'Đang truy vấn & nén dữ liệu...'}
@@ -664,7 +664,7 @@ function AuditLogsContent() {
             {exportStatus === 'COMPLETED' && exportFile && (
               <a
                 href={auditService.getDownloadUrl(exportFile)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-lg transition-all"
                 download
               >
                 <Download className="w-4 h-4" /> Tải xuống tệp .csv.gz

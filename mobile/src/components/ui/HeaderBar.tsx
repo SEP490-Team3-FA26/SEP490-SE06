@@ -7,6 +7,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { AnimatedTouchable } from './AnimatedTouchable';
@@ -33,9 +34,9 @@ interface HeaderBarProps {
 
 const GRADIENTS = {
   sky: ['#0369A1', '#0284C7', '#38BDF8'] as const,
-  emerald: ['#064E3B', '#059669', '#10B981'] as const,
-  indigo: ['#1E1B4B', '#3730A3', '#4F46E5'] as const,
-  ocean: ['#164E63', '#0891B2', '#06B6D4'] as const,
+  emerald: ['#0369A1', '#0284C7', '#0EA5E9'] as const, // Đồng bộ màu Xanh Auth chuẩn
+  indigo: ['#0369A1', '#0284C7', '#38BDF8'] as const,  // Đồng bộ màu Xanh Auth chuẩn
+  ocean: ['#0369A1', '#0284C7', '#38BDF8'] as const,
   dark: ['#0F172A', '#1E293B', '#334155'] as const,
 };
 
@@ -48,14 +49,19 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   secondaryRightAction,
   gradientVariant = 'emerald',
 }) => {
+  const insets = useSafeAreaInsets();
+  const paddingTop = insets.top > 0
+    ? insets.top + 10
+    : (Platform.OS === 'ios' || Platform.OS === 'web' ? 48 : (StatusBar.currentHeight || 24) + 12);
+
   return (
     <LinearGradient
       colors={GRADIENTS[gradientVariant]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0.8 }}
-      style={styles.headerContainer}
+      style={[styles.headerContainer, { paddingTop }]}
     >
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.contentRow}>
         {leftAction ? (
           <AnimatedTouchable onPress={leftAction.onPress} style={styles.iconButton}>
@@ -115,7 +121,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
 const styles = StyleSheet.create({
   headerContainer: {
-    paddingTop: Platform.OS === 'ios' ? 52 : (StatusBar.currentHeight || 28) + 12,
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomLeftRadius: 24,

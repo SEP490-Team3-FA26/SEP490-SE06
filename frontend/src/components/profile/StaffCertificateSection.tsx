@@ -284,8 +284,8 @@ export function StaffCertificateSection({ userRole }: Props) {
 
       {/* ── Banners thông báo ── */}
       {success && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+        <div className="bg-sky-50 border border-sky-200 text-sky-700 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
+          <CheckCircle2 size={18} className="text-sky-500 shrink-0" />
           {success}
         </div>
       )}
@@ -325,7 +325,7 @@ export function StaffCertificateSection({ userRole }: Props) {
         </div>
 
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-lg shrink-0">
+          <div className="p-2.5 bg-sky-100 text-sky-600 rounded-lg shrink-0">
             <ShieldCheck size={20} />
           </div>
           <div>
@@ -344,7 +344,7 @@ export function StaffCertificateSection({ userRole }: Props) {
             <p className="text-xs font-semibold text-slate-500">Vai trò pháp lý GPP</p>
             <p className="text-sm font-bold text-slate-800 mt-0.5">
               {certificates.some(c => c.isBranchPIC && c.status === 'DA_DUYET') ? (
-                <span className="text-emerald-600 inline-flex items-center gap-1">
+                <span className="text-sky-600 inline-flex items-center gap-1">
                   <CheckCircle2 size={14} /> PTCM Chi nhánh
                 </span>
               ) : userRole === 'branch' ? (
@@ -406,7 +406,7 @@ export function StaffCertificateSection({ userRole }: Props) {
                       </span>
                     )}
                     {cert.status === 'DA_DUYET' && (
-                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-full text-xs font-bold">
                         <CheckCircle2 size={13} /> Đã phê duyệt (+{(cert.monthlyAllowance || 0).toLocaleString('vi-VN')} đ/tháng)
                       </span>
                     )}
@@ -458,7 +458,7 @@ export function StaffCertificateSection({ userRole }: Props) {
                 {/* Thông tin thẩm định nếu đã duyệt */}
                 {cert.status === 'DA_DUYET' && cert.verifiedByName && (
                   <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-emerald-500" />
+                    <ShieldCheck size={14} className="text-sky-500" />
                     Đã thẩm định bởi: <strong className="text-slate-700">{cert.verifiedByName}</strong>
                     {cert.verifiedAt && (
                       <span>vào {new Date(cert.verifiedAt).toLocaleDateString('vi-VN')}</span>

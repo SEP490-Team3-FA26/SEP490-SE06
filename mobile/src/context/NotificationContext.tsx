@@ -48,17 +48,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const unsubscribe = SocketService.subscribe((notification) => {
       setUnreadCount((prev) => prev + 1);
-      setNotifications((prev) => [
-        {
-          id: notification.id || `notif_${Date.now()}`,
-          title: notification.title || 'Thông báo mới',
-          message: notification.message || notification.content || '',
-          type: notification.type || 'SYSTEM',
-          isRead: false,
-          createdAt: notification.timestamp || new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+      const newNotif: AppNotification = {
+        id: notification.id || notification._id || `notif_${Date.now()}`,
+        title: notification.title || 'Thông báo mới',
+        message: notification.message || notification.content || '',
+        type: notification.type || 'SYSTEM',
+        isRead: false,
+        createdAt: notification.timestamp || new Date().toISOString(),
+      };
+
+      setNotifications((prev) => [newNotif, ...prev].slice(0, 50));
 
       Toast.show({
         type: 'info',
@@ -75,17 +74,39 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [fetchNotifications]);
 
   const markAsRead = async (id: string) => {
+    const prevNotifications = [...notifications];
+    const prevCount = unreadCount;
+
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
-    await ApiService.markAsRead(id);
+
+    if (id && !id.startsWith('notif_')) {
+      try {
+        await ApiService.markAsRead(id);
+      } catch (err) {
+        console.warn('Lỗi markAsRead:', err);
+        setNotifications(prevNotifications);
+        setUnreadCount(prevCount);
+      }
+    }
   };
 
   const markAllAsRead = async () => {
+    const prevNotifications = [...notifications];
+    const prevCount = unreadCount;
+
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
-    await ApiService.markAllAsRead();
+
+    try {
+      await ApiService.markAllAsRead();
+    } catch (err) {
+      console.warn('Lỗi markAllAsRead:', err);
+      setNotifications(prevNotifications);
+      setUnreadCount(prevCount);
+    }
   };
 
   return (
@@ -106,8 +127,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
 export const useNotification = (): NotificationContextValue => {
   const ctx = useContext(NotificationContext);
+  // Cung cấp giá trị mặc định an toàn nếu component nằm ngoài NotificationProvider
   if (!ctx) {
-    throw new Error('useNotification must be used within NotificationProvider');
+    return {
+      notifications: [],
+      unreadCount: 0,
+      isLoading: false,
+      refreshNotifications: async () => {},
+      markAsRead: async () => {},
+      markAllAsRead: async () => {},
+    };
   }
   return ctx;
 };

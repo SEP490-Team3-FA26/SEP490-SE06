@@ -386,7 +386,7 @@ export function Inventory() {
           </div>
 
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0">
               <TrendingUp size={18} />
             </div>
             <div>
@@ -592,8 +592,8 @@ export function Inventory() {
                             Chưa đồng bộ
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                             Đã đồng bộ
                           </span>
                         )}
@@ -617,7 +617,7 @@ export function Inventory() {
                         <div className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden shadow-inner">
                           <div
                             className={`h-full rounded-full transition-all duration-300 ${item.stock <= 0 ? 'bg-rose-500 w-0' :
-                              item.stock <= item.minStock ? 'bg-amber-500' : 'bg-emerald-500'
+                              item.stock <= item.minStock ? 'bg-amber-500' : 'bg-sky-500'
                               }`}
                             style={{ width: `${Math.min(100, Math.max(0, (item.stock / (item.minStock || 50)) * 100))}%` }}
                           />
@@ -649,8 +649,8 @@ export function Inventory() {
                           </span>
                         );
                         return (
-                          <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                            <CheckCircle2 size={12} className="text-emerald-500" />
+                          <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-100">
+                            <CheckCircle2 size={12} className="text-sky-500" />
                             Sẵn sàng
                           </span>
                         );
@@ -691,7 +691,7 @@ export function Inventory() {
                                       </div>
                                       <div className="flex justify-between text-[11px] text-slate-500 mt-0.5">
                                         <span>Hạn: {new Date(b.expDate).toLocaleDateString("vi-VN")}</span>
-                                        <span className={`font-semibold ${b.status === 'EXPIRED' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                        <span className={`font-semibold ${b.status === 'EXPIRED' ? 'text-rose-500' : 'text-sky-500'}`}>
                                           {b.status === 'EXPIRED' ? 'Hết hạn' : 'Hoạt động'}
                                         </span>
                                       </div>
@@ -728,7 +728,7 @@ export function Inventory() {
                       )}
                       <button
                         onClick={() => openPriceTiersModal(item)}
-                        className="text-emerald-600 hover:text-emerald-800 transition-colors p-1.5 rounded-lg hover:bg-emerald-50 border border-transparent hover:border-emerald-100"
+                        className="text-sky-600 hover:text-sky-800 transition-colors p-1.5 rounded-lg hover:bg-sky-50 border border-transparent hover:border-sky-100"
                         title="Cấu hình giá bán sỉ"
                       >
                         <Tag size={15} />
@@ -971,7 +971,7 @@ export function Inventory() {
                         <div className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden shadow-inner">
                           <div
                             className={`h-full rounded-full transition-all duration-300 ${item.stock <= 0 ? 'bg-rose-500 w-0' :
-                              item.stock <= item.minStock ? 'bg-amber-500' : 'bg-emerald-500'
+                              item.stock <= item.minStock ? 'bg-amber-500' : 'bg-sky-500'
                               }`}
                             style={{ width: `${Math.min(100, Math.max(0, (item.stock / (item.minStock || 50)) * 100))}%` }}
                           />
@@ -1003,8 +1003,8 @@ export function Inventory() {
                           </span>
                         );
                         return (
-                          <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                            <CheckCircle2 size={12} className="text-emerald-500" />
+                          <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-100">
+                            <CheckCircle2 size={12} className="text-sky-500" />
                             Sẵn sàng
                           </span>
                         );
@@ -1045,7 +1045,7 @@ export function Inventory() {
                                       </div>
                                       <div className="flex justify-between text-[11px] text-slate-500 mt-0.5">
                                         <span>Hạn: {new Date(b.expDate).toLocaleDateString("vi-VN")}</span>
-                                        <span className={`font-semibold ${b.status === 'EXPIRED' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                        <span className={`font-semibold ${b.status === 'EXPIRED' ? 'text-rose-500' : 'text-sky-500'}`}>
                                           {b.status === 'EXPIRED' ? 'Hết hạn' : 'Hoạt động'}
                                         </span>
                                       </div>
@@ -1082,7 +1082,7 @@ export function Inventory() {
                       )}
                       <button
                         onClick={() => openPriceTiersModal(item)}
-                        className="text-emerald-600 hover:text-emerald-800 transition-colors p-1.5 rounded-lg hover:bg-emerald-50 border border-transparent hover:border-emerald-100"
+                        className="text-sky-600 hover:text-sky-800 transition-colors p-1.5 rounded-lg hover:bg-sky-50 border border-transparent hover:border-sky-100"
                         title="Cấu hình giá bán sỉ"
                       >
                         <Tag size={15} />
@@ -1177,7 +1177,7 @@ export function Inventory() {
                     <td className="px-6 py-4 text-center font-bold text-slate-700 text-xs sm:text-sm">
                       {item.openingStock?.toLocaleString('vi-VN') || 0}
                     </td>
-                    <td className="px-6 py-4 text-center font-black text-emerald-600 text-xs sm:text-sm">
+                    <td className="px-6 py-4 text-center font-black text-sky-600 text-xs sm:text-sm">
                       +{item.importQty?.toLocaleString('vi-VN') || 0}
                     </td>
                     <td className="px-6 py-4 text-center font-black text-rose-600 text-xs sm:text-sm">
@@ -1273,9 +1273,9 @@ export function Inventory() {
                       </div>
                     </div>
 
-                    <div className="bg-emerald-50/50 rounded-xl p-5 border border-emerald-100 shadow-sm flex flex-col max-h-[250px]">
-                      <h4 className="font-bold text-emerald-900 flex items-center gap-2 mb-3 shrink-0">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Công dụng
+                    <div className="bg-sky-50/50 rounded-xl p-5 border border-sky-100 shadow-sm flex flex-col max-h-[250px]">
+                      <h4 className="font-bold text-sky-900 flex items-center gap-2 mb-3 shrink-0">
+                        <div className="w-2 h-2 rounded-full bg-sky-500"></div> Công dụng
                       </h4>
                       <div className="overflow-y-auto pr-2 custom-scrollbar">
                         <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
@@ -1371,10 +1371,10 @@ export function Inventory() {
                     {tieredPricingList
                       .sort((a, b) => a.minQuantity - b.minQuantity)
                       .map((tier, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-emerald-50/40 border border-emerald-100/60 px-3 py-2 rounded-xl text-xs">
+                        <div key={idx} className="flex justify-between items-center bg-sky-50/40 border border-sky-100/60 px-3 py-2 rounded-xl text-xs">
                           <span className="font-bold text-slate-700">Mua từ {tier.minQuantity} {tieredPricingMedicine.unit || 'hộp'}</span>
                           <div className="flex items-center gap-3">
-                            <span className="font-extrabold text-emerald-700">{tier.price?.toLocaleString("vi-VN")} ₫</span>
+                            <span className="font-extrabold text-sky-700">{tier.price?.toLocaleString("vi-VN")} ₫</span>
                             <button
                               onClick={() => {
                                 setTieredPricingList(prev => prev.filter((_, i) => i !== idx));
@@ -1437,7 +1437,7 @@ export function Inventory() {
                     setNewTierPrice("");
                     showToast("Đã thêm bậc giá mới!", "success");
                   }}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-sm transition-all"
+                  className="w-full py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs shadow-sm transition-all"
                 >
                   Thêm Bậc Giá
                 </button>
@@ -1549,11 +1549,11 @@ export function Inventory() {
                     onClick={() => setExpirationAction('DISCOUNT')}
                     className={`flex flex-col items-center justify-center p-4 rounded-2xl border text-center transition-all ${
                       expirationAction === 'DISCOUNT'
-                        ? 'border-emerald-500 bg-emerald-50/40 text-emerald-700 shadow-sm ring-2 ring-emerald-500/20'
+                        ? 'border-sky-500 bg-sky-50/40 text-sky-700 shadow-sm ring-2 ring-sky-500/20'
                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600'
                     }`}
                   >
-                    <Tag size={24} className={expirationAction === 'DISCOUNT' ? 'text-emerald-600' : 'text-slate-400'} />
+                    <Tag size={24} className={expirationAction === 'DISCOUNT' ? 'text-sky-600' : 'text-slate-400'} />
                     <span className="text-xs font-bold mt-2">Khuyến mãi</span>
                   </button>
                 </div>
@@ -1585,7 +1585,7 @@ export function Inventory() {
                       min={1}
                       value={expirationDiscountPrice}
                       onChange={(e) => setExpirationDiscountPrice(parseInt(e.target.value) || 0)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-emerald-700 bg-emerald-50/20"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-sky-700 bg-sky-50/20"
                     />
                     <p className="text-[10px] text-slate-400 font-medium">Giá cũ: {selectedExpirationBatch.price?.toLocaleString("vi-VN")} ₫ (Gợi ý giảm 30%: {Math.round((selectedExpirationBatch.price || 50000) * 0.7).toLocaleString("vi-VN")} ₫)</p>
                   </div>
@@ -1622,7 +1622,7 @@ export function Inventory() {
                 className={`px-6 py-2.5 text-white font-extrabold rounded-xl transition-all shadow-sm text-sm flex items-center gap-2 ${
                   expirationAction === 'DISPOSE' ? 'bg-rose-600 hover:bg-rose-700' :
                   expirationAction === 'RETURN_SUPPLIER' ? 'bg-amber-600 hover:bg-amber-700' :
-                  'bg-emerald-600 hover:bg-emerald-700'
+                  'bg-sky-600 hover:bg-sky-700'
                 }`}
               >
                 {expirationProcessing && <Loader2 className="animate-spin" size={16} />}
@@ -1680,7 +1680,7 @@ export function Inventory() {
                 ? "bg-amber-900/95 text-amber-100 border-amber-700/80"
                 : toast.type === "info"
                 ? "bg-blue-900/95 text-blue-100 border-blue-700/80"
-                : "bg-emerald-950/95 text-emerald-100 border-emerald-700/80"
+                : "bg-sky-950/95 text-sky-100 border-sky-700/80"
             }`}
           >
             {toast.message}

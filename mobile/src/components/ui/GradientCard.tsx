@@ -6,15 +6,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 interface GradientCardProps {
   children: React.ReactNode;
   colors?: readonly [string, string, ...string[]];
-  gradientVariant?: 'emerald' | 'indigo' | 'sunset' | 'ocean' | 'dark' | 'glass';
+  gradientVariant?: 'sky' | 'emerald' | 'indigo' | 'sunset' | 'ocean' | 'dark' | 'glass';
   style?: StyleProp<ViewStyle>;
   start?: { x: number; y: number };
   end?: { x: number; y: number };
 }
 
 const GRADIENT_PALETTES = {
-  emerald: ['#065F46', '#047857', '#059669'] as const,
-  indigo: ['#312E81', '#4338CA', '#4F46E5'] as const,
+  sky: ['#0369A1', '#0284C7', '#38BDF8'] as const, // Xanh Auth chuẩn dự án
+  emerald: ['#0369A1', '#0284C7', '#0EA5E9'] as const, // Đồng bộ xanh
+  indigo: ['#0C4A6E', '#0369A1', '#0EA5E9'] as const,
   sunset: ['#9A3412', '#C2410C', '#EA580C'] as const,
   ocean: ['#0E7490', '#0891B2', '#06B6D4'] as const,
   dark: ['#1E293B', '#0F172A'] as const,
@@ -24,7 +25,7 @@ const GRADIENT_PALETTES = {
 export const GradientCard: React.FC<GradientCardProps> = ({
   children,
   colors,
-  gradientVariant = 'emerald',
+  gradientVariant = 'sky',
   style,
   start = { x: 0, y: 0 },
   end = { x: 1, y: 1 },

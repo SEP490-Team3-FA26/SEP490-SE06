@@ -531,12 +531,12 @@ export function AIForecast() {
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shrink-0">
               <ShoppingCart size={20} />
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dự toán ngân sách</p>
-              <p className="text-lg font-black text-emerald-700 tracking-tight">{estimatedBudget.toLocaleString('vi-VN')} <span className="text-xs font-medium text-slate-500">đ</span></p>
+              <p className="text-lg font-black text-sky-700 tracking-tight">{estimatedBudget.toLocaleString('vi-VN')} <span className="text-xs font-medium text-slate-500">đ</span></p>
             </div>
           </div>
         </div>
@@ -916,14 +916,14 @@ export function AIForecast() {
               className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             >
               {/* Modal Header */}
-              <div className="p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white flex items-center justify-between">
+              <div className="p-6 bg-gradient-to-r from-sky-600 via-teal-600 to-cyan-600 text-white flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl">
-                    <Sparkles className="w-6 h-6 text-emerald-200" />
+                    <Sparkles className="w-6 h-6 text-sky-200" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold tracking-tight">Sinh Đơn PO Nháp Tự Động</h3>
-                    <p className="text-xs text-emerald-100/90 font-medium mt-0.5">
+                    <p className="text-xs text-sky-100/90 font-medium mt-0.5">
                       AI Forecast ➔ Auto-Mapping NCC ➔ Sinh Đơn PO Nháp ➔ Chuyển Phê Duyệt
                     </p>
                   </div>
@@ -940,8 +940,8 @@ export function AIForecast() {
               <div className="p-6 overflow-y-auto space-y-6 flex-1">
                 {/* Step Visual Process */}
                 <div className="grid grid-cols-4 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200/60 text-center text-xs font-semibold">
-                  <div className="flex items-center gap-1.5 justify-center text-emerald-700">
-                    <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-[10px]">1</span>
+                  <div className="flex items-center gap-1.5 justify-center text-sky-700">
+                    <span className="w-5 h-5 rounded-full bg-sky-100 flex items-center justify-center font-bold text-[10px]">1</span>
                     AI Forecast
                   </div>
                   <div className="flex items-center gap-1.5 justify-center text-teal-700">
@@ -960,11 +960,11 @@ export function AIForecast() {
 
                 {!autoPoSuccess ? (
                   <>
-                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-900 flex items-start gap-3">
-                      <Zap className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="bg-sky-50/70 border border-sky-200 rounded-2xl p-4 text-xs text-sky-900 flex items-start gap-3">
+                      <Zap className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold text-sm text-emerald-950">Hệ thống Auto-mapping đã phân tích {modalSelectedItems.length} thuốc được chọn:</p>
-                        <p className="mt-1 leading-relaxed text-emerald-800">
+                        <p className="font-bold text-sm text-sky-950">Hệ thống Auto-mapping đã phân tích {modalSelectedItems.length} thuốc được chọn:</p>
+                        <p className="mt-1 leading-relaxed text-sky-800">
                           Tự động tra cứu Nhà cung cấp mặc định và gom các mặt hàng cùng NCC vào 1 Đơn Đặt Hàng Nháp (Draft PO). Đơn sẽ ở trạng thái chờ Admin / HQ phê duyệt.
                         </p>
                       </div>
@@ -992,7 +992,7 @@ export function AIForecast() {
                                     <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-mono">{item.unit || 'Hộp'}</span>
                                   </div>
                                   <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                                    <span className="text-emerald-700 font-medium">NCC: {suppliersMap[item.medicineId] || 'Nhà cung cấp ưu tiên'}</span>
+                                    <span className="text-sky-700 font-medium">NCC: {suppliersMap[item.medicineId] || 'Nhà cung cấp ưu tiên'}</span>
                                     <span>• Tồn: {item.currentStock}</span>
                                     <span>• Giá ước tính: {estimatedPrice.toLocaleString('vi-VN')}đ</span>
                                   </div>
@@ -1012,7 +1012,7 @@ export function AIForecast() {
                                       className="w-20 px-2 py-1 text-xs font-bold text-slate-900 border-l border-slate-200 outline-none"
                                     />
                                   </div>
-                                  <span className="text-xs font-bold text-emerald-700 w-24 text-right">
+                                  <span className="text-xs font-bold text-sky-700 w-24 text-right">
                                     {totalPrice.toLocaleString('vi-VN')}đ
                                   </span>
                                 </div>
@@ -1025,7 +1025,7 @@ export function AIForecast() {
                 ) : (
                   /* Success State Result */
                   <div className="py-6 text-center space-y-5">
-                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                    <div className="w-16 h-16 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
                       <CheckCircle2 className="w-10 h-10" />
                     </div>
                     <div className="space-y-2">
@@ -1038,7 +1038,7 @@ export function AIForecast() {
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-left max-w-lg mx-auto text-xs space-y-2">
                       <p className="font-bold text-slate-800 flex items-center justify-between border-b pb-2">
                         <span>Mã đơn đặt hàng PO khởi tạo:</span>
-                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-mono font-extrabold">
+                        <span className="text-sky-700 bg-sky-50 px-2 py-0.5 rounded font-mono font-extrabold">
                           {autoPoSuccess.poIds?.length || 1} Đơn PO Nháp
                         </span>
                       </p>
@@ -1068,7 +1068,7 @@ export function AIForecast() {
                     <button
                       onClick={handleConfirmAutoRoutePo}
                       disabled={isSubmittingPo}
-                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all flex items-center gap-2 disabled:opacity-50"
+                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 text-white text-xs font-bold shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 transition-all flex items-center gap-2 disabled:opacity-50"
                     >
                       {isSubmittingPo ? (
                         <>
@@ -1102,7 +1102,7 @@ export function AIForecast() {
                       }}
                       className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-2 shadow-md cursor-pointer"
                     >
-                      <Building className="w-4 h-4 text-emerald-400" />
+                      <Building className="w-4 h-4 text-sky-400" />
                       {currentRolePrefix === '/warehouse'
                         ? 'Đến Danh Sách Đơn Đặt Hàng PO (Kho) ➔'
                         : 'Đến Màn Hình Phê Duyệt PO (HQ Approval) ➔'}

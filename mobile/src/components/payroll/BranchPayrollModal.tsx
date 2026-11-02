@@ -129,7 +129,7 @@ export const BranchPayrollModal: React.FC<BranchPayrollModalProps> = ({
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.iconCircle}>
-                <Ionicons name="calculator" size={22} color="#059669" />
+                <Ionicons name="calculator" size={22} color="#0284C7" />
               </View>
               <View>
                 <Text style={styles.sheetTitle}>Bảng Lương Chi Nhánh</Text>
@@ -144,7 +144,7 @@ export const BranchPayrollModal: React.FC<BranchPayrollModalProps> = ({
           {/* Month Selector */}
           <View style={styles.monthNavRow}>
             <View style={styles.monthLabelBox}>
-              <Ionicons name="calendar-outline" size={16} color="#059669" />
+              <Ionicons name="calendar-outline" size={16} color="#0284C7" />
               <Text style={styles.monthLabelText}>Kỳ lương: Tháng {selectedMonth}/{selectedYear}</Text>
             </View>
 
@@ -153,27 +153,27 @@ export const BranchPayrollModal: React.FC<BranchPayrollModalProps> = ({
                 onPress={() => setSelectedMonth((m) => (m > 1 ? m - 1 : 12))}
                 style={styles.monthChangeBtn}
               >
-                <Ionicons name="chevron-back" size={16} color="#059669" />
+                <Ionicons name="chevron-back" size={16} color="#0284C7" />
               </TouchableOpacity>
               <Text style={styles.monthCurrentText}>T{selectedMonth}</Text>
               <TouchableOpacity
                 onPress={() => setSelectedMonth((m) => (m < 12 ? m + 1 : 1))}
                 style={styles.monthChangeBtn}
               >
-                <Ionicons name="chevron-forward" size={16} color="#059669" />
+                <Ionicons name="chevron-forward" size={16} color="#0284C7" />
               </TouchableOpacity>
             </View>
           </View>
 
           {loading ? (
             <View style={styles.centerLoading}>
-              <ActivityIndicator size="large" color="#059669" />
+              <ActivityIndicator size="large" color="#0284C7" />
               <Text style={styles.loadingText}>Đang tải bảng lương chi nhánh...</Text>
             </View>
           ) : (
             <ScrollView
               contentContainerStyle={styles.scrollContent}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadPayroll(true)} colors={['#059669']} />}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadPayroll(true)} colors={['#0284C7']} />}
             >
               {payroll ? (
                 <View>
@@ -223,13 +223,13 @@ export const BranchPayrollModal: React.FC<BranchPayrollModalProps> = ({
                         <View style={styles.staffDetailsGrid}>
                           <Text style={styles.staffDetailItem}>Ca thực tế: <Text style={{ fontWeight: '700' }}>{item.actualShifts} ca</Text></Text>
                           {item.certificateAllowance > 0 && (
-                            <Text style={styles.staffDetailItem}>Phụ cấp CCHN: <Text style={{ fontWeight: '700', color: '#047857' }}>+{formatVnd(item.certificateAllowance)}</Text></Text>
+                            <Text style={styles.staffDetailItem}>Phụ cấp CCHN: <Text style={{ fontWeight: '700', color: '#0284C7' }}>+{formatVnd(item.certificateAllowance)}</Text></Text>
                           )}
                           {item.mealAllowance > 0 && (
                             <Text style={styles.staffDetailItem}>Tiền ăn: <Text style={{ fontWeight: '700' }}>+{formatVnd(item.mealAllowance)}</Text></Text>
                           )}
                           {item.branchBonus > 0 && (
-                            <Text style={styles.staffDetailItem}>Thưởng: <Text style={{ fontWeight: '700', color: '#047857' }}>+{formatVnd(item.branchBonus)}</Text></Text>
+                            <Text style={styles.staffDetailItem}>Thưởng: <Text style={{ fontWeight: '700', color: '#0284C7' }}>+{formatVnd(item.branchBonus)}</Text></Text>
                           )}
                           {item.penalties > 0 && (
                             <Text style={styles.staffDetailItem}>Phạt/Trừ: <Text style={{ fontWeight: '700', color: '#DC2626' }}>-{formatVnd(item.penalties)}</Text></Text>
@@ -261,7 +261,7 @@ export const BranchPayrollModal: React.FC<BranchPayrollModalProps> = ({
                   disabled={calculating || isApproved}
                 >
                   {calculating ? (
-                    <ActivityIndicator size="small" color="#059669" />
+                    <ActivityIndicator size="small" color="#0284C7" />
                   ) : (
                     <>
                       <Ionicons name="refresh" size={16} color="#334155" />
@@ -273,7 +273,7 @@ export const BranchPayrollModal: React.FC<BranchPayrollModalProps> = ({
                 {payroll && !isApproved && (
                   <TouchableOpacity
                     onPress={handleApprovePayroll}
-                    style={[styles.actionBtn, { backgroundColor: '#059669', flex: 2 }]}
+                    style={[styles.actionBtn, { backgroundColor: '#0284C7', flex: 2 }]}
                     disabled={approving}
                   >
                     {approving ? (
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   monthCurrentText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   centerLoading: {
     flex: 1,
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   totalNetText: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 4,
   },
   statusBadge: {
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
   },
   statusBadgeApproved: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
   },
   statusBadgeText: {
     fontSize: 11,
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
     color: '#B45309',
   },
   statusBadgeTextApproved: {
-    color: '#047857',
+    color: '#0284C7',
   },
   metricsRow: {
     flexDirection: 'row',
@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
   staffNet: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
   },
   staffDetailsGrid: {
     flexDirection: 'row',

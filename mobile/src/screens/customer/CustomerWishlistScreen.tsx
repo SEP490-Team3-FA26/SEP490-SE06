@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   ScrollView,
   Image,
   TextInput,
-  Alert,
   RefreshControl,
   StatusBar,
 } from 'react-native';
@@ -20,6 +20,7 @@ import { showToast } from '../../components/ui/toastHelper';
 import { WishlistAPI, MobileWishlistItem } from '../../services/wishlistApiService';
 import { ColorTokens, TypographyTokens, RadiusTokens } from '../../theme/tokens';
 import { AnimatedPressable } from '../../components/clinical';
+import { FlatModal } from '../../components/flat/FlatModal';
 
 /**
  * Màn hình Quản lý Danh sách Sản phẩm Yêu thích (Wishlist) dành cho Khách hàng trên Mobile (UC-96)
@@ -34,6 +35,7 @@ export const CustomerWishlistScreen: React.FC<{ navigation: any; route?: any }> 
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showClearModal, setShowClearModal] = useState<boolean>(false);
 
   // Tải danh sách yêu thích
   const loadWishlist = useCallback(async (isSilent = false) => {
@@ -83,38 +85,51 @@ export const CustomerWishlistScreen: React.FC<{ navigation: any; route?: any }> 
   // Dọn sạch toàn bộ danh sách yêu thích
   const handleClearAll = () => {
     if (items.length === 0) return;
-    Alert.alert(
-      'Xóa danh sách yêu thích',
-      'Bạn có chắc chắn muốn dọn sạch toàn bộ sản phẩm yêu thích không?',
-      [
-        { text: 'Hủy bỏ', style: 'cancel' },
-        {
-          text: 'Xóa hết',
-          style: 'destructive',
-          onPress: async () => {
-            const previous = [...items];
-            setItems([]);
-            const res = await WishlistAPI.clearWishlist();
-            if (res.success) {
-              showToast.success('Thành công', 'Đã làm trống danh sách yêu thích');
-            } else {
-              setItems(previous);
-              showToast.error('Lỗi', 'Không thể dọn sạch danh sách');
-            }
-          },
-        },
-      ]
-    );
+    setShowClearModal(true);
+  };
+
+  const confirmClearAll = async () => {
+    setShowClearModal(false);
+    const previous = [...items];
+    setItems([]);
+    const res = await WishlistAPI.clearWishlist();
+    if (res.success) {
+      showToast.success('Thành công', 'Đã làm trống danh sách yêu thích');
+    } else {
+      setItems(previous);
+      showToast.error('Lỗi', 'Không thể dọn sạch danh sách');
+    }
   };
 
   // Thêm nhanh vào giỏ hàng
-  const handleAddToCart = (item: MobileWishlistItem) => {
+  const handleAddToCart = async (item: MobileWishlistItem) => {
     // Nếu màn hình trước có truyền hàm addToCart qua route params
     if (route?.params?.onAddToCart) {
       route.params.onAddToCart(item);
       showToast.success('Đã thêm giỏ hàng', `Đã thêm "${item.name}" vào giỏ`);
     } else {
-      showToast.success('Đã thêm giỏ hàng', `Đã thêm "${item.name}" vào giỏ hàng!`);
+      try {
+        const raw = await AsyncStorage.getItem('@abc_guest_cart');
+        const cart = raw ? JSON.parse(raw) : [];
+        const existingIdx = cart.findIndex((c: any) => c.id === item.id || c._id === item.id);
+        if (existingIdx >= 0) {
+          cart[existingIdx].quantity = (cart[existingIdx].quantity || 1) + 1;
+        } else {
+          cart.push({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            image: item.image,
+            quantity: 1,
+            unit: item.unit || 'Hộp',
+            stock: item.stock || 100,
+          });
+        }
+        await AsyncStorage.setItem('@abc_guest_cart', JSON.stringify(cart));
+        showToast.success('Đã thêm giỏ hàng', `Đã thêm "${item.name}" vào giỏ hàng!`);
+      } catch {
+        showToast.error('Lỗi', 'Không thể lưu vào giỏ hàng lúc này.');
+      }
     }
   };
 
@@ -133,7 +148,7 @@ export const CustomerWishlistScreen: React.FC<{ navigation: any; route?: any }> 
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor="#0284C7" />
+      <StatusBar barStyle="light-content" />
 
       {/* Header Bar */}
       <HeaderBar
@@ -311,6 +326,21 @@ export const CustomerWishlistScreen: React.FC<{ navigation: any; route?: any }> 
           })
         )}
       </ScrollView>
+
+      {/* Modal Xác Nhận Dọn Sạch Yêu Thích (thay thế Alert OS) */}
+      <FlatModal
+        visible={showClearModal}
+        onClose={() => setShowClearModal(false)}
+        title="Dọn Sạch Yêu Thích"
+        message="Bạn có chắc chắn muốn xóa toàn bộ sản phẩm khỏi danh sách yêu thích không?"
+        icon="trash-outline"
+        iconColor="#EF4444"
+        confirmText="Xóa hết"
+        confirmVariant="danger"
+        cancelText="Hủy bỏ"
+        onCancel={() => setShowClearModal(false)}
+        onConfirm={confirmClearAll}
+      />
     </SafeAreaView>
   );
 };

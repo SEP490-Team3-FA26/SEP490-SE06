@@ -11,8 +11,8 @@ export interface CurrencyTextProps {
   amount: number;
   currency?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
-  color?: 'emerald' | 'slate' | 'rose';
-  /** Show the currency unit suffix after the number */
+  color?: 'sky' | 'slate' | 'rose';
+  /** Hiển thị đơn vị tiền tệ sau số */
   showUnit?: boolean;
   className?: string;
 }
@@ -25,21 +25,20 @@ const SIZE_CLASSES: Record<NonNullable<CurrencyTextProps['size']>, string> = {
 };
 
 const COLOR_CLASSES: Record<NonNullable<CurrencyTextProps['color']>, string> = {
-  emerald: 'text-emerald-700',
+  sky:     'text-sky-700',
   slate:   'text-slate-700',
   rose:    'text-rose-600',
 };
 
 /**
- * Renders a formatted Vietnamese-locale currency amount.
- * Always applies `font-mono tabular-nums font-semibold` to prevent
- * layout jumps when the numeric value changes.
+ * Hiển thị số tiền VND định dạng chuẩn.
+ * Áp dụng font-mono tabular-nums để số liệu không bị nhảy layout khi thay đổi.
  */
 export function CurrencyText({
   amount,
   currency = 'VND',
   size = 'md',
-  color = 'emerald',
+  color = 'sky',
   showUnit = false,
   className = '',
 }: CurrencyTextProps) {

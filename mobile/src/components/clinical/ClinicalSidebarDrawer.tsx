@@ -122,21 +122,8 @@ export const ClinicalSidebarDrawer: React.FC<ClinicalSidebarDrawerProps> = ({
   };
 
   const handleLogoutPress = () => {
-    Alert.alert(
-      'Xác nhận đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất ca làm việc hiện tại không?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: () => {
-            onClose();
-            onLogout();
-          },
-        },
-      ]
-    );
+    onClose();
+    onLogout();
   };
 
   // Pan Gesture kéo vuốt mép đóng Drawer
@@ -234,9 +221,9 @@ export const ClinicalSidebarDrawer: React.FC<ClinicalSidebarDrawerProps> = ({
               <View style={styles.roleBadgeRow}>
                 <ClinicalBadge
                   label={roleTitle}
-                  variant="emerald"
+                  variant="info"
                   size="sm"
-                  icon={<Ionicons name="shield-checkmark" size={12} color={ColorTokens.emerald[700]} />}
+                  icon={<Ionicons name="shield-checkmark" size={12} color="#0284C7" />}
                 />
               </View>
             </View>
@@ -272,7 +259,7 @@ export const ClinicalSidebarDrawer: React.FC<ClinicalSidebarDrawerProps> = ({
                       <Ionicons
                         name={item.iconName}
                         size={19}
-                        color={item.active ? ColorTokens.emerald[700] : itemColor}
+                        color={item.active ? '#0284C7' : itemColor}
                       />
                     </View>
                     <Text
@@ -358,16 +345,16 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: RadiusTokens.full,
-    backgroundColor: ColorTokens.emerald[100],
+    backgroundColor: '#E0F2FE',
     borderWidth: 1.5,
-    borderColor: ColorTokens.emerald[300],
+    borderColor: '#38BDF8',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     fontSize: TypographyTokens.sizes.md,
     fontWeight: TypographyTokens.weights.bold,
-    color: ColorTokens.emerald[800],
+    color: '#0284C7',
   },
   closeBtn: {
     width: 32,

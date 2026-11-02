@@ -58,12 +58,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies (backend)
         working-directory: backend
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: 🧪 Run Playbook & Architecture Test Rules
         working-directory: backend
@@ -100,7 +98,3 @@ jobs:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           content: "✅ Báo cáo sếp: CI/CD Pipeline chạy thành công trên nhánh `${{ github.ref_name }}` rồi nha! 🎉"
 
-  # ──────────────────────────────────────────────
-  # CD — (ĐÃ BỎ) Deploy lên Railway
-  # Lý do: Railway đã tự động bắt event push trên nhánh main nên không cần cấu hình bằng tay nữa.
-  # ──────────────────────────────────────────────

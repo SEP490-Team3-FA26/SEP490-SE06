@@ -8,6 +8,19 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from dotenv import load_dotenv, find_dotenv
 
+# Đảm bảo đường dẫn import hoạt động khi chạy từ thư mục gốc hoặc thư mục scripts
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
+try:
+    from qdrant_helper import get_qdrant_client
+except ImportError:
+    from scripts.qdrant_helper import get_qdrant_client
+
 # Try to find .env in current or parent directories
 env_path = find_dotenv()
 if env_path:
@@ -74,7 +87,6 @@ def clean_price(price_raw):
 
 def main():
     MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 
     if not COHERE_API_KEY:
         print("Missing COHERE_API_KEY in env!")
@@ -85,10 +97,8 @@ def main():
         sys.exit(1)
         
     try:
-        if "up.railway.app" in QDRANT_HOST:
-            qdrant = QdrantClient(url=f"https://{QDRANT_HOST}:443")
-        else:
-            qdrant = QdrantClient(host=QDRANT_HOST, port=6333)
+        # Khởi tạo kết nối Qdrant linh hoạt cho VPS localhost/Docker/Cloud
+        qdrant = get_qdrant_client(timeout=15.0)
     except Exception as e:
         print(f"Failed to connect to Qdrant: {e}")
         sys.exit(1)

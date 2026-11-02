@@ -117,7 +117,7 @@ export function WarehouseMapPage() {
           <div>
             <h1 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               Sơ Đồ Kho Tổng — Phòng Khám
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+              <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-sky-100 text-sky-700 border border-sky-200">
                 {zones.length} Khu · {totalBatches} Lô hàng
               </span>
             </h1>
@@ -340,7 +340,7 @@ export function WarehouseMapPage() {
 
             {/* Chú thích màu */}
             <div className="mt-4 pt-3 flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap border-t border-slate-100">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Bình thường
+              <span className="w-2 h-2 rounded-full bg-sky-500 inline-block" /> Bình thường
               <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block ml-2" /> Sắp hết
               <span className="w-2 h-2 rounded-full bg-orange-400 inline-block ml-2" /> Cận date
               <span className="w-2 h-2 rounded-full bg-red-400 inline-block ml-2" /> Hết hạn
@@ -384,7 +384,7 @@ export function WarehouseMapPage() {
       {viewMode === "2d" && (
         <div className="shrink-0 h-10 bg-white border-t border-slate-200 flex items-center justify-center gap-6 px-4 text-[11px] text-slate-500">
           {[
-            { color: "#22c55e", label: "Bình thường" },
+            { color: "#0ea5e9", label: "Bình thường" },
             { color: "#facc15", label: "Sắp hết hàng" },
             { color: "#f97316", label: "Cận date (<90 ngày)" },
             { color: "#ef4444", label: "Hết hạn" },
@@ -419,7 +419,7 @@ export function WarehouseMapPage() {
 
 function getShelfLightStyle(status: string): React.CSSProperties {
   const map: Record<string, React.CSSProperties> = {
-    NORMAL:      { background: "#dcfce7", border: "1px solid #86efac", color: "#15803d" },
+    NORMAL:      { background: "#e0f2fe", border: "1px solid #7dd3fc", color: "#0369a1" },
     LOW_STOCK:   { background: "#fef9c3", border: "1px solid #fde047", color: "#a16207" },
     NEAR_EXPIRY: { background: "#ffedd5", border: "1px solid #fdba74", color: "#c2410c" },
     EXPIRED:     { background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c" },

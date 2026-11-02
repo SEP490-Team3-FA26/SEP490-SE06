@@ -273,14 +273,19 @@ export class ShiftHandoverService {
 
     await handover.save();
 
-    // 5. Cập nhật Attendance để đánh dấu đã nộp bàn giao ca & khóa POS (INV-SHO-04)
+    // 5. Cập nhật Attendance: Đóng ca trực, ghi nhận giờ check-out và chuyển trạng thái COMPLETED
     attendance.handoverId = handover._id as Types.ObjectId;
     attendance.isHandoverSubmitted = true;
+    if (!attendance.checkOutTime) {
+      attendance.checkOutTime = handover.submittedAt || new Date();
+      attendance.status = AttendanceStatus.COMPLETED;
+      attendance.note = (attendance.note ? attendance.note + ' | ' : '') + 'Đã đóng ca & nộp biên bản bàn giao';
+    }
     await attendance.save();
 
     return {
       success: true,
-      message: 'Nộp biên bản bàn giao ca thành công! Bạn có thể thực hiện Check-out tan ca.',
+      message: 'Nộp biên bản bàn giao ca thành công! Ca trực đã hoàn tất và đóng phiên bán hàng.',
       handover: handover.toObject ? handover.toObject() : handover,
     };
   }

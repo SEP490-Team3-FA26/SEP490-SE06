@@ -57,17 +57,17 @@ function CartItemRow({ item, onUpdateQuantity, onRemoveItem }: CartItemRowProps)
             <span className="text-xs text-rose-500 font-semibold">-{item.discount}%</span>
           </div>
         ) : null}
-        <p className="font-mono tabular-nums text-emerald-700 font-bold text-sm mt-0.5">
+        <p className="font-mono tabular-nums text-sky-700 font-bold text-sm mt-0.5">
           {formatVND(lineTotal)}
         </p>
       </div>
 
-      {/* Quantity stepper */}
+      {/* Điều khiển tăng giảm số lượng */}
       <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={() => onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))}
           aria-label={`Decrease quantity of ${item.name}`}
-          className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition-all shadow-sm"
+          className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 transition-all shadow-sm"
         >
           <Minus size={13} />
         </button>
@@ -79,13 +79,13 @@ function CartItemRow({ item, onUpdateQuantity, onRemoveItem }: CartItemRowProps)
             const val = parseInt(e.target.value, 10);
             if (!isNaN(val) && val >= 1) onUpdateQuantity(item.id, val);
           }}
-          className="w-10 text-center font-mono tabular-nums text-sm font-bold text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 bg-white/80"
+          className="w-10 text-center font-mono tabular-nums text-sm font-bold text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 bg-white/80"
           aria-label={`Quantity of ${item.name}`}
         />
         <button
           onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
           aria-label={`Increase quantity of ${item.name}`}
-          className="w-7 h-7 flex items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-all shadow-sm"
+          className="w-7 h-7 flex items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:border-sky-400 transition-all shadow-sm"
         >
           <Plus size={13} />
         </button>
@@ -144,10 +144,10 @@ export function PosOrderCart({
 
   return (
     <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-slate-200/60 shadow-lg flex flex-col h-full">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/5 border-b border-emerald-100/60 px-5 py-4 rounded-t-2xl flex items-center gap-2.5">
-        <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center">
-          <ShoppingCart size={16} className="text-emerald-600" />
+      {/* Tiêu đề giỏ hàng */}
+      <div className="bg-gradient-to-r from-sky-500/10 to-blue-500/5 border-b border-sky-100/60 px-5 py-4 rounded-t-2xl flex items-center gap-2.5">
+        <div className="w-8 h-8 bg-sky-100 rounded-xl flex items-center justify-center">
+          <ShoppingCart size={16} className="text-sky-600" />
         </div>
         <div>
           <h2 className="font-bold text-slate-800 text-sm leading-tight">Giỏ hàng POS</h2>
@@ -200,12 +200,12 @@ export function PosOrderCart({
                 className="flex-1 text-xs font-mono font-semibold bg-transparent text-slate-700 placeholder:text-slate-300 focus:outline-none"
               />
               {voucherApplied && (
-                <span className="text-xs text-emerald-600 font-semibold">✓</span>
+                <span className="text-xs text-sky-600 font-semibold">✓</span>
               )}
             </div>
             <button
               onClick={handleValidateVoucher}
-              className="px-3 py-2 text-xs font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all"
+              className="px-3 py-2 text-xs font-bold bg-slate-100 hover:bg-sky-50 hover:text-sky-700 border border-slate-200 hover:border-sky-300 rounded-xl transition-all"
             >
               Áp dụng
             </button>
@@ -216,10 +216,10 @@ export function PosOrderCart({
         </div>
       )}
 
-      {/* Summary section (sticky bottom) */}
+      {/* Tóm tắt thanh toán */}
       {items.length > 0 && (
         <div className="px-5 py-4 border-t border-slate-100/80 bg-slate-50/60 rounded-b-2xl space-y-2">
-          {/* Subtotal */}
+          {/* Tạm tính */}
           <div className="flex items-center justify-between text-sm text-slate-500">
             <span>Tạm tính</span>
             <span className="font-mono tabular-nums font-semibold text-slate-700">
@@ -227,32 +227,32 @@ export function PosOrderCart({
             </span>
           </div>
 
-          {/* VAT */}
+          {/* Thuế VAT */}
           <div className="flex items-center justify-between text-sm text-slate-500">
             <span>
               VAT{" "}
-              <span className="text-emerald-600 font-semibold font-mono">{vatRate}%</span>
+              <span className="text-sky-600 font-semibold font-mono">{vatRate}%</span>
             </span>
             <span className="font-mono tabular-nums text-slate-600">
               {formatVND(vatAmount)}
             </span>
           </div>
 
-          {/* Divider */}
+          {/* Đường phân cách */}
           <div className="border-t border-slate-200/80 pt-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-slate-700">Tổng cộng</span>
-              <span className="font-mono tabular-nums font-black text-xl text-emerald-700">
+              <span className="font-mono tabular-nums font-black text-xl text-sky-700">
                 {formatVND(total)}
               </span>
             </div>
           </div>
 
-          {/* Checkout button */}
+          {/* Nút thanh toán */}
           <button
             onClick={handleCheckout}
             disabled={loading || items.length === 0}
-            className="w-full mt-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-500/20"
+            className="w-full mt-1 py-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-sky-500/20"
           >
             {loading ? (
               <Loader2 size={16} className="animate-spin text-white" />

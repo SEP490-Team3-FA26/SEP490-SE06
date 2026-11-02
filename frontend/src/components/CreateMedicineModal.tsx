@@ -332,7 +332,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
                     disabled={!formData.is_medicine}
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400 focus:ring-2 focus:ring-[#0057cd]/30"
                   >
-                    <option value="SYNCED" className="text-emerald-700 font-bold">Đã đồng bộ</option>
+                    <option value="SYNCED" className="text-sky-700 font-bold">Đã đồng bộ</option>
                     <option value="UNSYNCED" className="text-amber-700 font-bold">Chưa đồng bộ</option>
                     <option value="NOT_REQUIRED" className="text-slate-500">Không đồng bộ</option>
                   </select>

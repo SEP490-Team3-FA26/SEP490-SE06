@@ -5,7 +5,7 @@ import { Loader2, CalendarDays, Clock, CheckCircle2, XCircle, AlertTriangle, Fil
 const LEAVE_TYPE_CONFIG: Record<LeaveType, { label: string; badgeClass: string }> = {
   ANNUAL_PAID: {
     label: "Phép năm (Có lương)",
-    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    badgeClass: "bg-sky-100 text-sky-800 border-sky-300",
   },
   SICK_LEAVE: {
     label: "Nghỉ ốm (BHXH)",
@@ -23,7 +23,7 @@ const LEAVE_TYPE_CONFIG: Record<LeaveType, { label: string; badgeClass: string }
 
 const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; icon: any }> = {
   PENDING: { label: "Chờ Duyệt", badgeClass: "bg-amber-100 text-amber-800 border-amber-300", icon: Clock },
-  APPROVED: { label: "Đã Phê Duyệt", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300", icon: CheckCircle2 },
+  APPROVED: { label: "Đã Phê Duyệt", badgeClass: "bg-sky-100 text-sky-800 border-sky-300", icon: CheckCircle2 },
   REJECTED: { label: "Đã Từ Chối", badgeClass: "bg-rose-100 text-rose-800 border-rose-300", icon: XCircle },
   CANCELLED: { label: "Đã Hủy", badgeClass: "bg-slate-100 text-slate-600 border-slate-300", icon: XCircle },
 };
@@ -125,7 +125,7 @@ export function BranchLeaveApproval() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <CalendarDays className="w-7 h-7 text-emerald-600" />
+          <CalendarDays className="w-7 h-7 text-sky-600" />
           Phê Duyệt Đơn Xin Nghỉ Phép (Cơ Sở)
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -167,7 +167,7 @@ export function BranchLeaveApproval() {
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Thẩm Quyền Phê Duyệt
             </span>
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <CheckCircle2 className="w-5 h-5 text-sky-600" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-xl font-bold text-slate-900">Quản Lý Chi Nhánh</span>
@@ -206,7 +206,7 @@ export function BranchLeaveApproval() {
             placeholder="Tìm theo tên nhân viên, ca..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
       </div>
@@ -238,7 +238,7 @@ export function BranchLeaveApproval() {
                   {/* Top Bar */}
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
+                      <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center font-bold text-xs">
                         <User className="w-4 h-4" />
                       </div>
                       <div>
@@ -330,7 +330,7 @@ export function BranchLeaveApproval() {
                       <button
                         onClick={() => handleApprove(leave)}
                         disabled={actionLoading}
-                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors"
+                        className="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors"
                       >
                         Phê Duyệt
                       </button>

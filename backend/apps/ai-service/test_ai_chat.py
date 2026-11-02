@@ -108,13 +108,14 @@ class TestAIChatService(unittest.TestCase):
         from services.llm_service import extract_vision_keywords_for_rag
 
         mock_vision_json = '{"keywords": "Panadol Extra Paracetamol 500mg Cafein", "visual_summary": "Hộp thuốc Panadol Extra đỏ"}'
-        with patch("services.llm_service.call_deepseek_json", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = mock_vision_json
-            keywords = asyncio.run(extract_vision_keywords_for_rag(
-                image_base64="data:image/jpeg;base64,mock",
-                user_message="Thuốc này liều dùng sao bác sĩ"
-            ))
-            self.assertEqual(keywords, "Panadol Extra Paracetamol 500mg Cafein | Hộp thuốc Panadol Extra đỏ")
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "test_mock_key"}):
+            with patch("services.llm_service.call_deepseek_json", new_callable=AsyncMock) as mock_call:
+                mock_call.return_value = mock_vision_json
+                keywords = asyncio.run(extract_vision_keywords_for_rag(
+                    image_base64="data:image/jpeg;base64,mock",
+                    user_message="Thuốc này liều dùng sao bác sĩ"
+                ))
+                self.assertEqual(keywords, "Panadol Extra Paracetamol 500mg Cafein | Hộp thuốc Panadol Extra đỏ")
 
     def test_generate_chat_consultation_parsing(self):
         """Kiểm tra hàm generate_chat_consultation parse đúng JSON từ DeepSeek"""

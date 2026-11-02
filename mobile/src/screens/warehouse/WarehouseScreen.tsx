@@ -31,12 +31,15 @@ import { WarehouseShelfModal } from '../../components/warehouse/WarehouseShelfMo
 import { TransferQRModal } from '../../components/warehouse/TransferQRModal';
 import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
+import { DigitalHealthPassportModal } from '../../components/clinical/DigitalHealthPassportModal';
+import { NearExpiryMedicineModal } from '../../components/warehouse/NearExpiryMedicineModal';
+import { formatDaysLeftLabel, filterNearExpiryList } from '../../services/nearExpiryHelper';
 
 const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; label: string; icon: string }> = {
   A: { bg: 'rgba(2, 132, 199, 0.1)', border: '#0284C7', text: '#0284C7', label: 'Kháng sinh', icon: '💊' },
   B: { bg: 'rgba(245, 158, 11, 0.1)', border: '#F59E0B', text: '#D97706', label: 'Hạ sốt & Giảm đau', icon: '🌡️' },
   C: { bg: 'rgba(239, 68, 68, 0.1)', border: '#EF4444', text: '#DC2626', label: 'Tim mạch', icon: '❤️' },
-  D: { bg: 'rgba(16, 185, 129, 0.1)', border: '#10B981', text: '#059669', label: 'Tiêu hóa', icon: '🫀' },
+  D: { bg: 'rgba(2, 132, 199, 0.1)', border: '#0284C7', text: '#0369A1', label: 'Tiêu hóa', icon: '🫀' },
   E: { bg: 'rgba(139, 92, 246, 0.1)', border: '#8B5CF6', text: '#7C3AED', label: 'Thực phẩm chức năng', icon: '🌿' },
   F: { bg: 'rgba(100, 116, 139, 0.1)', border: '#64748B', text: '#475569', label: 'Vật tư y tế', icon: '🩺' },
 };
@@ -48,6 +51,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   // Attendance & Shift Modal
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
   const [showPayslipModal, setShowPayslipModal] = useState<boolean>(false);
+  const [showStaffIdModal, setShowStaffIdModal] = useState<boolean>(false);
 
   // --- Sơ Đồ Kho Tổng (Warehouse Map) State ---
   const [warehouseZones, setWarehouseZones] = useState<WarehouseZone[]>(DEFAULT_GSP_ZONES);
@@ -100,6 +104,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   // Expiration report state
   const [expiredList, setExpiredList] = useState<any[]>([]);
+  const [expiredFilter, setExpiredFilter] = useState<'ALL' | 'EXPIRED' | 'UNDER_30' | 'UNDER_90'>('ALL');
+  const [selectedExpMedDetail, setSelectedExpMedDetail] = useState<any | null>(null);
 
   // AI Demand Forecast state
   const [forecastPeriod, setForecastPeriod] = useState<number>(30);
@@ -107,6 +113,64 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [forecastData, setForecastData] = useState<any | null>(null);
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  // [REVIEWER_HOOK_WAREHOUSE]
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab && ['MAP', 'INVENTORY', 'RECEIPTS', 'TRANSFERS', 'EXPIRATION', 'TRACE', 'FORECAST'].includes(tab)) {
+        setActiveTab(tab as any);
+      }
+      if (modal === 'checkin') setShowCheckInModal(true);
+      if (modal === 'payslip') setShowPayslipModal(true);
+      if (modal === 'shelf') {
+        setSelectedShelfForDetail({ zone: 'A', rack: 'A1', shelf: 2 });
+      }
+      if (modal === 'transfer_qr') {
+        setSelectedTransferForQR({
+          id: 'TR-ABC-001',
+          sourceBranchId: 'warehouse_hub',
+          targetBranchId: 'branch_q1',
+          status: 'APPROVED',
+          items: [{ medicineName: 'Paracetamol 500mg', qty: 200, unit: 'Hộp' }],
+        } as any);
+      }
+      if (modal === 'inspect') {
+        setSelectedReceiptForInspection({
+          id: 'PO-REC-01',
+          supplierName: 'Dược Hậu Giang (DHG Pharma)',
+          poCode: 'PO-2026-001',
+          status: 'INSPECTING',
+          items: [{ name: 'Hapacol 650mg', expectedQty: 500, unit: 'Hộp' }],
+        });
+        setInspectModalVisible(true);
+      }
+      if (modal === 'exp_detail') {
+        setActiveTab('EXPIRATION');
+        setSelectedExpMedDetail({
+          id: 'MED-EXP-01',
+          name: 'Cao dán giảm đau Salonpas Pain Relief Patch dùng trong các cơn đau vai, đau cổ (7cm x 10cm - 3 miếng)',
+          activeIngredient: 'Methyl salicylate 10%, Menthol 3%',
+          category: 'Thuốc dùng ngoài da / Giảm đau',
+          manufacturer: 'Hisamitsu Pharmaceutical Co., Inc. (Nhật Bản)',
+          origin: 'Nhật Bản',
+          dosageForm: 'Cao dán giảm đau (7cm x 10cm)',
+          registrationNumber: 'VN-19842-16',
+          batchNo: 'INIT-BATCH-2026',
+          expDate: '06/10/2026',
+          mfgDate: '06/10/2024',
+          daysLeft: 27,
+          stock: 450,
+          unit: 'Hộp',
+          location: { zone: 'A', rack: 'A2', shelf: 3 },
+          storageCondition: 'Nhiệt độ phòng dưới 30°C, tránh ánh nắng trực tiếp',
+          status: 'NEAR_EXPIRY',
+        });
+      }
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -530,11 +594,11 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   }, [transfers, transferFilter]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="Quản Lý Kho Dược GSP"
         subtitle="Sơ đồ 2D, Quét Barcode/QR, Tồn kho & Kiểm nhận"
-        gradientVariant="emerald"
+        gradientVariant="sky"
         rightAction={{
           icon: 'person-circle-outline',
           onPress: () => navigation.navigate('ProfileScreen'),
@@ -556,8 +620,8 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setShowCheckInModal(true)}
             style={[styles.shiftActionBtn, styles.checkInBtn]}
           >
-            <Ionicons name="location" size={16} color="#059669" />
-            <Text style={[styles.shiftActionText, { color: '#059669' }]}>
+            <Ionicons name="location" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>
               Điểm Danh GPS Kho Tổng
             </Text>
           </AnimatedTouchable>
@@ -568,6 +632,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           >
             <Ionicons name="receipt-outline" size={16} color="#0284C7" />
             <Text style={[styles.shiftActionText, { color: '#0284C7' }]}>Phiếu Lương</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setShowStaffIdModal(true)}
+            style={[styles.shiftActionBtn, { borderColor: '#BAE6FD', backgroundColor: '#F0F9FF' }]}
+          >
+            <Ionicons name="card-outline" size={16} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7', fontWeight: '700' }]}>Thẻ Nhân Sự GPP</Text>
           </AnimatedTouchable>
 
           <AnimatedTouchable
@@ -590,7 +662,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('MAP')}
             style={[styles.tabItem, activeTab === 'MAP' && styles.activeTabItem]}
           >
-            <Ionicons name="map" size={15} color={activeTab === 'MAP' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="map" size={15} color={activeTab === 'MAP' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'MAP' && styles.activeTabText]}>Sơ Đồ Kho</Text>
           </AnimatedTouchable>
 
@@ -598,7 +670,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('INVENTORY')}
             style={[styles.tabItem, activeTab === 'INVENTORY' && styles.activeTabItem]}
           >
-            <Ionicons name="cube" size={15} color={activeTab === 'INVENTORY' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="cube" size={15} color={activeTab === 'INVENTORY' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'INVENTORY' && styles.activeTabText]}>Tồn Kho</Text>
           </AnimatedTouchable>
 
@@ -606,7 +678,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('TRANSFERS')}
             style={[styles.tabItem, activeTab === 'TRANSFERS' && styles.activeTabItem]}
           >
-            <Ionicons name="swap-horizontal" size={15} color={activeTab === 'TRANSFERS' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="swap-horizontal" size={15} color={activeTab === 'TRANSFERS' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'TRANSFERS' && styles.activeTabText]}>Xuất Chuyển (QR)</Text>
           </AnimatedTouchable>
 
@@ -614,7 +686,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('RECEIPTS')}
             style={[styles.tabItem, activeTab === 'RECEIPTS' && styles.activeTabItem]}
           >
-            <Ionicons name="document-text" size={15} color={activeTab === 'RECEIPTS' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="document-text" size={15} color={activeTab === 'RECEIPTS' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'RECEIPTS' && styles.activeTabText]}>Kiểm Nhận</Text>
           </AnimatedTouchable>
 
@@ -622,7 +694,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('EXPIRATION')}
             style={[styles.tabItem, activeTab === 'EXPIRATION' && styles.activeTabItem]}
           >
-            <Ionicons name="alarm" size={15} color={activeTab === 'EXPIRATION' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="alarm" size={15} color={activeTab === 'EXPIRATION' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'EXPIRATION' && styles.activeTabText]}>Hết Hạn</Text>
           </AnimatedTouchable>
 
@@ -630,7 +702,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('TRACE')}
             style={[styles.tabItem, activeTab === 'TRACE' && styles.activeTabItem]}
           >
-            <Ionicons name="git-branch" size={15} color={activeTab === 'TRACE' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="git-branch" size={15} color={activeTab === 'TRACE' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'TRACE' && styles.activeTabText]}>Truy Lô</Text>
           </AnimatedTouchable>
 
@@ -638,7 +710,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setActiveTab('FORECAST')}
             style={[styles.tabItem, activeTab === 'FORECAST' && styles.activeTabItem]}
           >
-            <Ionicons name="analytics" size={15} color={activeTab === 'FORECAST' ? '#065F46' : '#94A3B8'} />
+            <Ionicons name="analytics" size={15} color={activeTab === 'FORECAST' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'FORECAST' && styles.activeTabText]}>Dự Báo AI</Text>
           </AnimatedTouchable>
         </ScrollView>
@@ -646,7 +718,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#059669']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
         {/* ========================================================= */}
         {/* TAB 1: SƠ ĐỒ KHO TỔNG (WAREHOUSE MAP) */}
@@ -660,7 +732,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <Text style={styles.kpiValue}>{warehouseZones.length} Phân Khu</Text>
                 <Text style={styles.kpiLabel}>Chuẩn GSP (Zone A-F)</Text>
               </GradientCard>
-              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="cube" size={20} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
                   {medicines.reduce((sum, m) => sum + m.stock, 0).toLocaleString('vi-VN')}
@@ -824,7 +896,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <Text style={styles.kpiValue}>{medicines.length}</Text>
                 <Text style={styles.kpiLabel}>Tổng loại thuốc</Text>
               </GradientCard>
-              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="layers" size={20} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
                   {medicines.reduce((sum, m) => sum + m.stock, 0).toLocaleString('vi-VN')}
@@ -893,7 +965,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       <Text
                         style={[
                           styles.medStock,
-                          { color: isLowStock ? '#DC2626' : '#059669' },
+                          { color: isLowStock ? '#DC2626' : '#0284C7' },
                         ]}
                       >
                         {med.stock} {med.unit}
@@ -934,7 +1006,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                           }}
                           style={styles.locateBtn}
                         >
-                          <Ionicons name="location-outline" size={15} color="#059669" />
+                          <Ionicons name="location-outline" size={15} color="#0284C7" />
                           <Text style={styles.locateBtnText}>Xem Vị Trí Sơ Đồ</Text>
                         </TouchableOpacity>
                       </View>
@@ -1016,13 +1088,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   <View
                     style={[
                       styles.transferStatusBadge,
-                      { backgroundColor: tf.status === 'COMPLETED' ? '#ECFDF5' : '#EFF6FF' },
+                      { backgroundColor: tf.status === 'COMPLETED' ? '#F0F9FF' : '#EFF6FF' },
                     ]}
                   >
                     <Text
                       style={[
                         styles.transferStatusBadgeText,
-                        { color: tf.status === 'COMPLETED' ? '#059669' : '#2563EB' },
+                        { color: tf.status === 'COMPLETED' ? '#0284C7' : '#2563EB' },
                       ]}
                     >
                       {tf.status === 'COMPLETED' ? 'ĐÃ NHẬP KHO' : 'ĐANG GIAO HÀNG'}
@@ -1169,7 +1241,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       {
                         backgroundColor:
                           gr.status === 'COMPLETED'
-                            ? '#ECFDF5'
+                            ? '#F0F9FF'
                             : gr.status === 'INSPECTING'
                             ? '#FEF3C7'
                             : '#EFF6FF',
@@ -1182,7 +1254,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         {
                           color:
                             gr.status === 'COMPLETED'
-                              ? '#059669'
+                              ? '#0284C7'
                               : gr.status === 'INSPECTING'
                               ? '#D97706'
                               : '#2563EB',
@@ -1208,13 +1280,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       <View
                         style={[
                           styles.itemStatusPill,
-                          { backgroundColor: it.status === 'VERIFIED' ? '#ECFDF5' : '#FEF3C7' },
+                          { backgroundColor: it.status === 'VERIFIED' ? '#F0F9FF' : '#FEF3C7' },
                         ]}
                       >
                         <Text
                           style={[
                             styles.itemStatusPillText,
-                            { color: it.status === 'VERIFIED' ? '#059669' : '#D97706' },
+                            { color: it.status === 'VERIFIED' ? '#0284C7' : '#D97706' },
                           ]}
                         >
                           {it.status === 'VERIFIED' ? 'Đã kiểm AI' : 'Chờ kiểm'}
@@ -1244,7 +1316,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   </View>
                 ) : (
                   <View style={styles.completedReceiptBadge}>
-                    <Ionicons name="checkmark-done-circle" size={18} color="#059669" />
+                    <Ionicons name="checkmark-done-circle" size={18} color="#0284C7" />
                     <Text style={styles.completedReceiptText}>
                       Đã hoàn tất kiểm nhận AI & nhập kho lưu trữ GSP
                     </Text>
@@ -1283,41 +1355,241 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         )}
 
         {/* ========================================================= */}
-        {/* TAB 5: EXPIRATION REPORT */}
+        {/* TAB 5: EXPIRATION REPORT - 2-COLUMN COMPACT GRID & DETAIL */}
         {/* ========================================================= */}
-        {activeTab === 'EXPIRATION' && (
-          <View>
-            <Text style={styles.sectionTitle}>Báo Cáo Thuốc Cận Hạn Dùng (&lt; 90 Ngày)</Text>
-            {expiredList.map((item, idx) => (
-              <View key={idx} style={styles.expCard}>
-                <View style={styles.expHeader}>
-                  <Ionicons name="alarm" size={20} color="#DC2626" />
-                  <Text style={styles.expMedName}>{item.name}</Text>
-                  <View style={styles.daysBadge}>
-                    <Text style={styles.daysBadgeText}>Còn {item.daysLeft} ngày</Text>
-                  </View>
-                </View>
-                <Text style={styles.expSub}>
-                  Số Lô: <Text style={{ fontWeight: '700' }}>{item.batchNo}</Text> • Hạn: {item.expDate}
-                </Text>
-                <Text style={styles.expStock}>
-                  Tồn kho cần ưu tiên xuất / đổi trả:{' '}
-                  <Text style={{ fontWeight: '800', color: '#DC2626' }}>
-                    {item.stock} {item.unit}
-                  </Text>
-                </Text>
-              </View>
-            ))}
+        {activeTab === 'EXPIRATION' && (() => {
+          const filteredItems = filterNearExpiryList(expiredList, expiredFilter);
+          const expiredCount = expiredList.filter((i) => (i.daysLeft ?? 999) <= 0).length;
+          const under30Count = expiredList.filter((i) => (i.daysLeft ?? 999) > 0 && (i.daysLeft ?? 999) <= 30).length;
+          const under90Count = expiredList.filter((i) => (i.daysLeft ?? 999) > 30 && (i.daysLeft ?? 999) <= 90).length;
 
-            {expiredList.length === 0 && (
-              <View style={styles.emptyCard}>
-                <Ionicons name="shield-checkmark-outline" size={42} color="#059669" />
-                <Text style={[styles.emptyCardTitle, { color: '#059669' }]}>Hạn Dùng Đạt Chuẩn GSP</Text>
-                <Text style={styles.emptyCardSub}>Tất cả dược phẩm trong kho đều đảm bảo hạn dùng an toàn theo tiêu chuẩn GSP.</Text>
+          return (
+            <View>
+              {/* Tiêu đề & Tóm tắt FEFO */}
+              <View style={styles.expHeaderSection}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Báo Cáo Cận Hạn Dùng (&lt; 90 Ngày)</Text>
+                  <Text style={styles.expSectionSub}>
+                    Ưu tiên điều phối xuất kho FEFO (First Expired First Out)
+                  </Text>
+                </View>
+                <View style={styles.expTotalBadge}>
+                  <Text style={styles.expTotalBadgeText}>{expiredList.length} Dược Phẩm</Text>
+                </View>
               </View>
-            )}
-          </View>
-        )}
+
+              {/* Bộ lọc phân loại nhanh */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.expFilterRow}
+              >
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('ALL')}
+                  style={[styles.expFilterChip, expiredFilter === 'ALL' && styles.expFilterChipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.expFilterChipText, expiredFilter === 'ALL' && styles.expFilterChipTextActive]}>
+                    Tất Cả ({expiredList.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('EXPIRED')}
+                  style={[
+                    styles.expFilterChip,
+                    expiredFilter === 'EXPIRED' && styles.expFilterChipExpiredActive,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="alert-circle"
+                    size={12}
+                    color={expiredFilter === 'EXPIRED' ? '#FFFFFF' : '#DC2626'}
+                  />
+                  <Text
+                    style={[
+                      styles.expFilterChipText,
+                      { color: expiredFilter === 'EXPIRED' ? '#FFFFFF' : '#DC2626' },
+                    ]}
+                  >
+                    Đã Quá Hạn ({expiredCount})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('UNDER_30')}
+                  style={[
+                    styles.expFilterChip,
+                    expiredFilter === 'UNDER_30' && styles.expFilterChipUnder30Active,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="time"
+                    size={12}
+                    color={expiredFilter === 'UNDER_30' ? '#FFFFFF' : '#D97706'}
+                  />
+                  <Text
+                    style={[
+                      styles.expFilterChipText,
+                      { color: expiredFilter === 'UNDER_30' ? '#FFFFFF' : '#D97706' },
+                    ]}
+                  >
+                    ≤ 30 Ngày ({under30Count})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setExpiredFilter('UNDER_90')}
+                  style={[
+                    styles.expFilterChip,
+                    expiredFilter === 'UNDER_90' && styles.expFilterChipActive,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="hourglass-outline"
+                    size={12}
+                    color={expiredFilter === 'UNDER_90' ? '#FFFFFF' : '#0284C7'}
+                  />
+                  <Text
+                    style={[
+                      styles.expFilterChipText,
+                      { color: expiredFilter === 'UNDER_90' ? '#FFFFFF' : '#0284C7' },
+                    ]}
+                  >
+                    ≤ 90 Ngày ({under90Count})
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+
+              {/* LƯỚI GRID 2 ELEMENT MỖI ROW (2-COLUMN GRID LAYOUT) */}
+              <View style={styles.expGridContainer}>
+                {filteredItems.map((item, idx) => {
+                  const badge = formatDaysLeftLabel(item.daysLeft);
+                  return (
+                    <AnimatedTouchable
+                      key={idx}
+                      style={[
+                        styles.expGridCard,
+                        badge.isExpired && { borderColor: '#FECACA' },
+                      ]}
+                      onPress={() => setSelectedExpMedDetail(item)}
+                    >
+                      {/* Badge Hạn Dùng góc trên */}
+                      <View
+                        style={[
+                          styles.expGridBadge,
+                          { backgroundColor: badge.bg, borderColor: badge.border },
+                        ]}
+                      >
+                        <Ionicons name={badge.icon} size={11} color={badge.text} />
+                        <Text
+                          style={[styles.expGridBadgeText, { color: badge.text }]}
+                          numberOfLines={1}
+                        >
+                          {badge.label}
+                        </Text>
+                      </View>
+
+                      {/* Header Card: Icon + Category */}
+                      <View style={styles.expGridTopRow}>
+                        <View
+                          style={[
+                            styles.expGridIconWrap,
+                            { backgroundColor: badge.isExpired ? '#FEF2F2' : '#F0F9FF' },
+                          ]}
+                        >
+                          <Ionicons
+                            name="medical"
+                            size={16}
+                            color={badge.isExpired ? '#DC2626' : '#0284C7'}
+                          />
+                        </View>
+                        <View style={styles.expGridZoneTag}>
+                          <Text style={styles.expGridZoneText}>
+                            Khu {item.location?.zone || 'A'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Tên Thuốc (gọn 2 dòng) */}
+                      <Text style={styles.expGridTitle} numberOfLines={2}>
+                        {item.name}
+                      </Text>
+
+                      {/* Hoạt Chất / Quy Cách (1 dòng mờ) */}
+                      <Text style={styles.expGridSub} numberOfLines={1}>
+                        {item.activeIngredient || item.activeSubstance || item.category || 'Dược phẩm GSP'}
+                      </Text>
+
+                      {/* Dải phân cách viền mỏng */}
+                      <View style={styles.expGridDivider} />
+
+                      {/* Thông tin Lô & HSD */}
+                      <View style={styles.expGridMetaRow}>
+                        <Text style={styles.expGridMetaLabel}>Lô:</Text>
+                        <Text style={styles.expGridMetaValue} numberOfLines={1}>
+                          {item.batchNo}
+                        </Text>
+                      </View>
+                      <View style={styles.expGridMetaRow}>
+                        <Text style={styles.expGridMetaLabel}>HSD:</Text>
+                        <Text
+                          style={[
+                            styles.expGridMetaValue,
+                            { color: badge.text, fontWeight: '700' },
+                          ]}
+                        >
+                          {item.expDate}
+                        </Text>
+                      </View>
+
+                      {/* Footer Card: Tồn Kho + Nút Chi Tiết */}
+                      <View style={styles.expGridFooter}>
+                        <View
+                          style={[
+                            styles.expGridStockPill,
+                            badge.isExpired && { backgroundColor: '#FEE2E2' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.expGridStockText,
+                              badge.isExpired && { color: '#DC2626' },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            Tồn: <Text style={{ fontWeight: '800' }}>{item.stock} {item.unit}</Text>
+                          </Text>
+                        </View>
+
+                        <View style={styles.expGridDetailLink}>
+                          <Text style={styles.expGridDetailText}>Chi tiết</Text>
+                          <Ionicons name="chevron-forward" size={11} color="#0284C7" />
+                        </View>
+                      </View>
+                    </AnimatedTouchable>
+                  );
+                })}
+              </View>
+
+              {/* Trạng thái trống khi lọc */}
+              {filteredItems.length === 0 && (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="shield-checkmark-outline" size={42} color="#0284C7" />
+                  <Text style={[styles.emptyCardTitle, { color: '#0284C7' }]}>
+                    Không Có Dược Phẩm Trong Nhóm Này
+                  </Text>
+                  <Text style={styles.emptyCardSub}>
+                    Tất cả các lô thuốc trong kho đang được bảo quản an toàn theo chuẩn GSP.
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ========================================================= */}
         {/* TAB 6: LOT TRACING (TRUY XUẤT LÔ) */}
@@ -1352,7 +1624,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             {traceResult && (
               <View style={styles.traceCard}>
                 <View style={styles.traceHeader}>
-                  <Ionicons name="shield-checkmark" size={24} color="#059669" />
+                  <Ionicons name="shield-checkmark" size={24} color="#0284C7" />
                   <View style={{ marginLeft: 10 }}>
                     <Text style={styles.traceBatchNo}>Số Lô: {traceResult.batchNo}</Text>
                     <Text style={styles.traceMedName}>{traceResult.medicineName}</Text>
@@ -1370,7 +1642,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   </View>
                   <View style={styles.traceMetaCol}>
                     <Text style={styles.metaLabel}>Tồn kho hiện tại:</Text>
-                    <Text style={[styles.metaVal, { color: '#059669', fontWeight: '800' }]}>
+                    <Text style={[styles.metaVal, { color: '#0284C7', fontWeight: '800' }]}>
                       {traceResult.currentStock}
                     </Text>
                   </View>
@@ -1579,11 +1851,11 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             },
           ]}
         >
-          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <StatusBar barStyle="dark-content" />
           <View style={styles.inspectModalHeader}>
             <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="scan-circle" size={24} color="#059669" style={{ marginRight: 6, flexShrink: 0 }} />
+                <Ionicons name="scan-circle" size={24} color="#0284C7" style={{ marginRight: 6, flexShrink: 0 }} />
                 <Text style={styles.inspectModalTitle} numberOfLines={1}>Kiểm Định AI Vision</Text>
               </View>
               <Text style={styles.inspectModalSub} numberOfLines={1}>
@@ -1620,9 +1892,9 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         paddingHorizontal: 12,
                         paddingVertical: 7,
                         borderRadius: 12,
-                        backgroundColor: isCur ? '#4F46E5' : isDone ? '#ECFDF5' : '#F8FAFC',
+                        backgroundColor: isCur ? '#4F46E5' : isDone ? '#F0F9FF' : '#F8FAFC',
                         borderWidth: 1.5,
-                        borderColor: isCur ? '#4338CA' : isDone ? '#10B981' : '#E2E8F0',
+                        borderColor: isCur ? '#4338CA' : isDone ? '#BAE6FD' : '#E2E8F0',
                         flexDirection: 'row',
                         alignItems: 'center',
                         gap: 4,
@@ -1631,13 +1903,13 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                       <Ionicons
                         name={isDone ? 'checkmark-circle' : isCur ? 'radio-button-on' : 'radio-button-off'}
                         size={13}
-                        color={isCur ? '#FFFFFF' : isDone ? '#059669' : '#94A3B8'}
+                        color={isCur ? '#FFFFFF' : isDone ? '#0284C7' : '#94A3B8'}
                       />
                       <Text
                         style={{
                           fontSize: 11,
                           fontWeight: '700',
-                          color: isCur ? '#FFFFFF' : isDone ? '#065F46' : '#475569',
+                          color: isCur ? '#FFFFFF' : isDone ? '#0369A1' : '#475569',
                         }}
                       >
                         {shortName} ({it.expected} {it.unit || 'hộp'})
@@ -1686,7 +1958,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
             <View style={styles.cameraBtnRow}>
               <AnimatedTouchable onPress={handleTakePhoto} style={styles.cameraActionBtn}>
-                <Ionicons name="camera" size={16} color="#059669" />
+                <Ionicons name="camera" size={16} color="#0284C7" />
                 <Text style={styles.cameraActionBtnText}>Chụp Ảnh</Text>
               </AnimatedTouchable>
               <AnimatedTouchable onPress={handlePickImage} style={styles.galleryActionBtn}>
@@ -1782,7 +2054,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
             {selectedReceiptForInspection?.items?.every((it: any) => it.status === 'VERIFIED') && (
               <View style={styles.finishInspectionBox}>
-                <Ionicons name="ribbon-outline" size={24} color="#059669" />
+                <Ionicons name="ribbon-outline" size={24} color="#0284C7" />
                 <Text style={styles.finishInspectionTitle}>Tất cả mặt hàng đã đạt chuẩn!</Text>
                 <GradientButton
                   title="HOÀN TẤT KIỂM NHẬN & NHẬP TỒN KHO GSP"
@@ -1808,6 +2080,28 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       <StaffPayslipModal
         visible={showPayslipModal}
         onClose={() => setShowPayslipModal(false)}
+      />
+
+      {/* Thẻ Định Danh Nhân Sự GPP Có Mã QR Cho Giám Đốc/Quản Lý Quét */}
+      <DigitalHealthPassportModal
+        visible={showStaffIdModal}
+        onClose={() => setShowStaffIdModal(false)}
+      />
+
+      {/* Modal Chi Tiết Dược Phẩm Cận Hạn GSP & Điều Phối FEFO */}
+      <NearExpiryMedicineModal
+        visible={!!selectedExpMedDetail}
+        medicine={selectedExpMedDetail}
+        onClose={() => setSelectedExpMedDetail(null)}
+        onLocateOnMap={(loc) => {
+          setSelectedExpMedDetail(null);
+          setActiveTab('MAP');
+          setHighlightedTarget(`${loc.zone}-${loc.rack}-${loc.shelf}`);
+          showToast.info(
+            'Định Vị Sơ Đồ Kho GSP',
+            `Đang xem vị trí: Phân Khu ${loc.zone} · Kệ ${loc.rack} · Tầng ${loc.shelf}`
+          );
+        }}
       />
     </SafeAreaView>
   );
@@ -1840,8 +2134,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   checkInBtn: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
   },
   payslipBtn: {
     backgroundColor: '#F0F9FF',
@@ -1871,9 +2165,9 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   activeTabItem: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#059669',
+    borderColor: '#0284C7',
   },
   tabText: {
     fontSize: 11,
@@ -1881,7 +2175,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   activeTabText: {
-    color: '#065F46',
+    color: '#0369A1',
     fontWeight: 'bold',
   },
   scrollContent: {
@@ -2077,7 +2371,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0284C7',
   },
   shelfStockText: {
     fontSize: 9.5,
@@ -2195,16 +2489,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#059669',
+    borderColor: '#BAE6FD',
     paddingVertical: 6,
     borderRadius: 8,
     gap: 4,
   },
   locateBtnText: {
     fontSize: 11,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: 'bold',
   },
   batchesHeader: {
@@ -2239,7 +2533,7 @@ const styles = StyleSheet.create({
   batchStock: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#059669',
+    color: '#0284C7',
   },
   noBatchText: {
     fontSize: 11,
@@ -2382,7 +2676,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     borderRadius: 8,
     gap: 5,
@@ -2462,7 +2756,7 @@ const styles = StyleSheet.create({
   completedReceiptBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 10,
     borderRadius: 10,
     marginTop: 8,
@@ -2470,50 +2764,197 @@ const styles = StyleSheet.create({
   },
   completedReceiptText: {
     fontSize: 11.5,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '600',
   },
-  expCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  expHeader: {
+  /* --- BÁO CÁO CẬN HẠN DÙNG (EXPIRATION) - 2-COLUMN GRID & FILTER --- */
+  expHeaderSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  expMedName: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#0F172A',
-    flex: 1,
-    marginLeft: 6,
-  },
-  daysBadge: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  daysBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#DC2626',
-  },
-  expSub: {
+  expSectionSub: {
     fontSize: 11,
     color: '#64748B',
+    marginTop: 2,
+  },
+  expTotalBadge: {
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  expTotalBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  expFilterRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 4,
+    marginBottom: 10,
+  },
+  expFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  expFilterChipActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
+  },
+  expFilterChipExpiredActive: {
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
+  },
+  expFilterChipUnder30Active: {
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
+  },
+  expFilterChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  expFilterChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  expGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  expGridCard: {
+    width: '48.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  expGridBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  expGridBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  expGridTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  expGridIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expGridZoneTag: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  expGridZoneText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  expGridTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 16,
+    minHeight: 32,
     marginBottom: 2,
   },
-  expStock: {
-    fontSize: 11.5,
+  expGridSub: {
+    fontSize: 10,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  expGridDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  expGridMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  expGridMetaLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  expGridMetaValue: {
+    fontSize: 10.5,
+    fontWeight: '600',
     color: '#334155',
+    maxWidth: '75%',
+  },
+  expGridFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
+  },
+  expGridStockPill: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    maxWidth: '65%',
+  },
+  expGridStockText: {
+    fontSize: 9.5,
+    color: '#15803D',
+    fontWeight: '600',
+  },
+  expGridDetailLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  expGridDetailText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0284C7',
   },
   traceCard: {
     backgroundColor: '#FFFFFF',
@@ -2567,7 +3008,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     marginRight: 10,
   },
   txType: {
@@ -2585,7 +3026,7 @@ const styles = StyleSheet.create({
     color: '#0284C7',
   },
   traceBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -2683,11 +3124,11 @@ const styles = StyleSheet.create({
   },
   riskHigh: { backgroundColor: '#FEE2E2' },
   riskMedium: { backgroundColor: '#FEF3C7' },
-  riskLow: { backgroundColor: '#ECFDF5' },
+  riskLow: { backgroundColor: '#F0F9FF' },
   riskBadgeText: { fontSize: 9.5, fontWeight: 'bold' },
   riskHighText: { color: '#DC2626' },
   riskMediumText: { color: '#D97706' },
-  riskLowText: { color: '#059669' },
+  riskLowText: { color: '#0284C7' },
   forecastGrid: {
     flexDirection: 'row',
     backgroundColor: '#F8FAFC',
@@ -2727,7 +3168,7 @@ const styles = StyleSheet.create({
   stepBadge: { backgroundColor: '#E0F2FE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   stepBadgeText: { fontSize: 9.5, fontWeight: 'bold', color: '#0284C7' },
   inspectCurrentMedName: { fontSize: 13, fontWeight: 'bold', color: '#0F172A' },
-  inspectCurrentPoQty: { fontSize: 11, color: '#059669', marginTop: 2 },
+  inspectCurrentPoQty: { fontSize: 11, color: '#0284C7', marginTop: 2 },
   scannerFrame: {
     height: 180,
     backgroundColor: '#0F172A',
@@ -2758,14 +3199,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#059669',
+    borderColor: '#BAE6FD',
     paddingVertical: 8,
     borderRadius: 10,
     gap: 6,
   },
-  cameraActionBtnText: { color: '#059669', fontSize: 12, fontWeight: 'bold' },
+  cameraActionBtnText: { color: '#0284C7', fontSize: 12, fontWeight: 'bold' },
   galleryActionBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -2784,13 +3225,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     borderWidth: 1.5,
-    borderColor: '#059669',
+    borderColor: '#0284C7',
     marginBottom: 12,
   },
   aiResultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  aiResultTitle: { fontSize: 13, fontWeight: 'bold', color: '#059669' },
-  confidenceBadge: { backgroundColor: '#ECFDF5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  confidenceText: { fontSize: 10, fontWeight: 'bold', color: '#059669' },
+  aiResultTitle: { fontSize: 13, fontWeight: 'bold', color: '#0284C7' },
+  confidenceBadge: { backgroundColor: '#F0F9FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  confidenceText: { fontSize: 10, fontWeight: 'bold', color: '#0284C7' },
   aiRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   aiRowLabel: { fontSize: 11, color: '#64748B' },
   aiRowValue: { fontSize: 11, fontWeight: '600', color: '#0F172A' },
@@ -2811,8 +3252,8 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   unitSuffix: { fontSize: 12, color: '#64748B', fontWeight: '600' },
-  finishInspectionBox: { backgroundColor: '#ECFDF5', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 10 },
-  finishInspectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#059669', marginTop: 4 },
+  finishInspectionBox: { backgroundColor: '#F0F9FF', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 10 },
+  finishInspectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#0284C7', marginTop: 4 },
   emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,

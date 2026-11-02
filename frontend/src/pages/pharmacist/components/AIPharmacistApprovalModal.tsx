@@ -278,7 +278,7 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
             type="checkbox"
             checked={allSelected}
             onChange={(e) => toggleSelectAll(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
             aria-label="Selecteer alle medicijnen"
           />
         </div>
@@ -291,7 +291,7 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
             type="checkbox"
             checked={item.selected}
             onChange={() => toggleSelectDrug(item.id)}
-            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
             aria-label={`Selecteer ${item.name}`}
           />
         </div>
@@ -316,7 +316,7 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
             </div>
           )}
           {item.indication && (
-            <div className="text-[10px] text-emerald-700 italic mt-0.5">
+            <div className="text-[10px] text-sky-700 italic mt-0.5">
               Chỉ định: {item.indication}
             </div>
           )}
@@ -334,7 +334,7 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
             value={item.dosageInstructions}
             onChange={(e) => updateDosageInstruction(item.id, e.target.value)}
             placeholder="Liều dùng..."
-            className="w-full text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            className="w-full text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
           />
         </div>
       ),
@@ -346,8 +346,8 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
       render: (item) => (
         <div>
           {item.inStock ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-600" />
               Còn {item.stock} {item.unit}
             </span>
           ) : (
@@ -424,7 +424,7 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
         {/* ========================================================================= */}
         {/* 1. HERO HEADER (GPP Emerald to Teal Gradient) */}
         {/* ========================================================================= */}
-        <div className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-5 text-white shrink-0 overflow-hidden">
+        <div className="relative bg-gradient-to-r from-sky-600 via-teal-600 to-cyan-600 p-5 text-white shrink-0 overflow-hidden">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -435,14 +435,14 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
                   <span className="text-[10px] font-black tracking-widest uppercase bg-white/20 text-white border border-white/30 px-2 py-0.5 rounded-full backdrop-blur-xs">
                     Quy Trình Chuẩn GPP
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-100 flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-sky-100 flex items-center gap-1">
                     <Sparkles size={11} className="text-amber-300" /> AI Clinical Verification
                   </span>
                 </div>
                 <h2 className="text-lg font-black text-white tracking-tight mt-0.5">
                   Thẩm Định & Phê Duyệt Đơn Thuốc AI
                 </h2>
-                <p className="text-xs text-emerald-100 font-medium">
+                <p className="text-xs text-sky-100 font-medium">
                   Dược sĩ đối soát lâm sàng, xác nhận trách nhiệm chuyên môn trước khi đưa vào đơn bán POS
                 </p>
               </div>
@@ -478,7 +478,7 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
             </div>
             <div className="shrink-0 flex items-center gap-2">
               <span className="text-[11px] font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
-                Độ tin cậy: <span className="text-emerald-700 font-black">{confidenceScore}%</span>
+                Độ tin cậy: <span className="text-sky-700 font-black">{confidenceScore}%</span>
               </span>
             </div>
           </div>
@@ -498,12 +498,12 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                <FileCheck size={14} className="text-emerald-600" />
+                <FileCheck size={14} className="text-sky-600" />
                 Danh mục thuốc AI đề xuất ({selectedDrugs.length}/{drugsList.length} thuốc được chọn)
               </span>
               <span className="text-xs font-mono font-bold text-slate-700">
                 Tạm tính:{' '}
-                <span className="text-emerald-700 font-black text-sm">
+                <span className="text-sky-700 font-black text-sm">
                   {totalApprovedAmount.toLocaleString('vi-VN')}₫
                 </span>
               </span>
@@ -524,39 +524,39 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
           {/* ========================================================================= */}
           {/* 3. GPP APOTHEKER VERKLARING & CONTROLEPANEEL */}
           {/* ========================================================================= */}
-          <div className="bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-cyan-50/80 border-2 border-emerald-300 rounded-2xl p-4 shadow-sm space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-3">
+          <div className="bg-gradient-to-r from-sky-50/80 via-teal-50/60 to-cyan-50/80 border-2 border-sky-300 rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/80 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs shrink-0">
                   <ShieldCheck size={18} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                  <h4 className="text-xs font-black text-sky-950 uppercase tracking-wider flex items-center gap-2">
                     Xác Nhận Thẩm Định Chuyên Môn Dược Sĩ
-                    <span className="bg-emerald-200 text-emerald-900 text-[9px] px-2 py-0.5 rounded-full font-black border border-emerald-300">
+                    <span className="bg-sky-200 text-sky-900 text-[9px] px-2 py-0.5 rounded-full font-black border border-sky-300">
                       Bắt buộc GPP
                     </span>
                   </h4>
-                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                  <p className="text-[11px] text-sky-800 mt-0.5">
                     Dược sĩ: <strong>{pharmacistName}</strong> • CCHN: <strong>{pharmacistLicense}</strong> • Cơ sở: <strong>{branchName}</strong>
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] font-bold text-emerald-900 bg-white/90 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs self-start sm:self-auto">
+              <span className="text-[10px] font-bold text-sky-900 bg-white/90 px-2.5 py-1 rounded-lg border border-sky-200 shadow-2xs self-start sm:self-auto">
                 🕒 {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - Hôm nay
               </span>
             </div>
 
             {/* Veiligheidschecklist van 3 punten */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-              <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" /> Khớp hoạt chất & hàm lượng
+              <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                <CheckCircle2 size={13} className="text-sky-600 shrink-0" /> Khớp hoạt chất & hàm lượng
               </div>
-              <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" /> Không tương tác chống chỉ định
+              <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                <CheckCircle2 size={13} className="text-sky-600 shrink-0" /> Không tương tác chống chỉ định
               </div>
-              <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" /> Gán lô FEFO cận hạn tự động
+              <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                <CheckCircle2 size={13} className="text-sky-600 shrink-0" /> Gán lô FEFO cận hạn tự động
               </div>
             </div>
 
@@ -574,18 +574,18 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
                 value={clinicalNotes}
                 onChange={(e) => setClinicalNotes(e.target.value)}
                 placeholder="Ví dụ: Uống nhiều nước, kiêng đồ chua cay, tái khám nếu sốt kéo dài trên 3 ngày..."
-                className="w-full text-xs p-2.5 rounded-xl border border-emerald-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                className="w-full text-xs p-2.5 rounded-xl border border-sky-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
               />
             </div>
 
             {/* Verplichte GPP-akkoordverklaring met checkbox */}
-            <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-emerald-300 hover:bg-emerald-50/50 transition-colors shadow-2xs">
+            <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-sky-300 hover:bg-sky-50/50 transition-colors shadow-2xs">
               <input
                 type="checkbox"
                 id="gpp-pharmacist-agreement-checkbox"
                 checked={gppAgreementChecked}
                 onChange={(e) => setGppAgreementChecked(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                className="mt-0.5 h-4 w-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
               />
               <span className="text-xs text-slate-700 leading-snug">
                 Tôi là Dược sĩ chuyên môn phụ trách ca, xác nhận đã đối soát và thẩm định lâm sàng danh mục thuốc do AI đề xuất. Tôi <strong>chịu hoàn toàn trách nhiệm chuyên môn</strong> khi đưa danh mục thuốc này vào đơn bán hàng POS theo tiêu chuẩn GPP.
@@ -611,7 +611,7 @@ export const AIPharmacistApprovalModal: React.FC<AIPharmacistApprovalModalProps>
             type="button"
             onClick={handleConfirmApproval}
             disabled={submitting || selectedDrugs.length === 0 || !gppAgreementChecked}
-            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black uppercase tracking-wider transition shadow-md hover:shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white text-xs font-black uppercase tracking-wider transition shadow-md hover:shadow-sky-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
           >
             <ShieldCheck size={16} />
             <span>

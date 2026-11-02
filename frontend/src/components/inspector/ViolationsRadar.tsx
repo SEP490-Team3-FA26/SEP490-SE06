@@ -29,7 +29,7 @@ export const ViolationsRadar: React.FC<ViolationsRadarProps> = ({
 
       {violations.length === 0 ? (
         <div className="text-center py-12 text-slate-400">
-          <CheckCircle2 size={40} className="mx-auto text-emerald-500 mb-2" />
+          <CheckCircle2 size={40} className="mx-auto text-sky-500 mb-2" />
           <p className="text-sm font-bold text-slate-700">Tất cả các cơ sở trong chuỗi đều tuân thủ nghiêm ngặt!</p>
           <p className="text-xs text-slate-400 mt-1">Không có hành vi xuất bán thuốc quá hạn hay vi phạm số lô nào được ghi nhận.</p>
         </div>

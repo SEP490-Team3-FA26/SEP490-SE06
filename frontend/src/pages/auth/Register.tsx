@@ -26,16 +26,23 @@ export function Register() {
       const user = res?.user || res?.data?.user;
 
       if (token) {
-        setSuccess("Đăng ký thành công! Đang chuyển hướng về trang chủ...");
         const role = user?.role || "user";
-        setTimeout(() => {
-          if (role === "admin") navigate("/admin");
-          else if (role === "director" || role === "head_branch") navigate("/director");
-          else if (role === "warehouse") navigate("/warehouse");
-          else if (role === "branch") navigate("/branch");
-          else if (role === "pharmacist") navigate("/pharmacist");
-          else navigate("/");
-        }, 1000);
+        if (role === "user") {
+          setSuccess("Đăng ký thành công! Đang chuyển đến trang hoàn thiện Hồ sơ Sức khỏe & Bệnh án...");
+          setTimeout(() => {
+            navigate("/customer/medical-record?onboarding=true");
+          }, 800);
+        } else {
+          setSuccess("Đăng ký thành công! Đang chuyển hướng...");
+          setTimeout(() => {
+            if (role === "admin") navigate("/admin");
+            else if (role === "director" || role === "head_branch") navigate("/director");
+            else if (role === "warehouse") navigate("/warehouse");
+            else if (role === "branch") navigate("/branch");
+            else if (role === "pharmacist") navigate("/pharmacist");
+            else navigate("/");
+          }, 800);
+        }
       } else {
         setSuccess("Đăng ký thành công! Vui lòng đăng nhập.");
         setTimeout(() => {
@@ -124,8 +131,8 @@ export function Register() {
         )}
         
         {success && (
-          <div className="text-emerald-700 text-sm font-medium text-center bg-emerald-50 border border-emerald-100 py-2.5 px-3 rounded-xl flex items-center justify-center gap-2">
-            <CheckCircle2 size={16} className="text-emerald-600" />
+          <div className="text-sky-700 text-sm font-medium text-center bg-sky-50 border border-sky-100 py-2.5 px-3 rounded-xl flex items-center justify-center gap-2">
+            <CheckCircle2 size={16} className="text-sky-600" />
             {success}
           </div>
         )}

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Loader2, Pill, Check, Plus, ShieldAlert, Zap } from 'lucide-react';
+import { Loader2, Pill, Check, Plus, ShieldAlert, Zap } from "lucide-react";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 
 export interface ChatDrugItem {
   medicine_id: string | null;
@@ -13,6 +14,8 @@ export interface ChatDrugItem {
   category?: string;
   image?: string;
   drug_classification?: string;
+  is_prescription?: boolean;
+  prescription_status?: number;
   is_supplement?: boolean;
   in_stock: boolean;
 }
@@ -41,7 +44,7 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
     }
   };
 
-  const isRx = drug.drug_classification === "PRESCRIPTION" || drug.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
+  const isRx = isPrescriptionMedicine(drug);
   const isSupplement = drug.is_supplement || drug.drug_classification === "SUPPLEMENT" || drug.drug_classification === "COMMON_SUPPLEMENT";
 
   return (
@@ -67,7 +70,7 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
             {isSupplement && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
                 TPCN
               </span>
             )}
@@ -130,8 +133,8 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
           </div>
           <div className="flex items-center gap-1 text-[10px] text-slate-400">
             {drug.in_stock ? (
-              <span className="text-emerald-600 flex items-center gap-1 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span className="text-sky-600 flex items-center gap-1 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                 Còn hàng ({drug.stock})
               </span>
             ) : (
@@ -144,48 +147,58 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onAddToCart, onBuyNow 
         </div>
 
         {drug.in_stock && drug.medicine_id ? (
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onBuyNow && (
+          isRx ? (
+            <span
+              className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg flex items-center gap-1 cursor-default shrink-0 opacity-90"
+              title="Thuốc kê đơn (Rx) - Theo quy định Bộ Y Tế, chỉ bán trực tiếp tại quầy theo đơn bác sĩ"
+            >
+              <ShieldAlert size={12} className="text-amber-600 shrink-0" />
+              <span>Mua tại quầy</span>
+            </span>
+          ) : (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onBuyNow && (
+                <button
+                  type="button"
+                  onClick={() => onBuyNow(drug)}
+                  aria-label={`Mua ngay ${drug.name}`}
+                  className="px-2 py-1 rounded-lg text-[11px] font-medium bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Mua ngay qua VietQR PayOS"
+                >
+                  <Zap size={12} className="text-amber-600" />
+                  <span>Mua ngay</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onBuyNow(drug)}
-                aria-label={`Mua ngay ${drug.name}`}
-                className="px-2 py-1 rounded-lg text-[11px] font-medium bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
-                title="Mua ngay qua VietQR PayOS"
+                onClick={handleAdd}
+                disabled={isAdding}
+                aria-label={`Thêm ${drug.name} vào giỏ hàng`}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                  isAdded
+                    ? "bg-sky-500 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
+                }`}
               >
-                <Zap size={12} className="text-amber-600" />
-                <span>Mua ngay</span>
+                {isAdded ? (
+                  <>
+                    <Check size={12} className="stroke-[3]" />
+                    <span>Đã thêm</span>
+                  </>
+                ) : isAdding ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin text-white" />
+                    <span>Đang thêm</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={12} className="stroke-[2.5]" />
+                    <span>Thêm giỏ</span>
+                  </>
+                )}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={isAdding}
-              aria-label={`Thêm ${drug.name} vào giỏ hàng`}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
-                isAdded
-                  ? "bg-emerald-500 text-white"
-                  : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
-              }`}
-            >
-              {isAdded ? (
-                <>
-                  <Check size={12} className="stroke-[3]" />
-                  <span>Đã thêm</span>
-                </>
-              ) : isAdding ? (
-                <>
-                  <Loader2 size={14} className="animate-spin text-white" />
-                  <span>Đang thêm</span>
-                </>
-              ) : (
-                <>
-                  <Plus size={12} className="stroke-[2.5]" />
-                  <span>Thêm giỏ</span>
-                </>
-              )}
-            </button>
-          </div>
+            </div>
+          )
         ) : (
           <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
             Hết hàng

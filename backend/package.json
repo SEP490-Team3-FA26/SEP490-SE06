@@ -16,9 +16,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:e2e": "jest --config ./apps/api-gateway/test/jest-e2e.json --detectOpenHandles",
+    "test:e2e": "jest --config ./test/jest-e2e.json --detectOpenHandles",
     "test:rules": "node scripts/test-rules-checker.js",
-    "test:container": "jest apps/orders-service/src/orders-service.integration.spec.ts",
+    "test:container": "jest test/orders-service/orders-service.integration.spec.ts",
     "test:all": "npm run test:rules && npm test",
     "test:ci": "npm run test:rules && jest --runInBand --forceExit --passWithNoTests --reporters=\"<rootDir>/scripts/tap-reporter.js\"",
     "// --- MICROSERVICES COMMANDS ---": "",
@@ -143,6 +143,7 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "roots": [
+      "<rootDir>/test/",
       "<rootDir>/apps/"
     ]
   }

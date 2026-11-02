@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, Info, Gift, Sparkles } from "lucide-react";
+import { ShoppingCart, Trash2, ArrowRight, Minus, Plus, Info, Gift, Sparkles, ShieldAlert } from "lucide-react";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { cartService } from "../../services/sales/cart.service";
 import { voucherService } from "../../services/sales/voucher.service";
 import { medicineService } from "../../services/inventory/medicine.service";
@@ -287,6 +288,13 @@ export function CustomerCart() {
   };
 
   const handleProceedToCheckout = () => {
+    if (hasPrescriptionItems) {
+      showAlert(
+        `Giỏ hàng chứa thuốc kê đơn (${prescriptionItems.map(i => i.name).join(", ")}). Theo quy định Bộ Y Tế, thuốc kê đơn không được phép bán trực tuyến. Quý khách vui lòng xóa sản phẩm này khỏi giỏ hàng hoặc mang đơn thuốc đến trực tiếp quầy thuốc!`,
+        "Chặn thanh toán thuốc kê đơn"
+      );
+      return;
+    }
     const token = localStorage.getItem("token");
     if (!token) {
       showAlert(
@@ -305,6 +313,10 @@ export function CustomerCart() {
     navigate("/customer/checkout");
   };
 
+  // Phân loại thuốc kê đơn
+  const prescriptionItems = cartItems.filter(isPrescriptionMedicine);
+  const hasPrescriptionItems = prescriptionItems.length > 0;
+
   // Pricing calculations
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * (Number(item.quantity) || 0), 0);
   const memberDiscount = Math.round(subtotal * 0.05); // 5% discount
@@ -319,7 +331,7 @@ export function CustomerCart() {
     <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
       {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
       <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-sky-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
         <div className="relative z-10 max-w-3xl flex flex-col gap-4">
           <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
@@ -348,7 +360,7 @@ export function CustomerCart() {
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col col-span-2 sm:col-span-1">
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tích Lũy Dự Kiến</span>
-              <span className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">+{Math.round(total / 100).toLocaleString()}đ</span>
+              <span className="text-lg sm:text-xl font-black text-sky-300 mt-0.5">+{Math.round(total / 100).toLocaleString()}đ</span>
             </div>
           </div>
         </div>
@@ -378,20 +390,20 @@ export function CustomerCart() {
 
             {/* Banner Nhận Quà Tặng Mua X Tặng Y */}
             {appliedVoucher?.giftReward && (!appliedVoucher.giftReward.inCart || (appliedVoucher.giftReward.missingGiftQty && appliedVoucher.giftReward.missingGiftQty > 0)) && (
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 rounded-[20px] p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+              <div className="bg-gradient-to-r from-sky-50 to-blue-50 border-2 border-dashed border-sky-300 rounded-[20px] p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
                 <div className="flex items-start gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 shadow-inner">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-100 flex items-center justify-center text-sky-700 shrink-0 shadow-inner">
                     <Gift size={24} className="animate-bounce" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-black text-emerald-950 text-sm">Ưu Đãi Quà Tặng Mua X Tặng Y</h4>
-                      <span className="text-[10px] bg-emerald-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      <h4 className="font-black text-sky-950 text-sm">Ưu Đãi Quà Tặng Mua X Tặng Y</h4>
+                      <span className="text-[10px] bg-sky-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                         Tặng Miễn Phí
                       </span>
                     </div>
-                    <p className="text-[12px] text-emerald-800 font-medium mt-1 leading-relaxed">
-                      Bạn đủ điều kiện nhận <strong className="font-extrabold text-emerald-950">{appliedVoucher.giftReward.missingGiftQty || appliedVoucher.giftReward.quantity}x {appliedVoucher.giftReward.medicineName}</strong> kèm theo đơn hàng!
+                    <p className="text-[12px] text-sky-800 font-medium mt-1 leading-relaxed">
+                      Bạn đủ điều kiện nhận <strong className="font-extrabold text-sky-950">{appliedVoucher.giftReward.missingGiftQty || appliedVoucher.giftReward.quantity}x {appliedVoucher.giftReward.medicineName}</strong> kèm theo đơn hàng!
                     </p>
                   </div>
                 </div>
@@ -399,11 +411,27 @@ export function CustomerCart() {
                   type="button"
                   onClick={handleClaimGift}
                   disabled={isAddingGift}
-                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
+                  className="w-full sm:w-auto px-6 py-3 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-sky-200 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
                 >
                   <Sparkles size={15} />
                   {isAddingGift ? "Đang thêm quà..." : "Nhận Quà Tặng Ngay"}
                 </button>
+              </div>
+            )}
+
+            {hasPrescriptionItems && (
+              <div className="bg-rose-50 border-2 border-rose-300 rounded-[20px] p-5 shadow-sm flex items-start gap-3.5 text-rose-950 animate-fade-in">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-700 shrink-0 shadow-inner mt-0.5">
+                  <ShieldAlert size={22} className="text-rose-600" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-black text-rose-950 text-sm uppercase tracking-wide">
+                    Phát hiện {prescriptionItems.length} mặt hàng thuốc kê đơn (Rx) trong giỏ
+                  </h4>
+                  <p className="text-[12px] text-rose-800 font-medium leading-relaxed">
+                    Theo quy định của Bộ Y Tế, thuốc kê đơn không được phép thanh toán trực tuyến. Quý khách vui lòng xóa các thuốc kê đơn khỏi giỏ hàng để tiếp tục thanh toán, hoặc mang đơn thuốc đến trực tiếp cơ sở ABC Pharmacy gần nhất để mua hàng.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -430,9 +458,15 @@ export function CustomerCart() {
                           {item.active_ingredient && (
                             <div className="text-[10px] font-semibold text-[#0d6efd] mt-1">Hoạt chất: {item.active_ingredient}</div>
                           )}
+                          {isPrescriptionMedicine(item) && (
+                            <div className="inline-flex items-center gap-1.5 text-[10px] font-black text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-2 py-0.5 mt-1.5">
+                              <ShieldAlert size={12} className="text-rose-600 shrink-0" />
+                              Thuốc kê đơn (Rx) - Không thể thanh toán online
+                            </div>
+                          )}
                           {appliedVoucher?.giftReward && (String(itemId) === String(appliedVoucher.giftReward.medicineId)) && (
-                            <div className="inline-flex items-center gap-1.5 text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5 mt-1.5">
-                              <Gift size={12} className="text-emerald-600" />
+                            <div className="inline-flex items-center gap-1.5 text-[10px] font-black text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-2 py-0.5 mt-1.5">
+                              <Gift size={12} className="text-sky-600" />
                               Quà tặng Voucher {appliedVoucher.code} (-{appliedVoucher.discount?.toLocaleString()}₫)
                             </div>
                           )}
@@ -505,9 +539,9 @@ export function CustomerCart() {
             {/* Promos */}
             <div className="bg-white border border-slate-200 rounded-[20px] p-5 shadow-sm">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Ưu Đãi Thành Viên</span>
-              <div className="mt-2.5 p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-xl">
+              <div className="mt-2.5 p-3.5 bg-sky-50 text-sky-800 border border-sky-100 rounded-xl">
                 <span className="font-black text-xs block mb-0.5">VIP Silver Member 5% Off</span>
-                <p className="text-[10px] font-semibold text-emerald-700/90 leading-normal">
+                <p className="text-[10px] font-semibold text-sky-700/90 leading-normal">
                   Chiết khấu thành viên được tự động áp dụng trực tiếp cho toàn bộ đơn hàng của bạn.
                 </p>
               </div>
@@ -517,15 +551,15 @@ export function CustomerCart() {
             <div className="bg-white border border-slate-200 rounded-[20px] p-5 shadow-sm flex flex-col gap-3">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mã giảm giá / Voucher</span>
               {appliedVoucher ? (
-                <div className="flex items-center justify-between bg-emerald-50 border border-emerald-150 p-2.5 rounded-xl text-xs font-semibold text-emerald-800">
+                <div className="flex items-center justify-between bg-sky-50 border border-sky-150 p-2.5 rounded-xl text-xs font-semibold text-sky-800">
                   <div>
                     Mã đã dùng: <span className="font-extrabold uppercase">{appliedVoucher.code}</span>
-                    <span className="block text-[10px] text-emerald-600 mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
+                    <span className="block text-[10px] text-sky-600 mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
                   </div>
                   <button
                     type="button"
                     onClick={handleRemoveVoucher}
-                    className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 text-md"
+                    className="text-sky-500 hover:text-sky-800 font-bold ml-2 text-md"
                   >
                     ×
                   </button>
@@ -588,9 +622,23 @@ export function CustomerCart() {
 
               <button
                 onClick={handleProceedToCheckout}
-                className="w-full mt-2.5 bg-[#0d6efd] hover:bg-[#0a58ca] text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md shadow-blue-150 transition-all active:scale-98"
+                disabled={hasPrescriptionItems}
+                className={`w-full mt-2.5 py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                  hasPrescriptionItems
+                    ? "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none"
+                    : "bg-[#0d6efd] hover:bg-[#0a58ca] text-white shadow-md shadow-blue-150 active:scale-98 cursor-pointer"
+                }`}
+                title={hasPrescriptionItems ? "Vui lòng xóa thuốc kê đơn để thanh toán" : "Tiến hành đặt hàng"}
               >
-                Tiến hành đặt hàng <ArrowRight size={14} />
+                {hasPrescriptionItems ? (
+                  <>
+                    <ShieldAlert size={15} className="text-rose-600" /> Xóa thuốc kê đơn để đặt hàng
+                  </>
+                ) : (
+                  <>
+                    Tiến hành đặt hàng <ArrowRight size={14} />
+                  </>
+                )}
               </button>
             </div>
 

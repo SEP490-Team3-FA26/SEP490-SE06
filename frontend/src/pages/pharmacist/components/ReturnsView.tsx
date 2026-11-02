@@ -415,7 +415,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                     <span
                       className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                         order.type === "RETAIL"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                          ? "bg-sky-50 text-sky-700 border border-sky-100"
                           : order.type === "PRESCRIPTION"
                           ? "bg-blue-50 text-blue-700 border border-blue-100"
                           : "bg-amber-50 text-amber-700 border border-amber-100"
@@ -499,7 +499,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                   <span
                     className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                       selectedOrder.type === "RETAIL"
-                        ? "bg-emerald-100 text-emerald-800"
+                        ? "bg-sky-100 text-sky-800"
                         : selectedOrder.type === "PRESCRIPTION"
                         ? "bg-blue-100 text-blue-800"
                         : "bg-amber-100 text-amber-800"
@@ -572,7 +572,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                     </div>
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tổng giá trị</p>
-                      <p className="text-xs font-black text-emerald-600 mt-1">
+                      <p className="text-xs font-black text-sky-600 mt-1">
                         {selectedOrder.totalAmount.toLocaleString()}₫
                       </p>
                     </div>
@@ -675,12 +675,12 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                                 </div>
                               </div>
                               {/* Exchange side */}
-                              <div className="pl-3 border-l border-emerald-200">
-                                <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1">Hàng lấy mới</div>
+                              <div className="pl-3 border-l border-sky-200">
+                                <div className="text-[10px] font-bold text-sky-800 uppercase tracking-wider mb-1">Hàng lấy mới</div>
                                 <div className="space-y-1">
                                   {exch.newItems.map((it: any, itIdx: number) => (
                                     <div key={itIdx} className="text-xs text-slate-700 font-medium">
-                                      {it.name} <span className="text-[10px] text-emerald-600">({it.quantity} {it.unit})</span>
+                                      {it.name} <span className="text-[10px] text-sky-600">({it.quantity} {it.unit})</span>
                                     </div>
                                   ))}
                                 </div>
@@ -1051,7 +1051,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
           <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden flex flex-col transform transition-all duration-300">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h3 className="font-black text-slate-900 text-md flex items-center gap-2 uppercase tracking-wide">
-                <CheckCircle2 className="text-emerald-500" />
+                <CheckCircle2 className="text-sky-500" />
                 {invoiceType === "RETURN" ? "GIAO DỊCH TRẢ HÀNG THÀNH CÔNG!" : "GIAO DỊCH ĐỔI HÀNG THÀNH CÔNG!"}
               </h3>
               <button
@@ -1091,15 +1091,15 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                   </div>
                 </div>
 
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5 mb-2">
-                  <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                <div className="bg-sky-50 border border-sky-200 rounded-xl p-3.5 flex items-start gap-2.5 mb-2">
+                  <div className="w-7 h-7 rounded-full bg-sky-500 text-white flex items-center justify-center shrink-0">
                     <CheckCircle2 size={16} />
                   </div>
                   <div className="flex-1 font-sans">
-                    <div className="font-black text-emerald-900 text-xs flex items-center gap-1.5">
+                    <div className="font-black text-sky-900 text-xs flex items-center gap-1.5">
                       🟢 ĐÃ LIÊN THÔNG BIÊN BẢN TRẢ/ĐỔI HÀNG (GPP RETURN SYNC)
                     </div>
-                    <div className="text-[11px] text-emerald-800 mt-0.5 flex flex-wrap gap-x-3">
+                    <div className="text-[11px] text-sky-800 mt-0.5 flex flex-wrap gap-x-3">
                       <span>Mã QG: <strong className="font-mono">{`DQG-RET-20260825-${Math.floor(100000 + Math.random() * 900000)}`}</strong></span>
                       <span>Mã CS: <strong className="font-mono">79-001234</strong></span>
                     </div>
@@ -1113,7 +1113,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                   </div>
                   <div className="flex justify-between">
                     <span>Mã QG Trả Hàng:</span>
-                    <span className="font-bold text-emerald-700">{`DQG-RET-20260825-${Math.floor(100000 + Math.random() * 900000)}`}</span>
+                    <span className="font-bold text-sky-700">{`DQG-RET-20260825-${Math.floor(100000 + Math.random() * 900000)}`}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Ngày thực hiện:</span>
@@ -1164,7 +1164,7 @@ export default function ReturnsView({ showToast }: ReturnsViewProps) {
                       </div>
                     </div>
                     <div>
-                      <div className="font-bold border-b border-slate-200 pb-1 mb-2 uppercase text-[11px] text-emerald-700">Sản phẩm lấy mới</div>
+                      <div className="font-bold border-b border-slate-200 pb-1 mb-2 uppercase text-[11px] text-sky-700">Sản phẩm lấy mới</div>
                       <div className="space-y-2">
                         {invoiceData.exchanges?.[invoiceData.exchanges.length - 1]?.newItems.map((it: any) => (
                           <div key={it.medicineId} className="flex justify-between font-medium">

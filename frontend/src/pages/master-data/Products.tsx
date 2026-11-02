@@ -209,7 +209,7 @@ export function Products() {
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200"><Activity size={12}/> Hướng thần</span>;
       case "NORMAL":
       default:
-        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><Pill size={12}/> Thuốc thường</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200"><Pill size={12}/> Thuốc thường</span>;
     }
   };
 
@@ -234,8 +234,8 @@ export function Products() {
     }
     // Default or successfully synchronized
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
         Đã đồng bộ
       </span>
     );
@@ -273,13 +273,13 @@ export function Products() {
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Đã Đồng Bộ BYT</div>
-            <div className="text-2xl font-black text-emerald-600 mt-1 font-mono tabular-nums">2.307</div>
-            <div className="text-xs text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <div className="text-2xl font-black text-sky-600 mt-1 font-mono tabular-nums">2.307</div>
+            <div className="text-xs text-sky-600 font-semibold mt-0.5 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
               99.0% danh mục thuốc
             </div>
           </div>
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
             <CheckCircle2 size={20} />
           </div>
         </div>
@@ -367,11 +367,11 @@ export function Products() {
                 onClick={() => setSelectedSyncStatus("SYNCED")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   selectedSyncStatus === "SYNCED" 
-                    ? "bg-emerald-600 text-white shadow-sm" 
-                    : "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                    ? "bg-sky-600 text-white shadow-sm" 
+                    : "bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100"
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                 Đã đồng bộ (2.307)
               </button>
               <button
@@ -527,7 +527,7 @@ export function Products() {
             key={toast.id}
             className={`pointer-events-auto flex items-center justify-between gap-3 px-4.5 py-3.5 rounded-2xl shadow-xl border text-xs font-bold tracking-wide uppercase transition-all duration-300 ${toast.type === "error"
               ? "bg-rose-50 text-rose-800 border-rose-200 shadow-rose-100/50"
-              : "bg-emerald-50 text-emerald-800 border-emerald-200 shadow-emerald-100/50"
+              : "bg-sky-50 text-sky-800 border-sky-200 shadow-sky-100/50"
               }`}
           >
             <div className="flex items-center gap-2">

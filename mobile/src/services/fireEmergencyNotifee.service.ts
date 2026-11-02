@@ -1,56 +1,7 @@
-import { NativeModules, Platform, Vibration } from 'react-native';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
-import * as Notifications from 'expo-notifications';
-
-export const AndroidImportance = {
-  NONE: 0,
-  MIN: 1,
-  LOW: 2,
-  DEFAULT: 3,
-  HIGH: 4,
-};
-
-export const AndroidCategory = {
-  ALARM: 'alarm',
-  CALL: 'call',
-  ERR: 'err',
-  EVENT: 'event',
-  MSG: 'msg',
-  REMINDER: 'reminder',
-  SERVICE: 'service',
-  STATUS: 'status',
-};
-
-export const EventType = {
-  UNKNOWN: -1,
-  DISMISSED: 0,
-  PRESS: 1,
-  ACTION_PRESS: 2,
-  DELIVERED: 3,
-  TRIGGER_NOTIFICATION_CREATED: 7,
-};
-
-// Safe Lazy Loader cho Notifee (Tránh Invariant Violation: 'NotifeeApiModule' trên iOS / Expo Go)
-let notifeeInstance: any = null;
-function getNotifee(): any {
-  if (Platform.OS !== 'android') return null;
-  // Bỏ qua Notifee trên Expo Go để tránh Invariant Violation TurboModule
-  if (Constants.appOwnership === 'expo' || Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
-    return null;
-  }
-  if (!NativeModules || (!NativeModules.NotifeeApiModule && !(NativeModules as any).Notifee)) {
-    return null;
-  }
-  if (!notifeeInstance) {
-    try {
-      const mod = require('react-native-notify-kit');
-      notifeeInstance = mod.default || mod;
-    } catch (e) {
-      notifeeInstance = null;
-    }
-  }
-  return notifeeInstance;
-}
+// fireEmergencyNotifee.service.ts - Dịch vụ cảnh báo khẩn cấp hỏa hoạn In-App chuẩn Rule 6
+// Tuân thủ Quy tắc Bất biến: Không sử dụng thông báo ngoài hệ điều hành / Google FCM
+// Kích hoạt rung phần cứng, hiển thị Full-Screen Modal khẩn cấp trên màn hình
+import { Platform, Vibration } from 'react-native';
 
 export interface FireAlertPayload {
   title?: string;
@@ -60,48 +11,18 @@ export interface FireAlertPayload {
   isTest?: boolean;
 }
 
-class FireEmergencyNotifeeManager {
+class FireEmergencyManager {
   private isAlarmActive: boolean = false;
-  private activeNotificationId: string | null = null;
   private alertListeners: Set<(payload: FireAlertPayload | null) => void> = new Set();
   private currentPayload: FireAlertPayload | null = null;
 
-  constructor() {
-    this.registerEventHandlers();
-  }
-
-  // Khởi tạo các notification channel khẩn cấp với mức ưu tiên cao nhất
+  // Khởi tạo các kênh (No-op để tương thích API cũ)
   public async initChannels(): Promise<void> {
-    const notifee = getNotifee();
-    if (!notifee) return;
-
-    try {
-      // Dọn dẹp triệt để các channel cũ để tránh Android cache cấu hình câm tiếng
-      await notifee.deleteChannel('fire_emergency_ringtone_v7').catch(() => {});
-      await notifee.deleteChannel('fire_emergency_siren_v6').catch(() => {});
-      await notifee.deleteChannel('fire_emergency_alarm_v5').catch(() => {});
-      await notifee.deleteChannel('fire_emergency_call_v4').catch(() => {});
-
-      // Tạo kênh chuông báo động hỏa hoạn khẩn cấp v8 sử dụng trực tiếp chuông cuộc gọi hệ thống Android
-      await notifee.createChannel({
-        id: 'fire_emergency_ring_v8',
-        name: 'Báo Động Hỏa Hoạn Khẩn Cấp (Đổ Chuông)',
-        importance: AndroidImportance.HIGH,
-        sound: 'content://settings/system/ringtone',
-        vibration: true,
-        vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
-        bypassDnd: true,
-        lights: true,
-        lightColor: '#DC2626',
-      });
-    } catch (err) {
-      console.warn('Lỗi khởi tạo notifee channel:', err);
-    }
+    return Promise.resolve();
   }
 
-  // Kích hoạt còi báo động hỏa hoạn toàn màn hình (Full-Screen Alert + Loop Sound + Foreground Service)
+  // Kích hoạt còi báo động hỏa hoạn In-App (Full-Screen Modal + Rung dồn dập)
   public async triggerFireEmergencyAlarm(payload: FireAlertPayload): Promise<void> {
-    // Nếu báo động đang diễn ra, chỉ cập nhật payload mà không tạo thêm thông báo mới (chống duplicate)
     if (this.isAlarmActive) {
       this.currentPayload = payload;
       this.notifyListeners(payload);
@@ -112,113 +33,23 @@ class FireEmergencyNotifeeManager {
     this.currentPayload = payload;
     this.notifyListeners(payload);
 
-    // Kích hoạt rung dồn dập
-    if (Platform.OS === 'android') {
-      Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
-    }
-
-    const title = payload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG';
-    const body =
-      payload.body ||
-      `KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP TẠI TRẠM ${payload.deviceId || 'ESP32'} (${payload.temp || '65.0'}°C)!`;
-
-    const notifee = getNotifee();
-    if (!notifee) {
-      // Chế độ an toàn cho Expo Go: Dùng expo-notifications để hiển thị thông báo khẩn cấp mà không làm văng app
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title,
-            body,
-            data: {
-              type: 'FIRE_EMERGENCY',
-              deviceId: payload.deviceId || '',
-              temp: payload.temp || '',
-            },
-            sound: true,
-            priority: Notifications.AndroidNotificationPriority.MAX,
-          },
-          trigger: null,
-        });
-      } catch (e) {
-        console.warn('[FireEmergencyNotifee] Expo notification fallback error:', e);
-      }
-      return;
-    }
-
+    // Kích hoạt rung dồn dập cảnh báo khẩn cấp
     try {
-      await this.initChannels();
-
-      const notificationId = await notifee.displayNotification({
-        id: 'fire_emergency_active_alert',
-        title,
-        body,
-        data: {
-          type: 'FIRE_EMERGENCY',
-          deviceId: payload.deviceId || '',
-          temp: payload.temp || '',
-        },
-        android: {
-          channelId: 'fire_emergency_ring_v8',
-          asForegroundService: true, // Chạy dưới dạng Foreground Service (không bị OS kill)
-          lightUpScreen: true, // Bật sáng màn hình khi có thông báo
-          category: AndroidCategory.CALL, // Phân loại mức cuộc gọi đến khẩn cấp
-          importance: AndroidImportance.HIGH,
-          loopSound: true, // Lặp âm thanh chuông điện thoại liên tục không ngừng
-          sound: 'content://settings/system/ringtone',
-          fullScreenAction: {
-            id: 'default',
-            launchActivity: 'default',
-          },
-          pressAction: {
-            id: 'default',
-            launchActivity: 'default',
-          },
-          actions: [
-            {
-              title: 'ĐÃ TIẾP NHẬN SỰ CỐ (TẮT CÒI)',
-              pressAction: {
-                id: 'stop_alarm',
-              },
-            },
-          ],
-        },
-      });
-
-      this.activeNotificationId = notificationId;
-    } catch (err) {
-      console.warn('Lỗi hiển thị notifee full-screen notification:', err);
+      Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
+    } catch (e) {
+      console.warn('Vibration error:', e);
     }
   }
 
-  // Tắt còi báo động và giải phóng Foreground Service
+  // Tắt còi báo động và dừng rung
   public async stopAlarm(): Promise<void> {
     this.isAlarmActive = false;
     this.currentPayload = null;
     this.notifyListeners(null);
 
-    Vibration.cancel();
-
-    const notifee = getNotifee();
-    if (!notifee) {
-      try {
-        await Notifications.dismissAllNotificationsAsync();
-      } catch (_) {}
-      return;
-    }
-
     try {
-      if (Platform.OS === 'android') {
-        await notifee.stopForegroundService();
-      }
-      if (this.activeNotificationId) {
-        await notifee.cancelNotification(this.activeNotificationId);
-        this.activeNotificationId = null;
-      }
-      await notifee.cancelNotification('fire_emergency_active_alert');
-    } catch (err) {
-      console.warn('Lỗi dừng notifee alarm:', err);
-    }
+      Vibration.cancel();
+    } catch (_) {}
   }
 
   public getIsAlarmActive(): boolean {
@@ -248,39 +79,7 @@ class FireEmergencyNotifeeManager {
       }
     });
   }
-
-  private registerEventHandlers(): void {
-    const notifee = getNotifee();
-    if (!notifee) {
-      // Chế độ an toàn cho Expo Go: Không kích hoạt Notifee TurboModule để tránh Invariant Violation
-      return;
-    }
-
-    try {
-      // Đăng ký Foreground Service duy trì còi hú
-      notifee.registerForegroundService(() => {
-        return new Promise(() => {
-          // Giữ Promise pending để Foreground Service sống liên tục cho đến khi stopAlarm được gọi
-        });
-      });
-
-      // Lắng nghe khi người dùng tương tác với notification khi app đang mở
-      notifee.onForegroundEvent(({ type, detail }: any) => {
-        if (type === EventType.ACTION_PRESS && detail?.pressAction?.id === 'stop_alarm') {
-          this.stopAlarm();
-        }
-      });
-
-      // Lắng nghe khi người dùng tương tác khi app chạy ngầm / tắt
-      notifee.onBackgroundEvent(async ({ type, detail }: any) => {
-        if (type === EventType.ACTION_PRESS && detail?.pressAction?.id === 'stop_alarm') {
-          await this.stopAlarm();
-        }
-      });
-    } catch (err) {
-      console.warn('[FireEmergencyNotifee] Không thể đăng ký event handler native:', err);
-    }
-  }
 }
 
-export const FireEmergencyNotifeeService = new FireEmergencyNotifeeManager();
+export const FireEmergencyNotifeeService = new FireEmergencyManager();
+export default FireEmergencyNotifeeService;

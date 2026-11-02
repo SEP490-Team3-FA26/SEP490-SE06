@@ -6,7 +6,7 @@ const LEAVE_TYPE_CONFIG: Record<LeaveType, { label: string; desc: string; badgeC
   ANNUAL_PAID: {
     label: "Phép năm (Có lương)",
     desc: "Hưởng nguyên lương, trừ 1 ngày vào quỹ phép năm",
-    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    badgeClass: "bg-sky-100 text-sky-800 border-sky-300",
   },
   SICK_LEAVE: {
     label: "Nghỉ ốm (Chế độ BHXH)",
@@ -27,7 +27,7 @@ const LEAVE_TYPE_CONFIG: Record<LeaveType, { label: string; desc: string; badgeC
 
 const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; icon: any }> = {
   PENDING: { label: "Chờ Quản Lý Duyệt", badgeClass: "bg-amber-100 text-amber-800 border-amber-300", icon: Clock },
-  APPROVED: { label: "Đã Phê Duyệt", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300", icon: CheckCircle2 },
+  APPROVED: { label: "Đã Phê Duyệt", badgeClass: "bg-sky-100 text-sky-800 border-sky-300", icon: CheckCircle2 },
   REJECTED: { label: "Bị Từ Chối", badgeClass: "bg-rose-100 text-rose-800 border-rose-300", icon: XCircle },
   CANCELLED: { label: "Đã Hủy", badgeClass: "bg-slate-100 text-slate-600 border-slate-300", icon: Trash2 },
 };
@@ -224,7 +224,7 @@ export function PharmacistLeaveRequest() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <CalendarDays className="w-7 h-7 text-emerald-600" />
+            <CalendarDays className="w-7 h-7 text-sky-600" />
             Đơn Xin Nghỉ Phép & Nghỉ Ca
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -237,7 +237,7 @@ export function PharmacistLeaveRequest() {
             setFormError("");
             setIsModalOpen(true);
           }}
-          className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all"
+          className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all"
         >
           <Plus className="w-5 h-5" />
           Tạo Đơn Xin Nghỉ Ca
@@ -254,18 +254,18 @@ export function PharmacistLeaveRequest() {
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* The 1: Quy phep nam con lai */}
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/60 border border-emerald-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-gradient-to-br from-sky-50 to-sky-100/60 border border-sky-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800">
+                <span className="text-xs font-semibold uppercase tracking-wider text-sky-800">
                   Quỹ Phép Năm Khả Dụng
                 </span>
-                <FileCheck2 className="w-5 h-5 text-emerald-600" />
+                <FileCheck2 className="w-5 h-5 text-sky-600" />
               </div>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-emerald-950">{balance}</span>
-                <span className="text-sm font-medium text-emerald-700">ngày công</span>
+                <span className="text-3xl font-extrabold text-sky-950">{balance}</span>
+                <span className="text-sm font-medium text-sky-700">ngày công</span>
               </div>
-              <p className="text-xs text-emerald-700/80 mt-1">Định mức 12 ngày/năm (hưởng 100% lương)</p>
+              <p className="text-xs text-sky-700/80 mt-1">Định mức 12 ngày/năm (hưởng 100% lương)</p>
             </div>
 
             {/* The 2: Phep nam da tru */}
@@ -289,7 +289,7 @@ export function PharmacistLeaveRequest() {
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Tổng Ca Đã Duyệt Nghỉ
                 </span>
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                <CheckCircle2 className="w-5 h-5 text-sky-500" />
               </div>
               <div className="mt-3 flex items-baseline gap-2">
                 <span className="text-3xl font-extrabold text-slate-900">{approvedLeaves.length}</span>
@@ -408,7 +408,7 @@ export function PharmacistLeaveRequest() {
                         href={item.attachmentUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg"
+                        className="inline-flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700 font-medium bg-sky-50 border border-sky-200 px-3 py-1.5 rounded-lg"
                       >
                         <FileText className="w-3.5 h-3.5" />
                         Xem tài liệu minh chứng y tế
@@ -450,7 +450,7 @@ export function PharmacistLeaveRequest() {
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-600" />
+                <FileText className="w-5 h-5 text-sky-600" />
                 Tạo Đơn Xin Nghỉ Ca Mới
               </h2>
               <button
@@ -478,7 +478,7 @@ export function PharmacistLeaveRequest() {
                   type="date"
                   value={shiftDate}
                   onChange={(e) => setShiftDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   required
                 />
               </div>
@@ -500,7 +500,7 @@ export function PharmacistLeaveRequest() {
                         setEndTime(selected.shiftEnd || "14:00");
                       }
                     }}
-                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800"
+                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800"
                   >
                     {assignedShiftsToday.map((s, idx) => (
                       <option key={s.shiftId || idx} value={s.shiftId}>
@@ -533,7 +533,7 @@ export function PharmacistLeaveRequest() {
                         key={type}
                         className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                           isSelected
-                            ? "bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500"
+                            ? "bg-sky-50/50 border-sky-500 ring-1 ring-sky-500"
                             : "bg-white border-slate-200 hover:bg-slate-50"
                         }`}
                       >
@@ -543,7 +543,7 @@ export function PharmacistLeaveRequest() {
                           value={type}
                           checked={isSelected}
                           onChange={() => setLeaveType(type)}
-                          className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                          className="mt-1 text-sky-600 focus:ring-sky-500"
                         />
                         <div className="text-xs">
                           <span className="font-bold text-slate-800 block">{cfg.label}</span>
@@ -565,7 +565,7 @@ export function PharmacistLeaveRequest() {
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Ghi rõ lý do (ví dụ: Đi khám sức khỏe định kỳ, việc gia đình...)"
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   required
                 />
               </div>
@@ -588,7 +588,7 @@ export function PharmacistLeaveRequest() {
                     />
                   </label>
                   {attachmentUrl && (
-                    <span className="text-xs text-emerald-600 font-medium truncate max-w-[200px]">
+                    <span className="text-xs text-sky-600 font-medium truncate max-w-[200px]">
                       Đã đính kèm tệp
                     </span>
                   )}
@@ -607,7 +607,7 @@ export function PharmacistLeaveRequest() {
                 <button
                   type="submit"
                   disabled={submitting || uploading || assignedShiftsToday.length === 0}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-sm disabled:opacity-50 transition-all"
+                  className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm rounded-xl shadow-sm disabled:opacity-50 transition-all"
                 >
                   {submitting ? "Đang gửi đơn..." : "Gửi Đơn Xin Nghỉ"}
                 </button>

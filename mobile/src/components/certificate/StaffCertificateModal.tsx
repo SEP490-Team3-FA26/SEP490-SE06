@@ -342,8 +342,8 @@ export const StaffCertificateModal: React.FC<StaffCertificateModalProps> = ({
         );
       case 'DA_DUYET':
         return (
-          <View style={[styles.statusBadge, { backgroundColor: '#ECFDF5' }]}>
-            <Text style={[styles.statusBadgeText, { color: '#047857' }]}>Đã duyệt</Text>
+          <View style={[styles.statusBadge, { backgroundColor: '#F0F9FF' }]}>
+            <Text style={[styles.statusBadgeText, { color: '#0284C7' }]}>Đã duyệt</Text>
           </View>
         );
       case 'TU_CHOI':
@@ -459,7 +459,7 @@ export const StaffCertificateModal: React.FC<StaffCertificateModalProps> = ({
 
                           {cert.status === 'DA_DUYET' && (
                             <View style={styles.allowancePill}>
-                              <Ionicons name="cash" size={16} color="#047857" />
+                              <Ionicons name="cash" size={16} color="#0284C7" />
                               <Text style={styles.allowancePillText}>
                                 Phụ cấp CCHN: {(cert.monthlyAllowance || 0).toLocaleString('vi-VN')} ₫/tháng
                               </Text>
@@ -963,9 +963,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -974,7 +974,7 @@ const styles = StyleSheet.create({
   allowancePillText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#047857',
+    color: '#0284C7',
   },
   certImagePreview: {
     width: '100%',
@@ -1225,8 +1225,8 @@ const styles = StyleSheet.create({
   photoUploadedTag: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
-    backgroundColor: '#ECFDF5',
+    color: '#0284C7',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
@@ -1320,13 +1320,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     fontSize: 13,
     fontWeight: '700',
-    color: '#047857',
+    color: '#0284C7',
     width: 130,
   },
   allowanceSuffix: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#047857',
+    color: '#0284C7',
   },
   reviewBtnRow: {
     flexDirection: 'row',

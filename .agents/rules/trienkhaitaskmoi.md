@@ -1,7 +1,7 @@
+
 ---
 trigger: always_on
 ---
-
 # Hướng Dẫn Phát Triển Toàn Diện (Fullstack Implementation Playbook) - v2.0
 
 ## Kiến Trúc Microservices: API Gateway + Kafka + Redis + MongoDB + React 19 Web + Expo Mobile
@@ -10,11 +10,13 @@ Tài liệu này là **"công thức nấu ăn" (Recipe Book)** tối cao và to
 
 > [!CAUTION]
 > **Quy định bất biến:**
+>
 > 1. Tuyệt đối **không** được gọi API HTTP trực tiếp giữa các microservice nội bộ, mọi giao tiếp liên dịch vụ **bắt buộc** phải đi qua **Kafka**.
 > 2. Frontend Web và Mobile tuyệt đối **không** kết nối trực tiếp vào Database hoặc Microservice, mọi HTTP request **bắt buộc** phải đi qua **API Gateway** (`/api/...`).
 > 3. Nắm vững bản chất **Event-Driven qua Kafka**: Các tác vụ Ghi (Create, Update, Delete) trả về **HTTP 202 ACCEPTED** - không được giả định là đã ghi xong vào DB ngay trong mili-giây đầu tiên.
 > 4. **Ngôn ngữ chú thích mã nguồn (Code Comments):** Toàn bộ code comments (`//`, `/* */`, JSDoc) **viết bằng Tiếng Việt 100%** theo quy chuẩn dự án WDP301/SEP490 để toàn bộ đội ngũ dễ dàng đọc hiểu, chuyển giao và đối soát nghiệp vụ y tế.
 > 5. **Quy tắc Kẹp Bài Test Bắt Buộc (Test-Coupled Mandate):** Tuyệt đối **không** được commit mã nguồn mới (Service, Controller, hàm nghiệp vụ mới) mà không có file test đi kèm (`*.spec.ts` hoặc `*.test.ts`). Mọi bài test kẹp vào bắt buộc phải phân loại đầy đủ 3 nhóm giá trị chuẩn: `[Normal Values]`, `[Boundary Values]`, `[Abnormal Values]`. Vi phạm quy tắc này sẽ bị chặn ngay tại cổng kiểm tra Test Rules của CI/CD.
+> 6. **Cấm sử dụng thông báo của Google & OS (No Google / OS / Browser Notifications):** Tuyệt đối **không** được sử dụng thông báo của Google (Google Notifications, FCM) hay thông báo của hệ điều hành / trình duyệt (`Notification.requestPermission()`, Web Notification API, native OS push). Mọi thông báo trong hệ thống **bắt buộc** phải sử dụng thông báo nội bộ trong ứng dụng (In-app Notifications qua Socket.IO, Toast, Dropdown thông báo).
 
 ---
 
@@ -25,35 +27,37 @@ Hệ thống API được phân nhóm theo **Domain-Driven Bounded Context** đ�
 ### 1.1. Phân Nhóm Endpoint REST API (API Gateway)
 
 Mọi API Endpoint đều có cấu trúc:
+
 ```
 /api/<group>/[sub-resource]/[:id]/[action]
 ```
 
-| Nhóm Domain (Group) | Tiền tố (Prefix) | Trách nhiệm nghiệp vụ | Danh sách Endpoints chính |
-| :--- | :--- | :--- | :--- |
-| **🔐 Auth & Identity** | `/api/auth` | Đăng nhập, đăng ký, refresh token, đổi mật khẩu, profile cá nhân | `POST /api/auth/login`<br>`POST /api/auth/register`<br>`GET /api/auth/profile`<br>`PUT /api/auth/profile`<br>`POST /api/auth/change-password` |
-| **👥 User & HR** | `/api/users`<br>`/api/admin/employees` | Quản lý người dùng, nhân sự chi nhánh, phân quyền RBAC, nhật ký Audit | `GET /api/admin/employees`<br>`POST /api/admin/employees`<br>`PUT /api/admin/employees/:id/ban`<br>`PUT /api/admin/employees/:id/approve`<br>`GET /api/users/audit-logs` |
-| **🏢 Branch & Facility** | `/api/branches` | Quản lý danh sách chi nhánh, cơ sở bán lẻ trong chuỗi nhà thuốc | `GET /api/branches`<br>`POST /api/branches`<br>`PUT /api/branches/:id`<br>`DELETE /api/branches/:id` |
-| **💊 Inventory & Pharmacy** | `/api/medicines`<br>`/api/inventory-checks`<br>`/api/stock-transfers`<br>`/api/sensors` | Dược phẩm (SKU), tra cứu Barcode GS1, sơ đồ kho GSP, kiểm kê kho, chuyển kho liên chi nhánh, telemetry IoT | `GET /api/medicines`<br>`GET /api/medicines/barcode/:barcode`<br>`POST /api/medicines`<br>`PUT /api/medicines/:id`<br>`POST /api/inventory-checks`<br>`POST /api/inventory-checks/:id/complete`<br>`GET /api/stock-transfers`<br>`POST /api/stock-transfers/:id/receive`<br>`GET /api/sensors/telemetry` |
-| **📦 Procurement (Mua hàng)** | `/api/quotas`<br>`/api/suppliers`<br>`/api/purchase-requisitions`<br>`/api/purchase-orders`<br>`/api/goods-receipts`<br>`/api/pricing` | Hạn mức ngân sách, nhà cung cấp GDP, đơn đề xuất (PR), đặt hàng NCC (PO), nghiệm thu nhập kho (GRN), bảng giá chi nhánh | `GET /api/quotas/summary`<br>`POST /api/quotas`<br>`GET /api/suppliers`<br>`POST /api/suppliers`<br>`POST /api/purchase-requisitions`<br>`POST /api/purchase-orders/auto-route`<br>`POST /api/goods-receipts/:id/approve`<br>`GET /api/pricing/:branchId` |
-| **🛒 Sales & Customer** | `/api/orders`<br>`/api/sales`<br>`/api/vouchers`<br>`/api/users/cart`<br>`/api/prescriptions` | Đơn hàng bán lẻ/online, cổng PayOS VietQR, voucher khuyến mãi, giỏ hàng, tư vấn toa thuốc AI | `POST /api/orders`<br>`POST /api/orders/payos-link`<br>`GET /api/orders/check/:orderCode`<br>`GET /api/orders/my-orders`<br>`GET /api/vouchers`<br>`POST /api/vouchers/validate`<br>`POST /api/prescriptions/symptom-consult` |
-| **📊 Reports & BI** | `/api/reports`<br>`/api/finance` | Thống kê doanh thu toàn chuỗi, dự báo nhu cầu (AI Forecast), tài chính, anomaly detection | `GET /api/reports/dashboard/summary`<br>`GET /api/reports/seasonal-analysis`<br>`GET /api/reports/ai-forecast`<br>`GET /api/finance/daily-summary` |
-| **🔔 Notifications** | `/api/notifications` | Quản lý thông báo người dùng theo role và chi nhánh | `GET /api/notifications/me`<br>`PATCH /api/notifications/:id/read`<br>`PATCH /api/notifications/mark-all-read`<br>`GET /api/notifications/unread-count` |
+| Nhóm Domain (Group)                 | Tiền tố (Prefix)                                                                                                 | Trách nhiệm nghiệp vụ                                                                                                                  | Danh sách Endpoints chính                                                                                                                                                                                                                                                |
+| :----------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **🔐 Auth & Identity**         | `/api/auth`                                                                                                      | Đăng nhập, đăng ký, refresh token, đổi mật khẩu, profile cá nhân                                                               | `POST /api/auth/loginPOST /api/auth/register``GET /api/auth/profilePUT /api/auth/profile``POST /api/auth/change-password`                                                                                                                                            |
+| **👥 User & HR**               | `/api/users/api/admin/employees`                                                                                 | Quản lý người dùng, nhân sự chi nhánh, phân quyền RBAC, nhật ký Audit                                                          | `GET /api/admin/employeesPOST /api/admin/employees``PUT /api/admin/employees/:id/banPUT /api/admin/employees/:id/approve``GET /api/users/audit-logs`                                                                                                                 |
+| **🏢 Branch & Facility**       | `/api/branches`                                                                                                  | Quản lý danh sách chi nhánh, cơ sở bán lẻ trong chuỗi nhà thuốc                                                                 | `GET /api/branchesPOST /api/branches``PUT /api/branches/:idDELETE /api/branches/:id`                                                                                                                                                                                   |
+| **💊 Inventory & Pharmacy**    | `/api/medicines/api/inventory-checks``/api/stock-transfers/api/sensors`                                        | Dược phẩm (SKU), tra cứu Barcode GS1, sơ đồ kho GSP, kiểm kê kho, chuyển kho liên chi nhánh, telemetry IoT                     | `GET /api/medicinesGET /api/medicines/barcode/:barcode``POST /api/medicinesPUT /api/medicines/:id``POST /api/inventory-checksPOST /api/inventory-checks/:id/complete``GET /api/stock-transfersPOST /api/stock-transfers/:id/receive``GET /api/sensors/telemetry` |
+| **📦 Procurement (Mua hàng)** | `/api/quotas/api/suppliers``/api/purchase-requisitions/api/purchase-orders``/api/goods-receipts/api/pricing` | Hạn mức ngân sách, nhà cung cấp GDP, đơn đề xuất (PR), đặt hàng NCC (PO), nghiệm thu nhập kho (GRN), bảng giá chi nhánh | `GET /api/quotas/summaryPOST /api/quotas``GET /api/suppliersPOST /api/suppliers``POST /api/purchase-requisitionsPOST /api/purchase-orders/auto-route``POST /api/goods-receipts/:id/approveGET /api/pricing/:branchId`                                              |
+| **🛒 Sales & Customer**        | `/api/orders/api/sales``/api/vouchers/api/users/cart``/api/prescriptions`                                    | Đơn hàng bán lẻ/online, cổng PayOS VietQR, voucher khuyến mãi, giỏ hàng, tư vấn toa thuốc AI                                  | `POST /api/ordersPOST /api/orders/payos-link``GET /api/orders/check/:orderCodeGET /api/orders/my-orders``GET /api/vouchersPOST /api/vouchers/validate``POST /api/prescriptions/symptom-consult`                                                                    |
+| **📊 Reports & BI**            | `/api/reports/api/finance`                                                                                       | Thống kê doanh thu toàn chuỗi, dự báo nhu cầu (AI Forecast), tài chính, anomaly detection                                         | `GET /api/reports/dashboard/summaryGET /api/reports/seasonal-analysis``GET /api/reports/ai-forecastGET /api/finance/daily-summary`                                                                                                                                     |
+| **🔔 Notifications**           | `/api/notifications`                                                                                             | Quản lý thông báo người dùng theo role và chi nhánh                                                                               | `GET /api/notifications/mePATCH /api/notifications/:id/read``PATCH /api/notifications/mark-all-readGET /api/notifications/unread-count`                                                                                                                                |
 
 ### 1.2. Quy Chuẩn HTTP Method & Mã Trạng Thái
 
-| HTTP Method | Thao tác CRUD | Mã HTTP Gateway | Ý nghĩa & Cách Frontend xử lý |
-| :--- | :--- | :--- | :--- |
-| `GET` | **Read One / Read All** | `200 OK` | Nhận trực tiếp dữ liệu (từ Redis Cache hoặc Database). Hiển thị ngay lên giao diện. |
-| `POST` | **Create (Đồng bộ)** | `201 Created` / `200 OK` | Nhận về thực thể vừa tạo (chỉ áp dụng cho API nghiệp vụ khép kín, tính tiền, xác thực). |
-| `POST` | **Create (Bất đồng bộ)** | `202 Accepted` | Gateway đẩy sự kiện vào Kafka. Trả về `{ status: 'Accepted', message: '...' }`. Cập nhật Optimistic UI hoặc báo Toast tiếp nhận. |
-| `PUT` | **Update (Bất đồng bộ)** | `202 Accepted` / `200 OK` | Gateway đẩy sự kiện cập nhật vào Kafka và xóa Redis Cache. Frontend thông báo thành công và re-fetch sau 500ms - 1s. |
-| `PATCH` | **Update Trạng thái** | `200 OK` | Dùng khi cập nhật một phần hoặc chuyển đổi trạng thái (`/read`, `/approve`, `/status`). |
-| `DELETE` | **Delete (Bất đồng bộ)** | `202 Accepted` / `200 OK` | Gateway đẩy sự kiện xóa vào Kafka và xóa Redis Cache. Xóa tạm trên UI và re-fetch. |
+| HTTP Method | Thao tác CRUD                     | Mã HTTP Gateway              | Ý nghĩa & Cách Frontend xử lý                                                                                                              |
+| :---------- | :--------------------------------- | :---------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`     | **Read One / Read All**      | `200 OK`                    | Nhận trực tiếp dữ liệu (từ Redis Cache hoặc Database). Hiển thị ngay lên giao diện.                                                  |
+| `POST`    | **Create (Đồng bộ)**      | `201 Created` / `200 OK`  | Nhận về thực thể vừa tạo (chỉ áp dụng cho API nghiệp vụ khép kín, tính tiền, xác thực).                                        |
+| `POST`    | **Create (Bất đồng bộ)** | `202 Accepted`              | Gateway đẩy sự kiện vào Kafka. Trả về `{ status: 'Accepted', message: '...' }`. Cập nhật Optimistic UI hoặc báo Toast tiếp nhận. |
+| `PUT`     | **Update (Bất đồng bộ)** | `202 Accepted` / `200 OK` | Gateway đẩy sự kiện cập nhật vào Kafka và xóa Redis Cache. Frontend thông báo thành công và re-fetch sau 500ms - 1s.              |
+| `PATCH`   | **Update Trạng thái**      | `200 OK`                    | Dùng khi cập nhật một phần hoặc chuyển đổi trạng thái (`/read`, `/approve`, `/status`).                                        |
+| `DELETE`  | **Delete (Bất đồng bộ)** | `202 Accepted` / `200 OK` | Gateway đẩy sự kiện xóa vào Kafka và xóa Redis Cache. Xóa tạm trên UI và re-fetch.                                                  |
 
 ### 1.3. Quy Chuẩn Đặt Tên Topic Kafka (Message-Driven Standards)
 
 Topic Kafka tuân thủ cấu trúc phân nhóm Domain-Driven:
+
 * **Đối với sự kiện một chiều (Event-Driven - dùng `emit()`):**
   - Mẫu: `<entity>.event.<action>` hoặc `<domain>.<entity>.event.<action>`
   - Ví dụ: `product.event.create`, `quota.event.create`, `quota.event.update`, `quota.event.delete`, `auth.event.logout`, `sensor.telemetry.ingest`
@@ -72,6 +76,7 @@ Topic Kafka tuân thủ cấu trúc phân nhóm Domain-Driven:
 ### 1.4. Quy Chuẩn Phân Nhóm Thư Mục Services Phía Frontend & Mobile
 
 Cấu trúc thư mục Services trên cả Web (`frontend/src/services/`) và Mobile (`mobile/src/services/`) ánh xạ 1-1 với Bounded Context:
+
 ```
 src/services/
 ├── core/                  # HTTP Client, Axios instance, Interceptors, Base config
@@ -117,13 +122,13 @@ src/services/
 
 ## 2. Luồng Giao Tiếp Chuẩn Cho Các Tác Vụ (CRUD Protocols)
 
-| Tác vụ (Operation) | Giao thức truyền thông | Cơ chế Cache (Redis) |
-| :--- | :--- | :--- |
-| **Create (Tạo mới)** | Event-Driven (Gateway `emit` -> Kafka -> Microservice) | Chủ động cập nhật cache hoặc đợi đọc lần đầu. |
-| **Read One (Đọc chi tiết)** | Request-Response (Gateway `send` -> Kafka -> Microservice) | **Cache-Aside:** Kiểm tra Redis trước. Nếu Miss, gọi DB rồi lưu Redis. |
-| **Read All (Đọc danh sách)** | Request-Response (Gateway `send` -> Kafka -> Microservice) | Query DB trực tiếp qua Kafka hoặc Cache ngắn hạn (TTL ngắn). |
-| **Update (Cập nhật)** | Event-Driven (Gateway `emit` -> Kafka -> Microservice) | **Cache Eviction:** Xóa hoặc ghi đè cache cũ trên Redis ngay lập tức. |
-| **Delete (Xóa)** | Event-Driven (Gateway `emit` -> Kafka -> Microservice) | **Cache Eviction:** Xóa hẳn key cache tương ứng khỏi Redis. |
+| Tác vụ (Operation)                  | Giao thức truyền thông                                    | Cơ chế Cache (Redis)                                                              |
+| :------------------------------------ | :----------------------------------------------------------- | :---------------------------------------------------------------------------------- |
+| **Create (Tạo mới)**          | Event-Driven (Gateway `emit` -> Kafka -> Microservice)     | Chủ động cập nhật cache hoặc đợi đọc lần đầu.                          |
+| **Read One (Đọc chi tiết)**  | Request-Response (Gateway `send` -> Kafka -> Microservice) | **Cache-Aside:** Kiểm tra Redis trước. Nếu Miss, gọi DB rồi lưu Redis. |
+| **Read All (Đọc danh sách)** | Request-Response (Gateway `send` -> Kafka -> Microservice) | Query DB trực tiếp qua Kafka hoặc Cache ngắn hạn (TTL ngắn).                  |
+| **Update (Cập nhật)**         | Event-Driven (Gateway `emit` -> Kafka -> Microservice)     | **Cache Eviction:** Xóa hoặc ghi đè cache cũ trên Redis ngay lập tức. |
+| **Delete (Xóa)**               | Event-Driven (Gateway `emit` -> Kafka -> Microservice)     | **Cache Eviction:** Xóa hẳn key cache tương ứng khỏi Redis.             |
 
 ---
 
@@ -569,6 +574,7 @@ export const ProductList: React.FC = () => {
 ## 5. Các Quy Tắc An Toàn Dành Cho Dev Team (Fullstack Safety Rules)
 
 ### 5.1. Quy Tắc Phía Backend
+
 > [!WARNING]
 > **1. Quy tắc nhất quán Cache (Cache Consistency):**
 > Luôn luôn thực hiện xóa Cache (`cacheManager.del`) ngay tại API Gateway khi phát ra sự kiện `Update` hoặc `Delete`. Việc giữ lại cache cũ sẽ khiến Client đọc phải thông tin sai lệch (Stale Data).
@@ -578,6 +584,7 @@ export const ProductList: React.FC = () => {
 > Kafka chỉ truyền dữ liệu ở dạng chuỗi (String/Buffer). Khi phát ra sự kiện (`emit` / `send`), hãy luôn sử dụng `JSON.stringify(payload)`. Phía Microservice nhận vào cần parse ngược lại `JSON.parse(data)` để sử dụng.
 
 ### 5.2. Quy Tắc Phía Frontend & Mobile
+
 > [!WARNING]
 > **1. Chuẩn hóa Định dạng Khóa ID (`_id` vs `id`):**
 > Database MongoDB sử dụng trường `_id`, tuy nhiên một số endpoint có thể alias thành `id`. Trong code TypeScript, luôn truy xuất theo chuẩn an toàn:
@@ -591,3 +598,7 @@ export const ProductList: React.FC = () => {
 > [!TIP]
 > **3. Không ép buộc UI đợi ID từ HTTP 202:**
 > Khi gọi `POST /api/...` trả về `202 Accepted`, response **không chứa** `_id` của bản ghi mới. Không được viết code logic phụ thuộc vào `res.data._id` ngay lập tức. Hãy thông báo Toast thành công và re-fetch danh sách sau 1s hoặc lắng nghe qua WebSocket.
+
+> [!CAUTION]
+> **4. Cấm sử dụng thông báo của Google & OS/Trình duyệt:**
+> Tuyệt đối không dùng Notification API của trình duyệt/hệ điều hành (`Notification.requestPermission()`, `new Notification()`, Web Push) hay các dịch vụ thông báo từ Google. Mọi thông báo hiển thị tới người dùng phải là thông báo nội bộ ứng dụng (In-app Notifications, Toast, Dropdown thông báo) thông qua kết nối Socket.IO thời gian thực.

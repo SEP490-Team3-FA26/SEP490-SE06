@@ -58,7 +58,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
               const getTypeBadge = () => {
                 if (t.transaction_type === "STOCK_IN") {
                   return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] bg-sky-50 text-sky-700 border border-sky-200">
                       <ArrowDownLeft size={12} />
                       <span>Nhập Kho</span>
                     </span>
@@ -91,7 +91,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                     >
                       <span>{t.transaction_id}</span>
                       {copiedId === t.transaction_id ? (
-                        <Check size={12} className="text-emerald-500" />
+                        <Check size={12} className="text-sky-500" />
                       ) : (
                         <Copy size={11} className="opacity-0 group-hover:opacity-100 text-slate-400 transition-opacity" />
                       )}
@@ -107,7 +107,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                             <Warehouse size={10} /> Kho Tổng GSP
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-sky-100 text-sky-800 border border-sky-200">
                             <Store size={10} /> Chi Nhánh GPP
                           </span>
                         )}
@@ -163,10 +163,10 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                         isViolation
                           ? "bg-rose-100 text-rose-700 border border-rose-300"
-                          : "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                          : "bg-sky-100 text-sky-700 border border-sky-300"
                       }`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full ${isViolation ? "bg-rose-500" : "bg-emerald-500"}`}></span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isViolation ? "bg-rose-500" : "bg-sky-500"}`}></span>
                       {isViolation ? "TỪ CHỐI (VI PHẠM)" : "ĐÃ LIÊN THÔNG BYT"}
                     </span>
                   </td>

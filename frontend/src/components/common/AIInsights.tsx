@@ -147,9 +147,9 @@ export function AIInsights() {
           timestamp: timeStr,
           dataPoints: [
             { label: "Tổng số dược phẩm", value: `${totalMeds} mã`, color: "text-purple-700" },
-            { label: "Cần nhập khẩn cấp", value: `${urgentCount} mã`, color: urgentCount > 0 ? "text-emerald-600" : "text-emerald-600" },
+            { label: "Cần nhập khẩn cấp", value: `${urgentCount} mã`, color: urgentCount > 0 ? "text-rose-600" : "text-sky-600" },
             { label: "Mô hình AI", value: "PyTorch LSTM (CUDA)", color: "text-blue-700" },
-            { label: "Độ tin cậy dự báo", value: "94.2%", color: "text-emerald-600" }
+            { label: "Độ tin cậy dự báo", value: "94.2%", color: "text-sky-600" }
           ],
           suggestions: [
             "Dự báo nhu cầu 30 ngày tới",
@@ -204,7 +204,7 @@ export function AIInsights() {
         replyText = `Dựa trên phân tích chuỗi thời gian của mô hình Deep Learning PyTorch LSTM trên GPU RTX 3050:\n\n• Dự báo tổng nhu cầu nhập hàng bổ sung trong 30 ngày tới là **${totalReq.toLocaleString('vi-VN')} đơn vị sản phẩm**.\n• Tổng dự toán ngân sách thu mua ước tính: **${totalBudget.toLocaleString('vi-VN')} đ**.\n• Các mặt hàng ưu tiên tập trung vào nhóm Giảm đau - Hạ sốt, Kháng sinh đường hô hấp và Tiêu hóa.`;
         dataPoints = [
           { label: "Tổng số lượng đề xuất", value: `${totalReq.toLocaleString('vi-VN')} đơn vị`, color: "text-purple-700" },
-          { label: "Dự toán ngân sách", value: `${totalBudget.toLocaleString('vi-VN')} đ`, color: "text-emerald-700" },
+          { label: "Dự toán ngân sách", value: `${totalBudget.toLocaleString('vi-VN')} đ`, color: "text-sky-700" },
           { label: "Kỳ phân tích", value: "30 ngày tới", color: "text-blue-700" }
         ];
         suggestions = ["Tạo đơn nhập hàng nhanh", "Phân tích thuốc sắp hết hàng", "Đánh giá tồn kho các chi nhánh"];
@@ -222,7 +222,7 @@ export function AIInsights() {
         dataPoints = [
           { label: "Mức cảnh báo dịch", value: "Trung bình - Cao", color: "text-amber-600" },
           { label: "Nhóm thuốc ảnh hưởng", value: "Hô hấp & Kháng sốt", color: "text-purple-700" },
-          { label: "Tăng trưởng dự kiến", value: "+28.4%", color: "text-emerald-700" }
+          { label: "Tăng trưởng dự kiến", value: "+28.4%", color: "text-sky-700" }
         ];
         suggestions = ["Xem chi tiết Báo cáo Mùa vụ", "Dự báo nhu cầu 30 ngày tới", "Gợi ý tối ưu chi phí nhập hàng"];
       } else {
@@ -255,7 +255,7 @@ export function AIInsights() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">AI Insights & Trợ Lý Phân Tích Chuỗi Cung Ứng</h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm flex items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm flex items-center gap-1">
                 <Zap size={11} /> RTX 3050 GPU
               </span>
             </div>
@@ -445,8 +445,8 @@ export function AIInsights() {
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2.5">
                       <div className={`p-2.5 rounded-2xl shrink-0 ${
-                        insight.type === 'warning' ? 'bg-rose-50 text-emerald-600 border border-rose-100' : 
-                        insight.type === 'opportunity' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
+                        insight.type === 'warning' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 
+                        insight.type === 'opportunity' ? 'bg-sky-50 text-sky-600 border border-sky-100' : 
                         'bg-blue-50 text-blue-600 border border-blue-100'
                       }`}>
                         {insight.type === 'warning' ? <AlertTriangle size={18} /> : 
@@ -457,7 +457,7 @@ export function AIInsights() {
                         {insight.badge && (
                           <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md mt-1 inline-block ${
                             insight.type === 'warning' ? 'bg-rose-100 text-rose-700' :
-                            insight.type === 'opportunity' ? 'bg-emerald-100 text-emerald-700' :
+                            insight.type === 'opportunity' ? 'bg-sky-100 text-sky-700' :
                             'bg-blue-100 text-blue-700'
                           }`}>
                             {insight.badge}
@@ -471,7 +471,7 @@ export function AIInsights() {
 
                   <div className={`text-[11px] font-semibold p-3 rounded-2xl border leading-relaxed ${
                     insight.type === 'warning' ? 'bg-rose-50/70 border-rose-100 text-rose-900' : 
-                    insight.type === 'opportunity' ? 'bg-emerald-50/70 border-emerald-100 text-emerald-900' : 
+                    insight.type === 'opportunity' ? 'bg-sky-50/70 border-sky-100 text-sky-900' : 
                     'bg-blue-50/70 border-blue-100 text-blue-900'
                   }`}>
                     {insight.action}
@@ -484,7 +484,7 @@ export function AIInsights() {
                       onClick={() => navigate(insight.route!)}
                       className={`px-4 py-2 rounded-xl text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 ${
                         insight.type === 'warning' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20' : 
-                        insight.type === 'opportunity' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' : 
+                        insight.type === 'opportunity' ? 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20' : 
                         'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20'
                       }`}
                     >

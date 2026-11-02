@@ -1,5 +1,6 @@
 import api from '../core/api';
 import { API_ENDPOINTS } from '../../constants/apiEndpoints';
+import { isPrescriptionMedicine } from '../../utils/prescriptionUtils';
 
 export const cartService = {
   async getCart() {
@@ -29,6 +30,9 @@ export const cartService = {
 
   // Thêm sản phẩm vào giỏ hàng của khách (guest_cart trong localStorage) khi chưa đăng nhập
   addGuestItem(med: any, quantity: number = 1) {
+    if (isPrescriptionMedicine(med)) {
+      throw new Error("Thuốc kê đơn (Rx) không được phép đặt mua trực tuyến theo quy định của Bộ Y Tế. Quý khách vui lòng mua trực tiếp tại quầy thuốc.");
+    }
     try {
       const medId = med.id || med._id || med.medicineId;
       const guestCartStr = localStorage.getItem("guest_cart");
@@ -48,6 +52,10 @@ export const cartService = {
           image: med.image || "",
           stock: med.stock ?? 999,
           active_ingredient: med.active_ingredient || "",
+          prescription_status: med.prescription_status,
+          is_prescription: med.is_prescription,
+          drug_classification: med.drug_classification,
+          thong_tin_chi_tiet: med.thong_tin_chi_tiet,
           quantity,
         });
       }
@@ -62,6 +70,9 @@ export const cartService = {
 
   // Phương thức hợp nhất: Tự động lưu giỏ hàng khách nếu chưa đăng nhập, hoặc gọi API nếu đã đăng nhập
   async addProduct(med: any, quantity: number = 1) {
+    if (isPrescriptionMedicine(med)) {
+      throw new Error("Thuốc kê đơn (Rx) không được phép đặt mua trực tuyến theo quy định của Bộ Y Tế. Quý khách vui lòng mua trực tiếp tại quầy thuốc.");
+    }
     const token = localStorage.getItem("token");
     if (!token) {
       return this.addGuestItem(med, quantity);

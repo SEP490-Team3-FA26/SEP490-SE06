@@ -78,3 +78,5 @@ export class Attendance extends Document {
 export const AttendanceSchema = SchemaFactory.createForClass(Attendance);
 AttendanceSchema.index({ employeeId: 1, date: 1, shiftId: 1 }, { unique: false });
 AttendanceSchema.index({ branchId: 1, date: 1 });
+AttendanceSchema.index({ branchId: 1, date: -1, checkInTime: -1 });
+AttendanceSchema.index({ branchId: 1, employeeId: 1, date: -1 });

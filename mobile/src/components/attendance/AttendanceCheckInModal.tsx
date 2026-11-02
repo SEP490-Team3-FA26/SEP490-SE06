@@ -66,9 +66,16 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
         }
       }
       if (!branch) {
+        try {
+          branch = await ApiService.getMyBranch();
+        } catch {
+          // Bỏ qua lỗi
+        }
+      }
+      if (!branch) {
         const branches = await ApiService.getBranches();
         if (branches && branches.length > 0) {
-          branch = branches.find((b: any) => b.id === branchId || b._id === branchId) || branches[0];
+          branch = branches.find((b: any) => b.branchCode === branchId || b.id === branchId || b._id === branchId) || branches[0];
         }
       }
       setBranchInfo(branch);
@@ -278,10 +285,10 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
                       <Ionicons
                         name={isWithinRadius ? 'checkmark-circle' : 'close-circle'}
                         size={22}
-                        color={isWithinRadius ? '#16A34A' : '#DC2626'}
+                        color={isWithinRadius ? '#0284C7' : '#DC2626'}
                       />
                       <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={[styles.distanceTitle, { color: isWithinRadius ? '#15803D' : '#B91C1C' }]}>
+                        <Text style={[styles.distanceTitle, { color: isWithinRadius ? '#0369A1' : '#B91C1C' }]}>
                           {isWithinRadius
                             ? `Trong phạm vi chi nhánh (Cách ${distance}m)`
                             : `Ngoài phạm vi cho phép (Cách ${distance}m)`}
@@ -359,8 +366,8 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
               )}
 
               {todayAttendance?.isHandoverSubmitted ? (
-                <View style={[styles.shiftBadge, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, marginTop: 8 }]}>
-                  <Text style={{ color: '#047857', fontSize: 11, fontWeight: '700' }}>
+                <View style={[styles.shiftBadge, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD', borderWidth: 1, marginTop: 8 }]}>
+                  <Text style={{ color: '#0369A1', fontSize: 11, fontWeight: '700' }}>
                     ✓ ĐÃ NỘP BIÊN BẢN BÀN GIAO CA & CHỐT KÉT
                   </Text>
                 </View>
@@ -411,7 +418,7 @@ export const AttendanceCheckInModal: React.FC<AttendanceCheckInModalProps> = ({
               </TouchableOpacity>
             ) : (
               <View style={styles.completedBox}>
-                <Ionicons name="checkmark-done-circle" size={22} color="#16A34A" />
+                <Ionicons name="checkmark-done-circle" size={22} color="#0284C7" />
                 <Text style={styles.completedText}>Bạn đã hoàn thành ca làm việc hôm nay</Text>
               </View>
             )}
@@ -599,9 +606,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   distanceBoxValid: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#DCFCE7',
+    borderColor: '#BAE6FD',
   },
   distanceBoxInvalid: {
     backgroundColor: '#FEF2F2',
@@ -659,10 +666,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   onTimeBadge: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#E0F2FE',
   },
   onTimeBadgeText: {
-    color: '#15803D',
+    color: '#0369A1',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -713,14 +720,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F0F9FF',
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#BAE6FD',
   },
   completedText: {
-    color: '#15803D',
+    color: '#0369A1',
     fontSize: 14,
     fontWeight: '600',
   },

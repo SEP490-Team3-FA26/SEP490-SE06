@@ -231,7 +231,7 @@ export function useShiftHandover({ isOpen, onSuccess, showToast }: UseShiftHando
             <span>Tiền thực tế kiểm đếm:</span>
             <span>${payload.actualCashAmount.toLocaleString('vi-VN')}₫</span>
           </div>
-          <div class="info-row font-bold" style="color: ${payload.cashDiscrepancy === 0 ? '#059669' : '#dc2626'};">
+          <div class="info-row font-bold" style="color: ${payload.cashDiscrepancy === 0 ? '#0284c7' : '#dc2626'};">
             <span>Chênh lệch két:</span>
             <span>${payload.cashDiscrepancy > 0 ? '+' : ''}${payload.cashDiscrepancy.toLocaleString('vi-VN')}₫</span>
           </div>

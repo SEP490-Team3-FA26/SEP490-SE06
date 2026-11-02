@@ -242,14 +242,14 @@ export function MarketingRoiDashboard() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">ROI Lợi nhuận gộp</span>
-            <p className={`text-2xl font-black tracking-tight ${summary.averageRoi >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            <p className={`text-2xl font-black tracking-tight ${summary.averageRoi >= 0 ? 'text-sky-600' : 'text-red-600'}`}>
               {summary.averageRoi > 0 ? `+${summary.averageRoi}%` : `${summary.averageRoi}%`}
             </p>
             <p className="text-[11px] text-slate-500 font-medium">
               Lãi ròng: {Number(summary.totalNetProfit).toLocaleString('vi-VN')} đ
             </p>
           </div>
-          <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
+          <div className="p-3.5 bg-sky-50 text-sky-600 rounded-xl shrink-0">
             <Target size={22} />
           </div>
         </div>
@@ -356,7 +356,7 @@ export function MarketingRoiDashboard() {
                     </td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full font-bold text-xs ${
-                        c.roi >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                        c.roi >= 0 ? 'bg-sky-100 text-sky-800' : 'bg-red-100 text-red-800'
                       }`}>
                         {c.roi >= 0 ? `+${c.roi}%` : `${c.roi}%`}
                       </span>
@@ -371,7 +371,7 @@ export function MarketingRoiDashboard() {
                         </span>
                         <div className="w-20 bg-slate-200 h-1.5 rounded-full overflow-hidden">
                           <div
-                            className="bg-emerald-500 h-full rounded-full"
+                            className="bg-sky-500 h-full rounded-full"
                             style={{
                               width: `${c.totalOrders > 0 ? (c.newCustomerOrders / c.totalOrders) * 100 : 0}%`,
                             }}
@@ -384,7 +384,7 @@ export function MarketingRoiDashboard() {
                     </td>
                     <td className="py-3.5 px-4">
                       {c.status === 'ACTIVE' ? (
-                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                        <span className="bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full text-[10px]">
                           Đang chạy
                         </span>
                       ) : (
@@ -451,7 +451,7 @@ export function MarketingRoiDashboard() {
           </div>
 
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+            <div className="p-2.5 bg-sky-100 text-sky-700 rounded-xl">
               <DollarSign size={20} />
             </div>
             <div>
@@ -468,10 +468,10 @@ export function MarketingRoiDashboard() {
         {/* Bảng danh sách thu ngân vi phạm */}
         <div className="p-6">
           {!auditFlagsData?.flaggedCashiers || auditFlagsData.flaggedCashiers.length === 0 ? (
-            <div className="p-8 text-center bg-emerald-50/50 border border-emerald-100 rounded-xl flex flex-col items-center">
-              <CheckCircle2 size={36} className="text-emerald-500 mb-2" />
-              <h4 className="font-bold text-emerald-900 text-sm">Hệ thống an toàn - Không có ca nghi vấn</h4>
-              <p className="text-xs text-emerald-700 mt-1 max-w-lg">
+            <div className="p-8 text-center bg-sky-50/50 border border-sky-100 rounded-xl flex flex-col items-center">
+              <CheckCircle2 size={36} className="text-sky-500 mb-2" />
+              <h4 className="font-bold text-sky-900 text-sm">Hệ thống an toàn - Không có ca nghi vấn</h4>
+              <p className="text-xs text-sky-700 mt-1 max-w-lg">
                 Hiện tại không có nhân viên thu ngân nào áp dụng vượt quá 10 voucher cho các đơn hàng tiền mặt trong ngày hôm nay. Cơ chế hậu kiểm bất thường đang hoạt động hiệu quả.
               </p>
             </div>

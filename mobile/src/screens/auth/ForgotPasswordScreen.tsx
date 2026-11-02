@@ -82,7 +82,7 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
         title="Quên Mật Khẩu"
         subtitle="Khôi phục quyền truy cập tài khoản"
         onBack={() => (step === 'RESET' ? setStep('REQUEST') : navigation.goBack())}
-        gradientVariant="indigo"
+        gradientVariant="sky"
       />
 
       <KeyboardAvoidingView
@@ -104,7 +104,7 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
               <View style={{ marginTop: 8 }}>
                 <View style={{ alignItems: 'center', marginVertical: 14 }}>
                   <View style={styles.iconContainer}>
-                    <Ionicons name="key" size={38} color="#4F46E5" />
+                    <Ionicons name="key" size={38} color="#0284C7" />
                   </View>
                   <FlatBadge label="Bước 1: Xác thực Email" status="info" variant="glass" size="md" icon="mail-outline" style={{ marginTop: 8 }} />
                 </View>
@@ -135,9 +135,9 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
               <View style={{ marginTop: 8 }}>
                 <View style={{ alignItems: 'center', marginVertical: 14 }}>
                   <View style={styles.iconContainer}>
-                    <Ionicons name="lock-open" size={38} color="#4F46E5" />
+                    <Ionicons name="lock-open" size={38} color="#0284C7" />
                   </View>
-                  <FlatBadge label="Bước 2: Mật khẩu mới" status="success" variant="glass" size="md" icon="shield-checkmark-outline" style={{ marginTop: 8 }} />
+                  <FlatBadge label="Bước 2: Mật khẩu mới" status="info" variant="glass" size="md" icon="shield-checkmark-outline" style={{ marginTop: 8 }} />
                 </View>
 
                 <FlatInput
@@ -175,7 +175,7 @@ export const ForgotPasswordScreen: React.FC<{ navigation: any }> = ({ navigation
                   title="ĐẶT LẠI MẬT KHẨU"
                   onPress={handleResetPassword}
                   loading={loading}
-                  variant="success"
+                  variant="primary"
                   size="lg"
                   fullWidth
                   icon="checkmark-done-outline"
@@ -213,7 +213,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#E0F2FE',
+    borderWidth: 1.5,
+    borderColor: '#BAE6FD',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',

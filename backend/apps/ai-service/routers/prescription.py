@@ -23,19 +23,44 @@ import traceback
 import pymongo
 import json
 
-async def verify_internal_token(x_internal_token: str = Header(None), authorization: str = Header(None)):
-    # Soft check for internal requests or bearer token from mobile frontend / API Gateway
-    return True
+async def verify_internal_token(
+    x_internal_token: str = Header(None),
+    authorization: str = Header(None),
+):
+    expected_token = (
+        os.getenv("INTERNAL_SERVICE_TOKEN")
+        or os.getenv("JWT_SECRET")
+        or "wdp301-super-secret-key-change-in-production"
+    )
+    if x_internal_token and x_internal_token == expected_token:
+        return True
+    if authorization and authorization.startswith("Bearer "):
+        return True
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Unauthorized internal service request",
+    )
 
 router = APIRouter(dependencies=[Depends(verify_internal_token)])
 
+_mongo_client: pymongo.MongoClient | None = None
 
+def get_mongo_client() -> pymongo.MongoClient:
+    global _mongo_client
+    if _mongo_client is None:
+        uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
+        if not uri:
+            raise Exception("MongoDB URI not set")
+        _mongo_client = pymongo.MongoClient(
+            uri,
+            maxPoolSize=50,
+            serverSelectionTimeoutMS=5000,
+        )
+    return _mongo_client
 
 def get_mongo_collection():
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    if not uri:
-        raise Exception("MongoDB URI not set")
-    client = pymongo.MongoClient(uri)
+    client = get_mongo_client()
+    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING") or ""
     db_name = "WDP201"
     if "net/" in uri:
         parts = uri.split("net/")
@@ -45,10 +70,8 @@ def get_mongo_collection():
 
 
 def get_chat_sessions_collection():
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    if not uri:
-        raise Exception("MongoDB URI not set")
-    client = pymongo.MongoClient(uri)
+    client = get_mongo_client()
+    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING") or ""
     db_name = "WDP201"
     if "net/" in uri:
         parts = uri.split("net/")
@@ -412,6 +435,18 @@ def enrich_drugs_with_inventory(recommended_drugs: list[dict]) -> list[dict]:
                 or medicine_doc.get("classification")
                 or "NON_PRESCRIPTION"
             )
+            rx_detail = details.get("Thuốc cần kê toa")
+            is_rx = bool(
+                medicine_doc.get("prescription_status") == 1
+                or medicine_doc.get("prescriptionStatus") == 1
+                or medicine_doc.get("is_prescription") is True
+                or medicine_doc.get("isPrescription") is True
+                or str(classification).upper() in ["PRESCRIPTION", "PRESCRIPTION_ANTIBIOTIC", "ETC", "RX"]
+                or rx_detail in ["Có", "Co", True, "true", 1]
+            )
+            if is_rx and str(classification).upper() == "NON_PRESCRIPTION":
+                classification = "PRESCRIPTION"
+
             is_supp = str(classification).upper() in ["SUPPLEMENT", "COMMON_SUPPLEMENT", "THỰC PHẨM CHỨC NĂNG"]
 
             enriched.append({
@@ -426,6 +461,8 @@ def enrich_drugs_with_inventory(recommended_drugs: list[dict]) -> list[dict]:
                 "category": medicine_doc.get("category") or details.get("Danh mục") or "Dược phẩm",
                 "image": medicine_doc.get("image") or medicine_doc.get("image_url") or "",
                 "drug_classification": classification,
+                "is_prescription": is_rx,
+                "prescription_status": 1 if is_rx else 0,
                 "is_supplement": is_supp,
                 "in_stock": stock > 0
             })
@@ -442,11 +479,69 @@ def enrich_drugs_with_inventory(recommended_drugs: list[dict]) -> list[dict]:
                 "category": "Dược phẩm",
                 "image": "",
                 "drug_classification": "NON_PRESCRIPTION",
+                "is_prescription": False,
+                "prescription_status": 0,
                 "is_supplement": False,
                 "in_stock": False
             })
 
     return enriched
+
+def filter_safe_and_unique_drugs(
+    enriched_drugs: list[dict],
+    req: Any,
+    existing_warnings: str = ""
+) -> tuple[list[dict], str]:
+    """
+    Chốt chặn an toàn lâm sàng bằng code cứng (Deterministic Post-Processing Guardrail):
+    1. Chặn dị ứng (INV-AI-02): Loại bỏ thuốc nếu tên hoặc hoạt chất trùng với tiền sử dị ứng của khách.
+    2. Chống trùng lặp hoạt chất: Nếu có 2 thuốc cùng chung hoạt chất chính, chỉ giữ lại 1 sản phẩm đầu tiên.
+    """
+    allergy_keywords = set()
+    for item in (req.allergies or []) + (req.allergic_medicines or []) + (req.allergic_ingredients or []):
+        if item and isinstance(item, str) and item.strip():
+            allergy_keywords.add(item.strip().lower())
+
+    warnings_list = [existing_warnings.strip()] if existing_warnings and existing_warnings.strip() else []
+
+    # 1. Bộ lọc dị ứng
+    safe_drugs = []
+    for drug in enriched_drugs:
+        drug_name = (drug.get("name") or "").lower()
+        active_ingr = (drug.get("active_ingredient") or "").lower()
+
+        matched_allergy = None
+        for allergy in allergy_keywords:
+            if allergy in drug_name or (active_ingr and allergy in active_ingr):
+                matched_allergy = allergy
+                break
+
+        if matched_allergy:
+            warn_msg = f"CẢNH BÁO AN TOÀN DỊ ỨNG: Đã tự động loại bỏ sản phẩm '{drug.get('name')}' do hồ sơ y tế có tiền sử dị ứng với '{matched_allergy}'."
+            if warn_msg not in warnings_list:
+                warnings_list.append(warn_msg)
+        else:
+            safe_drugs.append(drug)
+
+    # 2. Chống trùng lặp hoạt chất
+    unique_drugs = []
+    seen_actives = set()
+
+    for drug in safe_drugs:
+        active_raw = (drug.get("active_ingredient") or "").strip().lower()
+        if active_raw and active_raw not in ["không rõ", "chưa rõ", "none", ""]:
+            main_active = re.split(r"[,\+\/;]", active_raw)[0].strip()
+            main_active_clean = re.sub(r"\d+\s*(mg|g|ml|mcg|iu|%)\b", "", main_active).strip()
+            key = main_active_clean or main_active
+            if key in seen_actives:
+                continue
+            seen_actives.add(key)
+            unique_drugs.append(drug)
+        else:
+            unique_drugs.append(drug)
+
+    final_warnings = " ".join(warnings_list).strip()
+    return unique_drugs, final_warnings
 
 class ChatMessage(BaseModel):
     role: str
@@ -458,6 +553,11 @@ class ChatRequest(BaseModel):
     age_group: str | None = None
     gender: str | None = None
     allergies: list[str] = []
+    allergic_medicines: list[str] = []
+    allergic_ingredients: list[str] = []
+    chronic_conditions: list[str] = []
+    blood_type: str | None = None
+    medical_notes: str | None = None
     image_base64: str | None = None
 
 @router.post("/api/ai/chat")
@@ -473,14 +573,28 @@ async def chat_consult(req: ChatRequest):
         if req.image_base64:
             vision_context = await extract_vision_keywords_for_rag(req.image_base64, req.message)
 
-        # Bước 1: Xây dựng câu truy vấn RAG có nhớ ngữ cảnh (Multi-turn RAG Query)
-        recent_history_texts = [h.content for h in req.history[-2:] if h.content]
-        query_parts = recent_history_texts + ([vision_context] if vision_context else []) + ([req.message] if req.message else [])
-        rag_query = " | ".join(query_parts).strip()
+        # Bước 1: Xây dựng câu truy vấn RAG có nhớ ngữ cảnh sạch (Chỉ lấy tin nhắn user tránh loãng vector)
+        user_history_texts = [
+            h.content for h in req.history[-4:]
+            if h.role == "user" and h.content
+        ][-2:]
+
+        # Nếu câu hỏi hiện tại là câu hỏi nối tiếp ngắn, lấy thêm tên thuốc ở lượt bot gần nhất
+        last_bot_drugs = ""
+        if len((req.message or "").split()) <= 7:
+            for h in reversed(req.history):
+                if h.role == "assistant" and "[Thuốc Dược sĩ đã đề xuất" in h.content:
+                    match = re.search(r"\[Thuốc Dược sĩ đã đề xuất.*?\]", h.content)
+                    if match:
+                        last_bot_drugs = match.group(0)
+                    break
+
+        query_parts = user_history_texts + ([last_bot_drugs] if last_bot_drugs else []) + ([vision_context] if vision_context else []) + ([req.message] if req.message else [])
+        rag_query = " | ".join(filter(None, query_parts)).strip()
 
         context = await retrieve_medical_context(rag_query) if rag_query else ""
 
-        # Bước 2: Gọi LLM Chatbot đa lượt (hỗ trợ cả text và vision)
+        # Bước 2: Gọi LLM Chatbot đa lượt (hỗ trợ cả text, vision và hồ sơ y tế chuyên sâu)
         history_dicts = [{"role": h.role, "content": h.content} for h in req.history]
         chat_res = await generate_chat_consultation(
             message=req.message or "Tư vấn hình ảnh đính kèm",
@@ -489,6 +603,11 @@ async def chat_consult(req: ChatRequest):
             age_group=req.age_group,
             gender=req.gender,
             allergies=req.allergies,
+            allergic_medicines=req.allergic_medicines,
+            allergic_ingredients=req.allergic_ingredients,
+            chronic_conditions=req.chronic_conditions,
+            blood_type=req.blood_type,
+            medical_notes=req.medical_notes,
             image_base64=req.image_base64,
             vision_context=vision_context
         )
@@ -497,12 +616,17 @@ async def chat_consult(req: ChatRequest):
         raw_recommended = chat_res.get("recommended_drugs", [])
         enriched_drugs = enrich_drugs_with_inventory(raw_recommended)
 
+        # Bước 4: Chốt chặn an toàn lâm sàng & Chống trùng lặp hoạt chất bằng Python code cứng
+        filtered_drugs, final_warnings = filter_safe_and_unique_drugs(
+            enriched_drugs, req, chat_res.get("warnings") or ""
+        )
+
         return {
             "success": True,
             "message": chat_res.get("message") or "Dược sĩ AI đã tiếp nhận thông tin từ bạn.",
             "reply": chat_res.get("message") or "Dược sĩ AI đã tiếp nhận thông tin từ bạn.",
-            "drugs": enriched_drugs,
-            "warnings": chat_res.get("warnings") or "",
+            "drugs": filtered_drugs,
+            "warnings": final_warnings,
             "follow_up_question": chat_res.get("follow_up_question") or "",
             "disclaimer": chat_res.get("disclaimer") or "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo y khoa.",
             "rag_context_used": bool(context),
@@ -1295,7 +1419,7 @@ async def get_inspection_record(receiptId: str, receiptItemId: str):
     uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
     if not uri:
          raise HTTPException(status_code=500, detail="Database connection string not configured.")
-    client = pymongo.MongoClient(uri)
+    client = get_mongo_client()
     db_name = "WDP201"
     if "net/" in uri:
         parts = uri.split("net/")

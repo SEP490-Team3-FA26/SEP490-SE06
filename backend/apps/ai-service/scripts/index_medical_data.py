@@ -5,14 +5,27 @@ import uuid
 import os
 import sys
 
+# Đảm bảo đường dẫn import hoạt động khi chạy từ thư mục gốc hoặc thư mục scripts
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
+try:
+    from qdrant_helper import get_qdrant_client
+except ImportError:
+    from scripts.qdrant_helper import get_qdrant_client
+
 # Define dummy get_embedding consistent with rag_service for now
 def get_embedding(text: str) -> list[float]:
     return [0.0] * 384
 
 def main():
-    qdrant_host = os.getenv("QDRANT_HOST", "localhost")
     try:
-        client = QdrantClient(host=qdrant_host, port=6333)
+        # Khởi tạo kết nối Qdrant linh hoạt cho VPS localhost/Docker/Cloud
+        client = get_qdrant_client(timeout=15.0)
     except Exception as e:
         print(f"Failed to connect to Qdrant: {e}")
         sys.exit(1)

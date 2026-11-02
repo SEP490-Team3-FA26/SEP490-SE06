@@ -527,7 +527,7 @@ export default function WholesaleView() {
                           {unitPrice.toLocaleString()}₫
                         </div>
                         {discountPct > 0 && (
-                          <span className="inline-block bg-emerald-50 text-emerald-700 text-[9px] font-black rounded px-1.5 py-0.5 mt-1 border border-emerald-200">
+                          <span className="inline-block bg-sky-50 text-sky-700 text-[9px] font-black rounded px-1.5 py-0.5 mt-1 border border-sky-200">
                             Giảm {discountPct}% (Giá bậc thang)
                           </span>
                         )}
@@ -655,7 +655,7 @@ export default function WholesaleView() {
               <span>Thành tiền (Đã giảm sỉ):</span>
               <span className="text-slate-800 font-extrabold">{subtotal.toLocaleString()}₫</span>
             </div>
-            <div className="flex justify-between text-emerald-600 font-black">
+            <div className="flex justify-between text-sky-600 font-black">
               <span>Đã chiết khấu sỉ:</span>
               <span>-{totalSavings.toLocaleString()}₫</span>
             </div>
@@ -734,9 +734,9 @@ export default function WholesaleView() {
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowInvoiceModal(false)} />
           <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-white">
+            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-sky-50 to-white">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center">
                   <Check size={18} />
                 </div>
                 <div>

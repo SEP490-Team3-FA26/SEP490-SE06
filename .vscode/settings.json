@@ -12,5 +12,9 @@
     },
     "files.exclude": {
         "**/node_modules": true
-    }
+    },
+    "files.associations": {
+        "*.html": "html"
+    },
+    "liveServer.settings.port": 5501
 }

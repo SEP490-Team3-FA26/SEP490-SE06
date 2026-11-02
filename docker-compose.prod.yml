@@ -28,6 +28,7 @@ x-backend-common: &backend-common
     REDIS_HOST: redis
     REDIS_PORT: 6379
     KAFKA_BROKERS: kafka:29092
+    AI_SERVICE_URL: http://ai-service:8000
     NODE_OPTIONS: "--max-old-space-size=256"
   volumes: &backend-volumes
     - /etc/localtime:/etc/localtime:ro
@@ -284,7 +285,7 @@ services:
     depends_on:
       - api-gateway
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/health > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health > /dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3

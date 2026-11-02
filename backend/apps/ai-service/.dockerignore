@@ -1,0 +1,12 @@
+.venv
+venv_temp
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.git
+.gitignore
+.env
+.env.*
+!**/.env.example

@@ -241,8 +241,8 @@ export function Reports() {
                 value={`${summaryData?.revenue?.totalOrders || 0} đơn`}
                 description="Đơn hàng hoàn thành trong kỳ"
                 icon={<ShoppingBag size={24} />}
-                colorClass="text-emerald-600"
-                bgClass="bg-emerald-50"
+                colorClass="text-sky-600"
+                bgClass="bg-sky-50"
               />
 
               {/* Đơn hàng trung bình */}

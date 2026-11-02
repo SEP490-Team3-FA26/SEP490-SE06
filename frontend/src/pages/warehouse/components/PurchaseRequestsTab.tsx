@@ -96,7 +96,7 @@ export function PurchaseRequestsTab({
         </button>
         {selectedPrs.length > 0 && statusFilter === "DRAFT" && (
           <button onClick={() => handleSendToAdmin(selectedPrs)} disabled={actionLoading}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-sm">
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-sm">
             {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <SendHorizonal size={14} />}
             Gửi {selectedPrs.length} yêu cầu lên Admin
           </button>

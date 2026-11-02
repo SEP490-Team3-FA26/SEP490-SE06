@@ -294,6 +294,9 @@ export class PricingService {
         unit: selectedUnit.unitName || medicine.unit || 'Hộp',
         exchangeValue: Number(selectedUnit.exchangeValue) || 1,
         price,
+        prescription_status: medicine.prescription_status,
+        is_prescription: (medicine as any).is_prescription,
+        drug_classification: medicine.drug_classification,
       });
     }
     return {

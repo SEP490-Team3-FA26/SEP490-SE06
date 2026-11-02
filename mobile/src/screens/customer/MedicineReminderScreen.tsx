@@ -94,6 +94,19 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
   // Test notification state
   const [testingCountDown, setTestingCountDown] = useState<number | null>(null);
 
+  // Hỗ trợ chọn tab hoặc mở modal qua URL query param khi test / demo
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab === 'SCHEDULE') setActiveTab('SCHEDULE');
+      if (tab === 'LOGS') setActiveTab('LOGS');
+      if (modal === 'add') setModalVisible(true);
+      if (modal === 'import_order') setOrderModalVisible(true);
+    }
+  }, []);
+
   const fetchOrdersForImport = useCallback(async (phoneToSearch?: string) => {
     try {
       setLoadingOrders(true);
@@ -529,11 +542,11 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
 
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <AnimatedTouchable
-            style={[styles.scanQuickBtn, { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }]}
+            style={[styles.scanQuickBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
             onPress={handleOpenOrderImport}
           >
-            <Ionicons name="receipt-outline" size={15} color="#16A34A" />
-            <Text style={[styles.scanQuickBtnText, { color: '#16A34A' }]}>Đơn Hàng</Text>
+            <Ionicons name="receipt-outline" size={15} color="#0284C7" />
+            <Text style={[styles.scanQuickBtnText, { color: '#0284C7' }]}>Đơn Hàng</Text>
           </AnimatedTouchable>
 
           <AnimatedTouchable
@@ -736,7 +749,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                       <View
                         style={[
                           styles.statusDot,
-                          { backgroundColor: reminder.isEnabled ? '#10B981' : '#94A3B8' },
+                          { backgroundColor: reminder.isEnabled ? '#0284C7' : '#94A3B8' },
                         ]}
                       />
                       <Text style={styles.statusPillText}>
@@ -805,7 +818,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 const progress = getMedicineProgress(reminder)!;
                 const barColor =
                   progress.remainingPct > 50
-                    ? '#10B981'
+                    ? '#0284C7'
                     : progress.remainingPct > 20
                     ? '#F59E0B'
                     : '#EF4444';
@@ -927,13 +940,13 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                   <View
                     style={[
                       styles.logStatusCircle,
-                      { backgroundColor: isTaken ? '#D1FAE5' : isSnoozed ? '#FEF3C7' : '#F1F5F9' },
+                      { backgroundColor: isTaken ? '#E0F2FE' : isSnoozed ? '#FEF3C7' : '#F1F5F9' },
                     ]}
                   >
                     <Ionicons
                       name={isTaken ? 'checkmark-circle' : isSnoozed ? 'time' : 'alert-circle'}
                       size={24}
-                      color={isTaken ? '#059669' : isSnoozed ? '#D97706' : '#64748B'}
+                      color={isTaken ? '#0284C7' : isSnoozed ? '#D97706' : '#64748B'}
                     />
                   </View>
 
@@ -947,13 +960,13 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                   <View
                     style={[
                       styles.logBadge,
-                      { backgroundColor: isTaken ? '#ECFDF5' : '#FFFBEB' },
+                      { backgroundColor: isTaken ? '#F0F9FF' : '#FFFBEB' },
                     ]}
                   >
                     <Text
                       style={[
                         styles.logBadgeText,
-                        { color: isTaken ? '#059669' : '#D97706' },
+                        { color: isTaken ? '#0284C7' : '#D97706' },
                       ]}
                     >
                       {isTaken ? 'ĐÃ UỐNG' : isSnoozed ? 'HOÃN LẠI 10P' : 'BỎ QUA'}
@@ -1004,15 +1017,15 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                 <TouchableOpacity
                   style={[
                     styles.scanModalRowBtn,
-                    { flex: 1.2, marginBottom: 0, backgroundColor: '#F0FDF4', borderColor: '#86EFAC' },
+                    { flex: 1.2, marginBottom: 0, backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' },
                   ]}
                   onPress={() => {
                     setModalVisible(false);
                     handleOpenOrderImport();
                   }}
                 >
-                  <Ionicons name="receipt-outline" size={18} color="#16A34A" />
-                  <Text style={[styles.scanModalRowBtnText, { color: '#16A34A' }]}>Từ Đơn Hàng Mua</Text>
+                  <Ionicons name="receipt-outline" size={18} color="#0284C7" />
+                  <Text style={[styles.scanModalRowBtnText, { color: '#0284C7' }]}>Từ Đơn Hàng Mua</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1403,7 +1416,7 @@ export const MedicineReminderScreen: React.FC<{ navigation: any; route?: any }> 
                       style={styles.orderImportAllBtn}
                       onPress={() => handleCreateAllFromOrder(ord)}
                     >
-                      <Ionicons name="sparkles" size={15} color="#059669" />
+                      <Ionicons name="sparkles" size={15} color="#0284C7" />
                       <Text style={styles.orderImportAllBtnText}>
                         Tự Động Tạo Lịch Toàn Bộ Đơn ({ord.items?.length || 0} thuốc)
                       </Text>
@@ -2082,9 +2095,9 @@ const styles = StyleSheet.create({
   },
   /* Form Section: Dosing & Refill */
   sectionDividerBox: {
-    backgroundColor: '#F0FDFA',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#CCFBF1',
+    borderColor: '#BAE6FD',
     borderRadius: 12,
     padding: 12,
     marginBottom: 14,
@@ -2097,7 +2110,7 @@ const styles = StyleSheet.create({
   sectionTitleText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F766E',
+    color: '#0284C7',
   },
   inputSubLabel: {
     fontSize: 12,
@@ -2107,7 +2120,7 @@ const styles = StyleSheet.create({
   },
   estimateHintText: {
     fontSize: 11,
-    color: '#0F766E',
+    color: '#0284C7',
     marginTop: 4,
     fontStyle: 'italic',
   },
@@ -2229,7 +2242,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   orderPaidTag: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -2237,7 +2250,7 @@ const styles = StyleSheet.create({
   orderPaidTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   orderImportItemsContainer: {
     gap: 8,
@@ -2285,7 +2298,7 @@ const styles = StyleSheet.create({
   },
   orderImportScheduleSummaryText: {
     fontSize: 11,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '600',
   },
   orderImportSelectBtn: {
@@ -2306,9 +2319,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     borderRadius: 10,
     paddingVertical: 8,
     marginTop: 10,
@@ -2317,6 +2330,6 @@ const styles = StyleSheet.create({
   orderImportAllBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
 });
