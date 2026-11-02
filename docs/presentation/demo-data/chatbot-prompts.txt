@@ -1,0 +1,11 @@
+CÂU 1 — DÙNG MINH HỌA TÌM THEO NHU CẦU
+Tôi muốn tìm sản phẩm bổ sung vitamin C đang có trong danh mục. Hiển thị tên sản phẩm, giá và tình trạng còn hàng; không cần hướng dẫn liều dùng.
+Đã thử trong phiên DEMO R2: trả 3 thẻ UPSA-C, Enervon, Ceelin. Riêng Enervon khớp danh mục 2.290đ/Hộp, tồn 152 tại thời điểm chuẩn bị. Không bảo đảm kết quả cố định ở lần khác.
+
+CÂU 2 — CA CHƯA ĐẠT, ĐỂ REGRESSION
+DEMO R2: Tìm sản phẩm DEMO R2 - Vitamin C 500mg và cho biết giá, đơn vị bán, tình trạng còn hàng. Đây là dữ liệu kiểm thử, chỉ tra cứu danh mục, không tư vấn điều trị.
+Mong đợi đúng SKU, 25.000đ/Hộp; thực tế trả Enervon/Berocca. Chưa đạt exact match.
+
+CÂU 3 — CA CHƯA ĐẠT, HỎI NỐI TIẾP SAU THẺ ENERVON
+DEMO R2: Chỉ tra cứu giá và tồn kho sản phẩm Enervon United mà bạn vừa hiển thị, không tư vấn liều hay điều trị. Sản phẩm đó giá bao nhiêu, đơn vị bán là gì và còn hàng không?
+Thực tế dùng lời dẫn chung và hỏi số điện thoại; không trả giá/tồn trực tiếp. Chưa đạt follow-up.

@@ -113,3 +113,7 @@ yarn.lock
 **/yarn.lock
 pnpm-lock.yaml
 **/pnpm-lock.yaml
+
+# Binary office files
+*.xlsx
+*.docx

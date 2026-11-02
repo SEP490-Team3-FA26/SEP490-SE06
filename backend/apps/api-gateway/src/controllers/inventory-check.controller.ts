@@ -44,7 +44,15 @@ export class InventoryCheckController implements OnModuleInit {
   @Get(':id')
   @ApiOperation({ summary: 'Chi tiết biên bản kiểm kê kho' })
   async getCheckById(@Param('id') id: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.check.get_by_id', { id });
+    const res = await sendKafkaMessage(this.inventoryClient, 'inventory.check.get_by_id', { id });
+    if (typeof res === 'string') {
+      try {
+        return JSON.parse(res);
+      } catch {
+        return res;
+      }
+    }
+    return res;
   }
 
   @Post(':id/complete')

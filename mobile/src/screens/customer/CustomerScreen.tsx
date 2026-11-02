@@ -32,6 +32,7 @@ import { Medicine, CartItem, Order, Voucher, Branch } from '../../types/pharmacy
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 import { parseOrderToReminder, createRemindersFromOrder } from '../../services/reminderStorage.service';
 import { MedicineReminderService } from '../../services/medicineReminder.service';
+import { getOrderDisplayCode, getOrderQrPayload } from '../../utils/orderQrHelper';
 import {
   AnimatedPressable,
   ClinicalButton,
@@ -3363,15 +3364,16 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                       )}
                     </View>
 
+                    {/* Chân đơn hàng (Footer): Khôi phục cặp nút [★ Đánh Giá] và [🔲 Mã QR] chuẩn khớp ảnh screenshot */}
                     <View style={styles.orderFooter}>
                       <View>
-                        <Text style={styles.payMethodText}>Hình thức: {ord.paymentMethod}</Text>
+                        <Text style={styles.payMethodText}>Hình thức: {ord.paymentMethod || 'Tiền mặt'}</Text>
                         <Text style={styles.orderTotalAmount}>
                           {ord.finalAmount.toLocaleString('vi-VN')} ₫
                         </Text>
                       </View>
 
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                         <AnimatedTouchable
                           onPress={() => handleOpenFeedback(ord)}
                           style={[styles.qrOrderBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
@@ -3537,40 +3539,124 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
         />
       </Modal>
 
-      {/* Order QR Code Modal */}
+      {/* Order QR Code Modal - Chuẩn hóa ép String an toàn chống crash, hỗ trợ tra cứu quầy và VietQR */}
       <Modal visible={selectedOrderQR !== null} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.qrModalCard}>
-            <View style={styles.universalModalHeader}>
-              <View style={styles.universalModalTitleCol}>
-                <Text style={styles.qrModalTitle}>Mã QR Đơn Hàng</Text>
-                <Text style={styles.qrModalSub}>Mã đơn: {selectedOrderQR?.orderCode || selectedOrderQR?.id}</Text>
-              </View>
-              <AnimatedTouchable
-                onPress={() => setSelectedOrderQR(null)}
-                style={styles.universalCloseBtn}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Ionicons name="close" size={20} color="#334155" />
-              </AnimatedTouchable>
-            </View>
+            {selectedOrderQR && (() => {
+              const displayOrderCode = getOrderDisplayCode(selectedOrderQR);
+              const qrPayload = getOrderQrPayload(selectedOrderQR);
+              const isOrderPaid = String(selectedOrderQR.paymentStatus || '').toUpperCase() === 'PAID';
 
-            <View style={styles.qrHolder}>
-              <QRCode
-                value={selectedOrderQR?.orderCode || selectedOrderQR?.id || 'ORD-ABC'}
-                size={180}
-                color="#0F172A"
-                backgroundColor="#FFFFFF"
-              />
-            </View>
-            <Text style={styles.qrHint}>Xuất trình mã này tại quầy để nhận đơn hoặc tra cứu</Text>
+              return (
+                <>
+                  <View style={styles.universalModalHeader}>
+                    <View style={styles.universalModalTitleCol}>
+                      <Text style={styles.qrModalTitle}>
+                        {isOrderPaid ? 'Mã QR Đơn Hàng' : 'Mã QR Thanh Toán'}
+                      </Text>
+                      <Text style={styles.qrModalSub}>Mã đơn: #{displayOrderCode}</Text>
+                    </View>
+                    <AnimatedTouchable
+                      onPress={() => setSelectedOrderQR(null)}
+                      style={styles.universalCloseBtn}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                      <Ionicons name="close" size={20} color="#334155" />
+                    </AnimatedTouchable>
+                  </View>
 
-            <AnimatedTouchable
-              onPress={() => setSelectedOrderQR(null)}
-              style={styles.closeQrBtn}
-            >
-              <Text style={styles.closeQrBtnText}>Đóng</Text>
-            </AnimatedTouchable>
+                  {/* Huy hiệu trạng thái thanh toán & Tổng tiền */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isOrderPaid ? '#ECFDF5' : '#FFFBEB',
+                      borderWidth: 1,
+                      borderColor: isOrderPaid ? '#A7F3D0' : '#FDE68A',
+                      borderRadius: 12,
+                      paddingVertical: 8,
+                      paddingHorizontal: 14,
+                      marginBottom: 16,
+                      gap: 8,
+                      width: '100%',
+                    }}
+                  >
+                    <Ionicons
+                      name={isOrderPaid ? 'checkmark-circle' : 'time'}
+                      size={18}
+                      color={isOrderPaid ? '#059669' : '#D97706'}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '700',
+                        color: isOrderPaid ? '#065F46' : '#92400E',
+                      }}
+                    >
+                      {isOrderPaid ? 'ĐÃ THANH TOÁN' : 'CHỜ THANH TOÁN'} :{' '}
+                      {selectedOrderQR.finalAmount ? `${selectedOrderQR.finalAmount.toLocaleString('vi-VN')} ₫` : '0 ₫'}
+                    </Text>
+                  </View>
+
+                  {/* Khung QR Code với giá trị chuỗi an toàn tuyệt đối */}
+                  <View style={styles.qrHolder}>
+                    <QRCode
+                      value={qrPayload}
+                      size={190}
+                      color="#0F172A"
+                      backgroundColor="#FFFFFF"
+                    />
+                  </View>
+
+                  <Text style={styles.qrHint}>
+                    {isOrderPaid
+                      ? 'Xuất trình mã này cho Dược sĩ tại quầy để nhận thuốc hoặc tra cứu nhanh'
+                      : 'Mở app Ngân hàng / MoMo để quét mã thanh toán VietQR đơn hàng'}
+                  </Text>
+
+                  {/* Nút hành động: Sao chép mã & Đóng */}
+                  <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 4 }}>
+                    <AnimatedTouchable
+                      onPress={() => {
+                        Clipboard.setString(displayOrderCode);
+                        showToast.success('Đã sao chép!', `Mã đơn #${displayOrderCode} đã được lưu vào bộ nhớ tạm`);
+                      }}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#F1F5F9',
+                        borderWidth: 1,
+                        borderColor: '#CBD5E1',
+                        paddingVertical: 12,
+                        borderRadius: 14,
+                        gap: 6,
+                      }}
+                    >
+                      <Ionicons name="copy-outline" size={16} color="#334155" />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155' }}>Sao Chép</Text>
+                    </AnimatedTouchable>
+
+                    <AnimatedTouchable
+                      onPress={() => setSelectedOrderQR(null)}
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#0F172A',
+                        paddingVertical: 12,
+                        borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={styles.closeQrBtnText}>Đóng</Text>
+                    </AnimatedTouchable>
+                  </View>
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>
