@@ -74,15 +74,15 @@ class EnvServiceClass {
   }
 
   public getApiBaseUrl(): string {
-    const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+    const envUrl = (process.env.EXPO_PUBLIC_API_URL || process.env.API_URL)?.trim();
 
-    // 1. Tự động chuyển đổi nếu env cũ trỏ vào HTTP thô của VPS (tránh Android Cleartext block)
-    if (envUrl && envUrl.includes('103.75.187.86:4000')) {
+    // 1. Tự động chuyển đổi nếu env cũ trỏ vào HTTP thô của VPS hoặc Railway (tránh Android Cleartext block và loại bỏ Railway)
+    if (envUrl && (envUrl.includes('103.75.187.86:4000') || envUrl.includes('railway.app') || envUrl.includes('railway'))) {
       return 'https://abcpharmacy.store';
     }
 
-    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost
-    if (!__DEV__ && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1'))) {
+    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost hoặc Railway
+    if (!__DEV__ && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1') || envUrl?.includes('railway'))) {
       return 'https://abcpharmacy.store';
     }
 
@@ -113,29 +113,40 @@ class EnvServiceClass {
   }
 
   public getAiBaseUrl(): string {
-    const envUrl = process.env.EXPO_PUBLIC_AI_URL?.trim();
+    const envUrl = (process.env.EXPO_PUBLIC_AI_URL || process.env.AI_URL)?.trim();
 
-    if (envUrl && envUrl.includes('103.75.187.86')) {
+    // 1. Loại bỏ URL Railway hoặc IP VPS HTTP cũ, chuyển hướng sang VPS chuẩn HTTPS
+    if (envUrl && (envUrl.includes('103.75.187.86') || envUrl.includes('railway.app') || envUrl.includes('railway'))) {
       return 'https://abcpharmacy.store';
     }
 
-    if (envUrl) {
+    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost hoặc Railway
+    if (!__DEV__ && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1') || envUrl?.includes('railway'))) {
+      return 'https://abcpharmacy.store';
+    }
+
+    // 3. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa cụ thể (không phải localhost hay railway)
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
       return envUrl;
     }
 
+    // 4. Chế độ Web Local
     if (Platform.OS === 'web') {
       return envUrl || 'http://localhost:8000';
     }
 
+    // 5. Chế độ Android Emulator Local
     if (this.isAndroidEmulator()) {
       return 'http://10.0.2.2:8000';
     }
 
+    // 6. Chế độ Điện thoại thật qua Expo Go Wi-Fi Local (Auto-detect IP máy tính từ Metro)
     const detectedHost = this.getHostIp();
     if (detectedHost) {
       return `http://${detectedHost}:8000`;
     }
 
+    // 7. Mặc định Production Cloud Server nếu không tìm thấy máy chủ dev LAN
     return 'https://abcpharmacy.store';
   }
 

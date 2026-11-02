@@ -18,13 +18,106 @@ class RAGServiceUnavailable(RuntimeError):
     """Raised when vector retrieval is not configured or unavailable."""
 
 
-def get_qdrant_client():
+def resolve_qdrant_params(
+    host: str | None = None,
+    port: int | str | None = None,
+    url: str | None = None,
+    api_key: str | None = None,
+    timeout: float = 3.0,
+) -> dict:
+    """
+    Phân giải và chuẩn hóa tham số kết nối Qdrant Vector DB:
+    - Loại bỏ hoàn toàn việc hardcode 'up.railway.app' hoặc domain nhà cung cấp cụ thể.
+    - Hỗ trợ kiểm tra scheme tổng quát (http:// hoặc https://) cho VPS / Docker container / Cloud.
+    - Tự động tách host và port nếu truyền định dạng 'host:port' (ví dụ: localhost:6333, qdrant:6333).
+    - Tự động suy luận giao thức HTTPS khi sử dụng cổng 443 hoặc khi có cờ QDRANT_HTTPS.
+    - Đọc các biến môi trường cấu hình: QDRANT_URL, QDRANT_HOST, QDRANT_PORT, QDRANT_API_KEY, QDRANT_TIMEOUT.
+    """
+    resolved_api_key = api_key or os.getenv("QDRANT_API_KEY")
+    resolved_url = (url or os.getenv("QDRANT_URL") or "").strip()
+
+    # 1. Ưu tiên URL đầy đủ nếu được chỉ định trực tiếp
+    if resolved_url:
+        return {
+            "url": resolved_url,
+            "api_key": resolved_api_key,
+            "timeout": timeout,
+        }
+
+    raw_host = (host or os.getenv("QDRANT_HOST") or QDRANT_HOST or "localhost").strip()
+    if not raw_host:
+        raw_host = "localhost"
+
+    # 2. Kiểm tra scheme tổng quát: nếu raw_host chứa giao thức http:// hoặc https://
+    if raw_host.startswith("http://") or raw_host.startswith("https://"):
+        return {
+            "url": raw_host,
+            "api_key": resolved_api_key,
+            "timeout": timeout,
+        }
+
+    # 3. Xác định cổng kết nối (ưu tiên tham số -> QDRANT_PORT -> mặc định 6333)
+    parsed_port = 6333
+    if port is not None and str(port).strip().isdigit():
+        parsed_port = int(str(port).strip())
+    else:
+        port_env = os.getenv("QDRANT_PORT")
+        if port_env and port_env.strip().isdigit():
+            parsed_port = int(port_env.strip())
+
+    # 4. Kiểm tra chuỗi host có chứa định dạng host:port (ví dụ: localhost:6333, qdrant:6333)
+    if ":" in raw_host:
+        parts = raw_host.split(":", 1)
+        cleaned_host = parts[0].strip() or "localhost"
+        if parts[1].strip().isdigit():
+            parsed_port = int(parts[1].strip())
+    else:
+        cleaned_host = raw_host
+
+    # 5. Tự động kích hoạt HTTPS nếu cổng là 443 hoặc có cờ QDRANT_HTTPS
+    is_https = (
+        os.getenv("QDRANT_HTTPS", "false").lower() in ("true", "1", "yes")
+        or parsed_port == 443
+    )
+
+    if is_https:
+        return {
+            "url": f"https://{cleaned_host}:{parsed_port}",
+            "api_key": resolved_api_key,
+            "timeout": timeout,
+        }
+
+    return {
+        "host": cleaned_host,
+        "port": parsed_port,
+        "api_key": resolved_api_key,
+        "timeout": timeout,
+    }
+
+
+def get_qdrant_client(
+    timeout: float = 3.0,
+    host: str | None = None,
+    port: int | str | None = None,
+    url: str | None = None,
+    api_key: str | None = None,
+) -> QdrantClient | None:
+    """
+    Khởi tạo kết nối Qdrant Client một cách linh hoạt và an toàn:
+    - Hỗ trợ scheme tổng quát (http/https) và kết nối chuẩn cho VPS / Docker container.
+    - Không làm gián đoạn hệ thống nếu máy chủ Qdrant chưa sẵn sàng khi khởi động.
+    """
     try:
-        if "up.railway.app" in QDRANT_HOST:
-            return QdrantClient(url=f"https://{QDRANT_HOST}:443", timeout=3.0)
-        else:
-            return QdrantClient(host=QDRANT_HOST, port=6333, timeout=3.0)
-    except Exception:
+        params = resolve_qdrant_params(
+            host=host,
+            port=port,
+            url=url,
+            api_key=api_key,
+            timeout=timeout,
+        )
+        return QdrantClient(**params)
+    except Exception as exc:
+        print(f"⚠️ [Qdrant] Lỗi khi kết nối hoặc khởi tạo QdrantClient: {exc}")
         return None
 
 
@@ -214,7 +307,11 @@ async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | 
     preferred_route = intent.get("preferred_route", "oral")
     penalize_external = intent.get("penalize_external", True)
 
-    # Bước 2: Thử tìm Vector DB qua Qdrant nếu có
+    # Bước 2: Thử tìm Vector DB qua Qdrant nếu có (tự động thử kết nối lại nếu ban đầu chưa sẵn sàng)
+    global qdrant
+    if qdrant is None:
+        qdrant = get_qdrant_client()
+
     if qdrant is not None:
         try:
             if qdrant.collection_exists(QDRANT_COLLECTION):

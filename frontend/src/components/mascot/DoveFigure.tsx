@@ -543,7 +543,7 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
             <path
               d="M94 150 L172 216"
               fill="none"
-              stroke="#059669"
+              stroke="#0284c7"
               strokeWidth="2.8"
               strokeDasharray="4 2"
               opacity="0.85"
@@ -555,8 +555,8 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
               width="28"
               height="22"
               rx="6"
-              fill="#10b981"
-              stroke="#047857"
+              fill="#0284c7"
+              stroke="#0369a1"
               strokeWidth="1.5"
             />
             {/* White Cross on Pouch */}

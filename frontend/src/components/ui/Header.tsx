@@ -154,7 +154,7 @@ export function Header({
 
         {/* Right: action buttons + user identity */}
         <div className="flex items-center gap-2.5 ml-4">
-          {/* Store link — emerald accent */}
+          {/* Liên kết xem cửa hàng — tone xanh sky */}
           <a
             href="/"
             target="_blank"
@@ -162,28 +162,28 @@ export function Header({
             aria-label="View customer store (opens in new tab)"
             title="Xem giao diện Cửa Hàng / Khách Hàng (Mở tab mới)"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl
-              bg-emerald-50 hover:bg-emerald-100 text-emerald-700
-              border border-emerald-200 shadow-sm
+              bg-sky-50 hover:bg-sky-100 text-sky-700
+              border border-sky-200 shadow-sm
               text-xs font-bold transition-all duration-150"
           >
-            <Store size={15} className="text-emerald-600" />
+            <Store size={15} className="text-sky-600" />
             <span className="hidden lg:inline">Xem Cửa Hàng</span>
-            <ExternalLink size={12} className="text-emerald-400" />
+            <ExternalLink size={12} className="text-sky-400" />
           </a>
 
-          {/* Notification bell */}
+          {/* Nút chuông thông báo */}
           <NotificationBell />
 
-          {/* History button */}
+          {/* Nút lịch sử */}
           <button
             aria-label="View history"
             title="Lịch sử hoạt động"
-            className="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition-all duration-150"
+            className="p-2 rounded-xl text-slate-500 hover:text-sky-700 hover:bg-sky-50 transition-all duration-150"
           >
             <History size={20} />
           </button>
 
-          {/* User identity — click to navigate to profile */}
+          {/* Thông tin tài khoản người dùng */}
           <button
             onClick={() => navigate(profilePath)}
             aria-label="View your profile"
@@ -197,8 +197,8 @@ export function Header({
                 {getRoleLabel(userRole)}
               </div>
             </div>
-            {/* Avatar — emerald-to-teal gradient */}
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-black text-sm shadow-sm shrink-0">
+            {/* Avatar — gradient xanh sky sang blue */}
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-sm shadow-sm shrink-0">
               {avatarLetter}
             </div>
           </button>

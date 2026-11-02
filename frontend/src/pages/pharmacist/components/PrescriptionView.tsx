@@ -1202,28 +1202,28 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
           <>
             {/* 🛡️ BANNER THONG BAO XAC NHAN DUOC SI CHO DON THUOC AI */}
             {aiPharmacistConfirmation?.confirmed && (
-              <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-blue-500/10 border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="bg-gradient-to-r from-sky-500/10 via-teal-500/5 to-blue-500/10 border-2 border-sky-400/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="flex items-center gap-3.5">
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30 shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-md shadow-sky-600/30 shrink-0">
                       <ShieldCheck size={26} />
                     </div>
                     <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-4 w-4 bg-sky-500 border-2 border-white"></span>
                     </span>
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
-                        <CheckCircle2 size={11} className="text-emerald-700" /> ĐÃ XÁC NHẬN BƯỚC CUỐI • CHUẨN GPP
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-300 flex items-center gap-1 shadow-2xs">
+                        <CheckCircle2 size={11} className="text-sky-700" /> ĐÃ XÁC NHẬN BƯỚC CUỐI • CHUẨN GPP
                       </span>
                       <span className="text-xs font-mono font-bold text-slate-500">
-                        Mã duyệt: <strong className="text-emerald-700 font-extrabold">{aiPharmacistConfirmation.auditCode}</strong>
+                        Mã duyệt: <strong className="text-sky-700 font-extrabold">{aiPharmacistConfirmation.auditCode}</strong>
                       </span>
                     </div>
                     <h3 className="text-sm font-black text-slate-900 mt-1">
-                      Dược sĩ <span className="text-emerald-700 underline decoration-emerald-400 decoration-2">{aiPharmacistConfirmation.pharmacistName}</span> đã thẩm định & ký duyệt đơn thuốc do AI hỗ trợ
+                      Dược sĩ <span className="text-sky-700 underline decoration-sky-400 decoration-2">{aiPharmacistConfirmation.pharmacistName}</span> đã thẩm định & ký duyệt đơn thuốc do AI hỗ trợ
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Thời gian duyệt: <strong>{new Date(aiPharmacistConfirmation.confirmedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong> - {new Date(aiPharmacistConfirmation.confirmedAt).toLocaleDateString('vi-VN')} • Bệnh nhân: <strong>{aiPharmacistConfirmation.patientName || "Khách lẻ"}</strong> • {aiPharmacistConfirmation.totalItems} khoản mục thuốc
@@ -1235,7 +1235,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   <button
                     type="button"
                     onClick={() => setShowAuditModal(true)}
-                    className="px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-300 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer hover:shadow"
+                    className="px-3.5 py-2 bg-white hover:bg-sky-50 text-sky-700 font-extrabold text-xs rounded-xl border border-sky-300 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer hover:shadow"
                   >
                     <FileCheck2 size={15} /> Xem Biên Bản Thẩm Định AI
                   </button>
@@ -1276,7 +1276,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 <button
                   type="button"
                   onClick={handleQuickConfirmAI}
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                  className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
                 >
                   <ShieldCheck size={16} /> Dược Sĩ Xác Nhận Bước Cuối Ngay
                 </button>
@@ -1346,8 +1346,8 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                             <div className="flex items-center gap-2 flex-wrap">
                               <span>{it.name}</span>
                               {it.aiSuggested && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
-                                  <Sparkles size={10} className="text-emerald-600" /> AI Đề xuất • Đã duyệt GPP
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
+                                  <Sparkles size={10} className="text-sky-600" /> AI Đề xuất • Đã duyệt GPP
                                 </span>
                               )}
                             </div>
@@ -1434,7 +1434,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                               </button>
                             </div>
                           </td>
-                          <td className={`px-4 py-4 text-center font-bold text-[14px] ${isOutOfStock ? "text-red-600 bg-red-50" : "text-emerald-700"}`}>
+                          <td className={`px-4 py-4 text-center font-bold text-[14px] ${isOutOfStock ? "text-red-600 bg-red-50" : "text-sky-700"}`}>
                             {it.stock}
                           </td>
                           <td className="px-6 py-4 text-right font-medium text-slate-600">{it.price.toLocaleString()}₫</td>
@@ -1509,15 +1509,15 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
         <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm">
           <h3 className="text-[12px] font-black text-slate-500 uppercase tracking-widest mb-4">Áp dụng mã giảm giá</h3>
           {appliedVoucher ? (
-            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-xs font-semibold text-emerald-800">
+            <div className="flex items-center justify-between bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs font-semibold text-sky-800">
               <div>
                 Mã đã dùng: <span className="font-extrabold uppercase">{appliedVoucher.code}</span>
-                <span className="block text-[10px] text-emerald-600 mt-0.5">Giảm -{voucherDiscount.toLocaleString()}₫</span>
+                <span className="block text-[10px] text-sky-600 mt-0.5">Giảm -{voucherDiscount.toLocaleString()}₫</span>
               </div>
               <button
                 type="button"
                 onClick={handleRemoveVoucher}
-                className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 text-md"
+                className="text-sky-500 hover:text-sky-800 font-bold ml-2 text-md"
               >
                 ×
               </button>
@@ -1600,16 +1600,16 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
         {/* Action Buttons */}
         <div className="flex flex-col gap-2.5 mt-auto">
           {aiPharmacistConfirmation?.confirmed && (
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl p-3.5 text-xs text-emerald-900 flex items-center justify-between shadow-2xs">
+            <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-300 rounded-2xl p-3.5 text-xs text-sky-900 flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                   <ShieldCheck size={16} />
                 </div>
                 <div>
-                  <div className="font-extrabold text-[11px] uppercase tracking-wide text-emerald-950 flex items-center gap-1">
+                  <div className="font-extrabold text-[11px] uppercase tracking-wide text-sky-950 flex items-center gap-1">
                     Đơn AI: Đã Thẩm Định Lâm Sàng
                   </div>
-                  <div className="text-[10px] text-emerald-700 font-medium">
+                  <div className="text-[10px] text-sky-700 font-medium">
                     DS. {aiPharmacistConfirmation.pharmacistName} • {aiPharmacistConfirmation.auditCode}
                   </div>
                 </div>
@@ -1617,7 +1617,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               <button
                 type="button"
                 onClick={() => setShowAuditModal(true)}
-                className="px-2 py-1 bg-white hover:bg-emerald-100/60 text-emerald-800 text-[10px] font-black rounded-lg border border-emerald-300 transition-colors cursor-pointer"
+                className="px-2 py-1 bg-white hover:bg-sky-100/60 text-sky-800 text-[10px] font-black rounded-lg border border-sky-300 transition-colors cursor-pointer"
               >
                 Chi tiết
               </button>
@@ -1673,7 +1673,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               </div>
 
               <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5 justify-center">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></span>
+                <span className="w-2 h-2 bg-sky-500 rounded-full animate-ping"></span>
                 Đang chờ khách chuyển khoản (Tự động cập nhật...)
               </div>
             </div>
@@ -1759,7 +1759,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-[15px] text-slate-900 group-hover:text-[#0057cd] transition-colors flex items-center gap-2">
                           Đơn 2: RX-112233-DNA
-                          <span className="text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-bold">Đơn hợp lệ thường</span>
+                          <span className="text-[10px] text-sky-800 bg-sky-100 px-1.5 py-0.5 rounded font-bold">Đơn hợp lệ thường</span>
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
                           Bệnh nhân: Trần Văn B | BS. Nguyễn Thị Lan
@@ -1800,7 +1800,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
           <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden flex flex-col transform transition-all duration-300">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                <CheckCircle2 className="text-emerald-500" /> Thanh toán thành công!
+                <CheckCircle2 className="text-sky-500" /> Thanh toán thành công!
               </h3>
               <button onClick={() => setShowInvoiceModal(false)} className="text-slate-400 hover:text-slate-700">
                 <XCircle size={22} />
@@ -1809,19 +1809,19 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
 
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4">
               {/* Badge Lien thong CSDL Duoc Quoc gia GPP */}
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+              <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center shrink-0">
                   <Check size={18} />
                 </div>
                 <div className="flex-1">
-                  <div className="font-black text-emerald-900 text-sm flex items-center gap-2">
+                  <div className="font-black text-sky-900 text-sm flex items-center gap-2">
                     🟢 ĐÃ LIÊN THÔNG CƠ SỞ DỮ LIỆU DƯỢC QUỐC GIA (GPP)
                   </div>
-                  <div className="text-xs text-emerald-800 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  <div className="text-xs text-sky-800 mt-1 flex flex-wrap gap-x-4 gap-y-1">
                     <span>Mã biên nhận QG: <strong className="font-mono font-black">{invoiceData.data?.nationalSyncCode || `DQG-20260825-${Math.floor(100000 + Math.random() * 900000)}`}</strong></span>
                     <span>Mã cơ sở GPP: <strong className="font-mono font-bold">{invoiceData.data?.nationalFacilityCode || "79-001234"}</strong></span>
                   </div>
-                  <div className="text-[11px] text-emerald-600 mt-0.5">
+                  <div className="text-[11px] text-sky-600 mt-0.5">
                     Đơn thuốc điện tử & Hóa đơn đã truyền thành công lên Hệ thống CSDL Dược Quốc gia (Bộ Y tế).
                   </div>
                 </div>
@@ -1829,21 +1829,21 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
 
               {/* Badge Tham Dinh Lam Sang Cua Duoc Si Cho Don Thuoc AI */}
               {invoiceData.aiPharmacistConfirmation?.confirmed && (
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
+                <div className="bg-gradient-to-r from-sky-50 via-teal-50 to-blue-50 border border-sky-300 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                    <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                       <ShieldCheck size={18} />
                     </div>
                     <div>
-                      <div className="font-extrabold text-emerald-950 uppercase text-[11px] flex items-center gap-1.5">
+                      <div className="font-extrabold text-sky-950 uppercase text-[11px] flex items-center gap-1.5">
                         ✓ ĐÃ THẨM ĐỊNH LÂM SÀNG BƯỚC CUỐI (AI ASSISTED)
                       </div>
-                      <div className="text-[10px] text-emerald-800">
-                        Dược sĩ phụ trách: <strong>{invoiceData.aiPharmacistConfirmation.pharmacistName}</strong> • Mã duyệt: <span className="font-mono font-bold text-emerald-700">{invoiceData.aiPharmacistConfirmation.auditCode}</span>
+                      <div className="text-[10px] text-sky-800">
+                        Dược sĩ phụ trách: <strong>{invoiceData.aiPharmacistConfirmation.pharmacistName}</strong> • Mã duyệt: <span className="font-mono font-bold text-sky-700">{invoiceData.aiPharmacistConfirmation.auditCode}</span>
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full shrink-0">
+                  <span className="text-[10px] font-black text-sky-800 bg-sky-100 border border-sky-300 px-2.5 py-0.5 rounded-full shrink-0">
                     GPP Verified
                   </span>
                 </div>
@@ -1864,7 +1864,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   </div>
                   <div className="flex justify-between">
                     <span>Mã QG (GPP):</span>
-                    <span className="font-bold text-emerald-700">{invoiceData.data?.nationalSyncCode || "DQG-20260825-XXXXXX"}</span>
+                    <span className="font-bold text-sky-700">{invoiceData.data?.nationalSyncCode || "DQG-20260825-XXXXXX"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Ngày lập:</span>
@@ -1952,7 +1952,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     />
                   </div>
                   <div className="text-[11px] text-slate-600 print:text-black font-medium leading-tight">
-                    Quét mã nhận ngay <span className="font-bold text-emerald-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br/>
+                    Quét mã nhận ngay <span className="font-bold text-sky-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br/>
                     và Voucher giảm giá cho lần mua sau!
                   </div>
                 </div>
@@ -2199,7 +2199,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               {status === "EXACT_MATCH" && (
-                                <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-[10px] rounded-full border border-emerald-300 flex items-center gap-1">
+                                <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 font-extrabold text-[10px] rounded-full border border-sky-300 flex items-center gap-1">
                                   🟢 Khop SKU 100%
                                 </span>
                               )}
@@ -2216,7 +2216,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                               <span className="text-xs font-mono font-bold text-slate-500">#{ext.item_index || idx + 1}</span>
                             </div>
                             <div className="text-[11px] font-bold text-slate-400">
-                              Confidence: <span className={ext.confidence?.overall >= 0.85 ? "text-emerald-600" : "text-amber-600 font-black"}>{(ext.confidence?.overall * 100).toFixed(0)}%</span>
+                              Confidence: <span className={ext.confidence?.overall >= 0.85 ? "text-sky-600" : "text-amber-600 font-black"}>{(ext.confidence?.overall * 100).toFixed(0)}%</span>
                             </div>
                           </div>
 
@@ -2239,10 +2239,10 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                                 <div>
                                   <div className="font-extrabold text-indigo-900 mt-0.5">{sku.product_name}</div>
                                   <div className="text-slate-600 font-bold mt-0.5">
-                                    Gia: {sku.retail_price?.toLocaleString()}₫/{sku.unit} | Ton kho: <span className={sku.stock > 0 ? "text-emerald-700 font-black" : "text-red-600 font-black"}>{sku.stock} {sku.unit}</span>
+                                    Gia: {sku.retail_price?.toLocaleString()}₫/{sku.unit} | Ton kho: <span className={sku.stock > 0 ? "text-sky-700 font-black" : "text-red-600 font-black"}>{sku.stock} {sku.unit}</span>
                                   </div>
                                   {fefo ? (
-                                    <div className="text-[11px] font-bold text-emerald-700 mt-0.5 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                                    <div className="text-[11px] font-bold text-sky-700 mt-0.5 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
                                       Lo FEFO: {fefo.batch_no} (HSD: {fefo.exp_date})
                                     </div>
                                   ) : (
@@ -2268,49 +2268,49 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 </div>
 
                 {/* Khoi Tham Dinh Buoc Cuoi Cua Duoc Si */}
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-3">
+                <div className="bg-gradient-to-r from-sky-50 via-teal-50 to-blue-50 border-2 border-sky-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/80 pb-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-sm shrink-0">
                         <ShieldCheck size={20} />
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                        <h4 className="text-xs font-black text-sky-950 uppercase tracking-wider flex items-center gap-2">
                           Buoc Cuoi: Tham Dinh Lam Sang & Phe Duyet Cua Duoc Si
-                          <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-black border border-emerald-300">
+                          <span className="bg-sky-200 text-sky-900 text-[10px] px-2 py-0.5 rounded-full font-black border border-sky-300">
                             Bat buoc GPP
                           </span>
                         </h4>
-                        <p className="text-[11px] text-emerald-800 mt-0.5">
+                        <p className="text-[11px] text-sky-800 mt-0.5">
                           Duoc si phu trach: <strong>{getBranchInfoFromToken().fullName || "Duoc si Tran Thi A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
                         </p>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-900 bg-white/90 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs shrink-0 self-start sm:self-auto">
+                    <span className="text-[10px] font-bold text-sky-900 bg-white/90 px-2.5 py-1 rounded-lg border border-sky-200 shadow-2xs shrink-0 self-start sm:self-auto">
                       🕒 {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - Hom nay
                     </span>
                   </div>
 
                   {/* Checklist kiem soat an toan */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-                    <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khop hoat chat & ham luong
+                    <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Khop hoat chat & ham luong
                     </div>
-                    <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khong tuong tac chong chi dinh
+                    <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Khong tuong tac chong chi dinh
                     </div>
-                    <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Gan lo FEFO can han tu dong
+                    <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Gan lo FEFO can han tu dong
                     </div>
                   </div>
 
                   {/* Checkbox cam ket trach nhiem chuyen mon */}
-                  <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-emerald-300 hover:bg-emerald-50/50 transition-colors shadow-2xs">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-sky-300 hover:bg-sky-50/50 transition-colors shadow-2xs">
                     <input
                       type="checkbox"
                       checked={pharmacistAgreementCheck}
                       onChange={(e) => setPharmacistAgreementCheck(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                      className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
                     />
                     <span className="text-xs text-slate-700 leading-snug">
                       Toi la Duoc si phu trach, da doi soat don thuoc goc, tham dinh lam sang danh muc thuoc do AI ho tro de xuat va <strong>chiu hoan toan trach nhiem chuyen mon</strong> khi dua vao don hang xuat ban theo tieu chuan GPP.
@@ -2322,7 +2322,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     onClick={handleApplyAIScanToCart}
-                    className="flex-1 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg hover:shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                    className="flex-1 py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg hover:shadow-sky-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
                   >
                     <ShieldCheck size={19} /> Duoc Si Xac Nhan & Dua Vao Don Hang POS
                   </button>

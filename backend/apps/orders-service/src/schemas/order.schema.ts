@@ -58,6 +58,13 @@ export class Order extends Document {
   @Prop({ type: String })
   shippingAddress: string;
 
+  // Ghi chú đơn hàng từ khách hàng gửi cho Dược sĩ
+  @Prop({ type: String })
+  note?: string;
+
+  @Prop({ type: String })
+  notes?: string;
+
   @Prop({ type: [OrderItemSchema], required: true })
   items: OrderItem[];
 

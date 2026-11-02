@@ -53,7 +53,7 @@ export function StaffPayslipSection({ userRole }: Props) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "APPROVED":
-        return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Đã Phê Duyệt</span>;
+        return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-sky-50 text-sky-700 border border-sky-200">Đã Phê Duyệt</span>;
       case "PAID":
         return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200">Đã Thanh Toán</span>;
       case "SUBMITTED":
@@ -67,7 +67,7 @@ export function StaffPayslipSection({ userRole }: Props) {
   if (loading) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center justify-center gap-2">
-        <Loader2 size={24} className="animate-spin text-emerald-600" />
+        <Loader2 size={24} className="animate-spin text-sky-600" />
         <p className="text-xs text-slate-500 font-semibold">Đang tải phiếu lương cá nhân...</p>
       </div>
     );
@@ -77,7 +77,7 @@ export function StaffPayslipSection({ userRole }: Props) {
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
       <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <Receipt className="text-emerald-600" size={20} />
+          <Receipt className="text-sky-600" size={20} />
           <h2 className="text-sm font-bold text-slate-900">Phiếu Lương & Thu Nhập Cá Nhân</h2>
         </div>
         <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export function StaffPayslipSection({ userRole }: Props) {
           {userRole === 'branch' && (
             <Link
               to="/branch/payroll"
-              className="text-xs font-bold text-emerald-600 hover:text-emerald-800 inline-flex items-center gap-1 border-l border-slate-200 pl-3"
+              className="text-xs font-bold text-sky-600 hover:text-sky-800 inline-flex items-center gap-1 border-l border-slate-200 pl-3"
             >
               Bảng lương chi nhánh <ArrowUpRight size={14} />
             </Link>
@@ -102,7 +102,7 @@ export function StaffPayslipSection({ userRole }: Props) {
 
       {payslips.length === 0 ? (
         <div className="p-8 text-center text-slate-400">
-          <Coins size={32} className="mx-auto mb-2 opacity-40 text-emerald-600" />
+          <Coins size={32} className="mx-auto mb-2 opacity-40 text-sky-600" />
           <p className="text-xs font-semibold text-slate-600">Chưa có phiếu lương cá nhân nào trong kỳ này</p>
           <p className="text-[11px] text-slate-400 mt-0.5 max-w-md mx-auto">
             {userRole === 'branch'
@@ -113,7 +113,7 @@ export function StaffPayslipSection({ userRole }: Props) {
             <div className="mt-3.5">
               <Link
                 to="/branch/payroll"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs transition border border-emerald-200"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl text-xs transition border border-sky-200"
               >
                 Quản lý & Duyệt Bảng Lương Chi Nhánh →
               </Link>
@@ -134,7 +134,7 @@ export function StaffPayslipSection({ userRole }: Props) {
                   className="flex items-center justify-between cursor-pointer select-none"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex items-center justify-center text-xs shrink-0 border border-emerald-100">
+                    <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 font-bold flex items-center justify-center text-xs shrink-0 border border-sky-100">
                       T{ps.month}
                     </div>
                     <div>
@@ -150,7 +150,7 @@ export function StaffPayslipSection({ userRole }: Props) {
 
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <span className="text-xs font-extrabold text-emerald-700 block">
+                      <span className="text-xs font-extrabold text-sky-700 block">
                         {formatVND(item.netSalary)}
                       </span>
                       <span className="text-[10px] text-slate-400">Thực lĩnh</span>
@@ -215,7 +215,7 @@ export function StaffPayslipSection({ userRole }: Props) {
                           <strong>{item.manualAdjustment > 0 ? "+" : ""}{formatVND(item.manualAdjustment)}</strong>
                         </div>
                       )}
-                      <div className="pt-2 border-t border-slate-200 flex justify-between font-extrabold text-xs text-emerald-800">
+                      <div className="pt-2 border-t border-slate-200 flex justify-between font-extrabold text-xs text-sky-800">
                         <span>Lương thực lĩnh chuyển khoản:</span>
                         <span className="text-sm">{formatVND(item.netSalary)}</span>
                       </div>

@@ -38,10 +38,20 @@ export const ProductReviewScreen: React.FC<{ navigation: any; route: any }> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { order, medicine, medicineId: paramMedId, orderId: paramOrderId, orderCode: paramOrderCode } = route.params || {};
+  const { order, medicine, medicineId: paramMedId, orderId: paramOrderId, orderCode: paramOrderCode } = route?.params || {};
+
+  const demoItem = {
+    medicineId: 'med_demo_01',
+    id: 'med_demo_01',
+    name: 'Viên sủi Berocca Performance bồi bổ năng lượng (Hộp 10 viên)',
+    price: 92000,
+    unit: 'Hộp',
+    quantity: 1,
+    image: 'https://cdn.nhathuoclongchau.com.vn/unsafe/375x0/filters:quality(90)/https://cms-prod.s3-sgn09.fptcloud.com/00004944_berocca_performance_mango_10v_3364_60e3_large_79a3205777.jpg'
+  };
 
   // Danh sách các loại thuốc trong đơn hàng có thể đánh giá
-  const orderItems: any[] = order?.items || (medicine ? [medicine] : []);
+  const orderItems: any[] = order?.items || (medicine ? [medicine] : [demoItem]);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number>(0);
   const currentItem = orderItems[selectedItemIndex] || orderItems[0] || {};
 

@@ -29,7 +29,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     DRAFT: { label: "Nháp", color: "#64748b", icon: <Clock size={12} /> },
     SCHEDULED: { label: "Đã lên lịch", color: "#0284c7", icon: <Clock size={12} /> },
     PROCESSING: { label: "Đang gửi...", color: "#d97706", icon: <Loader2 size={12} className="animate-spin" /> },
-    COMPLETED: { label: "Hoàn tất", color: "#16a34a", icon: <CheckCircle2 size={12} /> },
+    COMPLETED: { label: "Hoàn tất", color: "#0284c7", icon: <CheckCircle2 size={12} /> },
     PARTIAL_FAILED: { label: "Gửi lỗi một phần", color: "#dc2626", icon: <AlertTriangle size={12} /> },
     CANCELLED: { label: "Đã hủy", color: "#6b7280", icon: <XCircle size={12} /> },
   };
@@ -120,7 +120,7 @@ const StatsModal: React.FC<{
                   style={{
                     height: "100%",
                     width: `${progress}%`,
-                    background: progress === 100 ? "#16a34a" : "#0284c7",
+                    background: progress === 100 ? "#0284c7" : "#0284c7",
                     borderRadius: 8,
                     transition: "width 0.5s ease",
                   }}
@@ -134,7 +134,7 @@ const StatsModal: React.FC<{
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
               {[
                 { label: "Tổng người nhận", value: stats.stats?.totalRecipients || 0, color: "#0284c7" },
-                { label: "Đã gửi thành công", value: stats.realtimeStats?.sentCount || 0, color: "#16a34a" },
+                { label: "Đã gửi thành công", value: stats.realtimeStats?.sentCount || 0, color: "#0284c7" },
                 { label: "Gửi thất bại", value: stats.realtimeStats?.failedCount || 0, color: "#dc2626" },
               ].map((item, i) => (
                 <div
@@ -255,7 +255,7 @@ const EmailCampaignListPage: React.FC = () => {
         <div
           style={{
             position: "fixed", top: 20, right: 20, zIndex: 9999,
-            background: toast.type === "success" ? "#16a34a" : "#dc2626",
+            background: toast.type === "success" ? "#0284c7" : "#dc2626",
             color: "#fff", borderRadius: 12, padding: "12px 20px",
             boxShadow: "0 8px 24px rgba(0,0,0,0.15)", fontSize: 14, fontWeight: 600,
           }}
@@ -486,7 +486,7 @@ const EmailCampaignListPage: React.FC = () => {
                               {campaign.stats.sentCount.toLocaleString("vi-VN")} /{" "}
                               {campaign.stats.totalRecipients.toLocaleString("vi-VN")} email đã gửi
                             </span>
-                            <span style={{ fontWeight: 700, color: sentPct === 100 ? "#16a34a" : "#0284c7" }}>
+                            <span style={{ fontWeight: 700, color: sentPct === 100 ? "#0284c7" : "#0284c7" }}>
                               {sentPct}%
                             </span>
                           </div>
@@ -495,7 +495,7 @@ const EmailCampaignListPage: React.FC = () => {
                               style={{
                                 height: "100%",
                                 width: `${sentPct}%`,
-                                background: sentPct === 100 ? "#16a34a" : "#0284c7",
+                                background: sentPct === 100 ? "#0284c7" : "#0284c7",
                                 borderRadius: 6,
                                 transition: "width 0.4s ease",
                               }}

@@ -355,8 +355,8 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
 
               <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50 custom-scrollbar relative">
                 {isPrefilling ? (
-                  <div className="h-full flex flex-col items-center justify-center text-emerald-600 gap-3">
-                    <Loader2 size={28} className="animate-spin text-emerald-600" />
+                  <div className="h-full flex flex-col items-center justify-center text-sky-600 gap-3">
+                    <Loader2 size={28} className="animate-spin text-sky-600" />
                     <p className="text-sm font-bold">Đang tải dữ liệu từ PR...</p>
                   </div>
                 ) : cart.length === 0 ? (
@@ -440,7 +440,7 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
                 onClick={handleSubmit}
                 disabled={cart.length === 0 || isSubmitting || isGdpExpired}
                 className={`w-full py-3.5 font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm text-sm
-                  ${cart.length > 0 && !isSubmitting && !isGdpExpired ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'}
+                  ${cart.length > 0 && !isSubmitting && !isGdpExpired ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'}
                 `}
               >
                 {isSubmitting ? <><Loader2 size={18} className="animate-spin" /> Đang xử lý...</>

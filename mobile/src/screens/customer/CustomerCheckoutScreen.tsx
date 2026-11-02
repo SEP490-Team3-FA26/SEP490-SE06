@@ -150,16 +150,16 @@ export const CustomerCheckoutScreen: React.FC<{
     }
 
     const val = Number(appliedVoucher.discountValue ?? 0);
-    const type = appliedVoucher.discountType ?? 'FIXED_AMOUNT';
+    const type = String(appliedVoucher.discountType ?? 'FIXED_AMOUNT').toUpperCase();
 
     if (type === 'PERCENT' || type === 'PERCENTAGE') {
       let disc = subtotal * (val / 100);
       const maxDisc = Number(appliedVoucher.maxDiscountValue ?? appliedVoucher.maxDiscount ?? 0);
       if (maxDisc > 0 && disc > maxDisc) disc = maxDisc;
-      return disc;
+      return Math.min(disc, subtotal);
     }
 
-    return val;
+    return Math.min(val, subtotal);
   }, [appliedVoucher, subtotal]);
 
   // Điểm tích lũy: 1 điểm = 1đ, không được giảm vượt quá số tiền sau voucher
@@ -259,9 +259,20 @@ export const CustomerCheckoutScreen: React.FC<{
       }
     });
 
-    // 2. Realtime Active Polling (mỗi 2.5s kiểm tra trạng thái 1 lần)
+    // 2. Realtime Active Polling (chu kỳ 3.5s, tối đa 90 lần ~ 5 phút)
+    let pollCount = 0;
+    const MAX_POLL_COUNT = 90;
+
     pollTimerRef.current = setInterval(async () => {
       if (isHandled) return;
+
+      pollCount++;
+      if (pollCount > MAX_POLL_COUNT) {
+        stopPaymentWatcher();
+        showToast.info('Hết phiên thanh toán', 'Thời gian chờ quét mã VietQR đã kết thúc. Vui lòng kiểm tra lại đơn hàng.');
+        return;
+      }
+
       try {
         const verifyRes = await ApiService.checkOrderPayment(orderCode);
         const status =
@@ -318,7 +329,7 @@ export const CustomerCheckoutScreen: React.FC<{
       } catch (err) {
         console.warn('[PaymentWatcher] Error:', err);
       }
-    }, 2500);
+    }, 3500);
   };
 
   const handleOpenPayOSBrowser = async () => {
@@ -329,7 +340,7 @@ export const CustomerCheckoutScreen: React.FC<{
       try {
         await WebBrowser.openBrowserAsync(paymentData.checkoutUrl, {
           dismissButtonStyle: 'close',
-          toolbarColor: '#059669',
+          toolbarColor: '#0284C7',
         });
       } catch (_) {}
     }
@@ -400,14 +411,20 @@ export const CustomerCheckoutScreen: React.FC<{
 
     setLoading(true);
 
+    // ── Ghép ghi chú cho Dược sĩ vào địa chỉ giao hàng để tương thích 100% với Server Production ──
+    const cleanNote = orderNote.trim();
+    const resolvedShippingAddress =
+      deliveryType === 'DELIVERY'
+        ? (cleanNote ? `${shippingAddress.trim()} (Ghi chú cho Dược sĩ: ${cleanNote})` : shippingAddress.trim())
+        : (cleanNote
+            ? `Nhận tại Nhà Thuốc Chi Nhánh Q1 - 123 Hai Bà Trưng, Q.1 (Ghi chú: ${cleanNote})`
+            : 'Nhận tại Nhà Thuốc Chi Nhánh Q1 - 123 Hai Bà Trưng, Q.1');
+
     // ── Payload aligned với MongoDB schema (patientName/patientPhone) ──
     const orderPayload = {
       patientName: patientName.trim(),
       patientPhone: patientPhone.trim(),
-      shippingAddress:
-        deliveryType === 'DELIVERY'
-          ? shippingAddress.trim()
-          : 'Nhận tại Nhà Thuốc Chi Nhánh Q1 - 123 Hai Bà Trưng, Q.1',
+      shippingAddress: resolvedShippingAddress,
       paymentMethod,        // 'QR_PAY' hoặc 'CASH'
       type: 'ONLINE',       // Flutter dùng field này
       totalAmount: Math.round(finalTotal),
@@ -420,7 +437,6 @@ export const CustomerCheckoutScreen: React.FC<{
         unit: i.medicine.unit,
       })),
       ...(appliedVoucher ? { voucherCode: appliedVoucher.code } : {}),
-      ...(orderNote.trim() ? { note: orderNote.trim() } : {}),
     };
 
     try {
@@ -431,6 +447,23 @@ export const CustomerCheckoutScreen: React.FC<{
       const orderId: string =
         createdOrder?.id || createdOrder?._id || createdOrder?.orderCode?.toString() || `ORD-${Date.now()}`;
       const orderCode = createdOrder?.orderCode || orderId;
+
+      // Nếu tổng tiền <= 0 (đã giảm giá 100% bằng voucher/điểm), tự động hoàn tất trực tiếp không qua PayOS
+      if (Math.round(finalTotal) <= 0) {
+        setLoading(false);
+        showToast.success('Đặt hàng thành công! 🎉', 'Đơn hàng 0 ₫ đã được thanh toán hoàn tất.');
+        navigation.replace('OrderConfirmation', {
+          orderId,
+          orderCode,
+          patientName: patientName.trim(),
+          patientPhone: patientPhone.trim(),
+          paymentMethod,
+          totalAmount: 0,
+          paymentStatus: 'paid',
+          items: orderPayload.items,
+        });
+        return;
+      }
 
       if (paymentMethod === 'QR_PAY') {
         let checkoutUrl = createdOrder?.checkoutUrl;
@@ -465,7 +498,7 @@ export const CustomerCheckoutScreen: React.FC<{
               try {
                 await WebBrowser.openBrowserAsync(checkoutUrl, {
                   dismissButtonStyle: 'close',
-                  toolbarColor: '#059669',
+                  toolbarColor: '#0284C7',
                 });
               } catch (_) {}
             }
@@ -504,7 +537,7 @@ export const CustomerCheckoutScreen: React.FC<{
 
   // ─── UI ──────────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="Xác Nhận Đặt Hàng"
         subtitle="Thông tin giao hàng & Phương thức thanh toán"
@@ -526,7 +559,7 @@ export const CustomerCheckoutScreen: React.FC<{
                 onPress={() => setDeliveryType('DELIVERY')}
                 style={[styles.deliveryChoice, deliveryType === 'DELIVERY' && styles.activeDeliveryChoice]}
               >
-                <Ionicons name="bicycle" size={20} color={deliveryType === 'DELIVERY' ? '#059669' : '#64748B'} />
+                <Ionicons name="bicycle" size={20} color={deliveryType === 'DELIVERY' ? '#0284C7' : '#64748B'} />
                 <Text style={[styles.deliveryText, deliveryType === 'DELIVERY' && styles.activeDeliveryText]}>
                   Giao Tận Nơi
                 </Text>
@@ -536,7 +569,7 @@ export const CustomerCheckoutScreen: React.FC<{
                 onPress={() => setDeliveryType('PICKUP')}
                 style={[styles.deliveryChoice, deliveryType === 'PICKUP' && styles.activeDeliveryChoice]}
               >
-                <Ionicons name="storefront" size={20} color={deliveryType === 'PICKUP' ? '#059669' : '#64748B'} />
+                <Ionicons name="storefront" size={20} color={deliveryType === 'PICKUP' ? '#0284C7' : '#64748B'} />
                 <Text style={[styles.deliveryText, deliveryType === 'PICKUP' && styles.activeDeliveryText]}>
                   Nhận Tại Nhà Thuốc
                 </Text>
@@ -584,7 +617,7 @@ export const CustomerCheckoutScreen: React.FC<{
               </View>
             ) : (
               <View style={styles.pickupNoteBox}>
-                <Ionicons name="location" size={18} color="#059669" />
+                <Ionicons name="location" size={18} color="#0284C7" />
                 <Text style={styles.pickupNoteText}>
                   Địa chỉ nhận: Nhà thuốc Chi nhánh Q1 - 123 Hai Bà Trưng, P. Bến Nghé, Q.1, TP.HCM
                 </Text>
@@ -612,14 +645,14 @@ export const CustomerCheckoutScreen: React.FC<{
               style={[styles.payMethodOption, paymentMethod === 'QR_PAY' && styles.activePayOption]}
             >
               <View style={styles.payIconBox}>
-                <Ionicons name="qr-code" size={22} color="#059669" />
+                <Ionicons name="qr-code" size={22} color="#0284C7" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.payOptionTitle}>Cổng Thanh Toán PayOS (QR VietQR/Thẻ)</Text>
                 <Text style={styles.payOptionSub}>Quét mã QR qua tất cả ứng dụng Ngân hàng</Text>
               </View>
               {paymentMethod === 'QR_PAY' && (
-                <Ionicons name="checkmark-circle" size={22} color="#059669" />
+                <Ionicons name="checkmark-circle" size={22} color="#0284C7" />
               )}
             </AnimatedTouchable>
 
@@ -635,7 +668,7 @@ export const CustomerCheckoutScreen: React.FC<{
                 <Text style={styles.payOptionSub}>Thanh toán tiền mặt cho nhân viên giao hàng</Text>
               </View>
               {paymentMethod === 'CASH' && (
-                <Ionicons name="checkmark-circle" size={22} color="#059669" />
+                <Ionicons name="checkmark-circle" size={22} color="#0284C7" />
               )}
             </AnimatedTouchable>
           </View>
@@ -647,7 +680,7 @@ export const CustomerCheckoutScreen: React.FC<{
             {appliedVoucher ? (
               <View style={styles.appliedVoucherRow}>
                 <View style={styles.voucherBadge}>
-                  <Ionicons name="pricetag" size={16} color="#059669" />
+                  <Ionicons name="pricetag" size={16} color="#0284C7" />
                   <Text style={styles.voucherBadgeText}>
                     {appliedVoucher.code} — Giảm{' '}
                     {discountAmount > 0 ? `${discountAmount.toLocaleString('vi-VN')} ₫` : 'theo voucher'}
@@ -723,8 +756,8 @@ export const CustomerCheckoutScreen: React.FC<{
                   setUsePoints(val);
                 }}
                 disabled={availablePoints <= 0}
-                trackColor={{ false: '#CBD5E1', true: '#10B981' }}
-                thumbColor={usePoints ? '#059669' : '#F8FAFC'}
+                trackColor={{ false: '#CBD5E1', true: '#0284C7' }}
+                thumbColor={usePoints ? '#0284C7' : '#F8FAFC'}
               />
             </View>
           </View>
@@ -738,10 +771,10 @@ export const CustomerCheckoutScreen: React.FC<{
 
             {discountAmount > 0 && appliedVoucher && (
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: '#059669' }]}>
+                <Text style={[styles.summaryLabel, { color: '#0284C7' }]}>
                   Giảm giá ({appliedVoucher.code}):
                 </Text>
-                <Text style={[styles.summaryVal, { color: '#059669' }]}>
+                <Text style={[styles.summaryVal, { color: '#0284C7' }]}>
                   -{discountAmount.toLocaleString('vi-VN')} ₫
                 </Text>
               </View>
@@ -770,7 +803,7 @@ export const CustomerCheckoutScreen: React.FC<{
             </View>
 
             <View style={styles.earnedPointsRow}>
-              <Ionicons name="gift-outline" size={15} color="#059669" />
+              <Ionicons name="gift-outline" size={15} color="#0284C7" />
               <Text style={styles.earnedPointsText}>
                 Tích luỹ dự kiến: <Text style={{ fontWeight: '800' }}>+{earnedPoints.toLocaleString('vi-VN')} điểm</Text> sau khi hoàn tất
               </Text>
@@ -801,7 +834,7 @@ export const CustomerCheckoutScreen: React.FC<{
             {/* Header modal */}
             <View style={styles.qrModalHeader}>
               <View style={styles.qrBadge}>
-                <Ionicons name="qr-code" size={18} color="#059669" />
+                <Ionicons name="qr-code" size={18} color="#0284C7" />
                 <Text style={styles.qrBadgeText}>Cổng Thanh Toán PayOS (VietQR)</Text>
               </View>
               <TouchableOpacity onPress={handleDismissModal} style={styles.qrCloseBtn}>
@@ -828,7 +861,7 @@ export const CustomerCheckoutScreen: React.FC<{
 
             {/* Pulsing listening indicator */}
             <View style={styles.listeningBox}>
-              <ActivityIndicator size="small" color="#059669" />
+              <ActivityIndicator size="small" color="#0284C7" />
               <Text style={styles.listeningText}>
                 Hệ thống đang tự động nhận diện giao dịch... Quét mã bằng app Ngân hàng hoặc MoMo.
               </Text>
@@ -841,7 +874,7 @@ export const CustomerCheckoutScreen: React.FC<{
                   onPress={handleOpenPayOSBrowser}
                   style={styles.openWebBtn}
                 >
-                  <Ionicons name="globe-outline" size={18} color="#059669" />
+                  <Ionicons name="globe-outline" size={18} color="#0284C7" />
                   <Text style={styles.openWebBtnText}>Mở Trang Web PayOS</Text>
                 </TouchableOpacity>
               ) : null}
@@ -873,6 +906,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 48,
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',
@@ -906,8 +940,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   activeDeliveryChoice: {
-    borderColor: '#059669',
-    backgroundColor: '#ECFDF5',
+    borderColor: '#0284C7',
+    backgroundColor: '#F0F9FF',
   },
   deliveryText: {
     fontSize: 12,
@@ -915,7 +949,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   activeDeliveryText: {
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '800',
   },
   inputWrapper: {
@@ -940,7 +974,7 @@ const styles = StyleSheet.create({
   pickupNoteBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,
@@ -948,7 +982,7 @@ const styles = StyleSheet.create({
   },
   pickupNoteText: {
     fontSize: 12,
-    color: '#065F46',
+    color: '#0369A1',
     flex: 1,
     lineHeight: 17,
   },
@@ -962,8 +996,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   activePayOption: {
-    borderColor: '#059669',
-    backgroundColor: '#F0FDF4',
+    borderColor: '#0284C7',
+    backgroundColor: '#F0F9FF',
   },
   payIconBox: {
     width: 40,
@@ -1003,7 +1037,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   applyVoucherBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1032,12 +1066,12 @@ const styles = StyleSheet.create({
   voucherBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#6EE7B7',
+    borderColor: '#BAE6FD',
     gap: 6,
     flex: 1,
     marginRight: 8,
@@ -1045,7 +1079,7 @@ const styles = StyleSheet.create({
   voucherBadgeText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#065F46',
+    color: '#0369A1',
     flex: 1,
   },
   removeVoucherBtn: {
@@ -1087,7 +1121,7 @@ const styles = StyleSheet.create({
   totalVal: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#059669',
+    color: '#0284C7',
   },
   modalOverlay: {
     flex: 1,
@@ -1120,7 +1154,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
@@ -1128,7 +1162,7 @@ const styles = StyleSheet.create({
   qrBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   qrCloseBtn: {
     padding: 4,
@@ -1142,7 +1176,7 @@ const styles = StyleSheet.create({
   qrAmountValue: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#059669',
+    color: '#0284C7',
     marginBottom: 16,
   },
   qrWrapper: {
@@ -1161,9 +1195,9 @@ const styles = StyleSheet.create({
   listeningBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#BAE6FD',
     borderRadius: 14,
     padding: 12,
     gap: 10,
@@ -1172,7 +1206,7 @@ const styles = StyleSheet.create({
   },
   listeningText: {
     fontSize: 12,
-    color: '#166534',
+    color: '#0369A1',
     flex: 1,
     lineHeight: 17,
   },
@@ -1185,16 +1219,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#BAE6FD',
     paddingVertical: 12,
     borderRadius: 14,
   },
   openWebBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   cancelBtn: {
     paddingVertical: 10,
@@ -1258,13 +1292,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 10,
     borderRadius: 10,
     marginTop: 10,
   },
   earnedPointsText: {
     fontSize: 12,
-    color: '#065F46',
+    color: '#0369A1',
   },
 });

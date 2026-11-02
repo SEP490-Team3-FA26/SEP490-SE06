@@ -59,7 +59,7 @@ export function BranchShiftSwap() {
   const statusMap = {
     pending_target: { label: "Chờ NV Xác Nhận", color: "bg-yellow-100 text-yellow-800" },
     pending_manager: { label: "Chờ QL Duyệt", color: "bg-orange-100 text-orange-800" },
-    approved: { label: "Đã Duyệt", color: "bg-emerald-100 text-emerald-800" },
+    approved: { label: "Đã Duyệt", color: "bg-sky-100 text-sky-800" },
     rejected: { label: "Từ Chối", color: "bg-rose-100 text-rose-800" }
   };
 
@@ -133,7 +133,7 @@ export function BranchShiftSwap() {
                       <td className="px-6 py-4 text-right">
                         {req.status === 'pending_manager' && (
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => handleApprove(req._id)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Duyệt">
+                            <button onClick={() => handleApprove(req._id)} className="p-2 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors" title="Duyệt">
                               <CheckCircle2 size={18} />
                             </button>
                             <button onClick={() => handleRejectClick(req)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Từ chối">

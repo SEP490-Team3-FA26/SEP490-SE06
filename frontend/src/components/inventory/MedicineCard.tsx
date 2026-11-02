@@ -119,18 +119,18 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
   const addButtonClass = isDisabled
     ? "bg-slate-100 text-slate-300 cursor-not-allowed"
     : added
-      ? "bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md shadow-emerald-200/60"
+      ? "bg-sky-500 text-white shadow-md shadow-sky-200/60"
       : isOutOfStock
         ? "bg-amber-600 text-white hover:bg-amber-700 shadow-md shadow-amber-200/60 active:scale-90"
-        : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md shadow-emerald-200/60 active:scale-90";
+        : "bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-md shadow-blue-200/60 active:scale-90";
 
   return (
     <div
       onClick={onClick}
-      className="group relative bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200/60 hover:border-emerald-300/60 hover:shadow-[0_8px_30px_rgba(5,150,105,0.12)] transition-all duration-300 flex flex-col overflow-hidden cursor-pointer"
+      className="group relative bg-white rounded-2xl border border-slate-200/80 hover:border-blue-300 hover:shadow-[0_8px_30px_rgba(2,132,199,0.12)] transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer h-full"
     >
-      {/* ── Image Area ────────────────────────────────────────────────────── */}
-      <div className="relative bg-gradient-to-br from-emerald-50/40 to-teal-50/30 h-40 flex items-center justify-center p-4 overflow-hidden">
+      {/* ── Image Area - Tỉ lệ vuông 1:1 chuẩn Shopee (Width === Height) ────── */}
+      <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 aspect-square w-full flex items-center justify-center p-4 overflow-hidden">
         <img
           src={
             med.image ||
@@ -178,12 +178,12 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
       {/* ── Content ───────────────────────────────────────────────────────── */}
       <div className="p-4 flex-1 flex flex-col gap-3">
 
-        {/* Medicine name */}
-        <h4 className="text-sm font-bold text-slate-800 group-hover:text-emerald-700 transition-colors line-clamp-2 leading-snug">
+        {/* Tên dược phẩm */}
+        <h4 className="text-sm font-bold text-slate-800 group-hover:text-sky-700 transition-colors line-clamp-2 leading-snug">
           {med.name}
         </h4>
 
-        {/* Unit selector pills — only shown when multiple packaging units exist */}
+        {/* Nút chọn đơn vị quy đổi nếu có nhiều đơn vị */}
         {units.length > 1 && (
           <div className="flex gap-1">
             {units.map((u) => (
@@ -196,8 +196,8 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
                 aria-label={`Chọn đơn vị ${u}`}
                 className={`flex-1 py-1 rounded-lg text-[10px] font-extrabold transition-all border ${
                   selectedUnit === u
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-transparent shadow-sm"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-600"
+                    ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white border-transparent shadow-sm"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-sky-300 hover:text-sky-600"
                 }`}
               >
                 {u}
@@ -206,11 +206,11 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
           </div>
         )}
 
-        {/* Price + Add-to-cart button */}
+        {/* Giá tiền và nút thêm vào giỏ */}
         <div className="mt-auto flex items-center justify-between gap-2">
           <div>
-            {/* Price displayed in monospace tabular-nums for proper digit alignment */}
-            <p className="font-mono tabular-nums font-black text-emerald-700 text-base leading-tight">
+            {/* Hiển thị giá định dạng font mono tabular chuẩn ERP */}
+            <p className="font-mono tabular-nums font-black text-sky-700 text-base leading-tight">
               {displayPrice.toLocaleString("vi-VN")}₫
             </p>
             <p className="text-[10px] text-slate-400 font-semibold">/ {selectedUnit}</p>

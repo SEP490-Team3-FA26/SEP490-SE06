@@ -115,9 +115,9 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dược Sĩ Xác Nhận GPP</p>
-            <p className="text-2xl font-black text-emerald-700 font-mono tabular-nums mt-1">{agreedCount}</p>
+            <p className="text-2xl font-black text-sky-700 font-mono tabular-nums mt-1">{agreedCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
             <ShieldCheck size={20} />
           </div>
         </div>
@@ -152,7 +152,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
             <button
               onClick={() => playAudio(activeRecord)}
               aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
-              className="w-11 h-11 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center transition shadow-md shrink-0 cursor-pointer active:scale-95"
+              className="w-11 h-11 rounded-full bg-sky-500 hover:bg-sky-400 text-white flex items-center justify-center transition shadow-md shrink-0 cursor-pointer active:scale-95"
             >
               {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
             </button>
@@ -175,7 +175,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
               {[40, 75, 55, 90, 60, 100, 45, 80, 50, 70].map((h, i) => (
                 <div
                   key={i}
-                  className={`w-1 bg-emerald-400 rounded-full transition-all duration-200 ${
+                  className={`w-1 bg-sky-400 rounded-full transition-all duration-200 ${
                     isPlaying ? 'animate-pulse' : 'opacity-40'
                   }`}
                   style={{ height: isPlaying ? `${h}%` : '25%' }}
@@ -335,7 +335,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
                       {/* Pharmacist Final Decision */}
                       <td className="p-3.5">
                         <div className="font-bold text-slate-900 flex items-center gap-1">
-                          <ShieldCheck size={13} className="text-emerald-600" />
+                          <ShieldCheck size={13} className="text-sky-600" />
                           <span>{pharmacistDrugsCount} thuốc thực tế</span>
                         </div>
                         <div className="text-[11px] text-slate-600 mt-0.5">
@@ -346,7 +346,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
                       {/* Pharmacist Agreement Checkbox */}
                       <td className="p-3.5">
                         {item.pharmacistAgreement ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
                             <CheckCircle2 size={12} /> Đã cam kết GPP
                           </span>
                         ) : (
@@ -355,7 +355,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
                           </span>
                         )}
                         {item.auditCode && (
-                          <div className="font-mono text-[10px] text-emerald-700 font-bold mt-1">
+                          <div className="font-mono text-[10px] text-sky-700 font-bold mt-1">
                             {item.auditCode}
                           </div>
                         )}
@@ -396,7 +396,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="p-5 bg-gradient-to-r from-teal-700 to-emerald-700 text-white flex items-center justify-between shrink-0">
+            <div className="p-5 bg-gradient-to-r from-teal-700 to-sky-700 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
                   <Headphones size={22} />
@@ -433,7 +433,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
                   <button
                     onClick={() => playAudio(inspectRecord)}
                     aria-label="Play recording in modal"
-                    className="w-10 h-10 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center transition cursor-pointer active:scale-95 shrink-0"
+                    className="w-10 h-10 rounded-full bg-sky-500 hover:bg-sky-400 text-white flex items-center justify-center transition cursor-pointer active:scale-95 shrink-0"
                   >
                     {activeRecord?.consultationId === inspectRecord.consultationId && isPlaying ? (
                       <Pause size={16} />
@@ -442,7 +442,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
                     )}
                   </button>
                   <div>
-                    <div className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <div className="text-xs font-bold text-sky-400 flex items-center gap-1.5">
                       <Volume2 size={14} /> Bản ghi âm gốc cuộc thoại quầy thuốc
                     </div>
                     <div className="text-xs text-slate-400 mt-0.5">
@@ -544,17 +544,17 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
               </div>
 
               {/* Pharmacist Clinical Responsibility & Order Sync Banner */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 space-y-3 text-xs">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50 border border-teal-200 space-y-3 text-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center">
                       <CheckCircle2 size={14} />
                     </div>
                     <div>
-                      <span className="font-bold text-emerald-900 text-sm">
+                      <span className="font-bold text-sky-900 text-sm">
                         Đã Cam Kết Trách Nhiệm Chuyên Môn Dược Sĩ (GPP)
                       </span>
-                      <p className="text-[11px] text-emerald-700">
+                      <p className="text-[11px] text-sky-700">
                         Dược sĩ: <strong>{inspectRecord.pharmacistInfo?.name || 'Dược sĩ trực quầy'}</strong> (Số CCHN: {inspectRecord.pharmacistInfo?.license || 'CCHN-GPP/02849-HN'})
                       </p>
                     </div>
@@ -563,7 +563,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
                   {inspectRecord.auditCode && (
                     <div className="text-right">
                       <span className="text-[10px] text-slate-400 font-bold block uppercase">Mã Duyệt GPP</span>
-                      <span className="font-mono font-black text-emerald-700 bg-white px-2.5 py-1 rounded-lg border border-emerald-300 inline-block mt-0.5">
+                      <span className="font-mono font-black text-sky-700 bg-white px-2.5 py-1 rounded-lg border border-sky-300 inline-block mt-0.5">
                         {inspectRecord.auditCode}
                       </span>
                     </div>

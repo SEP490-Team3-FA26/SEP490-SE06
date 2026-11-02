@@ -268,7 +268,7 @@ export const CustomerRFMTab: React.FC<Props> = ({ selectedBranch }) => {
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <a
                         href={`tel:${customer.phone}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-xs shadow-sm transition-colors"
                       >
                         <PhoneCall size={12} />
                         Gọi Nhắc Toa

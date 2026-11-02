@@ -5,20 +5,20 @@ import React from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 
 type CurrencySize = "sm" | "md" | "lg" | "xl";
-type CurrencyColor = "emerald" | "slate" | "rose";
+type CurrencyColor = "sky" | "slate" | "rose";
 
 interface CurrencyTextProps {
   amount: number;
-  /** ISO 4217 currency code. Defaults to "VND". */
+  /** Mã tiền tệ theo chuẩn ISO 4217. Mặc định là "VND". */
   currency?: string;
   size?: CurrencySize;
   color?: CurrencyColor;
-  /** When true, appends the currency symbol after the formatted amount. */
+  /** Thêm ký hiệu tiền tệ sau số nếu bật. */
   showUnit?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Style maps
+// Bản đồ style theo tone màu chuẩn Sky
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SIZE_CLASSES: Record<CurrencySize, string> = {
@@ -29,7 +29,7 @@ const SIZE_CLASSES: Record<CurrencySize, string> = {
 };
 
 const COLOR_CLASSES: Record<CurrencyColor, string> = {
-  emerald: "text-emerald-700",
+  sky:     "text-sky-700",
   slate:   "text-slate-700",
   rose:    "text-rose-600",
 };
@@ -54,17 +54,16 @@ function formatVND(amount: number): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Atomic currency display element.
- * - Always renders with `font-mono tabular-nums` to guarantee digit alignment
- *   in tables, cards and lists.
- * - Supports 4 sizes (sm → xl) and 3 semantic colors (emerald / slate / rose).
- * - Optionally appends a currency symbol ("₫" for VND, or the ISO code for others).
+ * Thành phần hiển thị số tiền định dạng chuẩn.
+ * - Luôn sử dụng font-mono tabular-nums để căn thẳng hàng chữ số trong bảng và thẻ.
+ * - Hỗ trợ 4 kích thước (sm -> xl) và các tone màu ngữ nghĩa (sky / slate / rose).
+ * - Tự động thêm ký hiệu tiền tệ ₫ cho VND.
  */
 export const CurrencyText: React.FC<CurrencyTextProps> = ({
   amount,
   currency = "VND",
   size = "md",
-  color = "emerald",
+  color = "sky",
   showUnit = true,
 }) => {
   const symbol = currency === "VND" ? "₫" : currency;

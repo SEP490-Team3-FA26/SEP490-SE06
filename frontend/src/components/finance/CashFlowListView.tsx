@@ -214,7 +214,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                                 !shift.isScheduled
                                   ? 'bg-amber-50 text-amber-700 border-amber-200/60'
                                   : isBalanced
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                                  ? 'bg-sky-50 text-sky-700 border-sky-200/60'
                                   : 'bg-blue-50 text-blue-700 border-blue-200/60'
                               )}
                             >
@@ -224,7 +224,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                                 </>
                               ) : isBalanced ? (
                                 <>
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đã Bàn Giao Ca
+                                  <CheckCircle2 className="w-3 h-3 text-sky-600" /> Đã Bàn Giao Ca
                                 </>
                               ) : (
                                 <>
@@ -258,7 +258,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                             Dòng Tiền Thuần
                           </span>
-                          <span className="text-sm font-bold font-mono text-emerald-600">
+                          <span className="text-sm font-bold font-mono text-sky-600">
                             +{shift.netFlow.toLocaleString('vi-VN')} đ
                           </span>
                         </div>
@@ -294,11 +294,11 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                           <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs">
                             <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1.5">
                               <span>Tổng thu trong ca</span>
-                              <div className="p-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                              <div className="p-1 rounded-lg bg-sky-50 text-sky-600 border border-sky-100">
                                 <Banknote className="w-3.5 h-3.5" />
                               </div>
                             </div>
-                            <div className="text-xl font-bold font-mono text-emerald-700 tracking-tight">
+                            <div className="text-xl font-bold font-mono text-sky-700 tracking-tight">
                               +{shift.totalInflow.toLocaleString('vi-VN')} đ
                             </div>
                             <div className="mt-2.5 pt-2 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
@@ -366,7 +366,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                                   {shift.closingDrawerBalance.toLocaleString('vi-VN')} đ
                                 </div>
                                 <div className="mt-2.5 pt-2 border-t border-slate-100 text-[11px] text-slate-600 flex items-center justify-between font-medium">
-                                  <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                                  <span className="flex items-center gap-1 text-sky-600 font-semibold">
                                     <CheckCircle2 className="w-3.5 h-3.5" /> Cân đối 100%
                                   </span>
                                   <span className="font-mono text-slate-500">
@@ -435,7 +435,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                                       </td>
                                       <td className="px-4 py-2.5">
                                         {ord.paymentMethod === 'CASH' || ord.paymentMethod === 'TIEN_MAT' ? (
-                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
                                             <Banknote className="w-3 h-3" /> Tiền Mặt Quầy
                                           </span>
                                         ) : (
@@ -481,7 +481,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                       Gộp toàn bộ doanh thu quầy POS (Ca Sáng + Ca Chiều) và các khoản chi cố định/NCC
                     </p>
                   </div>
-                  <span className="text-xs font-bold font-mono text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-3 py-1 rounded-lg">
+                  <span className="text-xs font-bold font-mono text-sky-700 bg-sky-50 border border-sky-200/60 px-3 py-1 rounded-lg">
                     +{totalDayNet.toLocaleString('vi-VN')} đ (Dòng tiền thuần ngày)
                   </span>
                 </div>
@@ -549,7 +549,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                             <td className="px-5 py-2.5 font-medium text-slate-800">{ord.customerName}</td>
                             <td className="px-5 py-2.5">
                               {ord.paymentMethod === 'CASH' || ord.paymentMethod === 'TIEN_MAT' ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
                                   <Banknote className="w-3 h-3" /> Tiền Mặt
                                 </span>
                               ) : (
@@ -611,7 +611,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                       <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
                         <div className="text-[10px] text-slate-400 flex justify-between">
                           <span>Thu:</span>
-                          <span className="font-mono text-emerald-700 font-semibold">
+                          <span className="font-mono text-sky-700 font-semibold">
                             +{d.inflow > 0 ? (d.inflow / 1000).toLocaleString('vi-VN') + 'k' : '0'}
                           </span>
                         </div>
@@ -626,7 +626,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                           <span
                             className={cn(
                               'text-xs font-bold font-mono',
-                              isPositive ? 'text-emerald-700' : 'text-rose-600'
+                              isPositive ? 'text-sky-700' : 'text-rose-600'
                             )}
                           >
                             {isPositive ? '+' : ''}
@@ -672,7 +672,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                           <td className="px-5 py-3 text-right font-mono text-blue-700">
                             +{d.digitalInflow.toLocaleString('vi-VN')} đ
                           </td>
-                          <td className="px-5 py-3 text-right font-mono font-bold text-emerald-700">
+                          <td className="px-5 py-3 text-right font-mono font-bold text-sky-700">
                             +{d.inflow.toLocaleString('vi-VN')} đ
                           </td>
                           <td className="px-5 py-3 text-right font-mono font-bold text-rose-600">
@@ -681,7 +681,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                           <td
                             className={cn(
                               'px-5 py-3 text-right font-mono font-bold',
-                              d.netFlow >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                              d.netFlow >= 0 ? 'text-sky-700' : 'text-rose-600'
                             )}
                           >
                             {d.netFlow >= 0 ? '+' : ''}
@@ -713,7 +713,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/70">
                   <span className="text-xs text-slate-500 font-medium block">Doanh thu bán lẻ tháng</span>
-                  <span className="text-lg font-bold font-mono text-emerald-700 mt-1 block">
+                  <span className="text-lg font-bold font-mono text-sky-700 mt-1 block">
                     +{(totalDayInflow).toLocaleString('vi-VN')} đ
                   </span>
                   <span className="text-[11px] text-slate-400 mt-1 block">Tất cả giao dịch POS & Online</span>
@@ -804,7 +804,7 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                   className={cn(
                     'px-2.5 py-1 rounded-md font-medium transition-all',
                     voucherMethodFilter === 'CASH'
-                      ? 'bg-white text-emerald-700 shadow-xs font-semibold'
+                      ? 'bg-white text-sky-700 shadow-xs font-semibold'
                       : 'text-slate-600 hover:text-slate-900'
                   )}
                 >
@@ -868,13 +868,13 @@ export const CashFlowListView: React.FC<CashFlowListViewProps> = ({
                             <CreditCard className="w-3 h-3" /> Chuyển Khoản
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
                             <Banknote className="w-3 h-3" /> Tiền Mặt Quầy
                           </span>
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
                           <CheckCircle2 className="w-3 h-3" /> Đã Hoàn Tất
                         </span>
                       </td>

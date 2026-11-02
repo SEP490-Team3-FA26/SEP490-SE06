@@ -109,8 +109,8 @@ export function Finance() {
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Kế Toán & Quản Lý Dòng Tiền</h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
               Dữ liệu trực tiếp Database
             </span>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
@@ -167,7 +167,7 @@ export function Finance() {
           <button
             type="button"
             onClick={exportLedgerCsv}
-            className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl shadow-sm shadow-emerald-500/20 transition-colors flex items-center gap-1.5 text-xs"
+            className="h-9 px-3 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-medium rounded-xl shadow-sm shadow-sky-500/20 transition-colors flex items-center gap-1.5 text-xs"
           >
             <FileSpreadsheet size={14} />
             <span className="hidden sm:inline">Xuất CSV</span>
@@ -469,14 +469,14 @@ export function Finance() {
                     <span className="text-xs font-semibold text-slate-500">
                       Tổng dòng tiền vào ({viewType === 'shift' ? 'Ca' : viewType === 'day' ? 'Ngày' : viewType === 'week' ? 'Tuần' : 'Tháng'})
                     </span>
-                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                    <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100">
                       <Banknote size={16} />
                     </div>
                   </div>
                   <div className="text-2xl font-bold font-mono tracking-tight text-slate-900">
                     +{displayInflow.toLocaleString('vi-VN')} đ
                   </div>
-                  <div className="mt-2 text-[11px] font-medium text-emerald-700 flex items-center gap-1">
+                  <div className="mt-2 text-[11px] font-medium text-sky-700 flex items-center gap-1">
                     <ArrowUpRight size={13} /> Thu từ bán lẻ POS & VietQR ({ordersCount} đơn)
                   </div>
                 </div>
@@ -507,7 +507,7 @@ export function Finance() {
                       className={cn(
                         'w-8 h-8 rounded-xl flex items-center justify-center border',
                         displayNetFlow >= 0
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                          ? 'bg-sky-50 text-sky-600 border-sky-100'
                           : 'bg-rose-50 text-rose-600 border-rose-100'
                       )}
                     >
@@ -517,7 +517,7 @@ export function Finance() {
                   <div
                     className={cn(
                       'text-2xl font-bold font-mono tracking-tight',
-                      displayNetFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                      displayNetFlow >= 0 ? 'text-sky-600' : 'text-rose-600'
                     )}
                   >
                     {displayNetFlow >= 0 ? '+' : ''}
@@ -554,7 +554,7 @@ export function Finance() {
                   <div className="mt-2 text-[11px] font-medium flex items-center justify-between">
                     {isAnyShiftScheduled ? (
                       <>
-                        <span className="text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md flex items-center gap-1 font-semibold">
+                        <span className="text-sky-700 bg-sky-50 border border-sky-200/60 px-2 py-0.5 rounded-md flex items-center gap-1 font-semibold">
                           <CheckCircle2 size={11} /> Đang Hoạt Động
                         </span>
                         <span className="text-slate-400 font-normal">Cân đối 100%</span>
@@ -630,7 +630,7 @@ export function Finance() {
                             }}
                           />
                           <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                          <Bar dataKey="revenue" name="Thu (Doanh thu)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                          <Bar dataKey="revenue" name="Thu (Doanh thu)" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={30} />
                           <Bar dataKey="fixedExpenses" name="Chi cố định (Mặt bằng/Lương)" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={30} />
                           <Bar dataKey="expense" name="Tổng chi (Gồm COGS & NCC)" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={30} />
                           <Bar dataKey="netProfit" name="Lợi nhuận ròng" fill="#0057cd" radius={[4, 4, 0, 0]} maxBarSize={30} />
@@ -685,7 +685,7 @@ export function Finance() {
                                 )}
                                 <td className="px-6 py-3.5 print:px-2">
                                   {tx.type === 'INCOME' ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200/60">
                                       <ArrowUpRight size={11} /> THU BÁN HÀNG
                                     </span>
                                   ) : tx.category === 'SUPPLIER_PAYMENT' ? (
@@ -709,7 +709,7 @@ export function Finance() {
                                 <td
                                   className={cn(
                                     'px-6 py-3.5 text-right font-bold font-mono print:px-2',
-                                    tx.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'
+                                    tx.type === 'INCOME' ? 'text-sky-600' : 'text-rose-600'
                                   )}
                                 >
                                   {tx.type === 'INCOME' ? '+' : '-'}

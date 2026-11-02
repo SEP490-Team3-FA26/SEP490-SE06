@@ -142,6 +142,24 @@ export class OrdersServiceService implements OnModuleInit {
     });
     const serverSubtotal = Number(quote.subtotal) || 0;
 
+    // Chặn 100% thuốc kê đơn (Rx) thanh toán mua trực tuyến tự do theo quy định Bộ Y Tế
+    const isOnlineOrder = !data.type || data.type === 'ONLINE';
+    if (isOnlineOrder) {
+      const rxItem = quote.items.find(
+        (it: any) =>
+          it?.prescription_status === 1 ||
+          it?.is_prescription === true ||
+          it?.drug_classification === 'PRESCRIPTION' ||
+          it?.drug_classification === 'PRESCRIPTION_ANTIBIOTIC',
+      );
+      if (rxItem) {
+        throw new RpcException({
+          statusCode: 400,
+          message: `Mặt hàng "${rxItem.name || 'Thuốc'}" là thuốc kê đơn (Rx). Theo quy định Bộ Y Tế, thuốc kê đơn không được phép mua bán trực tuyến. Quý khách vui lòng mua trực tiếp tại nhà thuốc.`,
+        });
+      }
+    }
+
     // Generate a unique 64-bit int order code for PayOS
     const orderCode = Math.floor(100000 + Math.random() * 90000000);
 
@@ -336,6 +354,8 @@ export class OrdersServiceService implements OnModuleInit {
       patientPhone: data.patientPhone,
       patientEmail,
       shippingAddress: data.shippingAddress || 'Mua tại quầy',
+      note: data.note || data.notes || '',
+      notes: data.notes || data.note || '',
       items: (data.items || []).map((it: any) => ({
         medicineId: it.medicineId,
         name: it.name,

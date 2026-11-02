@@ -149,7 +149,7 @@ export function Employees() {
     head_branch: { label: "Quản lý chuỗi", color: "bg-blue-100 text-blue-800" },
     warehouse: { label: "Thủ kho", color: "bg-orange-100 text-orange-800" },
     branch: { label: "Quản lý chi nhánh", color: "bg-indigo-100 text-indigo-800" },
-    pharmacist: { label: "Dược sĩ", color: "bg-green-100 text-green-800" },
+    pharmacist: { label: "Dược sĩ", color: "bg-sky-100 text-sky-800" },
   };
 
   const getStatusBadge = (emp: Employee) => {
@@ -168,7 +168,7 @@ export function Employees() {
       );
     }
     return emp.isActive ? (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
         <CheckCircle2 size={11} /> Hoạt động
       </span>
     ) : (
@@ -372,7 +372,7 @@ export function Employees() {
                             <>
                               <button
                                 onClick={() => handleApprove(emp._id, 'approve')}
-                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors"
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-colors"
                                 title="Phê duyệt tài khoản"
                               >
                                 <CheckCheck size={14} /> Duyệt
@@ -402,7 +402,7 @@ export function Employees() {
                                 className={`p-2 rounded-lg transition-colors ${
                                   emp.isActive 
                                     ? "text-red-600 hover:bg-red-50" 
-                                    : "text-green-600 hover:bg-green-50"
+                                    : "text-sky-600 hover:bg-sky-50"
                                 }`}
                                 title={emp.isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                               >

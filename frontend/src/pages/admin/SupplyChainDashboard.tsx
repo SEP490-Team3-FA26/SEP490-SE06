@@ -35,7 +35,7 @@ import L from 'leaflet';
 const STATUS_CONFIG = {
   CRITICAL: { label: 'Hết hàng', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', class: 'red' },
   LOW: { label: 'Dưới mức an toàn', color: '#f97316', bg: 'rgba(249,115,22,0.08)', class: 'orange' },
-  SAFE: { label: 'An toàn', color: '#16a34a', bg: 'rgba(22,163,74,0.08)', class: 'green' },
+  SAFE: { label: 'An toàn', color: '#0284c7', bg: 'rgba(2, 132, 199,0.08)', class: "sky" },
   OVERSTOCK: { label: 'Dư thừa', color: '#1d4ed8', bg: 'rgba(29,78,216,0.08)', class: 'blue' },
 };
 
@@ -224,7 +224,7 @@ function StockBar({ current, safety, rop, eoq }: { current: number; safety: numb
   const max = Math.max(current, eoq * 1.5, rop * 1.5, 10);
   const pct = (v: number) => Math.min(100, Math.round((v / max) * 100));
 
-  let fillColor = '#22c55e'; // Green stable
+  let fillColor = '#0ea5e9'; // Màu xanh sky ổn định an toàn
   if (current <= 0) fillColor = '#ef4444'; // Red out of stock
   else if (current < safety) fillColor = '#f97316'; // Orange critical
   else if (current < rop) fillColor = '#eab308'; // Yellow reorder
@@ -420,7 +420,7 @@ function AnomalyModal({ anomaly, onClose }: { anomaly: AnomalyItem; onClose: () 
             </div>
             <div style={{ padding: 10, border: '1px solid #f1f5f9', borderRadius: 10 }}>
               <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Số lượng thay đổi</div>
-              <div style={{ fontSize: 13, fontWeight: 800, marginTop: 2, color: isNegative ? '#ef4444' : '#22c55e' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, marginTop: 2, color: isNegative ? '#ef4444' : '#0ea5e9' }}>
                 {anomaly.quantityChange > 0 ? '+' : ''}{anomaly.quantityChange}
               </div>
             </div>
@@ -617,7 +617,7 @@ function BranchDetailModal({
 
             {criticalItems.length === 0 && lowItems.length === 0 && expiringItems.length === 0 && (
               <div style={{ padding: 30, textAlign: 'center', color: '#64748b' }}>
-                <CheckCircle2 color="#22c55e" size={40} style={{ margin: '0 auto 10px' }} />
+                <CheckCircle2 color="#0ea5e9" size={40} style={{ margin: '0 auto 10px' }} />
                 <h4 style={{ fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>Chi nhánh Khỏe mạnh!</h4>
                 <p style={{ margin: 0, fontSize: 13 }}>Tất cả các dược phẩm tại chi nhánh này đều đạt mức tồn kho an toàn và không có lô hàng nào cận hạn.</p>
               </div>
@@ -746,7 +746,7 @@ function LeafletBranchMap({
     // Add Markers for each branch
     branches.forEach((b) => {
       const metric = branchHealthMetrics[b.id] || { criticalCount: 0, warningCount: 0, totalItems: 0 };
-      let colorHex = '#22c55e';
+      let colorHex = '#0ea5e9';
       let statusText = 'Khỏe mạnh';
 
       if (metric.criticalCount > 0) {
@@ -1211,8 +1211,8 @@ export function SupplyChainDashboard() {
                             cursor: 'pointer',
                             padding: '2px 8px',
                             borderRadius: '6px',
-                            background: statusClass === 'critical' ? '#fef2f2' : statusClass === 'warning' ? '#fff7ed' : '#f0fdf4',
-                            border: `1px solid ${statusClass === 'critical' ? '#fecaca' : statusClass === 'warning' ? '#ffedd5' : '#bbf7d0'}`,
+                            background: statusClass === 'critical' ? '#fef2f2' : statusClass === 'warning' ? '#fff7ed' : '#f0f9ff',
+                            border: `1px solid ${statusClass === 'critical' ? '#fecaca' : statusClass === 'warning' ? '#ffedd5' : '#bae6fd'}`,
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
@@ -1262,7 +1262,7 @@ export function SupplyChainDashboard() {
                         <div className="scd-timeline-content">
                           <div className="scd-timeline-title">{a.medicineName}</div>
                           <div className="scd-timeline-desc">
-                            Số lượng biến động: <strong style={{ color: a.quantityChange < 0 ? '#ef4444' : '#16a34a' }}>{a.quantityChange}</strong> · {a.performedBy}
+                            Số lượng biến động: <strong style={{ color: a.quantityChange < 0 ? '#ef4444' : '#0284c7' }}>{a.quantityChange}</strong> · {a.performedBy}
                           </div>
                           <div className="scd-timeline-meta">
                             <span>Z-Score: {a.statistics.zScore}σ</span>
@@ -1461,7 +1461,7 @@ export function SupplyChainDashboard() {
                   <span>Đồng bộ POS: Trực tiếp</span>
                 </div>
                 <div className="scd-sync-indicator" style={{ borderLeft: '1.5px solid #e2e8f0', paddingLeft: 20 }}>
-                  <span className="scd-sync-dot" style={{ background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                  <span className="scd-sync-dot" style={{ background: '#0284c7', boxShadow: '0 0 8px #0284c7' }} />
                   <span>Đồng bộ Kho: Trực tiếp</span>
                 </div>
               </div>
@@ -1685,11 +1685,11 @@ export function SupplyChainDashboard() {
                           </span>
                         </td>
                         <td>
-                          <span className="scd-badge green">ĐÃ XỬ LÝ</span>
+                          <span className="scd-badge sky">ĐÃ XỬ LÝ</span>
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <span className="scd-action-link" style={{ fontSize: '12.5px', color: '#10b981' }}>Đã lưu trữ</span>
+                            <span className="scd-action-link" style={{ fontSize: '12.5px', color: '#0284c7' }}>Đã lưu trữ</span>
                           </div>
                         </td>
                       </tr>
@@ -1715,7 +1715,7 @@ export function SupplyChainDashboard() {
             </div>
 
             <div className="scd-footer-stat-card">
-              <div className="scd-footer-stat-icon-wrap" style={{ background: '#f0fdf4', color: '#10b981' }}>
+              <div className="scd-footer-stat-icon-wrap" style={{ background: '#f0f9ff', color: '#0284c7' }}>
                 <UserCheck size={20} />
               </div>
               <div>

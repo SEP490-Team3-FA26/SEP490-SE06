@@ -19,7 +19,7 @@ export function BranchShiftManagement() {
     color: "#3B82F6"
   });
 
-  const presetColors = ["#3B82F6", "#F97316", "#10B981", "#8B5CF6", "#EF4444", "#64748B"];
+  const presetColors = ["#3B82F6", "#F97316", "#0284c7", "#8B5CF6", "#EF4444", "#64748B"];
 
   const fetchShifts = async () => {
     try {
@@ -105,7 +105,7 @@ export function BranchShiftManagement() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsLocationModalOpen(true)}
-            className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-emerald-200 text-sm whitespace-nowrap shadow-sm"
+            className="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-sky-200 text-sm whitespace-nowrap shadow-sm"
           >
             <MapPin size={18} />
             Cài Đặt Vị Trí GPS
@@ -150,7 +150,7 @@ export function BranchShiftManagement() {
                   <div className="w-4 h-4 rounded-full" style={{ backgroundColor: shift.color }}></div>
                   <h3 className="font-bold text-lg text-slate-900">{shift.name}</h3>
                 </div>
-                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${shift.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${shift.isActive ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>
                   {shift.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
@@ -167,7 +167,7 @@ export function BranchShiftManagement() {
                 </button>
                 <button 
                   onClick={() => handleToggle(shift._id)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-xl transition-colors ${shift.isActive ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-xl transition-colors ${shift.isActive ? 'text-rose-600 hover:bg-rose-50' : 'text-sky-600 hover:bg-sky-50'}`}
                 >
                   {shift.isActive ? <><Square size={16} /> Ngừng</> : <><Play size={16} /> Bật</>}
                 </button>

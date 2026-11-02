@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { AlertTriangle, Sparkles, CheckCircle, ShoppingBag, CornerDownRight, LogIn } from "lucide-react";
 import { DrugCard, ChatDrugItem } from "./DrugCard";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { DoveFigure } from "../mascot/DoveFigure";
 import { PayOSCard, PayOSPaymentData } from "./PayOSCard";
 
@@ -48,7 +49,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const [isAddingAll, setIsAddingAll] = useState(false);
   const [addedAllSuccess, setAddedAllSuccess] = useState(false);
 
-  const availableDrugs = (message.drugs || []).filter((d) => d.in_stock && d.medicine_id);
+  const availableDrugs = (message.drugs || []).filter(
+    (d) => d.in_stock && d.medicine_id && !isPrescriptionMedicine(d)
+  );
 
   const handleAddAll = async () => {
     if (!onAddAllToCart || availableDrugs.length === 0 || isAddingAll) return;
@@ -158,9 +161,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   aria-label="Thêm tất cả sản phẩm vào giỏ hàng"
                   className={`text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 cursor-pointer ${
                     addedAllSuccess
-                      ? "bg-emerald-500 text-white"
+                      ? "bg-sky-500 text-white"
                       : "bg-white text-blue-700 hover:bg-blue-50 border border-slate-200"
-                  }`}
+                    }`}
                 >
                   {addedAllSuccess ? (
                     <>

@@ -548,7 +548,7 @@ export function BranchSchedule() {
           {schedule && (
             <div className={`px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-2 border ${
               isPublished 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                ? 'bg-sky-50 text-sky-700 border-sky-200' 
                 : 'bg-amber-50 text-amber-700 border-amber-200'
             }`}>
               {isPublished ? <CheckCircle2 size={16} /> : <ShieldCheck size={16} />}
@@ -559,7 +559,7 @@ export function BranchSchedule() {
           {/* NÚT THÊM NHÂN VIÊN VÀO CA LÀM CỐ ĐỊNH */}
           <button
             onClick={() => openFixedShiftModal()}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 cursor-pointer"
           >
             <Plus size={18} />
             <span>Thêm Vào Ca Cố Định</span>
@@ -619,7 +619,7 @@ export function BranchSchedule() {
             <span>Đã gán: <strong className="text-slate-900 font-bold">{totalAssignmentsCount}</strong> ca</span>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 font-medium">
-            <Users size={14} className="text-emerald-600" />
+            <Users size={14} className="text-sky-600" />
             <span>Nhân sự trực: <strong className="text-slate-900 font-bold">{uniqueEmployeesWorking}</strong> người</span>
           </div>
         </div>
@@ -707,7 +707,7 @@ export function BranchSchedule() {
                         <button
                           onClick={() => openFixedShiftModal(shift._id)}
                           title={`Gán nhân viên vào ca ${shift.name} cố định`}
-                          className="p-1 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          className="p-1 rounded-md text-slate-400 hover:text-sky-700 hover:bg-sky-50 transition-colors cursor-pointer"
                         >
                           <Plus size={13} />
                         </button>
@@ -920,7 +920,7 @@ export function BranchSchedule() {
 
                       <div className="text-right shrink-0 pl-3">
                         {isAlreadyInShift ? (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-md">
                             Đã trong ca
                           </span>
                         ) : (
@@ -1037,9 +1037,9 @@ export function BranchSchedule() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-emerald-50/70 via-slate-50/50 to-white">
+            <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-sky-50/70 via-slate-50/50 to-white">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
                   <Repeat size={20} />
                 </div>
                 <div>
@@ -1071,7 +1071,7 @@ export function BranchSchedule() {
                     placeholder="Tìm theo tên, email, chức danh..."
                     value={fixedShiftSearch}
                     onChange={(e) => setFixedShiftSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+                    className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-600 focus:border-transparent"
                   />
                 </div>
 
@@ -1092,17 +1092,17 @@ export function BranchSchedule() {
                           key={empIdStr}
                           onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedEmployeeId: empIdStr }))}
                           className={`p-2.5 flex items-center justify-between cursor-pointer transition-all ${
-                            isSelected ? 'bg-emerald-50/80 border-l-4 border-l-emerald-600' : 'hover:bg-slate-50'
+                            isSelected ? 'bg-sky-50/80 border-l-4 border-l-sky-600' : 'hover:bg-slate-50'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                              isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                              isSelected ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600'
                             }`}>
                               {getInitials(emp.fullName)}
                             </div>
                             <div className="min-w-0">
-                              <div className={`text-xs font-bold truncate ${isSelected ? 'text-emerald-900' : 'text-slate-800'}`}>
+                              <div className={`text-xs font-bold truncate ${isSelected ? 'text-sky-900' : 'text-slate-800'}`}>
                                 {formatEmployeeName(emp.fullName)}
                               </div>
                               <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
@@ -1120,7 +1120,7 @@ export function BranchSchedule() {
                               {count} ca/tuần
                             </span>
                             {isSelected && (
-                              <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                              <div className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center">
                                 <Check size={12} strokeWidth={3} />
                               </div>
                             )}
@@ -1146,7 +1146,7 @@ export function BranchSchedule() {
                         onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedShiftId: sh._id }))}
                         className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                           isSelected 
-                            ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20' 
+                            ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-500/20' 
                             : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
                         }`}
                       >
@@ -1161,7 +1161,7 @@ export function BranchSchedule() {
                           </div>
                         </div>
                         {isSelected && (
-                          <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                          <div className="w-4 h-4 rounded-full bg-sky-600 text-white flex items-center justify-center">
                             <Check size={10} strokeWidth={3} />
                           </div>
                         )}
@@ -1182,21 +1182,21 @@ export function BranchSchedule() {
                     <button
                       type="button"
                       onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedDays: [0, 1, 2, 3, 4] }))}
-                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 font-medium transition-colors cursor-pointer"
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-sky-50 text-slate-600 hover:text-sky-700 font-medium transition-colors cursor-pointer"
                     >
                       T2 - T6
                     </button>
                     <button
                       type="button"
                       onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedDays: [0, 1, 2, 3, 4, 5, 6] }))}
-                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 font-medium transition-colors cursor-pointer"
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-sky-50 text-slate-600 hover:text-sky-700 font-medium transition-colors cursor-pointer"
                     >
                       Cả tuần
                     </button>
                     <button
                       type="button"
                       onClick={() => setFixedShiftModal(prev => ({ ...prev, selectedDays: [5, 6] }))}
-                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 font-medium transition-colors cursor-pointer"
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-sky-50 text-slate-600 hover:text-sky-700 font-medium transition-colors cursor-pointer"
                     >
                       Cuối tuần
                     </button>
@@ -1224,16 +1224,16 @@ export function BranchSchedule() {
                         }}
                         className={`p-2 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
                           isSelected 
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                            ? 'bg-sky-600 text-white border-sky-600 shadow-xs' 
                             : isWeekend
-                              ? 'bg-slate-50 text-slate-700 border-slate-200 hover:border-emerald-300'
-                              : 'bg-white text-slate-800 border-slate-200 hover:border-emerald-300'
+                              ? 'bg-slate-50 text-slate-700 border-slate-200 hover:border-sky-300'
+                              : 'bg-white text-slate-800 border-slate-200 hover:border-sky-300'
                         }`}
                       >
                         <span className={`text-[11px] font-extrabold uppercase ${isSelected ? 'text-white' : 'text-slate-600'}`}>
                           {dayName}
                         </span>
-                        <span className={`text-[10px] mt-0.5 font-medium ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                        <span className={`text-[10px] mt-0.5 font-medium ${isSelected ? 'text-sky-100' : 'text-slate-400'}`}>
                           {d.getDate()}/{d.getMonth() + 1}
                         </span>
                       </button>
@@ -1249,7 +1249,7 @@ export function BranchSchedule() {
                     type="checkbox"
                     checked={fixedShiftModal.applyNextWeeks}
                     onChange={(e) => setFixedShiftModal(prev => ({ ...prev, applyNextWeeks: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
                   />
                   <span className="text-xs font-semibold text-slate-700">
                     Áp dụng ca làm việc cố định này cho cả 3 tuần tiếp theo trong tháng
@@ -1279,7 +1279,7 @@ export function BranchSchedule() {
                   type="button"
                   disabled={submittingFixedShift || fixedShiftModal.selectedDays.length === 0}
                   onClick={handleSaveFixedShift}
-                  className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
                 >
                   {submittingFixedShift ? (
                     <>
@@ -1345,7 +1345,7 @@ export function BranchSchedule() {
             key={toast.id}
             className={`pointer-events-auto p-3.5 rounded-2xl shadow-xl border flex items-start gap-3 transition-all animate-in slide-in-from-top-3 duration-200 ${
               toast.type === 'success'
-                ? 'bg-white text-slate-800 border-emerald-200 ring-1 ring-emerald-500/15'
+                ? 'bg-white text-slate-800 border-sky-200 ring-1 ring-sky-500/15'
                 : toast.type === 'error'
                   ? 'bg-white text-slate-800 border-rose-200 ring-1 ring-rose-500/15'
                   : toast.type === 'warning'
@@ -1355,7 +1355,7 @@ export function BranchSchedule() {
           >
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
               toast.type === 'success'
-                ? 'bg-emerald-100 text-emerald-700'
+                ? 'bg-sky-100 text-sky-700'
                 : toast.type === 'error'
                   ? 'bg-rose-100 text-rose-700'
                   : toast.type === 'warning'

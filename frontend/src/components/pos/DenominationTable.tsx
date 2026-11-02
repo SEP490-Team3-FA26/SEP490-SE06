@@ -79,7 +79,7 @@ export const DenominationTable: React.FC<DenominationTableProps> = ({
                       value={count === 0 ? '' : count}
                       placeholder="0"
                       onChange={(e) => onCountChange(d.key, e.target.value)}
-                      className="w-16 py-1 px-2 text-center font-bold bg-white border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none"
+                      className="w-16 py-1 px-2 text-center font-bold bg-white border border-slate-200 rounded-lg focus:border-sky-500 focus:outline-none"
                     />
                   </td>
                   <td className="py-2 px-3 text-center">
@@ -117,9 +117,9 @@ export const DenominationTable: React.FC<DenominationTableProps> = ({
           <tfoot>
             <tr className="bg-slate-50 border-t border-slate-200 font-black text-slate-900">
               <td className="py-2.5 px-3">Tổng cộng</td>
-              <td className="py-2.5 px-3 text-center text-emerald-700">{totalNotes} tờ</td>
+              <td className="py-2.5 px-3 text-center text-sky-700">{totalNotes} tờ</td>
               <td className="py-2.5 px-3"></td>
-              <td className="py-2.5 px-3 text-right text-emerald-700 text-sm">
+              <td className="py-2.5 px-3 text-right text-sky-700 text-sm">
                 {totalAmount.toLocaleString('vi-VN')}₫
               </td>
             </tr>

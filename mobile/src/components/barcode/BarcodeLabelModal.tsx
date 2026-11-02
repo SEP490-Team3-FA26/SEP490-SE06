@@ -210,7 +210,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               {/* Footer info: Expiration & Badge */}
               <View style={styles.labelFooter}>
                 <Text style={styles.labelExp}>
-                  HSD: {medicine.batches?.[0]?.expDate ? new Date(medicine.batches[0].expDate).toLocaleDateString('vi-VN') : '2027-12-31'}
+                  HSD: {medicine.batches?.[0]?.expDate ? new Date(medicine.batches[0].expDate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
                 </Text>
                 <Text style={styles.labelStandard}>✓ Đạt chuẩn GSP</Text>
               </View>
@@ -231,7 +231,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Tồn kho hiện tại:</Text>
-                <Text style={[styles.metaValue, { color: '#059669', fontWeight: 'bold' }]}>
+                <Text style={[styles.metaValue, { color: '#0284C7', fontWeight: 'bold' }]}>
                   {medicine.stock} {medicine.unit}
                 </Text>
               </View>
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
   labelStandard: {
     fontSize: 9.5,
     fontWeight: '600',
-    color: '#059669',
+    color: '#0284C7',
   },
   metaCard: {
     backgroundColor: '#F8FAFC',

@@ -153,7 +153,7 @@ export function MobileAIInspection() {
           </button>
           <div>
             <h1 className="text-lg font-bold flex items-center gap-2">
-              <ScanLine size={18} className="text-emerald-400" /> AI Kiểm Đếm
+              <ScanLine size={18} className="text-sky-400" /> AI Kiểm Đếm
             </h1>
             <p className="text-xs text-slate-400">Thiết bị quét tự động - Kho Tổng</p>
           </div>
@@ -164,7 +164,7 @@ export function MobileAIInspection() {
         {msg && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             className={`p-3 rounded-xl text-sm font-bold flex items-center gap-2 mb-4 ${
-              msg.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+              msg.type === "success" ? "bg-sky-50 text-sky-700 border border-sky-200" : "bg-rose-50 text-rose-700 border border-rose-200"
             }`}>
             {msg.type === "success" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
             {msg.text}
@@ -174,7 +174,7 @@ export function MobileAIInspection() {
 
         {loading && !inspectionRecord && (
           <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="animate-spin text-emerald-600 mb-2" size={32} />
+            <Loader2 className="animate-spin text-sky-500 mb-2" size={32} />
             <p className="text-sm font-bold text-slate-500">Đang khởi tạo phiên kiểm đếm...</p>
           </div>
         )}
@@ -199,7 +199,7 @@ export function MobileAIInspection() {
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-bold text-sm text-slate-800 leading-tight pr-2">{item.medicineName}</h4>
                     {isItemVerified(item) ? (
-                      <span className="shrink-0 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg text-xs font-bold">Đã chốt</span>
+                      <span className="shrink-0 bg-sky-100 text-sky-700 px-2 py-1 rounded-lg text-xs font-bold">Đã chốt</span>
                     ) : (
                       <span className="shrink-0 bg-rose-100 text-rose-700 px-2 py-1 rounded-lg text-xs font-bold">Chưa quét</span>
                     )}
@@ -212,7 +212,7 @@ export function MobileAIInspection() {
                     </div>
                     <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                       <span className="block text-slate-400 mb-0.5">Thực tế</span>
-                      <span className={`font-bold ${Number(item.actualQty) > 0 ? (item.actualQty === item.expectedQty ? "text-emerald-600" : "text-rose-600") : "text-slate-400"}`}>
+                      <span className={`font-bold ${Number(item.actualQty) > 0 ? (item.actualQty === item.expectedQty ? "text-sky-600" : "text-rose-600") : "text-slate-400"}`}>
                         {Number(item.actualQty) > 0 ? `${item.actualQty} hộp` : "—"}
                       </span>
                     </div>
@@ -267,7 +267,7 @@ export function MobileAIInspection() {
               <button 
                 onClick={handleSubmitReport}
                 disabled={!isAllVerified || loading}
-                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                className="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <SendHorizonal size={18} />}
                 Nộp kết quả kiểm đếm
               </button>
@@ -286,15 +286,15 @@ export function MobileAIInspection() {
             
             {isScanning ? (
               <div className="text-center">
-                <div className="relative w-56 h-56 mx-auto mb-4 border-2 border-emerald-500 rounded-2xl overflow-hidden shadow-2xl">
+                <div className="relative w-56 h-56 mx-auto mb-4 border-2 border-sky-500 rounded-2xl overflow-hidden shadow-2xl">
                   <motion.div 
                     animate={{ y: ["0%", "100%", "0%"] }} 
                     transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                    className="absolute inset-x-0 h-1 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)]" 
+                    className="absolute inset-x-0 h-1 bg-sky-400 shadow-[0_0_15px_rgba(52,211,153,1)]" 
                   />
                   <img src={capturedPhoto || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ad?w=400&q=80"} className="w-full h-full object-cover" alt="Medicine" />
                 </div>
-                <h3 className="text-emerald-400 font-bold animate-pulse flex items-center justify-center gap-2 text-sm">
+                <h3 className="text-sky-400 font-bold animate-pulse flex items-center justify-center gap-2 text-sm">
                   <Loader2 size={16} className="animate-spin" /> AI đang nhận diện & đếm số lượng hộp...
                 </h3>
               </div>
@@ -310,20 +310,20 @@ export function MobileAIInspection() {
                   }} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={18} /></button>
                 </div>
                 
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-4 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center font-black text-xl">
+                <div className="bg-sky-50 border border-sky-100 rounded-xl p-4 mb-4 flex items-center gap-4">
+                  <div className="w-12 h-12 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center font-black text-xl">
                     {selectedItem.aiCountedQty}
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-500">AI Đề Xuất</p>
-                    <p className="text-sm font-semibold text-emerald-700">Độ tin cậy: 98.5%</p>
+                    <p className="text-sm font-semibold text-sky-700">Độ tin cậy: 98.5%</p>
                   </div>
                 </div>
 
                 <div className="mb-4">
                   <label className="block text-xs font-bold text-slate-500 mb-1">Xác nhận số lượng thực tế</label>
                   <input type="number" value={actualQty} onChange={(e) => setActualQty(e.target.value ? Number(e.target.value) : "")}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-lg focus:outline-none focus:ring-2 focus:ring-sky-500" />
                   
                   {actualQty !== "" && Number(actualQty) !== selectedItem.expectedQty && (
                     <div className="mt-2 p-2 bg-rose-50 text-rose-700 text-xs font-bold rounded-lg flex items-center gap-1.5">
@@ -339,7 +339,7 @@ export function MobileAIInspection() {
                       type="text"
                       value={batchNo}
                       onChange={(e) => setBatchNo(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       placeholder="VD: B007"
                     />
                   </div>
@@ -349,7 +349,7 @@ export function MobileAIInspection() {
                       type="date"
                       value={expDate}
                       onChange={(e) => setExpDate(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                 </div>

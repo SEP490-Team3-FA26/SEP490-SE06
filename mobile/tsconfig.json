@@ -21,10 +21,14 @@
       "@/*": [
         "./src/*"
       ]
-    }
+    },
+    "types": [
+      "jest"
+    ]
   },
   "include": [
     "src/**/*",
+    "test/**/*",
     "App.tsx",
     "index.ts"
   ],

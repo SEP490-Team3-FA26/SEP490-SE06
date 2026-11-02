@@ -101,8 +101,8 @@
 
     ai-service:
       build:
-        context: .
-        dockerfile: backend/apps/ai-service/Dockerfile
+        context: ./backend/apps/ai-service
+        dockerfile: Dockerfile
       container_name: wdp301-ai-service
       restart: on-failure
       volumes:

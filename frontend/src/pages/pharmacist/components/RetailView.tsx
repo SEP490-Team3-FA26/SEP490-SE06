@@ -15,6 +15,8 @@ import { reconciliationService } from "../../../services/sales/reconciliation.se
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import CustomerClinicalModal from "./CustomerClinicalModal";
+import { customerService, AllergyCheckResult } from "../../../services/sales/customer.service";
 import {
   buildRetailDosageInstruction,
   buildUnitOptions,
@@ -137,6 +139,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
 
+  // UC-107: Quản lý hồ sơ bệnh án & Cảnh báo tương kỵ dị ứng
+  const [isClinicalModalOpen, setIsClinicalModalOpen] = useState(false);
+  const [allergyCheckResult, setAllergyCheckResult] = useState<AllergyCheckResult | null>(null);
+  const [isCheckingAllergy, setIsCheckingAllergy] = useState(false);
+
   // Emergency Manual Override States (POS Fallback)
   const [showEmergencyOverrideModal, setShowEmergencyOverrideModal] = useState(false);
   const [bankTransactionId, setBankTransactionId] = useState("");
@@ -205,7 +212,49 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setRedeemedPoints(0);
     setPatientEmail("");
     clearCustomerSegment();
+    setAllergyCheckResult(null);
   };
+
+  // UC-107: Tự động kiểm tra chéo tiền sử dị ứng, hoạt chất & bệnh nền lâm sàng với giỏ hàng
+  useEffect(() => {
+    if (!loyaltyInfo || cart.length === 0) {
+      setAllergyCheckResult(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsCheckingAllergy(true);
+        const cartItemsPayload = cart.map((item) => ({
+          name: item.name || "",
+          active_ingredient: item.active_ingredient || "",
+          category: item.category || "",
+        }));
+
+        const result = await customerService.checkCartAllergyContraindications({
+          customerProfile: {
+            phone: loyaltyInfo.phone,
+            fullName: loyaltyInfo.fullName,
+            allergies: loyaltyInfo.allergies || [],
+            allergicMedicines: loyaltyInfo.allergicMedicines || [],
+            allergicIngredients: loyaltyInfo.allergicIngredients || [],
+            chronicConditions: loyaltyInfo.chronicConditions || [],
+            bloodType: loyaltyInfo.bloodType || "",
+            medicalNotes: loyaltyInfo.medicalNotes || "",
+          },
+          cartItems: cartItemsPayload,
+        });
+
+        setAllergyCheckResult(result);
+      } catch (err) {
+        console.error("Lỗi khi kiểm tra dị ứng đơn hàng:", err);
+      } finally {
+        setIsCheckingAllergy(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [cart, loyaltyInfo]);
 
   const finalizeSalesOrder = async (payload: any) => {
     if (isShiftActive === false) {
@@ -432,7 +481,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             if (recordingRef.current && recognitionRef.current) {
               try {
                 recognitionRef.current.start();
-              } catch (e) {}
+              } catch (e) { }
             }
           };
 
@@ -453,13 +502,13 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     if (mediaRecorderRef.current && recording) {
       try {
         mediaRecorderRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
       setRecording(false);
     }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
     }
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
@@ -467,7 +516,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     if (audioContextRef.current) {
       try {
         audioContextRef.current.close();
-      } catch (e) {}
+      } catch (e) { }
     }
     setAudioVolume(0);
 
@@ -505,7 +554,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       try {
         mediaRecorderRef.current.stop();
         setRecording(false);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Lấy blob hiện tại hoặc tái tạo từ các audio chunks đã thu thập
@@ -840,6 +889,50 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setLastScannedCode(cleanBarcode);
     setIsBarcodeLoading(true);
 
+    // ==========================================
+    // NHẬN DIỆN MÃ QR SỔ SỨC KHỎE SỐ (DIGITAL HEALTH PASSPORT)
+    // ==========================================
+    try {
+      let detectedPhone = '';
+      let detectedName = '';
+
+      if (cleanBarcode.startsWith('{') && cleanBarcode.includes('HEALTH_PASSPORT')) {
+        const passportData = JSON.parse(cleanBarcode);
+        detectedPhone = passportData.phone || '';
+        detectedName = passportData.name || '';
+      } else if (cleanBarcode.startsWith('MED:')) {
+        detectedPhone = cleanBarcode.replace('MED:', '').trim();
+      }
+
+      if (detectedPhone) {
+        setCustomerPhone(detectedPhone);
+        setIsSearchingCustomer(true);
+        setLoyaltyInfo(null);
+        setUsePoints(false);
+        setRedeemedPoints(0);
+
+        const [loyaltyRes] = await Promise.all([
+          api.get(`/api/users/loyalty/lookup?phone=${encodeURIComponent(detectedPhone)}`),
+          lookupCustomerSegment(detectedPhone),
+        ]);
+
+        if (loyaltyRes.data && !loyaltyRes.data.error) {
+          setLoyaltyInfo(loyaltyRes.data);
+          if (loyaltyRes.data.email) {
+            setPatientEmail(loyaltyRes.data.email);
+          }
+          showToast(`✅ Đã nạp Sổ Sức Khỏe Số của khách hàng: ${loyaltyRes.data.fullName || detectedName || detectedPhone}!`, "success");
+        } else {
+          showToast(`⚠️ Không tìm thấy thông tin khách hàng với mã/SĐT: ${detectedPhone}`, "warning");
+        }
+        setIsSearchingCustomer(false);
+        setIsBarcodeLoading(false);
+        return;
+      }
+    } catch (qrErr) {
+      // Không phải định dạng JSON QR -> Tiếp tục tra cứu mã vạch dược phẩm bình thường
+    }
+
     try {
       const { branchId } = getBranchInfoFromToken();
       const res = await medicineService.getByBarcode(cleanBarcode, branchId || '');
@@ -1077,6 +1170,69 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setShowAlternativesModal(false);
   };
 
+  // UC-107: 1-Click đổi thuốc trong giỏ sang thuốc thay thế an toàn không dị ứng / không chống chỉ định
+  const handleSwapSafeAlternative = async (conflictedMedicineName: string, alternativeMedicineName: string) => {
+    // 1. Loại bỏ thuốc xung đột khỏi giỏ hàng
+    const updatedCart = cart.filter(
+      (it) => !it.name.toLowerCase().includes(conflictedMedicineName.toLowerCase())
+    );
+
+    try {
+      // 2. Tra cứu kho dược phẩm xem có sẵn thuốc thay thế không
+      const searchRes = await medicineService.getMedicines({ search: alternativeMedicineName, limit: 1 });
+      const altMed = (searchRes?.data && searchRes.data.length > 0) ? searchRes.data[0] : null;
+
+      if (altMed) {
+        const unitOptions = buildUnitOptions(altMed);
+        const defaultUnit = getDefaultUnitOption(altMed);
+        const baseUnit = (altMed as any).baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
+        const dosePerTime = 1;
+        const timesPerDay = 2;
+        const durationDays = 7;
+        const dailyDose = dosePerTime * timesPerDay;
+        const qty = calculateRetailQuantity({
+          unit: defaultUnit,
+          dailyDose,
+          durationDays,
+        });
+        const dosageInstructions = buildRetailDosageInstruction({
+          unitName: defaultUnit.unitName,
+          dosageForm: (altMed as any).dosage_form || (altMed as any).dosageForm,
+          dosePerTime,
+          timesPerDay,
+          durationDays,
+          baseUnitName: baseUnit,
+        });
+
+        const newMedItem = {
+          ...altMed,
+          id: altMed.id || altMed._id,
+          baseUnit: baseUnit,
+          unitOptions,
+          selectedUnit: defaultUnit.unitName,
+          unit: defaultUnit.unitName,
+          exchangeValue: getUnitFactor(defaultUnit),
+          price: getUnitPrice(altMed, defaultUnit),
+          quantity: qty,
+          dosePerTime,
+          timesPerDay,
+          durationDays,
+          dailyDose,
+          dosageInstructions,
+        };
+
+        setCart([...updatedCart, newMedItem]);
+        showToast(`Đã đổi từ "${conflictedMedicineName}" sang thuốc an toàn "${altMed.name}"!`, "success");
+      } else {
+        setCart(updatedCart);
+        showToast(`Đã gỡ thuốc "${conflictedMedicineName}" khỏi đơn. Chưa tìm thấy tồn kho cho "${alternativeMedicineName}", vui lòng tìm thuốc tương đương.`, "warning");
+      }
+    } catch (err) {
+      setCart(updatedCart);
+      showToast(`Đã gỡ "${conflictedMedicineName}" khỏi giỏ hàng.`, "info");
+    }
+  };
+
   const handleUnitChange = (medId: string, unitName: string) => {
     setCart(cart.map(it => {
       if ((it.id || it._id) !== medId) return it;
@@ -1084,10 +1240,10 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       const newQty = isPackageOnlyUnit(opt.unitName)
         ? 1
         : calculateRetailQuantity({
-            unit: opt,
-            dailyDose: it.dailyDose || 2,
-            durationDays: it.durationDays || 7,
-          });
+          unit: opt,
+          dailyDose: it.dailyDose || 2,
+          durationDays: it.durationDays || 7,
+        });
       const baseUnit = getBaseUnitOption(it.unitOptions || [opt]);
       return {
         ...it,
@@ -1600,7 +1756,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         id: "JOINT",
         title: "Bệnh Lý Cơ Xương Khớp & Kháng Viêm",
         badge: "Bổ trợ Khớp & Dạ dày",
-        badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        badgeColor: "bg-sky-50 text-sky-700 border-sky-200",
         icon: "🦴",
         supplements: [
           {
@@ -1631,7 +1787,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-4.5 flex items-center pointer-events-none text-slate-400">
                 {isBarcodeLoading ? (
-                  <Loader2 size={18} className="animate-spin text-emerald-600" />
+                  <Loader2 size={18} className="animate-spin text-sky-600" />
                 ) : loading ? (
                   <Loader2 size={18} className="animate-spin text-emerald-600" />
                 ) : (
@@ -1664,8 +1820,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 )}
                 <div
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider select-none transition-all ${isBarcodeLoading
-                      ? 'bg-emerald-500 text-white animate-pulse shadow-sm shadow-emerald-500/50'
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                      ? 'bg-sky-500 text-white animate-pulse shadow-sm shadow-sky-500/50'
+                      : 'bg-sky-50 text-sky-700 border border-sky-200/60'
                     }`}
                   title="Máy quét Barcode USB / Camera sẵn sàng"
                 >
@@ -1897,28 +2053,28 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
         {/* 🛡️ BANNER THÔNG BÁO XÁC NHẬN DƯỢC SĨ CHO ĐƠN THUỐC TƯ VẤN AI */}
         {aiPharmacistConfirmation?.confirmed && (
-          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-blue-500/10 border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-gradient-to-r from-sky-500/10 via-teal-500/5 to-blue-500/10 border-2 border-sky-400/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center gap-3.5">
               <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30 shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-md shadow-sky-600/30 shrink-0">
                   <ShieldCheck size={26} />
                 </div>
                 <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-sky-500 border-2 border-white"></span>
                 </span>
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
-                    <CheckCircle2 size={11} className="text-emerald-700" /> ĐÃ XÁC NHẬN BƯỚC CUỐI • CHUẨN GPP
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-300 flex items-center gap-1 shadow-2xs">
+                    <CheckCircle2 size={11} className="text-sky-700" /> ĐÃ XÁC NHẬN BƯỚC CUỐI • CHUẨN GPP
                   </span>
                   <span className="text-xs font-mono font-bold text-slate-500">
-                    Mã duyệt: <strong className="text-emerald-700 font-extrabold">{aiPharmacistConfirmation.auditCode}</strong>
+                    Mã duyệt: <strong className="text-sky-700 font-extrabold">{aiPharmacistConfirmation.auditCode}</strong>
                   </span>
                 </div>
                 <h3 className="text-sm font-black text-slate-900 mt-1">
-                  Dược sĩ <span className="text-emerald-700 underline decoration-emerald-400 decoration-2">{aiPharmacistConfirmation.pharmacistName}</span> đã thẩm định đơn thuốc tư vấn AI
+                  Dược sĩ <span className="text-sky-700 underline decoration-sky-400 decoration-2">{aiPharmacistConfirmation.pharmacistName}</span> đã thẩm định đơn thuốc tư vấn AI
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Thời gian duyệt: <strong>{new Date(aiPharmacistConfirmation.confirmedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong> - {new Date(aiPharmacistConfirmation.confirmedAt).toLocaleDateString('vi-VN')} • {aiPharmacistConfirmation.totalItems} khoản mục thuốc
@@ -1930,7 +2086,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               <button
                 type="button"
                 onClick={() => setShowAuditModal(true)}
-                className="px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-300 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer hover:shadow"
+                className="px-3.5 py-2 bg-white hover:bg-sky-50 text-sky-700 font-extrabold text-xs rounded-xl border border-sky-300 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer hover:shadow"
               >
                 <FileCheck2 size={15} /> Xem Biên Bản Thẩm Định AI
               </button>
@@ -1971,7 +2127,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             <button
               type="button"
               onClick={handleQuickConfirmAI}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
             >
               <ShieldCheck size={16} /> Dược Sĩ Xác Nhận Bước Cuối Ngay
             </button>
@@ -1986,8 +2142,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               Giỏ hàng bán lẻ & Phác đồ điều trị
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-black uppercase">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-full text-[10px] font-black uppercase">
+                <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
                 GPP Auto-Sync
               </span>
               <div className="px-3 py-1 bg-[#d8e3fb] text-[#00419e] font-bold text-[11px] rounded-full uppercase tracking-wider">
@@ -1997,6 +2153,83 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-4 space-y-4">
+            {/* UC-107: CẢNH BÁO TƯƠNG KỴ & DỊ ỨNG BỆNH ÁN LÂM SÀNG */}
+            {loyaltyInfo && cart.length > 0 && (
+              <div className="mb-3">
+                {isCheckingAllergy ? (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-700 text-xs font-semibold animate-pulse">
+                    <Loader2 size={16} className="animate-spin text-blue-600" />
+                    <span>Đang kiểm tra chéo tiền sử dị ứng, hoạt chất & bệnh nền lâm sàng...</span>
+                  </div>
+                ) : allergyCheckResult && allergyCheckResult.hasConflict ? (
+                  <div className="flex flex-col gap-2.5 p-3.5 bg-rose-50/90 border-2 border-rose-300 rounded-xl text-rose-900 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 font-black text-[13px] text-rose-700">
+                        <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+                        <span>CẢNH BÁO LÂM SÀNG: PHÁT HIỆN {allergyCheckResult.conflicts?.length || 0} NGUY CƠ DỊ ỨNG / CHỐNG CHỈ ĐỊNH</span>
+                      </div>
+                      <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-black rounded uppercase">
+                        AI Safety Alert
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      {(allergyCheckResult.conflicts || []).map((conf, idx) => {
+                        const alternatives = (conf.safeAlternatives || (conf as any).suggestedAlternatives || []);
+                        return (
+                          <div key={idx} className="bg-white/95 border border-rose-200 rounded-lg p-2.5 space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-slate-800 text-[13px]">
+                                💊 Thuốc trong đơn: <span className="text-rose-600 underline">{conf.medicineName}</span>
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${conf.severity === 'HIGH' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'
+                                }`}>
+                                Mức độ: {conf.severity === 'HIGH' ? 'Nguy hiểm cao' : 'Cảnh báo'}
+                              </span>
+                            </div>
+                            <p className="text-rose-800 font-medium">
+                              ⚠️ {conf.reason}
+                            </p>
+                            {alternatives && alternatives.length > 0 && (
+                              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                                  <Sparkles size={12} className="text-emerald-600" /> Gợi ý thay thế an toàn:
+                                </span>
+                                {alternatives.map((altItem: any, aIdx: number) => {
+                                  const altName = typeof altItem === 'string' ? altItem : (altItem.name || '');
+                                  return (
+                                    <button
+                                      key={aIdx}
+                                      type="button"
+                                      onClick={() => handleSwapSafeAlternative(conf.medicineName, altName)}
+                                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95"
+                                      title={`Đổi ${conf.medicineName} sang ${altName}`}
+                                    >
+                                      🔄 1-Click Đổi sang <b>{altName}</b>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : allergyCheckResult && (!allergyCheckResult.hasConflict || allergyCheckResult.safe) ? (
+                  <div className="flex items-center justify-between p-2.5 bg-sky-50/80 border border-sky-200 rounded-xl text-sky-800 text-xs font-semibold">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={16} className="text-sky-600 shrink-0" />
+                      <span>An toàn lâm sàng (UC-107): Không phát hiện dị ứng hoặc bệnh nền chống chỉ định cho <b>{loyaltyInfo.fullName}</b>.</span>
+                    </div>
+                    <span className="text-[10px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-bold">
+                      Verified
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center min-h-[250px]">
                 <ShoppingCart size={40} className="text-slate-300 mb-3" />
@@ -2021,8 +2254,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   <div
                     key={it.id}
                     className={`rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-sm ${isOverStock
-                        ? "bg-rose-50/40 border-2 border-rose-300"
-                        : "bg-slate-50/60 border border-slate-200/80 hover:border-emerald-600/50"
+                      ? "bg-rose-50/40 border-2 border-rose-300"
+                      : "bg-slate-50/60 border border-slate-200/80 hover:border-emerald-600/50"
                       }`}
                   >
                     {/* Cảnh báo vượt tồn kho */}
@@ -2062,13 +2295,13 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                           <span className="font-black text-slate-900 text-[15px]">{it.name}</span>
                           <span className="text-[11px] text-slate-500 font-medium">({it.active_ingredient || "N/A"})</span>
                           {it.aiSuggested && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
-                              <Sparkles size={10} className="text-emerald-600" /> AI Tư vấn • Đã duyệt GPP
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
+                              <Sparkles size={10} className="text-sky-600" /> AI Tư vấn • Đã duyệt GPP
                             </span>
                           )}
                           {((appliedVoucher?.giftReward && String(it.id || it._id) === String(appliedVoucher.giftReward.medicineId)) || it.isGiftItem) && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
-                              <Gift size={10} className="text-emerald-700" /> 🎁 Quà tặng Voucher {appliedVoucher?.code || ''}
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
+                              <Gift size={10} className="text-sky-700" /> 🎁 Quà tặng Voucher {appliedVoucher?.code || ''}
                             </span>
                           )}
                         </div>
@@ -2082,8 +2315,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             </span>
                           )}
                           {it.fefoBatchNo && (
-                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                              <Zap size={11} className="text-emerald-600" />
+                            <span className="text-[10px] font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 flex items-center gap-1">
+                              <Zap size={11} className="text-sky-600" />
                               Lô FEFO: {it.fefoBatchNo} {it.fefoExpDate ? `(HSD: ${new Date(it.fefoExpDate).toLocaleDateString('vi-VN')})` : ''}
                             </span>
                           )}
@@ -2194,8 +2427,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                               type="button"
                               onClick={() => handleQuickPreset(it.id, d)}
                               className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${it.durationDays === d
-                                  ? "bg-[#0057cd] text-white shadow-xs"
-                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                ? "bg-[#0057cd] text-white shadow-xs"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                 }`}
                             >
                               {d}N
@@ -2214,7 +2447,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             onChange={(e) => handleDosageChange(it.id, 'dosageInstructions', e.target.value)}
                             placeholder={packageOnlyUnit
                               ? "Ví dụ: Bôi một lượng vừa đủ theo hướng dẫn trên nhãn..."
-                             : `Nhập hướng dẫn liều dùng (${baseUnitName})...`}
+                              : `Nhập hướng dẫn liều dùng (${baseUnitName})...`}
                             className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-emerald-600 focus:bg-white"
                           />
                         </div>
@@ -2223,17 +2456,17 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                         <div className="flex flex-wrap items-center gap-1.5 pl-16">
                           {(packageOnlyUnit
                             ? [
-                                "Bôi một lượng vừa đủ theo hướng dẫn trên nhãn",
-                                "Dùng theo hướng dẫn trên nhãn/đơn thuốc",
-                                "Không bôi lên vùng da trầy xước",
-                              ]
+                              "Bôi một lượng vừa đủ theo hướng dẫn trên nhãn",
+                              "Dùng theo hướng dẫn trên nhãn/đơn thuốc",
+                              "Không bôi lên vùng da trầy xước",
+                            ]
                             : [
-                                `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
-                                `Ngày 2 lần sau ăn`,
-                                `Dùng khi đau, cách 4-6h`,
-                                `Trước ăn 30 phút`,
-                                `Dùng với nhiều nước`,
-                              ]
+                              `Sáng 1 ${baseUnitName} - Tối 1 ${baseUnitName} sau ăn`,
+                              `Ngày 2 lần sau ăn`,
+                              `Dùng khi đau, cách 4-6h`,
+                              `Trước ăn 30 phút`,
+                              `Dùng với nhiều nước`,
+                            ]
                           ).map((tag, idx) => (
                             <button
                               key={idx}
@@ -2263,7 +2496,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">KHÁCH HÀNG THÂN THIẾT</h3>
             {loyaltyInfo ? (
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">
+              <span className="text-[10px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded uppercase">
                 {loyaltyInfo.tier} VIP
               </span>
             ) : (
@@ -2380,6 +2613,31 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   )}
                 </div>
               )}
+
+              {/* UC-107: Hồ sơ Y Khoa & Dị Ứng Khách Hàng (Dược sĩ xem & sửa tại quầy) */}
+              <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/70 flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                    <ShieldAlert size={16} />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] font-black text-slate-800 truncate">Hồ sơ y khoa & Dị ứng</span>
+                    <span className="text-[10px] text-slate-600 truncate">
+                      {((loyaltyInfo.allergies?.length || 0) + (loyaltyInfo.chronicConditions?.length || 0) + (loyaltyInfo.allergicMedicines?.length || 0)) > 0
+                        ? `Có ${loyaltyInfo.allergies?.length || 0} dị ứng, ${loyaltyInfo.chronicConditions?.length || 0} bệnh nền`
+                        : "Chưa ghi nhận tiền sử bệnh/dị ứng"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsClinicalModalOpen(true)}
+                  className="px-2.5 py-1 bg-white hover:bg-blue-100 text-[#0057cd] border border-blue-300 rounded-lg text-[10px] font-black shadow-xs shrink-0 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                >
+                  Xem & Sửa
+                </button>
+              </div>
+
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email nhận hóa đơn</label>
                 <input
@@ -2455,22 +2713,22 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             </span>
           </div>
           {appliedVoucher ? (
-            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs font-semibold text-emerald-800">
+            <div className="flex items-center justify-between bg-sky-50 border border-sky-200 p-2.5 rounded-xl text-xs font-semibold text-sky-800">
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  Mã đã dùng: <span className="font-extrabold uppercase font-mono text-emerald-950">{appliedVoucher.code}</span>
+                  Mã đã dùng: <span className="font-extrabold uppercase font-mono text-sky-950">{appliedVoucher.code}</span>
                   {loyaltyInfo ? (
                     <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">
                       ✓ Thành viên Zalo
                     </span>
                   ) : null}
                 </div>
-                <span className="block text-[11px] text-emerald-600 font-bold mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
+                <span className="block text-[11px] text-sky-600 font-bold mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
               </div>
               <button
                 type="button"
                 onClick={handleRemoveVoucher}
-                className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 text-md cursor-pointer"
+                className="text-sky-500 hover:text-sky-800 font-bold ml-2 text-md cursor-pointer"
                 title="Hủy voucher"
               >
                 ×
@@ -2530,7 +2788,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               <span>Thuế VAT (8%)</span>
               <span className="text-slate-900 font-bold">{vat.toLocaleString()}₫</span>
             </div>
-            <div className="flex justify-between items-center text-emerald-600 font-bold text-xs pt-1 border-t border-slate-100">
+            <div className="flex justify-between items-center text-sky-600 font-bold text-xs pt-1 border-t border-slate-100">
               <span>Tích lũy từ đơn này</span>
               <span>+{Math.round(total / 100 * (loyaltyInfo ? loyaltyInfo.multiplier || 1.0 : 1.0)).toLocaleString()} điểm</span>
             </div>
@@ -2569,16 +2827,16 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
         {/* Thẻ trạng thái phê duyệt Dược sĩ cho đơn AI */}
         {aiPharmacistConfirmation?.confirmed && (
-          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl p-3.5 text-xs text-emerald-900 flex items-center justify-between shadow-2xs">
+          <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-300 rounded-2xl p-3.5 text-xs text-sky-900 flex items-center justify-between shadow-2xs">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <ShieldCheck size={16} />
               </div>
               <div>
-                <div className="font-extrabold text-[11px] uppercase tracking-wide text-emerald-950 flex items-center gap-1">
+                <div className="font-extrabold text-[11px] uppercase tracking-wide text-sky-950 flex items-center gap-1">
                   Đơn AI: Đã Thẩm Định Lâm Sàng
                 </div>
-                <div className="text-[10px] text-emerald-700 font-medium">
+                <div className="text-[10px] text-sky-700 font-medium">
                   DS. {aiPharmacistConfirmation.pharmacistName} • {aiPharmacistConfirmation.auditCode}
                 </div>
               </div>
@@ -2586,7 +2844,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             <button
               type="button"
               onClick={() => setShowAuditModal(true)}
-              className="px-2 py-1 bg-white hover:bg-emerald-100/60 text-emerald-800 text-[10px] font-black rounded-lg border border-emerald-300 transition-colors cursor-pointer"
+              className="px-2 py-1 bg-white hover:bg-sky-100/60 text-sky-800 text-[10px] font-black rounded-lg border border-sky-300 transition-colors cursor-pointer"
             >
               Chi tiết
             </button>
@@ -2611,7 +2869,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden flex flex-col transform transition-all duration-300">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                <CheckCircle2 className="text-emerald-500" /> Bán lẻ thành công!
+                <CheckCircle2 className="text-sky-500" /> Bán lẻ thành công!
               </h3>
               <button onClick={() => setShowInvoiceModal(false)} className="text-slate-400 hover:text-slate-700">
                 <XCircle size={22} />
@@ -2635,21 +2893,21 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
               {/* Badge Thẩm Định Lâm Sàng Của Dược Sĩ Cho Đơn Thuốc AI */}
               {invoiceData.aiPharmacistConfirmation?.confirmed && (
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
+                <div className="bg-gradient-to-r from-sky-50 via-teal-50 to-blue-50 border border-sky-300 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                    <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                       <ShieldCheck size={18} />
                     </div>
                     <div>
-                      <div className="font-extrabold text-emerald-950 uppercase text-[11px] flex items-center gap-1.5">
+                      <div className="font-extrabold text-sky-950 uppercase text-[11px] flex items-center gap-1.5">
                         ✓ ĐÃ THẨM ĐỊNH LÂM SÀNG BƯỚC CUỐI (AI ASSISTED)
                       </div>
-                      <div className="text-[10px] text-emerald-800">
-                        Dược sĩ phụ trách: <strong>{invoiceData.aiPharmacistConfirmation.pharmacistName}</strong> • Mã duyệt: <span className="font-mono font-bold text-emerald-700">{invoiceData.aiPharmacistConfirmation.auditCode}</span>
+                      <div className="text-[10px] text-sky-800">
+                        Dược sĩ phụ trách: <strong>{invoiceData.aiPharmacistConfirmation.pharmacistName}</strong> • Mã duyệt: <span className="font-mono font-bold text-sky-700">{invoiceData.aiPharmacistConfirmation.auditCode}</span>
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full shrink-0">
+                  <span className="text-[10px] font-black text-sky-800 bg-sky-100 border border-sky-300 px-2.5 py-0.5 rounded-full shrink-0">
                     GPP Verified
                   </span>
                 </div>
@@ -2712,7 +2970,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     </div>
                   )}
                   {(invoiceData.data?.earnedPoints || 0) > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-bold">
+                    <div className="flex justify-between text-sky-600 font-bold">
                       <span>Tích lũy từ đơn này:</span>
                       <span>+{invoiceData.data.earnedPoints.toLocaleString()} điểm</span>
                     </div>
@@ -2725,16 +2983,16 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     ⭐ ĐÁNH GIÁ DỊCH VỤ - NHẬN QUÀ NGAY ⭐
                   </div>
                   <div className="bg-white p-1 rounded-lg border border-slate-200 print:border-black shadow-sm">
-                    <img 
+                    <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
                         `${window.location.origin}/feedback/${invoiceData.data?.orderCode || invoiceData.data?._id || payosOrderCode || ""}`
                       )}`}
-                      alt="QR Đánh giá dịch vụ" 
+                      alt="QR Đánh giá dịch vụ"
                       className="w-[100px] h-[100px] object-contain"
                     />
                   </div>
                   <div className="text-[11px] text-slate-600 print:text-black font-medium leading-tight">
-                    Quét mã nhận ngay <span className="font-bold text-emerald-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br/>
+                    Quét mã nhận ngay <span className="font-bold text-sky-600 print:font-bold">+1.000đ - 2.000đ</span> tích lũy<br />
                     và Voucher giảm giá cho lần mua sau!
                   </div>
                 </div>
@@ -2788,7 +3046,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               </div>
 
               <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5 justify-center">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></span>
+                <span className="w-2 h-2 bg-sky-500 rounded-full animate-ping"></span>
                 Đang chờ khách chuyển khoản (Tự động cập nhật...)
               </div>
             </div>
@@ -2864,7 +3122,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   type="text"
                   disabled
                   value={`${total.toLocaleString('vi-VN')} đ`}
-                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-bold text-emerald-600"
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-bold text-sky-600"
                 />
               </div>
 
@@ -2986,10 +3244,10 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     {recording
                       ? "🎙️ Đang nghe giọng nói... (nói tới đâu chữ nhảy tới đó)"
                       : isTranscribing
-                      ? "✨ AI đang bóc tách âm thanh thành văn bản..."
-                      : voiceBlob
-                      ? `Đã lưu bản ghi âm (${timer}s) sẵn sàng`
-                      : "Nhấp nút tròn để ghi âm triệu chứng"}
+                        ? "✨ AI đang bóc tách âm thanh thành văn bản..."
+                        : voiceBlob
+                          ? `Đã lưu bản ghi âm (${timer}s) sẵn sàng`
+                          : "Nhấp nút tròn để ghi âm triệu chứng"}
                   </span>
                 </div>
 
@@ -3005,7 +3263,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                       </span>
                     )}
                     {recording && symptomText && (
-                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                      <span className="text-[10px] text-sky-600 font-bold flex items-center gap-1">
                         ● Đang nhận diện trực tiếp
                       </span>
                     )}
@@ -3018,8 +3276,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                       recording
                         ? "🎙️ Đang lắng nghe... Lời nói của bạn sẽ xuất hiện tại đây theo thời gian thực..."
                         : isTranscribing
-                        ? "✨ AI Whisper đang phiên âm giọng nói của bạn, vui lòng đợi giây lát..."
-                        : "Ví dụ: Bệnh nhân sốt cao 39 độ, đau rát họng, ho có đờm 2 ngày..."
+                          ? "✨ AI Whisper đang phiên âm giọng nói của bạn, vui lòng đợi giây lát..."
+                          : "Ví dụ: Bệnh nhân sốt cao 39 độ, đau rát họng, ho có đờm 2 ngày..."
                     }
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white resize-none"
                   />
@@ -3079,7 +3337,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             const match = aiResult.inventory_status?.available?.find(
                               (av: any) => av.name.toLowerCase() === drug.name.toLowerCase()
                             );
-                            const altList: any[] = match?.suggested_alternatives || 
+                            const altList: any[] = match?.suggested_alternatives ||
                               aiResult.inventory_status?.out_of_stock_details?.find((d: any) => d.name.toLowerCase() === drug.name.toLowerCase())?.suggested_alternatives || [];
 
                             return (
@@ -3090,8 +3348,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                                     <div className="text-[11px] text-slate-500 mt-0.5">Liều dùng: {drug.dosage}</div>
                                   </div>
                                   {match && match.stock > 0 ? (
-                                    <span className="text-[10px] text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full font-bold uppercase shrink-0 flex items-center gap-1 shadow-2xs">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span className="text-[10px] text-sky-700 bg-sky-100 border border-sky-200 px-2.5 py-1 rounded-full font-bold uppercase shrink-0 flex items-center gap-1 shadow-2xs">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>
                                       Còn tại CN: {match.stock} {match.unit || "Hộp"}
                                     </span>
                                   ) : (
@@ -3116,7 +3374,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
                                 {/* Khối gợi ý thuốc thay thế có sẵn tại chi nhánh nếu thuốc này hết hàng */}
                                 {(!match || match.stock <= 0) && altList.length > 0 && (
-                                  <div className="mt-1 pt-2 border-t border-rose-100 flex flex-col gap-1.5 bg-gradient-to-r from-amber-50/60 to-emerald-50/40 p-2.5 rounded-lg border border-amber-200/60">
+                                  <div className="mt-1 pt-2 border-t border-rose-100 flex flex-col gap-1.5 bg-gradient-to-r from-amber-50/60 to-sky-50/40 p-2.5 rounded-lg border border-amber-200/60">
                                     <span className="text-[10px] font-black text-amber-900 uppercase tracking-wide flex items-center gap-1">
                                       <span>⚡</span> Gợi ý thay thế CÒN HÀNG tại chi nhánh ({currentBranch}):
                                     </span>
@@ -3126,12 +3384,12 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                                           key={aIdx}
                                           type="button"
                                           onClick={() => handleSwapAlternative(idx, alt)}
-                                          className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-slate-800 hover:text-emerald-900 border border-amber-300 hover:border-emerald-500 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
+                                          className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-800 hover:text-sky-900 border border-amber-300 hover:border-sky-500 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
                                           title="Nhấp để tự động đổi sang thuốc này"
                                         >
-                                          <span className="text-emerald-600 font-extrabold group-hover:scale-125 transition-transform">✓</span>
+                                          <span className="text-sky-600 font-extrabold group-hover:scale-125 transition-transform">✓</span>
                                           <span className="font-bold">{alt.name}</span>
-                                          <span className="text-[10px] text-emerald-800 bg-emerald-100/90 px-1.5 py-0.5 rounded font-bold">
+                                          <span className="text-[10px] text-sky-800 bg-sky-100/90 px-1.5 py-0.5 rounded font-bold">
                                             Tồn: {alt.stock} {alt.unit || "Hộp"}
                                           </span>
                                           <span className="text-[10px] text-slate-400 font-medium">({alt.reason})</span>
@@ -3160,20 +3418,20 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                     )}
 
                     {/* Khối Thẩm Định Bước Cuối Của Dược Sĩ Cho Đơn AI Tư Vấn */}
-                    <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-emerald-200/80 pb-2.5">
+                    <div className="bg-gradient-to-r from-sky-50 via-teal-50 to-blue-50 border-2 border-sky-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-sky-200/80 pb-2.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                          <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs shrink-0">
                             <ShieldCheck size={18} />
                           </div>
                           <div>
-                            <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                            <h4 className="text-xs font-black text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
                               Thẩm Định Lâm Sàng Của Dược Sĩ
-                              <span className="bg-emerald-200 text-emerald-900 text-[9px] px-1.5 py-0.5 rounded-full font-black border border-emerald-300">
+                              <span className="bg-sky-200 text-sky-900 text-[9px] px-1.5 py-0.5 rounded-full font-black border border-sky-300">
                                 Bắt buộc GPP
                               </span>
                             </h4>
-                            <p className="text-[11px] text-emerald-800">
+                            <p className="text-[11px] text-sky-800">
                               Dược sĩ: <strong>{getBranchInfoFromToken().fullName || "Dược sĩ Trần Thị A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
                             </p>
                           </div>
@@ -3182,21 +3440,21 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
                       {/* Checklist nhanh */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                        <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Khớp triệu chứng & liều dùng
+                        <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                          <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Khớp triệu chứng & liều dùng
                         </div>
-                        <div className="flex items-center gap-1.5 text-emerald-900 bg-white/80 p-2 rounded-xl border border-emerald-100 font-medium">
-                          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> Kiểm tra tồn kho & xuất FEFO
+                        <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
+                          <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Kiểm tra tồn kho & xuất FEFO
                         </div>
                       </div>
 
                       {/* Checkbox cam kết trách nhiệm */}
-                      <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-emerald-300 hover:bg-emerald-50/50 transition-colors shadow-2xs">
+                      <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-sky-300 hover:bg-sky-50/50 transition-colors shadow-2xs">
                         <input
                           type="checkbox"
                           checked={pharmacistAgreementCheck}
                           onChange={(e) => setPharmacistAgreementCheck(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                          className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
                         />
                         <span className="text-xs text-slate-700 leading-snug">
                           Tôi xác nhận đã kiểm tra triệu chứng khách hàng, đối soát đề xuất AI và <strong>chịu hoàn toàn trách nhiệm chuyên môn</strong> xuất bán đơn này.
@@ -3206,7 +3464,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
                     <button
                       onClick={handleAddAiToCart}
-                      className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-emerald-600/30 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                      className="w-full py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-sky-600/30 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
                     >
                       <ShieldCheck size={18} /> Dược Sĩ Phê Duyệt & Thêm Vào Đơn Hàng
                     </button>
@@ -3251,7 +3509,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                         <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-2">
                           <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-600">Hoạt chất: {alt.active_ingredient || "N/A"}</span>
                           <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-600">Dạng: {alt.dosage_form || "N/A"}</span>
-                          {alt.matchLevel === 1 && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold border border-emerald-200">Khớp hoạt chất</span>}
+                          {alt.matchLevel === 1 && <span className="bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-bold border border-sky-200">Khớp hoạt chất</span>}
                           {alt.matchLevel === 2 && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-200">Cùng danh mục</span>}
                         </div>
                       </div>
@@ -3287,6 +3545,34 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         onClose={() => setShowAuditModal(false)}
         data={aiPharmacistConfirmation}
       />
+
+      {/* =======================================
+       * 🏥 MODAL HỒ SƠ BỆNH ÁN & DỊ ỨNG KHÁCH HÀNG (UC-107)
+       * ======================================= */}
+      {isClinicalModalOpen && loyaltyInfo && (
+        <CustomerClinicalModal
+          isOpen={isClinicalModalOpen}
+          onClose={() => setIsClinicalModalOpen(false)}
+          customerPhone={loyaltyInfo.phone}
+          customerName={loyaltyInfo.fullName}
+          initialProfile={{
+            allergies: loyaltyInfo.allergies || [],
+            allergicMedicines: loyaltyInfo.allergicMedicines || [],
+            allergicIngredients: loyaltyInfo.allergicIngredients || [],
+            chronicConditions: loyaltyInfo.chronicConditions || [],
+            bloodType: loyaltyInfo.bloodType || '',
+            medicalNotes: loyaltyInfo.medicalNotes || '',
+            hasCompletedHealthOnboarding: loyaltyInfo.hasCompletedHealthOnboarding || false,
+          }}
+          onUpdated={(updatedProfile) => {
+            setLoyaltyInfo((prev: any) => ({
+              ...prev,
+              ...updatedProfile,
+            }));
+            showToast("Đã cập nhật hồ sơ bệnh án khách hàng thành công!", "success");
+          }}
+        />
+      )}
     </div>
   );
 }

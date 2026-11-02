@@ -6,29 +6,64 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
-    },
-    "preview": {
       "distribution": "internal",
-      "credentialsSource": "local",
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview-android": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
-        "EXPO_PUBLIC_AI_URL": "https://ai-service-v1-production.up.railway.app"
+        "EXPO_PUBLIC_AI_URL": "https://abcpharmacy.store"
+      }
+    },
+    "preview-ios": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
+        "EXPO_PUBLIC_AI_URL": "https://abcpharmacy.store"
+      }
+    },
+    "preview-ios-device": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
+        "EXPO_PUBLIC_AI_URL": "https://abcpharmacy.store"
       }
     },
     "production": {
-      "credentialsSource": "local",
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "distribution": "store"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
-        "EXPO_PUBLIC_AI_URL": "https://ai-service-v1-production.up.railway.app"
+        "EXPO_PUBLIC_AI_URL": "https://abcpharmacy.store"
+      }
+    },
+    "production-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://abcpharmacy.store",
+        "EXPO_PUBLIC_AI_URL": "https://abcpharmacy.store"
       }
     }
   },

@@ -84,13 +84,33 @@ export class User extends Document {
   @Prop({ default: 'Bronze' })
   tier?: string;
 
-  /** Tiền sử dị ứng thuốc/hoạt chất */
+  /** Tiền sử dị ứng thuốc/hoạt chất chung (VD: Penicillin, Cephalosporin, NSAIDs, Sulfonamide...) */
   @Prop({ type: [String], default: [] })
   allergies?: string[];
 
-  /** Tiền sử bệnh mãn tính */
+  /** Danh sách biệt dược / thuốc cụ thể bị dị ứng (VD: Augmentin, Panadol Extra, Aspirin 81...) */
+  @Prop({ type: [String], default: [] })
+  allergicMedicines?: string[];
+
+  /** Danh sách thành phần hoạt chất bị dị ứng (VD: Amoxicillin, Paracetamol, Ibuprofen, Sulfamethoxazole...) */
+  @Prop({ type: [String], default: [] })
+  allergicIngredients?: string[];
+
+  /** Tiền sử bệnh nền / bệnh mãn tính (VD: Viêm loét dạ dày, Tăng huyết áp, Đái tháo đường, Hen suyễn, Suy gan, Suy thận, Thai kỳ...) */
   @Prop({ type: [String], default: [] })
   chronicConditions?: string[];
+
+  /** Nhóm máu bệnh nhân (A, B, AB, O, Rh+, Rh-) */
+  @Prop({ default: null })
+  bloodType?: string;
+
+  /** Ghi chú y tế đặc biệt / tiền sử điều trị / chỉ định bác sĩ */
+  @Prop({ default: null })
+  medicalNotes?: string;
+
+  /** Cờ đánh dấu người dùng đã hoàn thành khai báo hồ sơ y tế ban đầu hay chưa */
+  @Prop({ default: false })
+  hasCompletedHealthOnboarding?: boolean;
 
   @Prop({ type: [String], default: [], select: false })
   loyaltyOperationKeys?: string[];

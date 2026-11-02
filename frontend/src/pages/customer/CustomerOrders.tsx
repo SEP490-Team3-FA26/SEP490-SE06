@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, Package, 
   Clock, 
   Truck, 
@@ -204,7 +204,7 @@ function RealDeliveryMap({
       <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 4px;">
         <strong style="color: #1e40af; font-size: 13px;">${originName}</strong><br/>
         <span style="color: #64748b;">📍 ${originAddress}</span><br/>
-        <span style="color: #059669; font-weight: bold;">✓ Đạt chuẩn GPP/GDP Dược Phẩm</span>
+        <span style="color: #0284c7; font-weight: bold;">✓ Đạt chuẩn GPP/GDP Dược Phẩm</span>
       </div>
     `);
 
@@ -213,10 +213,10 @@ function RealDeliveryMap({
       className: 'custom-dest-marker',
       html: `
         <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-          <div style="background: #10b981; color: #ffffff; width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2.5px solid #ffffff; box-shadow: 0 4px 12px rgba(16,185,129,0.5); font-size: 18px;">
+          <div style="background: #0284c7; color: #ffffff; width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2.5px solid #ffffff; box-shadow: 0 4px 12px rgba(2, 132, 199,0.5); font-size: 18px;">
             🏠
           </div>
-          <div style="margin-top: 3px; background: #0f172a; color: #ffffff; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 1px solid #10b981;">
+          <div style="margin-top: 3px; background: #0f172a; color: #ffffff; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 1px solid #0284c7;">
             Địa chỉ nhận thuốc
           </div>
         </div>
@@ -228,7 +228,7 @@ function RealDeliveryMap({
     const destMarker = L.marker(destCoords, { icon: destIcon }).addTo(map);
     destMarker.bindPopup(`
       <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 4px;">
-        <strong style="color: #065f46; font-size: 13px;">Người nhận: ${destName}</strong><br/>
+        <strong style="color: #0369a1; font-size: 13px;">Người nhận: ${destName}</strong><br/>
         <span style="color: #64748b;">📍 ${destAddress}</span><br/>
         <span style="color: #2563eb; font-weight: bold;">🚚 Giao tận tay người bệnh</span>
       </div>
@@ -308,7 +308,7 @@ function RealDeliveryMap({
             <strong style="color: #0369a1; font-size: 13px;">Tài xế: ${shipperName}</strong><br/>
             <span>📞 SĐT: <strong>${shipperPhone}</strong></span><br/>
             <span>🛵 Biển số: <strong>${vehiclePlate}</strong></span><br/>
-            <span style="color: #059669; font-weight: bold;">❄️ Thùng bảo ôn GPP 4.5°C</span>
+            <span style="color: #0284c7; font-weight: bold;">❄️ Thùng bảo ôn GPP 4.5°C</span>
           </div>
         `);
       }
@@ -719,7 +719,7 @@ export function CustomerOrders() {
       {/* 1. PREMIUM HERO BANNER (Đồng bộ format chuẩn CustomerShop.tsx) */}
       {/* ============================================================ */}
       <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-sky-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
         <div className="relative z-10 max-w-3xl flex flex-col gap-4">
           <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
@@ -744,7 +744,7 @@ export function CustomerOrders() {
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col">
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Đã Hoàn Tất</span>
-              <span className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">
+              <span className="text-lg sm:text-xl font-black text-sky-300 mt-0.5">
                 {orders.filter(o => o.paymentStatus === 'PAID').length} Đơn
               </span>
             </div>
@@ -769,7 +769,7 @@ export function CustomerOrders() {
       {/* ============================================================ */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Banner tri ân feedback (8 cols) */}
-        <div className="lg:col-span-8 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-700 text-white p-5 rounded-3xl shadow-sm flex items-center justify-between gap-4 border border-emerald-400/20">
+        <div className="lg:col-span-8 bg-gradient-to-r from-sky-600 via-teal-600 to-blue-700 text-white p-5 rounded-3xl shadow-sm flex items-center justify-between gap-4 border border-sky-400/20">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
               <Gift size={24} className="text-amber-300" />
@@ -779,7 +779,7 @@ export function CustomerOrders() {
                 <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
                   ⭐ Quà Tặng Đánh Giá
                 </span>
-                <span className="text-xs text-emerald-100 font-semibold hidden sm:inline">Tri ân khách hàng</span>
+                <span className="text-xs text-sky-100 font-semibold hidden sm:inline">Tri ân khách hàng</span>
               </div>
               <p className="text-xs sm:text-sm font-bold text-white mt-1 leading-snug">
                 Đánh giá đơn hàng đã nhận để nhận ngay <strong className="text-amber-300 font-black">+1.000đ – +2.000đ Điểm Thưởng</strong> & <strong className="text-white font-black underline">Voucher 5.000đ</strong>!
@@ -903,7 +903,7 @@ export function CustomerOrders() {
                         <AlertCircle size={13} /> Đã hủy đơn
                       </span>
                     ) : isPosInStore ? (
-                      <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200 flex items-center gap-1">
+                      <span className="px-3 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-bold border border-sky-200 flex items-center gap-1">
                         <CheckCircle2 size={13} /> Mua trực tiếp tại quầy (Đã xuất đơn GPP)
                       </span>
                     ) : isPaid ? (
@@ -983,12 +983,12 @@ export function CustomerOrders() {
                         onClick={() => handleOpenFeedback(order)}
                         className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-[0.98] ${
                           order.isReviewed
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-emerald-500/10'
+                            ? 'bg-sky-50 text-sky-700 border border-sky-200 shadow-sky-500/10'
                             : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-amber-500/20'
                         }`}
                         title="Đánh giá chất lượng phục vụ & nhận +1.000đ - 2.000đ điểm thưởng và voucher 5k"
                       >
-                        <Star size={14} className={order.isReviewed ? "fill-emerald-600 text-emerald-600" : "fill-white"} />
+                        <Star size={14} className={order.isReviewed ? "fill-sky-600 text-sky-600" : "fill-white"} />
                         {order.isReviewed ? "Đã Đánh Giá" : "⭐ Đánh Giá (+2k điểm)"}
                       </button>
                     )}
@@ -1005,7 +1005,7 @@ export function CustomerOrders() {
                       // Đơn mua tại quầy: Mở Hóa Đơn & Chứng Từ GPP (Không hiển thị bản đồ shipper vô lý)
                       <button
                         onClick={() => setPosInvoiceOrder(order)}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all active:scale-[0.98]"
+                        className="w-full sm:w-auto px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-sky-500/20 transition-all active:scale-[0.98]"
                       >
                         <Receipt size={14} />
                         Hóa Đơn & Chứng Từ GPP Tại Quầy
@@ -1066,7 +1066,7 @@ export function CustomerOrders() {
                 className="relative bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] z-10"
               >
                 {/* Header */}
-                <div className="p-5 bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white flex justify-between items-center shrink-0">
+                <div className="p-5 bg-gradient-to-r from-sky-700 via-teal-800 to-sky-900 text-white flex justify-between items-center shrink-0">
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
                       <Store className="text-white" size={22} />
@@ -1076,16 +1076,16 @@ export function CustomerOrders() {
                         <h3 className="font-black text-base text-white tracking-tight">
                           Hóa Đơn & Chứng Từ Xuất Bán Tại Quầy (GPP Verified)
                         </h3>
-                        <span className="text-[10px] font-bold bg-emerald-400/30 text-emerald-200 border border-emerald-300/40 px-2 py-0.5 rounded-md">
+                        <span className="text-[10px] font-bold bg-sky-400/30 text-sky-200 border border-sky-300/40 px-2 py-0.5 rounded-md">
                           GPP Chuẩn BYT
                         </span>
                       </div>
-                      <p className="text-xs text-emerald-200 mt-0.5">
+                      <p className="text-xs text-sky-200 mt-0.5">
                         Mã hóa đơn: <strong className="text-white font-mono">#POS-{code}</strong> • Đã nhận trực tiếp tại quầy
                       </p>
                     </div>
                   </div>
-                  <button onClick={() => setPosInvoiceOrder(null)} className="p-2 text-emerald-200 hover:text-white rounded-full hover:bg-white/10">
+                  <button onClick={() => setPosInvoiceOrder(null)} className="p-2 text-sky-200 hover:text-white rounded-full hover:bg-white/10">
                     <X size={20} />
                   </button>
                 </div>
@@ -1094,9 +1094,9 @@ export function CustomerOrders() {
                 <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1 text-sm">
                   
                   {/* Thông tin CSDL Dược Quốc Gia */}
-                  <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="p-4 bg-sky-50/70 rounded-2xl border border-sky-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase flex items-center gap-1">
+                      <span className="text-[10px] font-bold text-sky-700 uppercase flex items-center gap-1">
                         <ShieldCheck size={13} /> CSDL Dược Quốc Gia (Hệ Thống Mô Phỏng GPP)
                       </span>
                       <strong className="text-slate-800 block text-xs mt-1 font-mono">
@@ -1104,7 +1104,7 @@ export function CustomerOrders() {
                       </strong>
                       <span className="text-[11px] text-slate-500">Mã cơ sở GPP: <strong>{facilityCode}</strong></span>
                     </div>
-                    <div className="px-3 py-1.5 bg-white rounded-xl border border-emerald-200 text-[11px] font-bold text-emerald-700 flex items-center gap-1.5 shadow-sm">
+                    <div className="px-3 py-1.5 bg-white rounded-xl border border-sky-200 text-[11px] font-bold text-sky-700 flex items-center gap-1.5 shadow-sm">
                       <CheckSquare size={13} /> Đã đồng bộ Bộ Y Tế
                     </div>
                   </div>
@@ -1123,7 +1123,7 @@ export function CustomerOrders() {
                     </div>
 
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                      <span className="text-[10px] font-bold text-emerald-600 uppercase flex items-center gap-1">
+                      <span className="text-[10px] font-bold text-sky-600 uppercase flex items-center gap-1">
                         <User size={13} /> Khách hàng mua tại quầy
                       </span>
                       <strong className="text-slate-900 block text-xs mt-1">
@@ -1177,7 +1177,7 @@ export function CustomerOrders() {
                                 </td>
                                 <td className="p-3 text-[11px] font-mono text-slate-500">
                                   <div>Lô: <strong>{it.batchNo || "L-202604"}</strong></div>
-                                  <div className="text-emerald-600 font-sans text-[10px]">HSD: 12/2027</div>
+                                  <div className="text-sky-600 font-sans text-[10px]">HSD: 12/2027</div>
                                 </td>
                                 <td className="p-3 text-center font-bold text-slate-700">{it.quantity} {it.unit || 'Hộp'}</td>
                                 <td className="p-3 text-right text-slate-600">{(it.price || 0).toLocaleString()} đ</td>
@@ -1202,7 +1202,7 @@ export function CustomerOrders() {
                     </div>
                     <div className="text-right">
                       <span className="text-xs text-slate-400 block">Tổng tiền đã thanh toán:</span>
-                      <strong className="text-lg font-black text-emerald-600">
+                      <strong className="text-lg font-black text-sky-600">
                         {(posInvoiceOrder.totalAmount || 0).toLocaleString()} đ
                       </strong>
                     </div>
@@ -1244,7 +1244,7 @@ export function CustomerOrders() {
                 {/* Footer */}
                 <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
                   <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-emerald-600" />
+                    <ShieldCheck size={14} className="text-sky-600" />
                     <span>Chứng từ điện tử tuân thủ quy chế thực hành tốt bán lẻ thuốc GPP</span>
                   </div>
                   <button
@@ -1297,7 +1297,7 @@ export function CustomerOrders() {
                         <h3 className="font-black text-base text-white tracking-tight">
                           Giám Sát Hành Trình Giao Hàng Tuyến Đường (Last-Mile Pharma Tracking)
                         </h3>
-                        <span className="text-[10px] font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-md">
+                        <span className="text-[10px] font-bold bg-sky-500/30 text-sky-300 border border-sky-400/40 px-2 py-0.5 rounded-md">
                           GPP Cold-Pack
                         </span>
                       </div>
@@ -1318,16 +1318,16 @@ export function CustomerOrders() {
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between text-xs gap-2">
                       <div className="flex items-center gap-2">
-                        <Radio size={14} className={info.isDelivered ? "text-emerald-500" : "text-emerald-500 animate-pulse"} />
+                        <Radio size={14} className={info.isDelivered ? "text-sky-500" : "text-sky-500 animate-pulse"} />
                         <span className="font-bold text-slate-700">Tọa độ tuyến đường:</span>
-                        <span className="text-emerald-700 font-mono font-bold">
+                        <span className="text-sky-700 font-mono font-bold">
                           {info.shipperCoords[0].toFixed(4)}° N, {info.shipperCoords[1].toFixed(4)}° E
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-slate-600">
                         <span>Khoảng cách: <strong className="text-slate-900">{info.distanceKm}</strong></span>
                         <span>•</span>
-                        <span>Trạng thái: <strong className={info.isDelivered ? "text-emerald-700 font-bold" : "text-blue-700 font-bold"}>{info.estimatedMinutes}</strong></span>
+                        <span>Trạng thái: <strong className={info.isDelivered ? "text-sky-700 font-bold" : "text-blue-700 font-bold"}>{info.estimatedMinutes}</strong></span>
                       </div>
                     </div>
 
@@ -1367,10 +1367,10 @@ export function CustomerOrders() {
 
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Bảo quản lạnh Y tế</span>
-                      <strong className="text-emerald-700 block text-xs font-black mt-0.5 flex items-center gap-1">
+                      <strong className="text-sky-700 block text-xs font-black mt-0.5 flex items-center gap-1">
                         <Thermometer size={13} /> {info.tempStatus}
                       </strong>
-                      <span className="text-[10px] text-emerald-600 font-semibold">Túi niêm phong chống sốc nhiệt</span>
+                      <span className="text-[10px] text-sky-600 font-semibold">Túi niêm phong chống sốc nhiệt</span>
                     </div>
                   </div>
 
@@ -1387,7 +1387,7 @@ export function CustomerOrders() {
 
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-emerald-600 uppercase flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-sky-600 uppercase flex items-center gap-1">
                           <Home size={12} /> Địa chỉ người nhận thuốc (DB)
                         </span>
                         <button 
@@ -1402,7 +1402,7 @@ export function CustomerOrders() {
                       </div>
                       <strong className="text-slate-900 block text-xs mt-1">{info.destination.receiverName} ({info.destination.receiverPhone})</strong>
                       <p className="text-slate-600 text-[11px] mt-0.5 font-medium">{info.destination.address}</p>
-                      <span className="text-[10px] text-emerald-600 font-bold block mt-1">✓ Giao thuốc tận tay & đồng kiểm</span>
+                      <span className="text-[10px] text-sky-600 font-bold block mt-1">✓ Giao thuốc tận tay & đồng kiểm</span>
                     </div>
                   </div>
 
@@ -1415,7 +1415,7 @@ export function CustomerOrders() {
                       {info.milestones.map((m, idx) => (
                         <div key={idx} className="relative">
                           <span className={`absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white flex items-center justify-center ${
-                            m.status === "COMPLETED" ? "bg-emerald-600" :
+                            m.status === "COMPLETED" ? "bg-sky-600" :
                             m.status === "CURRENT" ? "bg-blue-600 animate-ping" : "bg-slate-300"
                           }`} />
                           
@@ -1439,7 +1439,7 @@ export function CustomerOrders() {
                 {/* Footer */}
                 <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
                   <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-emerald-600" />
+                    <ShieldCheck size={14} className="text-sky-600" />
                     <span>Dược phẩm bảo quản nghiêm ngặt theo thông tư 02/2018/TT-BYT</span>
                   </div>
                   <button
@@ -1487,8 +1487,8 @@ export function CustomerOrders() {
 
               <div className="p-5">
                 {addressSuccessMsg ? (
-                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-center space-y-1">
-                    <CheckCircle2 size={24} className="mx-auto text-emerald-600" />
+                  <div className="bg-sky-50 border border-sky-200 text-sky-800 p-4 rounded-2xl text-center space-y-1">
+                    <CheckCircle2 size={24} className="mx-auto text-sky-600" />
                     <p className="text-xs font-bold">{addressSuccessMsg}</p>
                   </div>
                 ) : (
@@ -1580,7 +1580,7 @@ export function CustomerOrders() {
                 {feedbackResult ? (
                   /* Kết quả thành công */
                   <div className="text-center py-4 space-y-4">
-                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
+                    <div className="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mx-auto text-sky-600">
                       <CheckCircle2 size={36} />
                     </div>
                     <div>
@@ -1596,7 +1596,7 @@ export function CustomerOrders() {
                       </div>
                       <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-amber-100 text-xs font-semibold">
                         <span className="text-slate-600">Điểm Loyalty thưởng:</span>
-                        <strong className="text-emerald-600 text-sm font-black">+{feedbackResult.rewardPointsEarned?.toLocaleString() || '1.000'}đ</strong>
+                        <strong className="text-sky-600 text-sm font-black">+{feedbackResult.rewardPointsEarned?.toLocaleString() || '1.000'}đ</strong>
                       </div>
                       {feedbackResult.voucher && (
                         <div className="bg-white p-2.5 rounded-xl border border-amber-100 text-xs space-y-1">
@@ -1613,7 +1613,7 @@ export function CustomerOrders() {
 
                     <button
                       onClick={() => setFeedbackOrder(null)}
-                      className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-sm font-black transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                      className="w-full py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white rounded-2xl text-sm font-black transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                     >
                       <CheckCircle2 size={18} className="text-white" />
                       Hoàn Tất & Đóng
@@ -1628,7 +1628,7 @@ export function CustomerOrders() {
                         <Gift size={18} />
                       </div>
                       <p className="text-xs text-amber-800 leading-snug">
-                        Nhận ngay <strong className="text-emerald-700 font-black">+1.000đ - 2.000đ</strong> tích lũy & Voucher 5k cho lần mua sau khi gửi đánh giá!
+                        Nhận ngay <strong className="text-sky-700 font-black">+1.000đ - 2.000đ</strong> tích lũy & Voucher 5k cho lần mua sau khi gửi đánh giá!
                       </p>
                     </div>
 

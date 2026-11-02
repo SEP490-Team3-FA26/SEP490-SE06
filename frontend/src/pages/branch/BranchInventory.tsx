@@ -325,7 +325,7 @@ export function BranchInventory() {
                       <div className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden shadow-inner">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${item.stock <= 0 ? 'bg-rose-500 w-0' :
-                            item.stock <= (item.minStock || 50) ? 'bg-amber-500' : 'bg-emerald-500'
+                            item.stock <= (item.minStock || 50) ? 'bg-amber-500' : 'bg-sky-500'
                             }`}
                           style={{ width: `${Math.min(100, Math.max(0, (item.stock / (item.minStock || 50)) * 100))}%` }}
                         />
@@ -356,8 +356,8 @@ export function BranchInventory() {
                         </span>
                       );
                       return (
-                        <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                          <CheckCircle2 size={12} className="text-emerald-500" />
+                        <span className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-100">
+                          <CheckCircle2 size={12} className="text-sky-500" />
                           Sẵn sàng
                         </span>
                       );
@@ -396,7 +396,7 @@ export function BranchInventory() {
                                         <span className={isExpired ? 'text-rose-600 font-bold' : 'text-slate-500'}>
                                           Hạn: {new Date(b.expDate).toLocaleDateString("vi-VN")}
                                         </span>
-                                        <span className={`font-semibold ${isExpired ? 'text-rose-600 bg-rose-50 px-1 rounded' : 'text-emerald-500'}`}>
+                                        <span className={`font-semibold ${isExpired ? 'text-rose-600 bg-rose-50 px-1 rounded' : 'text-sky-500'}`}>
                                           {isExpired ? 'Hết hạn' : 'Hoạt động'}
                                         </span>
                                       </div>

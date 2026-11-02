@@ -281,7 +281,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={styles.headerIcon}>
-                <Ionicons name="calendar" size={20} color="#059669" />
+                <Ionicons name="calendar" size={20} color="#0284C7" />
               </View>
               <View style={{ marginLeft: 10 }}>
                 <Text style={styles.title}>Nghỉ Phép & Nghỉ Ca</Text>
@@ -303,7 +303,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
                 <Ionicons
                   name="shield-checkmark"
                   size={15}
-                  color={activeTab === 'APPROVAL' ? '#059669' : '#64748B'}
+                  color={activeTab === 'APPROVAL' ? '#0284C7' : '#64748B'}
                 />
                 <Text
                   style={[styles.tabBtnText, activeTab === 'APPROVAL' && styles.tabBtnTextActive]}
@@ -320,7 +320,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
               <Ionicons
                 name="add-circle"
                 size={15}
-                color={activeTab === 'CREATE' ? '#059669' : '#64748B'}
+                color={activeTab === 'CREATE' ? '#0284C7' : '#64748B'}
               />
               <Text
                 style={[styles.tabBtnText, activeTab === 'CREATE' && styles.tabBtnTextActive]}
@@ -336,7 +336,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
               <Ionicons
                 name="list"
                 size={15}
-                color={activeTab === 'MINE' ? '#059669' : '#64748B'}
+                color={activeTab === 'MINE' ? '#0284C7' : '#64748B'}
               />
               <Text
                 style={[styles.tabBtnText, activeTab === 'MINE' && styles.tabBtnTextActive]}
@@ -352,10 +352,10 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
               <View style={{ paddingBottom: 24 }}>
                 <Text style={styles.sectionHeader}>Danh Sách Đơn Cần Phê Duyệt</Text>
                 {loadingBranch ? (
-                  <ActivityIndicator size="small" color="#059669" style={{ marginVertical: 20 }} />
+                  <ActivityIndicator size="small" color="#0284C7" style={{ marginVertical: 20 }} />
                 ) : branchLeaves.filter((l) => l.status === 'PENDING').length === 0 ? (
                   <View style={styles.emptyBox}>
-                    <Ionicons name="checkmark-done-circle" size={40} color="#10B981" />
+                    <Ionicons name="checkmark-done-circle" size={40} color="#0284C7" />
                     <Text style={styles.emptyText}>Hiện không có đơn nào đang chờ duyệt</Text>
                   </View>
                 ) : (
@@ -532,7 +532,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
                     <Ionicons
                       name={selectedLeaveType === t.id ? 'radio-button-on' : 'radio-button-off'}
                       size={18}
-                      color={selectedLeaveType === t.id ? '#059669' : '#94A3B8'}
+                      color={selectedLeaveType === t.id ? '#0284C7' : '#94A3B8'}
                     />
                     <View style={{ marginLeft: 10, flex: 1 }}>
                       <Text style={styles.typeTitle}>{t.label}</Text>
@@ -575,7 +575,7 @@ export const StaffLeaveModal: React.FC<StaffLeaveModalProps> = ({
               <View style={{ paddingBottom: Math.max(insets.bottom + 24, 40) }}>
                 <Text style={styles.sectionHeader}>Đơn Xin Nghỉ Của Tôi</Text>
                 {loadingLeaves ? (
-                  <ActivityIndicator size="small" color="#059669" style={{ marginVertical: 20 }} />
+                  <ActivityIndicator size="small" color="#0284C7" style={{ marginVertical: 20 }} />
                 ) : myLeaves.length === 0 ? (
                   <View style={styles.emptyBox}>
                     <Ionicons name="document-text-outline" size={40} color="#94A3B8" />
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   tabBtnActive: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
   },
   tabBtnText: {
     fontSize: 12,
@@ -723,7 +723,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   tabBtnTextActive: {
-    color: '#059669',
+    color: '#0284C7',
   },
   body: {
     paddingHorizontal: 20,
@@ -737,9 +737,9 @@ const styles = StyleSheet.create({
   },
   quotaBanner: {
     flexDirection: 'row',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#BAE6FD',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
@@ -749,19 +749,19 @@ const styles = StyleSheet.create({
   quotaTitle: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#166534',
+    color: '#0369A1',
     textTransform: 'uppercase',
   },
   quotaValue: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#14532D',
+    color: '#0284C7',
     marginTop: 2,
   },
   quotaDivider: {
     width: 1,
     height: 36,
-    backgroundColor: '#BBF7D0',
+    backgroundColor: '#BAE6FD',
   },
   quotaSub: {
     fontSize: 18,
@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
   formSubLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#059669',
+    color: '#0284C7',
     marginTop: 6,
   },
   quickShiftPill: {
@@ -786,8 +786,8 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   quickShiftPillActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   quickShiftDate: {
     fontSize: 11,
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   quickShiftDateActive: {
-    color: '#059669',
+    color: '#0284C7',
   },
   quickShiftName: {
     fontSize: 12,
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   quickShiftNameActive: {
-    color: '#059669',
+    color: '#0284C7',
   },
   quickShiftTime: {
     fontSize: 10,
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   quickShiftTimeActive: {
-    color: '#059669',
+    color: '#0284C7',
   },
   formLabel: {
     fontSize: 12,
@@ -846,8 +846,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shiftOptionActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   shiftOptionName: {
     fontSize: 12,
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   shiftOptionNameActive: {
-    color: '#059669',
+    color: '#0284C7',
   },
   shiftOptionTime: {
     fontSize: 10,
@@ -873,8 +873,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   typeOptionActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   typeTitle: {
     fontSize: 13,
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     borderRadius: 14,
     paddingVertical: 14,
     marginTop: 20,
@@ -999,7 +999,7 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
   btnApprove: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
   },
   btnApproveText: {
     fontSize: 12,
@@ -1024,12 +1024,12 @@ const styles = StyleSheet.create({
     color: '#B45309',
   },
   badgeApproved: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#E0F2FE',
   },
   badgeApprovedText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#065F46',
+    color: '#0369A1',
   },
   badgeRejected: {
     backgroundColor: '#FEE2E2',

@@ -323,6 +323,11 @@ export const prescriptionService = {
     age_group?: string;
     gender?: string;
     allergies?: string[];
+    allergic_medicines?: string[];
+    allergic_ingredients?: string[];
+    chronic_conditions?: string[];
+    blood_type?: string;
+    medical_notes?: string;
     image_base64?: string;
   }) {
     const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.CHAT, payload);

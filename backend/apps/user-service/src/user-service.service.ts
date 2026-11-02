@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Model, Connection } from 'mongoose';
+import { Model, Connection, Types } from 'mongoose';
 import { ClientKafka } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { User } from '../../auth-service/src/auth/user.schema';
@@ -698,13 +698,63 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       tier: tierInfo.name,
       multiplier: tierInfo.multiplier,
       conversionRate: 1,
+      // Hồ sơ y khoa & tiền sử dị ứng theo chuẩn UC-107
       allergies: user.allergies || [],
+      allergicMedicines: user.allergicMedicines || [],
+      allergicIngredients: user.allergicIngredients || [],
       chronicConditions: user.chronicConditions || [],
+      bloodType: user.bloodType || null,
+      medicalNotes: user.medicalNotes || null,
+      hasCompletedHealthOnboarding: user.hasCompletedHealthOnboarding || false,
     };
   }
 
-  async updateClinicalProfile(data: { phone?: string; userId?: string; allergies?: string[]; chronicConditions?: string[] }) {
-    this.logger.log(`Updating clinical profile: phone=${data.phone}, userId=${data.userId}`);
+  /**
+   * Lấy chi tiết hồ sơ bệnh án & tiền sử y khoa theo User ID (dành cho người dùng tự xem)
+   */
+  async getClinicalProfileByUserId(userId: string) {
+    this.logger.log(`Lấy hồ sơ bệnh án theo userId=${userId}`);
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      return { error: true, message: 'Không tìm thấy hồ sơ người dùng', statusCode: 404 };
+    }
+    const accPoints = user.accumulatedPoints || 0;
+    const currentPoints = user.points || 0;
+    const tierInfo = this.getMemberTier(accPoints);
+
+    return {
+      userId: user._id.toString(),
+      fullName: user.fullName,
+      phone: user.phone,
+      email: user.email,
+      points: currentPoints,
+      accumulatedPoints: accPoints,
+      tier: tierInfo.name,
+      allergies: user.allergies || [],
+      allergicMedicines: user.allergicMedicines || [],
+      allergicIngredients: user.allergicIngredients || [],
+      chronicConditions: user.chronicConditions || [],
+      bloodType: user.bloodType || null,
+      medicalNotes: user.medicalNotes || null,
+      hasCompletedHealthOnboarding: user.hasCompletedHealthOnboarding || false,
+    };
+  }
+
+  /**
+   * Cập nhật hồ sơ bệnh án, tiền sử dị ứng & bệnh nền (dành cho Khách hàng & Dược sĩ)
+   */
+  async updateClinicalProfile(data: {
+    phone?: string;
+    userId?: string;
+    allergies?: string[];
+    allergicMedicines?: string[];
+    allergicIngredients?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    medicalNotes?: string;
+    hasCompletedHealthOnboarding?: boolean;
+  }) {
+    this.logger.log(`Cập nhật hồ sơ bệnh án: phone=${data.phone}, userId=${data.userId}`);
     let user;
     if (data.userId) {
       user = await this.userModel.findById(data.userId).exec();
@@ -716,8 +766,21 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       return { error: true, message: 'Không tìm thấy hồ sơ người dùng để cập nhật bệnh án', statusCode: 404 };
     }
 
+    // Cập nhật các trường thông tin y khoa nếu có truyền vào
     if (data.allergies !== undefined) user.allergies = data.allergies;
+    if (data.allergicMedicines !== undefined) user.allergicMedicines = data.allergicMedicines;
+    if (data.allergicIngredients !== undefined) user.allergicIngredients = data.allergicIngredients;
     if (data.chronicConditions !== undefined) user.chronicConditions = data.chronicConditions;
+    if (data.bloodType !== undefined) user.bloodType = data.bloodType;
+    if (data.medicalNotes !== undefined) user.medicalNotes = data.medicalNotes;
+    
+    // Cập nhật trạng thái hoàn thành onboarding y tế
+    if (data.hasCompletedHealthOnboarding !== undefined) {
+      user.hasCompletedHealthOnboarding = data.hasCompletedHealthOnboarding;
+    } else {
+      user.hasCompletedHealthOnboarding = true; // Mặc định khi lưu hồ sơ thì đánh dấu đã hoàn thành
+    }
+
     await user.save();
 
     return {
@@ -725,8 +788,14 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       userId: user._id.toString(),
       fullName: user.fullName,
       phone: user.phone,
+      email: user.email,
       allergies: user.allergies || [],
+      allergicMedicines: user.allergicMedicines || [],
+      allergicIngredients: user.allergicIngredients || [],
       chronicConditions: user.chronicConditions || [],
+      bloodType: user.bloodType || null,
+      medicalNotes: user.medicalNotes || null,
+      hasCompletedHealthOnboarding: user.hasCompletedHealthOnboarding,
     };
   }
 
@@ -1490,7 +1559,11 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     if (query?.unassigned === 'true' || query?.unassigned === true) {
       filter.branchId = { $in: [null, ""] };
     } else if (query?.branchId) {
-      filter.branchId = query.branchId;
+      const branchConditions: any[] = [{ branchId: query.branchId }, { branchId: String(query.branchId) }];
+      if (Types.ObjectId.isValid(query.branchId)) {
+        branchConditions.push({ branchId: new Types.ObjectId(query.branchId) });
+      }
+      filter.$or = branchConditions;
     }
 
     const employees = await this.userModel.find(filter).select('-passwordHash').sort({ createdAt: -1 }).exec();

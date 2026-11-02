@@ -32,7 +32,7 @@ export default function VoiceConsultHistoryPage() {
                 ? "bg-amber-900/95 text-amber-100 border-amber-700/80"
                 : toast.type === "info"
                 ? "bg-blue-900/95 text-blue-100 border-blue-700/80"
-                : "bg-emerald-950/95 text-emerald-100 border-emerald-700/80"
+                : "bg-sky-950/95 text-sky-100 border-sky-700/80"
             }`}
           >
             {toast.message}

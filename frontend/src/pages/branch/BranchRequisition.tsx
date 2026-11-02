@@ -97,7 +97,7 @@ export function BranchRequisition() {
     const styles: Record<string, string> = {
       SUBMITTED: "bg-blue-50 text-blue-700 border-blue-200",
       CONSOLIDATED: "bg-amber-50 text-amber-700 border-amber-200",
-      APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      APPROVED: "bg-sky-50 text-sky-700 border-sky-200",
       REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
     };
     const labels: Record<string, string> = {
@@ -126,9 +126,9 @@ export function BranchRequisition() {
       </div>
 
       {successMsg && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-bold flex items-center gap-2">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-sm font-bold flex items-center gap-2">
           <CheckCircle2 size={16} />{successMsg}
-          <button onClick={() => setSuccessMsg(null)} className="ml-auto text-emerald-400 hover:text-emerald-600"><X size={14} /></button>
+          <button onClick={() => setSuccessMsg(null)} className="ml-auto text-sky-400 hover:text-sky-600"><X size={14} /></button>
         </motion.div>
       )}
 
@@ -142,19 +142,19 @@ export function BranchRequisition() {
           <ChevronRight size={14} className="text-slate-400" />
           <span className="px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg">3. Admin thanh toán</span>
           <ChevronRight size={14} className="text-slate-400" />
-          <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg">4. Kho nhận hàng</span>
+          <span className="px-3 py-1.5 bg-sky-100 text-sky-700 rounded-lg">4. Kho nhận hàng</span>
         </div>
       </div>
 
       {/* Branch Autonomy & Responsibility Banner */}
-      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-emerald-50/80 rounded-xl border border-blue-200/70 shadow-sm flex items-start gap-3">
+      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-sky-50/80 rounded-xl border border-blue-200/70 shadow-sm flex items-start gap-3">
         <div className="p-2 bg-blue-600 text-white rounded-lg shadow-xs mt-0.5">
           <ShieldCheck size={18} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900 text-sm">Cơ chế Tự chủ & Tự chịu trách nhiệm</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Không giới hạn ngưỡng tiền</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">Không giới hạn ngưỡng tiền</span>
           </div>
           <p className="text-xs text-slate-600 mt-1 leading-relaxed">
             Quản lý chi nhánh chủ động lập và gửi yêu cầu nhập thuốc theo nhu cầu thực tế của cơ sở mà không bị giới hạn bởi ngưỡng ngân sách. Chi nhánh chịu trách nhiệm trực tiếp về số lượng và tính cần thiết của từng đơn hàng.
@@ -278,7 +278,7 @@ export function BranchRequisition() {
                   </div>
                   <div>
                     <span className="text-slate-500 font-bold text-xs block">Trách nhiệm</span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-0.5">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200 mt-0.5">
                       <ShieldCheck size={12} /> Tự chịu trách nhiệm
                     </span>
                   </div>

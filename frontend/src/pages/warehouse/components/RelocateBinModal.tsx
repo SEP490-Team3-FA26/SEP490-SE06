@@ -237,7 +237,7 @@ export function RelocateBinModal({
                 ? "bg-rose-50 text-rose-800 border-rose-200"
                 : toast.type === "warning"
                 ? "bg-amber-50 text-amber-800 border-amber-200"
-                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-sky-50 text-sky-800 border-sky-200"
             }`}
           >
             {toast.type === "error" ? (
@@ -245,7 +245,7 @@ export function RelocateBinModal({
             ) : toast.type === "warning" ? (
               <AlertTriangle size={16} className="text-amber-600 shrink-0" />
             ) : (
-              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
             )}
             <span className="leading-relaxed">{toast.message}</span>
           </div>
@@ -303,7 +303,7 @@ export function RelocateBinModal({
               </div>
               <div className="text-right shrink-0">
                 <div className="text-xs text-slate-400">Số lượng chuyển</div>
-                <div className="text-base font-bold text-emerald-600 font-mono">
+                <div className="text-base font-bold text-sky-600 font-mono">
                   {transferStock.toLocaleString("vi-VN")}{" "}
                   <span className="text-xs font-normal text-slate-500">{unit}</span>
                 </div>
@@ -471,7 +471,7 @@ export function RelocateBinModal({
 
                     let bgClass = "bg-white border-slate-200 text-slate-700 hover:border-amber-400";
                     let badgeText = "Trống";
-                    let badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                    let badgeClass = "bg-sky-50 text-sky-700 border-sky-200";
 
                     if (isSource) {
                       bgClass = "bg-slate-100 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed";
@@ -495,10 +495,10 @@ export function RelocateBinModal({
                       badgeClass = "bg-amber-100 text-amber-800 border-amber-300";
                     } else if (isEmpty) {
                       bgClass = isSelected
-                        ? "bg-emerald-100 border-emerald-500 text-emerald-800 ring-2 ring-emerald-400/30"
-                        : "bg-emerald-50/40 border-emerald-200 text-emerald-800 hover:bg-emerald-50";
+                        ? "bg-sky-100 border-sky-500 text-sky-800 ring-2 ring-sky-400/30"
+                        : "bg-sky-50/40 border-sky-200 text-sky-800 hover:bg-sky-50";
                       badgeText = "Ô trống";
-                      badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300";
+                      badgeClass = "bg-sky-100 text-sky-800 border-sky-300";
                     }
 
                     return (
@@ -544,7 +544,7 @@ export function RelocateBinModal({
               {/* Chú thích màu sắc */}
               <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
                 <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Ô trống (Sẵn sàng)
+                  <span className="w-2.5 h-2.5 rounded-full bg-sky-500" /> Ô trống (Sẵn sàng)
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-sky-500" /> Cùng thuốc (Dồn kho)

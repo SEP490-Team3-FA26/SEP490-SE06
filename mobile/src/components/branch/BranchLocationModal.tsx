@@ -102,20 +102,37 @@ export const BranchLocationModal: React.FC<BranchLocationModalProps> = ({
       return;
     }
 
-    const branchTargetId = branch?._id || branch?.id || (branch as any)?.branchCode || '';
-
     try {
       setIsSaving(true);
-      await ApiService.updateBranchLocation(branchTargetId, {
-        latitude: lat,
-        longitude: lng,
-        checkInRadiusMeters: radiusMeters,
-        address: address.trim() || undefined,
-      });
+      // Ưu tiên cập nhật chi nhánh của chính mình (chuẩn spec IDOR, Backend tự gán theo token)
+      let updateSuccess = false;
+      try {
+        updateSuccess = await ApiService.updateMyBranchLocation({
+          latitude: lat,
+          longitude: lng,
+          checkInRadiusMeters: radiusMeters,
+          address: address.trim() || undefined,
+        });
+      } catch (myBranchErr) {
+        // Fallback cập nhật theo branchTargetId nếu gọi my-branch không thành công (VD tài khoản admin)
+        const branchTargetId = branch?._id || branch?.id || (branch as any)?.branchCode || '';
+        if (branchTargetId) {
+          updateSuccess = await ApiService.updateBranchLocation(branchTargetId, {
+            latitude: lat,
+            longitude: lng,
+            checkInRadiusMeters: radiusMeters,
+            address: address.trim() || undefined,
+          });
+        } else {
+          throw myBranchErr;
+        }
+      }
 
-      showToast.success('Cập nhật thành công', 'Vị trí GPS cơ sở đã được cập nhật cho hệ thống điểm danh');
-      onSuccess?.();
-      onClose();
+      if (updateSuccess) {
+        showToast.success('Cập nhật thành công', 'Vị trí GPS cơ sở đã được cập nhật cho hệ thống điểm danh');
+        onSuccess?.();
+        onClose();
+      }
     } catch (err: any) {
       showToast.error('Lưu thất bại', err.message || 'Có lỗi xảy ra khi lưu vị trí');
     } finally {
@@ -133,7 +150,7 @@ export const BranchLocationModal: React.FC<BranchLocationModalProps> = ({
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.iconBadge}>
-                <Ionicons name="location" size={20} color="#059669" />
+                <Ionicons name="location" size={20} color="#0284C7" />
               </View>
               <View>
                 <Text style={styles.title}>Cài Đặt Vị Trí Chi Nhánh</Text>
@@ -289,7 +306,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -332,7 +349,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
     paddingVertical: 12,
     borderRadius: 12,
     marginBottom: 16,
@@ -379,7 +396,7 @@ const styles = StyleSheet.create({
   radiusValue: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   presetRow: {
     flexDirection: 'row',
@@ -397,8 +414,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   presetChipActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   presetChipText: {
     fontSize: 12,
@@ -406,7 +423,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   presetChipTextActive: {
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '700',
   },
   footer: {

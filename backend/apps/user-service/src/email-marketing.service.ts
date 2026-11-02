@@ -148,7 +148,7 @@ export class EmailMarketingService {
   // ===================================================================
   // Lấy thống kê tiến độ gửi của 1 chiến dịch (Real-time)
   // ===================================================================
-  async getCampaignStats(campaignId: string) {
+  async getCampaignStats(campaignId: string): Promise<any> {
     const [campaign, sentCount, failedCount, pendingCount] = await Promise.all([
       this.campaignModel.findById(campaignId).select('title status stats scheduledAt').lean(),
       this.deliveryLogModel.countDocuments({ campaignId, status: DeliveryStatus.SENT }),

@@ -126,7 +126,7 @@ export const WebViewScreen: React.FC<{ route: any; navigation: any }> = ({
 
       {/* Browser URL Bar */}
       <View style={styles.browserAddressBar}>
-        <Ionicons name="lock-closed" size={14} color="#10B981" />
+        <Ionicons name="lock-closed" size={14} color="#0284C7" />
         <Text style={styles.addressText} numberOfLines={1}>
           {url}
         </Text>
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   infoPrice: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
   },
   infoContentTag: {
     backgroundColor: '#FEF3C7',

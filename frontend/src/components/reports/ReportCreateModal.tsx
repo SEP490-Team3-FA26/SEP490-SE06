@@ -128,7 +128,7 @@ export function ReportCreateModal({ isOpen, onClose, onSuccess, userDetails }: R
             </div>
           )}
           {successMessage && (
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-semibold border border-emerald-200">
+            <div className="p-3 bg-sky-50 text-sky-600 rounded-xl text-xs font-semibold border border-sky-200">
               {successMessage}
             </div>
           )}

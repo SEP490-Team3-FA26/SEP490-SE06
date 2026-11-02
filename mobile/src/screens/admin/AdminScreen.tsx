@@ -60,6 +60,19 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  // [REVIEWER_HOOK_ADMIN]
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const modal = params.get('modal');
+      if (tab && ['HEALTH', 'EMPLOYEES', 'AUDIT'].includes(tab)) {
+        setActiveTab(tab as any);
+      }
+      if (modal === 'create_emp') setCreateModalVisible(true);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
@@ -141,11 +154,11 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="Admin Dashboard"
         subtitle="Giám sát Microservices & Nhân viên hệ thống"
-        gradientVariant="dark"
+        gradientVariant="sky"
         rightAction={{
           icon: 'person-circle-outline',
           onPress: () => navigation.navigate('ProfileScreen'),
@@ -165,7 +178,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="speedometer"
             size={18}
-            color={activeTab === 'HEALTH' ? '#0F172A' : '#94A3B8'}
+            color={activeTab === 'HEALTH' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'HEALTH' && styles.activeTabText]}>
             Hệ Thống
@@ -179,7 +192,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="people"
             size={18}
-            color={activeTab === 'EMPLOYEES' ? '#0F172A' : '#94A3B8'}
+            color={activeTab === 'EMPLOYEES' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'EMPLOYEES' && styles.activeTabText]}>
             Nhân Viên
@@ -193,7 +206,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Ionicons
             name="receipt"
             size={18}
-            color={activeTab === 'AUDIT' ? '#0F172A' : '#94A3B8'}
+            color={activeTab === 'AUDIT' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'AUDIT' && styles.activeTabText]}>
             Audit Logs
@@ -203,14 +216,14 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#1E293B']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#0284C7']} />}
       >
 
         {/* TAB 1: SYSTEM HEALTH */}
         {activeTab === 'HEALTH' && (
           <View>
             <View style={styles.kpiRow}>
-              <GradientCard gradientVariant="indigo" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="flash" size={24} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>{healthData.latencyMs} ms</Text>
                 <Text style={styles.kpiLabel}>Độ Trễ Gateway</Text>
@@ -224,7 +237,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
 
             <View style={[styles.kpiRow, { marginTop: -6 }]}>
-              <GradientCard gradientVariant="emerald" style={styles.kpiCard}>
+              <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
                   {employees.filter((e) => e.isActive !== false).length} Hoạt Động
@@ -246,7 +259,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   <View
                     style={[
                       styles.statusDot,
-                      { backgroundColor: s.status === 'ACTIVE' ? '#10B981' : '#F59E0B' },
+                      { backgroundColor: s.status === 'ACTIVE' ? '#0284C7' : '#F59E0B' },
                     ]}
                   />
                   <View>
@@ -259,13 +272,13 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <View
                   style={[
                     styles.loadBadge,
-                    { backgroundColor: s.status === 'ACTIVE' ? '#ECFDF5' : '#FEF3C7' },
+                    { backgroundColor: s.status === 'ACTIVE' ? '#F0F9FF' : '#FEF3C7' },
                   ]}
                 >
                   <Text
                     style={[
                       styles.loadBadgeText,
-                      { color: s.status === 'ACTIVE' ? '#059669' : '#D97706' },
+                      { color: s.status === 'ACTIVE' ? '#0284C7' : '#D97706' },
                     ]}
                   >
                     {s.status === 'ACTIVE' ? 'SẴN SÀNG' : 'STANDBY'}
@@ -314,13 +327,13 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                       <View
                         style={[
                           styles.statusTag,
-                          { backgroundColor: emp.isActive !== false ? '#ECFDF5' : '#FEF2F2' },
+                          { backgroundColor: emp.isActive !== false ? '#F0F9FF' : '#FEF2F2' },
                         ]}
                       >
                         <Text
                           style={[
                             styles.statusTagText,
-                            { color: emp.isActive !== false ? '#059669' : '#DC2626' },
+                            { color: emp.isActive !== false ? '#0284C7' : '#DC2626' },
                           ]}
                         >
                           {emp.isActive !== false ? 'HOẠT ĐỘNG' : 'ĐÃ KHÓA'}
@@ -334,18 +347,18 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   onPress={() => handleToggleBan(emp)}
                   style={[
                     styles.banBtn,
-                    { backgroundColor: emp.isActive !== false ? '#FEE2E2' : '#DCFCE7' },
+                    { backgroundColor: emp.isActive !== false ? '#FEE2E2' : '#F0F9FF' },
                   ]}
                 >
                   <Ionicons
                     name={emp.isActive !== false ? 'lock-closed' : 'lock-open'}
                     size={16}
-                    color={emp.isActive !== false ? '#DC2626' : '#16A34A'}
+                    color={emp.isActive !== false ? '#DC2626' : '#0284C7'}
                   />
                   <Text
                     style={[
                       styles.banBtnText,
-                      { color: emp.isActive !== false ? '#DC2626' : '#16A34A' },
+                      { color: emp.isActive !== false ? '#DC2626' : '#0284C7' },
                     ]}
                   >
                     {emp.isActive !== false ? 'Khóa' : 'Mở'}
@@ -450,7 +463,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 title="TẠO TÀI KHOẢN"
                 onPress={handleCreateEmployee}
                 loading={creating}
-                gradientVariant="indigo"
+                gradientVariant="sky"
                 size="md"
                 style={{ flex: 1, marginLeft: 10 }}
               />
@@ -484,9 +497,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   activeTabItem: {
-    backgroundColor: '#EEF2FF',
-    borderBottomWidth: 2,
-    borderBottomColor: '#4F46E5',
+    backgroundColor: '#E0F2FE',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#0284C7',
   },
   tabText: {
     fontSize: 13,
@@ -495,7 +508,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   activeTabText: {
-    color: '#4F46E5',
+    color: '#0284C7',
     fontWeight: '800',
   },
   scrollContent: {
@@ -592,7 +605,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0284C7',
     marginRight: 12,
   },
   serviceName: {
@@ -643,7 +656,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0284C7',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -798,8 +811,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   activeRoleChoice: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
+    borderColor: '#0284C7',
+    backgroundColor: '#E0F2FE',
   },
   roleChoiceText: {
     fontSize: 12,
@@ -807,7 +820,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   activeRoleChoiceText: {
-    color: '#4F46E5',
+    color: '#0284C7',
     fontWeight: '700',
   },
   modalBtnRow: {

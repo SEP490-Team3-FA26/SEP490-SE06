@@ -221,7 +221,7 @@ export function AIConsultant() {
     <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
       {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
       <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-sky-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
         <div className="relative z-10 max-w-3xl flex flex-col gap-4">
           <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
@@ -323,7 +323,7 @@ export function AIConsultant() {
                 <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${recording
                   ? "bg-rose-500/15 text-rose-300 border border-rose-500/20"
                   : audioBlob
-                    ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20"
+                    ? "bg-sky-500/15 text-sky-300 border border-sky-500/20"
                     : "bg-slate-800 text-slate-400 border border-slate-700"
                   }`}>
                   {requestingMicrophone
@@ -441,8 +441,8 @@ export function AIConsultant() {
 
           {/* Success messages */}
           {successMessage && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-emerald-800 text-xs font-semibold flex items-center gap-2.5 shadow-sm animate-fade-in animate-pulse">
-              <CheckCircle size={18} className="text-emerald-500 shrink-0" />
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 text-sky-800 text-xs font-semibold flex items-center gap-2.5 shadow-sm animate-fade-in animate-pulse">
+              <CheckCircle size={18} className="text-sky-500 shrink-0" />
               <span>{successMessage}</span>
             </div>
           )}
@@ -535,7 +535,7 @@ export function AIConsultant() {
                                 <div className="flex items-center gap-2.5 flex-wrap">
                                   <span className="font-black text-slate-800 text-xs">{drug.name}</span>
                                   {isAvailable && hasStock ? (
-                                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[8px] font-black rounded-md font-sans uppercase tracking-wider">Sẵn hàng</span>
+                                    <span className="px-2 py-0.5 bg-sky-100 text-sky-800 text-[8px] font-black rounded-md font-sans uppercase tracking-wider">Sẵn hàng</span>
                                   ) : (
                                     <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[8px] font-black rounded-md font-sans uppercase tracking-wider">Hết hàng</span>
                                   )}

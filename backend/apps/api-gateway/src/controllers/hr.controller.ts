@@ -72,6 +72,7 @@ export class HrController implements OnModuleInit {
       'hr.attendance.verify_active_shift',
       'hr.attendance.branch_today',
       'hr.attendance.history',
+      'hr.attendance.branch_history',
       'hr.shift_handover.live_stats',
       'hr.shift_handover.submit',
       'hr.shift_handover.accept',
@@ -357,10 +358,32 @@ export class HrController implements OnModuleInit {
   }
 
   @Get('colleagues')
-  @Roles('branch', 'pharmacist', 'admin')
+  @Roles('branch', 'pharmacist', 'admin', 'warehouse', 'headBranch', 'director', 'head_branch')
   @ApiOperation({ summary: 'Lấy danh sách nhân viên/đồng nghiệp chi nhánh để đổi ca' })
   async getColleagues(@Request() req) {
-    return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', { branchId: req.user.branchId });
+    // Lấy thông tin chi nhánh và userId của tài khoản đang đăng nhập
+    const branchId = req.user?.branchId;
+    const currentUserId = req.user?.sub || req.user?.id;
+    const payload: any = {};
+    if (branchId) {
+      payload.branchId = branchId;
+    }
+
+    // Truy vấn danh sách nhân viên chi nhánh qua Kafka
+    const employees = await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', payload);
+    const list = Array.isArray(employees) ? employees : (Array.isArray(employees?.data) ? employees.data : []);
+
+    // Lọc bỏ chính bản thân người gửi yêu cầu đổi ca
+    let availableColleagues = list.filter((e: any) => String(e._id || e.id) !== String(currentUserId));
+
+    // Fallback: nếu chi nhánh chưa có đồng nghiệp nào khác hoặc branchId không khớp, lấy danh sách nhân viên toàn chuỗi
+    if (availableColleagues.length === 0) {
+      const allStaff = await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.list', {});
+      const allList = Array.isArray(allStaff) ? allStaff : (Array.isArray(allStaff?.data) ? allStaff.data : []);
+      availableColleagues = allList.filter((e: any) => String(e._id || e.id) !== String(currentUserId));
+    }
+
+    return availableColleagues;
   }
 
   // --- HR: CERTIFICATES & CCHN MANAGEMENT ---
@@ -560,6 +583,33 @@ export class HrController implements OnModuleInit {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_today', {
       branchId: req.user.branchId,
       date,
+    });
+  }
+
+  @Get('attendance/branch-history')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Quản lý xem lịch sử điểm danh chi nhánh có phân trang & bộ lọc' })
+  async getBranchAttendanceHistory(
+    @Request() req,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('shiftId') shiftId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('branchId') queryBranchId?: string,
+  ) {
+    const branchId = req.user.role === 'branch' ? req.user.branchId : (queryBranchId || req.user.branchId || 'BR-001');
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_history', {
+      branchId,
+      startDate,
+      endDate,
+      employeeId,
+      shiftId,
+      status,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
     });
   }
 

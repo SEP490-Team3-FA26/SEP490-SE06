@@ -89,11 +89,12 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Reusable HeaderBar chuẩn màu Xanh Nước Biển Basic */}
       <HeaderBar
         title={step === 'REGISTER' ? 'Tạo Tài Khoản' : 'Xác Thực Email'}
         subtitle="Hệ thống thành viên Dược phẩm"
         onBack={() => (step === 'OTP' ? setStep('REGISTER') : navigation.goBack())}
-        gradientVariant="emerald"
+        gradientVariant="sky"
       />
 
       <KeyboardAvoidingView
@@ -189,7 +190,7 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               <View style={{ marginTop: 8 }}>
                 <View style={{ alignItems: 'center', marginVertical: 16 }}>
                   <View style={styles.otpIconContainer}>
-                    <Ionicons name="mail-unread" size={42} color="#059669" />
+                    <Ionicons name="mail-unread" size={42} color="#0284C7" />
                   </View>
                   <FlatBadge label="Mã OTP 6 số" status="success" variant="glass" size="md" icon="key-outline" style={{ marginTop: 10 }} />
                 </View>
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: 13,
-    color: '#059669',
+    color: '#0284C7',
     fontWeight: '600',
   },
   footerRow: {
@@ -317,6 +318,6 @@ const styles = StyleSheet.create({
   footerLink: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
 });

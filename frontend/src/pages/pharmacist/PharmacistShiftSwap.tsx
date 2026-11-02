@@ -314,7 +314,7 @@ export function PharmacistShiftSwap() {
     },
     approved: { 
       label: "Đã duyệt hoàn tất", 
-      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
       desc: "Lịch trực đã chính thức được hoán đổi"
     },
     rejected: { 
@@ -505,7 +505,7 @@ export function PharmacistShiftSwap() {
             <div className="space-y-4">
               {incoming.length === 0 ? (
                 <div className="text-center py-16 px-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mx-auto mb-3">
                     <CheckCircle2 size={24} className="opacity-60" />
                   </div>
                   <h3 className="text-base font-bold text-slate-800">Không có yêu cầu đổi ca nào đang chờ bạn</h3>
@@ -554,15 +554,15 @@ export function PharmacistShiftSwap() {
                         </div>
                       </div>
 
-                      <div className="md:col-span-5 p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/80">
-                        <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1">
+                      <div className="md:col-span-5 p-4 rounded-xl bg-sky-50/50 border border-sky-200/80">
+                        <div className="text-[10px] font-bold text-sky-800 uppercase tracking-wider mb-1">
                           Ca bạn sẽ nhận lại từ {formatEmployeeName(req.requesterName)}
                         </div>
                         <div className="text-sm font-bold text-slate-900 mt-1">
                           {formatShiftDate(req.requesterShiftDate)}
                         </div>
                         <div className="text-xs font-medium text-slate-600 mt-0.5 flex items-center gap-1.5">
-                          <Clock size={13} className="text-emerald-600" />
+                          <Clock size={13} className="text-sky-600" />
                           <span>{req.requesterShiftName}</span>
                         </div>
                       </div>
@@ -585,7 +585,7 @@ export function PharmacistShiftSwap() {
                       <button
                         onClick={() => handleAccept(req._id)}
                         disabled={submittingAction}
-                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs flex items-center gap-1.5"
+                        className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs flex items-center gap-1.5"
                       >
                         <CheckCircle2 size={15} />
                         Đồng ý đổi ca

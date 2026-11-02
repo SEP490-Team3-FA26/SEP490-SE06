@@ -209,7 +209,7 @@ export function LotTracking() {
   const getTxnBadge = (type: string) => {
     switch (type) {
       case 'GRN_IMPORT':
-        return { label: 'Nhập kho GDP', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        return { label: 'Nhập kho GDP', color: 'bg-sky-50 text-sky-700 border-sky-200' };
       case 'SALE_EXPORT':
         return { label: 'Xuất bán Kê đơn', color: 'bg-blue-50 text-blue-700 border-blue-200' };
       case 'DISPOSE':
@@ -309,7 +309,7 @@ export function LotTracking() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Truy Xuất Lô & Lưu Trữ Y Tế 50 Năm (Lot & Retention)</h1>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+              <span className="text-[10px] bg-sky-100 text-sky-800 font-black px-2 py-0.5 rounded-full border border-sky-200 flex items-center gap-1">
                 <ShieldCheck size={12} /> TT 02/2018/TT-BYT
               </span>
             </div>
@@ -472,7 +472,7 @@ export function LotTracking() {
                         <div className="text-right">
                           <div className="font-black text-indigo-700 text-sm">{b.stock.toLocaleString('vi-VN')} {result.medicine?.unit || 'Hộp'}</div>
                           <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 border ${
-                            b.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
+                            b.status === "ACTIVE" ? "bg-sky-50 text-sky-700 border-sky-200" : "bg-rose-50 text-rose-700 border-rose-200"
                           }`}>
                             {b.status === "ACTIVE" ? "Đang bán" : "Hết hạn"}
                           </span>
@@ -563,7 +563,7 @@ export function LotTracking() {
                               <FileText size={18} className="text-slate-400" />
                               <span>Phiếu nhập kho tiếp nhận: <strong className="font-mono text-slate-800">{result.origin.grnId.toUpperCase()}</strong></span>
                             </div>
-                            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded font-bold uppercase">GRN Đã Duyệt</span>
+                            <span className="text-xs bg-sky-50 text-sky-700 border border-sky-200 px-2 py-1 rounded font-bold uppercase">GRN Đã Duyệt</span>
                           </div>
 
                           <div className="p-4 border border-slate-200 rounded-xl flex items-center justify-between text-sm">
@@ -610,7 +610,7 @@ export function LotTracking() {
                             return (
                               <div key={item._id} className="relative">
                                 <span className={`absolute -left-[33px] top-1.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${
-                                  item.type === 'GRN_IMPORT' ? 'bg-emerald-500' :
+                                  item.type === 'GRN_IMPORT' ? 'bg-sky-500' :
                                   item.type === 'SALE_EXPORT' ? 'bg-blue-500' :
                                   item.type === 'DISPOSE' ? 'bg-rose-500' : 'bg-slate-500'
                                 } shadow-md`} />
@@ -627,7 +627,7 @@ export function LotTracking() {
                                     </div>
                                     <div className="text-sm font-bold">
                                       Biến động:{" "}
-                                      <span className={item.quantityChange > 0 ? "text-emerald-600" : "text-rose-600"}>
+                                      <span className={item.quantityChange > 0 ? "text-sky-600" : "text-rose-600"}>
                                         {item.quantityChange > 0 ? `+${item.quantityChange}` : item.quantityChange} {result.medicine?.unit || 'Hộp'}
                                       </span>
                                     </div>
@@ -673,7 +673,7 @@ export function LotTracking() {
                       <div className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl text-white shadow-lg">
                         <div className="flex flex-wrap items-center justify-between gap-4">
                           <div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-800 flex items-center gap-1.5 inline-flex mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-sky-400 bg-sky-950/80 px-2.5 py-1 rounded-full border border-sky-800 flex items-center gap-1.5 inline-flex mb-2">
                               <ShieldCheck size={12} /> Quy chuẩn Lưu trữ 50 năm
                             </span>
                             <h3 className="text-base font-black">Hồ Sơ Y Tế & Truy Xuất Nguồn Gốc Dược Phẩm</h3>
@@ -709,7 +709,7 @@ export function LotTracking() {
                               <p className="text-[11px] text-slate-500">Mã định danh bảo mật chống giả mạo theo chuẩn WORM (Write Once, Read Many)</p>
                             </div>
                           </div>
-                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                          <span className="text-[10px] font-black text-sky-700 bg-sky-100 border border-sky-200 px-2.5 py-1 rounded-full flex items-center gap-1">
                             <CheckCircle2 size={12} /> WORM LOCKED
                           </span>
                         </div>
@@ -725,7 +725,7 @@ export function LotTracking() {
                               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
                               title="Sao chép mã hash vào bộ nhớ tạm"
                             >
-                              {copiedHash ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                              {copiedHash ? <Check size={14} className="text-sky-600" /> : <Copy size={14} />}
                               {copiedHash ? "Đã chép!" : "Sao chép"}
                             </button>
                             <button
@@ -776,19 +776,19 @@ export function LotTracking() {
                         <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">Tiêu Chuẩn Đã Kiểm Định Cho Lô {result.batchNo}</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                           <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
-                            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                            <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
                             <span>Thông tư 02/2018/TT-BYT (Thực hành tốt nhà thuốc GPP)</span>
                           </div>
                           <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
-                            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                            <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
                             <span>Quyết định 412/QĐ-BYT (Bệnh án điện tử EMR 50 năm)</span>
                           </div>
                           <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
-                            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                            <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
                             <span>FDA 21 CFR Part 11 (Chữ ký điện tử & Dấu thời gian Audit Trail)</span>
                           </div>
                           <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
-                            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                            <CheckCircle2 size={16} className="text-sky-600 shrink-0" />
                             <span>HL7 FHIR & Dược Quốc gia (Liên thông đơn thuốc điện tử)</span>
                           </div>
                         </div>
@@ -819,21 +819,21 @@ export function LotTracking() {
                 <X size={18} />
               </button>
 
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mb-4">
                 <ShieldCheck size={28} />
               </div>
 
               <h3 className="text-lg font-black text-slate-900">Xác Thực Toàn Vẹn Số Thành Công</h3>
               <p className="text-xs text-slate-500 mt-1">Dữ liệu hồ sơ y tế của lô thuốc đã được kiểm chứng khớp 100% với chữ ký số gốc.</p>
 
-              <div className="mt-4 p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5 text-xs text-emerald-900">
+              <div className="mt-4 p-4 bg-sky-50/70 border border-sky-200 rounded-2xl space-y-2.5 text-xs text-sky-900">
                 <div className="flex justify-between">
                   <span className="font-semibold text-slate-600">Mã lô thuốc:</span>
                   <strong className="font-mono text-slate-900">{result.batchNo}</strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-semibold text-slate-600">Trạng thái dữ liệu:</span>
-                  <strong className="text-emerald-700 font-bold">KHÔNG BỊ THAY ĐỔI (100% UNTAMPERED)</strong>
+                  <strong className="text-sky-700 font-bold">KHÔNG BỊ THAY ĐỔI (100% UNTAMPERED)</strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-semibold text-slate-600">Thời điểm xác thực:</span>
@@ -848,7 +848,7 @@ export function LotTracking() {
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   onClick={() => setVerifyModalOpen(false)}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
                 >
                   Đóng cửa sổ
                 </button>

@@ -281,7 +281,7 @@ export function BranchEmployees() {
 
 
   const roleMap: Record<string, { label: string; color: string }> = {
-    pharmacist: { label: "Dược sĩ Chi nhánh", color: "bg-green-100 text-green-800" },
+    pharmacist: { label: "Dược sĩ Chi nhánh", color: "bg-sky-100 text-sky-800" },
     branch: { label: "Quản lý Chi nhánh", color: "bg-indigo-100 text-indigo-800" },
   };
 
@@ -298,7 +298,7 @@ export function BranchEmployees() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsLocationModalOpen(true)}
-            className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-emerald-200 text-sm whitespace-nowrap shadow-xs"
+            className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl transition-colors flex items-center gap-2 border border-sky-200 text-sm whitespace-nowrap shadow-xs"
           >
             <MapPin size={17} />
             Cài Đặt GPS
@@ -360,10 +360,10 @@ export function BranchEmployees() {
 
       {/* Success Message */}
       {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl flex items-center gap-2 animate-pulse">
-          <CheckCircle2 size={18} className="flex-shrink-0 text-emerald-600" />
+        <div className="bg-sky-50 border border-sky-200 text-sky-800 px-4 py-3 rounded-xl flex items-center gap-2 animate-pulse">
+          <CheckCircle2 size={18} className="flex-shrink-0 text-sky-600" />
           <span className="text-sm font-medium">{successMessage}</span>
-          <button onClick={() => setSuccessMessage(null)} className="ml-auto text-emerald-500 hover:text-emerald-700">
+          <button onClick={() => setSuccessMessage(null)} className="ml-auto text-sky-500 hover:text-sky-700">
             <X size={16} />
           </button>
         </div>
@@ -415,7 +415,7 @@ export function BranchEmployees() {
                         <td className="px-6 py-4 text-slate-600 font-medium">{emp.branchId || currentBranchId}</td>
                         <td className="px-6 py-4">
                           {emp.isActive ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
                               Hoạt động
                             </span>
                           ) : (
@@ -436,7 +436,7 @@ export function BranchEmployees() {
                             <button
                               onClick={() => handleToggleBan(emp._id)}
                               className={`p-2 rounded-lg transition-colors ${
-                                emp.isActive ? "text-amber-600 hover:bg-amber-50" : "text-emerald-600 hover:bg-emerald-50"
+                                emp.isActive ? "text-amber-600 hover:bg-amber-50" : "text-sky-600 hover:bg-sky-50"
                               }`}
                               title={emp.isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                             >
@@ -651,7 +651,7 @@ export function BranchEmployees() {
                                 <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-slate-100 text-slate-700">
                                   {cand.branchId ? `Cơ sở: ${cand.branchId}` : "Chưa phân cơ sở"}
                                 </span>
-                                <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-sky-50 text-sky-700 border border-sky-200">
                                   Dược sĩ
                                 </span>
                               </div>
@@ -799,7 +799,7 @@ export function BranchEmployees() {
                             </span>
                           )}
                           {req.status === 'approved' && (
-                            <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-sky-50 text-sky-700 border border-sky-200">
                               Đã chấp thuận
                             </span>
                           )}
@@ -830,7 +830,7 @@ export function BranchEmployees() {
                             </button>
                             <button
                               onClick={() => handleRespondTransfer(req._id, 'approve')}
-                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                              className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
                             >
                               <Check size={14} />
                               Đồng ý bàn giao

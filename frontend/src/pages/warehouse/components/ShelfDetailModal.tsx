@@ -22,8 +22,8 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; b
   EXPIRED: { label: "Hết hạn", bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300 font-bold", icon: <AlertTriangle size={11} className="text-emerald-600" /> },
   NEAR_EXPIRY: { label: "Cận date", bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300 font-bold", icon: <Clock size={11} className="text-amber-600" /> },
   LOW_STOCK: { label: "Sắp hết hàng", bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200", icon: <AlertTriangle size={11} /> },
-  NORMAL: { label: "An toàn", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle size={11} /> },
-  ACTIVE: { label: "An toàn", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle size={11} /> },
+  NORMAL: { label: "An toàn", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", icon: <CheckCircle size={11} /> },
+  ACTIVE: { label: "An toàn", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", icon: <CheckCircle size={11} /> },
 };
 
 export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }: ShelfDetailModalProps) {
@@ -200,15 +200,15 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                 </div>
                 <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
                   <div 
-                    className={`h-full transition-all duration-300 ${percentCap > 90 ? 'bg-amber-500' : percentCap < 20 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                    className={`h-full transition-all duration-300 ${percentCap > 90 ? 'bg-amber-500' : percentCap < 20 ? 'bg-yellow-500' : 'bg-sky-500'}`}
                     style={{ width: `${percentCap}%` }}
                   />
                 </div>
               </div>
 
               <div className="flex items-center gap-3 text-xs font-medium">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-700">
+                  <span className="w-2 h-2 rounded-full bg-sky-500" />
                   <span>{zone === 'RESERVE' ? 'Lô dự trữ:' : 'Lô đang bán:'} <b>{mainBatches.length}</b></span>
                 </div>
                 {reserveBatches.length > 0 && (
@@ -304,8 +304,8 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                         </>
                       ) : (
                         <>
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span className="text-emerald-700 font-bold">Lô đang bán trong thùng chính (MAIN)</span>
+                          <span className="w-2 h-2 rounded-full bg-sky-500" />
+                          <span className="text-sky-700 font-bold">Lô đang bán trong thùng chính (MAIN)</span>
                         </>
                       )}
                     </h4>
@@ -562,7 +562,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                                           ? "text-amber-600 font-semibold"
                                           : b.status === "QUARANTINED"
                                           ? "text-purple-600 font-semibold"
-                                          : "text-emerald-500 font-semibold";
+                                          : "text-sky-500 font-semibold";
 
                                         return (
                                           <div key={bIdx} className={bIdx > 0 ? "pt-2.5" : ""}>
@@ -760,7 +760,7 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
           <div
             className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold ${
               toast.type === "success"
-                ? "bg-emerald-600 text-white border-emerald-700"
+                ? "bg-sky-600 text-white border-sky-700"
                 : toast.type === "warning"
                 ? "bg-amber-600 text-white border-amber-700"
                 : "bg-rose-600 text-white border-rose-700"

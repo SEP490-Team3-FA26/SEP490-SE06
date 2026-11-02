@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, CreditCard, Banknote, QrCode, ClipboardList, Printer, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, XCircle } from "lucide-react";
+import { Loader2, CreditCard, Banknote, QrCode, ClipboardList, Printer, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, XCircle, ShieldAlert } from "lucide-react";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { orderService } from "../../services/sales/order.service";
 import { cartService } from "../../services/sales/cart.service";
 import { voucherService } from "../../services/sales/voucher.service";
@@ -338,6 +339,14 @@ export function CustomerCheckout() {
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    const rxItems = cartItems.filter(isPrescriptionMedicine);
+    if (rxItems.length > 0) {
+      showAlert(
+        `Đơn hàng chứa thuốc kê đơn (${rxItems.map(i => i.name).join(", ")}). Theo quy định Bộ Y Tế, thuốc kê đơn không được phép bán trực tuyến. Quý khách vui lòng quay lại giỏ hàng để bỏ thuốc kê đơn hoặc mua trực tiếp tại quầy thuốc!`,
+        "Chặn thanh toán thuốc kê đơn"
+      );
+      return;
+    }
       if (!fullname.trim() || !phone.trim() || !address.trim()) {
         showAlert("Vui lòng điền đầy đủ các thông tin giao hàng!");
         return;
@@ -411,11 +420,13 @@ export function CustomerCheckout() {
     };
 
 
+    const hasRxItems = cartItems.some(isPrescriptionMedicine);
+
     return (
       <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in relative">
         {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
         <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
-          <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-sky-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
           <div className="relative z-10 max-w-3xl flex flex-col gap-4">
             <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black tracking-widest uppercase self-start text-blue-400 flex items-center gap-2">
@@ -444,7 +455,7 @@ export function CustomerCheckout() {
               </div>
               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex flex-col col-span-2 sm:col-span-1">
                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tổng Thanh Toán</span>
-                <span className="text-lg sm:text-xl font-black text-emerald-300 mt-0.5">{total.toLocaleString()}đ</span>
+                <span className="text-lg sm:text-xl font-black text-sky-300 mt-0.5">{total.toLocaleString()}đ</span>
               </div>
             </div>
           </div>
@@ -472,6 +483,19 @@ export function CustomerCheckout() {
           <div className="flex flex-col xl:flex-row gap-8 items-start">
             {/* Left: Form Giao Hàng */}
             <div className="flex-1 w-full bg-white border border-slate-200 rounded-[20px] p-6 shadow-sm">
+              {hasRxItems && (
+                <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 flex items-start gap-3 text-rose-950 mb-5 animate-fade-in">
+                  <ShieldAlert size={22} className="text-rose-600 shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-1">
+                    <p className="font-extrabold uppercase tracking-wide text-rose-900">
+                      Đơn hàng chứa thuốc kê đơn (Rx) - Không thể thanh toán trực tuyến
+                    </p>
+                    <p className="text-rose-800 leading-relaxed">
+                      Theo quy định của Bộ Y Tế, thuốc kê đơn chỉ được cấp phát trực tiếp tại cơ sở nhà thuốc theo đơn bác sĩ. Quý khách vui lòng <Link to="/customer/cart" className="underline font-bold text-rose-950">quay lại giỏ hàng</Link> để xóa thuốc kê đơn trước khi thanh toán.
+                    </p>
+                  </div>
+                </div>
+              )}
               <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider mb-5 pb-2 border-b border-slate-100">
                 1. Thông tin giao nhận hàng
               </h3>
@@ -561,10 +585,22 @@ export function CustomerCheckout() {
                 {/* Form submit button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full mt-6 bg-[#0d6efd] hover:bg-[#0a58ca] disabled:bg-slate-100 disabled:text-slate-400 text-white font-black text-xs uppercase tracking-wider py-4 rounded-xl shadow-md transition-all active:scale-98"
+                  disabled={isSubmitting || hasRxItems}
+                  className={`w-full mt-6 font-black text-xs uppercase tracking-wider py-4 rounded-xl shadow-md transition-all ${
+                    hasRxItems
+                      ? "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none"
+                      : "bg-[#0d6efd] hover:bg-[#0a58ca] disabled:bg-slate-100 disabled:text-slate-400 text-white active:scale-98 cursor-pointer"
+                  }`}
                 >
-                  {isSubmitting ? "Hệ thống đang xử lý..." : "Xác nhận đặt & thanh toán"}
+                  {hasRxItems ? (
+                    <span className="flex items-center justify-center gap-1.5 text-rose-600">
+                      <ShieldAlert size={16} /> Đơn chứa thuốc kê đơn - Không thể thanh toán
+                    </span>
+                  ) : isSubmitting ? (
+                    "Hệ thống đang xử lý..."
+                  ) : (
+                    "Xác nhận đặt & thanh toán"
+                  )}
                 </button>
               </form>
             </div>
@@ -581,7 +617,7 @@ export function CustomerCheckout() {
                         <span className="font-extrabold text-slate-900 text-xs line-clamp-1 flex items-center gap-1.5">
                           {item.name}
                           {item.isGiftItem && (
-                            <span className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0.5 rounded font-black tracking-wide shrink-0">
+                            <span className="bg-sky-100 text-sky-800 text-[9px] px-1.5 py-0.5 rounded font-black tracking-wide shrink-0">
                               🎁 Quà tặng
                             </span>
                           )}
@@ -597,15 +633,15 @@ export function CustomerCheckout() {
                 <div className="border-t border-slate-100 pt-4 flex flex-col gap-2">
                   <span className="text-[11px] font-bold text-slate-400 uppercase">Mã giảm giá / Voucher</span>
                   {appliedVoucher ? (
-                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-150 p-2.5 rounded-xl text-xs font-semibold text-emerald-800">
+                    <div className="flex items-center justify-between bg-sky-50 border border-sky-150 p-2.5 rounded-xl text-xs font-semibold text-sky-800">
                       <div>
                         Mã đã dùng: <span className="font-extrabold uppercase">{appliedVoucher.code}</span>
-                        <span className="block text-[10px] text-emerald-600 mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
+                        <span className="block text-[10px] text-sky-600 mt-0.5">Giảm -{appliedVoucher.discount.toLocaleString()}₫</span>
                       </div>
                       <button
                         type="button"
                         onClick={handleRemoveVoucher}
-                        className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 text-md"
+                        className="text-sky-500 hover:text-sky-800 font-bold ml-2 text-md"
                       >
                         ×
                       </button>
@@ -707,7 +743,7 @@ export function CustomerCheckout() {
                     <span>Thuế giá trị gia tăng (VAT 8%)</span>
                     <span className="font-bold text-slate-900">{vat.toLocaleString()}₫</span>
                   </div>
-                  <div className="flex justify-between items-center text-emerald-600 font-bold">
+                  <div className="flex justify-between items-center text-sky-600 font-bold">
                     <span>Tích lũy đơn này</span>
                     <span>+{earnedPoints.toLocaleString()} điểm</span>
                   </div>
@@ -743,7 +779,7 @@ export function CustomerCheckout() {
             <div className="bg-white rounded-[24px] border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden flex flex-col transform transition-all duration-300">
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <h3 className="font-black text-slate-900 text-md flex items-center gap-2 uppercase tracking-wide">
-                  <CheckCircle2 className="text-emerald-500" /> Đặt hàng thành công!
+                  <CheckCircle2 className="text-sky-500" /> Đặt hàng thành công!
                 </h3>
                 <button onClick={() => { setShowSuccessModal(false); navigate("/customer/shop"); }} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                   <XCircle size={22} />
@@ -828,7 +864,7 @@ export function CustomerCheckout() {
                       <span>Thuế VAT (8%):</span>
                       <span>{vat.toLocaleString()}₫</span>
                     </div>
-                    <div className="flex justify-between text-emerald-600 font-bold">
+                    <div className="flex justify-between text-sky-600 font-bold">
                       <span>Tích lũy từ đơn này:</span>
                       <span>+{earnedPoints.toLocaleString()} điểm</span>
                     </div>
@@ -851,7 +887,7 @@ export function CustomerCheckout() {
                       className="w-[85px] h-[85px] object-contain bg-white p-1 rounded border border-slate-200"
                     />
                     <div className="text-[10px] text-slate-600 print:text-black">
-                      Nhận ngay <span className="font-bold text-emerald-600">+1.000đ - 2.000đ</span> và voucher giảm giá!
+                      Nhận ngay <span className="font-bold text-sky-600">+1.000đ - 2.000đ</span> và voucher giảm giá!
                     </div>
                   </div>
                 </div>
@@ -860,7 +896,7 @@ export function CustomerCheckout() {
               <div className="px-6 py-5 border-t border-slate-100 flex gap-2">
                 <button
                   onClick={() => { setShowSuccessModal(false); navigate(`/feedback/${orderId || ""}`); }}
-                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 shadow"
+                  className="flex-1 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 shadow"
                 >
                   ⭐ Đánh giá nhận thưởng
                 </button>
@@ -915,7 +951,7 @@ export function CustomerCheckout() {
 
                 <div className="text-[10px] text-slate-400 font-semibold flex flex-col items-center gap-1.5 justify-center">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></span>
+                    <span className="w-2 h-2 bg-sky-500 rounded-full animate-ping"></span>
                     Đang chờ bạn chuyển khoản (Tự động cập nhật...)
                   </div>
                   <div className="mt-1 font-bold text-rose-500 text-xs bg-rose-50 px-3 py-1 rounded-full border border-rose-100">
