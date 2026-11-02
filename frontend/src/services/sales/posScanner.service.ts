@@ -26,3 +26,4 @@ export const posScannerService = {
     return response.data;
   },
 };
+

@@ -54,6 +54,8 @@ export function MobilePosScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isSupportedBarcodeDetector, setIsSupportedBarcodeDetector] = useState<boolean>(true);
+  const [lastDetectedBarcode, setLastDetectedBarcode] = useState<string>("");
 
   // Phát âm thanh beep thành công qua Web Audio API (không cần tải file audio ngoài)
   const playBeep = () => {
@@ -111,7 +113,79 @@ export function MobilePosScanner() {
 
     startCamera();
 
+    // Tự động nhận diện và giải mã mã vạch trực tiếp từ Camera Stream (HTML5 BarcodeDetector API)
+  useEffect(() => {
+    if (!isCameraActive || typeof window === "undefined") return;
+
+    if (!("BarcodeDetector" in window)) {
+      setIsSupportedBarcodeDetector(false);
+      return;
+    }
+
+    let active = true;
+    let detector: any = null;
+    let lastScanTime = 0;
+
+    try {
+      detector = new (window as any).BarcodeDetector({
+        formats: [
+          "qr_code",
+          "ean_13",
+          "ean_8",
+          "code_128",
+          "code_39",
+          "upc_a",
+          "upc_e",
+        ],
+      });
+      setIsSupportedBarcodeDetector(true);
+    } catch (e) {
+      console.warn("Lỗi khởi tạo BarcodeDetector:", e);
+      setIsSupportedBarcodeDetector(false);
+      return;
+    }
+
+    const scanFrame = async () => {
+      if (!active) return;
+      const video = videoRef.current;
+
+      if (
+        video &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        detector &&
+        !isSending
+      ) {
+        const now = Date.now();
+        // Giãn cách 1500ms chống bắn lặp dồn dập
+        if (now - lastScanTime > 1500) {
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes && barcodes.length > 0) {
+              const detected = barcodes[0].rawValue;
+              if (detected && detected.trim()) {
+                lastScanTime = now;
+                setLastDetectedBarcode(detected.trim());
+                await transmitBarcode(detected.trim());
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (active) {
+        requestAnimationFrame(scanFrame);
+      }
+    };
+
+    const animId = requestAnimationFrame(scanFrame);
+
     return () => {
+      active = false;
+      cancelAnimationFrame(animId);
+    };
+  }, [isCameraActive, isSending, sessionId, branchId]);
+
+  return () => {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
@@ -291,8 +365,17 @@ export function MobilePosScanner() {
 
           <div className="absolute bottom-3 bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-slate-700/80 text-[10px] text-slate-300 font-bold z-10 flex items-center gap-1.5">
             <Camera size={12} className="text-emerald-400" />
-            Hướng camera vào mã vạch trên vỏ hộp thuốc
+            {isSupportedBarcodeDetector ? (
+              <span>Đang tự động quét mã vạch qua Camera...</span>
+            ) : (
+              <span>Hướng camera hoặc nhập mã bên dưới</span>
+            )}
           </div>
+          {lastDetectedBarcode && (
+            <div className="absolute top-3 bg-emerald-500/90 text-slate-950 px-3 py-1 rounded-full text-[10px] font-black z-10 animate-pulse">
+              Đã nhận: {lastDetectedBarcode}
+            </div>
+          )}
         </div>
 
         {/* Form nhập/bắn mã nhanh bằng tay */}

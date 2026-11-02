@@ -108,11 +108,20 @@ export class SseController {
     }
 
     // 2. Kiểm tra định dạng mã vạch hợp lệ (từ 3 đến 52 ký tự chuẩn EAN/Code-128)
-    if (cleanBarcode.length < 3 || cleanBarcode.length > 52 || !/^[A-Za-z0-9_-]+$/.test(cleanBarcode)) {
-      throw new BadRequestException('Mã vạch (barcode) không hợp lệ (độ dài 3-52 ký tự chữ, số hoặc gạch nối)');
+    if (cleanBarcode.length < 3 || cleanBarcode.length > 128 || !/^[A-Za-z0-9_.:/()#+ -]+$/.test(cleanBarcode)) {
+      throw new BadRequestException('Mã vạch (barcode) không hợp lệ (độ dài 3-128 ký tự chữ, số hoặc ký tự chuẩn GS1/QR)');
     }
 
     // 3. Rate Limiting: Tối đa 50 lượt quét/phút trên mỗi phiên để ngăn chặn flood/DDoS
+    // Tự động dọn dẹp các phiên hết hạn khi danh sách phình to chống rò rỉ RAM (Memory Leak Prevention)
+    if (this.scanRateLimits.size > 200) {
+      const currentTime = Date.now();
+      for (const [sId, entry] of this.scanRateLimits.entries()) {
+        if (currentTime >= entry.resetAt) {
+          this.scanRateLimits.delete(sId);
+        }
+      }
+    }
     const now = Date.now();
     const rateLimit = this.scanRateLimits.get(cleanSessionId);
     if (rateLimit && now < rateLimit.resetAt) {

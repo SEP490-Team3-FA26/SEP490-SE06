@@ -112,6 +112,16 @@ describe('SseController - POS Scanner Bridge (Súng quét Barcode Wi-Fi)', () =>
       expect(res.sessionId).toBe('POS-SES-TRIM');
       expect(res.barcode).toBe('8935006530022');
     });
+
+    it('TC-POS-BOUND-04: Chấp nhận mã QR đơn hàng y tế chứa dấu hai chấm và gạch chéo (VD: ABC_ORDER:ORD-12345/VN)', () => {
+      const qrPayload = {
+        sessionId: 'POS-SES-QR01',
+        barcode: 'ABC_ORDER:ORD-12345/VN',
+      };
+      const res = controller.bridgePosScanner(qrPayload);
+      expect(res.success).toBe(true);
+      expect(res.barcode).toBe('ABC_ORDER:ORD-12345/VN');
+    });
   });
 
   // =========================================================================

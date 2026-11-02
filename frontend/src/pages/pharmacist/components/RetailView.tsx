@@ -1128,7 +1128,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       window.removeEventListener('storage', handleStorageBridge);
       offEvent('pos.barcode_received', handleSseBarcode);
     };
-  }, [posSessionId, onEvent, offEvent, cart]);
+  }, [posSessionId, onEvent, offEvent]);
 
   useEffect(() => {
     const handleInventoryUpdate = (data: any) => {

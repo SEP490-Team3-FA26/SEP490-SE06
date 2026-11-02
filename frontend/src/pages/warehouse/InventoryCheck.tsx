@@ -180,11 +180,25 @@ export function InventoryCheck() {
   const handleOpenDetail = async (check: any) => {
     try {
       const fullCheck = await inventoryCheckService.getCheckById(check.id || check._id);
-      setSelectedCheck(fullCheck);
+      let parsed = fullCheck;
+      if (typeof fullCheck === 'string') {
+        try {
+          parsed = JSON.parse(fullCheck);
+        } catch {
+          parsed = check;
+        }
+      }
+      const actualData = parsed?.data || parsed || {};
+      // Hợp nhất fallback với check từ danh sách nếu server thiếu trường
+      setSelectedCheck({
+        ...check,
+        ...actualData,
+        items: actualData.items && actualData.items.length > 0 ? actualData.items : (check.items || []),
+      });
       setDetailOpen(true);
     } catch (err) {
-      console.error("Failed to load details", err);
-      // Fallback
+      console.error('Failed to load details', err);
+      // Fallback an toàn lấy dữ liệu sẵn có của dòng
       setSelectedCheck(check);
       setDetailOpen(true);
     }

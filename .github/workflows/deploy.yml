@@ -22,22 +22,11 @@ on:
       - dev
       - demo
       - 'feat/**'
-      - 'fix/**'
-      - 'loi/**'
-      - 'nam/**'
-      - 'phuoc/**'
-      - 'dat/**'
   pull_request:
     branches:
       - main
       - dev
       - demo
-      - 'feat/**'
-      - 'fix/**'
-      - 'loi/**'
-      - 'nam/**'
-      - 'phuoc/**'
-      - 'dat/**'
   workflow_dispatch:
 
 env:

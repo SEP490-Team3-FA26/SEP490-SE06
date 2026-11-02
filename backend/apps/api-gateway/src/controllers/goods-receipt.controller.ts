@@ -3,6 +3,9 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+import { SavePoInspectionDto } from '../dto/po-inspection.dto';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
 import { AppWebsocketGateway } from '../websocket/websocket.gateway';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -278,17 +281,21 @@ export class GoodsReceiptController implements OnModuleInit {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.inspection.list', {});
   }
 
-  // Đồng bộ kết quả kiểm đếm Mobile cho đơn PO (Lưu trữ Redis Server & phát WebSocket đa thiết bị)
+    // Đồng bộ kết quả kiểm đếm Mobile cho đơn PO (Lưu trữ Redis Server & phát WebSocket đa thiết bị)
   @Post('po-inspections/:poId')
-  async savePoMobileInspection(@Param('poId') poId: string, @Body() data: any) {
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('warehouse', 'admin')
+  async savePoMobileInspection(@Param('poId') poId: string, @Body() dto: SavePoInspectionDto) {
     const key = `po_inspection:${poId}`;
-    await this.cacheManager.set(key, data, 86400000); // 24 giờ
-    this.websocketGateway.server?.emit(`po_inspection_updated:${poId}`, data);
-    return { success: true, message: 'Đã lưu kết quả kiểm đếm PO vào máy chủ thành công', data };
+    await this.cacheManager.set(key, dto, 86400000); // 24 giờ
+    this.websocketGateway.server?.emit(`po_inspection_updated:${poId}`, dto);
+    return { success: true, message: 'Đã lưu kết quả kiểm đếm PO vào máy chủ thành công', data: dto };
   }
 
   // Lấy kết quả kiểm đếm Mobile cho đơn PO từ máy tính kho
   @Get('po-inspections/:poId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('warehouse', 'admin')
   async getPoMobileInspection(@Param('poId') poId: string) {
     const key = `po_inspection:${poId}`;
     const data = await this.cacheManager.get(key);
