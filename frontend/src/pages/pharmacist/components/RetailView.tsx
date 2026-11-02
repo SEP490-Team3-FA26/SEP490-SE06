@@ -2549,7 +2549,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 </button>
               </div>
               <div className="text-[12px] text-slate-500 font-bold">
-                SĐT: {loyaltyInfo.phone} | Điểm khả dụng: <span className="text-[#0057cd]">{loyaltyInfo.points.toLocaleString()}đ</span>
+                SĐT: {loyaltyInfo.phone} | Điểm khả dụng: <span className="text-[#0057cd]">{(loyaltyInfo.points || 0).toLocaleString()}đ</span>
               </div>
 
               {/* Adaptive RFM Badge & Gợi ý Toa Thuốc */}
@@ -2649,7 +2649,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 />
               </div>
 
-              {loyaltyInfo.points > 0 && (
+              {(loyaltyInfo.points || 0) > 0 && (
                 <div className="pt-2.5 border-t border-slate-100 flex flex-col gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -2659,7 +2659,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                         setUsePoints(e.target.checked);
                         if (e.target.checked) {
                           const maxRedeem = Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5);
-                          setRedeemedPoints(Math.min(loyaltyInfo.points, maxRedeem));
+                          setRedeemedPoints(Math.min(loyaltyInfo.points || 0, maxRedeem));
                         } else {
                           setRedeemedPoints(0);
                         }
@@ -2681,7 +2681,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                           onChange={(e) => {
                             const rawVal = Math.max(0, Number(e.target.value) || 0);
                             const maxRedeem = Math.max(0, Math.floor((subtotal - vipDiscount - voucherDiscount) * 0.5));
-                            const pts = Math.min(loyaltyInfo.points, maxRedeem, rawVal);
+                            const pts = Math.min(loyaltyInfo.points || 0, maxRedeem, rawVal);
                             setRedeemedPoints(pts);
                           }}
                           className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white"
@@ -3555,6 +3555,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           onClose={() => setIsClinicalModalOpen(false)}
           customerPhone={loyaltyInfo.phone}
           customerName={loyaltyInfo.fullName}
+          loyaltyPoints={loyaltyInfo.points || 0}
           initialProfile={{
             allergies: loyaltyInfo.allergies || [],
             allergicMedicines: loyaltyInfo.allergicMedicines || [],

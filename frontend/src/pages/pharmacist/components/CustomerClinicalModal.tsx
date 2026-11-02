@@ -28,6 +28,7 @@ interface CustomerClinicalModalProps {
   customer?: FullCustomerProfile | null;
   customerPhone?: string;
   customerName?: string;
+  loyaltyPoints?: number;
   initialProfile?: CustomerClinicalSafety;
   onClose: () => void;
   onUpdated?: (updatedClinical: CustomerClinicalSafety) => void;
@@ -38,6 +39,7 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
   customer,
   customerPhone,
   customerName,
+  loyaltyPoints,
   initialProfile,
   onClose,
   onUpdated,
@@ -82,6 +84,7 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
   const name = customer?.loyalty?.fullName || customerName || 'Khách hàng';
   const loyalty = customer?.loyalty;
   const clinical = customer?.clinical || initialProfile;
+  const availablePoints = loyalty?.points ?? loyaltyPoints ?? 0;
 
   const handleSave = async () => {
     try {
@@ -203,7 +206,7 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
                 Điểm tích lũy khả dụng
               </div>
               <div className="text-lg font-black font-mono text-sky-700">
-                {loyalty.points.toLocaleString()} đ
+                {availablePoints.toLocaleString()} đ
               </div>
             </div>
 
@@ -213,7 +216,7 @@ export const CustomerClinicalModal: React.FC<CustomerClinicalModalProps> = ({
                 Tổng chi tiêu (12T)
               </div>
               <div className="text-lg font-black font-mono text-slate-800">
-                {((clinical.totalSpent12M || 0) / 1000).toLocaleString()} k
+                {(((clinical?.totalSpent12M || 0)) / 1000).toLocaleString()} k
               </div>
             </div>
           </div>
