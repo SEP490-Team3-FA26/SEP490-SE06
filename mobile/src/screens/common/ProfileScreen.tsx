@@ -1,5 +1,5 @@
 // ProfileScreen.tsx - Quản lý Hồ sơ cá nhân & Nghiệp vụ Nhân sự chuẩn FPT Long Châu
-// Tuân thủ 100% bộ quy chuẩn /abc-reactnative-improvement-ui/ux:
+// Tuân thủ 100% bộ quy chuẩn /abc-reactnative-improvement-ui-ux:
 // Zero-Border, Typography to rõ cho người cao tuổi, Không crash falsy-&&, Toàn bộ text trong <Text>
 // Chú thích mã nguồn: Tiếng Việt 100% theo quy chuẩn dự án WDP301/SEP490
 
@@ -77,17 +77,10 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [showDirectorStaffScanModal, setShowDirectorStaffScanModal] = useState<boolean>(false);
 
-  // Phân quyền Ban Giám Đốc
-  // Phân quyền Ban Giám Đốc (Executive Director) & Quản Lý Chi Nhánh (Branch Manager)
-  const userFullName = String((user as any)?.fullName || user?.name || '').toLowerCase().trim();
+  // Phân quyền Ban Giám Đốc (Executive Director) & Quản Lý Chi Nhánh (Branch Manager) dựa trên RBAC chuẩn
   const userRole = String(user?.role || auth.role || '').toLowerCase().trim();
   const isDirector = Boolean(
     ['director', 'headbranch', 'head_branch'].includes(userRole) ||
-    userFullName.includes('giám đốc') ||
-    userFullName.includes('giam doc') ||
-    userFullName.includes('director') ||
-    user?.phone === '0902 222 333' ||
-    user?.phone === '0902222333' ||
     (Array.isArray((user as any)?.roles) &&
       (user as any).roles.some((r: string) =>
         ['director', 'headbranch', 'head_branch'].includes(String(r).toLowerCase())
@@ -96,7 +89,10 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   const isBranchManager = Boolean(
     ['branch', 'headbranch', 'head_branch'].includes(userRole) ||
-    userFullName.includes('quản lý')
+    (Array.isArray((user as any)?.roles) &&
+      (user as any).roles.some((r: string) =>
+        ['branch', 'headbranch', 'head_branch'].includes(String(r).toLowerCase())
+      ))
   );
 
   // Thông tin Xu thưởng & Thẻ hội viên VIP
@@ -249,10 +245,10 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             {/* Tên & Số điện thoại */}
             <View style={styles.userInfoBox}>
               <Text style={styles.userNameText} numberOfLines={1}>
-                {user?.name || (isDirector ? 'Ban Giám Đốc' : 'anh phước')}
+                {user?.name || (isDirector ? 'Ban Giám Đốc' : 'Người dùng')}
               </Text>
               <Text style={styles.userPhoneText}>
-                {user?.phone || '0902 222 333'}
+                {user?.phone || 'Chưa cập nhật SĐT'}
               </Text>
               {isStaff ? (
                 <View style={styles.staffRolePill}>

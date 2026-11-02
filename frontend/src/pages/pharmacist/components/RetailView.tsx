@@ -2187,7 +2187,6 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                                 Mức độ: {conf.severity === 'HIGH' ? 'Nguy hiểm cao' : 'Cảnh báo'}
                               </span>
                             </div>
-                            </div>
                             <p className="text-rose-800 font-medium">
                               ⚠️ {conf.reason}
                             </p>

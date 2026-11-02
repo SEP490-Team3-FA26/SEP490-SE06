@@ -15,57 +15,8 @@ export interface StaffMemberRecord {
   statusLabel: string;
 }
 
-// Danh sách nhân sự chuẩn GPP dự phòng khi offline
-export const DEFAULT_STAFF_GPP_LIST: StaffMemberRecord[] = [
-  {
-    id: 'EMP-00129',
-    name: 'Trần Hồng Phước',
-    role: 'pharmacist',
-    roleLabel: 'Dược Sĩ Phụ Trách Chuyên Môn',
-    phone: '0903 333 444',
-    branchName: 'Cơ Sở Chi Nhánh Q1 (CN1)',
-    cchn: '012984/HCM-CCHND',
-    cchnExpiry: '2028-12-31',
-    status: 'IN_SHIFT',
-    statusLabel: 'Đang Trong Ca Trực (Đã Chấm GPS)',
-  },
-  {
-    id: 'EMP-00188',
-    name: 'Nguyễn Văn An',
-    role: 'branch',
-    roleLabel: 'Quản Lý Chi Nhánh',
-    phone: '0902 222 333',
-    branchName: 'Cơ Sở Chi Nhánh Q1 (CN1)',
-    cchn: '009872/HCM-CCHND',
-    cchnExpiry: '2027-06-30',
-    status: 'ACTIVE',
-    statusLabel: 'Đang Làm Việc',
-  },
-  {
-    id: 'EMP-00210',
-    name: 'Lê Hoàng Nam',
-    role: 'warehouse',
-    roleLabel: 'Quản Lý Kho Dược GSP',
-    phone: '0938 111 222',
-    branchName: 'Kho Tổng Trung Tâm (GSP)',
-    cchn: '018442/HCM-CCHND',
-    cchnExpiry: '2029-01-15',
-    status: 'IN_SHIFT',
-    statusLabel: 'Đang Trực Kho GSP',
-  },
-  {
-    id: 'EMP-00305',
-    name: 'Trần Thị Mai',
-    role: 'pharmacist',
-    roleLabel: 'Dược Sĩ Bán Lẻ Quầy Thuốc',
-    phone: '0912 888 999',
-    branchName: 'Cơ Sở Chi Nhánh Q3 (CN2)',
-    cchn: '014520/HCM-CCHND',
-    cchnExpiry: '2028-09-20',
-    status: 'ACTIVE',
-    statusLabel: 'Sẵn Sàng Tiếp Nhận Ca',
-  },
-];
+// Danh sách nhân sự chuẩn GPP (Khởi tạo mảng rỗng tuân thủ Zero Mock Data Policy)
+export const DEFAULT_STAFF_GPP_LIST: StaffMemberRecord[] = [];
 
 // Hàm lọc nhân sự theo từ khóa
 export function filterStaffMembers(list: StaffMemberRecord[], query: string): StaffMemberRecord[] {

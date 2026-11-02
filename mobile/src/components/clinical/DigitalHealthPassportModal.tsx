@@ -175,13 +175,9 @@ export const DigitalHealthPassportModal: React.FC<DigitalHealthPassportModalProp
     }
   };
 
-  // Xác định nhân sự: Dược sĩ, Quản lý kho, Quản lý chi nhánh, Giám đốc, hoặc tài khoản nhân viên nội bộ
+  // Xác định nhân sự: Dược sĩ, Quản lý kho, Quản lý chi nhánh, Giám đốc (dựa trên RBAC role chuẩn)
   const isStaffUser = Boolean(
-    (user?.role && user.role.toLowerCase() !== 'customer') ||
-    user?.name?.toLowerCase().includes('dược sĩ') ||
-    user?.name?.toLowerCase().includes('quản lý') ||
-    user?.name?.toLowerCase().includes('giám đốc') ||
-    user?.name?.toLowerCase().includes('anh phước')
+    user?.role && user.role.toLowerCase() !== 'customer'
   );
 
   // Payload mã QR: Nhân viên mã hóa thẻ định danh nhân sự, Khách hàng mã hóa sổ sức khỏe

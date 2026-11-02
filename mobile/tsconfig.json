@@ -28,6 +28,7 @@
   },
   "include": [
     "src/**/*",
+    "test/**/*",
     "App.tsx",
     "index.ts"
   ],

@@ -110,7 +110,10 @@ export function useCustomerMedicalRecord(options?: { autoEditIfIncomplete?: bool
       await customerService.updateMyClinicalProfile(payload);
       setSuccessMsg('Đã cập nhật hồ sơ bệnh án thành công!');
       setIsEditing(false);
-      await loadData();
+      // Áp dụng Delayed Re-fetch (800ms) chuẩn Event-Driven Kafka Playbook v2.0
+      setTimeout(() => {
+        loadData();
+      }, 800);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || err.message || 'Lỗi khi cập nhật hồ sơ bệnh án');
     } finally {

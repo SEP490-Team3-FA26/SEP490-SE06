@@ -44,13 +44,7 @@ export default function AppNavigator() {
   const isDirector =
     ['director', 'headbranch', 'head_branch'].includes(rawRole) ||
     userRolesList.some((r: string) => ['director', 'headbranch', 'head_branch'].includes(r)) ||
-    userEmail === 'director@vinapharmacy.com' ||
-    userEmail.includes('director') ||
-    userName.includes('giám đốc') ||
-    userName.includes('giam doc') ||
-    userName.includes('director') ||
-    user?.phone === '0902 222 333' ||
-    user?.phone === '0902222333';
+    userEmail === 'director@vinapharmacy.com';
 
   const isWarehouse =
     rawRole === 'warehouse' ||

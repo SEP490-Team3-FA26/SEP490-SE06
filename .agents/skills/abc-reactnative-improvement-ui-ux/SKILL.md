@@ -1,9 +1,9 @@
 ---
-name: abc-reactnative-improvement-ui/ux
+name: abc-reactnative-improvement-ui-ux
 description: Quy chuẩn tối ưu hóa toàn diện UI/UX và kiến trúc React Native & Expo cho dự án WDP301/SEP490: tích hợp 35+ quy tắc hiệu năng Vercel (FlashList, 60fps Reanimated, zero falsy-and crash, stable callbacks), các mẫu kiến trúc production (Expo Native Navigators, Offline-first Sync, Native Modals, Context Menus), và chuẩn thiết kế y tế Zero-Border (phong cách FPT Long Châu, font chữ to rõ cho người cao tuổi, Sổ sức khỏe số QR, lịch nhắc thuốc offline, kẹp bài test 3 nhóm giá trị chuẩn).
 ---
 
-# Kỹ Năng Tối Ưu Hóa Toàn Diện UI/UX & Kiến Trúc React Native (`/abc-reactnative-improvement-ui/ux`)
+# Kỹ Năng Tối Ưu Hóa Toàn Diện UI/UX & Kiến Trúc React Native (`/abc-reactnative-improvement-ui-ux`)
 ### Hệ Thống ABC PHARMACY: Expo React Native Mobile • TypeScript • API Gateway • Kafka • Redis
 ### Tổng Hợp Tinh Hoa: Vercel React Native Skills + Production Architecture Patterns + Chuẩn Y Tế GPP Long Châu
 
@@ -217,23 +217,10 @@ Mọi code nghiệp vụ mới (Service, Helper, Formatter, Validator) **BẮT B
 
 ## 6. Danh Mục Tham Khảo Chi Tiết (Rule Directory)
 
-Khi cần tra cứu sâu từng quy tắc cụ thể, tham khảo các file tài liệu trong thư mục con:
+Toàn bộ 42 quy chuẩn kỹ thuật chuyên sâu được gộp tối giản trong 2 tài liệu chính để cây thư mục luôn gọn gàng:
 
-- `rules/medical-ui-zero-border.md` - Quy chuẩn thiết kế Zero-Border thẻ trắng bo tròn 16px.
-- `rules/medical-ui-large-fonts.md` - Quy chuẩn typography chữ to cho người cao tuổi.
-- `rules/medical-ui-health-passport.md` - Tích hợp Sổ sức khỏe số & đối soát lâm sàng.
-- `rules/medical-offline-reminder.md` - Lịch nhắc uống thuốc offline 100% không push OS.
-- `rules/list-performance-virtualize.md` - Tối ưu danh sách lớn với virtualization.
-- `rules/list-performance-item-memo.md` - Memo hóa từng item trong danh sách.
-- `rules/list-performance-callbacks.md` - Hoist callbacks tránh re-render danh sách.
-- `rules/animation-gpu-properties.md` - Animate GPU transform & opacity 60fps.
-- `rules/animation-derived-value.md` - Sử dụng useDerivedValue cho animation.
-- `rules/rendering-no-falsy-and.md` - Tuyệt đối không dùng falsy-&& trong JSX.
-- `rules/rendering-text-in-text-component.md` - Bọc chuỗi ký tự trong thẻ Text.
-- `rules/ui-expo-image.md` - Sử dụng expo-image nén và cache ảnh.
-- `rules/ui-pressable.md` - Thay thế TouchableOpacity bằng Pressable / AnimatedTouchable.
-- `references/architecture-details.md` - Chi tiết kiến trúc phân tầng, Expo Router, offline sync.
-- `AGENTS.md` - Toàn văn bộ 35+ quy tắc Vercel React Native tổng hợp.
+- **[rules.md](file:///Users/tranhongphuoc/WDP301/.agents/skills/abc-reactnative-improvement-ui-ux/rules.md)** - Cẩm nang chi tiết 42 quy chuẩn kỹ thuật (Core Rendering, List Virtualization, Reanimated 60fps, Zero-Border, Safe State, Typography Lg...).
+- **[architecture-details.md](file:///Users/tranhongphuoc/WDP301/.agents/skills/abc-reactnative-improvement-ui-ux/references/architecture-details.md)** - Chi tiết kiến trúc phân tầng, Expo Router, offline sync, bảo mật SecureStore.
 
 ---
 

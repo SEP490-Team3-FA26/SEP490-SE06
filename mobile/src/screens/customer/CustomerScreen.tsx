@@ -163,13 +163,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
   const isDirector = Boolean(
     ['director', 'headbranch', 'head_branch'].includes(userRole) ||
     userRolesList.some((r: string) => ['director', 'headbranch', 'head_branch'].includes(r)) ||
-    userEmail === 'director@vinapharmacy.com' ||
-    userEmail.includes('director') ||
-    userFullName.includes('giám đốc') ||
-    userFullName.includes('giam doc') ||
-    userFullName.includes('director') ||
-    user?.phone === '0902 222 333' ||
-    user?.phone === '0902222333'
+    userEmail === 'director@vinapharmacy.com'
   );
 
   // Tự động điều hướng nhân sự / Ban Giám Đốc về đúng màn hình nghiệp vụ, tuyệt đối không để Giám Đốc ở trang mua sắm bán lẻ
@@ -2694,7 +2688,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                     {isDirector ? (user?.name || 'Giám Đốc Chuỗi Chi Nhánh') : formattedProfile.displayName}
                   </Text>
                   <Text style={styles.accountLongChauPhone} numberOfLines={1}>
-                    {isDirector ? `${user?.phone || '0902 222 333'} • Ban Giám Đốc` : formattedProfile.displayPhone}
+                    {isDirector ? `${user?.phone || 'Ban Giám Đốc'} • Quản Trị Chuỗi` : formattedProfile.displayPhone}
                   </Text>
                 </View>
               </View>

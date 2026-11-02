@@ -88,13 +88,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       const isDirectorUser =
         ['director', 'headbranch', 'head_branch'].includes(loggedRole) ||
         loggedRolesList.some((r: string) => ['director', 'headbranch', 'head_branch'].includes(r)) ||
-        loggedEmail === 'director@vinapharmacy.com' ||
-        loggedEmail.includes('director') ||
-        loggedName.includes('giám đốc') ||
-        loggedName.includes('giam doc') ||
-        loggedName.includes('director') ||
-        loggedUser.phone === '0902 222 333' ||
-        loggedUser.phone === '0902222333';
+        loggedEmail === 'director@vinapharmacy.com';
 
       if (isDirectorUser) {
         navigation.replace('DirectorScreen');

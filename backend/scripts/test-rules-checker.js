@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 const APPS_DIR = path.resolve(__dirname, '../apps');
+const TEST_DIR = path.resolve(__dirname, '../test');
 let passedRules = 0;
 let failedRules = 0;
 let warnings = 0;
@@ -185,7 +186,7 @@ function getAllSpecFiles(dir, fileList = []) {
   return fileList;
 }
 
-const specFiles = getAllSpecFiles(APPS_DIR);
+const specFiles = [...getAllSpecFiles(APPS_DIR), ...getAllSpecFiles(TEST_DIR)];
 let normalCasesCount = 0;
 let boundaryCasesCount = 0;
 let abnormalCasesCount = 0;
@@ -230,7 +231,7 @@ for (const codeFile of targetCodeFiles) {
   const hasSpecInDir = specFiles.some((spec) => {
     const specLower = spec.toLowerCase();
     const serviceName = baseName.replace(/\.(service|controller)$/, '').toLowerCase();
-    return spec.includes(dirName) || specLower.includes(serviceName);
+    return spec.includes(dirName) || specLower.includes(baseName.toLowerCase()) || specLower.includes(serviceName);
   });
 
   if (hasAdjacentSpec || hasSpecInDir) {

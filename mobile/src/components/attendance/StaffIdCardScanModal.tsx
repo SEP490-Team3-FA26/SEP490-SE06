@@ -42,8 +42,8 @@ export const StaffIdCardScanModal: React.FC<StaffIdCardScanModalProps> = ({
   userRole = 'director',
 }) => {
   const [loading, setLoading] = useState(false);
-  const [staffList, setStaffList] = useState<StaffMemberRecord[]>(DEFAULT_STAFF_GPP_LIST);
-  const [selectedStaff, setSelectedStaff] = useState<StaffMemberRecord | null>(DEFAULT_STAFF_GPP_LIST[0]);
+  const [staffList, setStaffList] = useState<StaffMemberRecord[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<StaffMemberRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSimulatingScan, setIsSimulatingScan] = useState(false);
 
@@ -92,14 +92,20 @@ export const StaffIdCardScanModal: React.FC<StaffIdCardScanModalProps> = ({
 
   // Giả lập quét camera QR Code nhân viên
   const handleSimulateScan = () => {
+    if (staffList.length === 0) {
+      showToast.error('Không Có Dữ Liệu', 'Chưa có thông tin nhân sự để quét thẻ.');
+      return;
+    }
     setIsSimulatingScan(true);
     setTimeout(() => {
       setIsSimulatingScan(false);
       // Chọn ngẫu nhiên một nhân viên để hiển thị kết quả quét
       const randomIndex = Math.floor(Math.random() * staffList.length);
-      const target = staffList[randomIndex] || DEFAULT_STAFF_GPP_LIST[0];
-      setSelectedStaff(target);
-      showToast.success('Quét Thẻ Thành Công 🎉', `Đã xác thực định danh nhân sự: ${target.name}`);
+      const target = staffList[randomIndex];
+      if (target) {
+        setSelectedStaff(target);
+        showToast.success('Quét Thẻ Thành Công 🎉', `Đã xác thực định danh nhân sự: ${target.name}`);
+      }
     }, 800);
   };
 

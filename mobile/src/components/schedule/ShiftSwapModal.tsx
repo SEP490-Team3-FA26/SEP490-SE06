@@ -123,17 +123,8 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
       setMySwaps(mySwapsRes || []);
       setBranchSwaps(branchSwapsRes || []);
 
-      // Dự phòng danh sách đồng nghiệp chi nhánh đầy đủ vai trò
-      const validColleagues = (colleaguesRes && colleaguesRes.length > 0)
-        ? colleaguesRes
-        : [
-            { id: 'emp-01', _id: 'emp-01', fullName: 'DS. Lê Hải Yến', role: 'pharmacist', phone: '0901234567', branchName: 'Cơ Sở Chi Nhánh ABC (CN1)', cchn: 'CCHN-001-GPP' },
-            { id: 'emp-02', _id: 'emp-02', fullName: 'DS. Nguyễn Văn An', role: 'pharmacist', phone: '0902345678', branchName: 'Cơ Sở Chi Nhánh ABC (CN1)', cchn: 'CCHN-002-GPP' },
-            { id: 'emp-03', _id: 'emp-03', fullName: 'Trần Minh Khang', role: 'warehouse', phone: '0903333444', branchName: 'Kho Tổng GSP CN1', cchn: 'GSP-WH-003' },
-            { id: 'emp-04', _id: 'emp-04', fullName: 'DS. Phạm Thị Thảo', role: 'pharmacist', phone: '0904567890', branchName: 'Cơ Sở Chi Nhánh ABC (CN1)', cchn: 'CCHN-004-GPP' },
-            { id: 'emp-05', _id: 'emp-05', fullName: 'Ngô Quang Huy', role: 'branch', phone: '0905678901', branchName: 'Cơ Sở Chi Nhánh ABC (CN1)' },
-          ];
-      setColleagues(validColleagues);
+      // Tuân thủ Zero Mock Data Policy: Lấy danh sách đồng nghiệp từ API thực tế
+      setColleagues(colleaguesRes || []);
 
       // Extract my upcoming shifts from schedule (cả tuần này và tuần sau)
       const allAssignments = [
