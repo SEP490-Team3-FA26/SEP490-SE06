@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
-  Search, ShoppingCart, Award, Truck, ShieldCheck,
+  Search, ShoppingCart, Heart, Award, Truck, ShieldCheck,
   PhoneCall, FileText, MapPin, UploadCloud, ChevronDown,
   ChevronRight, X, Loader2, BrainCircuit, Star, LogOut,
   User, ClipboardList, Pill, Flame, CheckCircle2, AlertCircle,
@@ -10,6 +10,7 @@ import {
   Droplets, Wind, Bone, MoreHorizontal, Activity
 } from "lucide-react";
 import { authService, userService, cartService, medicineService } from "../../services";
+import { wishlistService } from "../../services/sales/wishlist.service";
 import {
   AUTH_LOGIN_REQUIRED_EVENT,
   AUTH_TOKEN_CHANGED_EVENT,
@@ -593,8 +594,9 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Cart State
+  // Cart & Wishlist State
   const [cartCount, setCartCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   // Search Auto-complete State
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
@@ -666,11 +668,23 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     }
   };
 
+  // Wishlist Count Loading
+  const updateWishlistCount = async () => {
+    try {
+      const res = await wishlistService.getWishlist();
+      setWishlistCount(res?.totalCount || (Array.isArray(res?.items) ? res.items.length : 0));
+    } catch (err) {
+      console.error("Error reading wishlist count:", err);
+    }
+  };
+
   useEffect(() => {
     syncAuthState();
     updateCartCount();
+    updateWishlistCount();
 
     window.addEventListener("cartUpdated", updateCartCount);
+    window.addEventListener("wishlistUpdated", updateWishlistCount);
     window.addEventListener("loyaltyUpdated", syncAuthState);
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
     const handleLoginRequired = () => setShowLoginRequiredModal(true);
@@ -685,6 +699,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
 
     return () => {
       window.removeEventListener("cartUpdated", updateCartCount);
+      window.removeEventListener("wishlistUpdated", updateWishlistCount);
       window.removeEventListener("loyaltyUpdated", syncAuthState);
       window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, syncAuthState);
       window.removeEventListener(AUTH_LOGIN_REQUIRED_EVENT, handleLoginRequired);
@@ -1064,7 +1079,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                       {/* Loading state */}
                       {isSearchingLive ? (
                         <div className="py-16 text-center text-xs text-slate-400 font-bold flex flex-col items-center justify-center gap-2.5">
-                          <Loader2 size={24} className="animate-spin text-[#0057cd]" />
+                          <Loader2 size={24} className="animate-spin text-emerald-600" />
                           <span>Đang tra cứu kho dược phẩm và giá bán...</span>
                         </div>
                       ) : (searchQuery.trim() ? searchResults : suggestedMedicines).length > 0 ? (
@@ -1259,6 +1274,23 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               </Link>
             )}
 
+            {/* Nút Yêu thích (Wishlist) */}
+            <Link
+              to="/customer/wishlist"
+              className="flex items-center gap-2 bg-[#0047a5] hover:bg-[#003c8c] text-white px-3.5 py-2 rounded-full font-bold text-xs transition-all shadow-sm relative group cursor-pointer border-none outline-none"
+              title="Danh sách sản phẩm yêu thích"
+            >
+              <div className="relative">
+                <Heart size={18} className={wishlistCount > 0 ? "fill-rose-400 text-rose-400" : "text-white"} />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-2 -right-2.5 min-w-4.5 h-4.5 bg-rose-500 text-white text-[9px] font-black flex items-center justify-center rounded-full px-1 border border-white shadow-xs">
+                    {wishlistCount}
+                  </span>
+                )}
+              </div>
+              <span className="hidden xl:inline">Yêu thích</span>
+            </Link>
+
             {/* Nút Giỏ hàng: Nếu chưa đăng nhập thì redirect sang trang đăng nhập */}
             <button
               ref={cartIconRef as any}
@@ -1355,7 +1387,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                       }}
                       className={`px-3 py-2.5 flex items-center gap-1 transition-all whitespace-nowrap cursor-pointer text-xs font-bold border-b-2 -mb-[1px] ${
                         isTabActive
-                          ? "text-[#0057cd] font-black border-[#0057cd] bg-blue-50/40"
+                          ? "text-[#0057cd] font-black border-emerald-600 bg-blue-50/40"
                           : "text-slate-700 hover:text-[#0057cd] border-transparent"
                       }`}
                     >
@@ -1605,6 +1637,19 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               >
                 <UploadCloud size={15} /> Gửi Toa Thuốc Nhanh
               </button>
+              <button
+                onClick={() => { setMobileMenuOpen(false); navigate("/customer/wishlist"); }}
+                className="w-full px-4 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 text-left flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Heart size={15} className="fill-rose-500 text-rose-500" /> Sản phẩm yêu thích
+                </div>
+                {wishlistCount > 0 && (
+                  <span className="px-2 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full">
+                    {wishlistCount}
+                  </span>
+                )}
+              </button>
             </div>
 
             {token ? (
@@ -1679,7 +1724,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Ví dụ: Nguyễn Văn A"
                   value={prescriptionForm.fullName}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, fullName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1693,7 +1738,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Ví dụ: 0912 345 678"
                   value={prescriptionForm.phoneNumber}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, phoneNumber: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1706,7 +1751,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Số nhà, tên đường, phường/xã, quận/huyện..."
                   value={prescriptionForm.address}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, address: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-[#0057cd] outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -1714,7 +1759,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Ảnh chụp toa thuốc / bệnh án
                 </label>
-                <div className="border-2 border-dashed border-slate-200 hover:border-[#0057cd] rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition-colors">
+                <div className="border-2 border-dashed border-slate-200 hover:border-emerald-600 rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition-colors">
                   <UploadCloud size={28} className="mx-auto text-slate-400 mb-1" />
                   <p className="text-xs font-bold text-slate-700">Kéo thả ảnh hoặc bấm để chọn tệp</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, PDF (Tối đa 10MB)</p>
@@ -1744,7 +1789,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   placeholder="Ví dụ: Người bệnh dị ứng Penicillin, cần giao trước 17h..."
                   value={prescriptionForm.note}
                   onChange={(e) => setPrescriptionForm({ ...prescriptionForm, note: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-[#0057cd] outline-none resize-none"
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-600 outline-none resize-none"
                 />
               </div>
 

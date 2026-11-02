@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { MapPin, Navigation, X, CheckCircle2, AlertTriangle, ShieldCheck, Compass, Save } from "lucide-react";
+import { Loader2, MapPin, Navigation, X, CheckCircle2, AlertTriangle, ShieldCheck, Compass, Save } from "lucide-react";
 import { branchService } from "../../services/admin/branch.service";
 
 interface BranchLocationModalProps {
@@ -172,7 +172,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
 
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center text-slate-400">
-              <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
+              <Loader2 size={32} className="animate-spin text-emerald-600 mb-3" />
               <p className="text-sm">Đang tải thông tin chi nhánh...</p>
             </div>
           ) : (
@@ -185,7 +185,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium text-sm rounded-xl flex items-center justify-center space-x-2 transition shadow-sm"
               >
                 {locating ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 size={16} className="animate-spin text-white" />
                 ) : (
                   <Navigation className="w-4 h-4" />
                 )}
@@ -284,7 +284,7 @@ export function BranchLocationModal({ isOpen, onClose, onSuccess }: BranchLocati
                   className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center space-x-2 transition shadow-md shadow-emerald-200"
                 >
                   {saving ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Loader2 size={16} className="animate-spin text-white" />
                   ) : (
                     <Save className="w-4 h-4" />
                   )}

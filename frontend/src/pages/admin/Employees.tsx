@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Clock, CheckCheck, XCircle } from "lucide-react";
+import { Loader2, Search, Plus, Edit2, Ban, ShieldCheck, Mail, Lock, User as UserIcon, Building2, CheckCircle2, AlertTriangle, X, Clock, CheckCheck, XCircle } from 'lucide-react';
 import { employeeService, Employee } from "../../services/admin/employee.service";
 import { branchService } from "../../services/admin/branch.service";
 
@@ -311,8 +311,11 @@ export function Employees() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
-                    Đang tải dữ liệu...
+                  <td colSpan={5} className="px-6 py-16 text-center text-slate-500">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <Loader2 size={32} className="animate-spin text-emerald-600" />
+                      <p className="text-sm font-semibold text-slate-500">Đang tải danh sách nhân viên...</p>
+                    </div>
                   </td>
                 </tr>
               ) : filteredEmployees.length === 0 ? (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
@@ -125,6 +126,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
   const [voucherCodeInput, setVoucherCodeInput] = useState<string>('');
 
+  // Wishlist State (Danh sách sản phẩm yêu thích)
+  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [wishlistTotalCount, setWishlistTotalCount] = useState<number>(0);
+
   // AI Chat & Voice Consultant
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string; recommendedMeds?: Medicine[] }>>([
     {
@@ -139,6 +144,7 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   // Orders & Feedback
   const [orders, setOrders] = useState<Order[]>([]);
+  const [medImageMap, setMedImageMap] = useState<Record<string, string>>({});
   const [searchPhone, setSearchPhone] = useState<string>('');
   const [selectedOrderQR, setSelectedOrderQR] = useState<Order | null>(null);
   const [feedbackOrder, setFeedbackOrder] = useState<Order | null>(null);
@@ -146,6 +152,91 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [feedbackTags, setFeedbackTags] = useState<string[]>([]);
   const [feedbackComment, setFeedbackComment] = useState<string>('');
   const [feedbackSubmitting, setFeedbackSubmitting] = useState<boolean>(false);
+  // Tự động tải hình ảnh thuốc chuẩn xác từ Database cho lịch sử đơn hàng
+  useEffect(() => {
+    if (orders.length > 0) {
+      const missingIds = new Set<string>();
+      const existingMap: Record<string, string> = { ...medImageMap };
+
+      orders.forEach((ord) => {
+        (ord.items || []).forEach((it) => {
+          const mId = it.medicineId || (it as any).id || (it as any)._id;
+          if (mId && !existingMap[mId]) {
+            const matched = medicines.find(
+              (m) => (m.id && String(m.id) === String(mId)) ||
+                     (m._id && String(m._id) === String(mId)) ||
+                     (m.name && it.name && m.name.toLowerCase().trim() === it.name.toLowerCase().trim())
+            );
+            if (matched && (matched.image || matched.image_url)) {
+              existingMap[mId] = matched.image || matched.image_url || '';
+            } else {
+              missingIds.add(mId);
+            }
+          }
+        });
+      });
+
+      if (missingIds.size > 0) {
+        Promise.all(
+          Array.from(missingIds).slice(0, 15).map(async (id) => {
+            try {
+              const med = await ApiService.getMedicineById(id);
+              if (med && (med.image || med.image_url)) {
+                return { id, image: med.image || med.image_url || (med.images && med.images[0]) || '' };
+              }
+            } catch (e) {}
+            return null;
+          })
+        ).then((results) => {
+          results.forEach((r) => {
+            if (r && r.image) existingMap[r.id] = r.image;
+          });
+          setMedImageMap(existingMap);
+        });
+      } else {
+        setMedImageMap(existingMap);
+      }
+    }
+  }, [orders, medicines]);
+
+  // Hàm lấy hình ảnh thuốc chuẩn từ Database hoặc danh mục đã tải
+  const getMedicineImage = (item: any): string => {
+    if (item.image && typeof item.image === 'string' && item.image.trim().length > 0) return item.image;
+    if (item.imageUrl && typeof item.imageUrl === 'string' && item.imageUrl.trim().length > 0) return item.imageUrl;
+    if (item.image_url && typeof item.image_url === 'string' && item.image_url.trim().length > 0) return item.image_url;
+
+    const mId = item.medicineId || item.id || item._id;
+    if (mId && medImageMap[mId]) {
+      return medImageMap[mId];
+    }
+
+    const cleanName = String(item.name || '').toLowerCase().trim();
+    const matched = medicines.find(
+      (m) =>
+        (m.id && String(m.id) === String(mId)) ||
+        (m._id && String(m._id) === String(mId)) ||
+        (m.name && m.name.toLowerCase().trim() === cleanName) ||
+        (cleanName.length > 5 && m.name && m.name.toLowerCase().includes(cleanName.slice(0, 15)))
+    );
+
+    if (matched) {
+      if (matched.image && matched.image.trim().length > 0) return matched.image;
+      if (matched.image_url && matched.image_url.trim().length > 0) return matched.image_url;
+      if (Array.isArray(matched.images) && matched.images.length > 0 && matched.images[0]) return matched.images[0];
+    }
+
+    const defaultMedImages: Record<string, string> = {
+      'Kháng sinh': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
+      'Giảm đau': 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=500&auto=format&fit=crop&q=80',
+      'Hô hấp': 'https://images.unsplash.com/photo-1576602976047-174e57a47881?w=500&auto=format&fit=crop&q=80',
+      'Tiêu hóa': 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=80',
+      'Vitamin': 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=80',
+    };
+    const cat = matched?.category || '';
+    const matchedKey = Object.keys(defaultMedImages).find((k) => cat.includes(k));
+    return matchedKey ? defaultMedImages[matchedKey] : 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80';
+  };
+
 
   const handleOpenFeedback = (ord: Order) => {
     setFeedbackOrder(ord);
@@ -209,11 +300,12 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, voucherList, orderList, branchList] = await Promise.all([
+      const [medList, voucherList, orderList, branchList, wishlistRes] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getVouchers(),
         ApiService.getMyOrders(searchPhone || user?.phone),
         ApiService.getBranches(),
+        ApiService.getWishlist(),
       ]);
 
       if (medList && medList.length > 0) {
@@ -227,6 +319,10 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       if (branchList && Array.isArray(branchList) && branchList.length > 0) {
         setBranches(branchList);
       }
+      if (wishlistRes) {
+        setWishlistItems(wishlistRes.items || []);
+        setWishlistTotalCount(wishlistRes.totalCount || (wishlistRes.items || []).length);
+      }
     } catch (e) {
       console.warn('Error loading customer data:', e);
     } finally {
@@ -234,9 +330,62 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     }
   }, [searchQuery, searchPhone, user?.phone]);
 
+  // Kiểm tra sản phẩm đã nằm trong Wishlist hay chưa
+  const isWishlisted = useCallback(
+    (medId: string) => {
+      if (!medId) return false;
+      return wishlistItems.some((it) => (it.id || it._id) === medId);
+    },
+    [wishlistItems]
+  );
+
+  // Thêm / Xóa nhanh sản phẩm yêu thích (Optimistic UI)
+  const toggleWishlist = async (med: any) => {
+    const medId = med.id || (med as any)._id || (med as any).sku;
+    if (!medId) return;
+
+    const exists = isWishlisted(medId);
+    if (exists) {
+      setWishlistItems((prev) => prev.filter((it) => (it.id || it._id) !== medId));
+      setWishlistTotalCount((prev) => Math.max(0, prev - 1));
+      showToast.success('Đã bỏ yêu thích', `Đã xóa "${med.name}" khỏi danh sách`);
+      await ApiService.removeFromWishlist(medId);
+    } else {
+      const newItem = {
+        id: medId,
+        _id: medId,
+        name: med.name,
+        price: med.price || 0,
+        unit: med.unit || 'Hộp',
+        image: med.image || '',
+        active: med.active || med.active_ingredient || '',
+        category: med.category || 'Dược phẩm',
+        stock: med.stock !== undefined ? med.stock : 999,
+      };
+      setWishlistItems((prev) => [newItem, ...prev]);
+      setWishlistTotalCount((prev) => prev + 1);
+      showToast.success('Đã yêu thích', `Đã thêm "${med.name}" vào yêu thích!`);
+      await ApiService.addToWishlist(med);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Tự động làm tươi Wishlist mỗi khi màn hình CustomerScreen được focus lại
+  useFocusEffect(
+    useCallback(() => {
+      ApiService.getWishlist()
+        .then((res) => {
+          if (res) {
+            setWishlistItems(res.items || []);
+            setWishlistTotalCount(res.totalCount || (res.items || []).length);
+          }
+        })
+        .catch(() => {});
+    }, [])
+  );
 
   // ─── 5 Recent Searches & Guest Cart Persistence ────────────────────────────
   const RECENT_SEARCHES_KEY = '@abc_recent_searches_v1';
@@ -702,6 +851,29 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
             </AnimatedTouchable>
 
+            {/* Wishlist Button with Heart Icon & Count Badge */}
+            <AnimatedTouchable
+              onPress={() =>
+                navigation.navigate('CustomerWishlistScreen', {
+                  onAddToCart: (item: any) => addToCart(item),
+                })
+              }
+              style={styles.headerRoundBtn}
+            >
+              <Ionicons
+                name={wishlistTotalCount > 0 ? 'heart' : 'heart-outline'}
+                size={20}
+                color={wishlistTotalCount > 0 ? '#EF4444' : '#FFFFFF'}
+              />
+              {wishlistTotalCount > 0 && (
+                <View style={[styles.headerCartBadge, { backgroundColor: '#EF4444' }]}>
+                  <Text style={styles.headerCartBadgeText}>
+                    {wishlistTotalCount > 99 ? '99+' : wishlistTotalCount}
+                  </Text>
+                </View>
+              )}
+            </AnimatedTouchable>
+
             {/* Cart Button with Count Badge */}
             <AnimatedTouchable
               onPress={() => setActiveTab('CART')}
@@ -999,6 +1171,17 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                       <View style={styles.flashDiscountBadge}>
                         <Text style={styles.flashDiscountText}>-35%</Text>
                       </View>
+                      <AnimatedTouchable
+                        onPress={() => toggleWishlist(med)}
+                        style={styles.flashWishlistBtn}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons
+                          name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
+                          size={16}
+                          color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
+                        />
+                      </AnimatedTouchable>
                       <Image
                         source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
                         style={styles.flashThumb}
@@ -1234,16 +1417,33 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                       </View>
                     </AnimatedPressable>
 
-                    <AnimatedPressable
-                      onPress={() => {
-                        addToCart(med);
-                        showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
-                      }}
-                      style={styles.addToCartBtn}
-                      pressedScale={0.90}
-                    >
-                      <Ionicons name="add" size={20} color="#FFFFFF" />
-                    </AnimatedPressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <AnimatedPressable
+                        onPress={() => toggleWishlist(med)}
+                        style={[
+                          styles.wishlistCardBtn,
+                          isWishlisted(med.id || (med as any)._id) && styles.wishlistCardBtnActive,
+                        ]}
+                        pressedScale={0.88}
+                      >
+                        <Ionicons
+                          name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
+                          size={18}
+                          color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
+                        />
+                      </AnimatedPressable>
+
+                      <AnimatedPressable
+                        onPress={() => {
+                          addToCart(med);
+                          showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
+                        }}
+                        style={styles.addToCartBtn}
+                        pressedScale={0.90}
+                      >
+                        <Ionicons name="add" size={20} color="#FFFFFF" />
+                      </AnimatedPressable>
+                    </View>
                   </View>
                 </View>
               ))
@@ -1651,66 +1851,124 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             ) : (
               filteredOrders.map((ord, idx) => (
                 <View key={ord.id || (ord as any)._id || ord.orderCode || `order-${idx}`} style={styles.orderCard}>
+                  {/* Header thẻ: Mã đơn, Ngày đặt, Badge trạng thái & Nút QR gọn gàng */}
                   <View style={styles.orderHeader}>
-                    <Text style={styles.orderCode}>{ord.orderCode || ord.id}</Text>
-                    <View
-                      style={[
-                        styles.orderStatusTag,
-                        ord.paymentStatus === 'PAID' ? styles.statusPaid : styles.statusPending,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.orderStatusText,
-                          ord.paymentStatus === 'PAID' ? styles.statusPaidText : styles.statusPendingText,
-                        ]}
-                      >
-                        {ord.paymentStatus === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHỜ THANH TOÁN'}
+                    <View style={styles.orderHeaderLeft}>
+                      <Text style={styles.orderCode}>#{ord.orderCode || ord.id}</Text>
+                      <Text style={styles.orderDate}>
+                        Ngày đặt: {new Date(ord.createdAt || Date.now()).toLocaleDateString('vi-VN')}
                       </Text>
                     </View>
+
+                    <View style={styles.orderHeaderRight}>
+                      <View
+                        style={[
+                          styles.orderStatusTag,
+                          ord.paymentStatus === 'PAID' ? styles.statusPaid : styles.statusPending,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.orderStatusText,
+                            ord.paymentStatus === 'PAID' ? styles.statusPaidText : styles.statusPendingText,
+                          ]}
+                        >
+                          {ord.paymentStatus === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHỜ THANH TOÁN'}
+                        </Text>
+                      </View>
+
+                      {/* Nút xem mã QR nhỏ gọn ở góc phải Header */}
+                      <AnimatedTouchable
+                        onPress={() => setSelectedOrderQR(ord)}
+                        style={styles.qrHeaderBtn}
+                        accessibilityLabel="Mã QR đơn hàng"
+                      >
+                        <Ionicons name="qr-code-outline" size={15} color="#0284C7" />
+                      </AnimatedTouchable>
+                    </View>
                   </View>
-                  <Text style={styles.orderDate}>
-                    Ngày đặt: {new Date(ord.createdAt || Date.now()).toLocaleDateString('vi-VN')}
-                  </Text>
 
                   <View style={styles.orderItemsBox}>
                     {ord.items.map((it, idx) => {
                       const instructionText = it.cach_dung || (it as any).dosageInstructions;
+                      const medImg = getMedicineImage(it);
                       return (
-                        <View key={idx} style={styles.orderItemCardRow}>
-                          <View style={{ flex: 1, marginRight: 8 }}>
-                            <Text style={styles.orderItemTitle}>
-                              • {it.name} x {it.quantity} {it.unit}
-                            </Text>
-                            <Text style={styles.orderItemSub}>
-                              {typeof it.price === 'number' ? `${it.price.toLocaleString('vi-VN')} ₫` : ''}
-                            </Text>
-                            {/* Hiển thị chi tiết cách dùng và liều dùng */}
-                            {instructionText ? (
-                              <View style={styles.instructionBadgeBox}>
-                                <Ionicons name="medical" size={12} color="#0891B2" />
-                                <Text style={styles.instructionBadgeText}>
-                                  {instructionText}
+                        <View key={idx} style={styles.orderItemCard}>
+                          {/* Hàng trên: Hình ảnh thuốc + Tên & Giá chi tiết */}
+                          <View style={styles.orderItemMainRow}>
+                            <Image
+                              source={{ uri: medImg }}
+                              style={styles.orderItemThumb}
+                              resizeMode="cover"
+                            />
+                            <View style={styles.orderItemInfoCol}>
+                              <Text style={styles.orderItemTitle} numberOfLines={2}>
+                                {it.name}
+                              </Text>
+                              <View style={styles.orderItemMetaRow}>
+                                <Text style={styles.orderItemPrice}>
+                                  {typeof it.price === 'number' ? `${it.price.toLocaleString('vi-VN')} ₫` : ''}
+                                </Text>
+                                <Text style={styles.orderItemQty}>
+                                  x {it.quantity} {it.unit || 'Hộp'}
                                 </Text>
                               </View>
-                            ) : null}
+                              {/* Hiển thị chi tiết cách dùng và liều dùng */}
+                              {instructionText ? (
+                                <View style={styles.instructionBadgeBox}>
+                                  <Ionicons name="medical" size={12} color="#0284C7" />
+                                  <Text style={styles.instructionBadgeText} numberOfLines={2}>
+                                    {instructionText}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
                           </View>
-                          <AnimatedTouchable
-                            style={styles.setReminderBtn}
-                            onPress={() => {
-                              const parsed = parseOrderToReminder(it, ord.orderCode || ord.id || (ord as any)._id);
-                              navigation.navigate('MedicineReminderScreen', { autoFill: parsed });
-                            }}
-                          >
-                            <Ionicons name="alarm" size={13} color="#0891B2" />
-                            <Text style={styles.setReminderBtnText}>Nhắc Uống</Text>
-                          </AnimatedTouchable>
+
+                          {/* Hàng dưới: Các nút hành động (Nhắc Uống & Đánh Giá) */}
+                          <View style={styles.orderItemActionsRow}>
+                            <AnimatedTouchable
+                              style={styles.orderItemReminderBtn}
+                              onPress={() => {
+                                const parsed = parseOrderToReminder(it, ord.orderCode || ord.id || (ord as any)._id);
+                                navigation.navigate('MedicineReminderScreen', { autoFill: parsed });
+                              }}
+                            >
+                              <Ionicons name="alarm-outline" size={14} color="#0284C7" />
+                              <Text style={styles.orderItemReminderBtnText}>Nhắc Uống</Text>
+                            </AnimatedTouchable>
+                            <AnimatedTouchable
+                              style={styles.orderItemReviewBtn}
+                              onPress={() => {
+                                navigation.navigate('ProductReviewScreen', {
+                                  order: ord,
+                                  medicine: {
+                                    ...it,
+                                    id: it.medicineId || (it as any).id || (it as any)._id,
+                                    image: medImg,
+                                    imageUrl: medImg,
+                                    category: (it as any).category,
+                                    unit: it.unit,
+                                  },
+                                  orderId: ord.id || (ord as any)._id,
+                                  orderCode: ord.orderCode,
+                                  medicineId: it.medicineId || (it as any).id || (it as any)._id,
+                                });
+                              }}
+                            >
+                              <Ionicons name="star" size={13} color="#D97706" />
+                              <Text style={styles.orderItemReviewBtnText}>Đánh Giá</Text>
+                            </AnimatedTouchable>
+                          </View>
+
+                          {/* Phân tách giữa các thuốc trong cùng đơn */}
+                          {idx < ord.items.length - 1 && <View style={styles.orderItemDivider} />}
                         </View>
                       );
                     })}
 
-                    {/* Nút 1-Chạm: Tự Động Tạo Lịch Nhắc Toàn Bộ Đơn Thuốc */}
-                    {ord.items.length > 0 && (
+                    {/* Nút 1-Chạm: Tự Động Tạo Lịch Nhắc Toàn Bộ Đơn Thuốc (Chỉ hiện khi đơn có từ 2 thuốc trở lên để tránh thừa) */}
+                    {ord.items.length > 1 && (
                       <AnimatedTouchable
                         style={styles.autoCreateAllRemindersBtn}
                         onPress={async () => {
@@ -1746,37 +2004,28 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                       >
                         <Ionicons name="sparkles" size={14} color="#0284C7" />
                         <Text style={styles.autoCreateAllRemindersBtnText}>
-                          Tạo Lịch Nhắc Uống Toàn Bộ Đơn ({ord.items.length} thuốc)
+                          Lên Lịch Nhắc Uống Toàn Bộ ({ord.items.length} thuốc)
                         </Text>
                       </AnimatedTouchable>
                     )}
                   </View>
 
+                  {/* Chân đơn hàng (Footer): Tinh gọn với Tổng tiền & Góp ý dịch vụ */}
                   <View style={styles.orderFooter}>
                     <View>
-                      <Text style={styles.payMethodText}>Hình thức: {ord.paymentMethod}</Text>
+                      <Text style={styles.payMethodText}>Hình thức: {ord.paymentMethod || 'Tiền mặt'}</Text>
                       <Text style={styles.orderTotalAmount}>
                         {ord.finalAmount.toLocaleString('vi-VN')} ₫
                       </Text>
                     </View>
 
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <AnimatedTouchable
-                        onPress={() => handleOpenFeedback(ord)}
-                        style={[styles.qrOrderBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
-                      >
-                        <Ionicons name="star" size={15} color="#0284C7" />
-                        <Text style={[styles.qrOrderBtnText, { color: '#0284C7', fontWeight: '700' }]}>Đánh Giá</Text>
-                      </AnimatedTouchable>
-
-                      <AnimatedTouchable
-                        onPress={() => setSelectedOrderQR(ord)}
-                        style={styles.qrOrderBtn}
-                      >
-                        <Ionicons name="qr-code-outline" size={16} color="#0284C7" />
-                        <Text style={styles.qrOrderBtnText}>Mã QR</Text>
-                      </AnimatedTouchable>
-                    </View>
+                    <AnimatedTouchable
+                      onPress={() => handleOpenFeedback(ord)}
+                      style={styles.serviceFeedbackBtn}
+                    >
+                      <Ionicons name="chatbox-ellipses-outline" size={13} color="#64748B" />
+                      <Text style={styles.serviceFeedbackBtnText}>Góp ý dịch vụ</Text>
+                    </AnimatedTouchable>
                   </View>
                 </View>
               ))
@@ -1825,6 +2074,24 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             </Text>
           </View>
 
+          <View style={{ marginVertical: 8, alignItems: 'flex-start' }}>
+            <AnimatedTouchable
+              style={[styles.qrOrderBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
+              onPress={() => {
+                const med = selectedMedDetail;
+                setSelectedMedDetail(null);
+                navigation.navigate('ProductReviewScreen', {
+                  medicine: med,
+                  medicineId: med?.id || (med as any)?._id,
+                });
+              }}
+            >
+              <Ionicons name="star" size={14} color="#D97706" />
+              <Text style={[styles.qrOrderBtnText, { color: '#B45309', fontWeight: '700' }]}>
+                Xem & Viết Đánh Giá Thuốc
+              </Text>
+            </AnimatedTouchable>
+          </View>
           <View style={styles.modalSection}>
             <Text style={styles.secTitle}>Tác dụng phụ:</Text>
             <Text style={styles.secText}>
@@ -1841,6 +2108,31 @@ export const CustomerScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             onPress={() => setSelectedMedDetail(null)}
             style={{ flex: 1, marginRight: 8 }}
           />
+          {selectedMedDetail && (
+            <AnimatedPressable
+              onPress={() => toggleWishlist(selectedMedDetail)}
+              style={[
+                styles.modalWishlistBtn,
+                isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id) &&
+                  styles.modalWishlistBtnActive,
+              ]}
+              pressedScale={0.90}
+            >
+              <Ionicons
+                name={
+                  isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id)
+                    ? 'heart'
+                    : 'heart-outline'
+                }
+                size={22}
+                color={
+                  isWishlisted(selectedMedDetail.id || (selectedMedDetail as any)._id)
+                    ? '#EF4444'
+                    : '#64748B'
+                }
+              />
+            </AnimatedPressable>
+          )}
           <ClinicalButton
             title="THÊM VÀO GIỎ"
             variant="primary"
@@ -3224,8 +3516,55 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
-    marginLeft: 8,
+    marginLeft: 6,
     alignSelf: 'center',
+  },
+  // Wishlist heart button on product cards
+  wishlistCardBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignSelf: 'center',
+  },
+  wishlistCardBtnActive: {
+    backgroundColor: '#FFE4E6',
+    borderColor: '#FECDD3',
+  },
+  modalWishlistBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 8,
+  },
+  modalWishlistBtnActive: {
+    backgroundColor: '#FFE4E6',
+    borderColor: '#FECDD3',
+  },
+  flashWishlistBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    zIndex: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   scrollContent: {
     padding: 16,
@@ -3823,6 +4162,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  orderHeaderLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
+  orderHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  qrHeaderBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   orderCode: {
     fontSize: 14,
@@ -3831,7 +4190,7 @@ const styles = StyleSheet.create({
   },
   orderStatusTag: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   orderStatusText: {
@@ -3843,7 +4202,7 @@ const styles = StyleSheet.create({
   },
   statusPaidText: {
     color: '#0284C7',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
   },
   statusPending: {
@@ -3851,14 +4210,29 @@ const styles = StyleSheet.create({
   },
   statusPendingText: {
     color: '#D97706',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
   },
   orderDate: {
     fontSize: 11,
     color: '#94A3B8',
-    marginTop: 3,
-    marginBottom: 8,
+    marginTop: 2,
+  },
+  serviceFeedbackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 5,
+  },
+  serviceFeedbackBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
   },
   orderItemsBox: {
     backgroundColor: '#F8FAFC',
@@ -3871,13 +4245,91 @@ const styles = StyleSheet.create({
     color: '#475569',
     marginVertical: 2,
   },
-  orderItemCardRow: {
+  orderItemCard: {
+    paddingVertical: 8,
+  },
+  orderItemMainRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  orderItemThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  orderItemInfoCol: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  orderItemMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    marginTop: 4,
+  },
+  orderItemPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+  orderItemQty: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  orderItemActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: '#E2E8F0',
+  },
+  orderItemReminderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderItemReminderBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  orderItemReviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  orderItemReviewBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  orderItemDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 8,
   },
   orderItemTitle: {
     fontSize: 13,
@@ -3892,9 +4344,9 @@ const styles = StyleSheet.create({
   setReminderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -3903,23 +4355,23 @@ const styles = StyleSheet.create({
   setReminderBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0891B2',
+    color: '#0284C7',
   },
   instructionBadgeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFEFF',
+    backgroundColor: '#F0F9FF',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     marginTop: 4,
     gap: 4,
     borderWidth: 0.5,
-    borderColor: '#A5F3FC',
+    borderColor: '#BAE6FD',
   },
   instructionBadgeText: {
     fontSize: 11,
-    color: '#0E7490',
+    color: '#0369A1',
     fontWeight: '600',
     flex: 1,
   },

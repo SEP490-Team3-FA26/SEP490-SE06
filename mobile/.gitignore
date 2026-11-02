@@ -45,6 +45,8 @@ yarn-error.*
 
 # build artifacts
 build/
+*.apk
+*.bat
 
 # Agent guidelines
 AGENTS.md

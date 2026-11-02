@@ -1266,6 +1266,158 @@ export class ApiService {
     return [];
   }
 
+  // --- WISHLIST (Danh sách sản phẩm yêu thích) ---
+  public static async getWishlist(): Promise<{ items: any[]; totalCount: number }> {
+    try {
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
+      if (!token) {
+        const guestStr = await AsyncStorage.getItem('@guest_wishlist');
+        const items = guestStr ? JSON.parse(guestStr) : [];
+        return { items, totalCount: items.length };
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      const res = await fetch(`${this.baseUrl}/api/users/wishlist`, {
+        headers,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return {
+          items: Array.isArray(json?.items) ? json.items : [],
+          totalCount: json?.totalCount || (Array.isArray(json?.items) ? json.items.length : 0),
+        };
+      }
+    } catch (e) {
+      console.warn('[Wishlist] Lỗi tải danh sách yêu thích:', e);
+    }
+    return { items: [], totalCount: 0 };
+  }
+
+  public static async addToWishlist(med: any): Promise<{ success: boolean; message?: string }> {
+    const medId = med.id || med._id || med.medicineId;
+    if (!medId) return { success: false, message: 'Thiếu ID sản phẩm' };
+
+    try {
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
+      if (!token) {
+        const guestStr = await AsyncStorage.getItem('@guest_wishlist');
+        const items: any[] = guestStr ? JSON.parse(guestStr) : [];
+        const exists = items.some((it) => (it.id || it._id) === medId);
+        if (!exists) {
+          items.unshift({
+            id: medId,
+            _id: medId,
+            name: med.name || 'Sản phẩm thuốc',
+            price: med.price || 0,
+            unit: med.unit || 'Hộp',
+            image: med.image || '',
+            active: med.active || med.active_ingredient || '',
+            category: med.category || 'Dược phẩm',
+            stock: med.stock !== undefined ? med.stock : 999,
+            addedAt: new Date().toISOString(),
+          });
+          await AsyncStorage.setItem('@guest_wishlist', JSON.stringify(items));
+        }
+        return { success: true, message: 'Đã thêm vào danh sách yêu thích' };
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      const res = await fetch(`${this.baseUrl}/api/users/wishlist`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ medicineId: medId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { success: true, message: json.message || 'Đã thêm vào yêu thích' };
+      }
+      return { success: false, message: json.message || 'Lỗi thêm yêu thích' };
+    } catch (e: any) {
+      console.warn('[Wishlist] Lỗi thêm yêu thích:', e);
+      return { success: false, message: e.message };
+    }
+  }
+
+  public static async removeFromWishlist(medicineId: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
+      if (!token) {
+        const guestStr = await AsyncStorage.getItem('@guest_wishlist');
+        let items: any[] = guestStr ? JSON.parse(guestStr) : [];
+        items = items.filter((it) => (it.id || it._id) !== medicineId);
+        await AsyncStorage.setItem('@guest_wishlist', JSON.stringify(items));
+        return { success: true, message: 'Đã xóa khỏi danh sách yêu thích' };
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      const res = await fetch(`${this.baseUrl}/api/users/wishlist/${encodeURIComponent(medicineId)}`, {
+        method: 'DELETE',
+        headers,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { success: true, message: json.message || 'Đã xóa khỏi yêu thích' };
+      }
+      return { success: false, message: json.message || 'Lỗi xóa yêu thích' };
+    } catch (e: any) {
+      console.warn('[Wishlist] Lỗi xóa yêu thích:', e);
+      return { success: false, message: e.message };
+    }
+  }
+
+  public static async clearWishlist(): Promise<{ success: boolean }> {
+    try {
+      await AsyncStorage.removeItem('@guest_wishlist');
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
+      if (token) {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        };
+        await fetch(`${this.baseUrl}/api/users/wishlist/clear`, {
+          method: 'POST',
+          headers,
+        });
+      }
+      return { success: true };
+    } catch (e) {
+      console.warn('[Wishlist] Lỗi làm trống wishlist:', e);
+      return { success: false };
+    }
+  }
+
   // --- VOUCHERS ---
   public static async getVouchers(): Promise<Voucher[]> {
     try {
@@ -1924,6 +2076,41 @@ export class ApiService {
       throw new Error(data?.message || 'Check-out thất bại');
     }
     return data;
+  }
+
+  public static async getShiftHandoverLiveStats(shiftId?: string): Promise<any> {
+    let url = `${this.baseUrl}/api/hr/shift-handover/live-stats`;
+    if (shiftId) url += `?shiftId=${encodeURIComponent(shiftId)}`;
+    const res = await fetch(url, { headers: this.authHeaders });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.message || 'Không thể lấy dữ liệu bàn giao ca');
+    }
+    return await res.json();
+  }
+
+  public static async submitShiftHandover(payload: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/hr/shift-handover/submit`, {
+      method: 'POST',
+      headers: this.authHeaders,
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.message || 'Nộp biên bản bàn giao thất bại');
+    }
+    return data;
+  }
+
+  public static async getPharmacistKpiReport(month?: number, year?: number): Promise<any> {
+    let url = `${this.baseUrl}/api/hr/kpi/sales-report`;
+    const params = [];
+    if (month) params.push(`month=${month}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const res = await fetch(url, { headers: this.authHeaders });
+    if (res.ok) return await res.json();
+    return null;
   }
 
   public static async getMyTodayAttendance(): Promise<any> {

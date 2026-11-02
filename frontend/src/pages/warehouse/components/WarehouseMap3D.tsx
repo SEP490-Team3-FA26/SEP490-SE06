@@ -3,7 +3,7 @@
 // Dự án: WDP301 - Sơ Đồ Kho 3D Central Warehouse
 // ============================================================================
 
-import React, { useReducer, useState, useEffect, useMemo } from 'react';
+import React, { useReducer, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
   FOV,
@@ -101,6 +101,30 @@ export function WarehouseMap3D({
   const [hoverRack, setHoverRack] = useState<string | null>(null);
   const [warnOnly, setWarnOnly] = useState<boolean>(false);
   const [canvasKey, setCanvasKey] = useState<number>(0);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Dọn dẹp timer khi component unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Cơ chế Hover Intent: Chỉ prefetch khi người dùng dừng chuột nhìn kệ ít nhất 350ms, tránh bão request
+  const handleRackHover = useCallback((zoneCode: string, rc: string | null) => {
+    setHoverRack(rc);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    if (rc && view.level === 'overview') {
+      hoverTimerRef.current = setTimeout(() => {
+        prefetchRackLayout(zoneCode, rc);
+      }, 350);
+    }
+  }, [view.level]);
 
   const activeRack = view.level === 'rack' ? view.rack : null;
   const activeZone = activeRack ? RACK_TO_ZONE[activeRack] : null;
@@ -246,12 +270,7 @@ export function WarehouseMap3D({
                 shelves={shelves}
                 view={view}
                 isHovered={hoverRack === rackCode}
-                onHover={(rc) => {
-                  setHoverRack(rc);
-                  if (rc && view.level === 'overview') {
-                    prefetchRackLayout(zoneCode, rc);
-                  }
-                }}
+                onHover={(rc) => handleRackHover(zoneCode, rc)}
                 onSelect={(selectedRack) => dispatch({ type: 'OPEN_RACK', rack: selectedRack })}
                 matchSet={matchingRacks}
                 warnOnly={warnOnly}

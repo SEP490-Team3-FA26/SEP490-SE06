@@ -160,7 +160,7 @@ export function MarketingRoiDashboard() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+            <div className="p-2.5 bg-rose-50 text-emerald-600 rounded-xl">
               <Megaphone size={24} />
             </div>
             <div>
@@ -183,7 +183,7 @@ export function MarketingRoiDashboard() {
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors"
             title="Làm mới dữ liệu"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <Loader2 size={16} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={() => {
@@ -217,7 +217,7 @@ export function MarketingRoiDashboard() {
               Từ {summary.totalCampaigns} chiến dịch ({summary.activeCampaigns} đang chạy)
             </p>
           </div>
-          <div className="p-3.5 bg-rose-50 text-rose-600 rounded-xl shrink-0">
+          <div className="p-3.5 bg-rose-50 text-emerald-600 rounded-xl shrink-0">
             <DollarSign size={22} />
           </div>
         </div>
@@ -292,14 +292,14 @@ export function MarketingRoiDashboard() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-            <BarChart3 size={16} className="text-rose-600" />
+            <BarChart3 size={16} className="text-emerald-600" />
             Bảng Ma Trận Hiệu Quả Từng Chiến Dịch Marketing ({campaigns.length})
           </h3>
         </div>
 
         {loading ? (
           <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
-            <Loader2 className="animate-spin text-rose-600" size={28} />
+            <Loader2 className="animate-spin text-emerald-600" size={28} />
             <span className="text-xs">Đang tổng hợp dữ liệu doanh số và ROI chiến dịch...</span>
           </div>
         ) : campaigns.length === 0 ? (
@@ -328,7 +328,7 @@ export function MarketingRoiDashboard() {
                 {campaigns.map((c) => (
                   <tr key={c._id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4">
-                      <span className="font-mono font-bold text-rose-600 block">{c.code}</span>
+                      <span className="font-mono font-bold text-emerald-600 block">{c.code}</span>
                       <span className="font-bold text-slate-900">{c.name}</span>
                       <div className="text-[10px] text-slate-400 mt-0.5">
                         Voucher: {c.voucherCodes?.join(', ') || 'N/A'}
@@ -498,7 +498,7 @@ export function MarketingRoiDashboard() {
                       <td className="py-3.5 px-4 font-semibold text-slate-600">
                         {cashier.branchId}
                       </td>
-                      <td className="py-3.5 px-4 font-black text-rose-600 text-sm">
+                      <td className="py-3.5 px-4 font-black text-emerald-600 text-sm">
                         {cashier.totalFlaggedOrders} đơn / ngày
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-800">
@@ -517,7 +517,7 @@ export function MarketingRoiDashboard() {
                         {new Date(cashier.lastIncidentAt).toLocaleString('vi-VN')}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <span className="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg">
+                        <span className="text-[11px] font-bold text-emerald-600 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg">
                           Yêu cầu giải trình & Soi Camera
                         </span>
                       </td>
@@ -590,7 +590,7 @@ export function MarketingRoiDashboard() {
                     type="number"
                     value={formInitialCost}
                     onChange={(e) => setFormInitialCost(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-bold text-rose-600 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-bold text-emerald-600 outline-none"
                   />
                 </div>
                 <div>
@@ -635,7 +635,7 @@ export function MarketingRoiDashboard() {
                             if (e.target.checked) setFormSelectedVouchers((prev) => [...prev, vCode]);
                             else setFormSelectedVouchers((prev) => prev.filter((c) => c !== vCode));
                           }}
-                          className="rounded text-rose-600"
+                          className="rounded text-emerald-600"
                         />
                         <div>
                           <span className="font-mono font-bold text-slate-800 block">{vCode}</span>
@@ -717,7 +717,7 @@ export function MarketingRoiDashboard() {
                   type="number"
                   value={costAmount}
                   onChange={(e) => setCostAmount(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-rose-600 text-sm"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-emerald-600 text-sm"
                 />
               </div>
 

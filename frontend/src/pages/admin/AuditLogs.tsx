@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import {
+import { Loader2, 
   Search,
   Filter,
   Download,
@@ -622,7 +622,7 @@ function AuditLogsContent() {
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all shadow-sm"
             title="Tải lại trang"
           >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            <Loader2 className={`w-5 h-5 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
           </button>
           <button
             onClick={triggerExport}
@@ -675,7 +675,7 @@ function AuditLogsContent() {
             )}
             {['PENDING', 'PROCESSING'].includes(exportStatus) && (
               <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
-                <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" /> Vui lòng chờ...
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600" /> Vui lòng chờ...
               </div>
             )}
             <button
@@ -859,7 +859,7 @@ function AuditLogsContent() {
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
-            <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
             <span className="text-sm font-semibold">Đang nạp dữ liệu kiểm toán...</span>
           </div>
         ) : logs.length === 0 ? (

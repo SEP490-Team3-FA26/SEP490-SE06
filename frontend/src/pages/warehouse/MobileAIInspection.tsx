@@ -257,6 +257,7 @@ export function MobileAIInspection() {
         >
           Quay lại danh sách PO
         </button>
+
       </div>
     );
   }
@@ -312,7 +313,7 @@ export function MobileAIInspection() {
 
         {loading && !inspectionRecord && (
           <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="animate-spin text-emerald-500 mb-2" size={32} />
+            <Loader2 className="animate-spin text-emerald-600 mb-2" size={32} />
             <p className="text-sm font-bold text-slate-500">Đang khởi tạo phiên kiểm đếm...</p>
           </div>
         )}

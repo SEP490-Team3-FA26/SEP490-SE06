@@ -119,7 +119,7 @@ export class User extends Document {
   @Prop({ default: 12 })
   annualLeaveBalance?: number;
 
-  /** Tổng số ngày phép năm đã sử dụng trong năm */
+  /** Quỹ số ngày phép năm đã sử dụng trong năm */
   @Prop({ default: 0 })
   usedAnnualLeave?: number;
 
@@ -133,6 +133,42 @@ export class User extends Document {
     lastUsedAt: Date;
     isActive: boolean;
   }[];
+
+  // ===================================================================
+  // EMAIL MARKETING — Quản lý đăng ký nhận email khuyến mãi
+  // Phục vụ hệ thống Newsletter & Promotion Email Marketing
+  // ===================================================================
+
+  /** Nhóm khách hàng theo mục đích điều trị (dùng để lọc đối tượng nhận email) */
+  @Prop({
+    type: String,
+    enum: ['GENERAL', 'PEDIATRIC', 'PREGNANT', 'ELDERLY', 'CHRONIC'],
+    default: 'GENERAL',
+  })
+  targetGroup?: string;
+
+  /**
+   * Thông tin quản lý đăng ký nhận email marketing
+   * isSubscribed: Khách hàng đồng ý nhận email khuyến mãi (default: true khi đăng ký)
+   * unsubscribeToken: Token ngẫu nhiên để hủy đăng ký 1-click an toàn
+   * isEmailValid: Chuyển false khi nhận sự kiện Hard Bounce từ Resend
+   * unsubscribedAt: Thời điểm khách hủy đăng ký
+   */
+  @Prop({
+    type: {
+      isSubscribed: { type: Boolean, default: true },
+      unsubscribeToken: { type: String, index: true },
+      isEmailValid: { type: Boolean, default: true },
+      unsubscribedAt: { type: Date },
+    },
+    default: () => ({ isSubscribed: true, isEmailValid: true }),
+  })
+  newsletter?: {
+    isSubscribed: boolean;
+    unsubscribeToken?: string;
+    isEmailValid: boolean;
+    unsubscribedAt?: Date;
+  };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -1,9 +1,10 @@
 // Component Bảng Sổ Cái Giao Dịch Toàn Chuỗi CSDL Dược Quốc Gia
 import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Activity, Copy, Check, Warehouse, Store } from "lucide-react";
+import { Loader2, ArrowDownLeft, ArrowUpRight, Activity, Copy, Check, Warehouse, Store } from 'lucide-react';
 import { NationalTransaction } from "./types";
 
 interface LedgerTableProps {
+  loading?: boolean;
   transactions: NationalTransaction[];
   copiedId: string | null;
   onCopyId: (id: string) => void;
@@ -11,6 +12,7 @@ interface LedgerTableProps {
 }
 
 export const LedgerTable: React.FC<LedgerTableProps> = ({
+  loading,
   transactions,
   copiedId,
   onCopyId,
@@ -32,7 +34,16 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {transactions.length === 0 ? (
+          {loading ? (
+            <tr>
+              <td colSpan={8} className="text-center py-16 text-slate-500">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <Loader2 size={32} className="animate-spin text-emerald-600" />
+                  <p className="text-sm font-semibold text-slate-500">Đang tải sổ cái giao dịch quốc gia...</p>
+                </div>
+              </td>
+            </tr>
+          ) : transactions.length === 0 ? (
             <tr>
               <td colSpan={8} className="text-center py-12 text-slate-400 font-medium">
                 Chưa có giao dịch nào khớp với bộ lọc giám sát.

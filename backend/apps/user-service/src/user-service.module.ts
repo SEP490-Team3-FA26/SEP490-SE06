@@ -8,6 +8,7 @@ import { UserService } from './user-service.service';
 import { Branch, BranchSchema } from './schemas/branch.schema';
 import { BranchService } from './branch.service';
 import { Cart, CartSchema } from './schemas/cart.schema';
+import { Wishlist, WishlistSchema } from './schemas/wishlist.schema';
 import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
 import { BranchFeedback, BranchFeedbackSchema } from './schemas/branch-feedback.schema';
 
@@ -28,6 +29,13 @@ import { PayrollService } from './payroll.service';
 import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
 import { SalesOrder, SalesOrderSchema } from '../../inventory-service/src/sales/schemas/sales-order.schema';
 import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staff-transfer-request.schema';
+import { ShiftHandover, ShiftHandoverSchema } from './schemas/shift-handover.schema';
+import { ShiftHandoverService } from './shift-handover.service';
+// Import schemas và services cho hệ thống Email Marketing Newsletter
+import { EmailCampaign, EmailCampaignSchema } from './schemas/email-campaign.schema';
+import { EmailDeliveryLog, EmailDeliveryLogSchema } from './schemas/email-delivery-log.schema';
+import { EmailMarketingService } from './email-marketing.service';
+import { NewsletterCronService } from './newsletter-cron.service';
 
 @Module({
   imports: [
@@ -43,6 +51,7 @@ import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staf
       { name: User.name, schema: UserSchema },
       { name: Branch.name, schema: BranchSchema },
       { name: Cart.name, schema: CartSchema },
+      { name: Wishlist.name, schema: WishlistSchema },
       { name: AuditLog.name, schema: AuditLogSchema },
       { name: BranchFeedback.name, schema: BranchFeedbackSchema },
       { name: MedicineBatch.name, schema: MedicineBatchSchema },
@@ -58,6 +67,10 @@ import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staf
       { name: LeaveRequest.name, schema: LeaveRequestSchema },
       { name: SalesOrder.name, schema: SalesOrderSchema },
       { name: StaffTransferRequest.name, schema: StaffTransferRequestSchema },
+      { name: ShiftHandover.name, schema: ShiftHandoverSchema },
+      // Schema hệ thống Email Marketing
+      { name: EmailCampaign.name, schema: EmailCampaignSchema },
+      { name: EmailDeliveryLog.name, schema: EmailDeliveryLogSchema },
     ]),
     ClientsModule.registerAsync([
       {
@@ -101,7 +114,18 @@ import { StaffTransferRequest, StaffTransferRequestSchema } from './schemas/staf
     ]),
   ],
   controllers: [UserServiceController],
-  providers: [UserService, BranchService, HrService, CertificateService, AttendanceService, PayrollService],
+  providers: [
+    UserService,
+    BranchService,
+    HrService,
+    CertificateService,
+    AttendanceService,
+    PayrollService,
+    ShiftHandoverService,
+    EmailMarketingService,
+    NewsletterCronService,
+  ],
+  exports: [ShiftHandoverService],
 })
 export class UserServiceModule {}
 

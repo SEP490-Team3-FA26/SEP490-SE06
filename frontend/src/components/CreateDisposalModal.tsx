@@ -459,7 +459,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
         {/* Header */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-sm font-black">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 text-emerald-600 flex items-center justify-center shadow-sm font-black">
               <Trash2 size={20} />
             </div>
             <div>
@@ -513,7 +513,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
                       expiryFilterMode === 'EXPIRED_ONLY'
                         ? 'bg-rose-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50'
+                        : 'text-slate-600 hover:text-emerald-600 hover:bg-rose-50'
                     }`}
                   >
                     <ShieldAlert size={14} />
@@ -609,7 +609,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
             {/* Trạng thái tải dữ liệu, lỗi hoặc Danh sách thuốc */}
             {isLoadingMedicines ? (
               <div className="flex-1 flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-slate-200">
-                <Loader2 className="w-10 h-10 animate-spin text-rose-600 mb-3" />
+                <Loader2 className="w-10 h-10 animate-spin text-emerald-600 mb-3" />
                 <p className="text-sm font-bold text-slate-800">Đang quét và rà soát các lô thuốc quá hạn...</p>
                 <p className="text-xs text-slate-400 mt-1">Đang đối soát kho GSP/GPP tự động theo thời gian thực</p>
               </div>
@@ -696,7 +696,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
               <div className="flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Trash2 size={16} className="text-rose-600" />
+                    <Trash2 size={16} className="text-emerald-600" />
                     Danh Sách Thuốc Xuất Hủy
                   </h3>
                   <span className="px-2.5 py-0.5 bg-rose-50 text-rose-700 text-xs font-black rounded-lg border border-rose-200">
@@ -707,7 +707,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
                 {disposalCart.length > 0 && (
                   <button
                     onClick={handleClearCart}
-                    className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors"
+                    className="text-[11px] font-bold text-slate-400 hover:text-emerald-600 transition-colors"
                   >
                     Xóa tất cả
                   </button>
@@ -742,7 +742,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
                           </div>
                           <button
                             onClick={() => handleRemoveItem(item.id)}
-                            className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-colors"
+                            className="text-slate-400 hover:text-emerald-600 hover:bg-rose-50 p-1 rounded transition-colors"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -787,7 +787,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
                           {selectedBatch && (
                             <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
                               <span className="text-slate-500 font-bold">
-                                HSD: <strong className={isExp ? "text-rose-600 font-black" : "text-slate-800"}>
+                                HSD: <strong className={isExp ? "text-emerald-600 font-black" : "text-slate-800"}>
                                   {selectedBatch.expDate ? new Date(selectedBatch.expDate).toLocaleDateString("vi-VN") : "N/A"}
                                 </strong>
                               </span>
@@ -806,7 +806,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
                                     max={item.maxStock}
                                     value={item.quantity}
                                     onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                                    className="w-12 text-center text-xs font-black text-rose-600 bg-transparent border-none p-0 focus:ring-0"
+                                    className="w-12 text-center text-xs font-black text-emerald-600 bg-transparent border-none p-0 focus:ring-0"
                                   />
                                   <button
                                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
@@ -817,7 +817,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
                                 </div>
                                 <button
                                   onClick={() => updateQuantity(item.id, item.maxStock)}
-                                  className="text-[10px] text-rose-600 hover:underline font-bold"
+                                  className="text-[10px] text-emerald-600 hover:underline font-bold"
                                   title="Hủy toàn bộ số tồn của lô này"
                                 >
                                   (Hết: {item.maxStock})

@@ -35,6 +35,7 @@ import { CustomerCart } from "./pages/customer/CustomerCart";
 import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
 import { AIConsultant } from "./pages/customer/AIConsultant";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
+import { CustomerWishlist } from "./pages/customer/CustomerWishlist";
 import { CustomerOrders } from "./pages/customer/CustomerOrders";
 import { FeedbackPage } from "./pages/customer/FeedbackPage";
 import { BranchFeedbackPage } from "./pages/branch/BranchFeedbackPage";
@@ -68,6 +69,9 @@ import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
 import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
 import { RFQManagement } from "./pages/admin/RFQManagement";
 import { SupplierQuotePortal } from "./pages/public/SupplierQuotePortal";
+import { EmailCampaignListPage } from "./pages/admin/EmailCampaignListPage";
+import { EmailCampaignPage } from "./pages/admin/EmailCampaignPage";
+import { UnsubscribePage } from "./pages/public/UnsubscribePage";
 
 // Branch Pages
 import { BranchRequisition } from "./pages/branch/BranchRequisition";
@@ -81,6 +85,7 @@ import { BranchSchedule } from "./pages/branch/BranchSchedule";
 import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
 import BranchPayroll from "./pages/branch/BranchPayroll";
+import PharmacistKpiReport from "./pages/branch/PharmacistKpiReport";
 
 import { Sales } from "./pages/pharmacist/Sales";
 import { MobilePosScanner } from "./pages/pharmacist/MobilePosScanner";
@@ -112,6 +117,7 @@ export default function App() {
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
           <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
           <Route path="/pos/mobile-scanner" element={<MobilePosScanner />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
           {/* Auth Routes */}
           <Route path="/auth" element={<AuthLayout />}>
@@ -128,6 +134,9 @@ export default function App() {
           <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
           <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
           <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
+          <Route path="/marketing/email-campaigns" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
+          <Route path="/marketing/email-campaigns/new" element={<RedirectWithSearch to="/admin/marketing/email-campaigns/new" />} />
+          <Route path="/marketing/email-campaigns/:id" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
 
           {/* --- Customer Routes --- */}
           <Route path="/customer" element={<CustomerLayout />}>
@@ -137,6 +146,7 @@ export default function App() {
             <Route path="checkout" element={<CustomerCheckout />} />
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
+            <Route path="wishlist" element={<CustomerWishlist />} />
             <Route path="orders" element={<CustomerOrders />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="feedback/:orderCode" element={<FeedbackPage />} />
@@ -163,6 +173,9 @@ export default function App() {
 
               <Route path="master-data/products" element={<Products />} />
               <Route path="master-data/suppliers" element={<Suppliers />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
               <Route path="inventory" element={<Inventory />} />
               <Route path="inspector" element={<InspectorDashboard />} />
               <Route path="gpp-sync" element={<GppSyncPage />} />
@@ -176,6 +189,9 @@ export default function App() {
               <Route path="branches" element={<Branches />} />
               <Route path="employees" element={<Employees />} />
               <Route path="vouchers" element={<VoucherManagement />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
               <Route path="approvals" element={<HQApproval />} />
               <Route path="finance" element={<Finance />} />
               <Route path="rfq" element={<RFQManagement />} />
@@ -259,6 +275,8 @@ export default function App() {
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
               <Route path="feedbacks" element={<BranchFeedbackPage />} />
               <Route path="payroll" element={<BranchPayroll />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
+              <Route path="kpi-report" element={<PharmacistKpiReport />} />
               <Route path="profile" element={<Profile />} />
             </Route>
           </Route>
@@ -273,6 +291,7 @@ export default function App() {
               <Route path="ai-consultation" element={<VoiceConsultHistoryPage />} />
               <Route path="gpp-sync" element={<GppSyncPage />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
               <Route path="schedule" element={<PharmacistSchedule />} />
               <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
               <Route path="leave-requests" element={<PharmacistLeaveRequest />} />

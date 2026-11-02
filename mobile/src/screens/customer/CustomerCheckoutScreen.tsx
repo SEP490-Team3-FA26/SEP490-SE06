@@ -509,7 +509,7 @@ export const CustomerCheckoutScreen: React.FC<{
         title="Xác Nhận Đặt Hàng"
         subtitle="Thông tin giao hàng & Phương thức thanh toán"
         onBack={() => navigation.goBack()}
-        gradientVariant="emerald"
+        gradientVariant="sky"
       />
 
       <KeyboardAvoidingView

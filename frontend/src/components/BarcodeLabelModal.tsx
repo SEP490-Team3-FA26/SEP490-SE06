@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import {
+import { Loader2, 
   X,
   Printer,
   Copy,
@@ -882,7 +882,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               disabled={isGenerating}
               className="text-xs text-slate-600 hover:text-indigo-700 flex items-center gap-1 ml-2 font-medium"
             >
-              <RefreshCw size={13} className={isGenerating ? 'animate-spin' : ''} />
+              <Loader2 size={13} className={isGenerating ? 'animate-spin' : ''} />
               <span>Sinh mã EAN-13 mới</span>
             </button>
           </div>

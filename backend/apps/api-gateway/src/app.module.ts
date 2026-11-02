@@ -32,9 +32,11 @@ import { RfqController } from "./controllers/rfq.controller";
 import { RfqPortalController } from "./controllers/rfq-portal.controller";
 import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
 import { RecommendationController } from "./controllers/recommendation.controller";
+import { EmailNewsletterController } from "./controllers/email-newsletter.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
 import { FeedbackController } from "./controllers/feedback.controller";
+import { ProductReviewController } from "./controllers/product-review.controller";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { GoogleStrategy } from "./strategies/google.strategy";
@@ -206,11 +208,13 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     ReportController,
     FinanceController,
     FeedbackController,
+    ProductReviewController,
     HrController,
     RfqController,
     RfqPortalController,
     MarketingCampaignController,
     RecommendationController,
+    EmailNewsletterController,
     SensorController,
   ],
   providers: [
@@ -241,6 +245,11 @@ export class AppGatewayModule implements OnModuleInit {
     // 1. INVENTORY_SERVICE Reply Topics
     const inventoryTopics = [
       "inventory.medicine.list",
+      "product.review.create",
+      "product.review.get_list",
+      "product.review.get_summary",
+      "product.review.get_by_customer",
+      "product.review.vote_helpful",
       "inventory.medicine.subcategory_counts",
       "inventory.medicine.get_by_id",
       "inventory.medicine.update_status",
@@ -404,6 +413,28 @@ export class AppGatewayModule implements OnModuleInit {
       "hr.payroll.submit",
       "hr.payroll.approve",
       "hr.payroll.my_payslip",
+      // Kafka reply topics cho ban giao ca (Shift Handover) va quan ly nghi phep
+      "hr.shift_handover.live_stats",
+      "hr.shift_handover.submit",
+      "hr.shift_handover.accept",
+      "hr.shift_handover.history",
+      "hr.shift_handover.detail",
+      "hr.leave.balance",
+      "hr.leave.my_list",
+      "hr.leave.branch_list",
+      "hr.leave.create",
+      "hr.leave.respond",
+      "hr.leave.cancel",
+      // Kafka reply topics cho hệ thống Email Newsletter Marketing
+      "email.campaign.create",
+      "email.campaign.update",
+      "email.campaign.get.all",
+      "email.campaign.get.by.id",
+      "email.campaign.send_test",
+      "email.campaign.stats",
+      "email.campaign.cancel",
+      "email.campaign.delete",
+      "email.newsletter.unsubscribe",
     ];
 
     // 4. ORDER_SERVICE Reply Topics
@@ -427,6 +458,8 @@ export class AppGatewayModule implements OnModuleInit {
       "orders.campaign.get_by_id",
       "orders.campaign.add_cost",
       "orders.campaign.analytics",
+      "orders.shift.aggregate_sales",
+      "orders.pharmacist.kpi_report",
     ];
 
     // 5. KAFKA_SERVICE Reply Topics

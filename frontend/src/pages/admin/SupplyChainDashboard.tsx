@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
+import { Loader2, 
   Search,
   Filter,
   Download,
@@ -1471,7 +1471,7 @@ export function SupplyChainDashboard() {
                 onClick={handleRefreshAIModel}
                 disabled={isRefreshingModel}
               >
-                <RefreshCw size={16} className={isRefreshingModel ? 'animate-spin' : ''} />
+                <Loader2 size={16} className={isRefreshingModel ? 'animate-spin text-emerald-600' : ''} />
                 <span>Làm mới Mô hình AI</span>
               </button>
             </div>

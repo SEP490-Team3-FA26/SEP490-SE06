@@ -14,6 +14,7 @@ import { ApiService } from '../services/api.service';
 import { authApiService } from '../services/authApiService';
 import { SocketService } from '../services/socket.service';
 import { BiometricService, SavedBiometricUser } from '../services/biometric.service';
+import { WishlistAPI } from '../services/wishlistApiService';
 import { UserRole, UserProfile } from '../types/pharmacy.types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
@@ -222,6 +223,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userProfile));
       setUser(userProfile);
       void syncPushTokenToServer();
+      void WishlistAPI.syncGuestWishlist().catch(() => {});
 
       // Cập nhật trạng thái sinh trắc học sau khi đăng nhập
       try {

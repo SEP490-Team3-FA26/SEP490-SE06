@@ -316,7 +316,10 @@ export function HQApproval() {
 
         <div className="overflow-auto flex-1">
           {loading ? (
-            <div className="flex flex-col items-center py-16 gap-3"><Loader2 className="animate-spin text-violet-600" size={28} /><p className="text-slate-500 text-sm">Đang tải...</p></div>
+            <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 size={32} className="animate-spin text-emerald-600" />
+            <p className="text-sm font-semibold text-slate-500">Đang tải danh sách đề xuất cần duyệt...</p>
+          </div>
           ) : (tab === "URGENT" ? filteredPrs.length === 0 : filteredPos.length === 0) ? (
             <div className="flex flex-col items-center py-16 gap-3 text-slate-400">
               <ShieldCheck size={36} />
@@ -552,7 +555,7 @@ export function HQApproval() {
 
                     {loadingRec ? (
                       <div className="flex items-center justify-center py-8 gap-2">
-                        <Loader2 className="animate-spin text-violet-600" size={20} />
+                        <Loader2 className="animate-spin text-emerald-600" size={20} />
                         <span className="text-sm text-slate-500 font-bold">Đang tính toán tồn kho an toàn & dư thừa thực tế...</span>
                       </div>
                     ) : (

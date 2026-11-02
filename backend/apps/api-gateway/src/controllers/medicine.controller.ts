@@ -70,7 +70,7 @@ export class MedicineController implements OnModuleInit {
     ]);
   }
 
-  // Helper xóa cache liên quan đến danh mục thuốc, dropdown và thống kê khi có thay đổi dữ liệu
+  // Helper xóa cache liên quan đến danh mục thuốc, dropdown, thống kê và sơ đồ kho khi có thay đổi dữ liệu
   private async invalidateMedicineCaches() {
     if (!this.cacheManager) return;
     try {
@@ -82,6 +82,9 @@ export class MedicineController implements OnModuleInit {
         this.cacheManager.del("medicines:expiration_report:all"),
         this.cacheManager.del("medicines:expiration_report:CENTRAL_WH"),
         this.cacheManager.del("medicines:filters:all"),
+        this.cacheManager.del("medicines:warehouse-map"),
+        this.cacheManager.del("medicines:reserve-batches:CENTRAL_WH"),
+        this.cacheManager.del("medicines:reserve-batches:all"),
       ]);
     } catch (e) {}
   }
@@ -263,21 +266,35 @@ export class MedicineController implements OnModuleInit {
   @Get("warehouse-map")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @UseInterceptors(CacheInterceptor)
-  @CacheTTL(60000) // Cache 60s
-  @ApiOperation({ summary: "Lấy sơ đồ kho tổng quan 2D/3D" })
+  @ApiOperation({ summary: "Lấy sơ đồ kho tổng quan 2D/3D (Cache-Aside Redis 5 phút)" })
   async getWarehouseMap() {
-    return await sendKafkaMessage(
+    const cacheKey = "medicines:warehouse-map";
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.warehouse_map",
       {},
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 300000); // Cache 5 phút (300,000 ms)
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   @Get("shelf-detail")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Lấy chi tiết danh sách thuốc trong một tầng kệ" })
+  @ApiOperation({ summary: "Lấy chi tiết danh sách thuốc trong một tầng kệ (Cache-Aside Redis 2 phút)" })
   @ApiQuery({ name: "zone", required: true, type: String })
   @ApiQuery({ name: "rack", required: true, type: String })
   @ApiQuery({ name: "shelf", required: true, type: Number })
@@ -286,11 +303,27 @@ export class MedicineController implements OnModuleInit {
     @Query("rack") rack: string,
     @Query("shelf") shelf: number,
   ) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:shelf-detail:${zone}:${rack}:${shelf}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.shelf_detail",
       { zone, rack, shelf: Number(shelf) },
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 120000); // Cache 2 phút (120,000 ms)
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   @Get("warehouse-search")
@@ -476,39 +509,87 @@ export class MedicineController implements OnModuleInit {
   @Get('shelf-layout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lay layout ke kho (4 Tang x 10 Thung) voi thong tin thuoc va ton kho' })
+  @ApiOperation({ summary: 'Lay layout ke kho (4 Tang x 10 Thung) voi thong tin thuoc va ton kho (Cache-Aside Redis 5 phut)' })
   async getShelfLayout(
     @Query('zone') zone: string,
     @Query('rack') rack: string,
   ) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.shelf.layout', { zone, rack });
+    const cacheKey = `medicines:shelf-layout:${zone}:${rack}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.shelf.layout', { zone, rack });
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 300000); // Cache 5 phut (300,000 ms)
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   // GET /api/medicines/reserve-batches?branchId=CENTRAL_WH
   @Get('reserve-batches')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lay danh sach lo dang o Khu Du Tru (FEFO sorted)' })
+  @ApiOperation({ summary: 'Lay danh sach lo dang o Khu Du Tru (FEFO sorted) (Cache-Aside Redis 2 phut)' })
   async getReserveBatches(@Query('branchId') branchId: string = 'CENTRAL_WH') {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.reserve.list', { branchId });
+    const cacheKey = `medicines:reserve-batches:${branchId || 'CENTRAL_WH'}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.medicine.reserve.list', { branchId });
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 120000); // Cache 2 phut (120,000 ms)
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   // GET /api/medicines/bin-detail?zone=A&rack=A1&shelf=3&bin=2
   @Get('bin-detail')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Chi tiet thung thuoc: lo MAIN + lo RESERVE (xuat truoc theo FEFO)' })
+  @ApiOperation({ summary: 'Chi tiet thung thuoc: lo MAIN + lo RESERVE (xuat truoc theo FEFO) (Cache-Aside Redis 1 phut)' })
   async getBinDetail(
     @Query('zone') zone: string,
     @Query('rack') rack: string,
     @Query('shelf') shelf: number,
     @Query('bin') bin: number,
   ) {
-    return await sendKafkaMessage(
+    const cacheKey = `medicines:bin-detail:${zone}:${rack}:${shelf}:${bin}`;
+    if (this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
       this.inventoryClient,
       'inventory.medicine.bin.detail',
       { zone, rack, shelf: Number(shelf), bin: Number(bin) }
     );
+
+    if (this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 60000); // Cache 1 phut (60,000 ms)
+      } catch (e) {}
+    }
+
+    return result;
   }
 
   // POST /api/medicines/assign-location
@@ -517,11 +598,20 @@ export class MedicineController implements OnModuleInit {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Gan thuoc vao vi tri thung co dinh trong kho (async)' })
+  @ApiOperation({ summary: 'Gan thuoc vao vi tri thung co dinh trong kho (async Kafka + Evict Cache)' })
   async assignMedicineLocation(@Body() dto: {
     medicineId: string; zone: string; rack: string; shelf: number; bin: number; maxCapacity?: number;
   }) {
     this.inventoryClient.emit('inventory.medicine.event.location_assign', JSON.stringify(dto));
+    if (this.cacheManager) {
+      try {
+        await Promise.all([
+          this.cacheManager.del('medicines:warehouse-map'),
+          this.cacheManager.del(`medicines:shelf-layout:${dto.zone}:${dto.rack}`),
+          this.cacheManager.del(`medicines:bin-detail:${dto.zone}:${dto.rack}:${dto.shelf}:${dto.bin}`),
+        ]);
+      } catch (e) {}
+    }
     return { status: 'Accepted', message: 'Da gan thuoc vao vi tri thung trong kho.' };
   }
 
@@ -531,12 +621,21 @@ export class MedicineController implements OnModuleInit {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Khoa lo thuoc (QUARANTINED) - khong duoc xuat ban' })
+  @ApiOperation({ summary: 'Khoa lo thuoc (QUARANTINED) - khong duoc xuat ban (async Kafka + Evict Cache)' })
   async quarantineBatch(
     @Param('batchId') batchId: string,
     @Body() body?: { reason?: string },
   ) {
     this.inventoryClient.emit('inventory.medicine.event.quarantine', JSON.stringify({ batchId, reason: body?.reason }));
+    if (this.cacheManager) {
+      try {
+        await Promise.all([
+          this.cacheManager.del('medicines:warehouse-map'),
+          this.cacheManager.del('medicines:reserve-batches:CENTRAL_WH'),
+          this.cacheManager.del('medicines:reserve-batches:all'),
+        ]);
+      } catch (e) {}
+    }
     return { status: 'Accepted', message: 'Lo thuoc da duoc gui yeu cau cach ly (QUARANTINED).' };
   }
 
@@ -546,7 +645,7 @@ export class MedicineController implements OnModuleInit {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER', 'WAREHOUSE')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Chuyen o / Don kho thuoc giua cac thung trong kho (async Kafka)' })
+  @ApiOperation({ summary: 'Chuyen o / Don kho thuoc giua cac thung trong kho (async Kafka + Evict Cache)' })
   async relocateBin(@Body() dto: {
     fromLocation: { zone: string; rack: string; shelf: number; bin: number };
     toLocation: { zone: string; rack: string; shelf: number; bin: number };
@@ -556,7 +655,11 @@ export class MedicineController implements OnModuleInit {
     this.inventoryClient.emit('inventory.medicine.event.relocate_bin', JSON.stringify(dto));
     if (this.cacheManager) {
       try {
-        await this.cacheManager.del('medicines:warehouse-map');
+        await Promise.all([
+          this.cacheManager.del('medicines:warehouse-map'),
+          this.cacheManager.del(`medicines:shelf-layout:${dto.fromLocation.zone}:${dto.fromLocation.rack}`),
+          this.cacheManager.del(`medicines:shelf-layout:${dto.toLocation.zone}:${dto.toLocation.rack}`),
+        ]);
       } catch (e) {}
     }
     return { status: 'Accepted', message: 'Yeu cau chuyen o / don kho da duoc gui xu ly ngam.' };

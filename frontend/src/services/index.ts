@@ -18,6 +18,7 @@ export { certificateService } from './hr/certificate.service';
 
 // Inventory & Warehouse
 export { medicineService } from './inventory/medicine.service';
+export { productReviewService } from './inventory/productReview.service';
 export { stockTransferService } from './inventory/stockTransfer.service';
 export { inventoryCheckService } from './inventory/inventoryCheck.service';
 export { inventoryMapService } from './inventory/inventoryMap.service';
@@ -34,6 +35,7 @@ export { rfqService } from './purchase/rfq.service';
 // Sales & Customer
 export { orderService } from './sales/order.service';
 export { cartService } from './sales/cart.service';
+export { wishlistService } from './sales/wishlist.service';
 export { voucherService } from './sales/voucher.service';
 export { prescriptionService } from './sales/prescription.service';
 export { reconciliationService } from './sales/reconciliation.service';

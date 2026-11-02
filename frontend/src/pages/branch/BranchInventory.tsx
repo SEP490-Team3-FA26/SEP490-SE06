@@ -214,7 +214,7 @@ export function BranchInventory() {
               placeholder="Tìm kiếm theo mã, tên thuốc..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-[#0057cd] outline-none transition-all shadow-sm"
+              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-emerald-600 outline-none transition-all shadow-sm"
             />
           </div>
 
@@ -223,7 +223,7 @@ export function BranchInventory() {
               <select
                 value={selectedClassification}
                 onChange={(e) => setSelectedClassification(e.target.value)}
-                className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-[#0057cd] outline-none shadow-sm appearance-none cursor-pointer"
+                className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-emerald-600 outline-none shadow-sm appearance-none cursor-pointer"
               >
                 <option value="">Tất cả phân loại</option>
                 {filterOptions.classifications.map(c => (
@@ -240,7 +240,7 @@ export function BranchInventory() {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-[#0057cd] outline-none shadow-sm appearance-none cursor-pointer"
+                className="w-full sm:w-auto pl-3 pr-8 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-emerald-600 outline-none shadow-sm appearance-none cursor-pointer"
               >
                 <option value="">Tất cả danh mục</option>
                 {filterOptions.categories.map(c => (
@@ -256,7 +256,7 @@ export function BranchInventory() {
         <div className="overflow-x-auto overflow-y-auto relative flex-1 min-h-0 custom-scrollbar">
           {loading ? (
             <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center gap-3 z-10">
-              <Loader2 className="animate-spin text-[#0057cd]" size={32} />
+              <Loader2 className="animate-spin text-emerald-600" size={32} />
               <p className="text-sm font-semibold text-slate-500">Đang tải danh sách tồn kho...</p>
             </div>
           ) : null}

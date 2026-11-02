@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Download, MoreHorizontal, FileSpreadsheet, File as FilePdf, RefreshCw, Eye } from 'lucide-react';
+import { Loader2,  Search, Filter, Download, MoreHorizontal, FileSpreadsheet, File as FilePdf, RefreshCw, Eye } from 'lucide-react';
 
 interface Report {
   id: string;
@@ -112,7 +112,7 @@ export function ReportHistoryTable({ reports }: ReportHistoryTableProps) {
                     </span>
                   ) : (
                     <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded border border-blue-200 flex items-center gap-1.5 w-max">
-                      <RefreshCw size={12} className="animate-spin" /> Đang tạo...
+                      <Loader2 size={12} className="animate-spin" /> Đang tạo...
                     </span>
                   )}
                 </td>

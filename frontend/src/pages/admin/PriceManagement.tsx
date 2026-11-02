@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
+import { Loader2, 
   Tag, Search, Plus, Copy, Trash2, Edit3, X, Check, ChevronDown,
   Building2, DollarSign, Layers, AlertCircle, RefreshCw, Save
 } from "lucide-react";
@@ -327,7 +327,7 @@ export function PriceManagement() {
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
               disabled={userRole === "branch"}
-              className={`w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 appearance-none focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] transition-all ${userRole === "branch" ? "bg-slate-100 cursor-not-allowed opacity-80" : "bg-white cursor-pointer"}`}
+              className={`w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 appearance-none focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 transition-all ${userRole === "branch" ? "bg-slate-100 cursor-not-allowed opacity-80" : "bg-white cursor-pointer"}`}
             >
               {branches.map((b) => (
                 <option key={b._id} value={b._id}>
@@ -373,7 +373,7 @@ export function PriceManagement() {
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
               placeholder="Tìm kiếm theo tên thuốc, SKU..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd] transition-all"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600 transition-all"
             />
           </div>
           <button
@@ -381,7 +381,7 @@ export function PriceManagement() {
             className="text-slate-500 hover:text-[#0057cd] p-2 rounded-lg hover:bg-slate-100 transition-colors"
             title="Làm mới"
           >
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            <Loader2 size={18} className={loading ? "animate-spin text-emerald-600" : ""} />
           </button>
         </div>
 
@@ -403,7 +403,7 @@ export function PriceManagement() {
               {loading && (
                 <tr>
                   <td colSpan={7} className="px-6 py-16 text-center">
-                    <RefreshCw className="animate-spin mx-auto text-slate-400 mb-2" size={24} />
+                    <Loader2 className="animate-spin mx-auto text-emerald-600 mb-2" size={24} />
                     <span className="text-slate-400">Đang tải...</span>
                   </td>
                 </tr>
@@ -587,7 +587,7 @@ export function PriceManagement() {
                     className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
                       formRetailPrice !== "" && Number(formRetailPrice) < 0
                         ? "border-red-400 focus:ring-red-200"
-                        : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                        : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-emerald-600"
                     }`}
                   />
                   {formRetailPrice !== "" && Number(formRetailPrice) < 0 && (
@@ -627,7 +627,7 @@ export function PriceManagement() {
                     className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
                       formWholesalePrice !== "" && Number(formWholesalePrice) < 0
                         ? "border-red-400 focus:ring-red-200"
-                        : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                        : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-emerald-600"
                     }`}
                   />
                   {formWholesalePrice !== "" && Number(formWholesalePrice) < 0 && (
@@ -779,7 +779,7 @@ export function PriceManagement() {
                         fetchMedicines(e.target.value);
                       }}
                       placeholder="Tìm tên thuốc..."
-                      className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                      className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600"
                     />
                   </div>
                   <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
@@ -840,7 +840,7 @@ export function PriceManagement() {
                           className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
                             formRetailPrice !== "" && Number(formRetailPrice) < 0
                               ? "border-red-400 focus:ring-red-200"
-                              : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                              : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-emerald-600"
                           }`}
                         />
                         {formRetailPrice !== "" && Number(formRetailPrice) < 0 && (
@@ -880,7 +880,7 @@ export function PriceManagement() {
                           className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
                             formWholesalePrice !== "" && Number(formWholesalePrice) < 0
                               ? "border-red-400 focus:ring-red-200"
-                              : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                              : "border-slate-200 focus:ring-[#0057cd]/20 focus:border-emerald-600"
                           }`}
                         />
                         {formWholesalePrice !== "" && Number(formWholesalePrice) < 0 && (
@@ -1032,7 +1032,7 @@ export function PriceManagement() {
                     <select
                       value={copyToBranch}
                       onChange={(e) => setCopyToBranch(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-[#0057cd]"
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0057cd]/20 focus:border-emerald-600"
                     >
                       <option value="">— Chọn chi nhánh —</option>
                       {branches
@@ -1058,7 +1058,7 @@ export function PriceManagement() {
                   onClick={handleCopy}
                   className="px-6 py-2.5 text-sm font-medium text-white bg-[#0057cd] hover:bg-[#004bb1] rounded-lg transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {copyLoading ? <RefreshCw size={16} className="animate-spin" /> : <Copy size={16} />}
+                  {copyLoading ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
                   {copyLoading ? "Đang sao chép..." : "Sao chép"}
                 </button>
               </div>

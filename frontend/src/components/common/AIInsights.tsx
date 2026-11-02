@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { 
+import { Loader2,  
   Sparkles, 
   Send, 
   TrendingUp, 
@@ -147,7 +147,7 @@ export function AIInsights() {
           timestamp: timeStr,
           dataPoints: [
             { label: "Tổng số dược phẩm", value: `${totalMeds} mã`, color: "text-purple-700" },
-            { label: "Cần nhập khẩn cấp", value: `${urgentCount} mã`, color: urgentCount > 0 ? "text-rose-600" : "text-emerald-600" },
+            { label: "Cần nhập khẩn cấp", value: `${urgentCount} mã`, color: urgentCount > 0 ? "text-emerald-600" : "text-emerald-600" },
             { label: "Mô hình AI", value: "PyTorch LSTM (CUDA)", color: "text-blue-700" },
             { label: "Độ tin cậy dự báo", value: "94.2%", color: "text-emerald-600" }
           ],
@@ -276,7 +276,7 @@ export function AIInsights() {
             className="p-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition-all shadow-sm disabled:opacity-50"
             title="Làm mới dữ liệu AI"
           >
-            <RefreshCw size={15} className={loading ? "animate-spin text-purple-600" : ""} />
+            <Loader2 size={15} className={loading ? "animate-spin text-emerald-600" : ""} />
           </button>
         </div>
       </div>
@@ -430,7 +430,7 @@ export function AIInsights() {
 
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-slate-200">
-              <RefreshCw className="w-8 h-8 text-purple-600 animate-spin mb-3" />
+              <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mb-3" />
               <p className="text-xs font-bold text-slate-600">Đang tổng hợp Insights từ AI Engine...</p>
             </div>
           ) : (
@@ -445,7 +445,7 @@ export function AIInsights() {
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2.5">
                       <div className={`p-2.5 rounded-2xl shrink-0 ${
-                        insight.type === 'warning' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 
+                        insight.type === 'warning' ? 'bg-rose-50 text-emerald-600 border border-rose-100' : 
                         insight.type === 'opportunity' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
                         'bg-blue-50 text-blue-600 border border-blue-100'
                       }`}>

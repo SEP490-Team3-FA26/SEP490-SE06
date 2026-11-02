@@ -1,11 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
-import {
-  Search, ShoppingCart, Star, Heart, Info, Check,
+import { Loader2, Search, ShoppingCart, Star, Heart, Info, Check,
   ChevronLeft, ChevronRight, XCircle, Activity,
   ShieldAlert, Filter, X, ChevronDown, ChevronUp,
-  RotateCcw, Sparkles, SlidersHorizontal, ArrowUpDown
-} from "lucide-react";
+  RotateCcw, Sparkles, SlidersHorizontal, ArrowUpDown } from "lucide-react";
 import { MedicineCard } from "../../components/MedicineCard";
 import { ShopFilterSidebar } from "../../components/ShopFilterSidebar";
 import { Pagination } from "../../components/Pagination";
@@ -14,6 +12,7 @@ import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRec
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { cartService } from "../../services/sales/cart.service";
+import { useWishlist } from "../../hooks/useWishlist";
 import { notifyAuthLoginRequired } from "../../utils/authEvents";
 
 // Sub-category Card Model
@@ -104,6 +103,7 @@ export function CustomerShop() {
   const [selectedSubCategory, setSelectedSubCategory] = useState(searchParams.get("subCategory") || "");
   const [selectedClassification, setSelectedClassification] = useState("");
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+  const { isInWishlist, toggleWishlist } = useWishlist();
   // Lưu số lượng thuốc thực tế truy vấn trực tiếp từ MongoDB cho các danh mục con
   const [realCategoryCounts, setRealCategoryCounts] = useState<Record<string, number>>({});
 
@@ -454,7 +454,7 @@ export function CustomerShop() {
               onClick={() => handleSubCategoryClick(card)}
               className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 bg-white group hover:shadow-md hover:border-blue-400 ${
                 isSelected
-                  ? "border-[#0057cd] bg-blue-50/40 shadow-xs ring-2 ring-blue-500/20"
+                  ? "border-emerald-600 bg-blue-50/40 shadow-xs ring-2 ring-blue-500/20"
                   : "border-slate-200/80 shadow-2xs hover:bg-slate-50/50"
               }`}
             >
@@ -629,7 +629,7 @@ export function CustomerShop() {
           {/* Product Cards Grid */}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-32 gap-3">
-              <div className="w-10 h-10 border-4 border-[#0057cd] border-t-transparent rounded-full animate-spin"></div>
+              <Loader2 size={36} className="animate-spin text-emerald-600" />
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Đang tải danh sách dược phẩm...</span>
             </div>
           ) : sortedMedicines.length > 0 ? (
@@ -642,6 +642,8 @@ export function CustomerShop() {
                       key={medId}
                       med={med}
                       added={!!addedItems[medId]}
+                      isWishlisted={isInWishlist(medId)}
+                      onToggleWishlist={toggleWishlist}
                       onClick={() => { setSelectedMedicineForModal(med); }}
                       onAddToCart={(m, qty, _unit) => { handleAddToCart(m, qty); }}
                     />

@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Stethoscope,
   Keyboard,
+  Banknote,
 } from "lucide-react";
 import RetailView from "./components/RetailView";
 import PrescriptionView from "./components/PrescriptionView";
@@ -23,6 +24,7 @@ import ReturnsView from "./components/ReturnsView";
 import GPPView from "./components/GPPView";
 import OcrHistoryView from "./components/OcrHistoryView";
 import VoiceConsultationHistoryView from "./components/VoiceConsultationHistoryView";
+import ShiftHandoverModal from "../../components/pos/ShiftHandoverModal";
 import { hrService } from "../../services/hr/hr.service";
 
 // Helper to decode JWT token to extract branchId and duty pharmacist info
@@ -119,12 +121,14 @@ export function Sales() {
   const [shiftCheckLoading, setShiftCheckLoading] = useState<boolean>(true);
   const [shiftCheckedIn, setShiftCheckedIn] = useState<boolean>(true);
   const [shiftInfo, setShiftInfo] = useState<any>(null);
+  const [isHandoverOpen, setIsHandoverOpen] = useState<boolean>(false);
 
   const verifyShiftStatus = async () => {
     setShiftCheckLoading(true);
     try {
-      const res = await hrService.getMyCurrentShift();
-      setShiftCheckedIn(!!res?.isCheckedIn);
+      const res: any = await hrService.getMyCurrentShift();
+      const isAllowed = !!res?.isCheckedIn && !res?.isCompleted && !res?.isHandoverSubmitted;
+      setShiftCheckedIn(isAllowed);
       setShiftInfo(res);
     } catch (err) {
       console.warn("Could not verify shift status:", err);
@@ -163,10 +167,14 @@ export function Sales() {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wide text-rose-900">
-                Cảnh báo GPP: Chưa đến ca làm việc hoặc chưa điểm danh
+                {shiftInfo?.isHandoverSubmitted
+                  ? "Phiên bán hàng POS đã đóng: Ca trực đã nộp biên bản bàn giao ca"
+                  : "Cảnh báo GPP: Chưa đến ca làm việc hoặc chưa điểm danh"}
               </p>
               <p className="text-xs text-rose-700 truncate">
-                Chức năng tạo đơn bán lẻ đã bị khóa. Vui lòng sử dụng ứng dụng di động để Check-in GPS vào ca trực trước khi bán hàng.
+                {shiftInfo?.isHandoverSubmitted
+                  ? "Biên bản bàn giao ca và đối soát két tiền mặt đã được gửi lên hệ thống. Không thể tạo thêm đơn hàng."
+                  : "Chức năng tạo đơn bán lẻ đã bị khóa. Vui lòng sử dụng ứng dụng di động để Check-in GPS vào ca trực trước khi bán hàng."}
               </p>
             </div>
           </div>
@@ -220,10 +228,20 @@ export function Sales() {
           })}
         </div>
 
-        {/* Right side live status indicator */}
-        <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-slate-500 shrink-0">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Phân hệ: <strong className="text-slate-800 font-bold">Chuẩn GPP</strong></span>
+        {/* Right side live status indicator & Handover Button */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => setIsHandoverOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs shadow-xs hover:shadow-md transition cursor-pointer"
+          >
+            <Banknote size={15} />
+            <span>Bàn Giao Ca & Chốt Két</span>
+          </button>
+
+          <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-slate-500 pl-2 border-l border-slate-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Phân hệ: <strong className="text-slate-800 font-bold">Chuẩn GPP</strong></span>
+          </div>
         </div>
       </div>
 
@@ -284,15 +302,17 @@ export function Sales() {
         })}
       </div>
 
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(120%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .animate-slide-in-right {
-          animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-      `}</style>
+      {/* 5. Modal Bàn Giao Ca & Chốt Két Tiền Mặt */}
+      <ShiftHandoverModal
+        isOpen={isHandoverOpen}
+        onClose={() => setIsHandoverOpen(false)}
+        onSuccess={() => {
+          setTimeout(() => {
+            verifyShiftStatus();
+          }, 800);
+        }}
+        showToast={showToast}
+      />
     </div>
   );
 }

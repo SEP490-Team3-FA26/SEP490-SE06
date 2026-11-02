@@ -319,6 +319,13 @@ export class AttendanceService {
       throw new RpcException('Không tìm thấy ca trực đang mở để check-out');
     }
 
+    // Chốt chặn INV-SHO-01: Dược sĩ bắt buộc phải nộp Phiếu Bàn Giao Ca trước khi check-out
+    if (user.role === 'pharmacist' && !attendance.isHandoverSubmitted) {
+      throw new RpcException(
+        'Theo quy chuẩn quản lý nhà thuốc GPP, Dược sĩ phụ trách quầy bắt buộc phải hoàn thành và nộp Phiếu Bàn Giao Ca (Shift Handover) trước khi Check-out tan ca!',
+      );
+    }
+
     attendance.checkOutTime = new Date();
     attendance.checkOutLatitude = lat;
     attendance.checkOutLongitude = lng;
@@ -380,7 +387,8 @@ export class AttendanceService {
     // 3. Đánh giá tính hợp lệ của ca hiện tại
     const isCompleted = !!todayAttendance && (todayAttendance.status === AttendanceStatus.COMPLETED || !!todayAttendance.checkOutTime);
     const isCheckedIn = !!todayAttendance && [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(todayAttendance.status as any) && !isCompleted;
-    
+    const isHandoverSubmitted = !!todayAttendance?.isHandoverSubmitted;
+
     // Nếu có lịch phân ca và chưa kết thúc ca làm việc
     const inShift = isCheckedIn || (!!matchedAssignment && !isCompleted);
 
@@ -388,6 +396,8 @@ export class AttendanceService {
       inShift,
       isCheckedIn,
       isCompleted,
+      isHandoverSubmitted,
+      handoverId: todayAttendance?.handoverId || null,
       currentShift: matchedAssignment || (todayAttendance ? { name: todayAttendance.shiftName, shiftId: todayAttendance.shiftId } : null),
       attendance: todayAttendance,
       branch: branch ? {
@@ -411,6 +421,13 @@ export class AttendanceService {
       return {
         allowed: false,
         reason: 'Dược sĩ đã hoàn thành ca trực hôm nay (đã Check-out). Theo quy chuẩn GPP, chỉ Dược sĩ đang trong ca trực hợp lệ mới được thực hiện bán hàng.',
+        status,
+      };
+    }
+    if (status.isHandoverSubmitted) {
+      return {
+        allowed: false,
+        reason: 'Ca trực đã nộp biên bản bàn giao ca và chốt két tiền mặt. Phiên bán hàng POS đã đóng.',
         status,
       };
     }

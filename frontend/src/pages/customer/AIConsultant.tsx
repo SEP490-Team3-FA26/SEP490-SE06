@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Mic, Square, Sparkles, AlertTriangle, CheckCircle, ShoppingCart, Volume2, Info, ArrowRight, HeartPulse, Brain, RotateCcw, LoaderCircle, X, Send } from "lucide-react";
+import { Loader2, Mic, Square, Sparkles, AlertTriangle, CheckCircle, ShoppingCart, Volume2, Info, ArrowRight, HeartPulse, Brain, RotateCcw, X, Send } from "lucide-react";
 import { prescriptionService } from "../../services/sales/prescription.service";
 import { cartService } from "../../services/sales/cart.service";
 import { notifyAuthLoginRequired } from "../../utils/authEvents";
@@ -294,7 +294,7 @@ export function AIConsultant() {
                     }`}
                 >
                   {requestingMicrophone ? (
-                    <LoaderCircle size={30} className="animate-spin" />
+                    <Loader2 size={30} className="animate-spin text-white" />
                   ) : recording ? (
                     <Square size={28} className="fill-white" />
                   ) : (
@@ -364,7 +364,7 @@ export function AIConsultant() {
                     disabled={loading}
                     className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
                   >
-                    <Sparkles size={14} className={loading ? "animate-spin" : "animate-pulse"} />
+                    <Loader2 size={14} className={loading ? "animate-spin" : "animate-pulse"} />
                     {loading ? "Đang phân tích..." : "Phân tích và gợi ý thuốc"}
                   </button>
                 </div>
@@ -391,7 +391,7 @@ export function AIConsultant() {
                 disabled={loading || !symptomsText.trim()}
                 className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
               >
-                {loading ? <LoaderCircle size={14} className="animate-spin" /> : <Send size={14} />}
+                {loading ? <Loader2 size={14} className="animate-spin text-white" /> : <Send size={14} />}
                 {loading ? "Đang gửi..." : "Gửi tin nhắn"}
               </button>
             </div>
@@ -417,10 +417,7 @@ export function AIConsultant() {
           {/* Loading state */}
           {loading && (
             <div className="bg-white border border-slate-200 rounded-[28px] p-8 flex flex-col items-center justify-center min-h-[380px] gap-6 shadow-sm">
-              <div className="relative flex items-center justify-center w-16 h-16">
-                <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              </div>
+              <Loader2 size={44} className="animate-spin text-emerald-600" />
 
               <div className="flex flex-col gap-4 w-full max-w-xs font-semibold">
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider text-center">AI Đang Xử Lý Dữ Liệu</h3>

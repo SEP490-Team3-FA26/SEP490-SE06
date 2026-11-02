@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {
+import { Loader2, 
   Mic,
   Volume2,
   Play,
@@ -76,7 +76,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
               UC-70 • Voice Audit
             </span>
             <span className="flex items-center gap-1 text-xs font-semibold text-slate-500">
-              <Headphones size={13} className="text-teal-600" /> Whisper STT & RAG Phác Đồ
+              <Headphones size={13} className="text-emerald-600" /> Whisper STT & RAG Phác Đồ
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
@@ -94,7 +94,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
             aria-label="Refresh voice consultation list"
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer active:scale-95 disabled:opacity-50"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <Loader2 size={14} className={loading ? 'animate-spin' : ''} />
             <span>Làm mới</span>
           </button>
         </div>
@@ -107,7 +107,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng Bản Ghi Âm</p>
             <p className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1">{totalConsultations}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 text-emerald-600 flex items-center justify-center">
             <Mic size={20} />
           </div>
         </div>
@@ -257,7 +257,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
               {loading && consultations.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-12 text-center text-slate-400">
-                    <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-teal-600" />
+                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-emerald-600" />
                     <span>Đang tải lịch sử ghi âm tư vấn...</span>
                   </td>
                 </tr>
@@ -462,7 +462,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
               {/* Customer Voice Transcript Box */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
-                  <Mic size={12} className="text-teal-600" /> Văn Bản Bóc Tách Giọng Nói (Whisper STT)
+                  <Mic size={12} className="text-emerald-600" /> Văn Bản Bóc Tách Giọng Nói (Whisper STT)
                 </span>
                 <p className="text-sm font-medium text-slate-800 italic mt-1 leading-relaxed bg-white p-3 rounded-xl border border-slate-200">
                   "{inspectRecord.transcription}"
@@ -511,7 +511,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
                   <div className="bg-teal-50/50 p-4 rounded-2xl border border-teal-200">
                     <div className="flex items-center justify-between border-b border-teal-200 pb-2 mb-3">
                       <span className="font-bold text-xs text-teal-800 flex items-center gap-1.5">
-                        <ShieldCheck size={14} className="text-teal-600" /> Dược Sĩ Ra Quyết Định Thực Tế
+                        <ShieldCheck size={14} className="text-emerald-600" /> Dược Sĩ Ra Quyết Định Thực Tế
                       </span>
                       <span className="text-[10px] font-bold text-teal-700">
                         {inspectRecord.pharmacistFinalDecision?.selectedDrugs?.length || 0} thuốc đã chọn

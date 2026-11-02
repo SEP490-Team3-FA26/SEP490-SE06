@@ -19,6 +19,7 @@ describe('UserService - getExportJobStatus', () => {
         UserService,
         { provide: getModelToken('User'), useValue: mockModel },
         { provide: getModelToken('Cart'), useValue: mockModel },
+        { provide: getModelToken('Wishlist'), useValue: mockModel },
         { provide: getModelToken('Medicine'), useValue: mockModel },
         { provide: getModelToken('AuditLog'), useValue: mockModel },
         { provide: getModelToken('Branch'), useValue: mockModel },

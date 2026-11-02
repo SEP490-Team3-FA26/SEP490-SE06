@@ -342,7 +342,7 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
                     <span className="truncate">
                       {branchLoading ? "Đang tải chi nhánh..." : `${currentBranchId} - ${branchName}`}
                     </span>
-                    {branchLoading && <Loader2 size={14} className="animate-spin text-blue-600 shrink-0" />}
+                    {branchLoading && <Loader2 size={14} className="animate-spin text-emerald-600 shrink-0" />}
                   </div>
                 </div>
 

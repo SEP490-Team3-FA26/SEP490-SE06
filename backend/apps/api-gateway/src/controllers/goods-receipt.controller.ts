@@ -161,7 +161,10 @@ export class GoodsReceiptController implements OnModuleInit {
       const branch = (grnData && grnData.branchId) || 'all';
       await this.cacheManager.del(`reports:seasonal-analysis:${branch}:${currentMonth}`);
       await this.cacheManager.del(`reports:seasonal-analysis:all:${currentMonth}`);
-      console.log(`🗑️ [Cache Evict] Evicted seasonal analysis cache on GRN approval for branch ${branch}`);
+      await this.cacheManager.del('medicines:warehouse-map');
+      await this.cacheManager.del('medicines:reserve-batches:CENTRAL_WH');
+      await this.cacheManager.del('medicines:reserve-batches:all');
+      console.log(`🗑️ [Cache Evict] Evicted seasonal analysis & warehouse map cache on GRN approval for branch ${branch}`);
     } catch (err) {
       console.error('Lỗi xóa cache trong GoodsReceiptController:', err);
     }

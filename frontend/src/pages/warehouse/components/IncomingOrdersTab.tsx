@@ -660,7 +660,7 @@ export function IncomingOrdersTab({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 overflow-auto">
         {loading ? (
           <div className="flex flex-col items-center py-16 gap-3">
-            <Loader2 className="animate-spin text-indigo-600" size={28} />
+            <Loader2 className="animate-spin text-emerald-600" size={28} />
             <p className="text-xs text-slate-400 font-semibold">Đang tải dữ liệu chuỗi cung ứng...</p>
           </div>
         ) : subTab === "po" ? (
@@ -1099,7 +1099,7 @@ export function IncomingOrdersTab({
               <div className="p-5 space-y-4 overflow-y-auto flex-1 font-sans">
                 {modalError && (
                   <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                    <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                    <AlertTriangle size={16} className="text-emerald-600 shrink-0" />
                     <span>{modalError}</span>
                   </div>
                 )}
@@ -1116,7 +1116,7 @@ export function IncomingOrdersTab({
                   </h4>
                   {isFillLocLoading ? (
                     <span className="text-[11px] text-indigo-600 font-bold flex items-center gap-1.5 animate-pulse bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                      <Loader2 size={12} className="animate-spin text-indigo-600" /> Đang tự động tra cứu vị trí kho cho các thuốc...
+                      <Loader2 size={12} className="animate-spin text-emerald-600" /> Đang tự động tra cứu vị trí kho cho các thuốc...
                     </span>
                   ) : (
                     <span className="text-[11px] text-slate-400 font-medium">Hỗ trợ tải ảnh AI Computer Vision hoặc Quét Mobile</span>
@@ -1200,7 +1200,7 @@ export function IncomingOrdersTab({
                               }))}
                               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
-                            {itemErrors.batchNo && <span className="text-[10px] text-rose-600 block mt-0.5">{itemErrors.batchNo}</span>}
+                            {itemErrors.batchNo && <span className="text-[10px] text-emerald-600 block mt-0.5">{itemErrors.batchNo}</span>}
                           </div>
 
                           <div>
@@ -1215,7 +1215,7 @@ export function IncomingOrdersTab({
                               }))}
                               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
-                            {itemErrors.expDate && <span className="text-[10px] text-rose-600 block mt-0.5">{itemErrors.expDate}</span>}
+                            {itemErrors.expDate && <span className="text-[10px] text-emerald-600 block mt-0.5">{itemErrors.expDate}</span>}
                           </div>
 
                           <div>
@@ -1231,7 +1231,7 @@ export function IncomingOrdersTab({
                               }))}
                               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
-                            {itemErrors.actualQty && <span className="text-[10px] text-rose-600 block mt-0.5">{itemErrors.actualQty}</span>}
+                            {itemErrors.actualQty && <span className="text-[10px] text-emerald-600 block mt-0.5">{itemErrors.actualQty}</span>}
                           </div>
                         </div>
                         {/* Location Picker */}
@@ -1419,7 +1419,7 @@ export function IncomingOrdersTab({
                           />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
                             <div className="bg-slate-900/90 text-white px-4 py-2.5 rounded-2xl border border-purple-500/50 shadow-2xl flex items-center gap-2">
-                              <Loader2 size={16} className="animate-spin text-purple-400" />
+                              <Loader2 size={16} className="animate-spin text-emerald-600" />
                               <span className="text-xs font-bold">AI đang nhận diện & đếm số lượng hộp...</span>
                             </div>
                           </div>

@@ -176,7 +176,12 @@ services:
     command: node dist/apps/inventory-service/main.js
     environment:
       <<: *backend-env
+      NODE_OPTIONS: "--max-old-space-size=512"
       CSDLDUOC_BASE_URL: http://national-pharma-simulator:4005/v2
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     depends_on:
       kafka:
         condition: service_healthy
