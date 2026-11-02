@@ -48,7 +48,17 @@ export function MobileAIInspection() {
         const data = await goodsReceiptService.createInspectionRecord(grnId, "Mobile User");
         setInspectionRecord(data.data || data);
       } else if (poId) {
-        // Kiểm tra xem đã có phiên kiểm đếm PO trong localStorage chưa
+        // 1. Kiểm tra phiên kiểm đếm PO từ máy chủ (đồng bộ liên thiết bị Mobile <-> PC)
+        try {
+          const serverSaved = await goodsReceiptService.getPoInspection(poId);
+          if (serverSaved?.data && Array.isArray(serverSaved.data.items) && serverSaved.data.items.length > 0) {
+            setInspectionRecord(serverSaved.data);
+            setLoading(false);
+            return;
+          }
+        } catch (_) {}
+
+        // 2. Dự phòng kiểm tra localStorage
         const localSaved = localStorage.getItem(`PO_INSPECTION_${poId}`);
         if (localSaved) {
           try {
@@ -148,13 +158,14 @@ export function MobileAIInspection() {
         if (res.batchNo) {
           setBatchNo(res.batchNo);
         } else {
-          setBatchNo(item.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
+          // Tuân thủ GSP: Không tự ý sinh số lô ngẫu nhiên khi AI không nhận diện được
+          setBatchNo(item.batchNo || "");
         }
         if (res.expDate) {
           setExpDate(res.expDate);
         } else {
-          const parsedExpDate = item.expDate ? new Date(item.expDate) : new Date("2028-12-31");
-          setExpDate(parsedExpDate && !Number.isNaN(parsedExpDate.getTime()) ? parsedExpDate.toISOString().slice(0, 10) : "2028-12-31");
+          // Tuân thủ GSP: Không gán hạn dùng giả 2028-12-31, để trống để nhân viên kho nhập tay
+          setExpDate(item.expDate ? new Date(item.expDate).toISOString().slice(0, 10) : "");
         }
         setMsg({ type: "success", text: `AI đã nhận diện thành công: ${res.aiCount} hộp (Độ tin cậy: ${res.confidence || 98}%)` });
       } else {
@@ -208,7 +219,8 @@ export function MobileAIInspection() {
         setInspectionRecord(updatedRecord);
         if (inspectionRecord.poId) {
           localStorage.setItem(`PO_INSPECTION_${inspectionRecord.poId}`, JSON.stringify(updatedRecord));
-          // Kích hoạt sự kiện storage để tab Web chính tự động đồng bộ kết quả
+          // Lưu lên máy chủ để đồng bộ với máy tính kho
+          await goodsReceiptService.savePoInspection(inspectionRecord.poId, updatedRecord).catch(console.warn);
           window.dispatchEvent(new Event("storage"));
         }
         setSelectedItem(null);
@@ -253,6 +265,8 @@ export function MobileAIInspection() {
         setInspectionRecord(finalRecord);
         if (inspectionRecord.poId) {
           localStorage.setItem(`PO_INSPECTION_${inspectionRecord.poId}`, JSON.stringify(finalRecord));
+          // Đồng bộ trạng thái hoàn tất lên máy chủ
+          await goodsReceiptService.savePoInspection(inspectionRecord.poId, finalRecord).catch(console.warn);
           window.dispatchEvent(new Event("storage"));
         }
         setMsg({ type: "success", text: "Đã hoàn tất kiểm đếm! Kết quả đã được đồng bộ với kho tổng." });

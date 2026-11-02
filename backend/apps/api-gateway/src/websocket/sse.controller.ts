@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  HttpException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { Observable, interval, merge } from 'rxjs';
@@ -25,6 +26,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 @Controller('api/events')
 export class SseController {
   private readonly logger = new Logger(SseController.name);
+  // Bộ nhớ đệm kiểm soát tần suất quét (Rate Limiting) chống tấn công Brute-force & DoS
+  private readonly scanRateLimits = new Map<string, { count: number; resetAt: number }>();
 
   constructor(
     private readonly sseService: SseService,
@@ -98,6 +101,28 @@ export class SseController {
     const cleanBarcode = body.barcode.trim();
     const cleanSessionId = body.sessionId.trim();
     const deviceName = body.deviceName?.trim() || 'Súng Quét Wi-Fi (Điện Thoại)';
+
+    // 1. Kiểm tra độ dài và định dạng sessionId (tối thiểu 8 ký tự alphanumeric, chống scan ngẫu nhiên)
+    if (cleanSessionId.length < 8 || !/^[A-Za-z0-9_-]{8,64}$/.test(cleanSessionId)) {
+      throw new BadRequestException('Mã phiên làm việc (sessionId) không đúng định dạng an toàn (tối thiểu 8 ký tự alphanumeric)');
+    }
+
+    // 2. Kiểm tra định dạng mã vạch hợp lệ (từ 3 đến 52 ký tự chuẩn EAN/Code-128)
+    if (cleanBarcode.length < 3 || cleanBarcode.length > 52 || !/^[A-Za-z0-9_-]+$/.test(cleanBarcode)) {
+      throw new BadRequestException('Mã vạch (barcode) không hợp lệ (độ dài 3-52 ký tự chữ, số hoặc gạch nối)');
+    }
+
+    // 3. Rate Limiting: Tối đa 50 lượt quét/phút trên mỗi phiên để ngăn chặn flood/DDoS
+    const now = Date.now();
+    const rateLimit = this.scanRateLimits.get(cleanSessionId);
+    if (rateLimit && now < rateLimit.resetAt) {
+      if (rateLimit.count >= 50) {
+        throw new HttpException('Quá nhiều yêu cầu quét mã vạch liên tục (Rate limit exceeded). Vui lòng thử lại sau giây lát.', HttpStatus.TOO_MANY_REQUESTS);
+      }
+      rateLimit.count += 1;
+    } else {
+      this.scanRateLimits.set(cleanSessionId, { count: 1, resetAt: now + 60000 });
+    }
 
     this.logger.log(`📱 [POS Bridge] Đã nhận mã ${cleanBarcode} từ [${deviceName}] cho phiên [${cleanSessionId}]`);
 

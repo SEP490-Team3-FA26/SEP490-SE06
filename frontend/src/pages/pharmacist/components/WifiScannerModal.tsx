@@ -58,17 +58,20 @@ export function WifiScannerModal({
       e.preventDefault();
       const code = testInput.trim();
       const now = new Date();
+      const startTime = performance.now();
+      if (onBarcodeSimulated) {
+        onBarcodeSimulated(code);
+      }
+      // Đo độ trễ xử lý thực tế của thiết bị thay vì dùng số ngẫu nhiên
+      const actualLatency = Math.max(1, Math.round(performance.now() - startTime));
       setTestResults((prev) => [
         {
           code,
-          latencyMs: Math.floor(15 + Math.random() * 25), // Mô phỏng độ trễ Wi-Fi siêu thấp ~25ms
+          latencyMs: actualLatency,
           time: now.toLocaleTimeString("vi-VN"),
         },
         ...prev.slice(0, 9),
       ]);
-      if (onBarcodeSimulated) {
-        onBarcodeSimulated(code);
-      }
       setTestInput("");
     }
   };

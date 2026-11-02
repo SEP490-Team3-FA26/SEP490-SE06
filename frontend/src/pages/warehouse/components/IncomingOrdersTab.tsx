@@ -252,47 +252,62 @@ export function IncomingOrdersTab({
     });
   };
 
-  // Đồng bộ kết quả kiểm đếm vừa thực hiện từ thiết bị Mobile
-  const syncFromMobile = () => {
+  // Đồng bộ kết quả kiểm đếm vừa thực hiện từ thiết bị Mobile (hỗ trợ liên thiết bị Mobile <-> PC)
+  const syncFromMobile = async () => {
     if (!selectedPo?._id) return;
-    const saved = localStorage.getItem(`PO_INSPECTION_${selectedPo._id}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-          setInspectionData(prev => {
-            const next = { ...prev };
-            let updatedCount = 0;
-            parsed.items.forEach((it) => {
-              const mId = it._id;
-              if (next[mId] && Number(it.actualQty) > 0) {
-                next[mId] = {
-                  ...next[mId],
-                  actualQty: it.actualQty,
-                  batchNo: it.batchNo || next[mId].batchNo,
-                  expDate: it.expDate || next[mId].expDate,
-                  location: next[mId].location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' }
-                };
-                updatedCount++;
-              }
-            });
-            if (updatedCount > 0) {
-              onMsg({
-                type: "success",
-                text: `✅ Đã đồng bộ thành công kết quả kiểm đếm cho ${updatedCount} mặt hàng từ thiết bị Mobile!`
-              });
-            } else {
-              onMsg({
-                type: "error",
-                text: "Chưa có mặt hàng nào được chốt số lượng trên thiết bị di động."
-              });
-            }
-            return next;
-          });
-          return;
-        }
-      } catch (_) {}
+
+    let parsed: any = null;
+    // 1. Thử lấy từ máy chủ API Gateway (đồng bộ giữa điện thoại và máy tính thật)
+    try {
+      const serverRes = await goodsReceiptService.getPoInspection(selectedPo._id);
+      if (serverRes?.data && Array.isArray(serverRes.data.items) && serverRes.data.items.length > 0) {
+        parsed = serverRes.data;
+      }
+    } catch (_) {}
+
+    // 2. Dự phòng lấy từ localStorage nếu test trên cùng một trình duyệt máy tính
+    if (!parsed) {
+      const saved = localStorage.getItem(`PO_INSPECTION_${selectedPo._id}`);
+      if (saved) {
+        try {
+          parsed = JSON.parse(saved);
+        } catch (_) {}
+      }
     }
+
+    if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+      setInspectionData(prev => {
+        const next = { ...prev };
+        let updatedCount = 0;
+        parsed.items.forEach((it: any) => {
+          const mId = it._id;
+          if (next[mId] && Number(it.actualQty) > 0) {
+            next[mId] = {
+              ...next[mId],
+              actualQty: it.actualQty,
+              batchNo: it.batchNo || next[mId].batchNo,
+              expDate: it.expDate || next[mId].expDate,
+              location: next[mId].location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' }
+            };
+            updatedCount++;
+          }
+        });
+        if (updatedCount > 0) {
+          onMsg({
+            type: "success",
+            text: `✅ Đã đồng bộ thành công kết quả kiểm đếm cho ${updatedCount} mặt hàng từ thiết bị Mobile!`
+          });
+        } else {
+          onMsg({
+            type: "error",
+            text: "Chưa có mặt hàng nào được chốt số lượng trên thiết bị di động."
+          });
+        }
+        return next;
+      });
+      return;
+    }
+
     onMsg({
       type: "error",
       text: "Chưa tìm thấy dữ liệu kiểm đếm Mobile cho đơn PO này. Vui lòng quét trên điện thoại trước!"

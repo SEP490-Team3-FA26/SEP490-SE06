@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { posScannerService } from "../../services/sales/posScanner.service";
+import { medicineService } from "../../services/inventory/medicine.service";
 import {
   Scan,
   Smartphone,
@@ -37,6 +39,16 @@ export function MobilePosScanner() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [suggestedMedicines, setSuggestedMedicines] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Tải danh mục thuốc thực tế từ Backend Database (Tuân thủ Zero Mock Policy)
+    medicineService.getMedicines({ limit: 8 }).then((res: any) => {
+      const list = Array.isArray(res) ? res : (res?.data || res?.medicines || []);
+      const withBarcode = list.filter((m: any) => m.barcode || m.sku);
+      setSuggestedMedicines(withBarcode.slice(0, 4));
+    }).catch(console.warn);
+  }, []);
 
   // Video Camera State
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -144,29 +156,22 @@ export function MobilePosScanner() {
         );
       } catch (_) {}
 
-      // 3. Kênh Server-Sent Events / HTTP Bridge qua API Gateway
-      const res = await fetch("/api/events/pos-scanner-bridge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          barcode: cleanCode,
-          deviceName: navigator.userAgent.includes("iPhone")
-            ? "iPhone (Wi-Fi Gun)"
-            : "Android Phone (Wi-Fi Gun)",
-          branchId,
-        }),
+      // 3. Kênh Server-Sent Events / HTTP Bridge qua API Gateway (Tuân thủ 3-Tier Architecture)
+      const data = await posScannerService.transmitBarcode({
+        sessionId,
+        barcode: cleanCode,
+        deviceName: navigator.userAgent.includes("iPhone")
+          ? "iPhone (Wi-Fi Gun)"
+          : "Android Phone (Wi-Fi Gun)",
+        branchId,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (res.ok && data?.success) {
+      if (data?.success) {
         setStatusMsg({
           type: "success",
           text: `Đã truyền mã ${cleanCode} vào màn hình POS thành công!`,
         });
       } else {
-        // Vẫn thành công qua kênh LocalStorage/BroadcastChannel
         setStatusMsg({
           type: "success",
           text: `Đã phát mã ${cleanCode} tới phiên POS: ${sessionId}!`,
@@ -195,29 +200,7 @@ export function MobilePosScanner() {
     }
   };
 
-  // Danh mục mã thuốc demo phổ biến để test nhanh không cần quét bao bì
-  const SAMPLE_BARCODES = [
-    {
-      code: "3400932567577",
-      name: "Thuốc sủi Efferalgan 500mg",
-      note: "Hộp 16 viên (Chuẩn EAN-13 Pháp)",
-    },
-    {
-      code: "8935006530010",
-      name: "Amoxicillin 500mg (Hộp)",
-      note: "Hộp 100 viên (GS1 Việt Nam 893)",
-    },
-    {
-      code: "8935006530022",
-      name: "Amoxicillin 500mg (Vỉ lẻ)",
-      note: "Mã vạch vỉ phụ (Tự tính giá vỉ)",
-    },
-    {
-      code: "8935001701101",
-      name: "Panadol Extra Đỏ",
-      note: "Hộp 15 vỉ x 12 viên",
-    },
-  ];
+
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-white font-sans">
@@ -348,35 +331,40 @@ export function MobilePosScanner() {
           </div>
         </div>
 
-        {/* Phím bấm Test Nhanh các loại thuốc demo */}
-        <div>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
-            Bấm Quét Mẫu Nhanh (Demo Chuẩn Dược Phẩm)
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            {SAMPLE_BARCODES.map((item) => (
-              <button
-                key={item.code}
-                type="button"
-                onClick={() => transmitBarcode(item.code, item.name)}
-                className="p-3 bg-slate-900 hover:bg-slate-800/90 active:scale-95 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-left transition-all flex flex-col gap-1 shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white truncate pr-1">
-                    {item.name}
-                  </span>
-                  <Zap size={12} className="text-emerald-400 shrink-0" />
-                </div>
-                <span className="font-mono text-[11px] font-semibold text-emerald-400">
-                  {item.code}
-                </span>
-                <span className="text-[10px] text-slate-400 leading-tight">
-                  {item.note}
-                </span>
-              </button>
-            ))}
+        {/* Danh mục thuốc thực tế từ hệ thống kho (Tuân thủ Zero Mock Policy) */}
+        {suggestedMedicines.length > 0 && (
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
+              Thuốc Có Sẵn Trong Kho Chi Nhánh
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {suggestedMedicines.map((item) => {
+                const code = item.barcode || item.sku || "";
+                return (
+                  <button
+                    key={item._id || code}
+                    type="button"
+                    onClick={() => transmitBarcode(code, item.name)}
+                    className="p-3 bg-slate-900 hover:bg-slate-800/90 active:scale-95 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-left transition-all flex flex-col gap-1 shadow-sm cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white truncate pr-1">
+                        {item.name}
+                      </span>
+                      <Zap size={12} className="text-emerald-400 shrink-0" />
+                    </div>
+                    <span className="font-mono text-[11px] font-semibold text-emerald-400">
+                      {code}
+                    </span>
+                    <span className="text-[10px] text-slate-400 leading-tight">
+                      {item.classification || item.category || 'Dược phẩm GPP'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Lịch sử quét trong ca */}
         {scannedHistory.length > 0 && (

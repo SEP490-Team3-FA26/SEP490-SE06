@@ -1844,44 +1844,29 @@ export class ApiService {
       };
       if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
 
-      // 1. Gửi ảnh lên AI Service: POST /api/ai/receipts/{receiptId}/items/{receiptItemId}/inspection
-      if (formData) {
-        try {
-          const res = await fetch(
-            `${this.aiBaseUrl}/api/ai/receipts/${receiptId}/items/${receiptItemId}/inspection`,
-            {
-              method: 'POST',
-              headers,
-              body: formData,
-            }
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.success !== false) return data;
-          }
-        } catch (_) {}
-
-        // 2. Dự phòng gọi qua API Gateway
-        try {
-          const gwRes = await fetch(
-            `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
-            {
-              method: 'POST',
-              headers,
-              body: formData,
-            }
-          );
-          if (gwRes.ok) {
-            const decoded = await gwRes.json();
-            if (decoded && decoded.success !== false) {
-              return decoded;
-            }
-          }
-        } catch (_) {}
+      if (!formData) {
+        throw new Error('Dữ liệu hình ảnh kiểm đếm không hợp lệ.');
       }
 
-      // Tuân thủ Zero Mock Data Policy: Ném ngoại lệ khi máy chủ AI không phản hồi
-      throw new Error('Không thể kết nối đến máy chủ AI Vision kiểm đếm hoặc dịch vụ đang bận.');
+      // Tuân thủ Gateway Boundary: Gọi duy nhất qua API Gateway endpoint
+      const gwRes = await fetch(
+        `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
+        {
+          method: 'POST',
+          headers,
+          body: formData,
+        }
+      );
+      if (gwRes.ok) {
+        const decoded = await gwRes.json();
+        if (decoded && decoded.success !== false) {
+          return decoded;
+        }
+        throw new Error(decoded?.message || 'Kiểm đếm AI qua API Gateway không thành công.');
+      }
+
+      const errBody = await gwRes.json().catch(() => null);
+      throw new Error(errBody?.message || errBody?.detail || 'Không thể kết nối đến máy chủ AI Vision kiểm đếm hoặc dịch vụ đang bận.');
     } catch (e: any) {
       console.warn('Failed AI inspection of receipt item:', e);
       throw new Error(e?.message || 'Lỗi kết nối đến hệ thống kiểm định AI Vision.');

@@ -277,4 +277,24 @@ export class GoodsReceiptController implements OnModuleInit {
   async listInspectionRecords() {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.inspection.list', {});
   }
+
+  // Đồng bộ kết quả kiểm đếm Mobile cho đơn PO (Lưu trữ Redis Server & phát WebSocket đa thiết bị)
+  @Post('po-inspections/:poId')
+  async savePoMobileInspection(@Param('poId') poId: string, @Body() data: any) {
+    const key = `po_inspection:${poId}`;
+    await this.cacheManager.set(key, data, 86400000); // 24 giờ
+    this.websocketGateway.server?.emit(`po_inspection_updated:${poId}`, data);
+    return { success: true, message: 'Đã lưu kết quả kiểm đếm PO vào máy chủ thành công', data };
+  }
+
+  // Lấy kết quả kiểm đếm Mobile cho đơn PO từ máy tính kho
+  @Get('po-inspections/:poId')
+  async getPoMobileInspection(@Param('poId') poId: string) {
+    const key = `po_inspection:${poId}`;
+    const data = await this.cacheManager.get(key);
+    if (!data) {
+      return { success: false, message: 'Chưa có dữ liệu kiểm đếm Mobile cho đơn PO này.' };
+    }
+    return { success: true, data };
+  }
 }

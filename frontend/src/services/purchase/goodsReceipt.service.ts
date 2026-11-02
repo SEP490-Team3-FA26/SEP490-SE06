@@ -96,5 +96,17 @@ export const goodsReceiptService = {
       },
     });
     return response.data;
+  },
+
+  // Lưu kết quả kiểm đếm PO trên Mobile lên máy chủ để đồng bộ đa thiết bị
+  async savePoInspection(poId: string, data: any) {
+    const response = await api.post(`/api/goods-receipts/po-inspections/${poId}`, data);
+    return response.data;
+  },
+
+  // Lấy kết quả kiểm đếm PO từ máy chủ về máy tính kho
+  async getPoInspection(poId: string) {
+    const response = await api.get(`/api/goods-receipts/po-inspections/${poId}`);
+    return response.data;
   }
 };

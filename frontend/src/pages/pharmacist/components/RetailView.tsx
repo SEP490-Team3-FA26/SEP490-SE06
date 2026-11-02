@@ -88,7 +88,11 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [posSessionId] = useState<string>(() => {
     const saved = typeof window !== 'undefined' ? sessionStorage.getItem('pos_session_id') : null;
     if (saved) return saved;
-    const newId = `POS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    // Sinh mã phiên bảo mật cao chuẩn UUID v4 chống brute-force và giả mạo trên mạng
+    const randomUuid = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
+    const newId = `POS-${randomUuid}`;
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('pos_session_id', newId);
     }
