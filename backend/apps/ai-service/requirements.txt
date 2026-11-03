@@ -14,4 +14,6 @@ psycopg2-binary
 pymongo[srv]
 dnspython
 numpy>=1.26.0
+# Chỉ định tải bản PyTorch CPU để tối ưu dung lượng và tránh tải các thư viện NVIDIA CUDA (~4GB)
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch

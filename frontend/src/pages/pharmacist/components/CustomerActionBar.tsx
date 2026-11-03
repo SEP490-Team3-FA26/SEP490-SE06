@@ -146,17 +146,17 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
             <div className="flex items-center justify-between py-1 border-t border-slate-100 text-[11px]">
               <span className="text-slate-500 font-medium">Điểm tích lũy:</span>
               <strong className="text-sky-700 font-mono font-bold text-xs">
-                {customer.loyalty.points.toLocaleString()}đ
+                {(customer?.loyalty?.points || 0).toLocaleString()}đ
               </strong>
             </div>
 
-            {customer.clinical.allergies && customer.clinical.allergies.length > 0 && (
+            {customer?.clinical?.allergies && customer.clinical.allergies.length > 0 && (
               <div className="px-2 py-1 rounded bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[10px]">
                 Dị ứng: {customer.clinical.allergies.join(', ')}
               </div>
             )}
 
-            {customer.loyalty.points > 0 && (
+            {(customer?.loyalty?.points || 0) > 0 && (
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
