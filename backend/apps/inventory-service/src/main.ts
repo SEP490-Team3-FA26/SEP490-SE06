@@ -54,7 +54,8 @@ async function bootstrap() {
               allowAutoTopicCreation: true,
             },
           } as any,
-          logger: ['log', 'error', 'warn'],
+          // Quy chuẩn môi trường Production: Chỉ ghi log WARN và ERROR, ẩn toàn bộ log thông thường/debug
+          logger: process.env.NODE_ENV === 'production' ? ['warn', 'error'] : ['log', 'warn', 'error', 'debug'],
         },
       );
       await app.listen();
