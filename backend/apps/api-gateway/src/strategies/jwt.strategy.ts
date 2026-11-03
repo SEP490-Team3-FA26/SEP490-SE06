@@ -1,0 +1,37 @@
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+
+/**
+ * JWT Strategy - Cấu hình cách đọc và xác minh JWT token
+ * Token được đọc từ Authorization header: "Bearer <token>"
+ */
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor(config: ConfigService) {
+    super({
+      // Cách trích xuất token từ request (từ Authorization: Bearer header)
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // Từ chối token đã hết hạn
+      ignoreExpiration: false,
+      // Secret key để xác minh chữ ký của token
+      secretOrKey: process.env.JWT_SECRET || config.get<string>('JWT_SECRET') || 'wdp301-super-secret-key-change-in-production',
+    });
+  }
+
+  /**
+   * Sau khi passport xác minh token hợp lệ, method này được gọi
+   * Giá trị return sẽ được gán vào req.user trong controller
+   */
+  async validate(payload: { sub: string; email: string; role: string; fullName: string; branchId?: string; phone?: string }) {
+    return {
+      sub: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      fullName: payload.fullName,
+      branchId: payload.branchId || null,
+      phone: payload.phone || null,
+    };
+  }
+}

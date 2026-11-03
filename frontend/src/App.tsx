@@ -1,0 +1,331 @@
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { NotificationProvider } from "./contexts/NotificationContext";
+
+// Layouts
+import { AuthLayout } from "./layouts/AuthLayout";
+import { AdminLayout } from "./layouts/AdminLayout";
+import { DirectorLayout } from "./layouts/DirectorLayout";
+import { WarehouseLayout } from "./layouts/WarehouseLayout";
+import { BranchLayout } from "./layouts/BranchLayout";
+import { PharmacistLayout } from "./layouts/PharmacistLayout";
+import { CustomerLayout } from "./layouts/CustomerLayout";
+
+// Protected Route Guard
+import { ProtectedRoute } from "./components/ProtectedRoute";
+
+// Auth Pages
+import { Landing } from "./components/common/Landing";
+import { Login } from "./pages/auth/Login";
+import { Register } from "./pages/auth/Register";
+import { ForgotPassword } from "./pages/auth/ForgotPassword";
+import { ResetPassword } from "./pages/auth/ResetPassword";
+import { VerifyEmail } from "./pages/auth/VerifyEmail";
+
+// Common Pages
+import { DashboardHome } from "./components/common/Dashboard";
+import { Profile } from "./components/common/Profile";
+import { Settings } from "./components/common/Settings";
+import { AIInsights } from "./components/common/AIInsights";
+import { AIForecast } from "./components/common/AIForecast";
+import { LotTracking } from "./components/common/LotTracking";
+
+// Customer Pages
+import { CustomerShop } from "./pages/customer/CustomerShop";
+import { CustomerCart } from "./pages/customer/CustomerCart";
+import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
+import { AIConsultant } from "./pages/customer/AIConsultant";
+import { CustomerProfile } from "./pages/customer/CustomerProfile";
+import { CustomerWishlist } from "./pages/customer/CustomerWishlist";
+import { CustomerMedicalRecord } from "./pages/customer/CustomerMedicalRecord";
+import { CustomerOrders } from "./pages/customer/CustomerOrders";
+import { FeedbackPage } from "./pages/customer/FeedbackPage";
+import { BranchFeedbackPage } from "./pages/branch/BranchFeedbackPage";
+
+// Master Data
+import { Products } from "./pages/master-data/Products";
+import { Suppliers } from "./pages/master-data/Suppliers";
+
+// Warehouse Pages
+import { Inventory } from "./pages/warehouse/Inventory";
+import { InventoryHistory } from "./pages/warehouse/InventoryHistory";
+import { PurchaseRequisition } from "./pages/warehouse/PurchaseRequisition";
+import { InventoryCheck } from "./pages/warehouse/InventoryCheck";
+import { WarehouseInventoryHub } from "./pages/warehouse/WarehouseInventoryHub";
+import { MobileAIInspection } from "./pages/warehouse/MobileAIInspection";
+import { WarehouseMapPage } from "./pages/warehouse/WarehouseMapPage";
+import { GspTelemetryDashboard } from "./pages/warehouse/GspTelemetryDashboard";
+import { GoodsReceiptInspectionPage } from "./pages/warehouse/GoodsReceiptInspectionPage";
+
+// Admin / HQ Pages
+import { Finance } from "./pages/admin/Finance";
+import { Reports } from "./pages/admin/Reports";
+import { Branches } from "./pages/admin/Branches";
+import { Employees } from "./pages/admin/Employees";
+import { VoucherManagement } from "./pages/admin/VoucherManagement";
+import { HQApproval } from "./pages/admin/HQApproval";
+import { PriceManagement } from "./pages/admin/PriceManagement";
+import { SupplierCreditManagement } from "./pages/admin/SupplierCreditManagement";
+import { AuditLogs } from "./pages/admin/AuditLogs";
+import { SupplyChainDashboard } from "./pages/admin/SupplyChainDashboard";
+import { DataRetentionTraceability } from "./pages/admin/DataRetentionTraceability";
+import { RFQManagement } from "./pages/admin/RFQManagement";
+import { SupplierQuotePortal } from "./pages/public/SupplierQuotePortal";
+import { EmailCampaignListPage } from "./pages/admin/EmailCampaignListPage";
+import { EmailCampaignPage } from "./pages/admin/EmailCampaignPage";
+import { UnsubscribePage } from "./pages/public/UnsubscribePage";
+
+// Branch Pages
+import { BranchRequisition } from "./pages/branch/BranchRequisition";
+import { BranchStockReceive } from "./pages/branch/BranchStockReceive";
+import { BranchInventory } from "./pages/branch/BranchInventory";
+import { BranchTransfer } from "./pages/branch/BranchTransfer";
+import { BranchEmployees } from "./pages/branch/BranchEmployees";
+import { BranchCertificateApproval } from "./pages/branch/BranchCertificateApproval";
+import { BranchShiftManagement } from "./pages/branch/BranchShiftManagement";
+import { BranchSchedule } from "./pages/branch/BranchSchedule";
+import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
+import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
+import BranchPayroll from "./pages/branch/BranchPayroll";
+import PharmacistKpiReport from "./pages/branch/PharmacistKpiReport";
+import { BranchAttendanceHistory } from "./pages/branch/BranchAttendanceHistory";
+
+import { Sales } from "./pages/pharmacist/Sales";
+import { MobilePosScanner } from "./pages/pharmacist/MobilePosScanner";
+import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
+import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
+import { PharmacistLeaveRequest } from "./pages/pharmacist/PharmacistLeaveRequest";
+import PrescriptionManagement from "./pages/pharmacist/PrescriptionManagement";
+import OcrHistoryPage from "./pages/pharmacist/OcrHistoryPage";
+import VoiceConsultHistoryPage from "./pages/pharmacist/VoiceConsultHistoryPage";
+import GppSyncPage from "./pages/pharmacist/GppSyncPage";
+import { InspectorDashboard } from "./pages/inspector/InspectorDashboard";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
+
+// Helper component to preserve query parameters on redirect
+function RedirectWithSearch({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={{ pathname: to, search: location.search }} replace />;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <NotificationProvider>
+        <ErrorBoundary>
+          <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
+          <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
+          <Route path="/pos/mobile-scanner" element={<MobilePosScanner />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
+
+          {/* Auth Routes */}
+          <Route path="/auth" element={<AuthLayout />}>
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="reset-password" element={<ResetPassword />} />
+            <Route path="verify-email" element={<VerifyEmail />} />
+          </Route>
+
+          {/* Cũ (Redirect để tương thích trong trường hợp back lại) */}
+          <Route path="/login" element={<RedirectWithSearch to="/auth/login" />} />
+          <Route path="/dev-login" element={<Navigate to="/auth/login?dev=true" replace />} />
+          <Route path="/register" element={<RedirectWithSearch to="/auth/register" />} />
+          <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
+          <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
+          <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
+          <Route path="/marketing/email-campaigns" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
+          <Route path="/marketing/email-campaigns/new" element={<RedirectWithSearch to="/admin/marketing/email-campaigns/new" />} />
+          <Route path="/marketing/email-campaigns/:id" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
+
+          {/* --- Customer Routes --- */}
+          <Route path="/customer" element={<CustomerLayout />}>
+            <Route index element={<Navigate to="shop" replace />} />
+            <Route path="shop" element={<CustomerShop />} />
+            <Route path="cart" element={<CustomerCart />} />
+            <Route path="checkout" element={<CustomerCheckout />} />
+            <Route path="ai-consult" element={<AIConsultant />} />
+            <Route path="profile" element={<CustomerProfile />} />
+            <Route path="wishlist" element={<CustomerWishlist />} />
+            <Route path="medical-record" element={<CustomerMedicalRecord />} />
+            <Route path="orders" element={<CustomerOrders />} />
+            <Route path="feedback" element={<FeedbackPage />} />
+            <Route path="feedback/:orderCode" element={<FeedbackPage />} />
+          </Route>
+
+          {/* --- Director / Ban Giám Đốc Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["director", "head_branch"]} />}>
+            <Route path="/director" element={<DirectorLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="approvals" element={<HQApproval />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="rfq" element={<RFQManagement />} />
+              <Route path="supplier-credit" element={<SupplierCreditManagement />} />
+              <Route path="supply-chain" element={<SupplyChainDashboard />} />
+              <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="ai-insights" element={<AIInsights />} />
+              <Route path="pricing" element={<PriceManagement />} />
+              <Route path="price-management" element={<PriceManagement />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="feedbacks" element={<BranchFeedbackPage />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
+
+              <Route path="master-data/products" element={<Products />} />
+              <Route path="master-data/suppliers" element={<Suppliers />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="inspector" element={<InspectorDashboard />} />
+              <Route path="gpp-sync" element={<GppSyncPage />} />
+            </Route>
+          </Route>
+
+          {/* --- Admin / HQ Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="branches" element={<Branches />} />
+              <Route path="employees" element={<Employees />} />
+              <Route path="vouchers" element={<VoucherManagement />} />
+              <Route path="marketing/email-campaigns" element={<EmailCampaignListPage />} />
+              <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
+              <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
+              <Route path="approvals" element={<HQApproval />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="rfq" element={<RFQManagement />} />
+              <Route path="pricing" element={<PriceManagement />} />
+              <Route path="price-management" element={<PriceManagement />} />
+              <Route path="supplier-credit" element={<SupplierCreditManagement />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="data-retention" element={<DataRetentionTraceability />} />
+              <Route path="supply-chain" element={<SupplyChainDashboard />} />
+              <Route path="ai-insights" element={<AIInsights />} />
+              <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="feedbacks" element={<BranchFeedbackPage />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
+
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="inventory/checks" element={<InventoryCheck />} />
+              <Route path="inventory/import" element={<InventoryHistory type="import" />} />
+              <Route path="inventory/export" element={<InventoryHistory type="export" />} />
+              <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
+              <Route path="inventory/lot-tracking" element={<LotTracking />} />
+
+              <Route path="master-data/products" element={<Products />} />
+              <Route path="master-data/suppliers" element={<Suppliers />} />
+            </Route>
+          </Route>
+
+          {/* --- Warehouse / Quản lý Kho Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["warehouse"]} />}>
+            <Route path="/warehouse" element={<WarehouseLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="inventory/map" element={<WarehouseMapPage />} />
+              <Route path="inventory/telemetry" element={<GspTelemetryDashboard />} />
+              <Route path="telemetry" element={<GspTelemetryDashboard />} />
+              <Route path="inventory/checks" element={<InventoryCheck />} />
+              <Route path="inventory/requisitions" element={<WarehouseInventoryHub />} />
+              <Route path="inventory/import" element={<WarehouseInventoryHub />} />
+              <Route path="inventory/export" element={<InventoryHistory type="export" />} />
+              <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
+              <Route path="inventory/lot-tracking" element={<LotTracking />} />
+              <Route path="goods-receipt/mobile-inspection" element={<MobileAIInspection />} />
+              <Route path="goods-receipt/inspection" element={<GoodsReceiptInspectionPage />} />
+              <Route path="goods-receipt/scan" element={<GoodsReceiptInspectionPage />} />
+              <Route path="mobile-ai-inspection" element={<MobileAIInspection />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="ai-insights" element={<AIInsights />} />
+              <Route path="ai-forecast" element={<AIForecast />} />
+              <Route path="rfq" element={<RFQManagement />} />
+              <Route path="supply-chain" element={<SupplyChainDashboard />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+
+              <Route path="master-data/products" element={<Products />} />
+              <Route path="master-data/suppliers" element={<Suppliers />} />
+            </Route>
+          </Route>
+
+          {/* --- Branch / Quản lý Chi nhánh Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["branch"]} />}>
+            <Route path="/branch" element={<BranchLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="sales" element={<Sales />} />
+              <Route path="employees" element={<BranchEmployees />} />
+              <Route path="certificates" element={<BranchCertificateApproval />} />
+              <Route path="shifts" element={<BranchShiftManagement />} />
+              <Route path="schedule" element={<BranchSchedule />} />
+              <Route path="shift-swaps" element={<BranchShiftSwap />} />
+              <Route path="leave-approvals" element={<BranchLeaveApproval />} />
+              <Route path="attendance-history" element={<BranchAttendanceHistory />} />
+              <Route path="pricing" element={<PriceManagement />} />
+              <Route path="requisitions" element={<BranchRequisition />} />
+              <Route path="receive-transfers" element={<BranchStockReceive />} />
+              <Route path="inventory" element={<BranchInventory />} />
+              <Route path="transfers" element={<BranchTransfer />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="supplier-credit" element={<SupplierCreditManagement />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="inventory/lot-tracking" element={<LotTracking />} />
+              <Route path="feedbacks" element={<BranchFeedbackPage />} />
+              <Route path="payroll" element={<BranchPayroll />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
+              <Route path="kpi-report" element={<PharmacistKpiReport />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+          </Route>
+
+          {/* --- Pharmacist Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["pharmacist"]} />}>
+            <Route path="/pharmacist" element={<PharmacistLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="sales" element={<Sales />} />
+              <Route path="prescriptions" element={<PrescriptionManagement />} />
+              <Route path="ocr-history" element={<OcrHistoryPage />} />
+              <Route path="ai-consultation" element={<VoiceConsultHistoryPage />} />
+              <Route path="gpp-sync" element={<GppSyncPage />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="kpi" element={<PharmacistKpiReport />} />
+              <Route path="schedule" element={<PharmacistSchedule />} />
+              <Route path="shift-swaps" element={<PharmacistShiftSwap />} />
+              <Route path="leave-requests" element={<PharmacistLeaveRequest />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+          </Route>
+
+          {/* --- MOH Inspector (Thanh Tra CSDL Dược Quốc Gia) Routes --- */}
+          <Route element={<ProtectedRoute allowedRoles={["moh_inspector", "admin", "director", "head_branch"]} />}>
+            <Route path="/inspector" element={<PharmacistLayout />}>
+              <Route index element={<InspectorDashboard />} />
+              <Route path="gpp-sync" element={<GppSyncPage />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="lot-tracking" element={<LotTracking />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+          </Route>
+
+          {/* Profile riêng lẻ cho user thường */}
+          <Route element={<ProtectedRoute allowedRoles={["admin", "director", "head_branch", "warehouse", "branch", "pharmacist", "moh_inspector", "user"]} />}>
+            <Route path="/profile" element={<Profile />} />
+          </Route>
+
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        </ErrorBoundary>
+      </NotificationProvider>
+    </BrowserRouter>
+  );
+}

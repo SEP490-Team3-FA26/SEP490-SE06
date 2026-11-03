@@ -1,0 +1,253 @@
+import React, { useState } from "react";
+import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart, ShieldAlert, Star } from "lucide-react";
+import { isPrescriptionMedicine } from "../utils/prescriptionUtils";
+
+interface MedicineCardProps {
+  med: any;
+  added: boolean;
+  onAddToCart: (med: any, quantity: number, unit: string) => void;
+  onClick: () => void;
+  allowOutOfStock?: boolean;
+  isWishlisted?: boolean;
+  onToggleWishlist?: (med: any) => void;
+  allowPrescriptionPurchase?: boolean;
+}
+
+export const MedicineCard: React.FC<MedicineCardProps> = ({
+  med,
+  added,
+  onAddToCart,
+  onClick,
+  allowOutOfStock = false,
+  isWishlisted = false,
+  onToggleWishlist,
+  allowPrescriptionPurchase = false,
+}) => {
+  const isOutOfStock = med.stock <= 0;
+  const isLowStock = med.stock > 0 && med.stock <= 50;
+  const isRx = isPrescriptionMedicine(med);
+  const isRxBlocked = isRx && !allowPrescriptionPurchase && !allowOutOfStock;
+
+  const parsePackaging = (spec: string, defaultUnit: string) => {
+    const cleanSpec = (spec || "").toLowerCase().trim();
+    const regexFull = /hộp\s+(\d+)\s+vỉ\s*x\s*(\d+)\s+viên/;
+    const regexBoxPills = /hộp\s+(\d+)\s+viên/;
+    const regexBoxBlisters = /hộp\s+(\d+)\s+vỉ/;
+
+    let units = [defaultUnit || "Viên"];
+    let multipliers: { [key: string]: number } = { [defaultUnit || "Viên"]: 1 };
+
+    const matchFull = cleanSpec.match(regexFull);
+    if (matchFull) {
+      const a = parseInt(matchFull[1], 10);
+      const b = parseInt(matchFull[2], 10);
+      return { units: ["Hộp", "Vỉ", "Viên"], multipliers: { "Hộp": a * b, "Vỉ": b, "Viên": 1 } };
+    }
+    const matchBoxPills = cleanSpec.match(regexBoxPills);
+    if (matchBoxPills) {
+      const b = parseInt(matchBoxPills[1], 10);
+      return { units: ["Hộp", "Viên"], multipliers: { "Hộp": b, "Viên": 1 } };
+    }
+    const matchBoxBlisters = cleanSpec.match(regexBoxBlisters);
+    if (matchBoxBlisters) {
+      const a = parseInt(matchBoxBlisters[1], 10);
+      return { units: ["Hộp", "Vỉ"], multipliers: { "Hộp": a, "Vỉ": 1 } };
+    }
+    return { units, multipliers };
+  };
+
+  const packSpec = med.thong_tin_chi_tiet?.["Quy cách đóng gói"] || med.thong_tin_chi_tiet?.["Quy cách"] || "";
+  const { units, multipliers } = parsePackaging(packSpec, med.unit);
+  const [selectedUnit, setSelectedUnit] = useState(units[0] || med.unit || "Hộp");
+
+  const currentMultiplier = multipliers[selectedUnit] || 1;
+  const displayPrice = med.price * currentMultiplier;
+
+  const countryName = med.thong_tin_chi_tiet?.["Nước sản xuất"] || med.thong_tin_chi_tiet?.["Xuất xứ"] || "";
+  const getFlag = (country: string) => {
+    if (country.includes("Việt")) return "🇻🇳";
+    if (country.includes("Hoa Kỳ") || country.includes("Mỹ")) return "🇺🇸";
+    if (country.includes("Pháp")) return "🇫🇷";
+    if (country.includes("Đức")) return "🇩🇪";
+    if (country.includes("Nhật")) return "🇯🇵";
+    if (country.includes("Hàn")) return "🇰🇷";
+    if (country.includes("Ấn Độ")) return "🇮🇳";
+    return "🌐";
+  };
+
+  return (
+    <div
+      onClick={onClick}
+      className="group relative bg-white rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer h-full"
+    >
+      {/* Image Area - Tỉ lệ vuông 1:1 chuẩn Shopee (Width === Height) */}
+      <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 aspect-square w-full flex items-center justify-center p-4 overflow-hidden">
+        {/* Khối hiển thị ảnh sản phẩm thực tế, có referrerPolicy để tránh bị CDN chặn hotlink */}
+        <img
+          src={med.image || (Array.isArray(med.images) && med.images.length > 0 ? med.images[0] : "") || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60"}
+          alt={med.name}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.onerror = null;
+            target.src = "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60";
+          }}
+          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+        />
+
+        {/* Badge: Stock status */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+            <span className={`px-3 py-1 text-white text-[10px] font-black rounded-full uppercase tracking-wider ${
+              allowOutOfStock ? "bg-amber-600/90 shadow-sm" : "bg-slate-800/80"
+            }`}>
+              {allowOutOfStock ? "Hết hàng (Cho phép nhập)" : "Hết hàng"}
+            </span>
+          </div>
+        )}
+        {/* Nút yêu thích (Wishlist Heart) */}
+        {onToggleWishlist && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleWishlist(med);
+            }}
+            className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-xs cursor-pointer ${
+              isWishlisted
+                ? "bg-rose-50 text-rose-500 hover:bg-rose-100 ring-1 ring-rose-200"
+                : "bg-white/85 backdrop-blur-xs text-slate-400 hover:text-rose-500 hover:bg-white"
+            }`}
+            title={isWishlisted ? "Bỏ yêu thích" : "Thêm vào danh sách yêu thích"}
+          >
+            <Heart size={15} className={isWishlisted ? "fill-rose-500 text-rose-500" : ""} />
+          </button>
+        )}
+
+        {isLowStock && !isOutOfStock && (
+          <div className={`absolute top-2 ${onToggleWishlist ? 'right-11' : 'right-2'} px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs`}>
+            <AlertCircle size={8} /> Sắp hết
+          </div>
+        )}
+
+        {/* Rx Badge */}
+        {isRx && (
+          <div className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-rose-50/95 backdrop-blur-xs border border-rose-200 text-rose-700 text-[9px] font-black rounded-lg uppercase tracking-wider shadow-xs flex items-center gap-1">
+            <ShieldAlert size={10} className="text-rose-600" />
+            <span>Kê đơn (Rx)</span>
+          </div>
+        )}
+
+        {/* Country Badge */}
+        {countryName && !isRx && (
+          <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-xl text-[9px] font-bold text-slate-600 border border-slate-100 shadow-sm flex items-center gap-1">
+            <span>{getFlag(countryName)}</span>
+            <span className="max-w-[60px] truncate">{countryName}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="p-3.5 flex-1 flex flex-col gap-2.5">
+
+        {/* Tên thuốc kèm tooltip hiển thị tên đầy đủ */}
+        <h4 
+          title={med.name}
+          className="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug min-h-[2.4rem]"
+        >
+          {med.name}
+        </h4>
+
+        {/* Rating sao & lượt đánh giá nếu có (UC-77) */}
+        {med.averageRating > 0 && (
+          <div className="flex items-center gap-1.5 -mt-1">
+            <div className="flex items-center gap-1 text-[11px] font-bold text-amber-500">
+              <Star size={11} className="fill-amber-400 text-amber-400" />
+              <span>{med.averageRating.toFixed(1)}</span>
+            </div>
+            {med.reviewCount > 0 && (
+              <span className="text-[10px] text-slate-400 font-medium">
+                ({med.reviewCount} đánh giá)
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Số đăng ký hoặc Quy cách đóng gói phân biệt dung tích/biến thể */}
+        {(med.registrationNumber || med.registration_number || packSpec) && (
+          <div className="flex items-center gap-1.5 flex-wrap -mt-1">
+            {(med.registrationNumber || med.registration_number) && (
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                SĐK: {med.registrationNumber || med.registration_number}
+              </span>
+            )}
+            {packSpec && (
+              <span className="text-[10px] text-slate-500 font-medium truncate max-w-[130px]" title={packSpec}>
+                {packSpec}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Unit pills */}
+        {units.length > 1 && (
+          <div className="flex gap-1">
+            {units.map(u => (
+              <button
+                key={u}
+                onClick={(e) => { e.stopPropagation(); setSelectedUnit(u); }}
+                className={`flex-1 py-1 rounded-lg text-[10px] font-extrabold transition-all border ${
+                  selectedUnit === u
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Price + Button - Khắc phục chống tràn nút bấm (+) sang lề phải */}
+        <div className="mt-auto flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm sm:text-base font-black text-blue-600 leading-tight truncate" title={`${displayPrice.toLocaleString("vi-VN")}₫`}>
+              {displayPrice.toLocaleString("vi-VN")}₫
+            </p>
+            <p className="text-[10px] text-slate-400 font-semibold truncate">/ {selectedUnit}</p>
+          </div>
+
+          {isRxBlocked ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-xl flex items-center justify-center transition-all bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80"
+              title="Thuốc kê đơn (Rx) - Theo quy định Bộ Y Tế, chỉ bán tại quầy theo đơn bác sĩ"
+            >
+              <ShieldAlert size={15} className="text-amber-500" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAddToCart(med, currentMultiplier, selectedUnit); }}
+              disabled={isOutOfStock && !allowOutOfStock}
+              className={`shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                isOutOfStock && !allowOutOfStock
+                  ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  : added
+                    ? "bg-sky-600 text-white shadow-md shadow-sky-200"
+                    : isOutOfStock
+                      ? "bg-amber-600 text-white hover:bg-amber-700 shadow-md shadow-amber-200 active:scale-90"
+                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 active:scale-90"
+              }`}
+              title={added ? "Đã có trong đơn" : "Thêm vào đơn"}
+            >
+              {added ? <CheckCircle2 size={16} /> : <Plus size={16} />}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

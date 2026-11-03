@@ -1,0 +1,1266 @@
+import os
+from groq import AsyncGroq
+import json
+import re
+import httpx
+
+def get_groq_client() -> AsyncGroq:
+    key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
+    if not key:
+        raise RuntimeError("GROQ_API_KEY is not configured")
+    return AsyncGroq(api_key=key)
+
+def get_deepseek_api_key() -> str | None:
+    return (
+        os.getenv("PHUC_DEEPSEEK_V4_FLASH")
+        or os.getenv("DEEPSEEK_API_KEY")
+        or os.getenv("DEEPSEEK")
+    )
+
+def extract_text_from_message_content(content) -> str:
+    """Trích xuất text an toàn từ content dạng string hoặc mảng multimodal blocks."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                text_parts.append(part.get("text", ""))
+            elif isinstance(part, str):
+                text_parts.append(part)
+        return " ".join(text_parts).strip()
+    return str(content or "")
+
+async def call_deepseek_json(messages: list[dict], temperature: float = 0.2) -> str:
+    """
+    Chuyên biệt cho Chatbot AI Trợ lý Dược sĩ Bồ Câu:
+    CHỈ sử dụng DeepSeek API (deepseek-flash, deepseek-chat), hỗ trợ cả text và multimodal vision.
+    Không đụng chạm hay ảnh hưởng đến các chức năng AI khác.
+    """
+    deepseek_key = get_deepseek_api_key()
+    if not deepseek_key:
+        raise RuntimeError("DeepSeek API Key (PHUC_DEEPSEEK_V4_FLASH hoặc DEEPSEEK_API_KEY) chưa được cấu hình.")
+
+    preferred_model = os.getenv("DEEPSEEK_MODEL") or "deepseek-flash"
+    models_to_try = [preferred_model]
+    if preferred_model != "deepseek-chat":
+        models_to_try.append("deepseek-chat")
+
+    errors = []
+    for model in models_to_try:
+        try:
+            print(f"[AI Chatbot] Goi DeepSeek API (model: {model})...", flush=True)
+            async with httpx.AsyncClient(timeout=35.0) as client:
+                res = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {deepseek_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print(f"[AI Chatbot] DeepSeek API ({model}) phan hoi thanh cong!", flush=True)
+                    return content
+                else:
+                    errors.append(f"DeepSeek ({model}) HTTP {res.status_code}: {res.text}")
+        except Exception as exc:
+            errors.append(f"DeepSeek ({model}) exception: {exc}")
+
+    raise RuntimeError(f"Chatbot DeepSeek API thất bại: {'; '.join(errors)}")
+
+async def call_deepseek_v4_flash(messages: list[dict], response_format: dict | None = None) -> str:
+    return await call_deepseek_json(messages, temperature=0.1)
+
+async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
+    """
+    Hàm gọi LLM cho các chức năng AI khác của hệ thống (STT, Kê đơn, Tương tác thuốc, RAG, Dự báo):
+    Chỉ dùng Groq API, Google Gemini và OpenRouter theo đúng thiết kế của người khác.
+    TUYỆT ĐỐI KHÔNG dùng DeepSeek để tránh làm ảnh hưởng/làm hỏng code của người khác.
+    """
+    errors = []
+
+    # 1. Ưu tiên Groq API (chuẩn hóa text thuần túy)
+    groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
+    if groq_key:
+        groq_models = [
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant"
+        ]
+        groq_messages = [
+            {"role": m.get("role", "user"), "content": extract_text_from_message_content(m.get("content", ""))}
+            for m in messages
+        ]
+        for model in groq_models:
+            try:
+                print(f"[AI Service] Thu Groq API (model: {model})...", flush=True)
+                groq_client = get_groq_client()
+                response = await groq_client.chat.completions.create(
+                    model=model,
+                    messages=groq_messages,
+                    temperature=temperature,
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+                if content:
+                    print(f"[AI Service] Groq ({model}) phan hoi thanh cong!", flush=True)
+                    return content
+            except Exception as exc:
+                errors.append(f"Groq ({model}) exception: {exc}")
+
+    # 2. Fallback sang Google Gemini 3.8 Flash
+    google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if google_key and len(google_key) > 10:
+        try:
+            print("[AI Service] Goi Google Gemini API (model: gemini-3.8-flash)...", flush=True)
+            sys_text = ""
+            contents = []
+            for m in messages:
+                role = m.get("role")
+                text = extract_text_from_message_content(m.get("content", ""))
+                if role == "system":
+                    sys_text = (sys_text + "\n" + text).strip()
+                elif role == "user":
+                    contents.append({"role": "user", "parts": [{"text": text}]})
+                elif role == "assistant":
+                    contents.append({"role": "model", "parts": [{"text": text}]})
+
+            if not contents:
+                contents.append({"role": "user", "parts": [{"text": "Phan tich va tra ve ket qua JSON"}]})
+
+            payload = {
+                "contents": contents,
+                "generationConfig": {
+                    "response_mime_type": "application/json",
+                    "temperature": temperature
+                }
+            }
+            if sys_text:
+                payload["system_instruction"] = {"parts": [{"text": sys_text}]}
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={google_key}"
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                if res.status_code == 200:
+                    candidates = res.json().get("candidates", [])
+                    if candidates:
+                        content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        clean_msg = content.strip()
+                        if clean_msg.startswith("```"):
+                            clean_msg = re.sub(r"^```[a-zA-Z]*\n?", "", clean_msg)
+                            clean_msg = re.sub(r"\n?```$", "", clean_msg).strip()
+                        if clean_msg:
+                            print("[AI Service] Google Gemini 3.8 Flash phan hoi thanh cong!", flush=True)
+                            return clean_msg
+                else:
+                    print(f"[AI Service] Gemini 3.8 Flash bao loi ({res.status_code}): {res.text[:300]}", flush=True)
+                    errors.append(f"Gemini 3.8 Flash HTTP {res.status_code}: {res.text[:200]}")
+        except Exception as exc:
+            print(f"[AI Service] Gemini 3.8 Flash ngoai le: {exc}", flush=True)
+            errors.append(f"Gemini 3.8 Flash exception: {exc}")
+
+    # 3. Fallback sang Groq API (chuẩn hóa text thuần túy)
+    groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")
+    if groq_key:
+        groq_models = [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b"
+        ]
+        groq_messages = [
+            {"role": m.get("role", "user"), "content": extract_text_from_message_content(m.get("content", ""))}
+            for m in messages
+        ]
+        for model in groq_models:
+            try:
+                print(f"[AI Service] Thu Groq API (model: {model})...", flush=True)
+                groq_client = get_groq_client()
+                response = await groq_client.chat.completions.create(
+                    model=model,
+                    messages=groq_messages,
+                    temperature=temperature,
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+                if content:
+                    print(f"[AI Service] Groq ({model}) phan hoi thanh cong!", flush=True)
+                    return content
+            except Exception as exc:
+                errors.append(f"Groq ({model}) exception: {exc}")
+
+    # 4. Fallback sang OpenRouter API
+    openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        try:
+            print("[AI Service] Thu OpenRouter API...", flush=True)
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {openrouter_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "deepseek/deepseek-chat",
+                        "messages": messages,
+                        "temperature": temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print("[AI Service] OpenRouter phan hoi thanh cong!", flush=True)
+                    return content
+                else:
+                    errors.append(f"OpenRouter HTTP {res.status_code}: {res.text}")
+        except Exception as exc:
+            errors.append(f"OpenRouter exception: {exc}")
+
+    raise RuntimeError(f"Tat ca cac dich vu LLM deu that bai: {'; '.join(errors)}")
+
+async def extract_vision_keywords_for_rag(image_base64: str, user_message: str = "") -> str:
+    """
+    Sử dụng DeepSeek Flash Vision để đọc ảnh (hộp thuốc, vỉ thuốc, đơn thuốc, triệu chứng)
+    và trích xuất ra tên thuốc, hoạt chất, hàm lượng hoặc triệu chứng để đưa vào bộ tìm kiếm RAG.
+    Chuyên biệt cho Chatbot AI.
+    """
+    deepseek_key = get_deepseek_api_key()
+    if not deepseek_key or not image_base64:
+        return ""
+
+    image_url = image_base64 if image_base64.startswith("data:image") else f"data:image/jpeg;base64,{image_base64}"
+    vision_prompt = (
+        "Bạn là trợ lý dược sĩ. Hãy quan sát bức ảnh này và trích xuất ngắn gọn: "
+        "1. Tên các loại thuốc / biệt dược (nếu là ảnh thuốc hoặc đơn thuốc). "
+        "2. Hoạt chất và hàm lượng (ví dụ: Paracetamol 500mg, Amoxicillin 500mg). "
+        "3. Mô tả triệu chứng nhìn thấy (nếu là ảnh da liễu/triệu chứng). "
+        f"Câu hỏi kèm theo của khách: '{user_message}'. "
+        "Trả về kết quả dưới dạng JSON: {\"keywords\": \"tên thuốc, hoạt chất, triệu chứng\", \"visual_summary\": \"mô tả ngắn gọn nội dung ảnh\"}"
+    )
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                {"type": "text", "text": vision_prompt}
+            ]
+        }
+    ]
+
+    try:
+        content = await call_deepseek_json(messages, temperature=0.1)
+        data = json.loads(content)
+        keywords = data.get("keywords", "").strip()
+        summary = data.get("visual_summary", "").strip()
+        return f"{keywords} | {summary}".strip(" |")
+    except Exception as exc:
+        print(f"[AI Chatbot] Lỗi trích xuất từ khóa từ ảnh qua DeepSeek: {exc}", flush=True)
+        return ""
+
+RETRIEVAL_NORMALIZATION_PROMPT = """Bạn làm nhiệm vụ làm sạch bản ghi âm tiếng Việt cho tìm kiếm y tế.
+Hãy sửa các lỗi nhận dạng giọng nói rõ ràng và rút gọn thành các triệu chứng/ngữ cảnh y tế có trong lời nói.
+Không thêm triệu chứng không được gợi ý bởi transcript, không chẩn đoán và không đề xuất thuốc.
+Trả về JSON hợp lệ duy nhất theo schema: {"search_query":"..."}."""
+
+
+async def normalize_transcript_for_retrieval(transcript: str) -> str:
+    """Turn noisy STT output into a concise query for vector retrieval."""
+    if not transcript.strip():
+        return transcript
+
+    try:
+        messages = [
+            {"role": "system", "content": RETRIEVAL_NORMALIZATION_PROMPT},
+            {"role": "user", "content": transcript},
+        ]
+        content = await call_llm_json(messages, temperature=0.0)
+        normalized = json.loads(content or "{}")
+        search_query = str(normalized.get("search_query") or "").strip()
+        return search_query[:500] if search_query else transcript
+    except Exception as exc:
+        print(f"Transcript normalization failed: {exc}")
+        return transcript
+
+MEDICAL_SYSTEM_PROMPT = """Bạn là Dược sĩ AI chuyên nghiệp tại Việt Nam. 
+Bạn có kiến thức sâu về dược lý, tương tác thuốc, và phác đồ điều trị.
+
+NGUYÊN TẮC BẮT BUỘC (TUÂN THỦ 100%):
+1. CHỈ KÊ THUỐC CÓ TRONG CƠ SỞ DỮ LIỆU (Context) được cung cấp bên dưới.
+2. NGUYÊN TẮC TỒN KHO CHI NHÁNH (TỐI QUAN TRỌNG):
+   - Các thuốc trong CƠ SỞ DỮ LIỆU có gắn nhãn [CÒN HÀNG TẠI CHI NHÁNH] hoặc [ƯU TIÊN KÊ ĐƠN] BẮT BUỘC PHẢI ĐƯỢC ƯU TIÊN KÊ ĐƠN TRƯỚC HẾT.
+   - TUYỆT ĐỐI KHÔNG kê các thuốc bị đánh dấu [HẾT HÀNG TẠI CHI NHÁNH] nếu trong CƠ SỞ DỮ LIỆU đã có thuốc khác hoặc hoạt chất tương đương đang [CÒN HÀNG TẠI CHI NHÁNH].
+   - Mục tiêu tối thượng: Giúp bệnh nhân mua được ngay thuốc có sẵn tại chi nhánh mà không bị gián đoạn hay báo hết hàng.
+3. Nếu Khách hàng hỏi hoặc mô tả triệu chứng (ví dụ: đau đầu, cảm sốt, đau bụng, đau nhức cơ khớp, ho...): Hãy tự động chọn 1 đến 3 loại thuốc phù hợp, an toàn nhất và ĐANG CÒN HÀNG TẠI CHI NHÁNH từ CƠ SỞ DỮ LIỆU để kê đơn hỗ trợ khách hàng.
+4. Luôn cảnh báo tương tác thuốc hoặc lưu ý quan trọng (nếu có).
+5. Mọi loại thuốc được kê phải khớp tên với CƠ SỞ DỮ LIỆU.
+6. Nếu CƠ SỞ DỮ LIỆU trống hoặc không có thuốc nào liên quan, để recommended_drugs rỗng và ghi vào warnings: "Không tìm thấy thuốc phù hợp đang có sẵn trong kho chi nhánh, vui lòng đi khám bác sĩ hoặc chuyển đơn sang chi nhánh khác".
+
+--- CƠ SỞ DỮ LIỆU THUỐC ---
+{rag_context}
+--------------------------
+Nhiệm vụ của bạn:
+1. Đọc kỹ ĐOẠN HỘI THOẠI (Transcript) (lời của Khách hàng hoặc hội thoại giữa Khách hàng và Dược sĩ).
+2. Trích xuất thông tin cá nhân của bệnh nhân (Tên, Số điện thoại) nếu có nhắc đến.
+3. Phân tích triệu chứng bệnh mà Khách hàng đang gặp phải.
+4. Đề xuất thuốc: Chọn 1-3 loại thuốc tối ưu nhất từ CƠ SỞ DỮ LIỆU khớp với triệu chứng (ƯU TIÊN CÁC THUỐC CÒN HÀNG TẠI CHI NHÁNH). Ghi rõ liều dùng (dosage) và cách dùng (usage) chi tiết bằng Tiếng Việt.
+
+BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU (KHÔNG GIẢI THÍCH THÊM):
+{
+  "patient_info": {
+    "name": "Tên bệnh nhân (để trống nếu không có)",
+    "phone": "Số điện thoại (để trống nếu không có)"
+  },
+  "patient_symptoms": "Tóm tắt lại triệu chứng",
+  "recommended_drugs": [
+    { "name": "Tên thuốc", "active_ingredient": "Hoạt chất", "dosage": "Liều dùng", "usage": "Cách dùng" }
+  ],
+  "warnings": "Cảnh báo chống chỉ định hoặc lưu ý dùng thuốc nếu có"
+}"""
+
+async def generate_prescription(transcript: str, context: str) -> dict:
+    """
+    Tạo đơn thuốc JSON dựa trên transcript và context từ RAG
+    """
+    system_prompt = MEDICAL_SYSTEM_PROMPT.replace("{rag_context}", context or "Không có dữ liệu ngữ cảnh.")
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Đoạn ghi âm cuộc hội thoại: \"{transcript}\""}
+    ]
+    
+    content = await call_llm_json(messages, temperature=0.1)
+    try:
+        prescription = json.loads(content)
+
+        # The inventory uses exact product names. Map harmless LLM shortening
+        # (for example "Panactol 500mg") back to the exact Qdrant payload name,
+        # and reject any drug that is not present in the retrieved context.
+        context_names = re.findall(r"\*\*(.+?)\*\*\s*\(", context or "")
+        canonical_drugs = []
+        rejected_names = []
+        for drug in prescription.get("recommended_drugs", []):
+            proposed_name = str(drug.get("name") or "").strip()
+            proposed_folded = proposed_name.casefold()
+            exact_name = next(
+                (
+                    name for name in context_names
+                    if name.casefold() == proposed_folded
+                    or name.casefold().startswith(proposed_folded)
+                    or proposed_folded.startswith(name.casefold())
+                ),
+                None,
+            )
+            if exact_name:
+                drug["name"] = exact_name
+                canonical_drugs.append(drug)
+            elif proposed_name:
+                rejected_names.append(proposed_name)
+
+        prescription["recommended_drugs"] = canonical_drugs
+        if rejected_names:
+            safety_note = "Đã loại thuốc không khớp chính xác dữ liệu vector."
+            current_warning = str(prescription.get("warnings") or "").strip()
+            prescription["warnings"] = " ".join(
+                part for part in (current_warning, safety_note) if part
+            )
+
+        return prescription
+    except json.JSONDecodeError:
+        return {"error": "Lỗi phân tích JSON từ LLM", "raw_content": content}
+
+CHATBOT_SYSTEM_PROMPT = """Bạn là Trợ lý Dược sĩ AI chuyên nghiệp, tận tâm của Hệ thống Nhà thuốc ABC Pharmacy tại Việt Nam.
+Nhiệm vụ của bạn là lắng nghe triệu chứng của khách hàng trong cuộc hội thoại (chat), phân tích tình trạng sức khỏe một cách dễ hiểu, đồng cảm và đưa ra giải pháp chăm sóc hoặc đề xuất các thuốc/sản phẩm phù hợp từ CƠ SỞ DỮ LIỆU THUỐC ĐƯỢC CUNG CẤP.
+
+--- CƠ SỞ DỮ LIỆU THUỐC TRONG KHO (CONTEXT) ---
+{rag_context}
+-----------------------------------------------
+
+--- THÔNG TIN KHÁCH HÀNG & HỒ SƠ Y TẾ THAM KHẢO ---
+- Nhóm tuổi: {age_group} | Giới tính: {gender}
+- Nhóm dị ứng thuốc chung: {allergies}
+- Biệt dược / Thuốc cụ thể bị dị ứng: {allergic_medicines}
+- Hoạt chất dược lý bị dị ứng: {allergic_ingredients}
+- Tiền sử bệnh nền / Mãn tính (Chống chỉ định): {chronic_conditions}
+- Nhóm máu: {blood_type}
+- Ghi chú y tế đặc biệt: {medical_notes}
+---------------------------------------------------
+
+NGUYÊN TẮC BẮT BUỘC:
+1. Xưng hô lịch sự, thân thiện, ân cần (Dược sĩ - bạn/anh/chị). Trả lời bằng tiếng Việt chuẩn mực y khoa nhưng gần gũi, súc tích, dễ hiểu.
+2. NGUYÊN TẮC AN TOÀN DỊ ỨNG & CHỐNG CHỈ ĐỊNH:
+   - Nếu khách hàng có tiền sử dị ứng với hoạt chất hoặc nhóm thuốc nào, TUYỆT ĐỐI KHÔNG kê/đề xuất bất kỳ sản phẩm nào chứa hoạt chất đó, đồng thời đưa ra cảnh báo an toàn rõ ràng.
+   - Nếu đối tượng là trẻ em (child) hoặc người cao tuổi (elderly): Thận trọng tối đa về dạng dùng và liều lượng.
+3. QUY TẮC PHÂN TÁCH THUỐC KÊ ĐƠN (Rx) VS KHÔNG KÊ ĐƠN (OTC) & ĐỀ XUẤT THUỐC:
+   - Khi khách hàng chỉ mô tả triệu chứng bệnh thông thường, CHỈ ĐƯỢC đề xuất thuốc không kê đơn (OTC) hoặc Thực phẩm chức năng (TPCN). Tuyệt đối không tự ý kê đơn kháng sinh hoặc thuốc kê đơn (Rx) khi chưa có chỉ định của bác sĩ.
+   - Chỉ đưa thuốc kê đơn (Rx) vào 'recommended_drugs' khi khách hàng hỏi đích danh tên thuốc đó hoặc gửi hình ảnh đơn thuốc/vỉ thuốc có sẵn cần tra cứu thông tin, đồng thời dặn khách thuốc này cần mua tại quầy theo đơn bác sĩ.
+   - CHỈ đề xuất 1 - 3 loại thuốc hoặc thực phẩm chức năng CÓ THỰC TẾ TRONG CƠ SỞ DỮ LIỆU bên trên.
+   - Tên thuốc trong trường 'name' PHẢI KHỚP HOẶC GẦN KHỚP NHẤT với tên sản phẩm trong CƠ SỞ DỮ LIỆU.
+   - Nếu CƠ SỞ DỮ LIỆU trống hoặc không có thuốc phù hợp với bệnh: TUYỆT ĐỐI KHÔNG TỰ BỊA RA TÊN THUỐC! Hãy để 'recommended_drugs' là mảng rỗng [] và hướng dẫn khách hàng thăm khám y tế.
+4. QUY TẮC KHÔNG TRÙNG LẶP HOẠT CHẤT:
+   - Tuyệt đối không đề xuất 2 sản phẩm có cùng hoạt chất chính (ví dụ: 2 loại thuốc cùng chứa Paracetamol) trong cùng một lượt tư vấn để tránh nguy cơ quá liều cấp tính.
+5. Lời khuyên lối sống & chăm sóc: Viết tự nhiên, súc tích ngay trong phần 'message' (ví dụ: uống đủ nước, nghỉ ngơi, chườm ấm...).
+6. QUY TẮC PHÂN LOẠI CỜ ĐỎ (RED-FLAG TRIAGE) & CẢNH BÁO AN TOÀN (WARNINGS):
+   - Với các dấu hiệu nguy hiểm cấp tính (đau bụng dữ dội vùng hố chậu phải nghi viêm ruột thừa, đau tức ngực khó thở, sốt cao ở trẻ sơ sinh dưới 3 tháng tuổi, nôn ra máu, phụ nữ mang thai 3 tháng đầu bị đau bụng/ra máu): BẮT BUỘC để 'recommended_drugs: []', tuyệt đối không gợi ý thuốc giảm đau (vì sẽ làm lu mờ triệu chứng cấp cứu), điền cảnh báo vào 'warnings' và khuyên khách đến cơ sở y tế ngay lập tức.
+   - Trường 'warnings' CHỈ ĐƯỢC PHÉP ĐIỀN khi có nguy cơ y tế nghiêm trọng:
+     + Dấu hiệu cấp cứu khẩn cấp hoặc cờ đỏ như trên.
+     + Chống chỉ định đặc biệt nguy hiểm hoặc dị ứng thuốc đã ghi nhận.
+     + Tương tác thuốc bất lợi giữa các thuốc khách hàng đang sử dụng cùng lúc.
+   - ĐỐI VỚI CÁC TRƯỜNG HỢP TƯ VẤN BỆNH THÔNG THƯỜNG (cảm sốt, đau đầu nhẹ, đau họng, sổ mũi, hỏi mua thuốc, tư vấn dùng thuốc):
+     BẮT BUỘC ĐỂ 'warnings' LÀ RỖNG "" HOẶC null! TUYỆT ĐỐI KHÔNG TỰ BỊA RA CÁC CÂU LƯU Ý CHUNG CHUNG ĐỂ ĐIỀN VÀO ĐÂY!
+7. GỢI Ý HỎI THÊM & KHAI THÁC TRIỆU CHỨNG MƠ HỒ:
+   - Nếu khách chỉ nói triệu chứng quá ngắn và mơ hồ (dưới 6 từ: ví dụ "Tôi bị ho", "Tôi bị đau bụng"), hãy ưu tiên hỏi rõ triệu chứng trong 'follow_up_question' (ho khan hay ho đờm, đau vị trí nào, kéo dài bao lâu) trước khi vội vàng đề xuất nhiều thuốc.
+   - Đặt câu hỏi theo dõi ngắn gọn trong 'follow_up_question' nếu cần thêm thông tin chẩn đoán.
+8. NGUYÊN TẮC DUY TRÌ NGỮ CẢNH HỘI THOẠI ĐA LƯỢT (MULTI-TURN CONTINUITY):
+   - Khi khách hàng đặt câu hỏi tiếp nối ngắn gọn (ví dụ: "Uống như thế nào?", "Ngày mấy viên?", "Thuốc đó giá bao nhiêu?", "Bà bầu dùng được không?", "Có tác dụng phụ gì không?"), BẮT BUỘC phải đọc kỹ LỊCH SỬ HỘI THOẠI trước đó để xác định chính xác thuốc hoặc triệu chứng đang được nói tới.
+   - TUYỆT ĐỐI KHÔNG hỏi ngược lại khách hàng "Bạn đang hỏi thuốc nào?" nếu tên thuốc hoặc triệu chứng đã xuất hiện ở các lượt chat trước.
+   - Nếu khách hàng hỏi cách uống/liều dùng của thuốc đã được đề xuất ở câu trước, hãy trả lời chi tiết cách dùng trong 'message' và giữ lại thuốc đó trong mảng 'recommended_drugs' để khách tiện mua.
+9. NGUYÊN TẮC TƯ VẤN QUA HÌNH ẢNH (VISION GUARDRAIL):
+   - Khi khách hàng gửi kèm hình ảnh (hộp thuốc, vỉ thuốc, đơn thuốc, hoặc triệu chứng ngoài da), hãy kết hợp thông tin quan sát được từ ảnh và CƠ SỞ DỮ LIỆU THUỐC TRONG KHO để tư vấn chính xác.
+   - Nếu ảnh là thuốc kê đơn (Rx) hoặc kháng sinh, hãy giải thích công dụng, lưu ý khách tuân thủ chỉ định của bác sĩ và đối chiếu các sản phẩm tương ứng có trong kho.
+
+BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON HỢP LỆ VỚI CẤU TRÚC SAU (KHÔNG KÈM TEXT NGOÀI JSON):
+{
+  "message": "Lời tư vấn ngắn gọn, đồng cảm, giải thích tác dụng thuốc và dặn dò cách dùng",
+  "recommended_drugs": [
+    {
+      "name": "Tên thuốc chính xác theo database",
+      "active_ingredient": "Hoạt chất",
+      "dosage": "Liều dùng cụ thể (VD: 1 viên/lần, 2-3 lần/ngày cách nhau 4-6 giờ)",
+      "usage": "Cách dùng (VD: Uống sau bữa ăn với một ly nước đầy)"
+    }
+  ],
+  "warnings": "Chỉ điền khi có nguy cơ nghiêm trọng hoặc chống chỉ định, nếu thông thường bắt buộc để rỗng \"\"",
+  "follow_up_question": "Câu hỏi ngắn gọn nếu cần thêm thông tin (hoặc để trống nếu đã đủ)",
+  "disclaimer": "Lưu ý: Thông tin tư vấn chỉ mang tính tham khảo y tế, không thay thế chẩn đoán của bác sĩ."
+}"""
+
+async def generate_chat_consultation(
+    message: str,
+    history: list[dict] | None = None,
+    context: str = "",
+    age_group: str | None = None,
+    gender: str | None = None,
+    allergies: list[str] | None = None,
+    allergic_medicines: list[str] | None = None,
+    allergic_ingredients: list[str] | None = None,
+    chronic_conditions: list[str] | None = None,
+    blood_type: str | None = None,
+    medical_notes: str | None = None,
+    image_base64: str | None = None,
+    vision_context: str = ""
+) -> dict:
+    """
+    Tạo phản hồi tư vấn hội thoại đa lượt (multi-turn chat) cho khách hàng nhà thuốc.
+    Ưu tiên DeepSeek Flash (PHUC_DEEPSEEK_V4_FLASH) với fallback sang Groq.
+    Đã bỏ giới hạn 6 tin nhắn để nhớ toàn bộ phiên hội thoại và tích hợp hồ sơ y tế chuyên sâu.
+    """
+    allergies_str = ", ".join(allergies) if allergies else "Không ghi nhận"
+    allergic_meds_str = ", ".join(allergic_medicines) if allergic_medicines else "Không ghi nhận"
+    allergic_ingr_str = ", ".join(allergic_ingredients) if allergic_ingredients else "Không ghi nhận"
+    chronic_str = ", ".join(chronic_conditions) if chronic_conditions else "Không ghi nhận bệnh nền"
+    blood_str = blood_type if blood_type else "Chưa rõ"
+    notes_str = medical_notes if medical_notes else "Không có ghi chú đặc biệt"
+    age_str = age_group if age_group else "Chưa rõ"
+    gender_str = gender if gender else "Chưa rõ"
+
+    combined_context = context or "Không tìm thấy dữ liệu thuốc mới trong lượt này (Hãy tham khảo thuốc đã đề xuất trong lịch sử hội thoại nếu khách đang hỏi tiếp về thuốc cũ)."
+    if vision_context:
+        combined_context = f"[THÔNG TIN NHẬN DIỆN TỪ ẢNH KHÁCH GỬI]: {vision_context}\n\n{combined_context}"
+
+    system_prompt = (
+        CHATBOT_SYSTEM_PROMPT
+        .replace("{rag_context}", combined_context)
+        .replace("{age_group}", age_str)
+        .replace("{gender}", gender_str)
+        .replace("{allergies}", allergies_str)
+        .replace("{allergic_medicines}", allergic_meds_str)
+        .replace("{allergic_ingredients}", allergic_ingr_str)
+        .replace("{chronic_conditions}", chronic_str)
+        .replace("{blood_type}", blood_str)
+        .replace("{medical_notes}", notes_str)
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # Multi-turn history: Giữ tối đa 30 tin nhắn gần nhất (~15 lượt đối thoại) để đảm bảo ngữ cảnh phong phú mà không vượt ngưỡng token
+    if history:
+        for h in history[-30:]:
+            role = "user" if h.get("role") == "user" else "assistant"
+            content = str(h.get("content") or "").strip()
+            if content:
+                messages.append({"role": role, "content": content})
+
+    # Tránh Double Vision Call: Nếu đã có vision_context từ Bước 0, thông tin đã nằm trong System Prompt
+    # Lượt chat hiện tại chỉ gửi text prompt để tiết kiệm token và tăng tốc độ phản hồi
+    if image_base64 and not vision_context:
+        image_url = image_base64 if image_base64.startswith("data:image") else f"data:image/jpeg;base64,{image_base64}"
+        user_text = message.strip() if message and message.strip() else "Nhờ dược sĩ xem giúp hình ảnh này và tư vấn thuốc phù hợp."
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                {"type": "text", "text": user_text}
+            ]
+        })
+    else:
+        user_text = message.strip() if message and message.strip() else "Nhờ dược sĩ tư vấn dựa trên thông tin hình ảnh đính kèm."
+        messages.append({"role": "user", "content": user_text})
+
+    content = await call_deepseek_json(messages, temperature=0.2)
+    try:
+        data = json.loads(content)
+        
+        # Làm sạch và ánh xạ tên thuốc với context nếu có
+        context_names = re.findall(r"\*\*(.+?)\*\*\s*\(", context or "")
+        canonical_drugs = []
+        for drug in data.get("recommended_drugs", []):
+            if not isinstance(drug, dict):
+                continue
+            proposed_name = str(drug.get("name") or "").strip()
+            if not proposed_name:
+                continue
+            
+            proposed_folded = proposed_name.casefold()
+            exact_name = next(
+                (
+                    name for name in context_names
+                    if name.casefold() == proposed_folded
+                    or name.casefold().startswith(proposed_folded)
+                    or proposed_folded.startswith(name.casefold())
+                ),
+                None,
+            )
+            if exact_name:
+                drug["name"] = exact_name
+            canonical_drugs.append(drug)
+
+        data["recommended_drugs"] = canonical_drugs
+
+        # Loc bo warnings sao rong / khong thuc su nghiem trong
+        raw_warning = str(data.get("warnings") or "").strip()
+        generic_warning_phrases = [
+            "không có cảnh báo", "không có", "không", "none", "n/a",
+            "tham khảo ý kiến", "uống nhiều nước", "nghỉ ngơi", "ăn uống điều độ"
+        ]
+        if not raw_warning or any(raw_warning.lower() == phrase for phrase in generic_warning_phrases):
+            data["warnings"] = None
+        else:
+            data["warnings"] = raw_warning
+
+        if not data.get("disclaimer"):
+            data["disclaimer"] = "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo, không thay thế chẩn đoán trực tiếp của bác sĩ."
+        return data
+    except json.JSONDecodeError:
+        return {
+            "message": content or "Dược sĩ AI đã tiếp nhận thông tin, bạn vui lòng mô tả chi tiết hơn nhé.",
+            "recommended_drugs": [],
+            "warnings": None,
+            "follow_up_question": "Bạn có thể cho tôi biết rõ hơn các triệu chứng xuất hiện từ khi nào không?",
+            "disclaimer": "Lưu ý y tế: Thông tin tư vấn chỉ mang tính tham khảo."
+        }
+
+INTERACTION_SYSTEM_PROMPT = """Bạn là Dược sĩ lâm sàng AI chuyên nghiệp tại Việt Nam.
+Nhiệm vụ của bạn là phân tích tương tác giữa các loại thuốc dựa trên CƠ SỞ DỮ LIỆU ĐÃ ĐƯỢC XÁC THỰC được cung cấp dưới đây.
+
+--- CƠ SỞ DỮ LIỆU THUỐC & HOẠT CHẤT ---
+{rag_context}
+----------------------------------------
+Danh sách các thuốc/chất được yêu cầu kiểm tra: {medicines_list}
+
+NGUYÊN TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM:
+1. Phân tích tương tác dựa trên HOẠT CHẤT DƯỢC LÝ (Active Ingredient) và cơ chế tác dụng thực tế.
+2. TUYỆT ĐỐI KHÔNG BỊA RA TÊN THUỐC KHÔNG TỒN TẠI VÀ KHÔNG TỰ BỊA TƯƠNG TÁC GIẢ.
+3. Người dùng chỉ nhập đúng các chất trong danh sách: {medicines_list}. TUYỆT ĐỐI KHÔNG COI TÊN THƯƠNG HIỆU THAM KHẢO LÀ MỘT THUỐC THỨ HẠI ĐỘC LẬP VỚI MỤC NGƯỜI DÙNG NHẬP (Ví dụ: Nếu người dùng nhập 'paracetamol', DB tham khảo là 'SaViMetoc', bạn PHẢI hiểu đó là thông tin ngữ cảnh của mục 'paracetamol', KHÔNG ĐƯỢC coi SaViMetoc và paracetamol là 2 thuốc riêng biệt gây quá liều với nhau!).
+4. Mảng `interactions` CHỈ ĐƯỢC CHỨA CÁC CẶP THUỐC CÓ TƯƠNG TÁC HOẶC NGUY CƠ NGUY HIỂM THỰC TẾ.
+   - TUYỆT ĐỐI KHÔNG đưa các cặp AN TOÀN / KHÔNG TƯƠNG TÁC (như Kẹo, Nước ngọt, Nước lọc, hoặc các thuốc an toàn khi dùng chung) vào mảng `interactions`.
+   - Nếu tất cả các thuốc trong danh sách đều an toàn và không tương tác với nhau, mảng `interactions` BẮT BUỘC PHẢI LÀ MẢNG RỖNG `[]`, `has_interactions = false`, và `severity = "An toàn"`.
+5. Nếu phát hiện chất cấm, ma túy, rượu cồn hoặc thuốc lá: Gán mức độ severity = "Cực kỳ nguy hiểm".
+6. Nếu phát hiện trùng lặp hoạt chất giữa 2 THUỐC KHÁC NHAU người dùng nhập (VD: Paracetamol + Panadol): Gán mức độ severity = "Cao" và cảnh báo nguy cơ ngộ độc/tổn thương cơ quan.
+7. Nếu danh sách chứa các từ vô nghĩa, từ cảm thán hoặc không phải tên thuốc/thực phẩm y tế (như 'ád', 'ds', 'ok', 'uh', 'test', 'abc'...): TUYỆT ĐỐI KHÔNG BỊA RA TÊN THUỐC Y TẾ KHÁC (như Sắt, Thuốc kháng acid...). Bắt buộc gán severity = "Không xác định", has_interactions = false, interactions = [] và general_advice nhắc người dùng cung cấp tên thuốc chính xác để phân tích.
+
+BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU (KHÔNG GIẢI THÍCH THÊM):
+{
+  "has_interactions": true,
+  "severity": "Cực kỳ nguy hiểm | Cao | Trung bình | Thấp | An toàn | Không xác định",
+  "interactions": [
+    {
+      "drug_a": "Tên mục người dùng nhập 1",
+      "drug_b": "Tên mục người dùng nhập 2",
+      "description": "Mô tả tương tác và hậu quả dược lý",
+      "recommendation": "Khuyến nghị xử lý (VD: CHỐNG CHỈ ĐỊNH, giãn cách giờ uống 2h, đổi thuốc)"
+    }
+  ],
+  "general_advice": "Lời khuyên tổng quát dành cho Dược sĩ"
+}"""
+
+async def check_drug_interactions(medicines_list: list[str], context: str) -> dict:
+    """
+    Tạo báo cáo tương tác thuốc JSON dựa trên danh sách thuốc và context từ RAG & Database.
+    Sử dụng Groq LLM / Gemini (không dùng DeepSeek để bảo toàn code và logic của người khác).
+    """
+    system_prompt = INTERACTION_SYSTEM_PROMPT.replace(
+        "{rag_context}", context or "Không có dữ liệu ngữ cảnh."
+    ).replace(
+        "{medicines_list}", ", ".join(medicines_list)
+    )
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Hãy phân tích chi tiết tương tác giữa các loại thuốc trên và xuất JSON chuẩn."}
+    ]
+
+    try:
+        content = await call_llm_json(messages, temperature=0.1)
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return {"error": "Lỗi phân tích JSON từ LLM", "raw_content": content}
+    except Exception as exc:
+        print(f"[AI Service] Lỗi kiểm tra tương tác thuốc qua Groq/LLM: {exc}")
+        return {
+            "has_interactions": False,
+            "severity": "Không xác định",
+            "interactions": [],
+            "general_advice": "Hệ thống tạm thời không thể phân tích tương tác nâng cao bằng AI, vui lòng tham khảo ý kiến dược sĩ lâm sàng."
+        }
+
+FORECAST_SYSTEM_PROMPT = """Bạn là Chuyên gia Kế hoạch & Phân tích Chuỗi cung ứng Dược phẩm bằng AI tại Việt Nam.
+Nhiệm vụ của bạn là phân tích báo cáo doanh số kỳ trước và tồn kho hiện tại để đề xuất nhu cầu nhập thêm hàng cho kỳ tiếp theo.
+
+NGUYÊN TẮC TÍNH TOÁN BẮT BUỘC:
+1. Bạn phải tính toán toán học chính xác theo công thức:
+   - Nhu cầu kỳ dự báo = (averageDailySales * periodDays) + minStock.
+   - Hàng khả dụng = currentStock + expectedIncoming.
+   - Đề xuất nhập thô = Nhu cầu kỳ dự báo - Hàng khả dụng.
+
+2. Quy tắc đề xuất nhập kho (suggestedOrderQty):
+   - NẾU Hàng khả dụng >= Nhu cầu kỳ dự báo (Tồn kho và hàng đang về đã đủ dùng cho kỳ dự báo):
+     * BẮT BUỘC ĐẶT `suggestedOrderQty = 0`!
+     * BẮT BUỘC ĐẶT `urgency = "LOW"`.
+     * Lý do (reason) PHẢI GHI: "Tồn kho hiện tại và lượng hàng đang về đủ đáp ứng nhu cầu tiêu thụ trong kỳ dự báo. Không cần nhập thêm."
+   - NẾU Hàng khả dụng < Nhu cầu kỳ dự báo (Thiếu hàng):
+     * Tính `suggestedOrderQty` = làm tròn lên bội số 10 gần nhất của Đề xuất nhập thô.
+     * `urgency = "HIGH"` nếu currentStock <= 10 hoặc cạn kiệt hàng.
+     * `urgency = "MEDIUM"` nếu currentStock < minStock.
+
+3. TUYỆT ĐỐI KHÔNG ĐƯỢC gán số mặc định 50 cho sản phẩm đã đủ hàng. Sản phẩm không thiếu hàng BẮT BUỘC suggestedOrderQty = 0.
+
+4. Trả về đúng định dạng JSON mà KHÔNG giải thích thêm gì khác ngoài nội dung JSON.
+
+BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU:
+{
+  "summary": "Tóm tắt xu hướng tồn kho và phân tích thị trường toàn cảnh",
+  "recommendations": [
+    {
+      "medicineId": "ID của thuốc",
+      "name": "Tên thuốc",
+      "category": "Danh mục thuốc",
+      "unit": "Đơn vị tính (Hộp/Chai/Vỉ...)",
+      "currentStock": 100,
+      "averageDailySales": 5.2,
+      "expectedIncoming": 0,
+      "suggestedOrderQty": 0,
+      "urgency": "HIGH | MEDIUM | LOW",
+      "reason": "Lý do AI phân tích cụ thể cho loại thuốc này"
+    }
+  ]
+}"""
+
+async def generate_demand_forecast(dataset: list, period_days: int) -> dict:
+    """
+    Tạo dự báo nhu cầu nhập hàng JSON toàn diện cho 100% danh mục thuốc trong kho (Full Catalog)
+    kết hợp phân tích cấp cao từ LLM.
+    """
+    import math
+
+    # 1. Tính toán định lượng toàn diện cho 100% thuốc trong dataset
+    full_recommendations = []
+    urgent_count = 0
+    total_shortage_items = 0
+
+    for m in dataset:
+        med_id = str(m.get("medicineId") or m.get("_id") or "")
+        name = m.get("name") or "Dược phẩm"
+        category = m.get("category") or "Dược phẩm"
+        unit = m.get("unit") or "Hộp"
+        stock = float(m.get("currentStock", 0))
+        sales = float(m.get("averageDailySales", 0))
+        total_sold = float(m.get("totalSold", 0))
+        incoming = float(m.get("expectedIncoming", 0))
+        price = float(m.get("price", 0))
+        reorder_point = float(m.get("minStock") or m.get("reorderPoint") or 30)
+
+        needed = int(math.ceil(sales * period_days + reorder_point))
+        available = stock + incoming
+        suggested_raw = max(0, needed - available)
+
+        days_remaining = round(stock / sales, 1) if sales > 0 else (999 if stock > 0 else 0)
+
+        if suggested_raw <= 0:
+            suggested_qty = 0
+            urgency = "LOW"
+            if stock > reorder_point * 3 and total_sold == 0:
+                reason = f"Tồn kho cao ({int(stock)} {unit}) nhưng không có phát sinh bán trong {period_days} ngày. Cảnh báo tồn đọng vốn, không nhập thêm."
+            else:
+                reason = f"Tồn kho hiện tại ({int(stock)} {unit}) và hàng đang về (+{int(incoming)}) đủ đáp ứng {period_days} ngày. Không cần nhập thêm."
+        else:
+            suggested_qty = max(10, int(math.ceil(suggested_raw / 10.0) * 10))
+            total_shortage_items += 1
+            if stock <= 10 or days_remaining <= 7:
+                urgency = "HIGH"
+                urgent_count += 1
+                reason = f"Cảnh báo đứt hàng: Tồn kho chỉ còn {int(stock)} {unit} (đủ bán ~{days_remaining} ngày). Đề xuất nhập khẩn cấp {suggested_qty} {unit}."
+            else:
+                urgency = "MEDIUM"
+                reason = f"Tồn kho ({int(stock)} {unit}) sắp chạm ngưỡng an toàn ({int(reorder_point)} {unit}). Đề xuất nhập thêm {suggested_qty} {unit}."
+
+        full_recommendations.append({
+            "medicineId": med_id,
+            "name": name,
+            "category": category,
+            "unit": unit,
+            "price": price,
+            "currentStock": int(stock),
+            "totalSold": int(total_sold),
+            "averageDailySales": round(sales, 2),
+            "expectedIncoming": int(incoming),
+            "suggestedOrderQty": suggested_qty,
+            "daysRemaining": days_remaining,
+            "reorderPoint": int(reorder_point),
+            "urgency": urgency,
+            "reason": reason
+        })
+
+    # Sắp xếp theo thứ tự ưu tiên: Khẩn cấp (HIGH) -> Cần nhập (MEDIUM) -> Đủ hàng (LOW) -> Bán chạy
+    full_recommendations.sort(key=lambda x: (
+        2 if x["urgency"] == "HIGH" else (1 if x["urgency"] == "MEDIUM" else 0),
+        x["suggestedOrderQty"],
+        x["totalSold"]
+    ), reverse=True)
+
+    # 2. Gửi tóm tắt Top các mặt hàng quan trọng nhất cho LLM để tạo Executive Summary
+    top_urgent_samples = [
+        {"name": r["name"], "cat": r["category"], "stock": r["currentStock"], "sales_daily": r["averageDailySales"], "needed": r["suggestedOrderQty"]}
+        for r in full_recommendations[:40]
+    ]
+
+    summary_text = f"Hệ thống đã phân tích toàn bộ {len(full_recommendations)} danh mục dược phẩm: phát hiện {urgent_count} thuốc nguy cơ đứt hàng khẩn cấp và {total_shortage_items} thuốc cần bổ sung cho kỳ {period_days} ngày tới."
+
+    try:
+        user_prompt = f"Phân tích nhanh chuỗi cung ứng cho {len(full_recommendations)} mã thuốc trong {period_days} ngày. Dưới đây là các mặt hàng trọng điểm:\n{json.dumps(top_urgent_samples, ensure_ascii=False)}"
+        groq_client = get_groq_client()
+        for g_model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]:
+            try:
+                response = await groq_client.chat.completions.create(
+                    model=g_model,
+                    messages=[
+                        {"role": "system", "content": FORECAST_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.2,
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+                llm_json = json.loads(content)
+                if llm_json.get("summary"):
+                    summary_text = llm_json["summary"]
+                break
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"ℹ️ LLM Summary fallback: {e}")
+
+    return {
+        "summary": summary_text,
+        "totalMedicines": len(full_recommendations),
+        "urgentCount": urgent_count,
+        "shortageCount": total_shortage_items,
+        "recommendations": full_recommendations
+    }
+
+SEASONAL_SYSTEM_PROMPT = """Bạn là Chuyên gia Phân tích Dược phẩm & AI Y tế tại Việt Nam.
+Nhiệm vụ của bạn là nhận xét, giải thích và đưa ra khuyến nghị tồn kho dựa trên lịch sử bán hàng 12 tháng qua, thời tiết vùng miền và kết quả dự báo thống kê đã tính sẵn.
+
+NGUYÊN TẮC BẮT BUỘC:
+1. KHÔNG được phép tự vẽ ra dịch bệnh (như sốt xuất huyết, cúm) nếu không có bằng chứng tăng trưởng doanh số đồng thời từ các thuốc chỉ báo đặc hiệu (Ví dụ: Chỉ được thảo luận khả năng dịch sốt xuất huyết bùng phát nếu có sự tăng vọt đồng thời của Paracetamol, dung dịch bù nước ORS, và thuốc xịt chống muỗi).
+2. Diễn đạt an toàn: Không dùng từ khẳng định dịch bùng phát. Sử dụng các cụm từ như "Có khả năng tương quan đến nhu cầu phòng dịch/chữa bệnh mùa mưa (Potential dengue-related demand)" hoặc "Phát hiện doanh số tăng đột biến bất thường (Abnormal Sales Spike)".
+3. Mọi phân tích giải thích khuyến nghị (explainability) bắt buộc phải trích nguồn dữ liệu thực tế: "Evidence: SalesOrder - Last X days - Branch Y - Qty Z".
+4. Đánh giá chất lượng diễn giải định tính bằng Explainability Confidence (High, Medium, Low, Very Low). Mức High (>=90%) chỉ được chọn khi xu hướng mùa lặp lại rõ ràng trong lịch sử bán hàng và khớp với dịch tễ học thực tế.
+5. Tuyệt đối chỉ trả về dữ liệu JSON hợp lệ khớp chính xác với Schema dưới đây, không có văn bản giải thích thừa.
+
+DỮ LIỆU ĐẦU VÀO:
+- Vùng miền khí hậu: {weather_region}
+- Mùa hiện tại: {current_season}
+- Tháng hiện tại: {current_month}
+
+BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU:
+{
+  "summary": "Tóm tắt xu hướng chung và cảnh báo tương quan nhu cầu nổi bật của vùng miền",
+  "seasonal_trends": [
+    {
+      "category": "Danh mục thuốc",
+      "trend": "INCREASING | DECREASING | STABLE",
+      "possible_reasons": ["Lý do khả dĩ"],
+      "evidence": "Nguồn dữ liệu đối chiếu cụ thể"
+    }
+  ],
+  "potential_outbreaks": [
+    {
+      "potential_disease": "Tên bệnh/nhu cầu liên quan (VD: Dengue-related)",
+      "risk_level": "HIGH | MEDIUM | LOW",
+      "indicator_drugs": ["Tên thuốc tăng đột biến"],
+      "analysis": "Phân tích biến động doanh số đột biến gần đây",
+      "recommendation": "Khuyến nghị hành động"
+    }
+  ],
+  "stock_recommendations": [
+    {
+      "medicineId": "ID thuốc",
+      "name": "Tên thuốc",
+      "suggestedAction": "Tăng tồn kho | Giữ nguyên | Giảm tồn kho",
+      "suggestedQty": 50,
+      "priority": "CRITICAL | HIGH | MEDIUM | LOW",
+      "explainability_confidence": 95,
+      "explainability_confidence_level": "High",
+      "explainability": "Giải thích chi tiết kèm số liệu chứng minh gốc"
+    }
+  ]
+}"""
+
+async def analyze_seasonal_trends(dataset: list, weather_region: str, current_season: str, current_month: str) -> dict:
+    """
+    Phân tích xu hướng bán hàng theo mùa / dịch bệnh tích hợp dự báo thống kê (Hybrid AI)
+    """
+    from services.forecaster import TorchGPUForecaster, get_default_forecaster
+    from datetime import datetime
+    
+    forecaster = get_default_forecaster()
+    
+    # 1. Chạy dự báo Deep Learning trên GPU cho từng thuốc trong dataset
+    enriched_dataset = []
+    for item in dataset:
+        sales_history = item.get("salesHistory", {})
+        
+        # Trích xuất số lượng thực tế từ lịch sử bán hàng để dự báo
+        qty_history = {}
+        for k, v in sales_history.items():
+            if isinstance(v, dict):
+                qty_history[k] = float(v.get("quantity", 0))
+            else:
+                qty_history[k] = float(v or 0)
+        
+        result = forecaster.forecast(qty_history)
+        
+        item_copy = dict(item)
+        item_copy["forecast_m1"] = result.forecast_m1
+        item_copy["forecast_m2"] = result.forecast_m2
+        item_copy["forecast_m3"] = result.forecast_m3
+        item_copy["ci_lower"] = result.ci_lower
+        item_copy["ci_upper"] = result.ci_upper
+        item_copy["forecast_confidence"] = result.confidence
+        
+        # Công thức tính doanh thu thất thoát tiềm năng (Potential Lost Revenue) tích hợp các biến số vận hành
+        forecast_net = result.forecast_m1 + item.get("safetyStock", 50)
+        expected_supply = item.get("currentStock", 0) + item.get("expectedIncoming", 0)
+        shortage = max(0.0, forecast_net - expected_supply)
+        item_copy["potential_lost_revenue"] = round(shortage * item.get("price", 0), 2)
+        
+        enriched_dataset.append(item_copy)
+        
+    # 2. Chuẩn bị Prompt và gửi dữ liệu đã làm giàu qua LLM giải thích định tính
+    # Rút gọn dataset gửi cho LLM để tránh rate limit / token limit (chỉ gửi top 40 thuốc có nguy cơ hoặc doanh số cao nhất)
+    dataset_to_llm = []
+    active_items = []
+    for item in enriched_dataset:
+        sales_sum = sum(v.get("quantity", 0) if isinstance(v, dict) else (v or 0) for v in item.get("salesHistory", {}).values())
+        if sales_sum > 0 or item.get("currentStock", 0) > 0:
+            active_items.append((item, sales_sum))
+            
+    # Sắp xếp theo thứ tự ưu tiên: Doanh thu thất thoát giảm dần, sau đó đến doanh số bán giảm dần
+    active_items.sort(key=lambda x: (x[0].get("potential_lost_revenue", 0), x[1]), reverse=True)
+    
+    # Lấy tối đa 20 thuốc quan trọng nhất để phân tích bằng LLM nhằm tối ưu Token Usage
+    top_items = active_items[:20]
+    
+    for item, sales_sum in top_items:
+        dataset_to_llm.append({
+            "medicineId": item.get("medicineId"),
+            "name": item.get("name"),
+            "category": item.get("category"),
+            "currentStock": item.get("currentStock"),
+            "expectedIncoming": item.get("expectedIncoming"),
+            "safetyStock": item.get("safetyStock"),
+            "reorderPoint": item.get("reorderPoint"),
+            "leadTime": item.get("leadTime"),
+            "moq": item.get("moq"),
+            "salesHistory": item.get("salesHistory"),
+            "forecast_m1": item.get("forecast_m1"),
+            "forecast_m2": item.get("forecast_m2"),
+            "forecast_m3": item.get("forecast_m3"),
+            "ci_lower": item.get("ci_lower"),
+            "ci_upper": item.get("ci_upper"),
+            "forecast_confidence": item.get("forecast_confidence")
+        })
+            
+    system_prompt = SEASONAL_SYSTEM_PROMPT.replace(
+        "{weather_region}", weather_region
+    ).replace(
+        "{current_season}", current_season
+    ).replace(
+        "{current_month}", current_month
+    )
+    
+    user_prompt = f"Dưới đây là tập dữ liệu thống kê doanh số bán hàng và dự báo:\n{json.dumps(dataset_to_llm, ensure_ascii=False)}"
+    
+    try:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        content = await call_llm_json(messages, temperature=0.1)
+        llm_json = json.loads(content)
+    except Exception as e:
+        print(f"Lỗi gọi LLM giải thích xu hướng: {e}")
+        llm_json = {
+            "summary": "Không thể kết xuất giải thích định tính từ LLM. Hiển thị dự báo thống kê.",
+            "seasonal_trends": [],
+            "potential_outbreaks": [],
+            "stock_recommendations": []
+        }
+        
+    # 3. Kết hợp kết quả phân tích thống kê và giải thích định tính
+    return {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "llm_model": "deepseek-chat / qwen-3.8-27b",
+        "analysis_version": "v1.2.0",
+        "summary": llm_json.get("summary", ""),
+        "seasonal_trends": llm_json.get("seasonal_trends", []),
+        "potential_outbreaks": llm_json.get("potential_outbreaks", []),
+        "stock_recommendations": llm_json.get("stock_recommendations", []),
+        "enriched_dataset": enriched_dataset
+    }
+
+
+# ==========================================
+# PRESCRIPTION SCAN – RAG MATCHING & MARKDOWN EXPORT
+# ==========================================
+
+PRESCRIPTION_MATCH_PROMPT = """Bạn là Dược sĩ AI chuyên đối chiếu đơn thuốc với kho thuốc.
+
+NHIỆM VỤ:
+Dưới đây là danh sách thuốc trích xuất từ đơn thuốc (OCR) và CƠ SỞ DỮ LIỆU thuốc trong kho (RAG Context).
+Hãy đối chiếu từng thuốc trong đơn với kho. Tìm thuốc khớp hoặc tương đương dựa trên tên thuốc, hoạt chất, hàm lượng.
+
+NGUYÊN TẮC BẮT BUỘC:
+1. Chỉ khớp thuốc khi TÊN hoặc HOẠT CHẤT tương đồng rõ ràng (ít nhất 80% giống nhau).
+2. Ghi nhận thuốc không tìm thấy trong kho vào danh sách "unmatched".
+3. Kiểm tra tương tác thuốc nguy hiểm giữa TẤT CẢ các thuốc trong đơn.
+4. Tên thuốc khớp phải CHÍNH XÁC 100% với tên trong CƠ SỞ DỮ LIỆU.
+
+--- THUỐC TRONG ĐƠN (OCR) ---
+{ocr_medications}
+------------------------------
+
+--- CƠ SỞ DỮ LIỆU THUỐC (KHO) ---
+{rag_context}
+-----------------------------------
+
+BẮT BUỘC TRẢ VỀ JSON HỢP LỆ THEO SCHEMA SAU:
+{
+  "matched_drugs": [
+    {
+      "prescription_name": "Tên thuốc trong đơn",
+      "matched_name": "Tên thuốc chính xác trong kho",
+      "active_ingredient": "Hoạt chất",
+      "match_confidence": 0.95,
+      "dosage": "Liều dùng từ đơn",
+      "quantity": 6,
+      "unit": "Đơn vị",
+      "match_reason": "Lý do khớp (VD: Tên trùng khớp, cùng hoạt chất)"
+    }
+  ],
+  "unmatched_drugs": [
+    {
+      "prescription_name": "Tên thuốc không tìm thấy",
+      "reason": "Lý do không khớp",
+      "suggestion": "Gợi ý thuốc thay thế nếu có"
+    }
+  ],
+  "interaction_warnings": [
+    {
+      "drug_a": "Thuốc 1",
+      "drug_b": "Thuốc 2",
+      "severity": "Cao/Trung bình/Thấp",
+      "description": "Mô tả tương tác",
+      "recommendation": "Khuyến nghị"
+    }
+  ],
+  "general_notes": "Ghi chú tổng quan về đơn thuốc"
+}"""
+
+
+async def match_prescription_with_inventory(ocr_data: dict, rag_context: str) -> dict:
+    """
+    Đối chiếu thuốc từ đơn (OCR) với kho (RAG context) bằng LLM.
+    """
+    medications = ocr_data.get("medications", [])
+    if not medications:
+        return {
+            "matched_drugs": [],
+            "unmatched_drugs": [],
+            "interaction_warnings": [],
+            "general_notes": "Không tìm thấy thuốc nào trong đơn.",
+        }
+
+    ocr_meds_str = json.dumps(medications, ensure_ascii=False, indent=2)
+
+    system_prompt = PRESCRIPTION_MATCH_PROMPT.replace(
+        "{ocr_medications}", ocr_meds_str
+    ).replace("{rag_context}", rag_context or "Không có dữ liệu kho thuốc.")
+
+    try:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": "Hãy đối chiếu đơn thuốc với kho và phân tích tương tác thuốc.",
+            },
+        ]
+        content = await call_llm_json(messages, temperature=0.1)
+        result = json.loads(content)
+
+        # Post-process: Validate matched names against RAG context
+        context_names = re.findall(r"\*\*(.+?)\*\*\s*\(", rag_context or "")
+        validated_matched = []
+        demoted_to_unmatched = []
+
+        for drug in result.get("matched_drugs", []):
+            matched_name = str(drug.get("matched_name") or "").strip()
+            matched_folded = matched_name.casefold()
+            exact_name = next(
+                (
+                    name
+                    for name in context_names
+                    if name.casefold() == matched_folded
+                    or name.casefold().startswith(matched_folded)
+                    or matched_folded.startswith(name.casefold())
+                ),
+                None,
+            )
+            if exact_name:
+                drug["matched_name"] = exact_name
+                validated_matched.append(drug)
+            else:
+                demoted_to_unmatched.append(
+                    {
+                        "prescription_name": drug.get("prescription_name", matched_name),
+                        "reason": "Tên thuốc LLM gợi ý không khớp chính xác với dữ liệu vector kho.",
+                        "suggestion": f"Kiểm tra lại: {matched_name}",
+                    }
+                )
+
+        result["matched_drugs"] = validated_matched
+        result["unmatched_drugs"] = result.get("unmatched_drugs", []) + demoted_to_unmatched
+
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "error": "Lỗi phân tích JSON từ LLM",
+            "matched_drugs": [],
+            "unmatched_drugs": [],
+            "interaction_warnings": [],
+        }
+    except Exception as exc:
+        print(f"Prescription matching failed: {exc}")
+        return {
+            "error": str(exc),
+            "matched_drugs": [],
+            "unmatched_drugs": [],
+            "interaction_warnings": [],
+        }
+
+
+def generate_prescription_markdown(
+    ocr_result: dict,
+    match_result: dict,
+    inventory_status: dict | None = None,
+) -> str:
+    """
+    Tạo file Markdown chuyên nghiệp từ kết quả phân tích đơn thuốc.
+    """
+    from datetime import datetime
+
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    patient = ocr_result.get("patient_info", {})
+    clinic = ocr_result.get("clinic_info", {})
+    diagnosis = ocr_result.get("diagnosis", "Không rõ")
+    medications = ocr_result.get("medications", [])
+    matched = match_result.get("matched_drugs", [])
+    unmatched = match_result.get("unmatched_drugs", [])
+    warnings = match_result.get("interaction_warnings", [])
+
+    lines = []
+    lines.append("# KẾT QUẢ PHÂN TÍCH ĐƠN THUỐC AI")
+    lines.append("")
+    lines.append(f"> Phân tích bởi AI Dược sĩ lúc **{now}**")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # -- Thông tin phòng khám --
+    lines.append("## Thông Tin Phòng Khám")
+    lines.append("")
+    lines.append(f"| Mục | Chi Tiết |")
+    lines.append(f"|---|---|")
+    lines.append(f"| **Cơ sở y tế** | {clinic.get('name', 'Không rõ')} |")
+    if clinic.get("department"):
+        lines.append(f"| **Khoa** | {clinic['department']} |")
+    lines.append(f"| **Bác sĩ** | {clinic.get('doctor', 'Không rõ')} |")
+    lines.append(f"| **Ngày kê đơn** | {clinic.get('date', 'Không rõ')} |")
+    if clinic.get("phone"):
+        lines.append(f"| **SĐT** | {clinic['phone']} |")
+    lines.append("")
+
+    # -- Thông tin bệnh nhân --
+    lines.append("## Thông Tin Bệnh Nhân")
+    lines.append("")
+    lines.append(f"| Mục | Chi Tiết |")
+    lines.append(f"|---|---|")
+    lines.append(f"| **Họ tên** | {patient.get('name', 'Không rõ')} |")
+    if patient.get("age"):
+        lines.append(f"| **Tuổi** | {patient['age']} |")
+    if patient.get("gender"):
+        lines.append(f"| **Giới tính** | {patient['gender']} |")
+    if patient.get("phone"):
+        lines.append(f"| **SĐT** | {patient['phone']} |")
+    if patient.get("address"):
+        lines.append(f"| **Địa chỉ** | {patient['address']} |")
+    if patient.get("insurance_id"):
+        lines.append(f"| **Mã BHYT** | {patient['insurance_id']} |")
+    lines.append("")
+
+    # -- Chẩn đoán --
+    lines.append("## Chẩn Đoán")
+    lines.append("")
+    lines.append(f"> **{diagnosis}**")
+    lines.append("")
+
+    # -- Danh sách thuốc OCR --
+    lines.append("## Danh Sách Thuốc Trong Đơn")
+    lines.append("")
+    if medications:
+        lines.append("| STT | Tên Thuốc | Hàm Lượng | SL | Đơn Vị | Liều Dùng |")
+        lines.append("|:---:|---|---|:---:|---|---|")
+        for med in medications:
+            idx = med.get("index", "")
+            name = med.get("name", "N/A")
+            strength = med.get("strength", "")
+            qty = med.get("quantity", "")
+            unit = med.get("unit", "")
+            dosage = med.get("dosage", "")
+            lines.append(f"| {idx} | **{name}** | {strength} | {qty} | {unit} | {dosage} |")
+    else:
+        lines.append("*Không trích xuất được thuốc từ đơn.*")
+    lines.append("")
+
+    # -- Kết quả đối chiếu kho --
+    lines.append("## Kết Quả Đối Chiếu Với Kho Thuốc")
+    lines.append("")
+
+    if matched:
+        lines.append("### Thuốc Có Trong Kho")
+        lines.append("")
+        lines.append("| Tên Đơn | Tên Trong Kho | Hoạt Chất | Độ Khớp | SL | Ghi Chú |")
+        lines.append("|---|---|---|:---:|:---:|---|")
+        for drug in matched:
+            conf = drug.get("match_confidence", 0)
+            conf_pct = f"{conf * 100:.0f}%" if isinstance(conf, (int, float)) else str(conf)
+            lines.append(
+                f"| {drug.get('prescription_name', '')} "
+                f"| **{drug.get('matched_name', '')}** "
+                f"| {drug.get('active_ingredient', '')} "
+                f"| {conf_pct} "
+                f"| {drug.get('quantity', '')} "
+                f"| {drug.get('match_reason', '')} |"
+            )
+        lines.append("")
+
+    if unmatched:
+        lines.append("### Thuốc Không Tìm Thấy Trong Kho")
+        lines.append("")
+        for drug in unmatched:
+            lines.append(f"- **{drug.get('prescription_name', 'N/A')}**: {drug.get('reason', '')}")
+            if drug.get("suggestion"):
+                lines.append(f"  - Gợi ý: {drug['suggestion']}")
+        lines.append("")
+
+    # -- Tồn kho --
+    if inventory_status:
+        available = inventory_status.get("available", [])
+        if available:
+            lines.append("### Thông Tin Tồn Kho")
+            lines.append("")
+            lines.append("| Tên Thuốc | Tồn Kho | Giá | Danh Mục |")
+            lines.append("|---|:---:|---:|---|")
+            for inv in available:
+                price_str = f"{inv.get('price', 0):,}đ"
+                lines.append(
+                    f"| {inv.get('name', '')} "
+                    f"| {inv.get('stock', 0)} {inv.get('unit', '')} "
+                    f"| {price_str} "
+                    f"| {inv.get('category', '')} |"
+                )
+            lines.append("")
+
+    # -- Cảnh báo tương tác thuốc --
+    if warnings:
+        lines.append("## Cảnh Báo Tương Tác Thuốc")
+        lines.append("")
+        for w in warnings:
+            severity = w.get("severity", "")
+            severity_tag = f"[{severity.upper()}]" if severity else "[CẢNH BÁO]"
+            lines.append(f"### {severity_tag} {w.get('drug_a', '')} × {w.get('drug_b', '')}")
+            lines.append(f"- **Mức độ:** {severity}")
+            lines.append(f"- **Mô tả:** {w.get('description', '')}")
+            lines.append(f"- **Khuyến nghị:** {w.get('recommendation', '')}")
+            lines.append("")
+
+    # -- Ghi chú --
+    notes = match_result.get("general_notes", "")
+    doctor_notes = ocr_result.get("doctor_notes", "")
+    follow_up = ocr_result.get("follow_up_date", "")
+
+    if notes or doctor_notes or follow_up:
+        lines.append("## Ghi Chú")
+        lines.append("")
+        if doctor_notes:
+            lines.append(f"- **Lời dặn bác sĩ:** {doctor_notes}")
+        if follow_up:
+            lines.append(f"- **Ngày tái khám:** {follow_up}")
+        if notes:
+            lines.append(f"- **AI ghi chú:** {notes}")
+        lines.append("")
+
+    # ── Footer ──
+    lines.append("---")
+    lines.append("")
+    lines.append(
+        "*Tài liệu được tạo tự động bởi hệ thống AI Dược sĩ – "
+        "ABC Pharmacy. Vui lòng xác nhận lại với Dược sĩ trước khi sử dụng.*"
+    )
+
+    return "\n".join(lines)

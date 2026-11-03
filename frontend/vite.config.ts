@@ -1,0 +1,51 @@
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import {defineConfig} from 'vite';
+import dns from 'dns';
+
+dns.setDefaultResultOrder('ipv4first');
+
+export default defineConfig(() => {
+  return {
+    plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
+      },
+    },
+    server: {
+      port: 3001,
+      host: '0.0.0.0',
+      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      hmr: process.env.DISABLE_HMR !== 'true',
+      // Cấu hình watch tối ưu cho Docker trên macOS (tránh nghẽn I/O VirtioFS gây treo container)
+      watch: process.env.DISABLE_HMR === 'true' ? null : {
+        usePolling: true,
+        interval: 1000,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
+      },
+      proxy: {
+        '/api': {
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
+          changeOrigin: true,
+        },
+        '/socket.io': {
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
+          changeOrigin: true,
+          ws: true,
+        },
+        // Proxy voor statische audio- en mediabestanden van de backend
+        '/public': {
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
+          changeOrigin: true,
+        },
+      },
+    },
+  };
+});

@@ -1,0 +1,1089 @@
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  NotFoundException,
+  InternalServerErrorException,
+  OnApplicationBootstrap,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
+import { User, UserRole } from './user.schema';
+import { VerificationToken, TokenType } from './verification-token.schema';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { SqsEmailService } from '../email/sqs-email.service';
+
+@Injectable()
+export class AuthService implements OnApplicationBootstrap {
+  constructor(
+    @InjectModel(User.name)
+    private readonly userModel: Model<User>,
+    @InjectModel(VerificationToken.name)
+    private readonly tokenModel: Model<VerificationToken>,
+    private readonly jwtService: JwtService,
+    private readonly emailService: SqsEmailService,
+  ) {}
+
+  async onApplicationBootstrap() {
+    try {
+      const directorEmail = 'director@vinapharmacy.com';
+      const existing = await this.userModel.findOne({ email: directorEmail });
+      if (!existing) {
+        const passwordHash = await bcrypt.hash('123456', 12);
+        await this.userModel.create({
+          fullName: 'Ban Giám Đốc Chuỗi (Director)',
+          email: directorEmail,
+          passwordHash,
+          role: UserRole.DIRECTOR,
+          isActive: true,
+          isEmailVerified: true,
+          isApproved: 'approved',
+          branchId: 'BR-001',
+          branchName: 'Chi Nhánh Trung Tâm',
+        });
+        console.log('✅ [AuthService] Đã tự động tạo tài khoản: director@vinapharmacy.com');
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [AuthService] Bỏ qua tạo tài khoản director:', err.message);
+    }
+  }
+
+  // ============================================================
+  // ĐĂNG KÝ - Tạo tài khoản mới + Cấp Token tức thì
+  // ============================================================
+  async register(dto: RegisterDto): Promise<any> {
+    const email = (dto.email || '').toLowerCase().trim();
+    const existing = await this.userModel.findOne({ email });
+    if (existing) {
+      throw new ConflictException(`Email "${dto.email}" đã được đăng ký!`);
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const role = dto.role ?? UserRole.USER;
+
+    const newUser = new this.userModel({
+      fullName: dto.fullName,
+      email,
+      passwordHash,
+      role,
+      isEmailVerified: true,
+      phone: dto.phone,
+      isActive: true,
+      isApproved: 'approved',
+    });
+
+    const savedUser = await newUser.save();
+
+    const payload = {
+      sub: savedUser._id.toString(),
+      email: savedUser.email,
+      role: savedUser.role,
+      fullName: savedUser.fullName,
+      branchId: savedUser.branchId || null,
+      branchName: savedUser.branchName || null,
+      phone: savedUser.phone || null,
+    };
+
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      message: 'Đăng ký tài khoản thành công!',
+      access_token,
+      user: {
+        id: savedUser._id.toString(),
+        email: savedUser.email,
+        fullName: savedUser.fullName,
+        role: savedUser.role,
+        branchId: savedUser.branchId || null,
+        branchName: savedUser.branchName || null,
+        phone: savedUser.phone || null,
+      },
+    };
+  }
+
+  // ============================================================
+  // ĐĂNG NHẬP - Xác thực và cấp JWT Token
+  // ============================================================
+  async login(dto: LoginDto): Promise<any> {
+    const rawEmail = (dto.email || '').toLowerCase().trim();
+    const rawPhone = (dto.phone || '').trim();
+
+    if (!rawEmail && !rawPhone) {
+      throw new UnauthorizedException('Vui lòng cung cấp email hoặc số điện thoại để đăng nhập!');
+    }
+
+    let userFromDb: any = null;
+
+    // 1. Find user by phone if phone field is provided
+    if (rawPhone) {
+      userFromDb = await this.userModel.findOne({ phone: rawPhone });
+    }
+
+    // 2. If not found or phone not provided, check rawEmail field
+    if (!userFromDb && rawEmail) {
+      // Check if rawEmail matches a phone number format
+      if (/^0\d{9,10}$/.test(rawEmail) || /^\+?\d{9,15}$/.test(rawEmail)) {
+        userFromDb = await this.userModel.findOne({ phone: rawEmail });
+      }
+
+      // Query by email address if not found by phone
+      if (!userFromDb) {
+        userFromDb = await this.userModel.findOne({ email: rawEmail });
+      }
+    }
+
+    if (!userFromDb) {
+      throw new UnauthorizedException('Email, số điện thoại hoặc mật khẩu không chính xác!');
+    }
+
+    if (!userFromDb.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa! Vui lòng liên hệ quản trị viên.');
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, userFromDb.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
+    }
+
+    if (!userFromDb.isEmailVerified) {
+      userFromDb.isEmailVerified = true;
+      await userFromDb.save();
+    }
+
+    if (userFromDb.isTwoFactorEnabled) {
+      await this.generateAndSendTwoFactorOtp(userFromDb._id.toString(), userFromDb.email);
+
+      const tempPayload = {
+        sub: userFromDb._id.toString(),
+        email: userFromDb.email,
+        is2faPending: true,
+      };
+      const tempToken = this.jwtService.sign(tempPayload, { expiresIn: '5m' });
+      return {
+        is2faRequired: true,
+        tempToken,
+      };
+    }
+
+    const payload = {
+      sub: userFromDb._id.toString(),
+      email: userFromDb.email,
+      role: userFromDb.role,
+      fullName: userFromDb.fullName,
+      branchId: userFromDb.branchId || null,
+      branchName: userFromDb.branchName || null,
+      phone: userFromDb.phone || null,
+      avatarUrl: userFromDb.avatarUrl || null,
+    };
+
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      access_token,
+      user: {
+        id: userFromDb._id.toString(),
+        email: userFromDb.email,
+        fullName: userFromDb.fullName,
+        role: userFromDb.role,
+        branchId: userFromDb.branchId || null,
+        branchName: userFromDb.branchName || null,
+        phone: userFromDb.phone || null,
+        avatarUrl: userFromDb.avatarUrl || null,
+        points: userFromDb.points || 0,
+      },
+    };
+  }
+
+  // ============================================================
+  // GOOGLE LOGIN
+  // ============================================================
+  async googleLogin(profile: any): Promise<{
+    access_token: string;
+    user: { id: string; email: string; fullName: string; role: string; branchId?: string; branchName?: string };
+  }> {
+    const email = (profile.email || '').toLowerCase().trim();
+    const fullName = profile.fullName || profile.name || 'Người dùng Google';
+
+    let userFromDb = await this.userModel.findOne({ email });
+
+    if (!userFromDb) {
+      const passwordHash = await bcrypt.hash(Math.random().toString(36).slice(-10), 12);
+      userFromDb = new this.userModel({
+        fullName,
+        email,
+        passwordHash,
+        role: UserRole.USER,
+        isActive: true,
+        isEmailVerified: true,
+        avatarUrl: profile.avatar || profile.picture || undefined,
+        googleId: profile.id || profile.sub || undefined,
+      });
+      await userFromDb.save();
+    }
+
+    if (!userFromDb.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa!');
+    }
+
+    const payload = {
+      sub: userFromDb._id.toString(),
+      email: userFromDb.email,
+      role: userFromDb.role,
+      fullName: userFromDb.fullName,
+      branchId: userFromDb.branchId || null,
+      branchName: userFromDb.branchName || null,
+      phone: userFromDb.phone || null,
+      avatarUrl: userFromDb.avatarUrl || null,
+    };
+
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      access_token,
+      user: {
+        id: userFromDb._id.toString(),
+        email: userFromDb.email,
+        fullName: userFromDb.fullName,
+        role: userFromDb.role,
+        branchId: userFromDb.branchId || null,
+        branchName: userFromDb.branchName || null,
+      },
+    };
+  }
+
+  // ============================================================
+  // XÁC MINH TOKEN - Dùng trong JWT Guard
+  // ============================================================
+  async validateToken(token: string): Promise<any> {
+    try {
+      const payload = this.jwtService.verify(token);
+      if (!payload) throw new UnauthorizedException('Token không hợp lệ!');
+      return payload;
+    } catch {
+      throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn!');
+    }
+  }
+
+  // ============================================================
+  // QUÊN MẬT KHẨU - Gửi mã xác nhận qua Email
+  // ============================================================
+  async generateAndSendResetToken(email: string): Promise<{ message: string }> {
+    const userExists = await this.userModel.findOne({ email });
+
+    if (!userExists) {
+      throw new NotFoundException(`Không tìm thấy tài khoản với email ${email}`);
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+
+    await this.tokenModel.deleteMany({ userId: email, type: TokenType.PASSWORD_RESET });
+
+    await this.tokenModel.create({
+      token: otp,
+      type: TokenType.PASSWORD_RESET,
+      expiresAt,
+      userId: email,
+      isUsed: false,
+    });
+
+    try {
+      if (this.emailService.isEnabled) {
+        await this.emailService.sendEmail({
+          to: email,
+          subject: 'Mã xác nhận khôi phục mật khẩu',
+          html: `
+            <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+              <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);">
+                <div style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); padding: 32px 24px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">ABC Pharmacy</h1>
+                </div>
+                <div style="padding: 40px 32px;">
+                  <h2 style="color: #0f172a; font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 16px; text-align: center;">Khôi phục mật khẩu</h2>
+                  <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 32px; text-align: center;">
+                    Xin chào!<br>
+                    Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Đây là mã xác nhận (OTP) của bạn:
+                  </p>
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="display: inline-block; padding: 4px; border-radius: 16px; background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);">
+                      <span style="display: block; letter-spacing: 8px; color: #1e40af; font-size: 40px; font-weight: 900; padding: 16px 32px; background-color: #ffffff; border-radius: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        ${otp}
+                      </span>
+                    </div>
+                  </div>
+                  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 4px; margin-bottom: 32px;">
+                    <p style="color: #b45309; font-size: 14px; margin: 0; text-align: center;">
+                      <span style="margin-right: 4px; font-size: 16px;">⏳</span> Mã xác nhận sẽ hết hạn sau <strong>5 phút</strong>.
+                    </p>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 24px;">
+                  <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0; text-align: center;">
+                    Nếu bạn không yêu cầu đổi mật khẩu, hãy bỏ qua email này.<br>Tài khoản của bạn vẫn an toàn.<br><br>
+                    Trân trọng,<br>
+                    <strong style="color: #0f172a;">Đội ngũ ABC Pharmacy</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`✉️ [Email] Đã enqueue OTP đến ${email} (SQS→Lambda→SES)`);
+      } else {
+        console.warn(`⚠️ [MOCK EMAIL] Gửi email đến ${email}. Mã OTP: ${otp}`);
+      }
+    } catch (error: any) {
+      console.error(`❌ [Email Error] Lỗi enqueue mail: ${error.message}`);
+    }
+
+    return { message: 'Mã xác nhận đã được gửi đến email của bạn!' };
+  }
+
+  // ============================================================
+  // TỰ ĐỘNG GỬI EMAIL CHÀO MỪNG & THIẾT LẬP MẬT KHẨU NHÂN VIÊN MỚI
+  // ============================================================
+  async generateAndSendWelcomeResetToken(
+    email: string,
+    fullName?: string,
+    branchId?: string,
+    role?: string,
+  ): Promise<{ message: string }> {
+    const userExists = await this.userModel.findOne({ email });
+    if (!userExists) {
+      throw new NotFoundException(`Không tìm thấy tài khoản với email ${email}`);
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    // Hạn dùng 24 giờ cho nhân sự mới kích hoạt
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    await this.tokenModel.deleteMany({ userId: email, type: TokenType.PASSWORD_RESET });
+    await this.tokenModel.create({
+      token: otp,
+      type: TokenType.PASSWORD_RESET,
+      expiresAt,
+      userId: email,
+      isUsed: false,
+    });
+
+    try {
+      if (this.emailService.isEnabled) {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const resetLink = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}&token=${otp}`;
+        const roleName = role === 'pharmacist' ? 'Dược sĩ' : role === 'branch' ? 'Quản lý cơ sở' : 'Nhân sự';
+        const branchLabel = branchId ? `Chi nhánh ${branchId}` : 'Hệ thống ABC Pharmacy';
+
+        await this.emailService.sendEmail({
+          to: email,
+          subject: 'Chào mừng gia nhập ABC Pharmacy - Thiết lập mật khẩu tài khoản',
+          html: `
+            <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+              <div style="max-width: 540px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
+                <div style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); padding: 32px 24px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1px;">ABC Pharmacy</h1>
+                  <p style="color: #e0f2fe; margin: 8px 0 0 0; font-size: 14px;">Hệ thống Quản lý Chuỗi Nhà thuốc Toàn quốc</p>
+                </div>
+                <div style="padding: 36px 32px;">
+                  <h2 style="color: #0f172a; font-size: 20px; font-weight: 700; margin-top: 0; margin-bottom: 16px; text-align: center;">Kích hoạt tài khoản nhân viên</h2>
+                  <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                    Xin chào <strong>${fullName || 'Đồng nghiệp'}</strong>,<br>
+                    Tài khoản nhân sự của bạn đã được quản lý khởi tạo thành công tại <strong>${branchLabel}</strong> với vai trò <strong>${roleName}</strong>.
+                  </p>
+                  <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+                    Để bắt đầu làm việc và bảo mật tài khoản, vui lòng thiết lập mật khẩu cá nhân của bạn bằng mã xác nhận dưới đây hoặc nhấp trực tiếp vào nút thiết lập:
+                  </p>
+                  <div style="text-align: center; margin-bottom: 28px;">
+                    <div style="display: inline-block; padding: 4px; border-radius: 12px; background: #e0f2fe;">
+                      <span style="display: block; letter-spacing: 8px; color: #1d4ed8; font-size: 36px; font-weight: 800; padding: 14px 28px; background-color: #ffffff; border-radius: 10px;">
+                        ${otp}
+                      </span>
+                    </div>
+                  </div>
+                  <div style="text-align: center; margin-bottom: 28px;">
+                    <a href="${resetLink}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 15px; padding: 12px 28px; border-radius: 8px;">
+                      Thiết lập mật khẩu ngay
+                    </a>
+                  </div>
+                  <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 14px; border-radius: 4px; margin-bottom: 28px;">
+                    <p style="color: #166534; font-size: 13px; margin: 0;">
+                      Mã xác nhận kích hoạt này có hiệu lực trong vòng <strong>24 giờ</strong> kể từ thời điểm nhận thư.
+                    </p>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 20px;">
+                  <p style="color: #64748b; font-size: 13px; line-height: 1.6; margin: 0; text-align: center;">
+                    Nếu bạn không làm việc tại ABC Pharmacy hoặc nghi ngờ bị nhầm lẫn, vui lòng liên hệ quản lý cơ sở.<br><br>
+                    Trân trọng,<br>
+                    <strong style="color: #0f172a;">Ban Quản Trị ABC Pharmacy</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`[Email] Da gui email chao mung va OTP thiet lap mat khau den ${email}`);
+      } else {
+        console.warn(`[MOCK EMAIL] Gui email chao mung den ${email}. Ma OTP: ${otp}`);
+      }
+    } catch (error: any) {
+      console.error(`[Email Error] Loi gui mail chao mung: ${error.message}`);
+    }
+
+    return { message: 'Đã gửi email thiết lập mật khẩu đến nhân viên mới' };
+  }
+
+  // ============================================================
+  // ĐẶT LẠI MẬT KHẨU
+  // ============================================================
+  async resetPassword(email: string, token: string, newPassword: string): Promise<{ message: string }> {
+    const resetToken = await this.tokenModel.findOne({
+      userId: email,
+      token: token,
+      type: TokenType.PASSWORD_RESET,
+      isUsed: false,
+    });
+
+    if (!resetToken) {
+      throw new UnauthorizedException('Mã xác nhận không đúng hoặc không tồn tại!');
+    }
+
+    if (new Date() > resetToken.expiresAt) {
+      throw new UnauthorizedException('Mã xác nhận đã hết hạn!');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    const mongoUser = await this.userModel.findOne({ email });
+    if (!mongoUser) {
+      throw new NotFoundException('Không tìm thấy tài khoản để đổi mật khẩu');
+    }
+    mongoUser.passwordHash = passwordHash;
+    // Tự động đánh dấu email đã xác thực nếu họ đổi mật khẩu thành công (chứng tỏ họ sở hữu email này)
+    mongoUser.isEmailVerified = true;
+    // Vô hiệu hóa toàn bộ thiết bị sinh trắc học theo chuẩn ngân hàng khi đổi mật khẩu
+    mongoUser.biometricDevices = [];
+    await mongoUser.save();
+
+    resetToken.isUsed = true;
+    await resetToken.save();
+
+    return { message: 'Đổi mật khẩu thành công! Bạn có thể đăng nhập ngay bây giờ.' };
+  }
+
+  // ============================================================
+  // ĐỔI MẬT KHẨU (CHO USER ĐÃ ĐĂNG NHẬP)
+  // ============================================================
+  async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{ message: string }> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản!');
+    }
+
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Mật khẩu cũ không chính xác!');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    user.passwordHash = passwordHash;
+    // Vô hiệu hóa toàn bộ thiết bị sinh trắc học theo chuẩn ngân hàng khi đổi mật khẩu
+    user.biometricDevices = [];
+    await user.save();
+
+    // Gửi email xác nhận đổi mật khẩu thành công
+    try {
+      if (this.emailService.isEnabled) {
+        await this.emailService.sendEmail({
+          to: user.email,
+          subject: 'Xác nhận thay đổi mật khẩu thành công',
+          html: `
+            <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+              <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);">
+                <div style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); padding: 32px 24px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">ABC Pharmacy</h1>
+                </div>
+                <div style="padding: 40px 32px;">
+                  <h2 style="color: #0f172a; font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 16px; text-align: center;">Thay đổi mật khẩu thành công</h2>
+                  <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 32px; text-align: center;">
+                    Xin chào <strong>${user.fullName}</strong>,<br>
+                    Mật khẩu của tài khoản <strong>${user.email}</strong> đã được thay đổi thành công vào lúc ${new Date().toLocaleString('vi-VN')}.
+                  </p>
+                  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 4px; margin-bottom: 32px;">
+                    <p style="color: #b45309; font-size: 14px; margin: 0; text-align: center;">
+                      Nếu bạn không thực hiện thay đổi này, vui lòng liên hệ ngay với chúng tôi để bảo mật tài khoản.
+                    </p>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 24px;">
+                  <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0; text-align: center;">
+                    Trân trọng,<br>
+                    <strong style="color: #0f172a;">Đội ngũ ABC Pharmacy</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`✉️ [Email] Đã gửi thông báo đổi mật khẩu đến ${user.email} (SQS→Lambda→SES)`);
+      } else {
+        console.warn(`⚠️ [MOCK EMAIL] Thông báo đổi mật khẩu thành công đã được gửi đến ${user.email}.`);
+      }
+    } catch (error: any) {
+      console.error(`❌ [Email Error] Lỗi gửi email xác nhận đổi mật khẩu: ${error.message}`);
+    }
+
+    return { message: 'Đổi mật khẩu thành công!' };
+  }
+
+  // ============================================================
+  // LẤY THÔNG TIN USER THEO ID
+  // ============================================================
+  async getUserById(id: string): Promise<any> {
+    const user = await this.userModel.findById(id).select('-passwordHash').exec();
+    if (!user) {
+      throw new NotFoundException(`Không tìm thấy tài khoản!`);
+    }
+    return user.toObject();
+  }
+
+  // ============================================================
+  // 2FA - TẠO VÀ GỬI OTP QUA EMAIL
+  // ============================================================
+  async generateAndSendTwoFactorOtp(userId: string, email: string): Promise<any> {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+
+    await this.tokenModel.deleteMany({ userId: email, type: TokenType.TWO_FACTOR });
+    await this.tokenModel.create({
+      token: otp,
+      type: TokenType.TWO_FACTOR,
+      expiresAt,
+      userId: email,
+      isUsed: false,
+    });
+
+    try {
+      if (this.emailService.isEnabled) {
+        await this.emailService.sendEmail({
+          to: email,
+          subject: 'Mã xác nhận bảo mật 2 lớp (2FA)',
+          html: `
+            <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+              <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);">
+                <div style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); padding: 32px 24px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">ABC Pharmacy</h1>
+                </div>
+                <div style="padding: 40px 32px;">
+                  <h2 style="color: #0f172a; font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 16px; text-align: center;">Xác thực 2 lớp (2FA)</h2>
+                  <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 32px; text-align: center;">
+                    Xin chào!<br>
+                    Đây là mã xác nhận (OTP) để thực hiện xác thực 2 lớp của bạn:
+                  </p>
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="display: inline-block; padding: 4px; border-radius: 16px; background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);">
+                      <span style="display: block; letter-spacing: 8px; color: #1e40af; font-size: 40px; font-weight: 900; padding: 16px 32px; background-color: #ffffff; border-radius: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        ${otp}
+                      </span>
+                    </div>
+                  </div>
+                  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 4px; margin-bottom: 32px;">
+                    <p style="color: #b45309; font-size: 14px; margin: 0; text-align: center;">
+                      <span style="margin-right: 4px; font-size: 16px;">⏳</span> Mã xác nhận sẽ hết hạn sau <strong>5 phút</strong>.
+                    </p>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 24px;">
+                  <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0; text-align: center;">
+                    Nếu bạn không thực hiện yêu cầu này, vui lòng bảo mật lại tài khoản ngay lập tức.<br><br>
+                    Trân trọng,<br>
+                    <strong style="color: #0f172a;">Đội ngũ ABC Pharmacy</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`✉️ [Email] Đã gửi OTP 2FA đến ${email} (SQS→Lambda→SES)`);
+      } else {
+        console.warn(`⚠️ [MOCK EMAIL] Gửi OTP 2FA đến ${email}. Mã OTP: ${otp}`);
+      }
+    } catch (error: any) {
+      console.error(`❌ [Email Error] Lỗi gửi OTP 2FA: ${error.message}`);
+    }
+  }
+
+  // ============================================================
+  // 2FA - YÊU CẦU BẬT 2FA (GỬI OTP VỀ EMAIL)
+  // ============================================================
+  async generateTwoFactorSecret(userId: string): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản!');
+    }
+
+    if (user.isTwoFactorEnabled) {
+      throw new ConflictException('Xác thực 2 lớp đã được bật trên tài khoản này!');
+    }
+
+    await this.generateAndSendTwoFactorOtp(user._id.toString(), user.email);
+
+    return {
+      message: 'Mã xác nhận kích hoạt 2FA đã được gửi vào email của bạn!',
+    };
+  }
+
+  // ============================================================
+  // 2FA - XÁC THỰC KÍCH HOẠT 2FA
+  // ============================================================
+  async enableTwoFactor(userId: string, token: string): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản!');
+    }
+
+    const verificationToken = await this.tokenModel.findOne({
+      userId: user.email,
+      token,
+      type: TokenType.TWO_FACTOR,
+      isUsed: false,
+    });
+
+    if (!verificationToken) {
+      throw new UnauthorizedException('Mã xác nhận OTP không chính xác!');
+    }
+
+    if (new Date() > verificationToken.expiresAt) {
+      throw new UnauthorizedException('Mã xác nhận OTP đã hết hạn!');
+    }
+
+    user.isTwoFactorEnabled = true;
+    await user.save();
+
+    verificationToken.isUsed = true;
+    await verificationToken.save();
+
+    return { message: 'Đã kích hoạt xác thực 2 lớp (2FA) qua Email thành công!' };
+  }
+
+  // ============================================================
+  // 2FA - YÊU CẦU TẮT 2FA (GỬI OTP VỀ EMAIL HOẶC XÁC NHẬN TẮT)
+  // ============================================================
+  async disableTwoFactor(userId: string, token?: string): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản!');
+    }
+
+    if (!user.isTwoFactorEnabled) {
+      throw new ConflictException('Tài khoản chưa bật xác thực 2 lớp!');
+    }
+
+    // Nếu không truyền token -> Sinh OTP gửi về email để chuẩn bị tắt
+    if (!token) {
+      await this.generateAndSendTwoFactorOtp(user._id.toString(), user.email);
+      return { message: 'Mã xác thực tắt 2FA đã được gửi vào email của bạn!' };
+    }
+
+    // Nếu truyền token -> xác thực OTP để tắt
+    const verificationToken = await this.tokenModel.findOne({
+      userId: user.email,
+      token,
+      type: TokenType.TWO_FACTOR,
+      isUsed: false,
+    });
+
+    if (!verificationToken) {
+      throw new UnauthorizedException('Mã xác nhận OTP không chính xác!');
+    }
+
+    if (new Date() > verificationToken.expiresAt) {
+      throw new UnauthorizedException('Mã xác nhận OTP đã hết hạn!');
+    }
+
+    user.isTwoFactorEnabled = false;
+    await user.save();
+
+    verificationToken.isUsed = true;
+    await verificationToken.save();
+
+    return { message: 'Đã hủy kích hoạt xác thực 2 lớp (2FA) thành công!' };
+  }
+
+  // ============================================================
+  // 2FA - ĐĂNG NHẬP BƯỚC 2 (XÁC THỰC OTP ĐĂNG NHẬP VÀ CẤP TOKEN)
+  // ============================================================
+  async authenticateTwoFactor(tempToken: string, token: string): Promise<any> {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(tempToken);
+    } catch {
+      throw new UnauthorizedException('Phiên xác thực tạm thời không hợp lệ hoặc đã hết hạn!');
+    }
+
+    if (!payload || !payload.is2faPending) {
+      throw new UnauthorizedException('Token không hợp lệ!');
+    }
+
+    const user = await this.userModel.findById(payload.sub);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+
+    if (!user.isTwoFactorEnabled) {
+      throw new ConflictException('Xác thực 2 lớp không được bật cho tài khoản này!');
+    }
+
+    const verificationToken = await this.tokenModel.findOne({
+      userId: user.email,
+      token,
+      type: TokenType.TWO_FACTOR,
+      isUsed: false,
+    });
+
+    if (!verificationToken) {
+      throw new UnauthorizedException('Mã OTP không chính xác!');
+    }
+
+    if (new Date() > verificationToken.expiresAt) {
+      throw new UnauthorizedException('Mã OTP đã hết hạn!');
+    }
+
+    verificationToken.isUsed = true;
+    await verificationToken.save();
+
+    // Cấp JWT Token chính thức
+    const finalPayload = {
+      sub: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      branchId: user.branchId,
+    };
+
+    const access_token = this.jwtService.sign(finalPayload);
+
+    return {
+      access_token,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+      },
+    };
+  }
+
+  // ============================================================
+  // ĐĂNG KÝ - SINH VÀ GỬI OTP KÍCH HOẠT QUA EMAIL
+  // ============================================================
+  async generateAndSendVerificationOtp(email: string): Promise<any> {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+
+    // Xóa các token kích hoạt cũ của email này
+    await this.tokenModel.deleteMany({ userId: email, type: TokenType.EMAIL_VERIFICATION });
+
+    // Tạo token kích hoạt mới
+    await this.tokenModel.create({
+      token: otp,
+      type: TokenType.EMAIL_VERIFICATION,
+      expiresAt,
+      userId: email,
+      isUsed: false,
+    });
+
+    try {
+      if (this.emailService.isEnabled) {
+        await this.emailService.sendEmail({
+          to: email,
+          subject: 'Mã xác thực kích hoạt tài khoản',
+          html: `
+            <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+              <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);">
+                <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 32px 24px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">ABC Pharmacy</h1>
+                </div>
+                <div style="padding: 40px 32px;">
+                  <h2 style="color: #0f172a; font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 16px; text-align: center;">Kích hoạt tài khoản</h2>
+                  <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 32px; text-align: center;">
+                    Xin chào!<br>
+                    Cảm ơn bạn đã đăng ký tài khoản tại ABC Pharmacy. Đây là mã xác thực OTP của bạn:
+                  </p>
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="display: inline-block; padding: 4px; border-radius: 16px; background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);">
+                      <span style="display: block; letter-spacing: 8px; color: #065f46; font-size: 40px; font-weight: 900; padding: 16px 32px; background-color: #ffffff; border-radius: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        ${otp}
+                      </span>
+                    </div>
+                  </div>
+                  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 4px; margin-bottom: 32px;">
+                    <p style="color: #b45309; font-size: 14px; margin: 0; text-align: center;">
+                      <span style="margin-right: 4px; font-size: 16px;">⏳</span> Mã xác nhận sẽ hết hạn sau <strong>5 phút</strong>.
+                    </p>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 24px;">
+                  <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0; text-align: center;">
+                    Nếu bạn không đăng ký tài khoản tại hệ thống của chúng tôi, vui lòng bỏ qua email này.<br><br>
+                    Trân trọng,<br>
+                    <strong style="color: #0f172a;">Đội ngũ ABC Pharmacy</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`✉️ [Email] Đã gửi OTP kích hoạt đến ${email} (SQS→Lambda→SES)`);
+      } else {
+        console.warn(`⚠️ [MOCK EMAIL] Gửi OTP kích hoạt đến ${email}. Mã OTP: ${otp}`);
+      }
+    } catch (error: any) {
+      console.error(`❌ [Email Error] Lỗi gửi OTP kích hoạt: ${error.message}`);
+    }
+  }
+
+  // ============================================================
+  // ĐĂNG KÝ - XÁC THỰC EMAIL BẰNG MÃ OTP
+  // ============================================================
+  async verifyEmail(email: string, token: string): Promise<any> {
+    const verificationToken = await this.tokenModel.findOne({
+      userId: email,
+      token,
+      type: TokenType.EMAIL_VERIFICATION,
+      isUsed: false,
+    });
+
+    if (!verificationToken) {
+      throw new UnauthorizedException('Mã xác nhận OTP không chính xác!');
+    }
+
+    if (new Date() > verificationToken.expiresAt) {
+      throw new UnauthorizedException('Mã xác nhận OTP đã hết hạn!');
+    }
+
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+
+    user.isEmailVerified = true;
+    await user.save();
+
+    verificationToken.isUsed = true;
+    await verificationToken.save();
+
+    return { message: 'Xác thực email thành công! Tài khoản của bạn đã được kích hoạt.' };
+  }
+
+  // ============================================================
+  // ĐĂNG KÝ - GỬI LẠI MÃ OTP KÍCH HOẠT
+  // ============================================================
+  async resendVerificationOtp(email: string): Promise<any> {
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản với email này!');
+    }
+
+    if (user.isEmailVerified) {
+      throw new ConflictException('Tài khoản này đã được xác thực trước đó!');
+    }
+
+    await this.generateAndSendVerificationOtp(email);
+
+    return { message: 'Mã xác nhận mới đã được gửi vào email của bạn!' };
+  }
+
+  // ============================================================
+  // SINH TRẮC HỌC CHUẨN NGÂN HÀNG (FIDO2 / CHALLENGE-RESPONSE)
+  // ============================================================
+
+  /**
+   * Đăng ký hoặc cập nhật Khóa Công Khai (Public Key) của thiết bị sinh trắc học
+   */
+  async registerBiometricDevice(
+    userId: string,
+    data: { deviceId: string; deviceName?: string; publicKey: string },
+  ): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+
+    const now = new Date();
+    // Lọc bỏ thiết bị cũ trùng deviceId để đảm bảo tính duy nhất và khóa công khai luôn mới nhất
+    user.biometricDevices = (user.biometricDevices || []).filter(
+      (d) => d.deviceId !== data.deviceId,
+    );
+
+    user.biometricDevices.push({
+      deviceId: data.deviceId,
+      deviceName: data.deviceName || 'Android Device (Hardware Keystore)',
+      publicKey: data.publicKey,
+      registeredAt: now,
+      lastUsedAt: now,
+      isActive: true,
+    });
+
+    await user.save();
+    return { success: true, message: 'Đăng ký thiết bị sinh trắc học thành công!' };
+  }
+
+  /**
+   * Lấy danh sách thiết bị sinh trắc học của tài khoản
+   */
+  async getBiometricDevices(userId: string): Promise<any[]> {
+    const user = await this.userModel.findById(userId).select('biometricDevices');
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+    return (user.biometricDevices || []).map(d => ({
+      deviceId: d.deviceId,
+      deviceName: d.deviceName,
+      registeredAt: d.registeredAt,
+      lastUsedAt: d.lastUsedAt,
+      isActive: d.isActive,
+    }));
+  }
+
+  /**
+   * Hủy liên kết một thiết bị sinh trắc học (Remote Revocation)
+   */
+  async revokeBiometricDevice(userId: string, deviceId: string): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin tài khoản!');
+    }
+
+    if (user.biometricDevices) {
+      user.biometricDevices = user.biometricDevices.filter(d => d.deviceId !== deviceId);
+      await user.save();
+    }
+    return { success: true, message: 'Đã hủy liên kết thiết bị sinh trắc học thành công!' };
+  }
+
+  /**
+   * Kiểm tra điều kiện thiết bị trước khi Gateway cấp Challenge Nonce
+   */
+  async checkBiometricDevice(emailOrPhone: string, deviceId: string): Promise<any> {
+    const identifier = (emailOrPhone || '').toLowerCase().trim();
+    const user = await this.userModel.findOne({
+      $or: [{ email: identifier }, { phone: identifier }],
+    });
+
+    if (!user) {
+      throw new NotFoundException('Tài khoản không tồn tại!');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa hoặc khóa!');
+    }
+
+    const device = (user.biometricDevices || []).find(d => d.deviceId === deviceId && d.isActive);
+    if (!device) {
+      throw new UnauthorizedException('Thiết bị này chưa được liên kết sinh trắc học với tài khoản!');
+    }
+
+    return {
+      userId: user._id.toString(),
+      email: user.email,
+      fullName: user.fullName,
+      deviceId: device.deviceId,
+    };
+  }
+
+  /**
+   * Xác thực Chữ Ký Số và cấp Access Token phiên làm việc mới
+   */
+  async verifyBiometricSignature(payload: {
+    emailOrPhone: string;
+    deviceId: string;
+    challenge: string;
+    signature: string;
+  }): Promise<any> {
+    const identifier = (payload.emailOrPhone || '').toLowerCase().trim();
+    const user = await this.userModel.findOne({
+      $or: [{ email: identifier }, { phone: identifier }],
+    });
+
+    if (!user) {
+      throw new NotFoundException('Tài khoản không tồn tại!');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa!');
+    }
+
+    const device = (user.biometricDevices || []).find(
+      d => d.deviceId === payload.deviceId && d.isActive,
+    );
+
+    if (!device || !device.publicKey) {
+      throw new UnauthorizedException('Thiết bị chưa được đăng ký hoặc đã bị thu hồi khóa!');
+    }
+
+    // Xác thực chữ ký số bằng Node.js OpenSSL SPKI DER
+    let isSignatureValid = false;
+    try {
+      const rawBase64 = device.publicKey
+        .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+        .replace(/-----END PUBLIC KEY-----/g, '')
+        .replace(/\s+/g, '');
+
+      const publicKeyObject = crypto.createPublicKey({
+        key: Buffer.from(rawBase64, 'base64'),
+        format: 'der',
+        type: 'spki',
+      });
+
+      const verifier = crypto.createVerify('SHA256');
+      verifier.update(payload.challenge, 'utf8');
+      verifier.end();
+
+      const sigBuffer = Buffer.from(payload.signature, 'base64');
+      isSignatureValid = verifier.verify(publicKeyObject, sigBuffer);
+    } catch (cryptoErr: any) {
+      console.error('❌ [AuthService] Lỗi xác thực chữ ký mật mã học:', cryptoErr.message);
+      throw new UnauthorizedException(`Chữ ký sinh trắc học không hợp lệ: ${cryptoErr.message}`);
+    }
+
+    if (!isSignatureValid) {
+      throw new UnauthorizedException('Chữ ký số sinh trắc học không khớp với khóa công khai của thiết bị!');
+    }
+
+    // Cập nhật lastUsedAt cho thiết bị
+    device.lastUsedAt = new Date();
+    await user.save();
+
+    // Cấp JWT Access Token phiên làm việc
+    const jwtPayload = {
+      sub: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      branchId: user.branchId || null,
+      branchName: user.branchName || null,
+      phone: user.phone || null,
+      avatarUrl: user.avatarUrl || null,
+    };
+
+    const access_token = this.jwtService.sign(jwtPayload);
+
+    return {
+      message: 'Xác thực sinh trắc học thành công!',
+      access_token,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        branchId: user.branchId || null,
+        branchName: user.branchName || null,
+        avatarUrl: user.avatarUrl || null,
+      },
+    };
+  }
+}

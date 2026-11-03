@@ -1,0 +1,512 @@
+import { Module, OnModuleInit, Inject } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { CacheModule } from "@nestjs/cache-manager";
+import { PassportModule } from "@nestjs/passport";
+import { JwtModule } from "@nestjs/jwt";
+import { ClientsModule, Transport, ClientKafka } from "@nestjs/microservices";
+import { MongooseModule } from "@nestjs/mongoose";
+import { SupplierController } from "./controllers/supplier.controller";
+import { PurchaseRequisitionController } from "./controllers/purchase-requisition.controller";
+import { PurchaseOrderController } from "./controllers/purchase-order.controller";
+import { GoodsReceiptController } from "./controllers/goods-receipt.controller";
+import { InventoryTransactionController } from "./controllers/inventory-transaction.controller";
+import { PrescriptionController } from "./controllers/prescription.controller";
+import { SalesController } from "./controllers/sales.controller";
+import { UserController } from "./controllers/user.controller";
+import { MedicineController } from "./controllers/medicine.controller";
+import { AuthController } from "./controllers/auth.controller";
+import { OrderController } from "./controllers/order.controller";
+import { VoucherController } from "./controllers/voucher.controller";
+import { BranchController } from "./controllers/branch.controller";
+import { PricingGatewayController } from "./controllers/pricing.controller";
+import { MediaController } from "./storage/media.controller";
+import { InventoryCheckController } from "./controllers/inventory-check.controller";
+import { SupplierCreditController } from "./controllers/supplier-credit.controller";
+import { StockTransferController } from "./controllers/stock-transfer.controller";
+import { AdminEmployeeController } from "./controllers/admin-employee.controller";
+import { ReportController } from "./controllers/report.controller";
+import { FinanceController } from "./controllers/finance.controller";
+import { SensorController } from "./controllers/sensor.controller";
+import { HrController } from "./controllers/hr.controller";
+import { RfqController } from "./controllers/rfq.controller";
+import { RfqPortalController } from "./controllers/rfq-portal.controller";
+import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
+import { RecommendationController } from "./controllers/recommendation.controller";
+import { EmailNewsletterController } from "./controllers/email-newsletter.controller";
+import { subscribeToKafkaTopics } from "./common/kafka.helper";
+
+import { FeedbackController } from "./controllers/feedback.controller";
+import { ProductReviewController } from "./controllers/product-review.controller";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { JwtStrategy } from "./strategies/jwt.strategy";
+import { GoogleStrategy } from "./strategies/google.strategy";
+import { S3StorageService } from "./storage/s3-storage.service";
+import { CloudinaryStorageService } from "./storage/cloudinary-storage.service";
+import { ReportService } from "./services/report.service";
+import { WebsocketModule } from "./websocket/websocket.module";
+import { NotificationModule } from "./notification/notification.module";
+import { AiClinicalModule } from "./ai-clinical/ai-clinical.module";
+import { APP_INTERCEPTOR } from "@nestjs/core";
+import { AuditLogInterceptor } from "./interceptors/audit-log.interceptor";
+import { RedactionService } from "./services/redaction.service";
+import { AuditFallbackProcessor } from "./processors/audit-fallback.processor";
+import { RedisModule } from "./redis/redis.module";
+import { MetricsModule } from "./metrics/metrics.module";
+
+import { randomUUID } from "crypto";
+
+const gatewayInstanceId = randomUUID().substring(0, 8);
+
+/**
+ * Root Module của API Gateway
+ * Chỉ chứa các module để routing và caching — không kết nối trực tiếp Database
+ */
+@Module({
+  imports: [
+    MetricsModule,
+    // Đọc biến môi trường toàn cục
+    ConfigModule.forRoot({ isGlobal: true }),
+
+    // MongoDB connection for notifications persistence
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        uri: config.get<string>("MONGODB_URI"),
+      }),
+      inject: [ConfigService],
+    }),
+
+    // Redis Cache (Cache-Aside Strategy)
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 3600,
+    }),
+
+    PassportModule.register({ defaultStrategy: "jwt" }),
+
+    // JWT Module — cần để JwtStrategy có thể verify token
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        secret:
+          process.env.JWT_SECRET ||
+          config.get<string>("JWT_SECRET") ||
+          "wdp301-super-secret-key-change-in-production",
+        signOptions: {
+          expiresIn: config.get<string>("JWT_EXPIRES_IN", "3600s"),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+
+    ClientsModule.register([
+      {
+        name: "SUPPLIER_SERVICE",
+        transport: Transport.KAFKA,
+        options: {
+          client: {
+            clientId: "api-gw-supplier-client",
+            brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+            connectionTimeout: 10000,
+            retry: { initialRetryTime: 1000, retries: 10 },
+            logLevel: 0,
+          },
+          consumer: { groupId: `api-gw-supplier-group-${gatewayInstanceId}` },
+          producer: { allowAutoTopicCreation: true, maxMessageBytes: 10485760 },
+        },
+      },
+      {
+        name: "INVENTORY_SERVICE",
+        transport: Transport.KAFKA,
+        options: {
+          client: {
+            clientId: "api-gw-inventory-client",
+            brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+            connectionTimeout: 10000,
+            retry: { initialRetryTime: 1000, retries: 10 },
+            logLevel: 0,
+          },
+          consumer: { groupId: `api-gw-inventory-group-${gatewayInstanceId}` },
+          producer: { allowAutoTopicCreation: true, maxMessageBytes: 10485760 },
+        },
+      },
+      {
+        name: "USER_SERVICE",
+        transport: Transport.KAFKA,
+        options: {
+          client: {
+            clientId: "api-gateway-user-client",
+            brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+            connectionTimeout: 10000,
+            retry: { initialRetryTime: 1000, retries: 10 },
+            logLevel: 0,
+          },
+          consumer: {
+            groupId: `api-gateway-user-group-${gatewayInstanceId}`,
+          },
+          producer: { allowAutoTopicCreation: true, maxMessageBytes: 10485760 },
+        },
+      },
+      {
+        name: "KAFKA_SERVICE",
+        transport: Transport.KAFKA,
+        options: {
+          client: {
+            clientId: "api-gateway",
+            brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+            connectionTimeout: 10000,
+            retry: { initialRetryTime: 1000, retries: 10 },
+            logLevel: 0,
+          },
+          consumer: {
+            groupId: `api-gateway-group-${gatewayInstanceId}`,
+          },
+          producer: { allowAutoTopicCreation: true, maxMessageBytes: 10485760 },
+        },
+      },
+      {
+        name: "ORDER_SERVICE",
+        transport: Transport.KAFKA,
+        options: {
+          client: {
+            clientId: "api-gw-order-client",
+            brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+            connectionTimeout: 10000,
+            retry: { initialRetryTime: 1000, retries: 10 },
+            logLevel: 0,
+          },
+          consumer: { groupId: `api-gw-order-group-${gatewayInstanceId}` },
+          producer: { allowAutoTopicCreation: true, maxMessageBytes: 10485760 },
+        },
+      },
+    ]),
+    WebsocketModule,
+    NotificationModule,
+    AiClinicalModule,
+    RedisModule,
+  ],
+  controllers: [
+    SupplierController,
+    PurchaseRequisitionController,
+    PurchaseOrderController,
+    GoodsReceiptController,
+    InventoryTransactionController,
+    PrescriptionController,
+    SalesController,
+    UserController,
+    MedicineController,
+    AuthController,
+    OrderController,
+    VoucherController,
+    BranchController,
+    PricingGatewayController,
+    MediaController,
+    InventoryCheckController,
+    SupplierCreditController,
+    StockTransferController,
+    AdminEmployeeController,
+    ReportController,
+    FinanceController,
+    FeedbackController,
+    ProductReviewController,
+    HrController,
+    RfqController,
+    RfqPortalController,
+    MarketingCampaignController,
+    RecommendationController,
+    EmailNewsletterController,
+    SensorController,
+  ],
+  providers: [
+    JwtAuthGuard,
+    JwtStrategy,
+    GoogleStrategy,
+    S3StorageService,
+    CloudinaryStorageService,
+    ReportService,
+    RedactionService,
+    AuditFallbackProcessor,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditLogInterceptor,
+    },
+  ],
+})
+export class AppGatewayModule implements OnModuleInit {
+  constructor(
+    @Inject("INVENTORY_SERVICE") private readonly inventoryClient: ClientKafka,
+    @Inject("SUPPLIER_SERVICE") private readonly supplierClient: ClientKafka,
+    @Inject("USER_SERVICE") private readonly userClient: ClientKafka,
+    @Inject("ORDER_SERVICE") private readonly orderClient: ClientKafka,
+    @Inject("KAFKA_SERVICE") private readonly kafkaClient: ClientKafka,
+  ) { }
+
+  async onModuleInit() {
+    // 1. INVENTORY_SERVICE Reply Topics
+    const inventoryTopics = [
+      "inventory.medicine.list",
+      "product.review.create",
+      "product.review.get_list",
+      "product.review.get_summary",
+      "product.review.get_by_customer",
+      "product.review.vote_helpful",
+      "inventory.medicine.subcategory_counts",
+      "inventory.medicine.get_by_id",
+      "inventory.medicine.update_status",
+      "inventory.medicine.update_price_tiers",
+      "inventory.medicine.get_filters",
+      "inventory.medicine.stats",
+      "inventory.medicine.expiration_report",
+      "inventory.medicine.handle_expiration_action",
+      "inventory.medicine.low_stock_report",
+      "inventory.medicine.dropdown_list",
+      "inventory.medicine.get_alternatives",
+      "inventory.medicine.update_price",
+      "inventory.medicine.safe_stock_chain",
+      "inventory.medicine.detect_anomalies",
+      "inventory.medicine.branch_list",
+      "inventory.medicine.create",
+      "inventory.medicine.update",
+      "inventory.medicine.warehouse_map",
+      "inventory.medicine.warehouse_search",
+      "inventory.medicine.shelf_detail",
+      "inventory.medicine.shelf.layout",
+      "inventory.medicine.reserve.list",
+      "inventory.medicine.bin.detail",
+      "inventory.medicine.sync_locations",
+      "inventory.medicine.get_by_barcode",
+      "inventory.medicine.generate_barcode",
+      "inventory.reports.forecast_dataset",
+      "inventory.reports.seasonal_trends",
+      "inventory.report.create",
+      "inventory.report.list",
+      "inventory.pr.create",
+      "inventory.pr.list",
+      "inventory.pr.get_by_id",
+      "inventory.pr.process_urgent",
+      "inventory.rfq.create",
+      "inventory.rfq.list",
+      "inventory.rfq.get_by_id",
+      "inventory.rfq.send",
+      "inventory.rfq.submit_quote",
+      "inventory.rfq.award",
+      "inventory.rfq.get_by_token",
+      "inventory.rfq.submit_by_token",
+      "inventory.po.approve_pay",
+      "inventory.po.auto_route",
+      "inventory.po.list",
+      "inventory.po.get_by_id",
+      "inventory.po.reject_delivery",
+      "inventory.grn.create",
+      "inventory.grn.list",
+      "inventory.grn.get_by_id",
+      "inventory.grn.submit_inspection",
+      "inventory.grn.approve",
+      "inventory.grn.reject",
+      "inventory.grn.update",
+      "inventory.inspection.create",
+      "inventory.inspection.verify_item",
+      "inventory.inspection.submit",
+      "inventory.inspection.list",
+      "inventory.transactions.list",
+      "inventory.prescription.get",
+      "inventory.prescription.get_by_code",
+      "inventory.prescription.list",
+      "inventory.sales.create",
+      "inventory.sales.list",
+      "inventory.sales.get_by_id",
+      "inventory.sales.return",
+      "inventory.sales.exchange",
+      "inventory.transfer.create",
+      "inventory.transfer.create_direct",
+      "inventory.transfer.recommend",
+      "inventory.transfer.receive",
+      "inventory.transfer.list",
+      "inventory.transfer.get_by_id",
+      "inventory.sale.report",
+      "inventory.sensor.get_latest",
+      "inventory.sensor.get_history",
+      "inventory.sensor.get_stations",
+      "inventory.recommendation.for_you",
+      "inventory.recommendation.recent_searches",
+    ];
+
+    // 2. SUPPLIER_SERVICE Reply Topics
+    const supplierTopics = [
+      "supplier.get_all",
+      "supplier.get_by_id",
+      "supplier.create",
+      "supplier.update",
+      "supplier.delete",
+    ];
+
+    // 3. USER_SERVICE Reply Topics
+    const userTopics = [
+      "user.edit_profile",
+      "user.change_avatar",
+      "user.cart.get",
+      "user.cart.add",
+      "user.cart.update",
+      "user.cart.delete",
+      "user.cart.clear",
+      "user.loyalty.get",
+      "user.loyalty.lookup",
+      "user.loyalty.update_points",
+      "user.audit.list",
+      "user.audit.export",
+      "user.audit.export_status",
+      "user.branch.list",
+      "user.branch.create",
+      "user.branch.update",
+      "user.branch.delete",
+      "user.admin.employee.create",
+      "user.admin.employee.list",
+      "user.admin.employee.get",
+      "user.admin.employee.update",
+      "user.admin.employee.ban_unban",
+      "user.admin.employee.delete",
+      "user.admin.employee.approve",
+      "user.feedback.create",
+      "user.feedback.get_by_branch",
+      "user.feedback.resolve",
+      "user.feedback.chain_summary",
+      "user.feedback.get_by_customer",
+      "user.rfm.get_by_phone",
+      "user.rfm.overview",
+      "user.rfm.recalculate",
+      "user.rfm.at_risk_list",
+      "hr.shift.list",
+      "hr.shift.create",
+      "hr.shift.update",
+      "hr.shift.toggle",
+      "hr.schedule.get_week",
+      "hr.schedule.upsert",
+      "hr.schedule.publish",
+      "hr.schedule.my_week",
+      "hr.swap.list",
+      "hr.swap.my_list",
+      "hr.swap.create",
+      "hr.swap.target_respond",
+      "hr.swap.manager_respond",
+      "hr.notification.list",
+      "hr.notification.mark_read",
+      "hr.notification.unread_count",
+      "hr.certificate.submit",
+      "hr.certificate.my_list",
+      "hr.certificate.update",
+      "hr.certificate.delete",
+      "hr.certificate.branch_list",
+      "hr.certificate.approve",
+      "hr.certificate.reject",
+      "hr.certificate.branch_summary",
+      "user.branch.update_location",
+      "hr.attendance.check_in",
+      "hr.attendance.check_out",
+      "hr.attendance.my_current_shift",
+      "hr.attendance.verify_active_shift",
+      "hr.attendance.branch_today",
+      "hr.attendance.history",
+      "hr.payroll.calculate",
+      "hr.payroll.list",
+      "hr.payroll.detail",
+      "hr.payroll.adjust",
+      "hr.payroll.submit",
+      "hr.payroll.approve",
+      "hr.payroll.my_payslip",
+      // Kafka reply topics cho ban giao ca (Shift Handover) va quan ly nghi phep
+      "hr.shift_handover.live_stats",
+      "hr.shift_handover.submit",
+      "hr.shift_handover.accept",
+      "hr.shift_handover.history",
+      "hr.shift_handover.detail",
+      "hr.leave.balance",
+      "hr.leave.my_list",
+      "hr.leave.branch_list",
+      "hr.leave.create",
+      "hr.leave.respond",
+      "hr.leave.cancel",
+      // Kafka reply topics cho hệ thống Email Newsletter Marketing
+      "email.campaign.create",
+      "email.campaign.update",
+      "email.campaign.get.all",
+      "email.campaign.get.by.id",
+      "email.campaign.send_test",
+      "email.campaign.stats",
+      "email.campaign.cancel",
+      "email.campaign.delete",
+      "email.newsletter.unsubscribe",
+    ];
+
+    // 4. ORDER_SERVICE Reply Topics
+    const orderTopics = [
+      "orders.create",
+      "orders.check",
+      "orders.list",
+      "orders.my-orders",
+      "finance.expense.create",
+      "finance.expense.list",
+      "finance.cashflow.summary",
+      "finance.payment_voucher.create",
+      "finance.payment_voucher.list",
+      "orders.payment.webhook_received",
+      "orders.reconciliation.manual_override",
+      "orders.reconciliation.get_discrepancies",
+      "orders.reconciliation.summary",
+      "orders.reconciliation.resolve",
+      "orders.campaign.create",
+      "orders.campaign.list",
+      "orders.campaign.get_by_id",
+      "orders.campaign.add_cost",
+      "orders.campaign.analytics",
+      "orders.shift.aggregate_sales",
+      "orders.pharmacist.kpi_report",
+    ];
+
+    // 5. KAFKA_SERVICE Reply Topics
+    const kafkaTopics = [
+      "auth.login",
+      "auth.register",
+      "auth.google.login",
+      "auth.validate.token",
+      "auth.get.user.by.id",
+      "auth.forgot.password",
+      "auth.reset.password",
+      "auth.2fa.generate",
+      "auth.2fa.enable",
+      "auth.2fa.disable",
+      "auth.2fa.authenticate",
+      "auth.verify.email",
+      "auth.resend.verification",
+    ];
+
+    const { ensureKafkaTopicsExist, connectKafkaClient } = require("./common/kafka.helper");
+    const allTopics = [
+      ...inventoryTopics,
+      ...supplierTopics,
+      ...userTopics,
+      ...orderTopics,
+      ...kafkaTopics,
+    ];
+    await ensureKafkaTopicsExist(allTopics);
+
+    for (const t of inventoryTopics)
+      this.inventoryClient.subscribeToResponseOf(t);
+    for (const t of supplierTopics)
+      this.supplierClient.subscribeToResponseOf(t);
+    for (const t of userTopics) this.userClient.subscribeToResponseOf(t);
+    for (const t of orderTopics) this.orderClient.subscribeToResponseOf(t);
+    for (const t of kafkaTopics) this.kafkaClient.subscribeToResponseOf(t);
+
+    await Promise.all([
+      connectKafkaClient(this.inventoryClient),
+      connectKafkaClient(this.supplierClient),
+      connectKafkaClient(this.userClient),
+      connectKafkaClient(this.orderClient),
+      connectKafkaClient(this.kafkaClient),
+    ]);
+
+    console.log(
+      "🏁 [API Gateway] All global Kafka reply topics pre-subscribed & connected successfully.",
+    );
+  }
+}

@@ -1,0 +1,66 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+@Schema()
+export class PurchaseOrderItem {
+  @Prop({ type: String, required: true })
+  medicineId: string;
+
+  @Prop({ type: String, default: '' })
+  medicineName: string;
+
+  @Prop({ type: Number, required: true, min: 1 })
+  quantity: number;
+
+  @Prop({ type: Number, default: 0 })
+  receivedQuantity: number; // Số lượng đã nhận thực tế (dùng cho Partial Delivery)
+
+  @Prop({ type: Number, required: true, min: 0 })
+  unitPrice: number;
+}
+export const PurchaseOrderItemSchema = SchemaFactory.createForClass(PurchaseOrderItem);
+
+@Schema({ timestamps: true, collection: 'purchaseorders' })
+export class PurchaseOrder extends Document {
+  @Prop({ type: String })
+  poCode?: string;
+
+  @Prop({ type: String, required: true })
+  supplierId: string;
+
+  @Prop({ type: [PurchaseOrderItemSchema], required: true })
+  items: PurchaseOrderItem[];
+
+  @Prop({ type: Number, required: true, min: 0 })
+  totalAmount: number;
+
+  @Prop({
+    type: String,
+    default: 'PENDING_APPROVAL',
+    enum: ['PENDING_APPROVAL', 'SHIPPING', 'RECEIVING', 'PARTIAL_RECEIVED', 'COMPLETED', 'RETURNED', 'CANCELLED'],
+  })
+  status: string;
+
+  @Prop({ type: String }) // Optional user ID of creator
+  createdBy: string;
+
+  @Prop({ type: [String], default: [] }) // Liên kết ngược lại các PR gốc
+  linkedPrIds: string[];
+
+  @Prop({ type: [String], default: [] }) // Lưu mã PR để hiển thị và tìm kiếm
+  linkedPrCodes: string[];
+
+  @Prop({ type: Number, default: 0 }) // Pipeline/Incoming Stock — hàng dự kiến về
+  expectedIncoming: number;
+
+  @Prop({ type: String, default: 'PAID', enum: ['PAID', 'CREDIT'] })
+  paymentType: string; // Thanh toán ngay (PAID) vs Mua nợ (CREDIT)
+
+  @Prop({ type: String, default: 'CENTRAL_WH' })
+  branchId?: string; // Cơ sở tiếp nhận nhập kho thực tế (mặc định Kho Tổng CENTRAL_WH hoặc chi nhánh nhận)
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);

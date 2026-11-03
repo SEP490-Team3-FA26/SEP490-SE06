@@ -1,0 +1,91 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { OrdersServiceController } from './orders-service.controller';
+import { OrdersServiceService } from './orders-service.service';
+import { Order, OrderSchema } from './schemas/order.schema';
+import { Voucher, VoucherSchema } from './schemas/voucher.schema';
+import { Expense, ExpenseSchema } from './schemas/expense.schema';
+import { PaymentWebhookLog, PaymentWebhookLogSchema } from './schemas/payment-webhook-log.schema';
+import { PaymentReconciliation, PaymentReconciliationSchema } from './schemas/payment-reconciliation.schema';
+import { PaymentVoucher, PaymentVoucherSchema } from './schemas/payment-voucher.schema';
+import { MarketingCampaign, MarketingCampaignSchema } from './schemas/marketing-campaign.schema';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'),
+      }),
+      inject: [ConfigService],
+    }),
+    MongooseModule.forFeature([
+      { name: Order.name, schema: OrderSchema },
+      { name: Voucher.name, schema: VoucherSchema },
+      { name: Expense.name, schema: ExpenseSchema },
+      { name: PaymentWebhookLog.name, schema: PaymentWebhookLogSchema },
+      { name: PaymentReconciliation.name, schema: PaymentReconciliationSchema },
+      { name: PaymentVoucher.name, schema: PaymentVoucherSchema },
+      { name: MarketingCampaign.name, schema: MarketingCampaignSchema },
+    ]),
+    ClientsModule.registerAsync([
+      {
+        name: 'INVENTORY_SERVICE',
+        imports: [ConfigModule],
+        useFactory: async (configService: ConfigService) => ({
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'orders-to-inventory-client',
+              brokers: (configService.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+            },
+            consumer: {
+              groupId: 'orders-to-inventory-group',
+            },
+          },
+        }),
+        inject: [ConfigService],
+      },
+      {
+        name: 'USER_SERVICE',
+        imports: [ConfigModule],
+        useFactory: async (configService: ConfigService) => ({
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'orders-to-user-client',
+              brokers: (configService.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+            },
+            consumer: {
+              groupId: 'orders-to-user-group',
+            },
+          },
+        }),
+        inject: [ConfigService],
+      },
+      {
+        name: 'AUTH_SERVICE',
+        imports: [ConfigModule],
+        useFactory: async (configService: ConfigService) => ({
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'orders-to-auth-client',
+              brokers: (configService.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+            },
+            consumer: {
+              groupId: 'orders-to-auth-group',
+            },
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
+  ],
+  controllers: [OrdersServiceController],
+  providers: [OrdersServiceService],
+})
+export class OrdersServiceModule {}

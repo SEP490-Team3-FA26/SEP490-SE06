@@ -1,0 +1,54 @@
+import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { UserServiceModule } from './user-service.module';
+
+process.on('unhandledRejection', (reason) => {
+  console.warn('⚠️ [User MS] Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ [User MS] Uncaught Exception:', err);
+});
+
+async function bootstrap() {
+  // Khoi tao User Microservice voi tinh nang tham dinh bang cap
+  process.env.KAFKAJS_NO_PARTITIONER_WARNING = '1';
+  let retries = 10;
+  while (retries > 0) {
+    try {
+      console.log('🔄 Đang kết nối tới Kafka...');
+      const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+        UserServiceModule,
+        {
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'user-service',
+              brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+              connectionTimeout: 10000,
+              retry: { initialRetryTime: 1000, retries: 10 },
+              logLevel: 0,
+            },
+            consumer: {
+              groupId: (process.env.KAFKA_GROUP_ID || 'wdp301-consumers') + '-user',
+            },
+            subscribe: {
+              allowAutoTopicCreation: true,
+            },
+          } as any,
+          logger: ['error', 'warn'],
+        },
+      );
+
+      await app.listen();
+      console.log('🚀 User Microservice khởi động thành công!');
+      break;
+    } catch (error) {
+      console.log('🔄 Kafka chưa sẵn sàng, đang thử lại sau 5s...');
+      retries--;
+      if (retries === 0) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+  }
+}
+
+bootstrap();

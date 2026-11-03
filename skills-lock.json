@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "skills": {
+    "abc-code-review": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/abc-code-review/SKILL.md"
+    },
+    "abc-drawio": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/abc-drawio/SKILL.md"
+    },
+    "abc-frontend-skill": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/abc-frontend-skill/SKILL.md"
+    },
+    "code-review": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/code-review/SKILL.md",
+      "computedHash": "57cfd4ceb011f05e58a1a4f4cad3b2e03419d371f8990f4bcb32ff0d435a039f"
+    },
+    "google-docx": {
+      "source": "./local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/google-docx/SKILL.md"
+    },
+    "webapp-testing": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/webapp-testing/SKILL.md",
+      "computedHash": "ad5b1fc52807e9afa4635e59218a026b164dc58b6c3f41b0f7c644dcd6ccf572"
+    }
+  }
+}

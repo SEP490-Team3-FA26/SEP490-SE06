@@ -1,0 +1,119 @@
+node_modules/
+dist/
+.next/
+out/
+build/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+coverage/
+.temp/
+supabase/.temp/
+backend/supabase/.temp/
+ssl/
+
+
+# Terraform
+infra/.terraform*
+infra/terraform.tfstate*
+infra/**/.build/
+
+**/.codewhale/*
+!**/.codewhale/constitution.json
+.deepseek/
+phuc/
+agents.md
+AGENTS.md
+mobile/AGENTS.md
+**/AGENTS.md
+.agents/rules/mobile.md
+taste-skill/
+
+# Python Virtual Environments & Packages
+**/venv/
+**/.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDEs
+.idea/
+.vscode/
+!.vscode/settings.json
+
+docker-compose.yml
+next
+
+# Docker Compose personal overrides
+docker-compose.override.yml
+docker-compose.infra.yml
+
+.last_phone_ip
+connect_mobile.ps1
+.playwright-mcp/
+
+# AI-service custom OCR training pipeline (see training/README.md)
+backend/apps/ai-service/training/.venv-train/
+backend/apps/ai-service/training/checkpoints/
+backend/apps/ai-service/training/*_prescription_stage_a/
+backend/apps/ai-service/models/*.pth
+backend/apps/ai-service/data/raw/
+backend/apps/ai-service/data/labels/
+backend/apps/ai-service/data/synthetic/
+!backend/apps/ai-service/data/splits/*.jsonl
+*.lnk
+*.apk
+frontend/public/download/
+
+# Local Quick-Start Scripts
+start-dev.bat
+start-dev.ps1
+start-dev-ai.bat
+start-dev-ai.ps1
+stop-dev.bat
+stop-dev.ps1
+start-emulator.bat
+mode-eco.bat
+mode-full.bat
+capture-screen.bat
+
+# Flutter ephemeral & build artifacts
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/flutter/ephemeral/
+**/ephemeral/
+
+# Google Cloud Credentials / Service Accounts
+service_account*.json
+*service-account*.json
+*google-services*.json
+*.pem
+
+# Uploaded media and temporary audio records
+backend/public/uploads/
+public/uploads/
+*.webm
+# Temporary build & artifacts
+.codex-build/
+presentation-output/
+specs/
+
+# Monitoring & Logs Credentials
+gitops/monitoring/dozzle/users.yml
+!gitops/monitoring/dozzle/users.yml.example
+
+# Dependency Lock Files (Chống xung đột lockfile nhảy hàng ngàn dòng liên tục)
+package-lock.json
+**/package-lock.json
+yarn.lock
+**/yarn.lock
+pnpm-lock.yaml
+**/pnpm-lock.yaml
+
+# Binary office files
+*.xlsx
+*.docx

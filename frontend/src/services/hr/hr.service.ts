@@ -1,0 +1,353 @@
+import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
+
+export interface BranchAttendanceRecord {
+  _id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeRole: string;
+  branchId: string;
+  shiftId: string;
+  shiftName: string;
+  date: string;
+  checkInTime?: string;
+  checkInLatitude?: number;
+  checkInLongitude?: number;
+  checkInDistanceMeters?: number;
+  checkOutTime?: string;
+  checkOutLatitude?: number;
+  checkOutLongitude?: number;
+  durationMinutes?: number | null;
+  status: 'CHECKED_IN' | 'COMPLETED' | 'LATE' | 'ABSENT' | 'ON_LEAVE_PAID' | 'ON_LEAVE_UNPAID';
+  isMockLocation: boolean;
+  handoverId?: string;
+  isHandoverSubmitted?: boolean;
+  isHandoverCompleted?: boolean;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceHistorySummary {
+  totalRecords: number;
+  onTimeCount: number;
+  lateCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  onLeaveCount: number;
+}
+
+export interface BranchAttendanceHistoryResponse {
+  items: BranchAttendanceRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  summary: AttendanceHistorySummary;
+}
+
+
+export interface WorkShift { 
+  _id: string; 
+  branchId: string; 
+  name: string; 
+  startTime: string; 
+  endTime: string; 
+  color: string; 
+  isActive: boolean;
+}
+
+export interface WorkScheduleAssignment { 
+  date: string; 
+  shiftId: string; 
+  shiftName: string; 
+  shiftStart: string; 
+  shiftEnd: string; 
+  employeeId: string; 
+  employeeName: string; 
+  note: string;
+}
+
+export interface WorkSchedule { 
+  _id: string; 
+  branchId: string; 
+  weekStart: string; 
+  weekEnd: string; 
+  status: 'draft'|'published'; 
+  assignments: WorkScheduleAssignment[]; 
+  publishedAt?: string; 
+  publishedBy: string;
+}
+
+export interface ShiftSwapRequest { 
+  _id: string; 
+  branchId: string; 
+  requesterId: string; 
+  requesterName: string; 
+  requesterShiftDate: string; 
+  requesterShiftId: string; 
+  requesterShiftName: string; 
+  targetId: string; 
+  targetName: string; 
+  targetShiftDate: string; 
+  targetShiftId: string; 
+  targetShiftName: string; 
+  reason: string; 
+  status: 'pending_target'|'pending_manager'|'approved'|'rejected'; 
+  targetResponse?: string; 
+  targetRejectReason?: string; 
+  managerResponse?: string; 
+  managerRejectReason?: string; 
+  createdAt: string;
+}
+
+export interface StaffNotification { 
+  _id: string; 
+  recipientId: string; 
+  branchId: string; 
+  type: string; 
+  title: string; 
+  message: string; 
+  relatedId?: string; 
+  isRead: boolean; 
+  createdAt: string;
+}
+
+export type LeaveType = 'ANNUAL_PAID' | 'SICK_LEAVE' | 'UNPAID' | 'SPECIAL_PAID';
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface LeaveRequest {
+  _id: string;
+  branchId: string;
+  requesterId: string;
+  requesterName: string;
+  requesterRole: string;
+  leaveType: LeaveType;
+  shiftDate: string;
+  shiftId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  shiftsCount: number;
+  reason: string;
+  attachmentUrl?: string;
+  status: LeaveStatus;
+  managerId?: string;
+  managerName?: string;
+  managerNote?: string;
+  managerRespondedAt?: string;
+  isWarningGppUnderstaffed?: boolean;
+  cancelReason?: string;
+  cancelledAt?: string;
+  createdAt: string;
+}
+
+export interface LeaveBalanceResponse {
+  leaves: LeaveRequest[];
+  balance: number;
+  used: number;
+}
+
+export const hrService = {
+  // --- SHIFTS ---
+  listShifts: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.SHIFTS);
+    return response.data as WorkShift[];
+  },
+  createShift: async (data: Partial<WorkShift>) => {
+    const response = await api.post(API_ENDPOINTS.HR.SHIFTS, data);
+    return response.data;
+  },
+  updateShift: async (id: string, data: Partial<WorkShift>) => {
+    const response = await api.patch(API_ENDPOINTS.HR.SHIFT_DETAIL(id), data);
+    return response.data;
+  },
+  toggleShift: async (id: string) => {
+    const response = await api.patch(`${API_ENDPOINTS.HR.SHIFT_DETAIL(id)}/toggle`);
+    return response.data;
+  },
+
+  // --- SCHEDULES ---
+  getWeekSchedule: async (weekStart: string, branchId?: string) => {
+    const params: any = { weekStart };
+    if (branchId && branchId !== 'all') params.branchId = branchId;
+    const response = await api.get(API_ENDPOINTS.HR.WEEK_SCHEDULES, { params });
+    return response.data as WorkSchedule;
+  },
+  upsertSchedule: async (data: { weekStart: string; assignments: any[] }) => {
+    const response = await api.post(API_ENDPOINTS.HR.SCHEDULES, data);
+    return response.data;
+  },
+  publishSchedule: async (weekStart: string, sendEmailNotification: boolean = true) => {
+    const response = await api.post(API_ENDPOINTS.HR.PUBLISH_SCHEDULE, { weekStart, sendEmailNotification });
+    return response.data;
+  },
+  getMyWeekSchedule: async (weekStart: string) => {
+    const response = await api.get(`${API_ENDPOINTS.HR.SCHEDULES}/my-week`, { params: { weekStart } });
+    return response.data as WorkSchedule;
+  },
+
+  // --- SWAPS ---
+  listSwaps: async (status?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.SWAPS, { params: { status } });
+    return response.data as ShiftSwapRequest[];
+  },
+  listMySwaps: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.MY_SWAPS);
+    return response.data as ShiftSwapRequest[];
+  },
+  createSwap: async (data: Partial<ShiftSwapRequest>) => {
+    const response = await api.post(API_ENDPOINTS.HR.SWAPS, data);
+    return response.data;
+  },
+  targetRespond: async (id: string, data: { response: string; rejectReason?: string }) => {
+    const response = await api.patch(`${API_ENDPOINTS.HR.SWAPS}/${id}/target-respond`, data);
+    return response.data;
+  },
+  managerRespond: async (id: string, data: { response: string; rejectReason?: string }) => {
+    const response = await api.patch(`${API_ENDPOINTS.HR.SWAPS}/${id}/manager-respond`, data);
+    return response.data;
+  },
+
+  // --- NOTIFICATIONS ---
+  listNotifications: async (limit?: number, skip?: number) => {
+    const response = await api.get(API_ENDPOINTS.HR.NOTIFICATIONS, { params: { limit, skip } });
+    return response.data as StaffNotification[];
+  },
+  markRead: async (notificationId?: string) => {
+    const response = await api.patch(API_ENDPOINTS.HR.MARK_NOTIFICATION_READ(notificationId || ''));
+    return response.data;
+  },
+  getUnreadCount: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.UNREAD_NOTIFICATIONS);
+    return response.data as number;
+  },
+
+  // --- COLLEAGUES ---
+  getColleagues: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.COLLEAGUES);
+    return response.data;
+  },
+
+  // --- ATTENDANCE & SHIFT VERIFICATION ---
+  getMyCurrentShift: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_MY_CURRENT_SHIFT);
+    return response.data as {
+      inShift: boolean;
+      isCheckedIn: boolean;
+      currentShift: any;
+      attendance: any;
+      branch: any;
+    };
+  },
+
+  attendanceCheckIn: async (data: { latitude: number; longitude: number; shiftId?: string; note?: string }) => {
+    const response = await api.post(API_ENDPOINTS.HR.ATTENDANCE_CHECK_IN, data);
+    return response.data;
+  },
+
+  attendanceCheckOut: async (data?: { latitude?: number; longitude?: number; note?: string }) => {
+    const response = await api.post(API_ENDPOINTS.HR.ATTENDANCE_CHECK_OUT, data || {});
+    return response.data;
+  },
+
+  getBranchTodayAttendance: async (date?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_TODAY, { params: { date } });
+    return response.data;
+  },
+
+  getBranchAttendanceHistory: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    employeeId?: string;
+    shiftId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    branchId?: string;
+  }) => {
+    const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_BRANCH_HISTORY, { params });
+    return response.data as BranchAttendanceHistoryResponse;
+  },
+
+  // --- SHIFT HANDOVER & CASH DRAWER RECONCILIATION ---
+  getShiftHandoverLiveStats: async (shiftId?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.SHIFT_HANDOVER_LIVE_STATS, { params: { shiftId } });
+    return response.data;
+  },
+
+  submitShiftHandover: async (data: any) => {
+    const response = await api.post(API_ENDPOINTS.HR.SHIFT_HANDOVER_SUBMIT, data);
+    return response.data;
+  },
+
+  acceptShiftHandover: async (id: string) => {
+    const response = await api.post(API_ENDPOINTS.HR.SHIFT_HANDOVER_ACCEPT(id));
+    return response.data;
+  },
+
+  getShiftHandoverHistory: async (params?: { date?: string; limit?: number }) => {
+    const response = await api.get(API_ENDPOINTS.HR.SHIFT_HANDOVER_HISTORY, { params });
+    return response.data;
+  },
+
+  getShiftHandoverDetail: async (id: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.SHIFT_HANDOVER_DETAIL(id));
+    return response.data;
+  },
+
+  // --- PHARMACIST SALES KPI REPORT (UC-111 / SCRUM-106) ---
+  getPharmacistKpiReport: async (params?: { month?: number; year?: number; startDate?: string; endDate?: string; pharmacistId?: string; quota?: number }) => {
+    const response = await api.get(API_ENDPOINTS.HR.PHARMACIST_KPI_REPORT, { params });
+    return response.data;
+  },
+
+  // --- LEAVE MANAGEMENT ---
+  getLeaveBalance: async () => {
+    const response = await api.get(API_ENDPOINTS.HR.LEAVE_BALANCE);
+    return response.data as { annualLeaveBalance: number; usedAnnualLeave: number };
+  },
+
+  getMyLeaves: async (status?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.LEAVES_MINE, { params: { status } });
+    return response.data as LeaveBalanceResponse;
+  },
+
+  getBranchLeaves: async (status?: string) => {
+    const response = await api.get(API_ENDPOINTS.HR.LEAVES_BRANCH, { params: { status } });
+    return response.data as LeaveRequest[];
+  },
+
+  createLeave: async (data: {
+    shiftDate: string;
+    shiftId: string;
+    shiftName: string;
+    startTime: string;
+    endTime: string;
+    leaveType: LeaveType;
+    reason: string;
+    attachmentUrl?: string;
+  }) => {
+    const response = await api.post(API_ENDPOINTS.HR.LEAVES, data);
+    return response.data as LeaveRequest;
+  },
+
+  respondLeave: async (id: string, data: { action: 'approve' | 'reject'; managerNote?: string }) => {
+    const response = await api.patch(API_ENDPOINTS.HR.LEAVE_RESPOND(id), data);
+    return response.data as LeaveRequest;
+  },
+
+  cancelLeave: async (id: string, cancelReason?: string) => {
+    const response = await api.patch(API_ENDPOINTS.HR.LEAVE_CANCEL(id), { cancelReason });
+    return response.data as LeaveRequest;
+  },
+
+  uploadLeaveAttachment: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(API_ENDPOINTS.HR.LEAVE_UPLOAD, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data as { url?: string; secure_url?: string };
+  },
+};

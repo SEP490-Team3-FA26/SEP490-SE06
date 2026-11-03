@@ -1,0 +1,564 @@
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Delete,
+  Param,
+  Inject,
+  OnModuleInit,
+  HttpCode,
+  HttpStatus,
+  HttpException,
+  UseGuards,
+  Request,
+  Req,
+  Res,
+  Query,
+} from '@nestjs/common';
+import * as crypto from 'crypto';
+import { AuthGuard } from '@nestjs/passport';
+import { ClientKafka } from '@nestjs/microservices';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { lastValueFrom } from 'rxjs';
+import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { LoginDto } from '../dto/login.dto';
+import { RegisterDto } from '../dto/register.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { ChangePasswordDto } from '../dto/change-password.dto';
+import { VerifyTwoFactorDto, AuthenticateTwoFactorDto } from '../dto/two-factor.dto';
+import { VerifyEmailDto, ResendVerificationDto } from '../dto/verify-email.dto';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { JwtService } from '@nestjs/jwt';
+
+@ApiTags('🔐 Authentication')
+@Controller('api/auth')
+export class AuthController implements OnModuleInit {
+  // TTL cache: 1 giờ (tính bằng mili-giây)
+  private readonly CACHE_TTL = 3600 * 1000;
+
+  // In-memory Tick-Gate: Chặn đứng tức thì (0ms) các cuộc tấn công Parallel Replay Attack bắn đồng thời
+  private readonly processingNonces = new Set<string>();
+
+  constructor(
+    @Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly jwtService: JwtService,
+  ) { }
+
+  /**
+   * Đăng ký các Reply Topic để nhận phản hồi từ Auth Microservice qua Kafka
+   * NestJS Kafka Request-Response cần đăng ký reply topic trước khi kết nối
+   */
+  async onModuleInit() {
+    await subscribeToKafkaTopics(this.kafkaClient, [
+      'auth.login',
+      'auth.register',
+      'auth.google.login',
+      'auth.validate.token',
+      'auth.get.user.by.id',
+      'auth.forgot.password',
+      'auth.reset.password',
+      'auth.change.password',
+      'auth.2fa.generate',
+      'auth.2fa.enable',
+      'auth.2fa.disable',
+      'auth.2fa.authenticate',
+      'auth.verify.email',
+      'auth.resend.verification',
+      'auth.biometrics.register',
+      'auth.biometrics.devices.list',
+      'auth.biometrics.devices.revoke',
+      'auth.biometrics.check.device',
+      'auth.biometrics.verify',
+    ]);
+    console.log('✅ [API Gateway] Đã kết nối tới Kafka và đăng ký Reply Topics');
+  }
+
+  // ============================================================
+  // POST /api/auth/register — Đăng ký tài khoản mới
+  // ============================================================
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Đăng ký tài khoản mới' })
+  @ApiResponse({ status: 201, description: 'Đăng ký thành công' })
+  @ApiResponse({ status: 409, description: 'Email đã tồn tại' })
+  async register(@Body() dto: RegisterDto) {
+    console.log(`📤 [API Gateway] Gửi yêu cầu đăng ký tới Kafka: ${dto.email}`);
+
+    // Gửi qua Kafka -> Auth Microservice và chờ kết quả
+    return await sendKafkaMessage(this.kafkaClient, 'auth.register', JSON.stringify(dto));
+  }
+
+  // ============================================================
+  // POST /api/auth/forgot-password — Yêu cầu quên mật khẩu
+  // ============================================================
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Yêu cầu mã xác nhận qua email để đổi mật khẩu' })
+  @ApiResponse({ status: 200, description: 'Đã gửi mã xác nhận' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return await sendKafkaMessage(this.kafkaClient, 'auth.forgot.password', JSON.stringify(dto));
+  }
+
+  // ============================================================
+  // POST /api/auth/reset-password — Đặt lại mật khẩu
+  // ============================================================
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đặt lại mật khẩu mới bằng mã OTP' })
+  @ApiResponse({ status: 200, description: 'Đổi mật khẩu thành công' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return await sendKafkaMessage(this.kafkaClient, 'auth.reset.password', JSON.stringify(dto));
+  }
+
+  // =========================================================================
+  // GOOGLE OAUTH2
+  // =========================================================================
+  
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Bắt đầu luồng đăng nhập Google' })
+  async googleAuth(@Req() req) {
+    // Sẽ được Passport tự động redirect sang Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google Callback' })
+  async googleAuthRedirect(@Req() req, @Res() res) {
+    // Lúc này req.user đã chứa thông tin profile từ GoogleStrategy
+    // Gửi event 'auth.google.login' qua Kafka để Auth Microservice xử lý cấp JWT
+    const result: any = await lastValueFrom(
+      this.kafkaClient.send('auth.google.login', req.user)
+    );
+
+    const role = result.user?.role;
+    let targetUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    if (role === 'pharmacist' || role === 'admin' || role === 'director' || role === 'head_branch' || role === 'warehouse') {
+      targetUrl = process.env.FRONTEND_STAFF_URL || 'http://localhost:3001'; // Thay đổi port/domain cho staff
+    } else {
+      targetUrl = process.env.FRONTEND_CUSTOMER_URL || process.env.FRONTEND_URL || 'http://localhost:3000'; // Dành cho customer
+    }
+
+    if (result.error) {
+      return res.redirect(`${targetUrl}/login?error=${encodeURIComponent(result.message)}`);
+    }
+
+    // Redirect về Frontend kèm JWT Token
+    return res.redirect(`${targetUrl}/login?token=${result.access_token}`);
+  }
+
+  // ============================================================
+  // POST /api/auth/demo-token — Tạo token demo cho môi trường Dev/Test
+  // ============================================================
+  @Post('demo-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Tạo token JWT giả lập cho demo/test' })
+  async demoToken(@Body('role') roleStr: string) {
+    const mockUserId = '65f01234567890abcdef1234';
+    const role = roleStr?.toLowerCase() || 'customer';
+    
+    let mappedRole = 'user';
+    if (role === 'admin') mappedRole = 'admin';
+    else if (role === 'director') mappedRole = 'director';
+    else if (role === 'head_branch' || role === 'headbranch') mappedRole = 'director';
+    else if (role === 'warehouse') mappedRole = 'warehouse';
+    else if (role === 'pharmacist') mappedRole = 'pharmacist';
+
+    const payload = {
+      sub: mockUserId,
+      email: `${role}@example.com`,
+      role: mappedRole,
+      fullName: `Demo ${roleStr || 'Customer'}`,
+      branchId: 'BR-001',
+    };
+
+    const token = this.jwtService.sign(payload);
+    return {
+      access_token: token,
+      user: {
+        id: mockUserId,
+        email: payload.email,
+        fullName: payload.fullName,
+        role: mappedRole,
+        branchId: 'BR-001',
+      }
+    };
+  }
+
+  // ============================================================
+  // POST /api/auth/login — Đăng nhập
+  // ============================================================
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đăng nhập tài khoản' })
+  @ApiResponse({ status: 200, description: 'Đăng nhập thành công, trả về JWT token' })
+  @ApiResponse({ status: 401, description: 'Sai email hoặc mật khẩu' })
+  async login(@Body() dto: LoginDto) {
+    console.log(`📤 [API Gateway] Gửi yêu cầu đăng nhập tới Kafka: ${dto.email}`);
+
+    // Gửi qua Kafka -> Auth Microservice để xác thực (BẮT BUỘC để check password)
+    const result: any = await sendKafkaMessage(this.kafkaClient, 'auth.login', JSON.stringify(dto));
+
+    // Xóa session cache cũ nếu có để đảm bảo an toàn
+    await this.cacheManager.del(`auth:session:${dto.email}`);
+
+    return result;
+  }
+
+  // ============================================================
+  // POST /api/auth/logout — Đăng xuất
+  // ============================================================
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Đăng xuất tài khoản' })
+  async logout(@Request() req) {
+    const { email, sub: userId } = req.user;
+
+    // Xóa session cache của user trong Redis
+    await this.cacheManager.del(`auth:session:${email}`);
+    console.log(`🗑️ [Cache Del] Đã xóa session của ${email} khỏi Redis`);
+
+    // Bắn event bất đồng bộ để ghi Audit Log (fire-and-forget)
+    this.kafkaClient.emit('auth.event.logout', JSON.stringify({ userId, email }));
+
+    return { message: 'Đăng xuất thành công!' };
+  }
+
+  // ============================================================
+  // GET /api/auth/profile — Lấy thông tin cá nhân
+  // ============================================================
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lấy thông tin tài khoản đang đăng nhập' })
+  @ApiResponse({ status: 200, description: 'Thông tin profile' })
+  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  async getProfile(@Request() req, @Query('refresh') refresh?: string) {
+    const { sub: userId } = req.user;
+
+    // Kiểm tra cache (nếu không có query refresh=true)
+    const cacheKey = `auth:profile:${userId}`;
+    if (refresh !== 'true') {
+      const cachedProfile = await this.cacheManager.get(cacheKey);
+      if (cachedProfile) {
+        console.log(`⚡ [Cache Hit] Lấy profile ${userId} từ Redis`);
+        return cachedProfile;
+      }
+    }
+
+    // Lấy từ Auth Microservice qua Kafka
+    const profile = await sendKafkaMessage(this.kafkaClient, 'auth.get.user.by.id', userId);
+
+    // Lưu vào cache
+    await this.cacheManager.set(cacheKey, profile, this.CACHE_TTL);
+    return profile;
+  }
+
+  // ============================================================
+  // POST /api/auth/change-password — Đổi mật khẩu
+  // ============================================================
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đổi mật khẩu tài khoản' })
+  @ApiResponse({ status: 200, description: 'Đổi mật khẩu thành công' })
+  @ApiResponse({ status: 401, description: 'Mật khẩu cũ không chính xác hoặc chưa đăng nhập' })
+  async changePassword(@Request() req, @Body() dto: ChangePasswordDto) {
+    const { sub: userId, email } = req.user;
+    
+    // Gửi qua Kafka -> Auth Microservice
+    const result: any = await sendKafkaMessage(
+      this.kafkaClient, 
+      'auth.change.password', 
+      JSON.stringify({ userId, oldPassword: dto.oldPassword, newPassword: dto.newPassword })
+    );
+
+    // Xóa session cache của user trong Redis để đảm bảo an toàn sau khi đổi mật khẩu
+    await this.cacheManager.del(`auth:session:${email}`);
+    await this.cacheManager.del(`auth:profile:${userId}`);
+
+    return result;
+  }
+
+  // ============================================================
+  // POST /api/auth/2fa/generate — Sinh mã 2FA QR Code
+  // ============================================================
+  @Post('2fa/generate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sinh mã QR Code và Secret Key để thiết lập 2FA' })
+  async generate2fa(@Request() req) {
+    const { sub: userId } = req.user;
+    return await sendKafkaMessage(this.kafkaClient, 'auth.2fa.generate', userId);
+  }
+
+  // ============================================================
+  // POST /api/auth/2fa/enable — Kích hoạt 2FA
+  // ============================================================
+  @Post('2fa/enable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Kích hoạt xác thực 2 lớp (2FA)' })
+  async enable2fa(@Request() req, @Body() dto: VerifyTwoFactorDto) {
+    const { sub: userId } = req.user;
+    const result = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.2fa.enable',
+      JSON.stringify({ userId, token: dto.token }),
+    );
+
+    // Xóa cache session cũ của user nếu có để cập nhật thông tin mới
+    await this.cacheManager.del(`auth:session:${req.user.email}`);
+    await this.cacheManager.del(`auth:profile:${userId}`);
+    return result;
+  }
+
+  // ============================================================
+  // POST /api/auth/2fa/disable — Hủy kích hoạt 2FA
+  // ============================================================
+  @Post('2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hủy kích hoạt xác thực 2 lớp (2FA)' })
+  async disable2fa(@Request() req, @Body() dto: VerifyTwoFactorDto) {
+    const { sub: userId } = req.user;
+    const result = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.2fa.disable',
+      JSON.stringify({ userId, token: dto.token }),
+    );
+
+    await this.cacheManager.del(`auth:session:${req.user.email}`);
+    await this.cacheManager.del(`auth:profile:${userId}`);
+    return result;
+  }
+
+  // ============================================================
+  // POST /api/auth/2fa/authenticate — Đăng nhập bước 2 (Xác thực OTP)
+  // ============================================================
+  @Post('2fa/authenticate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xác thực OTP 2FA hoàn tất đăng nhập' })
+  async authenticate2fa(@Body() dto: AuthenticateTwoFactorDto) {
+    const result: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.2fa.authenticate',
+      JSON.stringify({ tempToken: dto.tempToken, token: dto.token }),
+    );
+
+    // Lưu phiên đăng nhập thành công vào Redis cache
+    if (result && result.access_token && result.user) {
+      const cacheKey = `auth:session:${result.user.email}`;
+      await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
+      console.log(`💾 [Cache Set] Lưu session của ${result.user.email} vào Redis sau 2FA`);
+    }
+
+    return result;
+  }
+
+  // ============================================================
+  // POST /api/auth/verify-email — Xác thực email đăng ký tài khoản
+  // ============================================================
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xác thực địa chỉ email bằng mã OTP khi đăng ký' })
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.verify.email',
+      JSON.stringify(dto),
+    );
+  }
+
+  // ============================================================
+  // POST /api/auth/resend-verification — Gửi lại mã OTP kích hoạt tài khoản
+  // ============================================================
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Gửi lại mã OTP xác thực email kích hoạt tài khoản' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    return await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.resend.verification',
+      JSON.stringify(dto),
+    );
+  }
+
+  // ============================================================
+  // POST /api/auth/biometrics/challenge — Lấy mã thử thách ngẫu nhiên (Nonce)
+  // ============================================================
+  @Post('biometrics/challenge')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lấy Challenge Nonce để ký số sinh trắc học (FIDO2)' })
+  async getBiometricChallenge(@Body() dto: { emailOrPhone: string; deviceId: string }) {
+    if (!dto.emailOrPhone || !dto.deviceId) {
+      throw new HttpException('Thiếu thông tin email/số điện thoại hoặc mã thiết bị!', HttpStatus.BAD_REQUEST);
+    }
+
+    // 1. Kiểm tra tài khoản và thiết bị trên Auth Service qua Kafka
+    const checkResult: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.check.device',
+      JSON.stringify(dto),
+    );
+
+    if (checkResult?.error) {
+      throw new HttpException(checkResult.message || 'Thiết bị chưa được đăng ký hoặc tài khoản không hợp lệ!', checkResult.statusCode || HttpStatus.BAD_REQUEST);
+    }
+
+    // 2. Sinh Nonce 32-byte ngẫu nhiên cryptographically secure
+    const challenge = crypto.randomBytes(32).toString('hex');
+    // Gắn giá trị challenge vào chính Redis key để triệt tiêu race-condition và rủi ro ghi đè khi có nhiều request đồng thời
+    const nonceKey = `bio:challenge:${checkResult.userId}:${dto.deviceId}:${challenge}`;
+
+    // 3. Lưu Nonce vào Redis với TTL 60 giây (60000ms)
+    await this.cacheManager.set(nonceKey, '1', 60000);
+
+    return {
+      challenge,
+      userId: checkResult.userId,
+      email: checkResult.email,
+      fullName: checkResult.fullName,
+      expiresInSeconds: 60,
+    };
+  }
+
+  // ============================================================
+  // POST /api/auth/biometrics/verify — Xác thực Chữ Ký Số và cấp Access Token
+  // ============================================================
+  @Post('biometrics/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xác thực chữ ký số FIDO2 và đăng nhập' })
+  async verifyBiometricSignature(@Body() dto: { emailOrPhone: string; deviceId: string; challenge: string; signature: string }) {
+    if (!dto.emailOrPhone || !dto.deviceId || !dto.challenge || !dto.signature) {
+      throw new HttpException('Thiếu thông tin xác thực chữ ký sinh trắc học!', HttpStatus.BAD_REQUEST);
+    }
+
+    // 1. Lấy thông tin user để tìm Nonce trong Redis
+    const checkResult: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.check.device',
+      JSON.stringify({ emailOrPhone: dto.emailOrPhone, deviceId: dto.deviceId }),
+    );
+
+    if (checkResult?.error) {
+      throw new HttpException(checkResult.message || 'Tài khoản hoặc thiết bị không hợp lệ!', HttpStatus.UNAUTHORIZED);
+    }
+
+    const nonceKey = `bio:challenge:${checkResult.userId}:${dto.deviceId}:${dto.challenge}`;
+
+    // 2. In-memory Gate (0ms): Chặn đứng ngay lập tức các cuộc tấn công phát lại song song (Parallel Replay Attack)
+    if (this.processingNonces.has(nonceKey)) {
+      throw new HttpException('Mã xác thực đang được xử lý hoặc đã sử dụng! Vui lòng thử lại.', HttpStatus.UNAUTHORIZED);
+    }
+    this.processingNonces.add(nonceKey);
+    // Tự động giải phóng bộ nhớ sau khi TTL Redis hết hạn
+    setTimeout(() => this.processingNonces.delete(nonceKey), 65000);
+
+    // 3. Kiểm tra Nonce trong Redis và XÓA NGAY LẬP TỨC (Single-use / Destroy-on-read)
+    const savedNonce = await this.cacheManager.get<string>(nonceKey);
+    await this.cacheManager.del(nonceKey);
+
+    if (!savedNonce) {
+      throw new HttpException('Mã xác thực (Challenge) đã hết hạn hoặc không hợp lệ! Vui lòng thử lại.', HttpStatus.UNAUTHORIZED);
+    }
+
+    // 4. Gửi Kafka tới Auth Service để đối soát chữ ký số bằng Public Key trong MongoDB
+    const verifyResult: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.verify',
+      JSON.stringify(dto),
+    );
+
+    if (verifyResult?.error) {
+      throw new HttpException(verifyResult.message || 'Xác thực sinh trắc học thất bại!', verifyResult.statusCode || HttpStatus.UNAUTHORIZED);
+    }
+
+    // 5. Lưu phiên đăng nhập thành công vào Redis cache
+    if (verifyResult && verifyResult.access_token && verifyResult.user) {
+      const cacheKey = `auth:session:${verifyResult.user.email}`;
+      await this.cacheManager.set(cacheKey, verifyResult, this.CACHE_TTL);
+    }
+
+    return verifyResult;
+  }
+
+  // ============================================================
+  // POST /api/auth/biometrics/register — Đăng ký Public Key thiết bị
+  // ============================================================
+  @Post('biometrics/register')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đăng ký khóa công khai thiết bị sinh trắc học' })
+  async registerBiometrics(@Request() req, @Body() dto: { deviceId: string; deviceName?: string; publicKey: string }) {
+    if (!dto.deviceId || !dto.publicKey) {
+      throw new HttpException('Thiếu deviceId hoặc publicKey!', HttpStatus.BAD_REQUEST);
+    }
+
+    const { sub: userId } = req.user;
+    const result: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.register',
+      JSON.stringify({ userId, ...dto }),
+    );
+
+    if (result?.error) {
+      throw new HttpException(result.message || 'Lỗi đăng ký thiết bị sinh trắc học!', HttpStatus.BAD_REQUEST);
+    }
+
+    return result;
+  }
+
+  // ============================================================
+  // GET /api/auth/biometrics/devices — Danh sách thiết bị sinh trắc học
+  // ============================================================
+  @Get('biometrics/devices')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lấy danh sách thiết bị sinh trắc học của tài khoản' })
+  async listBiometricDevices(@Request() req) {
+    const { sub: userId } = req.user;
+    return await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.devices.list',
+      JSON.stringify({ userId }),
+    );
+  }
+
+  // ============================================================
+  // DELETE /api/auth/biometrics/devices/:deviceId — Hủy liên kết thiết bị
+  // ============================================================
+  @Delete('biometrics/devices/:deviceId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hủy liên kết thiết bị sinh trắc học (Remote Revocation)' })
+  async revokeBiometricDevice(@Request() req, @Param('deviceId') deviceId: string) {
+    const { sub: userId } = req.user;
+    const result: any = await sendKafkaMessage(
+      this.kafkaClient,
+      'auth.biometrics.devices.revoke',
+      JSON.stringify({ userId, deviceId }),
+    );
+
+    if (result?.error) {
+      throw new HttpException(result.message || 'Lỗi hủy liên kết thiết bị!', HttpStatus.BAD_REQUEST);
+    }
+
+    return result;
+  }
+}

@@ -1,0 +1,89 @@
+name: CI/CD — Test (dev + main + feature branches) · Deploy EC2 (main only)
+
+# ──────────────────────────────────────────────────────────────
+#  push dev/feat/* → job "build-and-test" (lint + test + verify build)
+#  push main       → job "build-and-test" + job "deploy" (build prod → ECR → EC2)
+#
+# Dockerfiles:
+#   backend/docker/backend.Dockerfile      ← PRODUCTION (build TS → JS, ít RAM)
+#   backend/docker/backend.Dockerfile.dev  ← DEV LOCAL (ts-node hot-reload)
+#
+# Required GitHub repo secrets (chỉ cần cho job deploy / main):
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   (CI user push ECR)
+#   EC2_HOST                                   (IP/DNS EC2)
+#   EC2_SSH_KEY                                (private key .pem)
+# Repo variable: AWS_REGION (mặc định ap-southeast-1)
+# ──────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - demo
+      - 'feat/**'
+  pull_request:
+    branches:
+      - main
+      - dev
+      - demo
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+  BACKEND_REPO: wdp301-backend
+
+jobs:
+  # ──────────────────────────────────────────────
+  # CI — chạy trên MỌI push (nhánh chính + nhánh cá nhân)
+  #   lint + test, và build image để xác minh (không push)
+  # ──────────────────────────────────────────────
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies (backend)
+        working-directory: backend
+        run: npm install --legacy-peer-deps
+
+      - name: 🧪 Run Playbook & Architecture Test Rules
+        working-directory: backend
+        run: npm run test:rules
+
+      - name: 🐳 Run Unit & Integration Tests (Test Container Strict Gate)
+        working-directory: backend
+        run: |
+          npm run lint || true
+          npm run test:ci
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build image để chắc Dockerfile build được — CHỈ verify trên dev/nhánh cá nhân
+      # (trên main, job deploy sẽ build thật rồi nên không build lại ở đây).
+      - name: Build backend image (verify, no push)
+        if: github.ref != 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/docker/backend.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Gửi thông báo Discord cho Team (Thành công)
+        if: success() && env.DISCORD_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        uses: tsickert/discord-webhook@v5.3.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: "✅ Báo cáo sếp: CI/CD Pipeline chạy thành công trên nhánh `${{ github.ref_name }}` rồi nha! 🎉"
+

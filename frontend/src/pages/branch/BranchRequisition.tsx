@@ -1,0 +1,315 @@
+import React, { useState, useEffect } from "react";
+import {
+  Plus, X, CheckCircle2, AlertTriangle, Loader2, ClipboardList,
+  Calendar, Package, Trash2, Send, FileText, ChevronRight, Eye, Search, ChevronDown, Edit, ShieldCheck
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { purchaseRequisitionService } from "../../services/purchase/purchaseRequisition.service";
+import { medicineService } from "../../services/inventory/medicine.service";
+import { CreatePRModal } from "../../components/CreatePRModal";
+import { useSocket } from "../../hooks/useSocket";
+
+/**
+ * BƯỚC 1 — Quản lý Chi nhánh tạo PR (Yêu cầu mua hàng) gửi lên Trụ sở.
+ * Chi nhánh KHÔNG có quyền mua trực tiếp từ NCC.
+ */
+export function BranchRequisition() {
+  const [prList, setPrList] = useState<any[]>([]);
+  const [medicines, setMedicines] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [detailPr, setDetailPr] = useState<any>(null);
+  const [editPrData, setEditPrData] = useState<any>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [prefillData, setPrefillData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prefillStr = params.get("prefill");
+    if (prefillStr) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(prefillStr));
+        setPrefillData(decoded);
+        setShowCreate(true);
+        // Clear query parameters to prevent re-opening on reload
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.error("Failed to parse prefill parameter", e);
+      }
+    }
+  }, []);
+
+  const handleDeletePr = async (id: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy/xóa yêu cầu mua hàng này không?")) {
+      return;
+    }
+    setLoading(true);
+    try {
+      await purchaseRequisitionService.deletePurchaseRequisition(id);
+      setSuccessMsg("Đã hủy và xóa yêu cầu mua hàng thành công!");
+      fetchData();
+    } catch (e: any) {
+      alert(e.response?.data?.message || e.message || "Lỗi khi xóa yêu cầu");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [prRes, medRes] = await Promise.all([
+        purchaseRequisitionService.getPurchaseRequisitions().catch(() => []),
+        medicineService.getMedicinesDropdown().then(r => r.data || (Array.isArray(r) ? r : [])).catch(() => []),
+      ]);
+
+      setPrList(Array.isArray(prRes) ? prRes : (prRes.data || []));
+      setMedicines(Array.isArray(medRes) ? medRes : []);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        console.error('Fetch timed out after 20s');
+      }
+    }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  //===============================================
+  // SOCKET.IO
+  //===============================================
+  // Real-time listener for PR updates
+  const { onEvent, offEvent } = useSocket();
+  useEffect(() => {
+    const handlePrUpdated = () => {
+      fetchData();
+    };
+    onEvent('pr_updated', handlePrUpdated);
+    return () => {
+      offEvent('pr_updated', handlePrUpdated);
+    };
+  }, []);
+
+
+  //===============================================
+
+  const statusBadge = (s: string) => {
+    const styles: Record<string, string> = {
+      SUBMITTED: "bg-blue-50 text-blue-700 border-blue-200",
+      CONSOLIDATED: "bg-amber-50 text-amber-700 border-amber-200",
+      APPROVED: "bg-sky-50 text-sky-700 border-sky-200",
+      REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+    };
+    const labels: Record<string, string> = {
+      SUBMITTED: "Đã gửi — Chờ xử lý",
+      CONSOLIDATED: "Đang gom đơn",
+      APPROVED: "Đã được duyệt ✓",
+      REJECTED: "Bị từ chối ✗",
+    };
+    return <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${styles[s] || "bg-slate-50 text-slate-500 border-slate-200"}`}>{labels[s] || s}</span>;
+  };
+
+  return (
+    <div className="flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-100 text-blue-700"><Send size={20} /></div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Yêu Cầu Nhập Thuốc</h1>
+          </div>
+          <p className="text-slate-500 mt-2 ml-13">Tạo yêu cầu mua hàng (PR) gửi lên Trụ sở khi chi nhánh cần bổ sung thuốc</p>
+        </div>
+        <button onClick={() => setShowCreate(true)} className="px-5 py-2.5 font-bold rounded-xl shadow-sm flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+          <Plus size={18} /> Tạo yêu cầu mới
+        </button>
+      </div>
+
+      {successMsg && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-sm font-bold flex items-center gap-2">
+          <CheckCircle2 size={16} />{successMsg}
+          <button onClick={() => setSuccessMsg(null)} className="ml-auto text-sky-400 hover:text-sky-600"><X size={14} /></button>
+        </motion.div>
+      )}
+
+      {/* Workflow explainer */}
+      <div className="mb-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Quy trình xử lý yêu cầu</p>
+        <div className="flex items-center gap-2 flex-wrap text-xs font-bold">
+          <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg">1. Bạn tạo PR</span>
+          <ChevronRight size={14} className="text-slate-400" />
+          <span className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg">2. Kho tạo Đơn hàng</span>
+          <ChevronRight size={14} className="text-slate-400" />
+          <span className="px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg">3. Admin thanh toán</span>
+          <ChevronRight size={14} className="text-slate-400" />
+          <span className="px-3 py-1.5 bg-sky-100 text-sky-700 rounded-lg">4. Kho nhận hàng</span>
+        </div>
+      </div>
+
+      {/* Branch Autonomy & Responsibility Banner */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-sky-50/80 rounded-xl border border-blue-200/70 shadow-sm flex items-start gap-3">
+        <div className="p-2 bg-blue-600 text-white rounded-lg shadow-xs mt-0.5">
+          <ShieldCheck size={18} />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-900 text-sm">Cơ chế Tự chủ & Tự chịu trách nhiệm</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">Không giới hạn ngưỡng tiền</span>
+          </div>
+          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+            Quản lý chi nhánh chủ động lập và gửi yêu cầu nhập thuốc theo nhu cầu thực tế của cơ sở mà không bị giới hạn bởi ngưỡng ngân sách. Chi nhánh chịu trách nhiệm trực tiếp về số lượng và tính cần thiết của từng đơn hàng.
+          </p>
+        </div>
+      </div>
+
+      {/* PR list */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+        <div className="p-4 border-b border-slate-200 bg-slate-50">
+          <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2"><FileText size={16} className="text-blue-600" />Các yêu cầu đã gửi</h2>
+        </div>
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 size={32} className="animate-spin text-emerald-600" />
+            <p className="text-sm font-semibold text-slate-500">Đang tải danh sách yêu cầu điều chuyển...</p>
+          </div>
+          ) : prList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+              <ClipboardList size={40} />
+              <p className="text-sm font-semibold">Chưa có yêu cầu nào. Nhấn "Tạo yêu cầu mới" để bắt đầu.</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm text-left">
+              <thead className="text-[11px] text-slate-500 font-bold uppercase tracking-wider bg-slate-50/50 border-b border-slate-200">
+                <tr>
+                  <th className="px-5 py-3">Mã PR</th>
+                  <th className="px-5 py-3">Ngày gửi</th>
+                  <th className="px-5 py-3">Lý do</th>
+                  <th className="px-5 py-3 text-center">Số SP</th>
+                  <th className="px-5 py-3 text-right">Chi phí ước tính</th>
+                  <th className="px-5 py-3 text-center">Trạng thái</th>
+                  <th className="px-5 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {prList.map(pr => (
+                  <tr key={pr._id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setDetailPr(pr)}>
+                    <td className="px-5 py-3.5 font-bold text-slate-900">{pr.prCode}</td>
+                    <td className="px-5 py-3.5 text-slate-600 flex items-center gap-1.5"><Calendar size={14} className="text-slate-400" />{new Date(pr.createdAt).toLocaleDateString("vi-VN")}</td>
+                    <td className="px-5 py-3.5 text-slate-600 max-w-[200px] truncate">{pr.reason || "—"}</td>
+                    <td className="px-5 py-3.5 text-center font-bold">{pr.items?.length || 0}</td>
+                    <td className="px-5 py-3.5 text-right font-mono font-bold text-slate-700">
+                      {pr.totalEstimatedCost ? `${pr.totalEstimatedCost.toLocaleString('vi-VN')} đ` : "—"}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">{statusBadge(pr.status)}</td>
+                    <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-2 justify-end">
+                        {['SUBMITTED', 'URGENT_PENDING', 'DRAFT'].includes(pr.status) && (
+                          <>
+                            <button onClick={() => setEditPrData(pr)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Chỉnh sửa">
+                              <Edit size={14} />
+                            </button>
+                            <button onClick={() => handleDeletePr(pr._id)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg" title="Hủy/Xóa yêu cầu">
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                        <button onClick={() => setDetailPr(pr)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-lg" title="Xem chi tiết">
+                          <Eye size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Create Modal */}
+      <AnimatePresence>
+        {showCreate && (
+          <CreatePRModal 
+            medicines={medicines} 
+            prefillPrItems={prefillData}
+            onClose={() => { setShowCreate(false); setPrefillData([]); }} 
+            onSuccess={(msg: string) => { setShowCreate(false); setPrefillData([]); setSuccessMsg(msg); fetchData(); }} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {editPrData && (
+          <CreatePRModal
+            medicines={medicines}
+            editPr={editPrData}
+            onClose={() => setEditPrData(null)}
+            onSuccess={(msg: string) => {
+              setEditPrData(null);
+              setSuccessMsg(msg);
+              fetchData();
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {detailPr && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setDetailPr(null)} />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50 shrink-0">
+                <div><h3 className="font-black text-slate-900 font-mono">{detailPr.prCode}</h3><p className="text-xs text-blue-700 font-bold mt-0.5">{statusBadge(detailPr.status)}</p></div>
+                <button onClick={() => setDetailPr(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"><X size={18} /></button>
+              </div>
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
+                <div className="grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div><span className="text-slate-500 font-bold text-xs block">Chi nhánh</span><span className="font-semibold text-slate-800">{detailPr.branchName}</span></div>
+                  <div><span className="text-slate-500 font-bold text-xs block">Ngày tạo</span><span className="font-semibold text-slate-800">{new Date(detailPr.createdAt).toLocaleString("vi-VN")}</span></div>
+                  <div>
+                    <span className="text-slate-500 font-bold text-xs block">Chi phí ước tính</span>
+                    <span className="font-extrabold text-blue-700 font-mono">
+                      {detailPr.totalEstimatedCost ? `${detailPr.totalEstimatedCost.toLocaleString('vi-VN')} đ` : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold text-xs block">Trách nhiệm</span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200 mt-0.5">
+                      <ShieldCheck size={12} /> Tự chịu trách nhiệm
+                    </span>
+                  </div>
+                  <div className="col-span-2"><span className="text-slate-500 font-bold text-xs block">Lý do</span><span className="font-semibold text-slate-800">{detailPr.reason || "—"}</span></div>
+                  {detailPr.rejectionReason && <div className="col-span-2"><span className="text-rose-500 font-bold text-xs block">Lý do từ chối</span><span className="font-semibold text-rose-700">{detailPr.rejectionReason}</span></div>}
+                </div>
+                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Package size={14} className="text-blue-600" />Sản phẩm yêu cầu</h4>
+                <div className="space-y-2">
+                  {detailPr.items?.map((it: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <span className="font-semibold text-slate-800 text-sm">{it.medicineName || it.medicineId}</span>
+                      <span className="font-bold text-blue-700 text-sm">×{it.requestedQuantity} {it.unit || "Hộp"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {['SUBMITTED', 'URGENT_PENDING', 'DRAFT'].includes(detailPr.status) && (
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 shrink-0">
+                  <button onClick={() => { handleDeletePr(detailPr._id); setDetailPr(null); }} className="px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 font-bold rounded-xl text-sm flex items-center gap-1.5 transition-colors">
+                    <Trash2 size={14} /> Hủy yêu cầu
+                  </button>
+                  <button onClick={() => { setEditPrData(detailPr); setDetailPr(null); }} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center gap-1.5 transition-colors">
+                    <Edit size={14} /> Chỉnh sửa
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+

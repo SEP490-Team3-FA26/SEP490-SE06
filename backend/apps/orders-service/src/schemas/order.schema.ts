@@ -1,0 +1,168 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+
+@Schema()
+export class OrderItem {
+  @Prop({ type: String, required: true })
+  medicineId: string;
+
+  @Prop({ type: String, required: true })
+  name: string;
+
+  @Prop({ type: Number, required: true, min: 1 })
+  quantity: number;
+
+  @Prop({ type: Number, required: true, min: 0 })
+  price: number;
+
+  @Prop({ type: String, default: 'Hộp' })
+  unit?: string;
+
+  @Prop({ type: Number, default: 1, min: 1 })
+  exchangeValue?: number;
+
+  @Prop({ type: Number, min: 0 })
+  dosePerTime?: number;
+
+  @Prop({ type: Number, min: 0 })
+  timesPerDay?: number;
+
+  @Prop({ type: Number, min: 0 })
+  dailyDose?: number;
+
+  @Prop({ type: Number, min: 0 })
+  durationDays?: number;
+
+  @Prop({ type: String })
+  dosageInstructions?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isGiftItem?: boolean;
+}
+export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
+
+@Schema({ timestamps: true, collection: 'orders' })
+export class Order extends Document {
+  @Prop({ type: Number, required: true, unique: true })
+  orderCode: number; // PayOS 64-bit integer code
+
+  @Prop({ type: String, required: true })
+  patientName: string;
+
+  @Prop({ type: String, required: true })
+  patientPhone: string;
+
+  @Prop({ type: String })
+  patientEmail?: string;
+
+  @Prop({ type: String })
+  shippingAddress: string;
+
+  // Ghi chú đơn hàng từ khách hàng gửi cho Dược sĩ
+  @Prop({ type: String })
+  note?: string;
+
+  @Prop({ type: String })
+  notes?: string;
+
+  @Prop({ type: [OrderItemSchema], required: true })
+  items: OrderItem[];
+
+  @Prop({ type: Number, required: true, min: 0 })
+  totalAmount: number;
+
+  @Prop({ type: String, required: true, default: 'QR_PAY', enum: ['CASH', 'CARD', 'QR_PAY'] })
+  paymentMethod: string;
+
+  @Prop({
+    type: String,
+    required: true,
+    default: 'PENDING',
+    enum: [
+      'PENDING',
+      'PAID',
+      'CANCELLED',
+      'FAILED',
+      'PARTIAL_PAID',
+      'PAYMENT_RECEIVED_INVENTORY_PENDING',
+      'INVENTORY_FULFILLING',
+      'INVENTORY_FAILED',
+    ],
+  })
+  paymentStatus: string;
+
+  @Prop({ type: String })
+  payosPaymentLinkId: string;
+
+  @Prop({ type: String, default: 'ONLINE', enum: ['ONLINE', 'RETAIL', 'POS_SALE'] })
+  type: string;
+
+  @Prop({ type: String })
+  voucherCode?: string;
+
+  @Prop({ type: Number, default: 0 })
+  voucherDiscount?: number;
+
+  @Prop({ type: Number, default: 0 })
+  redeemedPoints?: number;
+
+  @Prop({ type: Number, default: 0 })
+  pointsDiscount?: number;
+
+  @Prop({ type: Number, default: 0 })
+  earnedPoints?: number;
+
+  @Prop({ type: String })
+  userId?: string;
+
+  @Prop({ type: String, default: 'BR-001' })
+  branchId?: string;
+
+  @Prop({ type: String, default: 'guest' })
+  customerRole?: string;
+
+  @Prop({ type: String, default: 'guest' })
+  role?: string;
+
+  @Prop({ type: Boolean, default: true })
+  isGuest?: boolean;
+
+  // AI decision-support and GPP audit trail
+  @Prop({ type: Boolean, default: false })
+  isAiAssisted?: boolean;
+
+  @Prop({ type: String })
+  aiAuditCode?: string;
+
+  @Prop({ type: String })
+  consultationId?: string;
+
+  @Prop({ type: String })
+  pharmacistApprovedBy?: string;
+
+  @Prop({ type: String })
+  soldBy?: string;
+
+  @Prop({ type: String, index: true })
+  pharmacistId?: string;
+
+  // 🛡️ Kiểm toán phòng chống trục lợi Voucher (Rủi ro 7 SBA - Staff Coupon Exploitation)
+  @Prop({ type: Boolean, default: false, index: true })
+  auditFlag?: boolean; // Cờ nghi vấn kiểm toán (Audit Flag) khi phát hiện bất thường
+
+  @Prop({ type: String })
+  flagReason?: string; // Lý do gắn cờ (VD: 'SUSPICIOUS_CASH_VOUCHER_EXPLOITATION')
+
+  @Prop({ type: Number, default: 0 })
+  cashierVoucherDailyCount?: number; // Số đơn voucher tiền mặt thu ngân này áp dụng trong ngày
+
+  @Prop({ type: String })
+  approvedBy?: string;
+
+  @Prop({ type: Date })
+  approvedAt?: Date;
+
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+export const OrderSchema = SchemaFactory.createForClass(Order);

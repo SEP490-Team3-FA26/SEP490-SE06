@@ -1,0 +1,112 @@
+import api from '../core/api';
+import { API_ENDPOINTS } from '../../constants/apiEndpoints';
+
+export interface MedicineLocation {
+  zone: string;
+  rack: string;
+  shelf: number;
+  bin?: number;        // Số thùng (Bin 1..10)
+  slotType?: 'MAIN' | 'RESERVE'; // Loại ô: chính hay dự trữ
+}
+
+export interface GoodsReceiptItem {
+  medicineId: string;
+  batchNo: string;
+  expDate: string;
+  quantity: number;
+  unitPrice: number;
+  actualQty?: number;
+  location?: MedicineLocation;
+}
+
+export interface GoodsReceiptPayload {
+  poId: string;
+  receivedBy: string;
+  items: GoodsReceiptItem[];
+}
+
+export const goodsReceiptService = {
+  async getGoodsReceipts() {
+    const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.LIST);
+    return response.data;
+  },
+
+  async createGoodsReceipt(payload: GoodsReceiptPayload) {
+    const response = await api.post(API_ENDPOINTS.GOODS_RECEIPTS.CREATE, payload);
+    return response.data;
+  },
+
+  async updateGoodsReceipt(id: string, payload: any) {
+    const response = await api.patch(API_ENDPOINTS.GOODS_RECEIPTS.DETAIL(id), payload);
+    return response.data;
+  },
+
+  async submitInspection(id: string) {
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.DETAIL(id)}/submit-inspection`);
+    return response.data;
+  },
+
+  async approveGoodsReceipt(id: string, discrepancyReason?: string) {
+    const response = await api.post(API_ENDPOINTS.GOODS_RECEIPTS.APPROVE(id), { discrepancyReason });
+    return response.data;
+  },
+
+  async rejectGoodsReceipt(id: string, action: "reinspect" | "cancel", reason: string) {
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.DETAIL(id)}/reject`, { action, reason });
+    return response.data;
+  },
+
+  async createInspectionRecord(grnId: string, inspectedBy: string) {
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections`, { grnId, inspectedBy });
+    return response.data;
+  },
+
+  async verifyInspectionItem(
+    recordId: string,
+    itemId: string,
+    actualQty: number,
+    batchNo?: string,
+    expDate?: string,
+    location?: MedicineLocation // Đầy đủ: zone, rack, shelf, bin, slotType
+  ) {
+    const response = await api.post(
+      `${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections/verify`,
+      { recordId, itemId, actualQty, batchNo, expDate, location }
+    );
+    return response.data;
+  },
+
+  async submitInspectionReport(recordId: string, notes: string) {
+    const response = await api.post(`${API_ENDPOINTS.GOODS_RECEIPTS.LIST}/inspections/submit`, { recordId, notes });
+    return response.data;
+  },
+
+  async getItemInspection(grnId: string, itemId: string) {
+    const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.INSPECTION(grnId, itemId));
+    return response.data;
+  },
+
+  // Gửi hình ảnh kiện hàng lên AI Vision kiểm đếm số lượng thực tế
+  async inspectReceiptItemAI(receiptId: string, itemId: string, file: File | Blob): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/api/goods-receipts/${receiptId}/items/${itemId}/inspection`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Lưu kết quả kiểm đếm PO trên Mobile lên máy chủ để đồng bộ đa thiết bị
+  async savePoInspection(poId: string, data: any) {
+    const response = await api.post(`/api/goods-receipts/po-inspections/${poId}`, data);
+    return response.data;
+  },
+
+  // Lấy kết quả kiểm đếm PO từ máy chủ về máy tính kho
+  async getPoInspection(poId: string) {
+    const response = await api.get(`/api/goods-receipts/po-inspections/${poId}`);
+    return response.data;
+  }
+};

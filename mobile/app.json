@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "ABC",
+    "slug": "mobile",
+    "scheme": "wdp301",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#01BAA8"
+    },
+    "androidNavigationBar": {
+      "visible": "always",
+      "barStyle": "dark-content",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.abcpharmacy.mobile",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "Cho phép ứng dụng thêm sự kiện vào lịch của bạn.",
+        "NSCameraUsageDescription": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và đơn thuốc.",
+        "NSLocationWhenInUseUsageDescription": "Ứng dụng cần quyền vị trí để xác thực điểm danh check-in tại chi nhánh nhà thuốc.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Ứng dụng cần quyền vị trí để xác thực điểm danh check-in tại chi nhánh nhà thuốc."
+      }
+    },
+    "android": {
+      "package": "com.abcpharmacy.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#01BAA8",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "READ_CALENDAR",
+        "WRITE_CALENDAR",
+        "VIBRATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-local-authentication",
+      "expo-web-browser",
+      "expo-calendar",
+      "expo-status-bar",
+      "expo-font",
+      "expo-splash-screen",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Cho phép ứng dụng lấy vị trí GPS để xác nhận điểm danh ca làm việc tại nhà thuốc."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1491cb0c-c010-49fb-9954-9dacdcc93d17"
+      }
+    },
+    "owner": "phuche2004p"
+  }
+}

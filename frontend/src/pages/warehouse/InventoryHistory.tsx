@@ -1,0 +1,1835 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import {
+  Search, Filter, ArrowDownToLine, ArrowUpFromLine, Trash2,
+  Calendar, FileText, Plus, ChevronRight, X, Package,
+  Building, CheckCircle2, DollarSign, ListFilter, ClipboardCheck,
+  AlertTriangle, Loader2, Image, RefreshCw
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { supplierService } from "../../services/purchase/supplier.service";
+import { medicineService } from "../../services/inventory/medicine.service";
+import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
+import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
+import { CreateDisposalModal } from "../../components/CreateDisposalModal";
+
+interface InventoryHistoryProps {
+  type: "import" | "export" | "dispose";
+}
+
+export function InventoryHistory({ type }: InventoryHistoryProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isAdmin = location.pathname.includes('/admin');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSubTab = (searchParams.get("tab") as "grn" | "po") || "grn";
+  const setActiveSubTabHandler = (tab: "grn" | "po") => setSearchParams({ tab });
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [medicines, setMedicines] = useState<any[]>([]);
+
+  // Data lists
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [goodsReceiptNotes, setGoodsReceiptNotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Search/Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Receipt Modal state
+  const [selectedPoForReceipt, setSelectedPoForReceipt] = useState<any | null>(null);
+
+  // Reject Delivery Modal state
+  const [selectedPoForReject, setSelectedPoForReject] = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+
+  // Modal details view
+  const [selectedGrnDetails, setSelectedGrnDetails] = useState<any | null>(null);
+  const [selectedPoDetails, setSelectedPoDetails] = useState<any | null>(null);
+
+  // Goods Receipt Inspection & ERP states
+  const [editGrnItems, setEditGrnItems] = useState<any[]>([]);
+  const [editLoading, setEditLoading] = useState(false);
+  const [discrepancyReason, setDiscrepancyReason] = useState("");
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
+  const [selectedInspectionRecord, setSelectedInspectionRecord] = useState<any | null>(null);
+  const [selectedMedicineNameForRecord, setSelectedMedicineNameForRecord] = useState("");
+  const [recordLoading, setRecordLoading] = useState(false);
+  const [approvalNotice, setApprovalNotice] = useState<{ type: "warning" | "success" | "error"; title: string; message: string } | null>(null);
+  const [grnRejectAction, setGrnRejectAction] = useState<"reinspect" | "cancel" | null>(null);
+  const [grnRejectReason, setGrnRejectReason] = useState("");
+
+  // Disposal & Waste Management States (type === "dispose")
+  const [disposalTransactions, setDisposalTransactions] = useState<any[]>([]);
+  const [isCreateDisposalOpen, setIsCreateDisposalOpen] = useState(false);
+  const [prefillDisposalItem, setPrefillDisposalItem] = useState<any | null>(null);
+
+  // Tự động mở Modal Lập phiếu hủy khi nhận điều hướng từ Sơ Đồ Kho
+  useEffect(() => {
+    if (location.state?.autoOpenCreate) {
+      setIsCreateDisposalOpen(true);
+      if (location.state.prefillItem) {
+        setPrefillDisposalItem(location.state.prefillItem);
+      }
+    }
+  }, [location.state]);
+  const [disposalSearchMedQuery, setDisposalSearchMedQuery] = useState("");
+  const [selectedDisposalMedId, setSelectedDisposalMedId] = useState("");
+  const [selectedDisposalBatchNo, setSelectedDisposalBatchNo] = useState("");
+  const [disposalQty, setDisposalQty] = useState<number>(1);
+  const [disposalReason, setDisposalReason] = useState("Thuốc quá hạn sử dụng theo quy định Dược");
+  const [disposalNotes, setDisposalNotes] = useState("");
+  const [disposalPerformedBy, setDisposalPerformedBy] = useState("Dược sĩ phụ trách kho");
+  const [disposalMethod, setDisposalMethod] = useState("Nghiền nhỏ và bàn giao công ty xử lý chất thải y tế nguy hại");
+  const [disposalLoading, setDisposalLoading] = useState(false);
+  const [selectedDisposalCert, setSelectedDisposalCert] = useState<any | null>(null);
+
+  // Filtered medicines for Disposal Picker
+  const disposalFilteredMedicines = useMemo(() => {
+    if (!disposalSearchMedQuery.trim()) return medicines;
+    const q = disposalSearchMedQuery.toLowerCase();
+    return medicines.filter((m: any) => {
+      const name = (m.name || "").toLowerCase();
+      const regNo = (m.registrationNumber || "").toLowerCase();
+      const active = (m.active_ingredient || m.activeIngredient || "").toLowerCase();
+      const id = (m.id || m._id || "").toLowerCase();
+      return name.includes(q) || regNo.includes(q) || active.includes(q) || id.includes(q);
+    });
+  }, [medicines, disposalSearchMedQuery]);
+
+  const handleViewInspectionRecord = async (grnId: string, itemId: string, medName: string) => {
+    setRecordLoading(true);
+    setSelectedMedicineNameForRecord(medName);
+    try {
+      const body = await goodsReceiptService.getItemInspection(grnId, itemId);
+      if (body?.success && body?.data) {
+        setSelectedInspectionRecord(body.data);
+      } else {
+        setApprovalNotice({
+          type: "warning",
+          title: "Không có dữ liệu",
+          message: "Không tìm thấy dữ liệu ảnh đếm AI của dòng sản phẩm này.",
+        });
+      }
+    } catch (e) {
+      setApprovalNotice({
+        type: "error",
+        title: "Không tải được ảnh AI",
+        message: "Lỗi khi tải dữ liệu ảnh đếm AI từ máy chủ.",
+      });
+    } finally {
+      setRecordLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setShowOnlyDifferences(false);
+    if (selectedGrnDetails && (selectedGrnDetails.status === "DRAFT" || selectedGrnDetails.status === "INSPECTING")) {
+      setEditGrnItems(
+        selectedGrnDetails.items.map((it: any) => ({
+          medicineId: it.medicineId,
+          batchNo: it.batchNo || "",
+          expDate: it.expDate ? it.expDate.substring(0, 10) : "",
+          quantity: it.quantity,
+          unitPrice: it.unitPrice
+        }))
+      );
+    } else {
+      setEditGrnItems([]);
+    }
+  }, [selectedGrnDetails]);
+
+  useEffect(() => {
+    // Fetch base lists to resolve IDs
+    Promise.all([
+      supplierService.getSuppliers().catch(() => []),
+      medicineService.getMedicinesDropdown().catch(() => [])
+    ]).then(([sData, mData]) => {
+      setSuppliers(sData);
+      setMedicines(mData);
+    });
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (type === "import") {
+        const [poRes, grnRes] = await Promise.all([
+          purchaseOrderService.getPurchaseOrders(),
+          goodsReceiptService.getGoodsReceipts()
+        ]);
+        setPurchaseOrders(poRes);
+        setGoodsReceiptNotes(grnRes);
+      } else if (type === "dispose") {
+        const res = await medicineService.getTransactions({ type: 'DISPOSE', limit: 100 });
+        const list = res?.data || res || [];
+        setDisposalTransactions(Array.isArray(list) ? list : []);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Không thể tải danh sách dữ liệu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [type, activeSubTab]);
+
+  const title = type === "import" ? "Nhập kho & Đặt hàng" : type === "export" ? "Lịch sử xuất kho" : "Quản Lý Xuất Hủy Thuốc (GSP/GPP)";
+  const desc = type === "import" 
+    ? "Quản lý đơn đặt hàng (PO) và phiếu xác nhận nhập kho (GRN)" 
+    : type === "export" 
+      ? "Quản lý các phiếu xuất kho, luân chuyển" 
+      : "Quản lý các phiếu xuất hủy thuốc quá hạn, hư hỏng, thu hồi theo Thông tư 02/2018/TT-BYT";
+  const btnLabel = type === "import" ? "Tạo đơn nhập hàng (PO)" : type === "export" ? "Tạo phiếu xuất" : "Lập Phiếu Xuất Hủy Mới";
+
+  const Icon = type === "import" ? ArrowDownToLine : type === "export" ? ArrowUpFromLine : Trash2;
+  const theme = type === "import" ? "blue" : type === "export" ? "sky" : "rose";
+  const themeClasses: Record<string, string> = {
+    blue: "bg-[#0057cd] hover:bg-[#00419e] text-white",
+    sky: "bg-sky-600 hover:bg-sky-700 text-white",
+    rose: "bg-rose-600 hover:bg-rose-700 text-white",
+    blueLight: "text-[#0057cd] bg-[#f2f3ff]",
+    skyLight: "text-sky-700 bg-sky-100",
+    roseLight: "text-rose-700 bg-rose-100",
+  };
+
+  const getGrnStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case "DRAFT":
+        return "bg-slate-100 text-slate-700 border-slate-200";
+      case "INSPECTING":
+        return "bg-amber-50 text-amber-700 border-amber-200";
+      case "PENDING_APPROVAL":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "COMPLETED":
+        return "bg-sky-50 text-sky-700 border-sky-200";
+      case "CANCELLED":
+        return "bg-rose-50 text-rose-700 border-rose-200";
+      default:
+        return "bg-slate-50 text-slate-500 border-slate-200";
+    }
+  };
+
+  const getGrnStatusLabel = (status: string) => {
+    switch (status) {
+      case "DRAFT":
+        return "Nháp";
+      case "INSPECTING":
+        return "Đang kiểm";
+      case "PENDING_APPROVAL":
+        return "Chờ duyệt";
+      case "COMPLETED":
+        return "Hoàn thành";
+      case "CANCELLED":
+        return "Đã hủy";
+      default:
+        return status;
+    }
+  };
+
+  const handleCreate = () => {
+    if (type === "import") {
+      const basePath = location.pathname.endsWith("/") ? location.pathname : `${location.pathname}/`;
+      navigate(`${basePath}new`);
+    } else if (type === "dispose") {
+      setSelectedDisposalMedId("");
+      setSelectedDisposalBatchNo("");
+      setDisposalSearchMedQuery("");
+      setDisposalQty(1);
+      setDisposalReason("Thuốc quá hạn sử dụng theo quy định Dược");
+      setDisposalNotes("");
+      setIsCreateDisposalOpen(true);
+    }
+  };
+
+  const handleSubmitDisposal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDisposalMedId || !selectedDisposalBatchNo || disposalQty <= 0) {
+      setApprovalNotice({
+        type: "warning",
+        title: "Thiếu thông tin",
+        message: "Vui lòng chọn thuốc, số lô và số lượng cần xuất hủy hợp lệ!",
+      });
+      return;
+    }
+
+    const selectedMed = medicines.find(m => m.id === selectedDisposalMedId || m._id === selectedDisposalMedId);
+    const selectedBatch = selectedMed?.batches?.find((b: any) => b.batchNo === selectedDisposalBatchNo);
+
+    if (!selectedBatch) {
+      setApprovalNotice({
+        type: "error",
+        title: "Lỗi lô thuốc",
+        message: "Không tìm thấy thông tin lô thuốc đã chọn.",
+      });
+      return;
+    }
+
+    if (disposalQty > selectedBatch.stock) {
+      setApprovalNotice({
+        type: "warning",
+        title: "Vượt quá tồn kho",
+        message: `Số lượng hủy (${disposalQty}) không được vượt quá số tồn kho của lô (${selectedBatch.stock}).`,
+      });
+      return;
+    }
+
+    setDisposalLoading(true);
+    try {
+      await medicineService.handleExpirationAction({
+        batchId: selectedBatch.id || selectedBatch._id,
+        action: 'DISPOSE',
+        quantity: disposalQty,
+        notes: `[Lý do: ${disposalReason}] ${disposalNotes ? `- Ghi chú: ${disposalNotes}` : ''} - Phương pháp: ${disposalMethod}`,
+        performedBy: disposalPerformedBy,
+      });
+
+      setApprovalNotice({
+        type: "success",
+        title: "Xuất hủy thành công",
+        message: `Đã xuất hủy thành công ${disposalQty} đơn vị thuốc ${selectedMed.name} (Lô ${selectedDisposalBatchNo}) và trừ tồn kho.`,
+      });
+
+      setIsCreateDisposalOpen(false);
+      await fetchData();
+    } catch (err: any) {
+      setApprovalNotice({
+        type: "error",
+        title: "Lỗi xuất hủy",
+        message: err.response?.data?.message || err.message || "Không thể thực hiện xuất hủy thuốc.",
+      });
+    } finally {
+      setDisposalLoading(false);
+    }
+  };
+
+  const handleRejectDelivery = async () => {
+    if (!selectedPoForReject) return;
+    setRejectLoading(true);
+    setError(null);
+    try {
+      await purchaseOrderService.rejectDelivery({
+        poId: selectedPoForReject._id,
+        reason: rejectReason,
+      });
+      setSelectedPoForReject(null);
+      setRejectReason("");
+      fetchData();
+    } catch (err: any) {
+      const errorResponse = err?.response?.data;
+      setError(errorResponse?.message || err.message || "Từ chối nhận hàng thất bại.");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!selectedGrnDetails) return;
+    setEditLoading(true);
+    try {
+      // Validate
+      for (const it of editGrnItems) {
+        if (!it.batchNo || !it.batchNo.trim()) {
+          setApprovalNotice({
+            type: "warning",
+            title: "Thiếu số lô",
+            message: `Số lô cho thuốc "${getMedicineName(it.medicineId)}" không được trống.`,
+          });
+          setEditLoading(false);
+          return;
+        }
+        if (!it.expDate) {
+          setApprovalNotice({
+            type: "warning",
+            title: "Thiếu hạn sử dụng",
+            message: `Hạn sử dụng cho thuốc "${getMedicineName(it.medicineId)}" không được trống.`,
+          });
+          setEditLoading(false);
+          return;
+        }
+        if (it.quantity <= 0) {
+          setApprovalNotice({
+            type: "warning",
+            title: "Số lượng không hợp lệ",
+            message: `Số lượng dự kiến cho thuốc "${getMedicineName(it.medicineId)}" phải lớn hơn 0.`,
+          });
+          setEditLoading(false);
+          return;
+        }
+      }
+      
+      const payload = {
+        items: editGrnItems.map(it => ({
+          medicineId: it.medicineId,
+          batchNo: it.batchNo,
+          expDate: new Date(it.expDate).toISOString(),
+          quantity: it.quantity
+        }))
+      };
+      
+      await goodsReceiptService.updateGoodsReceipt(selectedGrnDetails._id, payload);
+      setApprovalNotice({
+        type: "success",
+        title: "Cập nhật thành công",
+        message: "Cập nhật tài liệu tiếp nhận thành công.",
+      });
+      setSelectedGrnDetails(null);
+      fetchData();
+    } catch (err: any) {
+      setApprovalNotice({
+        type: "error",
+        title: "Không thể cập nhật",
+        message: err.response?.data?.message || err.message || "Lỗi khi cập nhật tài liệu tiếp nhận.",
+      });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleApproveGRN = async () => {
+    if (!selectedGrnDetails) return;
+    
+    // Check discrepancy
+    let hasDiscrepancy = false;
+    for (const item of selectedGrnDetails.items) {
+      if (item.actualQty !== item.quantity) {
+        hasDiscrepancy = true;
+        break;
+      }
+    }
+    if (hasDiscrepancy && !discrepancyReason.trim()) {
+      setApprovalNotice({
+        type: "warning",
+        title: "Thiếu lý do chênh lệch",
+        message: "Phát hiện chênh lệch số lượng kiểm nhận. Vui lòng điền lý do chênh lệch trước khi phê duyệt.",
+      });
+      return;
+    }
+    
+    setApprovalLoading(true);
+    try {
+      await goodsReceiptService.approveGoodsReceipt(selectedGrnDetails._id, discrepancyReason);
+      setApprovalNotice({
+        type: "success",
+        title: "Phê duyệt thành công",
+        message: "Tồn kho đã được cập nhật.",
+      });
+      setSelectedGrnDetails(null);
+      setDiscrepancyReason("");
+      fetchData();
+    } catch (err: any) {
+      setApprovalNotice({
+        type: "error",
+        title: "Không thể phê duyệt",
+        message: err.response?.data?.message || err.message || "Lỗi khi phê duyệt.",
+      });
+    } finally {
+      setApprovalLoading(false);
+    }
+  };
+
+  const handleRejectGRN = (action: "reinspect" | "cancel") => {
+    if (!selectedGrnDetails) return;
+    setGrnRejectAction(action);
+    setGrnRejectReason("");
+  };
+
+  const confirmRejectGRN = async () => {
+    if (!selectedGrnDetails || !grnRejectAction) return;
+    if (!grnRejectReason.trim()) {
+      setApprovalNotice({
+        type: "warning",
+        title: "Thiếu lý do",
+        message: "Vui lòng nhập lý do từ chối/yêu cầu hành động này.",
+      });
+      return;
+    }
+    
+    setApprovalLoading(true);
+    try {
+      await goodsReceiptService.rejectGoodsReceipt(selectedGrnDetails._id, grnRejectAction, grnRejectReason.trim());
+      setApprovalNotice({
+        type: "success",
+        title: grnRejectAction === "reinspect" ? "Đã yêu cầu kiểm lại" : "Đã hủy phiếu",
+        message: grnRejectAction === "reinspect" ? "Phiếu đã được chuyển về trạng thái kiểm đếm lại." : "Phiếu tiếp nhận đã được hủy.",
+      });
+      setGrnRejectAction(null);
+      setGrnRejectReason("");
+      setSelectedGrnDetails(null);
+      fetchData();
+    } catch (err: any) {
+      setApprovalNotice({
+        type: "error",
+        title: "Không thể xử lý",
+        message: err.response?.data?.message || err.message || "Lỗi khi thực hiện từ chối.",
+      });
+    } finally {
+      setApprovalLoading(false);
+    }
+  };
+
+  // Helper to map supplier name
+  const getSupplierName = (id: string) => {
+    const s = suppliers.find(sup => sup._id === id);
+    return s ? s.name : `Nhà cung cấp (${id.substring(0, 6)})`;
+  };
+
+  // Helper to map medicine name
+  const getMedicineName = (id: string) => {
+    const m = medicines.find(med => med.id === id || med._id === id);
+    return m ? m.name : `Thuốc (${id.substring(0, 6)})`;
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#faf8ff] p-6 lg:p-8 overflow-y-auto">
+      <AnimatePresence>
+        {approvalNotice && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setApprovalNotice(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-100"
+            >
+              <div className={`p-5 border-b ${
+                approvalNotice.type === "success"
+                  ? "bg-sky-50 border-sky-100"
+                  : approvalNotice.type === "error"
+                    ? "bg-rose-50 border-rose-100"
+                    : "bg-amber-50 border-amber-100"
+              }`}>
+                <h3 className="font-black text-slate-900 flex items-center gap-2">
+                  {approvalNotice.type === "success" ? (
+                    <CheckCircle2 size={20} className="text-sky-600" />
+                  ) : (
+                    <AlertTriangle size={20} className={approvalNotice.type === "error" ? "text-rose-600" : "text-amber-600"} />
+                  )}
+                  {approvalNotice.title}
+                </h3>
+              </div>
+              <div className="p-5">
+                <p className="text-sm font-semibold text-slate-700 leading-relaxed">{approvalNotice.message}</p>
+              </div>
+              <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setApprovalNotice(null)}
+                  className="px-5 py-2 bg-[#0057cd] hover:bg-[#00419e] text-white font-bold rounded-xl text-sm shadow-sm"
+                >
+                  Đã hiểu
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {grnRejectAction && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => {
+                if (!approvalLoading) {
+                  setGrnRejectAction(null);
+                  setGrnRejectReason("");
+                }
+              }}
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-100"
+            >
+              <div className={`p-5 border-b ${grnRejectAction === "reinspect" ? "bg-amber-50 border-amber-100" : "bg-rose-50 border-rose-100"}`}>
+                <h3 className="font-black text-slate-900 flex items-center gap-2">
+                  <AlertTriangle size={20} className={grnRejectAction === "reinspect" ? "text-amber-600" : "text-rose-600"} />
+                  {grnRejectAction === "reinspect" ? "Yêu cầu kiểm đếm lại" : "Từ chối/Hủy phiếu tiếp nhận"}
+                </h3>
+                <p className={`mt-1 text-xs font-bold ${grnRejectAction === "reinspect" ? "text-amber-700" : "text-rose-700"}`}>
+                  Vui lòng nhập lý do để ghi nhận lịch sử xử lý phiếu.
+                </p>
+              </div>
+              <div className="p-5 space-y-2">
+                <label className="text-[11px] font-black uppercase text-slate-500">Lý do xử lý</label>
+                <textarea
+                  value={grnRejectReason}
+                  onChange={(event) => setGrnRejectReason(event.target.value)}
+                  rows={4}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-blue-100 resize-none"
+                  placeholder={grnRejectAction === "reinspect" ? "VD: Số lượng thực nhận chưa khớp, yêu cầu thủ kho kiểm lại..." : "VD: Chứng từ không hợp lệ hoặc hàng không đạt yêu cầu..."}
+                  autoFocus
+                />
+              </div>
+              <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setGrnRejectAction(null);
+                    setGrnRejectReason("");
+                  }}
+                  disabled={approvalLoading}
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-100 rounded-xl text-sm disabled:opacity-50"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={confirmRejectGRN}
+                  disabled={approvalLoading || !grnRejectReason.trim()}
+                  className={`px-5 py-2 text-white font-bold rounded-xl text-sm shadow-sm disabled:opacity-50 flex items-center gap-2 ${grnRejectAction === "reinspect" ? "bg-amber-600 hover:bg-amber-700" : "bg-rose-600 hover:bg-rose-700"}`}
+                >
+                  {approvalLoading && <Loader2 size={16} className="animate-spin" />}
+                  Xác nhận
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${themeClasses[`${theme}Light`]}`}>
+              <Icon size={20} />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
+          </div>
+          <p className="text-slate-500 mt-2 ml-13">{desc}</p>
+        </div>
+        {(type === "import" || type === "dispose") && (
+          <button
+            onClick={handleCreate}
+            className={`px-5 py-2.5 font-bold rounded-xl shadow-sm flex items-center gap-2 transition-colors ${themeClasses[theme]}`}
+          >
+            <Plus size={18} />
+            {btnLabel}
+          </button>
+        )}
+      </div>
+
+      {type === "dispose" && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-black">
+              <Trash2 size={24} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tổng Đợt Xuất Hủy</p>
+              <p className="text-2xl font-black text-slate-900">{disposalTransactions.length} <span className="text-xs font-semibold text-slate-500">phiếu</span></p>
+            </div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
+              <Package size={24} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tổng Thuốc Đã Tiêu Hủy</p>
+              <p className="text-2xl font-black text-rose-600">
+                {disposalTransactions.reduce((acc, curr) => acc + Math.abs(curr.quantityChange || curr.quantity || 0), 0).toLocaleString("vi-VN")}{" "}
+                <span className="text-xs font-semibold text-slate-500">đơn vị</span>
+              </p>
+            </div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-sky-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-black">
+              <CheckCircle2 size={24} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tuân Thủ Quy Chuẩn Dược</p>
+              <p className="text-sm font-black text-sky-700">100% Có Biên Bản Hội Đồng GPP</p>
+              <p className="text-[11px] font-medium text-slate-400">TT 02/2018/TT-BYT & TT 36/2018/TT-BYT</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {type === "import" && (
+        <div className="flex border-b border-slate-200 mb-6 gap-2">
+          <button
+            onClick={() => setActiveSubTabHandler("grn")}
+            className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 ${activeSubTab === "grn"
+                ? "border-emerald-600 text-[#0057cd]"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            <ClipboardCheck size={16} />
+            Phiếu Nhập Kho (GRN)
+          </button>
+          <button
+            onClick={() => setActiveSubTabHandler("po")}
+            className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 ${activeSubTab === "po"
+                ? "border-emerald-600 text-[#0057cd]"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            <FileText size={16} />
+            Đơn Đặt Hàng (PO)
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1">
+        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder={type === "dispose" ? "Tìm kiếm theo mã phiếu, số lô, tên thuốc..." : "Tìm kiếm theo mã hoặc nhà cung cấp..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto flex-1">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="animate-spin text-emerald-600" size={32} />
+              <p className="text-slate-500 text-sm font-semibold">Đang tải dữ liệu từ máy chủ...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shadow-sm">
+                <AlertTriangle size={28} />
+              </div>
+              <div className="space-y-1 max-w-md">
+                <p className="text-base font-bold text-slate-800">Không thể tải dữ liệu xuất hủy</p>
+                <p className="text-xs text-slate-500 font-medium">{error}</p>
+              </div>
+              <button
+                onClick={() => fetchData()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95"
+              >
+                <RefreshCw size={14} />
+                Thử lại ngay
+              </button>
+            </div>
+          ) : type === "dispose" ? (
+            // DISPOSAL LIST TABLE
+            <table className="w-full text-sm text-left">
+              <thead className="text-[11px] text-slate-500 font-bold uppercase tracking-wider bg-rose-50/50 border-b border-rose-100">
+                <tr>
+                  <th className="px-6 py-4">Mã Phiếu Xuất Hủy</th>
+                  <th className="px-6 py-4">Thời Gian Hủy</th>
+                  <th className="px-6 py-4">Thuốc / Biệt Dược</th>
+                  <th className="px-6 py-4">Số Lô Hủy</th>
+                  <th className="px-6 py-4 text-center">Số Lượng Hủy</th>
+                  <th className="px-6 py-4">Lý Do / Hình Thức Hủy</th>
+                  <th className="px-6 py-4">Người Thực Hiện</th>
+                  <th className="px-6 py-4 text-center">Biên Bản Chuẩn GSP/GPP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {disposalTransactions
+                  .filter((r: any) => {
+                    const q = searchQuery.toLowerCase();
+                    const id = (r._id || r.id || "").toLowerCase();
+                    const batch = (r.batchNo || r.batchId || "").toLowerCase();
+                    const med = getMedicineName(r.medicineId).toLowerCase();
+                    const notes = (r.notes || "").toLowerCase();
+                    return id.includes(q) || batch.includes(q) || med.includes(q) || notes.includes(q);
+                  })
+                  .map((r: any) => (
+                    <tr key={r._id || r.id} className="hover:bg-rose-50/30 transition-colors group">
+                      <td className="px-6 py-4 font-bold text-slate-900">
+                        TX-DISPOSE-{(r._id || r.id || "").substring(18).toUpperCase()}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <Calendar size={14} className="text-slate-400" />
+                          {r.createdAt ? new Date(r.createdAt).toLocaleString("vi-VN") : "Hôm nay"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-slate-800 block">{getMedicineName(r.medicineId)}</span>
+                        <span className="text-[11px] text-slate-400">ID: {(r.medicineId || "").substring(0, 8)}...</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2.5 py-1 bg-amber-50 text-amber-800 font-black text-xs border border-amber-200 rounded-lg">
+                          {r.batchNo || r.batchId || "LOT-EXP"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center font-black text-rose-600">
+                        - {Math.abs(r.quantityChange || r.quantity || 0).toLocaleString("vi-VN")} đơn vị
+                      </td>
+                      <td className="px-6 py-4 max-w-xs">
+                        <p className="text-xs font-semibold text-slate-700 line-clamp-2">{r.notes || "Xuất hủy thuốc quá hạn sử dụng theo quy định Dược"}</p>
+                      </td>
+                      <td className="px-6 py-4 text-slate-700 font-medium">
+                        {r.performedBy || "Dược sĩ phụ trách kho"}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          onClick={() => setSelectedDisposalCert(r)}
+                          className="px-3.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 mx-auto"
+                        >
+                          <FileText size={14} className="text-rose-600" />
+                          Xem Biên Bản
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                {disposalTransactions.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                      Chưa có phiếu xuất hủy nào được ghi nhận trong hệ thống.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : type === "export" ? (
+            <div className="px-6 py-16 text-center text-slate-500">
+              <Package size={40} className="mx-auto text-slate-300 mb-3" />
+              <p className="font-bold text-slate-700">Lịch sử xuất kho luân chuyển & bán hàng</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                Dữ liệu xuất bán lẻ tại quầy POS và xuất điều chuyển liên chi nhánh được quản lý và đồng bộ trực tiếp tại mục Bán Hàng & Điều Phối Kho.
+              </p>
+            </div>
+          ) : activeSubTab === "grn" ? (
+            // GRN LIST TABLE
+            <table className="w-full text-sm text-left">
+              <thead className="text-[11px] text-slate-500 font-bold uppercase tracking-wider bg-slate-50/50 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4">Mã Phiếu GRN</th>
+                  <th className="px-6 py-4">Ngày Nhận</th>
+                  <th className="px-6 py-4">Mã Đơn Hàng PO</th>
+                  <th className="px-6 py-4">Thủ Kho Nhận</th>
+                  <th className="px-6 py-4 text-center">Số Khoản Mục</th>
+                  <th className="px-6 py-4 text-right">Tổng Tiền</th>
+                  <th className="px-6 py-4 text-center">Trạng Thái</th>
+                  <th className="px-6 py-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {goodsReceiptNotes
+                  .filter(r => r._id.toLowerCase().includes(searchQuery.toLowerCase()) || r.poId.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((r: any) => (
+                    <tr
+                      key={r._id}
+                      onClick={() => setSelectedGrnDetails(r)}
+                      className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                    >
+                      <td className="px-6 py-4 font-bold text-slate-900">GRN-{r._id.substring(18).toUpperCase()}</td>
+                      <td className="px-6 py-4 flex items-center gap-2 text-slate-600 mt-1.5">
+                        <Calendar size={14} className="text-slate-400" />
+                        {new Date(r.createdAt).toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="px-6 py-4 text-slate-800 font-semibold">PO-{r.poId.substring(18).toUpperCase()}</td>
+                      <td className="px-6 py-4 text-slate-800">{r.receivedBy}</td>
+                      <td className="px-6 py-4 text-center font-bold text-slate-700">{r.items?.length || 0}</td>
+                      <td className="px-6 py-4 text-right font-bold text-[#0057cd]">{r.totalAmount?.toLocaleString("vi-VN")}đ</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${getGrnStatusBadgeClass(r.status)}`}>
+                          {getGrnStatusLabel(r.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button className="text-slate-400 group-hover:text-[#0057cd] transition-colors p-1">
+                          <ChevronRight size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                {goodsReceiptNotes.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                      Chưa có phiếu nhập kho nào.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : (
+            // PO LIST TABLE
+            <table className="w-full text-sm text-left">
+              <thead className="text-[11px] text-slate-500 font-bold uppercase tracking-wider bg-slate-50/50 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4">Mã Đơn Hàng PO</th>
+                  <th className="px-6 py-4">Ngày Tạo</th>
+                  <th className="px-6 py-4">Nhà Cung Cấp</th>
+                  <th className="px-6 py-4 text-center">Số Loại Thuốc</th>
+                  <th className="px-6 py-4 text-right">Tổng Tiền</th>
+                  <th className="px-6 py-4 text-center">Trạng Thái</th>
+                  <th className="px-6 py-4">Hành Động</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {purchaseOrders
+                  .filter(r => r._id.toLowerCase().includes(searchQuery.toLowerCase()) || getSupplierName(r.supplierId).toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((r: any) => (
+                    <tr key={r._id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="px-6 py-4 font-bold text-slate-900">PO-{r._id.substring(18).toUpperCase()}</td>
+                      <td className="px-6 py-4 flex items-center gap-2 text-slate-600 mt-1.5">
+                        <Calendar size={14} className="text-slate-400" />
+                        {new Date(r.createdAt).toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="px-6 py-4 text-slate-800 font-medium">{getSupplierName(r.supplierId)}</td>
+                      <td className="px-6 py-4 text-center font-bold text-slate-700">{r.items?.length || 0}</td>
+                      <td className="px-6 py-4 text-right font-bold text-[#0057cd]">{r.totalAmount?.toLocaleString("vi-VN")}đ</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${r.status === "COMPLETED"
+                            ? "bg-sky-50 text-sky-700 border-sky-200"
+                            : r.status === "SHIPPING"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : r.status === "RECEIVING"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                : r.status === "PENDING_APPROVAL"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : r.status === "PARTIAL_RECEIVED"
+                                    ? "bg-orange-50 text-orange-700 border-orange-200"
+                                    : r.status === "RETURNED"
+                                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                                      : "bg-slate-50 text-slate-500 border-slate-200"
+                          }`}>
+                          {r.status === "PARTIAL_RECEIVED" ? "Giao thiếu" : r.status === "SHIPPING" ? "Đang giao" : r.status === "RECEIVING" ? "Đang kiểm" : r.status === "PENDING_APPROVAL" ? "Chờ duyệt" : r.status === "COMPLETED" ? "Hoàn thành" : r.status === "RETURNED" ? "Trả hàng" : r.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {(r.status === "SHIPPING" || r.status === "PARTIAL_RECEIVED") ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPoForReceipt(r);
+                              }}
+                              className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                            >
+                              <ClipboardCheck size={14} />
+                              Mở phiên tiếp nhận hàng
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setSelectedPoDetails(r)}
+                            className="text-[#0057cd] text-xs font-bold hover:underline"
+                          >
+                            Xem chi tiết
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                {purchaseOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                      Chưa có đơn đặt hàng (PO) nào.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* RENDER GOODS RECEIPT NOTE (GRN) CREATION MODAL */}
+      <AnimatePresence>
+        {selectedPoForReceipt && (
+          <GoodsReceiptModal
+            po={selectedPoForReceipt}
+            getMedicineName={getMedicineName}
+            onClose={() => setSelectedPoForReceipt(null)}
+            onSuccess={() => {
+              setSelectedPoForReceipt(null);
+              fetchData();
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* REJECT DELIVERY MODAL */}
+      <AnimatePresence>
+        {selectedPoForReject && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !rejectLoading && setSelectedPoForReject(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-rose-50">
+                <div>
+                  <h3 className="font-black text-rose-700 flex items-center gap-2">
+                    <AlertTriangle size={18} />
+                    Từ Chối Nhận Hàng
+                  </h3>
+                  <p className="text-xs text-rose-600 font-medium mt-1">PO-{selectedPoForReject._id.substring(18).toUpperCase()}</p>
+                </div>
+                <button
+                  onClick={() => !rejectLoading && setSelectedPoForReject(null)}
+                  className="p-1.5 text-rose-400 hover:text-rose-600 rounded-full hover:bg-rose-100"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Lý do từ chối</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Nhập lý do từ chối nhận lô hàng này..."
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setSelectedPoForReject(null)}
+                  disabled={rejectLoading}
+                  className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all text-sm"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleRejectDelivery}
+                  disabled={rejectLoading || !rejectReason.trim()}
+                  className="px-5 py-2 font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm"
+                >
+                  {rejectLoading && <Loader2 size={16} className="animate-spin" />}
+                  Xác nhận từ chối
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* GRN DETAILS MODAL */}
+      <AnimatePresence>
+        {selectedGrnDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedGrnDetails(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh] overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-[#f2f3ff]">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Chi tiết Phiếu Nhập Kho</h3>
+                  <p className="text-xs text-[#0057cd] font-bold mt-1">Mã GRN: GRN-{selectedGrnDetails._id.toUpperCase()}</p>
+                </div>
+                <button onClick={() => setSelectedGrnDetails(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-6">
+                <div className="grid grid-cols-3 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-200 font-medium">
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase mb-0.5">Đơn đặt hàng liên kết:</span>
+                    <span className="font-bold text-slate-800">PO-{selectedGrnDetails.poId.substring(18).toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase mb-0.5">Người nhận hàng:</span>
+                    <span className="font-semibold text-slate-800">{selectedGrnDetails.receivedBy}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase mb-0.5">Trạng thái phiếu:</span>
+                    <span className={`inline-flex px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase ${getGrnStatusBadgeClass(selectedGrnDetails.status)}`}>
+                      {getGrnStatusLabel(selectedGrnDetails.status)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase mb-0.5">
+                      {selectedGrnDetails.status === "COMPLETED" ? "Ngày nhập kho:" : "Ngày lập phiếu:"}
+                    </span>
+                    <span className="font-semibold text-slate-800">{new Date(selectedGrnDetails.createdAt).toLocaleString("vi-VN")}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase mb-0.5">Tổng tiền thanh toán:</span>
+                    <span className="font-black text-[#0057cd]">{selectedGrnDetails.totalAmount?.toLocaleString("vi-VN")}đ</span>
+                  </div>
+                </div>
+
+                {selectedGrnDetails.discrepancyReason && (
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-800 text-xs">
+                    <span className="font-bold">Lý do chênh lệch (Quản lý phê duyệt):</span> {selectedGrnDetails.discrepancyReason}
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                      <Package size={16} className="text-[#0057cd]" />
+                      Danh sách sản phẩm thực nhận:
+                    </h4>
+                    {(selectedGrnDetails.status === "PENDING_APPROVAL" || selectedGrnDetails.status === "COMPLETED") && (
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-all select-none">
+                        <input
+                          type="checkbox"
+                          checked={showOnlyDifferences}
+                          onChange={(e) => setShowOnlyDifferences(e.target.checked)}
+                          className="rounded text-[#0057cd] focus:ring-[#0057cd] w-3.5 h-3.5"
+                        />
+                        Chỉ hiển thị dòng hàng chênh lệch
+                      </label>
+                    )}
+                  </div>
+                  <table className="w-full text-xs text-left border border-slate-100 rounded-lg overflow-hidden animate-fade-in">
+                    <thead className="bg-slate-100 text-slate-600 font-bold">
+                      <tr>
+                        <th className="p-3">Tên thuốc</th>
+                        <th className="p-3">Số Lô (Batch)</th>
+                        <th className="p-3">Hạn sử dụng</th>
+                        {selectedGrnDetails.status === "PENDING_APPROVAL" || selectedGrnDetails.status === "COMPLETED" || selectedGrnDetails.status === "CANCELLED" ? (
+                          <>
+                            <th className="p-3 text-right">Số lượng yêu cầu</th>
+                            <th className="p-3 text-right">Số lượng thực nhận</th>
+                          </>
+                        ) : (
+                          <th className="p-3 text-right">Số lượng dự kiến</th>
+                        )}
+                        <th className="p-3 text-right">Đơn giá</th>
+                        <th className="p-3 text-right">Thành tiền</th>
+                        {(selectedGrnDetails.status === "PENDING_APPROVAL" || selectedGrnDetails.status === "COMPLETED" || selectedGrnDetails.status === "CANCELLED") && (
+                          <th className="p-3 text-center">Bằng chứng AI</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(selectedGrnDetails.status === "DRAFT" || selectedGrnDetails.status === "INSPECTING") ? (
+                        editGrnItems.map((item: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-3 font-semibold text-slate-800">{getMedicineName(item.medicineId)}</td>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                value={item.batchNo}
+                                onChange={(e) => {
+                                  const updated = [...editGrnItems];
+                                  updated[idx].batchNo = e.target.value;
+                                  setEditGrnItems(updated);
+                                }}
+                                className="px-2 py-1 border border-slate-200 rounded w-28 bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd] focus:bg-white font-semibold"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="date"
+                                value={item.expDate}
+                                onChange={(e) => {
+                                  const updated = [...editGrnItems];
+                                  updated[idx].expDate = e.target.value;
+                                  setEditGrnItems(updated);
+                                }}
+                                className="px-2 py-1 border border-slate-200 rounded text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-[#0057cd] focus:bg-white font-semibold"
+                              />
+                            </td>
+                            <td className="p-3 text-right">
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const updated = [...editGrnItems];
+                                  updated[idx].quantity = Number(e.target.value);
+                                  setEditGrnItems(updated);
+                                }}
+                                className="px-2 py-1 border border-slate-200 rounded w-16 text-right bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-[#0057cd] focus:bg-white font-bold"
+                              />
+                            </td>
+                            <td className="p-3 text-right text-slate-600">{item.unitPrice?.toLocaleString("vi-VN")}đ</td>
+                            <td className="p-3 text-right font-bold text-[#0057cd]">{(item.quantity * item.unitPrice)?.toLocaleString("vi-VN")}đ</td>
+                          </tr>
+                        ))
+                      ) : (
+                        selectedGrnDetails.items?.filter((item: any) => {
+                          if (!showOnlyDifferences) return true;
+                          const expectedQty = item.quantity;
+                          const actualQty = item.actualQty;
+                          return actualQty !== undefined && actualQty !== null && actualQty !== expectedQty;
+                        }).map((item: any, idx: number) => {
+                          const isMismatched = (selectedGrnDetails.status === "PENDING_APPROVAL" || selectedGrnDetails.status === "COMPLETED") && item.actualQty !== undefined && item.actualQty !== null && item.actualQty !== item.quantity;
+                          return (
+                            <tr key={idx} className={`hover:bg-slate-50 ${isMismatched ? "bg-amber-50/40 hover:bg-amber-50/60" : ""}`}>
+                              <td className="p-3 font-semibold text-slate-800">{getMedicineName(item.medicineId)}</td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded">
+                                  {item.batchNo}
+                                </span>
+                              </td>
+                              <td className="p-3 font-medium text-slate-600">{new Date(item.expDate).toLocaleDateString("vi-VN")}</td>
+                              {selectedGrnDetails.status === "PENDING_APPROVAL" || selectedGrnDetails.status === "COMPLETED" || selectedGrnDetails.status === "CANCELLED" ? (
+                                <>
+                                  <td className="p-3 text-right text-slate-600">{item.quantity}</td>
+                                  <td className={`p-3 text-right font-black ${isMismatched ? "text-amber-700 bg-amber-100/50" : "text-sky-700"}`}>
+                                    {item.actualQty ?? "-"}
+                                  </td>
+                                </>
+                              ) : (
+                                <td className="p-3 text-right font-bold text-slate-800">{item.quantity}</td>
+                              )}
+                              <td className="p-3 text-right text-slate-600">{item.unitPrice?.toLocaleString("vi-VN")}đ</td>
+                              <td className="p-3 text-right font-bold text-[#0057cd]">{(item.quantity * item.unitPrice)?.toLocaleString("vi-VN")}đ</td>
+                              {(selectedGrnDetails.status === "PENDING_APPROVAL" || selectedGrnDetails.status === "COMPLETED" || selectedGrnDetails.status === "CANCELLED") && (
+                                <td className="p-3 text-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleViewInspectionRecord(selectedGrnDetails._id, item._id, getMedicineName(item.medicineId));
+                                    }}
+                                    className="text-[11px] font-black text-[#0057cd] hover:text-[#00419e] hover:underline bg-[#f2f3ff] px-2.5 py-1 rounded-md border border-[#e2e5ff] transition-all"
+                                  >
+                                    Xem ảnh
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {selectedGrnDetails.status === "PENDING_APPROVAL" && (
+                  <div className="space-y-2 border-t border-slate-100 pt-4">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      Lý do chênh lệch (Bắt buộc nếu có chênh lệch giữa số lượng yêu cầu và thực nhận):
+                    </label>
+                    <textarea
+                      value={discrepancyReason}
+                      onChange={(e) => setDiscrepancyReason(e.target.value)}
+                      placeholder="Nhập lý do chênh lệch (Ví dụ: Nhà cung cấp giao thiếu, hàng bị vỡ/hỏng...)"
+                      rows={2}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#0057cd] text-xs font-semibold placeholder:font-normal"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* MODAL FOOTER */}
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+                <div className="text-xs text-slate-500 font-semibold">
+                  {(selectedGrnDetails.status === "DRAFT" || selectedGrnDetails.status === "INSPECTING") && "💡 Đang kiểm đếm lô hàng. Quản lý có thể sửa lô/hạn dùng/số lượng."}
+                  {selectedGrnDetails.status === "PENDING_APPROVAL" && "🔔 Chờ duyệt. Hãy rà soát chênh lệch số lượng trước khi Approve."}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setSelectedGrnDetails(null)}
+                    className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all text-sm"
+                  >
+                    Đóng
+                  </button>
+
+                  {(selectedGrnDetails.status === "DRAFT" || selectedGrnDetails.status === "INSPECTING") && (
+                    <button
+                      onClick={handleSaveDraft}
+                      disabled={editLoading}
+                      className="px-5 py-2 font-bold text-white bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-300 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm"
+                    >
+                      {editLoading && <Loader2 size={16} className="animate-spin" />}
+                      Lưu thay đổi
+                    </button>
+                  )}
+
+                  {selectedGrnDetails.status === "PENDING_APPROVAL" && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRejectGRN("reinspect")}
+                        disabled={approvalLoading}
+                        className="px-4 py-2 font-bold text-amber-700 bg-amber-100 hover:bg-amber-250 rounded-xl transition-all text-sm"
+                      >
+                        Yêu cầu kiểm lại
+                      </button>
+                      <button
+                        onClick={() => handleRejectGRN("cancel")}
+                        disabled={approvalLoading}
+                        className="px-4 py-2 font-bold text-rose-700 bg-rose-100 hover:bg-rose-250 rounded-xl transition-all text-sm"
+                      >
+                        Từ chối/Hủy phiên
+                      </button>
+                      <button
+                        onClick={handleApproveGRN}
+                        disabled={approvalLoading}
+                        className="px-5 py-2 font-bold text-white bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm"
+                      >
+                        {approvalLoading && <Loader2 size={16} className="animate-spin" />}
+                        Phê duyệt nhập kho
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* PO DETAILS MODAL */}
+      <AnimatePresence>
+        {selectedPoDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedPoDetails(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh] overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-[#f2f3ff]">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Chi tiết Đơn đặt hàng PO</h3>
+                  <p className="text-xs text-[#0057cd] font-bold mt-1">Mã PO: PO-{selectedPoDetails._id.toUpperCase()}</p>
+                </div>
+                <button onClick={() => setSelectedPoDetails(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-6">
+                <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase">Nhà cung cấp:</span>
+                    <span className="font-bold text-slate-800">{getSupplierName(selectedPoDetails.supplierId)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase">Người tạo đơn:</span>
+                    <span className="font-semibold text-slate-800">{selectedPoDetails.createdBy || "Hệ thống"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase">Ngày lập đơn:</span>
+                    <span className="font-semibold text-slate-800">{new Date(selectedPoDetails.createdAt).toLocaleString("vi-VN")}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-xs uppercase">Trạng thái:</span>
+                    <span className="font-black text-[#0057cd] uppercase">
+                      {selectedPoDetails.status === "SHIPPING"
+                        ? "Đang giao"
+                        : selectedPoDetails.status === "RECEIVING"
+                          ? "Đang kiểm"
+                          : selectedPoDetails.status === "PARTIAL_RECEIVED"
+                            ? "Giao thiếu"
+                            : selectedPoDetails.status === "COMPLETED"
+                              ? "Hoàn thành"
+                              : selectedPoDetails.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2">
+                    <Package size={16} className="text-[#0057cd]" />
+                    Sản phẩm trong đơn:
+                  </h4>
+                  <table className="w-full text-xs text-left border border-slate-100 rounded-lg overflow-hidden">
+                    <thead className="bg-slate-100 text-slate-600 font-bold">
+                      <tr>
+                        <th className="p-3">Tên thuốc</th>
+                        <th className="p-3 text-right">Số lượng đặt</th>
+                        <th className="p-3 text-right">Đơn giá đặt</th>
+                        <th className="p-3 text-right">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedPoDetails.items?.map((item: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-3 font-semibold text-slate-800">{getMedicineName(item.medicineId)}</td>
+                          <td className="p-3 text-right font-bold text-slate-800">{item.quantity}</td>
+                          <td className="p-3 text-right text-slate-600">{item.unitPrice?.toLocaleString("vi-VN")}đ</td>
+                          <td className="p-3 text-right font-bold text-[#0057cd]">{(item.quantity * item.unitPrice)?.toLocaleString("vi-VN")}đ</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Inspection Record Modal */}
+        {selectedInspectionRecord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedInspectionRecord(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-2 text-slate-800 font-bold">
+                  <Image size={18} className="text-[#0057cd]" />
+                  <span>Bằng chứng kiểm đếm AI - {selectedMedicineNameForRecord}</span>
+                </div>
+                <button
+                  onClick={() => setSelectedInspectionRecord(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-950 flex items-center justify-center min-h-[300px]">
+                    <img
+                      src={
+                        selectedInspectionRecord.evidenceImage
+                          ? selectedInspectionRecord.evidenceImage.startsWith("http")
+                            ? selectedInspectionRecord.evidenceImage
+                            : "http://localhost:8000" + selectedInspectionRecord.evidenceImage
+                          : ""
+                      }
+                      className="max-w-full max-h-[40vh] object-contain animate-fade-in"
+                      alt="AI Verification Evidence"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 text-center italic">
+                    Hình ảnh chụp thực tế từ camera thiết bị di động của thủ kho
+                  </p>
+                </div>
+                <div className="space-y-4 text-xs">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">Thông số đối soát AI</h5>
+                    <div className="grid grid-cols-2 gap-y-2">
+                      <span className="text-slate-500 font-bold">Số lượng đặt:</span>
+                      <span className="font-bold text-slate-800 text-right">{selectedInspectionRecord.expectedQty} hộp</span>
+
+                      <span className="text-slate-500 font-bold">AI đếm:</span>
+                      <span className="font-black text-[#0057cd] text-right">{selectedInspectionRecord.aiCount} hộp</span>
+
+                      <span className="text-slate-500 font-bold">Thủ kho xác nhận:</span>
+                      <span className="font-black text-sky-700 text-right">{selectedInspectionRecord.actualQty ?? "Chưa xác nhận"} hộp</span>
+
+                      <span className="text-slate-500 font-bold">Chênh lệch:</span>
+                      <span className={`font-black text-right ${selectedInspectionRecord.actualQty !== null && selectedInspectionRecord.actualQty !== selectedInspectionRecord.expectedQty ? "text-amber-600" : "text-sky-600"}`}>
+                        {selectedInspectionRecord.actualQty !== null 
+                          ? `${selectedInspectionRecord.actualQty - selectedInspectionRecord.expectedQty} hộp` 
+                          : "N/A"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">Thông tin Audit Log</h5>
+                    <div className="grid grid-cols-2 gap-y-2">
+                      <span className="text-slate-500 font-bold">Thủ kho thực hiện:</span>
+                      <span className="font-semibold text-slate-800 text-right">{selectedInspectionRecord.verifiedBy || "Chưa xác nhận"}</span>
+
+                      <span className="text-slate-500 font-bold">Thời gian kiểm:</span>
+                      <span className="font-semibold text-slate-800 text-right">
+                        {selectedInspectionRecord.verifiedAt 
+                          ? new Date(selectedInspectionRecord.verifiedAt).toLocaleString("vi-VN") 
+                          : new Date(selectedInspectionRecord.createdAt).toLocaleString("vi-VN")}
+                      </span>
+
+                      <span className="text-slate-500 font-bold">Phiên bản Model:</span>
+                      <span className="font-bold text-[#0057cd] text-right">Roboflow RF-v4.1</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* CREATE DISPOSAL MODAL - 3-COLUMN RICH SELECTOR MATCHING CREATE PO */}
+        {isCreateDisposalOpen && (
+          <CreateDisposalModal
+            prefillItem={prefillDisposalItem}
+            onClose={() => {
+              setIsCreateDisposalOpen(false);
+              setPrefillDisposalItem(null);
+              navigate(location.pathname, { replace: true, state: {} });
+            }}
+            onSuccess={(msg) => {
+              setIsCreateDisposalOpen(false);
+              setPrefillDisposalItem(null);
+              navigate(location.pathname, { replace: true, state: {} });
+              setApprovalNotice({
+                type: "success",
+                title: "Xuất Hủy Thành Công",
+                message: msg || "Đã xuất hủy thuốc và cập nhật tồn kho thành công!",
+              });
+              fetchData();
+            }}
+          />
+        )}
+
+        {/* OFFICIAL GSP / GPP DESTRUCTION CERTIFICATE MODAL */}
+        {selectedDisposalCert && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedDisposalCert(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-rose-700 font-bold">
+                  <FileText size={20} />
+                  <span>Biên Bản Tiêu Hủy Thuốc Chuẩn GSP/GPP</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                  >
+                    In Biên Bản
+                  </button>
+                  <button
+                    onClick={() => setSelectedDisposalCert(null)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Certificate Paper Body */}
+              <div className="p-8 overflow-y-auto space-y-6 bg-white text-slate-800 text-xs leading-relaxed font-serif">
+                <div className="text-center border-b border-slate-200 pb-4 space-y-1">
+                  <p className="font-bold uppercase tracking-widest text-[11px] text-slate-600">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                  <p className="font-bold text-xs">Độc lập - Tự do - Hạnh phúc</p>
+                  <div className="w-24 h-0.5 bg-slate-400 mx-auto my-1"></div>
+                  <p className="font-sans font-bold text-slate-900 text-sm mt-3">HỆ THỐNG DƯỢC PHẨM VINAPHARMACY</p>
+                  <p className="text-[11px] text-slate-500 font-sans">Kho Tổng GSP & Chuỗi Nhà Thuốc GPP Tiêu Chuẩn Bộ Y Tế</p>
+                  <h2 className="font-sans font-black text-rose-700 text-base uppercase mt-4 tracking-wide">
+                    BIÊN BẢN TIÊU HỦY THUỐC HẾT HẠN SỬ DỤNG / HỎNG
+                  </h2>
+                  <p className="text-[10px] text-slate-500 italic">
+                    (Theo quy định tại Thông tư 02/2018/TT-BYT và Thông tư 36/2018/TT-BYT của Bộ Y Tế)
+                  </p>
+                </div>
+
+                <div className="space-y-2 font-sans text-slate-700 text-xs">
+                  <p>Hôm nay, ngày {new Date(selectedDisposalCert.createdAt || Date.now()).getDate()} tháng {new Date(selectedDisposalCert.createdAt || Date.now()).getMonth() + 1} năm {new Date(selectedDisposalCert.createdAt || Date.now()).getFullYear()}, tại Phòng Kiểm Soát Chất Lượng Kho GSP VinaPharmacy.</p>
+                  <p className="font-bold">I. Thành phần Hội đồng Tiêu hủy Thuốc gồm có:</p>
+                  <div className="ml-4 space-y-1">
+                    <p>1. <strong>Ông/Bà: DS. CKI Nguyễn Văn An</strong> - Chức vụ: Đại diện Ban Giám Đốc (Chủ tịch Hội đồng)</p>
+                    <p>2. <strong>Ông/Bà: DS. Trần Thị Mai</strong> - Chức vụ: Dược sĩ phụ trách Chuyên môn GPP (Ủy viên)</p>
+                    <p>3. <strong>Ông/Bà: {selectedDisposalCert.performedBy || "DS. Lê Hoàng Nam"}</strong> - Chức vụ: Thủ kho Dược chính GSP (Ủy viên kiêm Thư ký)</p>
+                  </div>
+
+                  <p className="font-bold mt-4">II. Căn cứ tiêu hủy:</p>
+                  <p className="ml-4 italic text-slate-600">- Căn cứ Biên bản kiểm kê kho định kỳ và Báo cáo rà soát hạn dùng thuốc.</p>
+                  <p className="ml-4 italic text-slate-600">- Quyết định xuất hủy số: QD-TH/{(selectedDisposalCert._id || selectedDisposalCert.id || "").substring(18).toUpperCase()}/2026.</p>
+
+                  <p className="font-bold mt-4">III. Danh mục thuốc thực hiện xuất hủy:</p>
+                  <table className="w-full border-collapse border border-slate-300 text-center text-xs mt-2 font-sans">
+                    <thead className="bg-slate-100 text-slate-800 font-bold">
+                      <tr>
+                        <th className="border border-slate-300 p-2">STT</th>
+                        <th className="border border-slate-300 p-2 text-left">Tên Thuốc / Biệt Dược</th>
+                        <th className="border border-slate-300 p-2">Số Lô</th>
+                        <th className="border border-slate-300 p-2">Số Lượng Hủy</th>
+                        <th className="border border-slate-300 p-2 text-left">Lý Do Xuất Hủy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="border border-slate-300 p-2">01</td>
+                        <td className="border border-slate-300 p-2 text-left font-bold text-slate-900">
+                          {getMedicineName(selectedDisposalCert.medicineId)}
+                        </td>
+                        <td className="border border-slate-300 p-2 font-bold text-amber-800">
+                          {selectedDisposalCert.batchNo || selectedDisposalCert.batchId || "LOT-EXP"}
+                        </td>
+                        <td className="border border-slate-300 p-2 font-black text-rose-600">
+                          {Math.abs(selectedDisposalCert.quantityChange || selectedDisposalCert.quantity || selectedDisposalCert.amount || 0).toLocaleString("vi-VN")} đơn vị
+                        </td>
+                        <td className="border border-slate-300 p-2 text-left text-slate-600">
+                          {selectedDisposalCert.notes || "Thuốc quá hạn sử dụng theo quy định Dược"}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <p className="font-bold mt-4">IV. Phương pháp và Kết quả tiêu hủy:</p>
+                  <p className="ml-4">
+                    - Phương pháp: Đã thực hiện làm biến dạng hoàn toàn (nghiền nhỏ, phân hủy hoặc bàn giao đơn vị xử lý rác y tế chuyên dụng theo đúng cam kết bảo vệ môi trường).
+                  </p>
+                  <p className="ml-4">
+                    - Số lượng thuốc nêu trên ({Math.abs(selectedDisposalCert.quantityChange || selectedDisposalCert.quantity || selectedDisposalCert.amount || 0).toLocaleString("vi-VN")} đơn vị) đã được loại bỏ hoàn toàn khỏi hệ thống tồn kho lưu thông.
+                  </p>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-3 gap-4 pt-6 font-sans text-center text-xs">
+                  <div>
+                    <p className="font-bold text-slate-800">THỦ KHO GSP</p>
+                    <p className="text-[10px] text-slate-400 italic">(Ký và ghi rõ họ tên)</p>
+                    <div className="h-16 flex items-center justify-center">
+                      <span className="font-serif italic font-bold text-blue-800 text-sm">Đã Ký Số</span>
+                    </div>
+                    <p className="font-bold text-slate-700">{selectedDisposalCert.performedBy || "Lê Hoàng Nam"}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">DƯỢC SĨ CHUYÊN MÔN</p>
+                    <p className="text-[10px] text-slate-400 italic">(Ký và ghi rõ họ tên)</p>
+                    <div className="h-16 flex items-center justify-center">
+                      <span className="font-serif italic font-bold text-blue-800 text-sm">Đã Duyệt GPP</span>
+                    </div>
+                    <p className="font-bold text-slate-700">DS. Trần Thị Mai</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">CHỦ TỊCH HỘI ĐỒNG</p>
+                    <p className="text-[10px] text-slate-400 italic">(Ký, đóng dấu)</p>
+                    <div className="h-16 flex items-center justify-center">
+                      <div className="w-16 h-16 rounded-full border-2 border-dashed border-rose-400 flex items-center justify-center text-[10px] font-black text-rose-600 rotate-[-12deg]">
+                        ĐÃ PHÊ DUYỆT
+                      </div>
+                    </div>
+                    <p className="font-bold text-slate-700">DS. CKI Nguyễn Văn An</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button
+                  onClick={() => setSelectedDisposalCert(null)}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
+                >
+                  Đóng
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// FULL GOODS RECEIPT INPUT FORM IN MODAL
+function GoodsReceiptModal({ po, getMedicineName, onClose, onSuccess }: { po: any; getMedicineName: (id: string) => string; onClose: () => void; onSuccess: () => void }) {
+  const [itemsData, setItemsData] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+
+  // Initialize form with PO items
+  useEffect(() => {
+    if (po && po.items) {
+      setItemsData(
+        po.items.map((it: any) => ({
+          medicineId: it.medicineId,
+          batchNo: "",
+          expDate: "",
+          quantity: (it.quantity - (it.receivedQuantity || 0)) || it.quantity,
+          maxQuantity: (it.quantity - (it.receivedQuantity || 0)) || it.quantity,
+          unitPrice: it.unitPrice
+        }))
+      );
+    }
+  }, [po]);
+
+  const handleItemFieldChange = (index: number, field: string, value: any) => {
+    const updated = [...itemsData];
+    updated[index] = {
+      ...updated[index],
+      [field]: value
+    };
+    setItemsData(updated);
+  };
+
+  const handleSubmit = async () => {
+    setErrorMessage(null);
+
+    // Validate inputs
+    for (let i = 0; i < itemsData.length; i++) {
+      const it = itemsData[i];
+      if (!it.batchNo.trim()) {
+        setErrorMessage(`Vui lòng điền số lô cho thuốc "${getMedicineName(it.medicineId)}".`);
+        return;
+      }
+      if (!it.expDate) {
+        setErrorMessage(`Vui lòng chọn hạn sử dụng cho thuốc "${getMedicineName(it.medicineId)}".`);
+        return;
+      }
+      if (new Date(it.expDate) <= new Date()) {
+        setErrorMessage(`Hạn sử dụng của thuốc "${getMedicineName(it.medicineId)}" phải lớn hơn ngày hiện tại.`);
+        return;
+      }
+      if (it.quantity <= 0) {
+        setErrorMessage(`Số lượng dự kiến nhận của thuốc "${getMedicineName(it.medicineId)}" phải lớn hơn 0.`);
+        return;
+      }
+      if (it.quantity > it.maxQuantity) {
+        setErrorMessage(`Số lượng dự kiến nhận cho thuốc "${getMedicineName(it.medicineId)}" (${it.quantity}) vượt quá số lượng đặt hàng (${it.maxQuantity})!`);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const resData = await goodsReceiptService.createGoodsReceipt({
+        poId: po._id,
+        receivedBy: "Thủ kho chính",
+        items: itemsData.map(it => ({
+          medicineId: it.medicineId,
+          batchNo: it.batchNo,
+          expiryDate: new Date(it.expDate).toISOString(),
+          quantityReceived: Number(it.quantity),
+          // Backend compatibility fields
+          expDate: new Date(it.expDate).toISOString(),
+          quantity: Number(it.quantity),
+          unitPrice: it.unitPrice
+        } as any))
+      });
+      if (resData.warnings && resData.warnings.length > 0) {
+        setWarnings(resData.warnings);
+        setTimeout(() => onSuccess(), 3000);
+      } else {
+        onSuccess();
+      }
+    } catch (e: any) {
+      const errMsg = e.response?.data?.message || "Tạo phiếu nhập kho thất bại. Lỗi từ máy chủ.";
+      setErrorMessage(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden"
+      >
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-sky-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
+              <ClipboardCheck size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-900">Mở Phiên Tiếp Nhận Hàng (Receiving Session)</h2>
+              <p className="text-xs font-bold text-sky-800">Từ đơn đặt hàng: PO-{po._id.substring(18).toUpperCase()}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto bg-slate-50/50 space-y-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Nhập thông tin lô hàng và hạn dùng dự kiến để khởi tạo phiên tiếp nhận cho thủ kho kiểm đếm:
+          </p>
+
+          <div className="space-y-4">
+            {itemsData.map((item, idx) => (
+              <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div className="md:col-span-1">
+                  <label className="text-xs font-bold text-slate-500 block mb-1">TÊN SẢN PHẨM</label>
+                  <span className="font-bold text-slate-800 text-sm leading-tight block">{getMedicineName(item.medicineId)}</span>
+                  <span className="text-[11px] text-[#0057cd] font-bold block mt-1">Đơn giá: {item.unitPrice?.toLocaleString("vi-VN")}đ</span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">SỐ LÔ (BATCH NO)*</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: LOT-2026A"
+                    value={item.batchNo}
+                    onChange={(e) => handleItemFieldChange(idx, "batchNo", e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">HẠN SỬ DỤNG*</label>
+                  <input
+                    type="date"
+                    required
+                    value={item.expDate}
+                    onChange={(e) => handleItemFieldChange(idx, "expDate", e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-bold text-slate-500 block">DỰ KIẾN NHẬN*</label>
+                    <span className="text-[10px] font-bold text-slate-400">Đơn đặt: {item.maxQuantity}</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max={item.maxQuantity}
+                    required
+                    value={item.quantity}
+                    onChange={(e) => handleItemFieldChange(idx, "quantity", Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {warnings.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-bold space-y-2">
+              <div className="flex items-center gap-2 text-amber-700 font-black"><AlertTriangle size={18} /> CẢNH BÁO HÀNG CẬN DATE</div>
+              {warnings.map((w, i) => <p key={i} className="text-xs leading-relaxed">{w}</p>)}
+              <p className="text-xs text-amber-600 mt-2">Phiên tiếp nhận đã được khởi tạo thành công. Tự động đóng sau 3 giây...</p>
+            </motion.div>
+          )}
+
+          {errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-bold flex items-start gap-2"
+            >
+              <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+              <span>{errorMessage}</span>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 size={18} className="animate-spin text-white" />
+                Đang tạo phiên...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={18} />
+                 Bắt đầu kiểm hàng
+              </>
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}

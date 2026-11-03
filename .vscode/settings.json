@@ -1,0 +1,20 @@
+{
+    "markdown.extension.completion.enabled": false,
+    "markdown.extension.tableFormatter.enabled": false,
+    "dart.analysisExcludedFolders": [
+        "**/node_modules"
+    ],
+    "search.exclude": {
+        "**/node_modules": true
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true
+    },
+    "files.exclude": {
+        "**/node_modules": true
+    },
+    "files.associations": {
+        "*.html": "html"
+    },
+    "liveServer.settings.port": 5501
+}

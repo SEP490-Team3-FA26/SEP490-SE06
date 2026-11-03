@@ -1,0 +1,195 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+
+export enum UserRole {
+  ADMIN = 'admin',
+  DIRECTOR = 'director',
+  HEAD_BRANCH = 'head_branch',
+  WAREHOUSE = 'warehouse',
+  BRANCH = 'branch',
+  PHARMACIST = 'pharmacist',
+  USER = 'user',
+  MOH_INSPECTOR = 'moh_inspector',
+}
+
+export type UserDocument = User & Document;
+
+@Schema({ timestamps: true })
+export class User extends Document {
+  /** Email dùng để đăng nhập và nhận thông báo hệ thống (Duy nhất trong hệ thống) */
+  @Prop({ required: true, unique: true })
+  email: string;
+
+  /** Chuỗi băm mật khẩu (Bcrypt) phục vụ xác thực bảo mật */
+  @Prop({ required: true })
+  passwordHash: string;
+
+  /** Họ và tên đầy đủ của người dùng / nhân viên / dược sĩ */
+  @Prop({ required: true })
+  fullName: string;
+
+  /** Phân quyền truy cập theo hệ thống RBAC (Admin, Dược sĩ, Kho, Giám đốc, Khách hàng...) */
+  @Prop({ type: String, enum: UserRole, default: UserRole.PHARMACIST })
+  role: UserRole;
+
+  /** Trạng thái kích hoạt tài khoản (true: đang hoạt động, false: đã bị khóa/ban) */
+  @Prop({ default: true })
+  isActive: boolean;
+
+  /** Cờ xác nhận người dùng đã xác thực email thành công hay chưa */
+  @Prop({ default: false })
+  isEmailVerified: boolean;
+
+  /** Trạng thái phê duyệt nhân sự/dược sĩ bởi Quản trị viên ('pending', 'approved', 'rejected') */
+  @Prop({ type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' })
+  isApproved: string;
+
+  /** Đường dẫn URL ảnh đại diện (Avatar) của người dùng */
+  @Prop()
+  avatarUrl?: string;
+
+  /** ID định danh Google OAuth khi đăng nhập bằng tài khoản Google */
+  @Prop()
+  googleId?: string;
+
+  /** ID chi nhánh nhà thuốc mà nhân sự/dược sĩ được chỉ định công tác */
+  @Prop({ default: null })
+  branchId?: string;
+
+  /** Tên chi nhánh nhà thuốc tương ứng với branchId */
+  @Prop({ default: null })
+  branchName?: string;
+
+  /** Cờ bật/tắt cơ chế xác thực hai yếu tố (2FA - Two-Factor Authentication) */
+  @Prop({ default: false })
+  isTwoFactorEnabled: boolean;
+
+  /** Số điện thoại liên hệ, dùng đăng nhập và tra cứu khách hàng thân thiết tại quầy */
+  @Prop({ unique: true, sparse: true })
+  phone?: string;
+
+  /** Địa chỉ cư trú hoặc địa chỉ nhận hàng mặc định của người dùng */
+  @Prop()
+  address?: string;
+
+  /** Số điểm thưởng tích lũy khả dụng hiện tại (dùng để cấn trừ thanh toán đơn hàng) */
+  @Prop({ default: 0 })
+  points: number;
+
+  /** Tổng điểm tích lũy trọn đời (dùng để xét thăng hạng thành viên Loyalty) */
+  @Prop({ default: 0 })
+  accumulatedPoints: number;
+
+  /** Hạng thành viên khách hàng thân thiết (Bronze, Silver, Gold, Platinum) */
+  @Prop({ default: 'Bronze' })
+  tier?: string;
+
+  /** Tiền sử dị ứng thuốc/hoạt chất chung (VD: Penicillin, Cephalosporin, NSAIDs, Sulfonamide...) */
+  @Prop({ type: [String], default: [] })
+  allergies?: string[];
+
+  /** Danh sách biệt dược / thuốc cụ thể bị dị ứng (VD: Augmentin, Panadol Extra, Aspirin 81...) */
+  @Prop({ type: [String], default: [] })
+  allergicMedicines?: string[];
+
+  /** Danh sách thành phần hoạt chất bị dị ứng (VD: Amoxicillin, Paracetamol, Ibuprofen, Sulfamethoxazole...) */
+  @Prop({ type: [String], default: [] })
+  allergicIngredients?: string[];
+
+  /** Tiền sử bệnh nền / bệnh mãn tính (VD: Viêm loét dạ dày, Tăng huyết áp, Đái tháo đường, Hen suyễn, Suy gan, Suy thận, Thai kỳ...) */
+  @Prop({ type: [String], default: [] })
+  chronicConditions?: string[];
+
+  /** Nhóm máu bệnh nhân (A, B, AB, O, Rh+, Rh-) */
+  @Prop({ default: null })
+  bloodType?: string;
+
+  /** Ghi chú y tế đặc biệt / tiền sử điều trị / chỉ định bác sĩ */
+  @Prop({ default: null })
+  medicalNotes?: string;
+
+  /** Cờ đánh dấu người dùng đã hoàn thành khai báo hồ sơ y tế ban đầu hay chưa */
+  @Prop({ default: false })
+  hasCompletedHealthOnboarding?: boolean;
+
+  @Prop({ type: [String], default: [], select: false })
+  loyaltyOperationKeys?: string[];
+
+  /** Trình độ bằng cấp chuyên môn cao nhất được duyệt (VD: Dược sĩ Đại học, Dược sĩ Cao đẳng) */
+  @Prop({ default: null })
+  highestDegree?: string;
+
+  /** Số hiệu Chứng chỉ hành nghề Dược (CCHN) đã được thẩm định */
+  @Prop({ default: null })
+  practiceCertificateNumber?: string;
+
+  /** Tổng mức phụ cấp văn bằng & CCHN hàng tháng (VNĐ) */
+  @Prop({ default: 0 })
+  certificateAllowance?: number;
+
+  /** Xác định Dược sĩ chịu trách nhiệm chuyên môn chính (PTCM) cho Chi nhánh */
+  @Prop({ default: false })
+  isBranchPIC?: boolean;
+
+  /** Mức lương cơ bản hàng tháng (VNĐ) */
+  @Prop({ default: 7500000 })
+  baseSalary?: number;
+
+  /** Quỹ số ngày phép năm khả dụng còn lại */
+  @Prop({ default: 12 })
+  annualLeaveBalance?: number;
+
+  /** Quỹ số ngày phép năm đã sử dụng trong năm */
+  @Prop({ default: 0 })
+  usedAnnualLeave?: number;
+
+  /** Danh sách các thiết bị sinh trắc học đã đăng ký khóa công khai FIDO2/Challenge-Response */
+  @Prop({ type: Array, default: [] })
+  biometricDevices?: {
+    deviceId: string;
+    deviceName: string;
+    publicKey: string;
+    registeredAt: Date;
+    lastUsedAt: Date;
+    isActive: boolean;
+  }[];
+
+  // ===================================================================
+  // EMAIL MARKETING — Quản lý đăng ký nhận email khuyến mãi
+  // Phục vụ hệ thống Newsletter & Promotion Email Marketing
+  // ===================================================================
+
+  /** Nhóm khách hàng theo mục đích điều trị (dùng để lọc đối tượng nhận email) */
+  @Prop({
+    type: String,
+    enum: ['GENERAL', 'PEDIATRIC', 'PREGNANT', 'ELDERLY', 'CHRONIC'],
+    default: 'GENERAL',
+  })
+  targetGroup?: string;
+
+  /**
+   * Thông tin quản lý đăng ký nhận email marketing
+   * isSubscribed: Khách hàng đồng ý nhận email khuyến mãi (default: true khi đăng ký)
+   * unsubscribeToken: Token ngẫu nhiên để hủy đăng ký 1-click an toàn
+   * isEmailValid: Chuyển false khi nhận sự kiện Hard Bounce từ Resend
+   * unsubscribedAt: Thời điểm khách hủy đăng ký
+   */
+  @Prop({
+    type: {
+      isSubscribed: { type: Boolean, default: true },
+      unsubscribeToken: { type: String, index: true },
+      isEmailValid: { type: Boolean, default: true },
+      unsubscribedAt: { type: Date },
+    },
+    default: () => ({ isSubscribed: true, isEmailValid: true }),
+  })
+  newsletter?: {
+    isSubscribed: boolean;
+    unsubscribeToken?: string;
+    isEmailValid: boolean;
+    unsubscribedAt?: Date;
+  };
+}
+
+export const UserSchema = SchemaFactory.createForClass(User);
+
