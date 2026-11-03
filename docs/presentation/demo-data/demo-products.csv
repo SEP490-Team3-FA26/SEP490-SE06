@@ -1,0 +1,4 @@
+﻿sku,name,medicineId,unit,unitFactor,priceVND,centralStock,branchBR001Stock,inTransit,location
+DEMO-R2-VITC,DEMO R2 - Vitamin C 500mg,6ad3e406b3263f345aea9a97,Hộp,1,25000,85,20,5,RESERVE/RES4/T1/B10
+DEMO-R2-BONG,DEMO R2 - Bong y te 100g,6ad3e53eb3263f345aea9b43,Gói,1,12000,8,0,0,RESERVE/RES4/T1/B9
+DEMO-R2-KT,DEMO R2 - Khau trang y te,6ad3e53eb3263f345aea9b45,Hộp,1,30000,60,0,0,RESERVE/RES4/T1/B8

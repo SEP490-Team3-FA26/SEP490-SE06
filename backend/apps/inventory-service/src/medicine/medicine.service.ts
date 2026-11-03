@@ -1223,16 +1223,16 @@ export class MedicineService implements OnModuleInit {
       message: check.status === 'COMPLETED'
         ? `Đã tạo và hoàn tất biên bản kiểm kê ${checkCode}, tồn kho đã được điều chỉnh.`
         : `Đã lưu nháp biên bản kiểm kê ${checkCode}.`,
-      data: check,
+      data: (check.toObject ? check.toObject() : check),
     };
   }
 
   async listInventoryChecks() {
-    return this.checkModel.find().sort({ createdAt: -1 }).exec();
+    return this.checkModel.find().sort({ createdAt: -1 }).lean().exec();
   }
 
   async getInventoryCheckById(id: string) {
-    const check = await this.checkModel.findById(id).exec();
+    const check = await this.checkModel.findById(id).lean().exec();
     if (!check) {
       throw new RpcException({ message: `Không tìm thấy biên bản kiểm kê: ${id}` });
     }
@@ -1272,7 +1272,7 @@ export class MedicineService implements OnModuleInit {
     return {
       success: true,
       message: `Đã hoàn tất biên bản kiểm kê ${check.checkCode}, tồn kho đã được điều chỉnh.`,
-      data: check,
+      data: (check.toObject ? check.toObject() : check),
     };
   }
 

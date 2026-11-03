@@ -1819,17 +1819,22 @@ export class ApiService {
     imageInput: string | FormData
   ): Promise<any> {
     try {
-      let formData: FormData;
+      let formData: FormData | null = null;
+      const isRemoteUrl = typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'));
+
       if (typeof imageInput === 'string') {
-        formData = new FormData();
-        const filename = imageInput.split('/').pop() || 'package.jpg';
-        const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-        const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-        formData.append('file', {
-          uri: imageInput,
-          name: filename,
-          type,
-        } as any);
+        if (!isRemoteUrl) {
+          // Ảnh chụp trực tiếp từ camera hoặc thư viện máy (file:// hoặc content://)
+          formData = new FormData();
+          const filename = imageInput.split('/').pop() || 'package.jpg';
+          const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+          const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+          formData.append('file', {
+            uri: imageInput,
+            name: filename,
+            type,
+          } as any);
+        }
       } else {
         formData = imageInput;
       }
@@ -1839,42 +1844,33 @@ export class ApiService {
       };
       if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
 
-      // 1. Call AI Service directly on /api/ai/receipts/{receiptId}/items/{receiptItemId}/inspection
-      try {
-        const res = await fetch(
-          `${this.aiBaseUrl}/api/ai/receipts/${receiptId}/items/${receiptItemId}/inspection`,
-          {
-            method: 'POST',
-            headers,
-            body: formData,
-          }
-        );
-        if (res.ok) {
-          return await res.json();
-        }
-      } catch (_) {}
+      if (!formData) {
+        throw new Error('Dữ liệu hình ảnh kiểm đếm không hợp lệ.');
+      }
 
-      // 2. Fallback to API Gateway inspection endpoint
-      try {
-        const gwRes = await fetch(
-          `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
-          {
-            method: 'POST',
-            headers,
-            body: formData,
-          }
-        );
-        if (gwRes.ok) {
-          const decoded = await gwRes.json();
-          if (decoded && decoded.success !== false) {
-            return decoded;
-          }
+      // Tuân thủ Gateway Boundary: Gọi duy nhất qua API Gateway endpoint
+      const gwRes = await fetch(
+        `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
+        {
+          method: 'POST',
+          headers,
+          body: formData,
         }
-      } catch (_) {}
-    } catch (e) {
+      );
+      if (gwRes.ok) {
+        const decoded = await gwRes.json();
+        if (decoded && decoded.success !== false) {
+          return decoded;
+        }
+        throw new Error(decoded?.message || 'Kiểm đếm AI qua API Gateway không thành công.');
+      }
+
+      const errBody = await gwRes.json().catch(() => null);
+      throw new Error(errBody?.message || errBody?.detail || 'Không thể kết nối đến máy chủ AI Vision kiểm đếm hoặc dịch vụ đang bận.');
+    } catch (e: any) {
       console.warn('Failed AI inspection of receipt item:', e);
+      throw new Error(e?.message || 'Lỗi kết nối đến hệ thống kiểm định AI Vision.');
     }
-    return null;
   }
 
   public static async verifyReceiptItemCount(data: {

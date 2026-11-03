@@ -90,6 +90,7 @@ import PharmacistKpiReport from "./pages/branch/PharmacistKpiReport";
 import { BranchAttendanceHistory } from "./pages/branch/BranchAttendanceHistory";
 
 import { Sales } from "./pages/pharmacist/Sales";
+import { MobilePosScanner } from "./pages/pharmacist/MobilePosScanner";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
 import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
 import { PharmacistLeaveRequest } from "./pages/pharmacist/PharmacistLeaveRequest";
@@ -117,6 +118,7 @@ export default function App() {
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
           <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
+          <Route path="/pos/mobile-scanner" element={<MobilePosScanner />} />
           <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
           {/* Auth Routes */}

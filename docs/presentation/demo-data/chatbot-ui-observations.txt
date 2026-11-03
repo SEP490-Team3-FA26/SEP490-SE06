@@ -1,0 +1,21 @@
+				285 heading DEMO R2: Tìm sản phẩm DEMO R2 ..., Value: 4
+					286 text DEMO R2: Tìm sản phẩm DEMO R2 ...
+				317 text DEMO R2: Tìm sản phẩm DEMO R2 ... Trực tuyến 24/7 • ABC Pharmacy
+				322 text Dược sĩ Bồ Câu AI Vừa xong Xin chào! Tôi là Trợ lý Dược sĩ Bồ Câu AI của ABC Pharmacy. Bạn đang gặp triệu chứng gì hoặc cần tư vấn sử dụng thuốc nào hôm nay? *  Tư vấn AI mang tính chất tham khảo y khoa, không thay thế chẩn đoán của bác sĩ. DEMO R2: Tìm sản phẩm DEMO R2 - Vitamin C 500mg và cho biết giá, đơn vị bán, tình trạng còn hàng. Đây là dữ liệu kiểm thử, chỉ tra cứu danh mục, không tư vấn điều trị. 04:19 Dược sĩ Bồ Câu AI 04:19 Cảm ơn bạn đã chia sẻ, dưới đây là thông tin y khoa từ Dược sĩ. Dược phẩm đề xuất ( 2 )
+				326 image Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên)
+				328 heading Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên), Value: 4
+					329 text Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên)
+				330 text vitamin C 500mg, vitamin B1 50mg, B2 20mg, B3 50mg, B5 20mg, B6 5mg, B12 5mcg Liều: Theo hướng dẫn của bác sĩ/dược sĩ Dùng: Uống theo chỉ dẫn trên bao bì hoặc hướng dẫn của dược sĩ 2.290 ₫  / Hộp Còn hàng ( 152 )
+				331 button Description: Mua ngay Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên), Help: Mua ngay qua VietQR PayOS
+				332 button Thêm Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên) vào giỏ hàng
+				337 text vitamin C 500mg, vitamin B1, B2, B3, B5, B6, B12, magnesia, calcium, kẽm, vitamin B8 Liều: Theo hướng dẫn của bác sĩ/dược sĩ Dùng: Hòa tan 1 viên trong ly nước, uống theo chỉ dẫn trên bao bì 75.000 ₫  / Hộp Còn hàng ( 105 )
+				340 text Bạn muốn mình cung cấp thêm thông tin chi tiết (thành phần, cách dùng) của sản phẩm thay thế nào, hay cần hỗ trợ kiểm tra giá tại quầy? *  Lưu ý: Thông tin tư vấn chỉ mang tính tham khảo y tế, không thay thế chẩn đoán của bác sĩ. DEMO R2: Chỉ tra cứu giá và tồn kho sản phẩm Enervon United mà bạn vừa hiển thị, không tư vấn liều hay điều trị. Sản phẩm đó giá bao nhiêu, đơn vị bán là gì và còn hàng không? 04:20 Dược sĩ Bồ Câu AI 04:20 Cảm ơn bạn đã chia sẻ, dưới đây là thông tin y khoa từ Dược sĩ. Bạn có muốn Dược sĩ ghi nhận số điện thoại để nhà thuốc báo giá và giữ hàng cho bạn không? *  Lưu ý: Thông tin tư vấn chỉ mang tính tham khảo y tế, không thay thế chẩn đoán của bác sĩ. Tôi muốn tìm sản phẩm bổ sung vitamin C đang có trong danh mục. Hiển thị tên sản phẩm, giá và tình trạng còn hàng; không cần hướng dẫn liều dùng. 04:20 Dược sĩ Bồ Câu AI 04:20 Cảm ơn bạn đã chia sẻ, dưới đây là thông tin y khoa từ Dược sĩ. Dược phẩm đề xuất ( 3 )
+				352 text Vitamin C 1000mg Liều: Theo hướng dẫn của bác sĩ/dược sĩ Dùng: Dạng viên nén sủi bọt, đóng gói 10 viên/hộp 37.000 ₫  / Hộp Còn hàng ( 100 )
+				355 image Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên)
+				357 heading Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên), Value: 4
+					358 text Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên)
+				359 text Vitamin C 500mg, B1 50mg, B2 20mg, B3 50mg, B5 20mg, B6 5mg, B12 5mcg Liều: Theo hướng dẫn của bác sĩ/dược sĩ Dùng: Dạng viên nén bao phim, đóng gói 10 vỉ x 10 viên/hộp 2.290 ₫  / Hộp Còn hàng ( 152 )
+				360 button Description: Mua ngay Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên), Help: Mua ngay qua VietQR PayOS
+				361 button Thêm Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên) vào giỏ hàng
+				366 text Vitamin C 100mg/5ml Liều: Theo hướng dẫn của bác sĩ/dược sĩ Dùng: Dạng siro, đóng chai 120ml 68.000 ₫  / Chai Còn hàng ( 144 )
+				369 text Bạn muốn dùng dạng viên sủi, viên nén hay siro để Dược sĩ tư vấn đúng sản phẩm ạ? *  Lưu ý: Thông tin tư vấn chỉ mang tính tham khảo y tế, không thay thế chẩn đoán của bác sĩ.

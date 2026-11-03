@@ -12,6 +12,7 @@ Tài liệu này là mục lục và tổng quan toàn diện về bộ giải p
 | **02** | **Đặc Tả Toán Học GS1 EAN-13** | Thuật toán sinh mã EAN-13 chuẩn Việt Nam (đầu `893`), giải thuật kiểm tra Checksum Modulo 10, cấu trúc nhị phân 95-module và bộ sinh Vector SVG thuần. | [2_GS1_EAN13_SPECIFICATION_ENGINE.md](file:///d:/Đồ%20án%20tốt%20nghiệp/wdp301-rbl-project-wdp_se18d08_group-7/docs/barcode/2_GS1_EAN13_SPECIFICATION_ENGINE.md) |
 | **03** | **Hệ Thống In Tem Nhãn Nhiệt 50x30mm** | Đặc tả in tem nhãn nhiệt chuẩn GSP, hỗ trợ in tem dán vỉ/hộp lẻ, xem trước trực quan và hỗ trợ đa khổ giấy (50x30mm, 40x30mm, A4). | [3_THERMAL_LABEL_PRINTING_SYSTEM.md](file:///d:/Đồ%20án%20tốt%20nghiệp/wdp301-rbl-project-wdp_se18d08_group-7/docs/barcode/3_THERMAL_LABEL_PRINTING_SYSTEM.md) |
 | **04** | **Kiến Trúc Microservices & Redis Caching** | Luồng giao tiếp Event-Driven / Request-Response qua Apache Kafka, kiến trúc bộ nhớ đệm Cache-Aside trên Redis và tối ưu truy vấn MongoDB Index. | [4_MICROSERVICES_KAFKA_REDIS_BARCODE_ARCHITECTURE.md](file:///d:/Đồ%20án%20tốt%20nghiệp/wdp301-rbl-project-wdp_se18d08_group-7/docs/barcode/4_MICROSERVICES_KAFKA_REDIS_BARCODE_ARCHITECTURE.md) |
+| **05** | **Hướng Dẫn Demo Barcode Toàn Diện** | Bảng tra cứu mã vạch mẫu (Cheat Sheet) và 4 kịch bản demo từng bước trên Web POS, In tem GSP, Nghiệm thu kho và Mobile Expo App. | [HUONG_DAN_DEMO_BARCODE_TOAN_DIEN.md](file:///d:/Đồ%20án%20tốt%20nghiệp/wdp301-rbl-project-wdp_se18d08_group-7/docs/HUONG_DAN_DEMO_BARCODE_TOAN_DIEN.md) |
 
 ---
 

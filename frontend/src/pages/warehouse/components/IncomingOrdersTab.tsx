@@ -220,7 +220,7 @@ export function IncomingOrdersTab({
     }, 1200);
   };
 
-  // Áp dụng kết quả AI Vision vào Form kiểm đếm
+  // Áp dụng kết quả AI Vision vào Form kiểm đếm (bảo toàn location GSP đã quy hoạch)
   const applyAiVisionResultToForm = () => {
     if (!imageInspectionItem || !aiVisionResult) return;
     const mId = imageInspectionItem.medicineId || imageInspectionItem.id;
@@ -228,15 +228,17 @@ export function IncomingOrdersTab({
     setInspectionData(prev => ({
       ...prev,
       [mId]: {
+        ...prev[mId],
         batchNo: aiVisionResult.batchNo,
         expDate: aiVisionResult.expDate,
-        actualQty: aiVisionResult.detectedCount
+        actualQty: aiVisionResult.detectedCount,
+        location: prev[mId]?.location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const }
       }
     }));
     
     setInspectionErrors(prev => ({
       ...prev,
-      [mId]: { ...prev[mId], actualQty: undefined, batchNo: undefined, expDate: undefined }
+      [mId]: { ...prev[mId], actualQty: undefined, batchNo: undefined, expDate: undefined, location: undefined }
     }));
     
     setModalError("");
@@ -247,6 +249,68 @@ export function IncomingOrdersTab({
     onMsg({
       type: "success",
       text: `✅ Đã tự động cập nhật số lượng (${aiVisionResult.detectedCount} hộp), Số lô & Hạn dùng từ phân tích AI hình ảnh!`
+    });
+  };
+
+  // Đồng bộ kết quả kiểm đếm vừa thực hiện từ thiết bị Mobile (hỗ trợ liên thiết bị Mobile <-> PC)
+  const syncFromMobile = async () => {
+    if (!selectedPo?._id) return;
+
+    let parsed: any = null;
+    // 1. Thử lấy từ máy chủ API Gateway (đồng bộ giữa điện thoại và máy tính thật)
+    try {
+      const serverRes = await goodsReceiptService.getPoInspection(selectedPo._id);
+      if (serverRes?.data && Array.isArray(serverRes.data.items) && serverRes.data.items.length > 0) {
+        parsed = serverRes.data;
+      }
+    } catch (_) {}
+
+    // 2. Dự phòng lấy từ localStorage nếu test trên cùng một trình duyệt máy tính
+    if (!parsed) {
+      const saved = localStorage.getItem(`PO_INSPECTION_${selectedPo._id}`);
+      if (saved) {
+        try {
+          parsed = JSON.parse(saved);
+        } catch (_) {}
+      }
+    }
+
+    if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+      setInspectionData(prev => {
+        const next = { ...prev };
+        let updatedCount = 0;
+        parsed.items.forEach((it: any) => {
+          const mId = it._id;
+          if (next[mId] && Number(it.actualQty) > 0) {
+            next[mId] = {
+              ...next[mId],
+              actualQty: it.actualQty,
+              batchNo: it.batchNo || next[mId].batchNo,
+              expDate: it.expDate || next[mId].expDate,
+              location: next[mId].location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' }
+            };
+            updatedCount++;
+          }
+        });
+        if (updatedCount > 0) {
+          onMsg({
+            type: "success",
+            text: `✅ Đã đồng bộ thành công kết quả kiểm đếm cho ${updatedCount} mặt hàng từ thiết bị Mobile!`
+          });
+        } else {
+          onMsg({
+            type: "error",
+            text: "Chưa có mặt hàng nào được chốt số lượng trên thiết bị di động."
+          });
+        }
+        return next;
+      });
+      return;
+    }
+
+    onMsg({
+      type: "error",
+      text: "Chưa tìm thấy dữ liệu kiểm đếm Mobile cho đơn PO này. Vui lòng quét trên điện thoại trước!"
     });
   };
 
@@ -1219,13 +1283,23 @@ export function IncomingOrdersTab({
 
               {/* Modal Footer */}
               <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setQrModalPo(selectedPo)}
-                  className="px-3 py-2 text-indigo-700 hover:bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-                >
-                  <QrCode size={14} /> Mã QR Đồng Bộ Mobile
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQrModalPo(selectedPo)}
+                    className="px-3 py-2 text-indigo-700 hover:bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <QrCode size={14} /> Mã QR Mobile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={syncFromMobile}
+                    className="px-3 py-2 text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Lấy kết quả kiểm đếm vừa thực hiện trên điện thoại"
+                  >
+                    <RefreshCw size={14} /> Đồng Bộ Từ Mobile
+                  </button>
+                </div>
 
                 <div className="flex gap-2">
                   <button onClick={() => setSelectedPo(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl text-xs font-bold transition-colors">

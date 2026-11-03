@@ -1,0 +1,115 @@
+{
+  "origin": "https://abcpharmacy.store",
+  "accessedAt": "2026-10-17T21:21:18.579Z",
+  "medicines": [
+    {
+      "_id": "6ad3e53eb3263f345aea9b43",
+      "name": "DEMO R2 - Bong y te 100g",
+      "sku": "DEMO-R2-BONG",
+      "price": 12000,
+      "stock": 8,
+      "unit": "Gói",
+      "supplierId": "6ad3e4f56e2f0007e1bdf0c2",
+      "is_medicine": false
+    },
+    {
+      "_id": "6ad3e53eb3263f345aea9b45",
+      "name": "DEMO R2 - Khau trang y te",
+      "sku": "DEMO-R2-KT",
+      "price": 30000,
+      "stock": 60,
+      "unit": "Hộp",
+      "supplierId": "6ad3e4f56e2f0007e1bdf0c2",
+      "is_medicine": false
+    },
+    {
+      "_id": "6ad3e406b3263f345aea9a97",
+      "name": "DEMO R2 - Vitamin C 500mg",
+      "sku": "DEMO-R2-VITC",
+      "price": 25000,
+      "stock": 85,
+      "unit": "Hộp",
+      "supplierId": "6ad3e4f56e2f0007e1bdf0c2",
+      "is_medicine": false
+    }
+  ],
+  "rfqs": [
+    {
+      "_id": "6ad3e569b3263f345aea9ba5",
+      "rfqCode": "RFQ-20261017-0008",
+      "title": "DEMO R2 - WORKFLOW mua nhap ban - du lieu thu nghiem",
+      "status": "AWARDED",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "medicineName": "DEMO R2 - Vitamin C 500mg",
+          "sku": "DEMO-R2-VITC",
+          "unit": "Hộp",
+          "quantityRequested": 110,
+          "targetPrice": 18000,
+          "nationalDrugCode": "",
+          "declaredPrice": 0,
+          "gppCompliant": false,
+          "notes": "DEMO fixture; khong phai ho so tuan thu thuc te"
+        },
+        {
+          "medicineId": "6ad3e53eb3263f345aea9b43",
+          "medicineName": "DEMO R2 - Bong y te 100g",
+          "sku": "DEMO-R2-BONG",
+          "unit": "Gói",
+          "quantityRequested": 8,
+          "targetPrice": 8000,
+          "nationalDrugCode": "",
+          "declaredPrice": 0,
+          "gppCompliant": false,
+          "notes": "DEMO fixture; khong phai ho so tuan thu thuc te"
+        },
+        {
+          "medicineId": "6ad3e53eb3263f345aea9b45",
+          "medicineName": "DEMO R2 - Khau trang y te",
+          "sku": "DEMO-R2-KT",
+          "unit": "Hộp",
+          "quantityRequested": 60,
+          "targetPrice": 20000,
+          "nationalDrugCode": "",
+          "declaredPrice": 0,
+          "gppCompliant": false,
+          "notes": "DEMO fixture; khong phai ho so tuan thu thuc te"
+        }
+      ],
+      "quotations": [
+        {
+          "quotationId": "QUOTE-1792271739066-410",
+          "supplierId": "6ad3e4f56e2f0007e1bdf0c2",
+          "totalAmount": 3244000
+        },
+        {
+          "quotationId": "QUOTE-1792271761228-541",
+          "supplierId": "6ad3e50d6e2f0007e1bdf0c6",
+          "totalAmount": 2757400
+        }
+      ],
+      "awardedPoId": "6ad3e592b3263f345aea9bc3"
+    },
+    {
+      "_id": "6ad3e442b3263f345aea9aa7",
+      "rfqCode": "RFQ-20261017-0007",
+      "title": "DEMO R2 - Bổ sung Vitamin C - không giao dịch thật",
+      "status": "DRAFT",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "medicineName": "DEMO R2 - Vitamin C 500mg",
+          "sku": "",
+          "unit": "Hộp",
+          "quantityRequested": 100,
+          "targetPrice": 18000,
+          "nationalDrugCode": "",
+          "declaredPrice": 0,
+          "gppCompliant": false
+        }
+      ],
+      "quotations": []
+    }
+  ]
+}

@@ -1,0 +1,400 @@
+{
+  "origin": "https://abcpharmacy.store",
+  "verifiedAt": "2026-10-17T21:21:21.247Z",
+  "medicines": [
+    {
+      "id": "6ad3e53eb3263f345aea9b43",
+      "sku": "DEMO-R2-BONG",
+      "name": "DEMO R2 - Bong y te 100g",
+      "stock": 8,
+      "price": 12000,
+      "unit": "Gói"
+    },
+    {
+      "id": "6ad3e53eb3263f345aea9b45",
+      "sku": "DEMO-R2-KT",
+      "name": "DEMO R2 - Khau trang y te",
+      "stock": 60,
+      "price": 30000,
+      "unit": "Hộp"
+    },
+    {
+      "id": "6ad3e406b3263f345aea9a97",
+      "sku": "DEMO-R2-VITC",
+      "name": "DEMO R2 - Vitamin C 500mg",
+      "stock": 85,
+      "price": 25000,
+      "unit": "Hộp"
+    }
+  ],
+  "receipts": [
+    {
+      "id": "6ad3e593b3263f345aea9d1c",
+      "status": "COMPLETED",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "batchNo": "DEMO-R2-VITC-NEAR",
+          "expDate": "2027-01-06T00:00:00.000Z",
+          "quantity": 30,
+          "actualQty": 30,
+          "status": "VERIFIED",
+          "unitPrice": 18000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 10,
+            "slotType": "RESERVE",
+            "_id": "6ad3e594b3263f345aea9d3a"
+          },
+          "_id": "6ad3e593b3263f345aea9d1d"
+        },
+        {
+          "medicineId": "6ad3e53eb3263f345aea9b43",
+          "batchNo": "DEMO-R2-BONG-NEAR",
+          "expDate": "2028-10-17T00:00:00.000Z",
+          "quantity": 8,
+          "actualQty": 8,
+          "status": "VERIFIED",
+          "unitPrice": 8000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 9,
+            "slotType": "RESERVE",
+            "_id": "6ad3e594b3263f345aea9d45"
+          },
+          "_id": "6ad3e593b3263f345aea9d1f"
+        },
+        {
+          "medicineId": "6ad3e53eb3263f345aea9b45",
+          "batchNo": "DEMO-R2-KT-NEAR",
+          "expDate": "2028-10-17T00:00:00.000Z",
+          "quantity": 60,
+          "actualQty": 60,
+          "status": "VERIFIED",
+          "unitPrice": 20000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 8,
+            "slotType": "RESERVE",
+            "_id": "6ad3e594b3263f345aea9d50"
+          },
+          "_id": "6ad3e593b3263f345aea9d21"
+        }
+      ]
+    },
+    {
+      "id": "6ad3e596b3263f345aea9d83",
+      "status": "COMPLETED",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "batchNo": "DEMO-R2-VITC-FAR",
+          "expDate": "2028-10-17T00:00:00.000Z",
+          "quantity": 80,
+          "actualQty": 80,
+          "status": "VERIFIED",
+          "unitPrice": 18000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 10,
+            "slotType": "RESERVE",
+            "_id": "6ad3e597b3263f345aea9d93"
+          },
+          "_id": "6ad3e596b3263f345aea9d84"
+        }
+      ]
+    }
+  ],
+  "transfers": [
+    {
+      "id": "6ad3e5c9b3263f345aea9f9d",
+      "code": "ST-20261017-0001",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "medicineName": "DEMO R2 - Vitamin C 500mg",
+          "batchNo": "DEMO-R2-VITC-NEAR",
+          "quantity": 20,
+          "receivedQuantity": 20,
+          "discrepancyQuantity": 0,
+          "unit": "Hộp",
+          "_id": "6ad3e5c9b3263f345aea9f9e"
+        }
+      ],
+      "toBranchId": "BR-001"
+    },
+    {
+      "id": "6ad3e5cbb3263f345aeaa0ac",
+      "code": "ST-20261017-0002",
+      "status": "SHIPPING",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "medicineName": "DEMO R2 - Vitamin C 500mg",
+          "batchNo": "DEMO-R2-VITC-NEAR",
+          "quantity": 5,
+          "receivedQuantity": 0,
+          "discrepancyQuantity": 0,
+          "unit": "Hộp",
+          "_id": "6ad3e5cbb3263f345aeaa0ad"
+        }
+      ],
+      "toBranchId": "BR-001"
+    }
+  ],
+  "bins": [
+    {
+      "sku": "DEMO-R2-VITC",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 10,
+        "slotType": "RESERVE"
+      },
+      "detail": {
+        "location": {
+          "_id": "6ad3e5642ba5817e8685000f",
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "__v": 0,
+          "bin": 10,
+          "createdAt": "2026-10-17T21:15:16.826Z",
+          "maxCapacity": 200,
+          "medicineName": "DEMO R2 - Vitamin C 500mg",
+          "rack": "RES4",
+          "shelf": 1,
+          "unit": "Hộp",
+          "updatedAt": "2026-10-17T21:15:16.826Z",
+          "zone": "RESERVE"
+        },
+        "medicine": {
+          "_id": "6ad3e406b3263f345aea9a97",
+          "name": "DEMO R2 - Vitamin C 500mg",
+          "unit": "Hộp",
+          "barcode": "DEMO-R2-VITC"
+        },
+        "mainBatches": [
+          {
+            "_id": "6ad3e595b3263f345aea9d63",
+            "medicineId": "6ad3e406b3263f345aea9a97",
+            "branchId": "CENTRAL_WH",
+            "batchNo": "DEMO-R2-VITC-NEAR",
+            "expDate": "2027-01-06T00:00:00.000Z",
+            "stock": 5,
+            "openedStock": 0,
+            "importPrice": 18000,
+            "status": "NEAR_EXPIRY",
+            "location": {
+              "zone": "RESERVE",
+              "rack": "RES4",
+              "shelf": 1,
+              "bin": 10,
+              "slotType": "RESERVE",
+              "_id": "6ad3e595b3263f345aea9d64"
+            },
+            "createdAt": "2026-10-17T21:16:05.532Z",
+            "updatedAt": "2026-10-17T21:16:59.328Z",
+            "__v": 0,
+            "daysToExpiry": 80,
+            "overdueDays": null,
+            "medicineName": "DEMO R2 - Vitamin C 500mg",
+            "unit": "Hộp"
+          },
+          {
+            "_id": "6ad3e598b3263f345aea9da2",
+            "medicineId": "6ad3e406b3263f345aea9a97",
+            "branchId": "CENTRAL_WH",
+            "batchNo": "DEMO-R2-VITC-FAR",
+            "expDate": "2028-10-17T00:00:00.000Z",
+            "stock": 80,
+            "openedStock": 0,
+            "importPrice": 18000,
+            "status": "NORMAL",
+            "location": {
+              "zone": "RESERVE",
+              "rack": "RES4",
+              "shelf": 1,
+              "bin": 10,
+              "slotType": "RESERVE",
+              "_id": "6ad3e598b3263f345aea9da3"
+            },
+            "createdAt": "2026-10-17T21:16:08.060Z",
+            "updatedAt": "2026-10-17T21:16:08.060Z",
+            "__v": 0,
+            "daysToExpiry": 730,
+            "overdueDays": null,
+            "medicineName": "DEMO R2 - Vitamin C 500mg",
+            "unit": "Hộp"
+          }
+        ],
+        "reserveBatches": [],
+        "totalMainStock": 85,
+        "totalReserveStock": 0,
+        "hasAlert": false
+      }
+    },
+    {
+      "sku": "DEMO-R2-BONG",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 9,
+        "slotType": "RESERVE"
+      },
+      "detail": {
+        "location": {
+          "_id": "6ad3e5672ba5817e86850010",
+          "medicineId": "6ad3e53eb3263f345aea9b43",
+          "__v": 0,
+          "bin": 9,
+          "createdAt": "2026-10-17T21:15:19.125Z",
+          "maxCapacity": 200,
+          "medicineName": "DEMO R2 - Bong y te 100g",
+          "rack": "RES4",
+          "shelf": 1,
+          "unit": "Gói",
+          "updatedAt": "2026-10-17T21:15:19.125Z",
+          "zone": "RESERVE"
+        },
+        "medicine": {
+          "_id": "6ad3e53eb3263f345aea9b43",
+          "name": "DEMO R2 - Bong y te 100g",
+          "unit": "Gói",
+          "barcode": "DEMO-R2-BONG"
+        },
+        "mainBatches": [
+          {
+            "_id": "6ad3e595b3263f345aea9d69",
+            "medicineId": "6ad3e53eb3263f345aea9b43",
+            "branchId": "CENTRAL_WH",
+            "batchNo": "DEMO-R2-BONG-NEAR",
+            "expDate": "2028-10-17T00:00:00.000Z",
+            "stock": 8,
+            "openedStock": 0,
+            "importPrice": 8000,
+            "status": "NORMAL",
+            "location": {
+              "zone": "RESERVE",
+              "rack": "RES4",
+              "shelf": 1,
+              "bin": 9,
+              "slotType": "RESERVE",
+              "_id": "6ad3e595b3263f345aea9d6a"
+            },
+            "createdAt": "2026-10-17T21:16:05.669Z",
+            "updatedAt": "2026-10-17T21:16:05.669Z",
+            "__v": 0,
+            "daysToExpiry": 730,
+            "overdueDays": null,
+            "medicineName": "DEMO R2 - Bong y te 100g",
+            "unit": "Gói"
+          }
+        ],
+        "reserveBatches": [],
+        "totalMainStock": 8,
+        "totalReserveStock": 0,
+        "hasAlert": false
+      }
+    },
+    {
+      "sku": "DEMO-R2-KT",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 8,
+        "slotType": "RESERVE"
+      },
+      "detail": {
+        "location": {
+          "_id": "6ad3e5682ba5817e86850011",
+          "medicineId": "6ad3e53eb3263f345aea9b45",
+          "__v": 0,
+          "bin": 8,
+          "createdAt": "2026-10-17T21:15:20.983Z",
+          "maxCapacity": 200,
+          "medicineName": "DEMO R2 - Khau trang y te",
+          "rack": "RES4",
+          "shelf": 1,
+          "unit": "Hộp",
+          "updatedAt": "2026-10-17T21:15:20.983Z",
+          "zone": "RESERVE"
+        },
+        "medicine": {
+          "_id": "6ad3e53eb3263f345aea9b45",
+          "name": "DEMO R2 - Khau trang y te",
+          "unit": "Hộp",
+          "barcode": "DEMO-R2-KT"
+        },
+        "mainBatches": [
+          {
+            "_id": "6ad3e595b3263f345aea9d6f",
+            "medicineId": "6ad3e53eb3263f345aea9b45",
+            "branchId": "CENTRAL_WH",
+            "batchNo": "DEMO-R2-KT-NEAR",
+            "expDate": "2028-10-17T00:00:00.000Z",
+            "stock": 60,
+            "openedStock": 0,
+            "importPrice": 20000,
+            "status": "NORMAL",
+            "location": {
+              "zone": "RESERVE",
+              "rack": "RES4",
+              "shelf": 1,
+              "bin": 8,
+              "slotType": "RESERVE",
+              "_id": "6ad3e595b3263f345aea9d70"
+            },
+            "createdAt": "2026-10-17T21:16:05.807Z",
+            "updatedAt": "2026-10-17T21:16:05.807Z",
+            "__v": 0,
+            "daysToExpiry": 730,
+            "overdueDays": null,
+            "medicineName": "DEMO R2 - Khau trang y te",
+            "unit": "Hộp"
+          }
+        ],
+        "reserveBatches": [],
+        "totalMainStock": 60,
+        "totalReserveStock": 0,
+        "hasAlert": false
+      }
+    }
+  ],
+  "branchMedicines": [
+    {
+      "id": "6ad3e406b3263f345aea9a97",
+      "name": "DEMO R2 - Vitamin C 500mg",
+      "stock": 20,
+      "price": 25000,
+      "unit": "Hộp",
+      "units": [
+        {
+          "unitName": "Hộp",
+          "exchangeValue": 1,
+          "price": 25000,
+          "isBaseUnit": true
+        }
+      ]
+    }
+  ],
+  "chatbotReference": [
+    {
+      "id": "6a21ae8f3f850e1d8be5e933",
+      "name": "Thuốc Enervon United điều trị thiếu Vitamin C và B (10 vỉ x 10 viên)",
+      "stock": 152,
+      "price": 2290,
+      "unit": "Hộp"
+    }
+  ]
+}

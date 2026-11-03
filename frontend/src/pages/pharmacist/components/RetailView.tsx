@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
-  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap,
+  Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap, Wifi,
   Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
@@ -15,6 +15,7 @@ import { reconciliationService } from "../../../services/sales/reconciliation.se
 import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
+import { WifiScannerModal } from "./WifiScannerModal";
 import CustomerClinicalModal from "./CustomerClinicalModal";
 import { customerService, AllergyCheckResult } from "../../../services/sales/customer.service";
 import {
@@ -81,6 +82,22 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [classificationsList, setClassificationsList] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Quản lý kết nối Súng quét Barcode Wi-Fi / Mobile POS Bridge
+  const [isWifiScannerOpen, setIsWifiScannerOpen] = useState(false);
+  const [posSessionId] = useState<string>(() => {
+    const saved = typeof window !== 'undefined' ? sessionStorage.getItem('pos_session_id') : null;
+    if (saved) return saved;
+    // Sinh mã phiên bảo mật cao chuẩn UUID v4 chống brute-force và giả mạo trên mạng
+    const randomUuid = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
+    const newId = `POS-${randomUuid}`;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('pos_session_id', newId);
+    }
+    return newId;
+  });
 
   useEffect(() => {
     medicineService.getFilters().then((res: any) => {
@@ -1062,6 +1079,57 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
   const { onEvent, offEvent } = useSocket();
 
+  // =========================================================================
+  // KẾT NỐI SÚNG QUÉT BARCODE WI-FI / ĐIỆN THOẠI DI ĐỘNG (REALTIME POS BRIDGE)
+  // =========================================================================
+  useEffect(() => {
+    // 1. Kênh BroadcastChannel (đồng bộ tức thì 0ms giữa các tab cùng trình duyệt)
+    let channel: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        channel = new BroadcastChannel('pos_barcode_channel');
+        channel.onmessage = (event) => {
+          if (event.data?.barcode && (!event.data.sessionId || event.data.sessionId === posSessionId)) {
+            console.log('⚡ [POS Bridge] Nhận mã vạch từ Mobile qua BroadcastChannel:', event.data.barcode);
+            handleBarcodeScanned(event.data.barcode);
+            showToast(`📱 Súng quét Mobile đã gửi mã: ${event.data.barcode}`, 'success');
+          }
+        };
+      } catch (_) {}
+    }
+
+    // 2. Kênh Storage Event (dự phòng nội bộ)
+    const handleStorageBridge = (e: StorageEvent) => {
+      if (e.key === 'POS_BARCODE_BRIDGE' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          if (data?.barcode && (!data.sessionId || data.sessionId === posSessionId)) {
+            console.log('⚡ [POS Bridge] Nhận mã vạch từ Mobile qua LocalStorage:', data.barcode);
+            handleBarcodeScanned(data.barcode);
+            showToast(`📱 Súng quét Mobile đã gửi mã: ${data.barcode}`, 'success');
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageBridge);
+
+    // 3. Kênh Server-Sent Events (SSE Bridge qua mạng Wi-Fi cục bộ / Internet)
+    const handleSseBarcode = (data: any) => {
+      if (data?.barcode && (!data.sessionId || data.sessionId === posSessionId)) {
+        console.log('⚡ [POS Bridge] Nhận mã vạch từ Mobile qua SSE Bridge:', data.barcode);
+        handleBarcodeScanned(data.barcode);
+        showToast(`📱 Súng quét Wi-Fi đã gửi mã: ${data.barcode}`, 'success');
+      }
+    };
+    onEvent('pos.barcode_received', handleSseBarcode);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorageBridge);
+      offEvent('pos.barcode_received', handleSseBarcode);
+    };
+  }, [posSessionId, onEvent, offEvent]);
+
   useEffect(() => {
     const handleInventoryUpdate = (data: any) => {
       console.log('Inventory updated event received in RetailView:', data);
@@ -1829,6 +1897,13 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                 </div>
               </div>
             </div>
+            <button
+              onClick={() => setIsWifiScannerOpen(true)}
+              className="px-4 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
+              title="Biến điện thoại di động thành súng quét Barcode Wi-Fi không dây"
+            >
+              <Wifi size={15} /> Súng quét Wi-Fi
+            </button>
             <button
               onClick={() => setVoiceModalOpen(true)}
               className="px-5 py-3.5 bg-gradient-to-r from-purple-600 to-[#0057cd] hover:from-purple-700 hover:to-[#00419e] text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
@@ -3544,6 +3619,14 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         isOpen={showAuditModal}
         onClose={() => setShowAuditModal(false)}
         data={aiPharmacistConfirmation}
+      />
+
+      {/* Modal Súng Quét Barcode Wi-Fi / Mobile Scanner Bridge */}
+      <WifiScannerModal
+        isOpen={isWifiScannerOpen}
+        onClose={() => setIsWifiScannerOpen(false)}
+        sessionId={posSessionId}
+        onBarcodeSimulated={handleBarcodeScanned}
       />
 
       {/* =======================================
