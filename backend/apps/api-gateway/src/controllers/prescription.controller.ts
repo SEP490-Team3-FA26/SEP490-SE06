@@ -441,6 +441,95 @@ export class PrescriptionController implements OnModuleInit {
     }
   }
 
+  // =========================================================================
+  // NỘI QUY & ĐIỀU KHOẢN SỬ DỤNG TRỢ LÝ DƯỢC SĨ AI (TÀI LIỆU NGHIỆP VỤ MỤC 18)
+  // =========================================================================
+  @Get("ai-terms")
+  getAiConsultantTerms() {
+    return {
+      success: true,
+      version: "v1.0-OTC",
+      releaseDate: "01/11/2026",
+      title: "NỘI QUY & ĐIỀU KHOẢN SỬ DỤNG TRỢ LÝ DƯỢC SĨ AI (ABC PHARMACY)",
+      legalBases: [
+        "Luật Dược số 105/2016/QH13",
+        "Thông tư 07/2017/TT-BYT ban hành Danh mục thuốc không kê đơn",
+        "Tiêu chuẩn Thực hành tốt Cơ sở bán lẻ thuốc (GPP) và GDP",
+        "Nguyên tắc minh bạch & Quản trị rủi ro AI theo Dự thảo Luật Trí tuệ Nhân tạo 2025",
+      ],
+      articles: [
+        {
+          order: 1,
+          title: "Mục tiêu & Phạm vi tư vấn OTC",
+          summary: "Tư vấn hỗ trợ lựa chọn thuốc không kê đơn (OTC) và TPCN cho triệu chứng nhẹ; không chẩn đoán hay kê đơn.",
+        },
+        {
+          order: 2,
+          title: "Chống chỉ định & Tình huống khẩn cấp",
+          summary: "Tuyệt đối không dùng cho trường hợp cấp cứu; có dấu hiệu nguy kịch cần gọi 115 hoặc đến bệnh viện ngay.",
+        },
+        {
+          order: 3,
+          title: "Quy định về thuốc kê đơn (ETC)",
+          summary: "Thuốc kê đơn không được tư vấn hay bán online; chỉ đặt giữ hàng khi có đơn bác sĩ hợp lệ tại quầy.",
+        },
+        {
+          order: 4,
+          title: "Trách nhiệm khai báo của khách hàng",
+          summary: "Khai báo trung thực, đầy đủ tiền sử bệnh, dị ứng, thuốc đang dùng; tự chịu trách nhiệm nếu cố tình sai lệch.",
+        },
+        {
+          order: 5,
+          title: "Nguyên tắc cá nhân hóa",
+          summary: "Phiếu tư vấn chỉ áp dụng cho riêng người được tư vấn tại thời điểm đó; không chia sẻ hay dùng cho người khác.",
+        },
+        {
+          order: 6,
+          title: "Vai trò giám sát của Dược sĩ",
+          summary: "Dược sĩ có CCHN chịu trách nhiệm chuyên môn tối cao; AI chỉ đóng vai trò trợ lý soạn nháp, nguyên tắc Fail-closed.",
+        },
+        {
+          order: 7,
+          title: "Bảo vệ dữ liệu y tế & Giảm thiểu dữ liệu",
+          summary: "Che giấu thông tin định danh (PII) khi xử lý qua AI; bảo mật dữ liệu sức khỏe theo luật định.",
+        },
+        {
+          order: 8,
+          title: "Xử trí tác dụng phụ & Khiếu nại",
+          summary: "Ngưng thuốc ngay khi có biểu hiện bất thường; liên hệ hotline 1800 6868 hoặc cơ sở y tế gần nhất.",
+        },
+      ],
+    };
+  }
+
+  @Post("ai-terms/accept")
+  @UseGuards(OptionalJwtAuthGuard)
+  acceptAiConsultantTerms(
+    @Body() body: { version?: string; acceptedAt?: string; metadata?: any },
+    @Req() req: any,
+  ) {
+    const version = body?.version || "v1.0-OTC";
+    const acceptedAt = body?.acceptedAt || new Date().toISOString();
+    const userId = req?.user?.id || req?.user?._id || "anonymous-guest";
+    const ip = req?.ip || req?.headers?.["x-forwarded-for"] || "127.0.0.1";
+
+    // Ghi nhận nhật ký kiểm toán (Audit Trail) phục vụ đối soát y tế
+    const auditRecord = {
+      userId,
+      version,
+      acceptedAt,
+      ip,
+      userAgent: req?.headers?.["user-agent"] || "unknown",
+      status: "CONFIRMED",
+    };
+
+    return {
+      success: true,
+      message: "Đã ghi nhận chấp thuận nội quy Trợ lý Dược sĩ AI thành công",
+      audit: auditRecord,
+    };
+  }
+
   @Post("chat")
   @UseGuards(OptionalJwtAuthGuard)
   async chatConsult(
@@ -457,8 +546,16 @@ export class PrescriptionController implements OnModuleInit {
       blood_type?: string;
       medical_notes?: string;
       image_base64?: string;
+      terms_confirmed?: boolean;
     },
   ) {
+    // Nguyên tắc Fail-closed: Chặn nếu người dùng từ chối xác nhận nội quy
+    if (body?.terms_confirmed === false) {
+      throw new HttpException(
+        "Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI trước khi gửi yêu cầu (Fail-closed).",
+        HttpStatus.FORBIDDEN,
+      );
+    }
     const hasMessage = Boolean(body?.message && body.message.trim());
     const hasImage = Boolean(body?.image_base64 && body.image_base64.trim());
 

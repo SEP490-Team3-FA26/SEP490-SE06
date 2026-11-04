@@ -360,5 +360,29 @@ export const prescriptionService = {
       return { success: false };
     }
   },
+
+  /**
+   * Lấy văn bản Nội quy & Điều khoản Dược sĩ AI từ máy chủ
+   */
+  async getAITerms() {
+    try {
+      const response = await api.get(API_ENDPOINTS.PRESCRIPTIONS.AI_TERMS);
+      return response.data;
+    } catch {
+      return { success: false };
+    }
+  },
+
+  /**
+   * Gửi biên bản xác nhận đã đọc và chấp thuận nội quy AI lên hệ thống phục vụ Audit Trail
+   */
+  async acceptAITerms(data: { version: string; acceptedAt: string; metadata?: any }) {
+    try {
+      const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.ACCEPT_AI_TERMS, data);
+      return response.data;
+    } catch {
+      return { success: false };
+    }
+  },
 };
 

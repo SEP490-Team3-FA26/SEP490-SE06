@@ -233,6 +233,8 @@ export const API_ENDPOINTS = {
     CHAT_SESSION_DETAIL: (id: string) => `/api/prescriptions/chat/sessions/${encodeURIComponent(id)}`,
     CHAT_SESSION_DELETE: (id: string) => `/api/prescriptions/chat/sessions/${encodeURIComponent(id)}`,
     ALLERGY_CHECK: '/api/prescriptions/allergy-check',
+    AI_TERMS: '/api/prescriptions/ai-terms',
+    ACCEPT_AI_TERMS: '/api/prescriptions/ai-terms/accept',
   },
 
   // 🤖 AI & Clinical

@@ -126,12 +126,58 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(result.severity).toBe('CRITICAL');
       expect(result.conflicts[0].reason).toContain('MANG THAI');
     });
+
+    it('Nên trả về đầy đủ 8 điều khoản nội quy Trợ lý Dược sĩ AI và phiên bản v1.0-OTC', () => {
+      const result = controller.getAiConsultantTerms();
+
+      expect(result.success).toBe(true);
+      expect(result.version).toBe('v1.0-OTC');
+      expect(result.articles.length).toBe(8);
+      expect(result.legalBases.length).toBeGreaterThan(0);
+      expect(result.articles[0].title).toContain('Mục tiêu & Phạm vi');
+    });
+
+    it('Nên ghi nhận chấp thuận nội quy thành công với người dùng đã xác thực', () => {
+      const mockReq = {
+        user: { id: 'usr-12345' },
+        ip: '192.168.1.50',
+        headers: { 'user-agent': 'Chrome/120.0' },
+      };
+
+      const result = controller.acceptAiConsultantTerms(
+        { version: 'v1.0-OTC', acceptedAt: '2026-11-04T12:00:00.000Z' },
+        mockReq,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.audit.userId).toBe('usr-12345');
+      expect(result.audit.version).toBe('v1.0-OTC');
+      expect(result.audit.status).toBe('CONFIRMED');
+      expect(result.audit.ip).toBe('192.168.1.50');
+    });
   });
 
   // =========================================================================
   // 2. [Boundary Values] - Ranh giới dữ liệu, giỏ rỗng, chuỗi chuẩn hóa tiếng Việt
   // =========================================================================
   describe('[Boundary Values] Ranh giới & Dữ liệu biên', () => {
+    it('Nên áp dụng phiên bản mặc định v1.0-OTC khi client gửi version rỗng hoặc khoảng trắng', () => {
+      const mockReq = { user: null, ip: '127.0.0.1' };
+      const result = controller.acceptAiConsultantTerms({ version: '' }, mockReq);
+
+      expect(result.success).toBe(true);
+      expect(result.audit.version).toBe('v1.0-OTC');
+      expect(result.audit.userId).toBe('anonymous-guest');
+    });
+
+    it('Nên tự động sinh acceptedAt hợp lệ nếu client không truyền thời điểm xác nhận', () => {
+      const mockReq = { user: null };
+      const result = controller.acceptAiConsultantTerms({}, mockReq);
+
+      expect(result.success).toBe(true);
+      expect(typeof result.audit.acceptedAt).toBe('string');
+      expect(new Date(result.audit.acceptedAt).getTime()).not.toBeNaN();
+    });
     it('Nên xử lý an toàn khi giỏ hàng rỗng (cartItems = [])', async () => {
       const result = await controller.checkCartAllergyAndContraindications({
         customerProfile: {
@@ -218,6 +264,24 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
 
       expect(result.hasConflict).toBe(false);
       expect(result.severity).toBe('SAFE');
+    });
+
+    it('Nên xử lý an toàn khi req khuyết thiếu user và headers cho acceptAiConsultantTerms', () => {
+      const result = controller.acceptAiConsultantTerms({}, null as any);
+
+      expect(result.success).toBe(true);
+      expect(result.audit.userId).toBe('anonymous-guest');
+      expect(result.audit.ip).toBe('127.0.0.1');
+      expect(result.audit.userAgent).toBe('unknown');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi người dùng cố tình gửi terms_confirmed là false (Fail-closed)', async () => {
+      await expect(
+        controller.chatConsult({
+          message: 'Tư vấn giúp tôi thuốc hạ sốt',
+          terms_confirmed: false,
+        }),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
     });
   });
 });

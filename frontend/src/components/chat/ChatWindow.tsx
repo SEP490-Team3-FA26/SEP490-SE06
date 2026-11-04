@@ -32,6 +32,12 @@ import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { useChatPayOSCheckout } from "../../hooks/useChatPayOSCheckout";
 import { notifyAuthLoginRequired, AUTH_TOKEN_CHANGED_EVENT } from "../../utils/authEvents";
 import { DoveFigure } from "../mascot/DoveFigure";
+import { AIConsultantTermsModal } from "./AIConsultantTermsModal";
+import {
+  STORAGE_KEY_AI_TERMS_ACCEPTED,
+  STORAGE_KEY_AI_TERMS_TIMESTAMP,
+  AI_TERMS_VERSION,
+} from "../../constants/aiTerms";
 import api from "../../services/core/api";
 
 interface ChatWindowProps {
@@ -133,6 +139,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  // Modal Thông báo Nội quy Dược sĩ AI (Bắt buộc người dùng cuộn xuống cuối đọc và xác nhận khi mở chat)
+  const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(STORAGE_KEY_AI_TERMS_ACCEPTED) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [termsAcceptedAt, setTermsAcceptedAt] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_AI_TERMS_TIMESTAMP);
+    } catch {
+      return null;
+    }
+  });
+
+  // Mỗi khi người dùng mở Chat AI Assistant: Bắt buộc hiển thị thông báo nội quy
+  useEffect(() => {
+    if (isOpen) {
+      setShowTermsModal(true);
+    }
+  }, [isOpen]);
 
   // Tùy chọn tự động gửi kèm hồ sơ y tế cá nhân (dị ứng, bệnh nền) - mặc định bật
   const [autoAttachMedicalProfile, setAutoAttachMedicalProfile] = useState<boolean>(() => {
@@ -522,6 +552,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const handleSendMessage = async (text: string, imageBase64?: string) => {
     const trimmedText = text.trim();
     if ((!trimmedText && !imageBase64) || isLoading) return;
+
+    // Nguyên tắc Fail-closed: Bắt buộc đã xác nhận nội quy mới được gửi tin nhắn
+    if (!hasAcceptedTerms) {
+      setShowTermsModal(true);
+      showToast("Vui lòng đọc và xác nhận nội quy AI trước khi tiếp tục!");
+      return;
+    }
 
     const userMsg: MessageItem = {
       id: `user-${Date.now()}`,
@@ -1007,6 +1044,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </button>
             )}
 
+            {/* View AI Terms & Regulations button */}
+            <button
+              type="button"
+              onClick={() => setShowTermsModal(true)}
+              aria-label="Xem nội quy & điều khoản sử dụng AI"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+              title="Nội quy & Điều khoản Dược sĩ AI"
+            >
+              <ShieldCheck size={15} />
+            </button>
+
             {/* Clear current session messages */}
             <button
               type="button"
@@ -1054,6 +1102,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </button>
           </div>
         </header>
+
+        {/* Banner Thông Báo Bắt Buộc Nội Quy Sử Dụng AI Assistant */}
+        <div className="bg-gradient-to-r from-blue-50/95 via-sky-50/95 to-indigo-50/95 border-b border-blue-100 px-3 sm:px-3.5 py-1.5 flex items-center justify-between gap-2 shrink-0 select-none">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+              <ShieldCheck size={11} />
+            </div>
+            <span className="text-[11px] text-slate-700 truncate">
+              <strong className="text-blue-900 font-semibold">Nội quy AI ({AI_TERMS_VERSION}):</strong> Chỉ tư vấn OTC nhẹ · Dược sĩ duyệt chuyên môn · Cấp cứu gọi 115
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowTermsModal(true)}
+            className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer ml-1"
+          >
+            Xem nội quy
+          </button>
+        </div>
 
         {/* Widget Mode History Drawer */}
         {!isFullscreen && showHistory ? (
@@ -1232,6 +1299,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
       </main>
+
+      {/* Modal Thông Báo Bắt Buộc Đọc Nội Quy Khi Mở Chat AI Assistant */}
+      <AIConsultantTermsModal
+        isOpen={showTermsModal}
+        onConfirm={(auditData) => {
+          setHasAcceptedTerms(true);
+          setTermsAcceptedAt(auditData.acceptedAt);
+          setShowTermsModal(false);
+          showToast("✅ Đã xác nhận tuân thủ Nội quy Dược sĩ AI!");
+          prescriptionService.acceptAITerms(auditData).catch(() => {});
+        }}
+        onDecline={() => {
+          setShowTermsModal(false);
+          // Nguyên tắc Fail-closed: Đóng cửa sổ chat nếu từ chối hoặc đóng modal khi chưa xác nhận
+          if (!hasAcceptedTerms) {
+            onClose();
+          }
+        }}
+      />
     </div>
   );
 };
