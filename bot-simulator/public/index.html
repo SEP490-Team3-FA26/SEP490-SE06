@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ABC Pharmacy — Digital Twin & Live Traffic Command Center v2.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="socket.io/socket.io.js"></script>
+  <style>
+    body {
+      background-color: #080c14;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .glass {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .pulse-dot {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.35;
+        transform: scale(1.25);
+      }
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(71, 85, 105, 1);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen p-3 md:p-5 text-slate-100">
+  <div class="max-w-[1600px] mx-auto space-y-4">
+
+    <!-- TOP HEADER & CONTROLS -->
+    <header class="glass rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+      <div class="flex items-center gap-3">
+        <div id="statusDot" class="w-4 h-4 rounded-full bg-slate-500 shadow-lg"></div>
+        <div>
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <h1 class="text-lg md:text-xl font-black tracking-tight text-white flex items-center gap-2">
+              ABC PHARMACY
+              <span class="text-emerald-400 font-mono text-sm">DIGITAL TWIN COMMAND CENTER</span>
+            </h1>
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              v2.0 LIVE
+            </span>
+            <span id="gatewayStatusBadge" class="px-2 py-0.5 rounded text-[11px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/30">
+              Gateway: Đang kiểm tra...
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Mô phỏng 4 nhóm tác nhân thực chiến (Khách hàng COD, Dược sĩ POS, Quản lý cơ sở & Chuỗi cung ứng Kho tổng)
+          </p>
+        </div>
+      </div>
+
+      <!-- ĐIỀU KHIỂN CHÍNH -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Scenario Selector -->
+        <div class="flex items-center bg-slate-900/90 rounded-xl px-2.5 py-1 border border-slate-700 text-xs">
+          <span class="text-slate-400 mr-2 font-medium">Kịch bản:</span>
+          <select id="scenarioSelect" onchange="changeScenario(this.value)"
+            class="bg-transparent text-white font-bold focus:outline-none cursor-pointer py-1">
+            <option value="NORMAL" class="bg-slate-900">Vận hành thường nhật (Normal)</option>
+            <option value="RUSH_HOUR" class="bg-slate-900">Giờ cao điểm (Rush Hour 2.5x)</option>
+            <option value="SUPPLY_CHAIN" class="bg-slate-900">Chuỗi cung ứng (PR/PO/GRN)</option>
+            <option value="NIGHT_SHIFT" class="bg-slate-900">Ca đêm & Bàn giao két (Night)</option>
+          </select>
+        </div>
+
+        <!-- Speed Selector -->
+        <div class="flex items-center bg-slate-900/90 rounded-xl p-1 border border-slate-700">
+          <button onclick="setSpeed(1)" id="sp-1"
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-600 text-white transition">1x</button>
+          <button onclick="setSpeed(5)" id="sp-5"
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition">5x</button>
+          <button onclick="setSpeed(15)" id="sp-15"
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition">15x</button>
+          <button onclick="setSpeed(60)" id="sp-60"
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition">60x</button>
+        </div>
+
+        <!-- Toggle Button -->
+        <button id="toggleBtn" onclick="toggleSim()"
+          class="px-5 py-2.5 rounded-xl font-extrabold text-xs md:text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-lg shadow-emerald-900/40">
+          BẬT MÔ PHỎNG
+        </button>
+
+        <!-- Utility Buttons -->
+        <button onclick="resetStats()" title="Đặt lại KPI về 0"
+          class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 border border-slate-700 transition">
+          Reset KPI
+        </button>
+        <button onclick="exportLogs()" title="Xuất log ra file JSON"
+          class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 border border-slate-700 transition">
+          Xuất Log
+        </button>
+      </div>
+    </header>
+
+    <!-- REALTIME KPI METRICS -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="glass-card rounded-xl p-3">
+        <div class="text-[11px] text-slate-400 font-medium">Khách xem online</div>
+        <div id="statViewers" class="text-xl font-black text-sky-400 mt-0.5">0</div>
+        <div class="text-[10px] text-slate-400">Thời gian thực</div>
+      </div>
+
+      <div class="glass-card rounded-xl p-3">
+        <div class="text-[11px] text-slate-400 font-medium">Lượt tìm kiếm</div>
+        <div id="statSearches" class="text-xl font-black text-cyan-400 mt-0.5">0</div>
+        <div class="text-[10px] text-slate-400">Kafka Event Bus</div>
+      </div>
+
+      <div class="glass-card rounded-xl p-3">
+        <div class="text-[11px] text-slate-400 font-medium">Đơn hàng COD & POS</div>
+        <div id="statOrders" class="text-xl font-black text-emerald-400 mt-0.5">0</div>
+        <div class="text-[10px] text-slate-400">100% COD + Bán lẻ FIFO</div>
+      </div>
+
+      <div class="glass-card rounded-xl p-3">
+        <div class="text-[11px] text-slate-400 font-medium">Doanh thu tích lũy</div>
+        <div id="statRevenue" class="text-lg font-black text-amber-400 mt-0.5 truncate">0đ</div>
+        <div class="text-[10px] text-slate-400">Sổ quỹ tiền mặt & thẻ</div>
+      </div>
+
+      <div class="glass-card rounded-xl p-3">
+        <div class="text-[11px] text-slate-400 font-medium">Đánh giá & SLA</div>
+        <div id="statReviews" class="text-xl font-black text-purple-400 mt-0.5">0</div>
+        <div class="text-[10px] text-slate-400">1-5 sao + SLA 24h</div>
+      </div>
+
+      <div class="glass-card rounded-xl p-3">
+        <div class="text-[11px] text-slate-400 font-medium">Chuỗi kho PR / PO / GRN</div>
+        <div id="statSupplyChain" class="text-xl font-black text-indigo-400 mt-0.5">0 / 0 / 0</div>
+        <div class="text-[10px] text-slate-400">PR tạo / PO duyệt / Lô GRN</div>
+      </div>
+    </div>
+
+    <!-- QUICK ACTION TRIGGER PAD -->
+    <div class="glass rounded-xl p-3.5">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+        <span>Bàn điều khiển kích hoạt nhanh (Manual Scenario Triggers)</span>
+        <span class="text-[10px] text-slate-500 font-normal">Kích hoạt trực tiếp các nghiệp vụ cốt lõi không cần chờ vòng lặp</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <button onclick="triggerNow('checkin-all')"
+          class="p-2.5 rounded-lg bg-sky-950/40 hover:bg-sky-900/50 border border-sky-800/50 text-left transition group">
+          <div class="text-[10px] text-sky-400 font-bold uppercase tracking-wider">DƯỢC SĨ VÀO CA</div>
+          <div class="text-xs font-semibold text-slate-200 mt-0.5">Check-in theo ca & POS</div>
+        </button>
+
+        <button onclick="triggerNow('handover-all')"
+          class="p-2.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 text-left transition group">
+          <div class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">BÀN GIAO CA</div>
+          <div class="text-xs font-semibold text-slate-200 mt-0.5">Chốt két GPP & Out</div>
+        </button>
+
+        <button onclick="triggerNow('burst-orders')"
+          class="p-2.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/50 text-left transition group">
+          <div class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">ĐƠN ONLINE COD</div>
+          <div class="text-xs font-semibold text-slate-200 mt-0.5">5 Đơn COD + Đánh giá</div>
+        </button>
+
+        <button onclick="triggerNow('warehouse-cycle')"
+          class="p-2.5 rounded-lg bg-teal-950/40 hover:bg-teal-900/50 border border-teal-800/50 text-left transition group">
+          <div class="text-[10px] text-teal-400 font-bold uppercase tracking-wider">CHUỖI NHẬP KHO</div>
+          <div class="text-xs font-semibold text-slate-200 mt-0.5">PR → PO → GRN → Kho</div>
+        </button>
+
+        <button onclick="triggerNow('schedule-week')"
+          class="p-2.5 rounded-lg bg-purple-950/40 hover:bg-purple-900/50 border border-purple-800/50 text-left transition group">
+          <div class="text-[10px] text-purple-400 font-bold uppercase tracking-wider">LẬP LỊCH TUẦN</div>
+          <div class="text-xs font-semibold text-slate-200 mt-0.5">Quản lý duyệt ca mới</div>
+        </button>
+
+        <button onclick="triggerNow('payroll-month')"
+          class="p-2.5 rounded-lg bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/50 text-left transition group">
+          <div class="text-[10px] text-amber-400 font-bold uppercase tracking-wider">BẢNG LƯƠNG THÁNG</div>
+          <div class="text-xs font-semibold text-slate-200 mt-0.5">KPI & Đối soát cơ sở</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN MONITOR & CHARTS AREA -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+      <!-- CỘT TRÁI: LIVE CHARTS & NHÂN SỰ (4 cols) -->
+      <div class="lg:col-span-4 space-y-4">
+
+        <!-- REALTIME THROUGHPUT CHART -->
+        <div class="glass rounded-2xl p-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Tần suất Hoạt động (Throughput/min)</h2>
+            <span id="tpsBadge" class="text-[10px] font-mono text-emerald-400">Live 30s</span>
+          </div>
+          <div class="h-44 w-full">
+            <canvas id="throughputChart"></canvas>
+          </div>
+        </div>
+
+        <!-- PHÂN BỔ VAI TRÒ CHART -->
+        <div class="glass rounded-2xl p-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Phân bổ Vai trò (Role Breakdown)</h2>
+            <span class="text-[10px] font-mono text-slate-400">4 nhóm bot</span>
+          </div>
+          <div class="h-40 w-full flex items-center justify-center">
+            <canvas id="roleChart"></canvas>
+          </div>
+        </div>
+
+        <!-- DANH SÁCH NHÂN SỰ DƯỢC SĨ & PERSONA -->
+        <div class="glass rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Trạng thái Nhân sự Dược sĩ</h2>
+            <span id="pharmCountBadge" class="text-[11px] text-slate-400 font-mono">0 nhân sự</span>
+          </div>
+          <div id="pharmacistList" class="space-y-2 text-sm overflow-y-auto max-h-[220px] pr-1">
+            <div class="text-slate-500 text-xs">Đang nạp danh sách nhân sự...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CỘT PHẢI: LIVE ACTIVITY STREAM (8 cols) -->
+      <div class="lg:col-span-8 glass rounded-2xl p-4 flex flex-col h-[760px]">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-3">
+          <div>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">
+              Dòng Hoạt Động Trực Tiếp (Live Activity Stream)
+            </h2>
+            <span class="text-[11px] text-slate-400">Đồng bộ hai chiều qua WebSocket Socket.IO</span>
+          </div>
+
+          <!-- SEARCH & ROLE FILTERS -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <input type="text" id="logSearchInput" placeholder="Tìm mã đơn, nhân sự, thuốc..."
+              oninput="handleSearch(this.value)"
+              class="px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-44" />
+
+            <div class="flex items-center gap-1 text-[11px]">
+              <button onclick="setFilter('ALL')" id="flt-ALL"
+                class="px-2 py-0.5 rounded-md bg-slate-700 text-white font-semibold">Tất cả</button>
+              <button onclick="setFilter('CUSTOMER')" id="flt-CUSTOMER"
+                class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Khách</button>
+              <button onclick="setFilter('PHARMACIST')" id="flt-PHARMACIST"
+                class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Dược sĩ</button>
+              <button onclick="setFilter('MANAGER')" id="flt-MANAGER"
+                class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Quản lý</button>
+              <button onclick="setFilter('WAREHOUSE')" id="flt-WAREHOUSE"
+                class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Thủ kho</button>
+              <button onclick="setFilter('SYSTEM')" id="flt-SYSTEM"
+                class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Hệ thống</button>
+            </div>
+
+            <button onclick="clearLogs()" title="Xóa màn hình log"
+              class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white bg-slate-800 text-[11px]">
+              Xóa màn hình
+            </button>
+          </div>
+        </div>
+
+        <!-- ACTIVITY FEED -->
+        <div id="activityFeed" class="flex-1 overflow-y-auto space-y-2 pr-2">
+          <div class="text-slate-500 text-xs p-4 text-center">Đang chờ tín hiệu luồng mô phỏng...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
