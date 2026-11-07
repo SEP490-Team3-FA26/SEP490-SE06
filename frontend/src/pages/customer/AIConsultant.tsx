@@ -254,8 +254,8 @@ export function AIConsultant() {
             <ShieldCheck size={18} />
           </div>
           <div className="text-xs text-slate-800">
-            <span className="font-bold text-blue-950">Nội quy Dược sĩ AI ({AI_TERMS_VERSION}): </span>
-            <span className="text-slate-600 hidden sm:inline">Chỉ hỗ trợ tư vấn thuốc OTC nhẹ · Dược sĩ chuyên môn duyệt · Trường hợp nguy kịch gọi cấp cứu 115.</span>
+            <span className="font-bold text-blue-950">Lưu ý an toàn: </span>
+            <span className="text-slate-600 hidden sm:inline">Chỉ hỗ trợ tư vấn thuốc thông thường · Dược sĩ kiểm tra đơn · Khi nguy kịch gọi cấp cứu 115.</span>
           </div>
         </div>
         <button

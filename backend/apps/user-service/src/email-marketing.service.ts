@@ -41,7 +41,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 @Injectable()
 export class EmailMarketingService {
   private readonly logger = new Logger(EmailMarketingService.name);
-  private readonly resend: Resend;
+  private readonly resend: Resend | null = null;
 
   constructor(
     @InjectModel(EmailCampaign.name)
@@ -53,8 +53,8 @@ export class EmailMarketingService {
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
   ) {
-    // Khởi tạo Resend client với API Key từ biến môi trường
-    this.resend = new Resend(process.env.RESEND_API_KEY);
+    // Khởi tạo Resend client an toàn khi có API Key từ biến môi trường
+    this.resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   }
 
   // ===================================================================
@@ -394,8 +394,8 @@ export class EmailMarketingService {
       });
 
       try {
-        // Kiểm tra chế độ Sandbox (dev/demo không có Domain Resend)
-        const isSandbox = process.env.RESEND_SANDBOX_MODE === 'true';
+        // Kiểm tra chế độ Sandbox (dev/demo không có Domain Resend hoặc chưa cấu hình API Key)
+        const isSandbox = process.env.RESEND_SANDBOX_MODE === 'true' || !this.resend;
 
         if (isSandbox) {
           // Chế độ Sandbox: Mô phỏng thành công để demo mượt mà
@@ -521,7 +521,7 @@ export class EmailMarketingService {
       unsubscribeUrl,
     });
 
-    const isSandbox = process.env.RESEND_SANDBOX_MODE === 'true';
+    const isSandbox = process.env.RESEND_SANDBOX_MODE === 'true' || !this.resend;
     if (isSandbox) {
       this.logger.log(`🧪 [Sandbox] Mô phỏng gửi test email thành công tới ${testEmail}`);
       return { success: true, messageId: `sandbox-test-${Date.now()}` };

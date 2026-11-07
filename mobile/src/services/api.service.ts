@@ -232,20 +232,48 @@ export class ApiService {
   }
 
   public static async register(data: {
-    name: string;
+    name?: string;
+    fullName?: string;
     email: string;
-    phone: string;
+    phone?: string;
     password: string;
     role?: string;
     gender?: string;
   }): Promise<any> {
     try {
+      // Chuẩn hóa payload theo RegisterDto của API Gateway: bắt buộc fullName
+      const payload: any = {
+        fullName: (data.fullName || data.name || '').trim(),
+        email: (data.email || '').trim().toLowerCase(),
+        password: data.password,
+        role: data.role || 'user',
+      };
+      if (data.phone && data.phone.trim()) {
+        payload.phone = data.phone.trim();
+      }
+
       const res = await fetch(`${this.baseUrl}/api/auth/register`, {
         method: 'POST',
         headers: this.authHeaders,
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
-      return await res.json();
+
+      const json = await res.json();
+      if (res.ok) {
+        const token = json?.accessToken || json?.access_token || json?.token;
+        if (token) {
+          this.setToken(token);
+        }
+        return {
+          success: true,
+          ...json,
+        };
+      }
+
+      const errorMsg = Array.isArray(json?.message)
+        ? json.message.join(', ')
+        : (json?.message || 'Lỗi đăng ký tài khoản');
+      throw new Error(errorMsg);
     } catch (e: any) {
       throw new Error(e?.message || 'Lỗi đăng ký tài khoản');
     }

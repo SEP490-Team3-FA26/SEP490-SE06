@@ -1110,7 +1110,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <ShieldCheck size={11} />
             </div>
             <span className="text-[11px] text-slate-700 truncate">
-              <strong className="text-blue-900 font-semibold">Nội quy AI ({AI_TERMS_VERSION}):</strong> Chỉ tư vấn OTC nhẹ · Dược sĩ duyệt chuyên môn · Cấp cứu gọi 115
+              <strong className="text-blue-900 font-semibold">Lưu ý an toàn:</strong> Chỉ tư vấn thuốc thông thường · Dược sĩ duyệt đơn · Cấp cứu gọi 115
             </span>
           </div>
           <button

@@ -11,18 +11,18 @@
 const assert = require('assert');
 
 // 1. Dữ liệu chuẩn nội quy trích xuất từ tài liệu nghiệp vụ mục 18
-const AI_TERMS_VERSION = 'v1.0-OTC';
+const AI_TERMS_VERSION = 'Bản an toàn 2026';
 const AI_TERMS_RELEASE_DATE = '01/11/2026';
 
 const MANDATORY_ARTICLE_TITLES = [
-  'Điều 1: Mục tiêu & Phạm vi Tư vấn Sức khỏe',
-  'Điều 2: Chống Chỉ Định & Tình Huống Y Tế Khẩn Cấp',
-  'Điều 3: Quy Định Nghiêm Ngặt Về Thuốc Kê Đơn (ETC)',
-  'Điều 4: Trách Nhiệm Khai Báo Trung Thực Của Người Dùng',
-  'Điều 5: Nguyên Tắc Cá Nhân Hóa & Nghiêm Cấm Dùng Cho Người Khác',
-  'Điều 6: Vai Trò Dược Sĩ & Cơ Chế Kiểm Duyệt Chuyên Môn',
-  'Điều 7: Bảo Mật Thông Tin & Giảm Thiểu Dữ Liệu Y Tế (Data Minimization)',
-  'Điều 8: Phản Ứng Bất Thường & Kênh Liên Hệ Hỗ Trợ Khẩn',
+  'Điều 1: Chỉ tư vấn thuốc thông thường không cần đơn bác sĩ',
+  'Điều 2: Không dùng trong trường hợp cấp cứu khẩn cấp',
+  'Điều 3: Không bán thuốc cần đơn bác sĩ trên mạng',
+  'Điều 4: Khai báo trung thực về sức khỏe của bạn',
+  'Điều 5: Chỉ dùng thuốc cho chính bản thân bạn',
+  'Điều 6: Luôn có Dược sĩ thật kiểm tra và duyệt lại',
+  'Điều 7: Giữ kín thông tin cá nhân của bạn',
+  'Điều 8: Dừng uống thuốc ngay nếu thấy dấu hiệu lạ',
 ];
 
 // Hàm thuần mô phỏng tính toán tiến độ cuộn và kiểm tra chạm đáy
@@ -71,9 +71,9 @@ console.log('\n--- 1. [Normal Values] Luồng nghiệp vụ chuẩn ---');
 
 // Test 1.1: Đầy đủ 8 điều khoản nội quy bắt buộc
 assert.strictEqual(MANDATORY_ARTICLE_TITLES.length, 8, 'Phải có đầy đủ 8 điều khoản nội quy');
-assert.ok(MANDATORY_ARTICLE_TITLES[0].includes('Phạm vi'), 'Điều 1 phải quy định phạm vi OTC');
-assert.ok(MANDATORY_ARTICLE_TITLES[1].includes('Khẩn Cấp'), 'Điều 2 phải cảnh báo cấp cứu 115');
-assert.ok(MANDATORY_ARTICLE_TITLES[2].includes('Thuốc Kê Đơn (ETC)'), 'Điều 3 phải cấm bán ETC online');
+assert.ok(MANDATORY_ARTICLE_TITLES[0].includes('thuốc thông thường'), 'Điều 1 phải quy định thuốc thông thường');
+assert.ok(MANDATORY_ARTICLE_TITLES[1].includes('cấp cứu'), 'Điều 2 phải cảnh báo cấp cứu khẩn cấp');
+assert.ok(MANDATORY_ARTICLE_TITLES[2].includes('đơn bác sĩ'), 'Điều 3 phải cấm bán thuốc cần đơn qua mạng');
 console.log('✔ [Normal] Đã kiểm tra đủ 8 điều khoản nội quy chuẩn y tế.');
 
 // Test 1.2: Cuộn chạm đáy 100% và đánh dấu cam kết -> Mở khóa nút xác nhận
