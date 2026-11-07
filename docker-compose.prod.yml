@@ -297,6 +297,48 @@ services:
     networks: [wdp301-network]
 
   # ──────────────────────────────────────────────────────────
+  # Bot Simulator & Digital Twin Command Center (Port 4050)
+  # ──────────────────────────────────────────────────────────
+  bot-simulator:
+    build:
+      context: ./bot-simulator
+      dockerfile: Dockerfile
+    image: ${SIMULATOR_IMAGE:-wdp301-bot-simulator:latest}
+    labels: *project-log-labels
+    container_name: wdp301-simulator
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4050:4050"
+    environment:
+      NODE_ENV: production
+      GATEWAY_URL: http://backend-svc:4000
+      SIMULATOR_PORT: 4050
+      SIMULATOR_DB_PATH: /app/data/simulator.db
+      AUTO_START: "false"
+      TZ: "Asia/Ho_Chi_Minh"
+    volumes:
+      - simulator_data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4050/api/sim/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks:
+      wdp301-network:
+        aliases:
+          - simulator-svc
+
+  # ──────────────────────────────────────────────────────────
   # Monitoring (Production Stack: Dozzle + Node Exporter + Prometheus + Grafana)
   # ──────────────────────────────────────────────────────────
   dozzle:
@@ -410,3 +452,4 @@ volumes:
   redis_data:
   qdrant_data:
   prometheus_data:
+  simulator_data:

@@ -43,6 +43,7 @@ taste-skill/
 .idea/
 .vscode/
 !.vscode/settings.json
+.zed/
 
 docker-compose.yml
 next
@@ -117,3 +118,9 @@ pnpm-lock.yaml
 # Binary office files
 *.xlsx
 *.docx
+
+# Bot Simulator Local SQLite Data
+bot-simulator/data/
+*.db
+*.db-wal
+*.db-shm

@@ -23,6 +23,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  Award,
 } from 'lucide-react';
 import { hrService } from '../../services/hr/hr.service';
 

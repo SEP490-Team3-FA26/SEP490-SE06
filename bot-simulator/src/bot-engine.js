@@ -47,6 +47,40 @@ function generateBatchNo(prefix = 'LOT') {
   return `${prefix}-${yymm}-${rand}`;
 }
 
+// Lấy ngày hiện tại theo múi giờ Việt Nam (UTC+7) định dạng YYYY-MM-DD
+function getVietnamTodayStr(d = new Date()) {
+  const vnTime = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  return vnTime.toISOString().slice(0, 10);
+}
+
+// Lấy ngày Thứ Hai đầu tuần (YYYY-MM-DD) chứa ngày hiện tại theo chuẩn lịch tuần
+function getWeekMondayStr(d = new Date()) {
+  const todayStr = typeof d === 'string' ? d.slice(0, 10) : getVietnamTodayStr(d);
+  const [y, m, day] = todayStr.split('-').map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, day));
+  const dow = utc.getUTCDay(); // 0: Chủ nhật, 1: Thứ 2, ..., 6: Thứ 7
+  const diff = dow === 0 ? -6 : 1 - dow;
+  utc.setUTCDate(utc.getUTCDate() + diff);
+  return utc.toISOString().slice(0, 10);
+}
+
+function addDaysStr(dateStr, days) {
+  const [y, m, day] = dateStr.slice(0, 10).split('-').map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, day));
+  utc.setUTCDate(utc.getUTCDate() + days);
+  return utc.toISOString().slice(0, 10);
+}
+
+function normalizeIsoDateStr(val) {
+  if (!val) return '';
+  if (typeof val === 'string') return val.slice(0, 10);
+  try {
+    return new Date(val).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
 // Thiết lập hồ sơ phân tầng lưu lượng, chất lượng phục vụ và tỷ lệ xử lý SLA theo từng chi nhánh
 const BRANCH_PROFILES = {
   'BR-001': { trafficWeight: 35, negativeReviewRate: 0.04, slaResolveRate: 0.95 },
@@ -83,10 +117,12 @@ class BotEngine {
         admin: null,
         warehouse: null,
         managers: {},    // branchCode -> { token, user }
-        pharmacists: {}, // employeeId -> { token, user, persona, isCheckedIn, branchId, branchLat, branchLng, shiftSchedule }
+        pharmacists: {}, // employeeId -> { token, user, persona, isCheckedIn, scheduledToday, assignedShift, branchId, branchLat, branchLng, shiftSchedule }
         customers: [],   // [{ token, user }]
       },
       branches: [...config.defaultBranches],
+      branchSchedules: {}, // branchCode -> { weekStart, status, shifts, assignments }
+      lastScheduleSyncDate: null,
       suppliers: [...SUPPLIERS_POOL],
       otcMedicines: [],
       allMedicines: [],
@@ -190,12 +226,22 @@ class BotEngine {
       currentScenario: this.state.currentScenario,
       stats: this.state.stats,
       branches: this.state.branches,
-      pharmacists: Object.values(this.state.tokens.pharmacists).map(p => ({
-        id: p.user?.id || p.user?._id,
+      branchProfiles: BRANCH_PROFILES,
+      managers: Object.entries(this.state.tokens.managers).map(([branchCode, m]) => ({
+        branchId: branchCode,
+        name: m.user?.fullName || `Quản lý ${branchCode}`,
+      })),
+      pharmacists: Object.entries(this.state.tokens.pharmacists).map(([key, p]) => ({
+        id: p.user?.id || p.user?._id || p.employeeId || key,
         name: p.user?.fullName || 'Dược sĩ',
         branchId: p.branchId,
         persona: p.persona,
-        isCheckedIn: p.isCheckedIn,
+        isCheckedIn: Boolean(p.isCheckedIn),
+        scheduledToday: Boolean(p.scheduledToday),
+        assignedShiftName: p.assignedShift?.shiftName || null,
+        assignedShiftTime: p.assignedShift
+          ? `${p.assignedShift.shiftStart || '07:00'}-${p.assignedShift.shiftEnd || '15:00'}`
+          : null,
       })),
       hasWarehouseAuth: Boolean(this.state.tokens.warehouse),
       medicinesCount: this.state.allMedicines.length,
@@ -497,21 +543,28 @@ class BotEngine {
       }
     }
 
-    // 6. Đăng nhập Dược sĩ và gán Persona (Punctual vs Chronic Late vs Balanced)
+    // 6. Đăng nhập Dược sĩ (3 dược sĩ/chi nhánh để luân phiên người có lịch trực hôm nay và người nghỉ lịch tuần)
     const seedPharms = [
-      // Dược sĩ mặc định hệ thống
+      // Chi nhánh 1 (BR-001)
       { email: this.config.credentials.pharmacist.email, password: this.config.credentials.pharmacist.password, branchId: 'BR-001', persona: 'PUNCTUAL' },
-      // Dược sĩ các chi nhánh từ tập dữ liệu đã seed
       { email: 'staff.br001.02@abcpharmacy.vn', password: '123456', branchId: 'BR-001', persona: 'BALANCED' },
       { email: 'staff.br001.03@abcpharmacy.vn', password: '123456', branchId: 'BR-001', persona: 'CHRONIC_LATE' },
-      { email: 'staff.br002.02@abcpharmacy.vn', password: '123456', branchId: 'BR-002', persona: 'PUNCTUAL' },
-      { email: 'staff.br002.03@abcpharmacy.vn', password: '123456', branchId: 'BR-002', persona: 'BALANCED' },
-      { email: 'staff.br003.02@abcpharmacy.vn', password: '123456', branchId: 'BR-003', persona: 'PUNCTUAL' },
+      // Chi nhánh 2 (BR-002)
+      { email: 'pharmacist.cn2@vinapharmacy.com', password: '123456', branchId: 'BR-002', persona: 'PUNCTUAL' },
+      { email: 'staff.br002.02@abcpharmacy.vn', password: '123456', branchId: 'BR-002', persona: 'BALANCED' },
+      { email: 'staff.br002.03@abcpharmacy.vn', password: '123456', branchId: 'BR-002', persona: 'CHRONIC_LATE' },
+      // Chi nhánh 3 (BR-003)
+      { email: 'pharmacist.cn3@vinapharmacy.com', password: '123456', branchId: 'BR-003', persona: 'PUNCTUAL' },
+      { email: 'staff.br003.02@abcpharmacy.vn', password: '123456', branchId: 'BR-003', persona: 'BALANCED' },
       { email: 'staff.br003.03@abcpharmacy.vn', password: '123456', branchId: 'BR-003', persona: 'CHRONIC_LATE' },
-      { email: 'staff.br004.02@abcpharmacy.vn', password: '123456', branchId: 'BR-004', persona: 'PUNCTUAL' },
-      { email: 'staff.br004.03@abcpharmacy.vn', password: '123456', branchId: 'BR-004', persona: 'BALANCED' },
+      // Chi nhánh 4 (BR-004)
+      { email: 'pharmacist.cn4@vinapharmacy.com', password: '123456', branchId: 'BR-004', persona: 'PUNCTUAL' },
+      { email: 'staff.br004.02@abcpharmacy.vn', password: '123456', branchId: 'BR-004', persona: 'BALANCED' },
+      { email: 'staff.br004.03@abcpharmacy.vn', password: '123456', branchId: 'BR-004', persona: 'CHRONIC_LATE' },
+      // Chi nhánh 6 (BR-006)
       { email: 'staff.br006.02@abcpharmacy.vn', password: '123456', branchId: 'BR-006', persona: 'PUNCTUAL' },
       { email: 'staff.br006.03@abcpharmacy.vn', password: '123456', branchId: 'BR-006', persona: 'BALANCED' },
+      { email: 'staff.br006.04@abcpharmacy.vn', password: '123456', branchId: 'BR-006', persona: 'CHRONIC_LATE' },
     ];
 
     for (const p of seedPharms) {
@@ -520,11 +573,12 @@ class BotEngine {
           email: p.email,
           password: p.password,
         });
-        const userId = auth.user?.id || auth.user?._id;
+        const userId = String(auth.user?.id || auth.user?._id);
         const branchCode = auth.user?.branchId || p.branchId || 'BR-001';
         const branchInfo = this.state.branches.find(b => b.branchCode === branchCode) || this.state.branches[0];
 
         this.state.tokens.pharmacists[userId] = {
+          employeeId: userId,
           token: auth.access_token,
           user: auth.user,
           persona: p.persona,
@@ -534,6 +588,8 @@ class BotEngine {
           shiftSchedule: branchInfo?.shiftSchedule || { morningStart: '07:00', morningEnd: '15:00' },
           isCheckedIn: false,
           isCompleted: false,
+          scheduledToday: false,
+          assignedShift: null,
           creds: { email: p.email, password: p.password },
         };
       } catch {}
@@ -541,12 +597,16 @@ class BotEngine {
 
     // 7. Đăng nhập Quản lý cơ sở cho tất cả 5 chi nhánh
     const seedManagers = [
-      { email: this.config.credentials.manager.email, password: this.config.credentials.manager.password, branchId: 'BR-001' },
       { email: 'staff.br001.01@abcpharmacy.vn', password: '123456', branchId: 'BR-001' },
       { email: 'staff.br002.01@abcpharmacy.vn', password: '123456', branchId: 'BR-002' },
       { email: 'staff.br003.01@abcpharmacy.vn', password: '123456', branchId: 'BR-003' },
       { email: 'staff.br004.01@abcpharmacy.vn', password: '123456', branchId: 'BR-004' },
       { email: 'staff.br006.01@abcpharmacy.vn', password: '123456', branchId: 'BR-006' },
+      { email: this.config.credentials.manager.email, password: this.config.credentials.manager.password, branchId: 'BR-001' },
+      { email: 'manager.cn2@vinapharmacy.com', password: '123456', branchId: 'BR-002' },
+      { email: 'manager.cn3@vinapharmacy.com', password: '123456', branchId: 'BR-003' },
+      { email: 'manager.cn4@vinapharmacy.com', password: '123456', branchId: 'BR-004' },
+      { email: 'rim@vinapharmacy.com', password: '123456', branchId: 'BR-006' },
     ];
 
     for (const m of seedManagers) {
@@ -564,7 +624,11 @@ class BotEngine {
       } catch {}
     }
 
+    // 8. Quản lý các chi nhánh tự động kiểm tra thiết lập Ca làm việc (Ca Sáng/Ca Chiều) và Đăng lịch tuần hiện tại trước khi nhân viên vào ca
+    await this.ensureAllBranchesScheduled().catch(() => {});
+
     const totalPharms = Object.keys(this.state.tokens.pharmacists).length;
+    const scheduledPharmsCount = Object.values(this.state.tokens.pharmacists).filter(p => p.scheduledToday).length;
     const totalMgrs = Object.keys(this.state.tokens.managers).length;
     const totalCust = this.state.tokens.customers.length;
 
@@ -573,7 +637,7 @@ class BotEngine {
       'READY',
       'Bot Engine',
       'ALL',
-      `Khởi tạo thành công: ${totalCust} Khách hàng, ${totalPharms} Dược sĩ (Có chia persona đi trễ/đúng giờ), ${totalMgrs} Quản lý, 1 Thủ kho.`
+      `Khởi tạo thành công: ${totalCust} Khách hàng, ${totalPharms} Dược sĩ (${scheduledPharmsCount} có lịch trực hôm nay), ${totalMgrs} Quản lý, 1 Thủ kho.`
     );
   }
 
@@ -597,13 +661,15 @@ class BotEngine {
       const customer = randomPick(this.state.tokens.customers);
       const phone = customer?.user?.phone || `0909${Math.floor(100000 + Math.random() * 899999)}`;
 
-      // 1. Gửi log tìm kiếm vào Kafka Event Bus
-      await this.apiClient.post('/api/recommendations/search-log', {
-        keyword: searchItem.keyword,
-        category: searchItem.category,
-        phone,
-        resultsCount: Math.floor(6 + Math.random() * 18),
-      });
+      // 1. Gửi mẫu 20% log tìm kiếm vào Kafka Event Bus để tiết kiệm dung lượng MongoDB Atlas 500MB khi chạy 24/7
+      if (this.state.stats.totalSearches === 0 || Math.random() < 0.2) {
+        await this.apiClient.post('/api/recommendations/search-log', {
+          keyword: searchItem.keyword,
+          category: searchItem.category,
+          phone,
+          resultsCount: Math.floor(6 + Math.random() * 18),
+        });
+      }
 
       this.state.stats.totalSearches += Math.floor(3 + Math.random() * 5);
 
@@ -631,6 +697,7 @@ class BotEngine {
 
     // 2A. Tạo đơn hàng Online 100% COD
     let selectedMed = null;
+    const assignedBranch = this.pickBranchWeighted()?.branchCode || 'BR-001';
     try {
       const customer = randomPick(this.state.tokens.customers);
 
@@ -675,8 +742,8 @@ class BotEngine {
         'CUSTOMER',
         'ORDER',
         patientName,
-        'ONLINE',
-        `Đặt mua Online (COD giao tận nhà): ${qty} ${med.unit || 'Hộp'} ${med.name} (#${orderRes.orderCode}) — ĐC: ${deliveryAddress}`,
+        assignedBranch,
+        `Đặt mua Online COD (${assignedBranch}): ${qty} ${med.unit || 'Hộp'} ${med.name} (#${orderRes.orderCode}) — ĐC: ${deliveryAddress}`,
         finalAmount
       );
 
@@ -693,14 +760,14 @@ class BotEngine {
           medicineName: med.name,
           customerName: patientName,
           customerPhone: patientPhone,
-          branchId: this.pickBranchWeighted()?.branchCode || 'BR-001',
+          branchId: assignedBranch,
           isHero: isActualHero,
           isProblematic: isActualProblematic,
           readyAt: Date.now() + 2000,
         });
       }
     } catch (err) {
-      this.emitActivity('CUSTOMER', 'ORDER', 'Khách Online', 'ONLINE', `Tạo đơn Online COD: ${err.message}`, null, 'WARN');
+      this.emitActivity('CUSTOMER', 'ORDER', 'Khách Online', assignedBranch, `Tạo đơn Online COD: ${err.message}`, null, 'WARN');
       if (selectedMed && this.isOutOfStockError(err)) {
         await this.triggerUrgentReplenishment(
           selectedMed,
@@ -796,22 +863,66 @@ class BotEngine {
   }
 
   // =========================================================================
-  // 3. DƯỢC SĨ: ĐIỂM DANH THEO GIỜ CA CHI NHÁNH & BÁN LẺ POS (100% RETAIL)
+  // 3. DƯỢC SĨ: CHỈ ĐIỂM DANH & BÁN POS KHI CÓ LỊCH TRỰC HÔM NAY ĐÃ ĐƯỢC QUẢN LÝ ĐĂNG
   // =========================================================================
-  async simulatePharmacistPOSAndAttendance() {
-    if (!this.state.isRunning) return;
-    const allPharms = Object.values(this.state.tokens.pharmacists);
-    if (allPharms.length === 0) return;
+  getPharmacistTodayAssignment(pharmKey, pharm, todayStr = getVietnamTodayStr()) {
+    if (!pharm) return null;
+    const branchCode = pharm.branchId || 'BR-001';
+    const sched = this.state.branchSchedules[branchCode];
+    if (!sched || sched.status !== 'published' || !Array.isArray(sched.assignments)) {
+      return null;
+    }
+    const empId = String(pharm.user?.id || pharm.user?._id || pharm.employeeId || pharmKey);
+    return sched.assignments.find(
+      a => normalizeIsoDateStr(a.date) === todayStr && String(a.employeeId) === empId
+    ) || null;
+  }
 
-    // Chỉ chọn dược sĩ chưa hoàn thành ca trực (chưa Check-out)
-    let availablePharms = allPharms.filter(p => !p.isCompleted);
-    if (availablePharms.length === 0) {
-      // Nếu tất cả đều đã check-out, đặt lại vòng đời ca để tiếp tục phục vụ bán hàng
-      allPharms.forEach(p => { p.isCompleted = false; p.isCheckedIn = false; });
-      availablePharms = allPharms;
+  async simulatePharmacistPOSAndAttendance(force = false) {
+    if (!this.state.isRunning && !force) return;
+    const pharmEntries = Object.entries(this.state.tokens.pharmacists);
+    if (pharmEntries.length === 0) return;
+
+    const todayStr = getVietnamTodayStr();
+    const currentWeekMonday = getWeekMondayStr(todayStr);
+
+    // Đảm bảo mọi chi nhánh có dược sĩ đều đã được Quản lý tạo Ca làm việc và Đăng lịch tuần hiện tại trước khi bất kỳ ai Check-in
+    const branchCodesInPlay = [...new Set(pharmEntries.map(([, p]) => p.branchId || 'BR-001'))];
+    const needsSync =
+      this.state.lastScheduleSyncDate !== todayStr ||
+      branchCodesInPlay.some(code => {
+        const sc = this.state.branchSchedules[code];
+        return !sc || sc.status !== 'published' || sc.weekStart !== currentWeekMonday;
+      });
+
+    if (needsSync) {
+      await this.ensureAllBranchesScheduled({ weekStartOverride: currentWeekMonday });
     }
 
-    // Ưu tiên dược sĩ chưa check-in vào ca trước; khi đã check-in thì phân tầng lưu lượng POS theo Chi nhánh (không phạt theo persona)
+    // Đồng bộ trạng thái có lịch trực hôm nay (scheduledToday) cho từng dược sĩ; ai không có lịch hôm nay tuyệt đối nghỉ
+    const scheduledPharms = [];
+    for (const [key, p] of pharmEntries) {
+      const todayAssign = this.getPharmacistTodayAssignment(key, p, todayStr);
+      p.scheduledToday = Boolean(todayAssign);
+      p.assignedShift = todayAssign || null;
+      if (p.scheduledToday) {
+        scheduledPharms.push(p);
+      } else {
+        p.isCheckedIn = false;
+      }
+    }
+
+    // Nếu hôm nay không có ai được phân công trong lịch tuần đã đăng thì dừng lại, không cho phép check-in tự do
+    if (scheduledPharms.length === 0) return;
+
+    // Chỉ chọn trong tập dược sĩ CÓ LỊCH HÔM NAY và chưa hoàn thành ca trực (chưa Check-out)
+    let availablePharms = scheduledPharms.filter(p => !p.isCompleted);
+    if (availablePharms.length === 0) {
+      scheduledPharms.forEach(p => { p.isCompleted = false; p.isCheckedIn = false; });
+      availablePharms = scheduledPharms;
+    }
+
+    // Ưu tiên dược sĩ có lịch hôm nay nhưng chưa check-in vào ca trước; khi đã check-in đủ thì phân tầng lưu lượng POS theo Chi nhánh
     const uncheckedPharms = availablePharms.filter(p => !p.isCheckedIn);
     let pharm;
     if (uncheckedPharms.length > 0) {
@@ -826,7 +937,7 @@ class BotEngine {
       pharm = randomPick(branchPharms) || randomPick(availablePharms);
     }
 
-    // 1. Check-in GPS Geofencing theo giờ ca và Persona
+    // 1. Check-in GPS Geofencing đúng theo Ca được Quản lý phân công hôm nay và Persona
     if (!pharm.isCheckedIn) {
       try {
         const gps = jitterGps(pharm.branchLat, pharm.branchLng);
@@ -841,17 +952,25 @@ class BotEngine {
           isLate = Math.random() < 0.2;  // 20% đi muộn
         }
 
-        const shiftStart = pharm.shiftSchedule?.morningStart || '07:00';
+        const shiftName = pharm.assignedShift?.shiftName || 'Ca Sáng';
+        const shiftStart = pharm.assignedShift?.shiftStart || pharm.shiftSchedule?.morningStart || '07:00';
+        const shiftEnd = pharm.assignedShift?.shiftEnd || pharm.shiftSchedule?.morningEnd || '15:00';
+        const assignedShiftId = pharm.assignedShift?.shiftId;
         const note = isLate
-          ? `${randomPick(CHECKIN_NOTES.late)} (Ca ${shiftStart})`
-          : `${randomPick(CHECKIN_NOTES.punctual)} (Ca ${shiftStart})`;
+          ? `${randomPick(CHECKIN_NOTES.late)} (${shiftName} ${shiftStart}-${shiftEnd})`
+          : `${randomPick(CHECKIN_NOTES.punctual)} (${shiftName} ${shiftStart}-${shiftEnd})`;
 
-        const checkInRes = await this.apiClient.post('/api/hr/attendance/check-in', {
+        const checkInPayload = {
           latitude: gps.latitude,
           longitude: gps.longitude,
           isMockLocation: false,
           note,
-        }, pharm.token);
+        };
+        if (assignedShiftId && /^[0-9a-fA-F]{24}$/.test(String(assignedShiftId))) {
+          checkInPayload.shiftId = String(assignedShiftId);
+        }
+
+        const checkInRes = await this.apiClient.post('/api/hr/attendance/check-in', checkInPayload, pharm.token);
 
         pharm.isCheckedIn = true;
         this.state.stats.totalCheckIns += 1;
@@ -860,7 +979,7 @@ class BotEngine {
           'ATTENDANCE',
           pharm.user?.fullName || 'Dược sĩ',
           pharm.branchId,
-          `Check-in GPS ca ${shiftStart} [${pharm.persona || 'NORMAL'}]: ${isLate ? 'ĐI MUỘN' : 'ĐÚNG GIỜ'} (${checkInRes?.distanceMeters || 15}m) — ${note}`,
+          `Check-in GPS ${shiftName} (${shiftStart}-${shiftEnd}) [${pharm.persona || 'NORMAL'}]: ${isLate ? 'ĐI MUỘN' : 'ĐÚNG GIỜ'} (${checkInRes?.distanceMeters || 15}m) — ${note}`,
           null,
           isLate ? 'WARN' : 'SUCCESS'
         );
@@ -868,7 +987,7 @@ class BotEngine {
         if (err.message && (err.message.includes('Cập nhật') || err.message.includes('Cap nhat') || err.message.includes('thành công') || err.message.includes('thanh cong') || err.message.includes('đã Check-in') || err.message.includes('da Check-in'))) {
           pharm.isCheckedIn = true;
         } else if (err.message && (err.message.includes('Check-out') || err.message.includes('hoàn thành ca trực') || err.message.includes('đã hoàn thành') || err.message.includes('da hoan thanh'))) {
-          // Dược sĩ này đã từng check-out trước đó trên backend -> đánh dấu isCompleted và chuyển sang người khác
+          // Dược sĩ này đã từng check-out trước đó trên backend -> đánh dấu isCompleted và chuyển sang người khác có lịch hôm nay
           pharm.isCompleted = true;
           pharm.isCheckedIn = false;
           return;
@@ -1239,51 +1358,157 @@ class BotEngine {
   }
 
   // =========================================================================
-  // 5. QUẢN LÝ XẾP LỊCH TUẦN & DUYỆT BẢNG LƯƠNG THÁNG
+  // 5. QUẢN LÝ THIẾT LẬP CA LÀM VIỆC, XẾP LỊCH TUẦN & DUYỆT BẢNG LƯƠNG THÁNG
   // =========================================================================
-  async triggerWeeklySchedule() {
-    for (const br of this.state.branches) {
-      const mgr = this.state.tokens.managers[br.branchCode];
-      const token = mgr?.token || this.state.tokens.admin;
-      if (!token) continue;
+  async ensureBranchShiftsAndSchedule(branchCode, options = {}) {
+    const { forceRebuild = false, weekStartOverride = null } = options;
+    const br = this.state.branches.find(b => b.branchCode === branchCode) || {
+      branchCode,
+      name: `Chi nhánh ${branchCode}`,
+      shiftSchedule: { morningStart: '07:00', morningEnd: '15:00', afternoonStart: '14:00', afternoonEnd: '22:00' },
+    };
 
-      try {
-        const now = new Date();
-        const nextMonday = new Date(now);
-        nextMonday.setDate(now.getDate() + ((1 + 7 - now.getDay()) % 7 || 7));
-        const weekStartStr = nextMonday.toISOString().slice(0, 10);
+    const branchPharms = Object.entries(this.state.tokens.pharmacists)
+      .filter(([, p]) => (p.branchId || 'BR-001') === branchCode)
+      .map(([key, p]) => ({
+        empId: String(p.user?.id || p.user?._id || p.employeeId || key),
+        empName: p.user?.fullName || 'Dược sĩ',
+        pharmRef: p,
+      }));
 
-        const branchPharms = Object.values(this.state.tokens.pharmacists).filter(
-          p => p.branchId === br.branchCode
+    const mgr = this.state.tokens.managers[branchCode];
+    // API /api/hr/shifts và /api/hr/schedules* lấy branchId từ JWT của người gọi, nên bắt buộc ưu tiên token của Quản lý/Dược sĩ thuộc đúng chi nhánh đó
+    const token = mgr?.token || branchPharms[0]?.pharmRef?.token || this.state.tokens.admin;
+    if (!token) return null;
+
+    const todayStr = getVietnamTodayStr();
+    const weekStartStr = weekStartOverride || getWeekMondayStr(todayStr);
+
+    try {
+      // BƯỚC 1: Đảm bảo chi nhánh có đầy đủ Ca Sáng và Ca Chiều trong work_shifts
+      const rawShifts = await this.apiClient.get('/api/hr/shifts', token).catch(() => []);
+      const activeShifts = (Array.isArray(rawShifts) ? rawShifts : []).filter(
+        s => s && (s._id || s.id) && s.isActive !== false
+      );
+
+      let morningShift = activeShifts.find(s => String(s.name || '').toLowerCase().includes('sáng')) || activeShifts[0];
+      let afternoonShift =
+        activeShifts.find(s => s !== morningShift && String(s.name || '').toLowerCase().includes('chiều')) ||
+        activeShifts.find(s => s !== morningShift);
+
+      let createdNewShift = false;
+      if (!morningShift) {
+        const createdM = await this.apiClient.post('/api/hr/shifts', {
+          name: 'Ca Sáng',
+          startTime: br.shiftSchedule?.morningStart || '07:00',
+          endTime: br.shiftSchedule?.morningEnd || '15:00',
+          color: '#3B82F6',
+        }, token).catch(() => null);
+
+        morningShift = {
+          _id: createdM?._id || createdM?.id || 'SHIFT_MORNING',
+          name: createdM?.name || 'Ca Sáng',
+          startTime: createdM?.startTime || br.shiftSchedule?.morningStart || '07:00',
+          endTime: createdM?.endTime || br.shiftSchedule?.morningEnd || '15:00',
+        };
+        if (createdM?._id || createdM?.id) createdNewShift = true;
+      }
+
+      if (!afternoonShift) {
+        const createdA = await this.apiClient.post('/api/hr/shifts', {
+          name: 'Ca Chiều',
+          startTime: br.shiftSchedule?.afternoonStart || '14:00',
+          endTime: br.shiftSchedule?.afternoonEnd || '22:00',
+          color: '#F97316',
+        }, token).catch(() => null);
+
+        afternoonShift = {
+          _id: createdA?._id || createdA?.id || 'SHIFT_AFTERNOON',
+          name: createdA?.name || 'Ca Chiều',
+          startTime: createdA?.startTime || br.shiftSchedule?.afternoonStart || '14:00',
+          endTime: createdA?.endTime || br.shiftSchedule?.afternoonEnd || '22:00',
+        };
+        if (createdA?._id || createdA?.id) createdNewShift = true;
+      }
+
+      if (createdNewShift) {
+        this.emitActivity(
+          'MANAGER',
+          'SCHEDULE',
+          mgr?.user?.fullName || `Quản lý ${branchCode}`,
+          branchCode,
+          `Thiết lập danh mục Ca làm việc chuẩn cho ${branchCode}: ${morningShift.name} (${morningShift.startTime}-${morningShift.endTime}) & ${afternoonShift.name} (${afternoonShift.startTime}-${afternoonShift.endTime})`
         );
+      }
 
-        const shiftStartHour = br.shiftSchedule?.morningStart || '07:00';
-        const shiftEndHour = br.shiftSchedule?.morningEnd || '15:00';
+      const validShiftIds = new Set([
+        String(morningShift._id || morningShift.id),
+        String(afternoonShift._id || afternoonShift.id),
+        ...activeShifts.map(s => String(s._id || s.id)),
+      ]);
 
-        const assignments = [];
+      // BƯỚC 2: Kiểm tra lịch tuần hiện tại trên Backend (work_schedules)
+      const existingSched = await this.apiClient
+        .get(`/api/hr/schedules/week?weekStart=${weekStartStr}`, token)
+        .catch(() => null);
+
+      const rawExistingAssignments = Array.isArray(existingSched?.assignments)
+        ? existingSched.assignments
+        : [];
+      const validExisting = rawExistingAssignments.filter(
+        a => a && a.employeeId && validShiftIds.has(String(a.shiftId))
+      );
+      const isAlreadyPublished = existingSched?.status === 'published';
+
+      // Mỗi ngày chỉ phân công tối đa 2 dược sĩ (1 Ca Sáng + 1 Ca Chiều); nếu cơ sở có 3 dược sĩ thì người thứ 3 nghỉ lịch hôm đó
+      const targetPerDay = Math.min(2, branchPharms.length);
+      const botEmpIdSet = new Set(branchPharms.map(bp => bp.empId));
+
+      let allDaysCovered = branchPharms.length > 0;
+      for (let d = 0; d < 7; d++) {
+        const dStr = addDaysStr(weekStartStr, d);
+        const botAssignedOnDay = validExisting.filter(
+          a => normalizeIsoDateStr(a.date) === dStr && botEmpIdSet.has(String(a.employeeId))
+        );
+        if (botAssignedOnDay.length < targetPerDay) {
+          allDaysCovered = false;
+          break;
+        }
+      }
+
+      let finalAssignments = validExisting;
+
+      if (forceRebuild || !isAlreadyPublished || !allDaysCovered) {
+        // Nếu chi nhánh có >= 3 dược sĩ, khi tạo lịch chuẩn sẽ giữ đúng 2 dược sĩ/ngày theo lịch xoay vòng của Quản lý
+        const merged = forceRebuild
+          ? []
+          : validExisting.filter(a => !botEmpIdSet.has(String(a.employeeId)));
+
         for (let d = 0; d < 7; d++) {
-          const shiftDate = new Date(nextMonday);
-          shiftDate.setDate(nextMonday.getDate() + d);
-          const dateStr = shiftDate.toISOString().slice(0, 10);
+          const dStr = addDaysStr(weekStartStr, d);
+          const isoDate = `${dStr}T00:00:00.000Z`;
 
-          branchPharms.forEach((p, idx) => {
-            const isMorning = (d + idx) % 2 === 0;
-            assignments.push({
-              date: dateStr,
-              shiftId: isMorning ? 'SHIFT_MORNING' : 'SHIFT_AFTERNOON',
-              shiftName: isMorning ? 'Ca Sáng' : 'Ca Chiều',
-              shiftStart: isMorning ? shiftStartHour : '14:00',
-              shiftEnd: isMorning ? shiftEndHour : '22:00',
-              employeeId: p.user?.id || p.user?._id,
-              employeeName: p.user?.fullName || 'Dược sĩ',
-              note: `Lịch trực cơ sở ${br.branchCode}`,
+          for (let slot = 0; slot < targetPerDay; slot++) {
+            const bp = branchPharms[(d + slot) % branchPharms.length];
+            if (!bp) continue;
+            const shiftObj = slot === 0 ? morningShift : afternoonShift;
+
+            merged.push({
+              date: isoDate,
+              shiftId: String(shiftObj._id || shiftObj.id),
+              shiftName: shiftObj.name || (slot === 0 ? 'Ca Sáng' : 'Ca Chiều'),
+              shiftStart: shiftObj.startTime || (slot === 0 ? '07:00' : '14:00'),
+              shiftEnd: shiftObj.endTime || (slot === 0 ? '15:00' : '22:00'),
+              employeeId: bp.empId,
+              employeeName: bp.empName,
+              note: `Ca làm việc cố định cơ sở ${branchCode}`,
             });
-          });
+          }
         }
 
         await this.apiClient.post('/api/hr/schedules', {
           weekStart: weekStartStr,
-          assignments,
+          assignments: merged,
         }, token);
 
         await this.apiClient.post('/api/hr/schedules/publish', {
@@ -1291,17 +1516,79 @@ class BotEngine {
           sendEmailNotification: false,
         }, token).catch(() => {});
 
+        finalAssignments = merged;
+
+        const todayBotShifts = finalAssignments
+          .filter(a => normalizeIsoDateStr(a.date) === todayStr && botEmpIdSet.has(String(a.employeeId)))
+          .map(a => `${a.employeeName} [${a.shiftName}]`)
+          .join(', ');
+
         this.emitActivity(
           'MANAGER',
           'SCHEDULE',
-          mgr?.user?.fullName || `Quản lý ${br.branchCode}`,
-          br.branchCode,
-          `Công bố lịch trực tuần mới (${weekStartStr}) gồm ${assignments.length} ca trực phân bổ hợp lý.`
+          mgr?.user?.fullName || `Quản lý ${branchCode}`,
+          branchCode,
+          `Đã công bố lịch tuần (${weekStartStr} → ${addDaysStr(weekStartStr, 6)}): Hôm nay (${todayStr}) trực gồm ${todayBotShifts || `${finalAssignments.length} ca`}`
         );
-      } catch (err) {
-        this.emitActivity('MANAGER', 'SCHEDULE', `Quản lý ${br.branchCode}`, br.branchCode, `Xếp lịch: ${err.message}`, null, 'WARN');
       }
+
+      // BƯỚC 3: Lưu bộ nhớ đệm lịch chi nhánh & cập nhật cờ scheduledToday cho từng Dược sĩ của chi nhánh
+      this.state.branchSchedules[branchCode] = {
+        weekStart: weekStartStr,
+        status: 'published',
+        shifts: [morningShift, afternoonShift],
+        assignments: finalAssignments,
+        updatedAt: Date.now(),
+      };
+
+      for (const bp of branchPharms) {
+        const myTodayAssign = finalAssignments.find(
+          a => normalizeIsoDateStr(a.date) === todayStr && String(a.employeeId) === bp.empId
+        );
+        bp.pharmRef.scheduledToday = Boolean(myTodayAssign);
+        bp.pharmRef.assignedShift = myTodayAssign || null;
+        if (!bp.pharmRef.scheduledToday) {
+          bp.pharmRef.isCheckedIn = false;
+        }
+      }
+
+      return this.state.branchSchedules[branchCode];
+    } catch (err) {
+      this.emitActivity('MANAGER', 'SCHEDULE', mgr?.user?.fullName || `Quản lý ${branchCode}`, branchCode, `Xếp lịch: ${err.message}`, null, 'WARN');
+      return null;
     }
+  }
+
+  async ensureAllBranchesScheduled(options = {}) {
+    const branchCodeSet = new Set([
+      ...this.state.branches.map(b => b.branchCode),
+      ...Object.values(this.state.tokens.pharmacists).map(p => p.branchId || 'BR-001'),
+    ]);
+
+    for (const code of branchCodeSet) {
+      if (!code || code === 'CENTRAL_WH' || code === 'ALL') continue;
+      await this.ensureBranchShiftsAndSchedule(code, options);
+    }
+    this.state.lastScheduleSyncDate = getVietnamTodayStr();
+  }
+
+  async triggerWeeklySchedule() {
+    const todayStr = getVietnamTodayStr();
+    const currentWeekMonday = getWeekMondayStr(todayStr);
+    const nextWeekMonday = addDaysStr(currentWeekMonday, 7);
+
+    // Đảm bảo cả tuần hiện tại và tuần kế tiếp đều được tạo Ca làm việc và Đăng lịch đầy đủ
+    for (const br of this.state.branches) {
+      await this.ensureBranchShiftsAndSchedule(br.branchCode, {
+        forceRebuild: true,
+        weekStartOverride: nextWeekMonday,
+      });
+      await this.ensureBranchShiftsAndSchedule(br.branchCode, {
+        forceRebuild: true,
+        weekStartOverride: currentWeekMonday,
+      });
+    }
+    this.state.lastScheduleSyncDate = todayStr;
   }
 
   async triggerMonthlyPayroll() {
@@ -1358,8 +1645,8 @@ class BotEngine {
       const expectedCash = liveStats?.expectedCashAmount || 1200000;
 
       await this.apiClient.post('/api/hr/shift-handover/submit', {
-        shiftId: liveStats?.shiftId || 'CA_TIEUCHUAN',
-        shiftName: liveStats?.shiftName || 'Ca tiêu chuẩn GPP',
+        shiftId: pharm.assignedShift?.shiftId || liveStats?.shiftId || 'CA_TIEUCHUAN',
+        shiftName: pharm.assignedShift?.shiftName || liveStats?.shiftName || 'Ca tiêu chuẩn GPP',
         openingFloat: liveStats?.openingFloat || 1000000,
         systemCashSales: liveStats?.systemCashSales || 0,
         systemDigitalSales: liveStats?.systemDigitalSales || 0,
@@ -1388,9 +1675,9 @@ class BotEngine {
         `Nộp Biên bản bàn giao két (${expectedCash.toLocaleString('vi-VN')}đ) và Check-out tan ca! Quầy POS sẵn sàng chuyển giao cho ca trực tiếp theo.`
       );
 
-      // Tự động chuyển giao ca: kích hoạt Dược sĩ kế tiếp của chi nhánh vào nhận ca
+      // Tự động chuyển giao ca: chỉ kích hoạt Dược sĩ kế tiếp của chi nhánh CÓ LỊCH TRỰC HÔM NAY vào nhận ca
       const nextPharm = Object.values(this.state.tokens.pharmacists).find(
-        p => p.branchId === pharm.branchId && p !== pharm && !p.isCompleted
+        p => p.branchId === pharm.branchId && p !== pharm && p.scheduledToday && !p.isCompleted
       );
       if (nextPharm) {
         setTimeout(() => {
@@ -1410,4 +1697,7 @@ module.exports = {
   randomPick,
   pickWeighted,
   generateBatchNo,
+  getVietnamTodayStr,
+  getWeekMondayStr,
+  addDaysStr,
 };

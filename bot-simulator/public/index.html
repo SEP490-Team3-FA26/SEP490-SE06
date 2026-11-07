@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ABC Pharmacy — Digital Twin & Live Traffic Command Center v2.0</title>
+  <title>ABC Pharmacy — Digital Twin & Bản Đồ 2D Command Center v2.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="socket.io/socket.io.js"></script>
@@ -16,13 +16,13 @@
     }
 
     .glass {
-      background: rgba(17, 24, 39, 0.75);
+      background: rgba(17, 24, 39, 0.78);
       backdrop-filter: blur(14px);
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .glass-card {
-      background: rgba(15, 23, 42, 0.85);
+      background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.07);
     }
@@ -40,6 +40,54 @@
         opacity: 0.35;
         transform: scale(1.25);
       }
+    }
+
+    @keyframes popBubble {
+      0% {
+        opacity: 0;
+        transform: translateY(6px) scale(0.95);
+      }
+      15% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      85% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      100% {
+        opacity: 0.92;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .seat-card {
+      position: relative;
+      transition: all 0.22s ease;
+    }
+
+    .seat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(56, 189, 248, 0.6);
+    }
+
+    .seat-selected {
+      outline: 2px solid #38bdf8;
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.18);
+    }
+
+    .seat-active-ok {
+      border-color: rgba(16, 185, 129, 0.85) !important;
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.25);
+    }
+
+    .seat-active-warn {
+      border-color: rgba(244, 63, 94, 0.9) !important;
+      box-shadow: 0 0 18px rgba(244, 63, 94, 0.3);
+    }
+
+    .seat-bubble {
+      animation: popBubble 0.3s ease-out forwards;
     }
 
     ::-webkit-scrollbar {
@@ -60,7 +108,7 @@
 </head>
 
 <body class="min-h-screen p-3 md:p-5 text-slate-100">
-  <div class="max-w-[1600px] mx-auto space-y-4">
+  <div class="max-w-[1640px] mx-auto space-y-4">
 
     <!-- TOP HEADER & CONTROLS -->
     <header class="glass rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl">
@@ -70,17 +118,17 @@
           <div class="flex items-center gap-2.5 flex-wrap">
             <h1 class="text-lg md:text-xl font-black tracking-tight text-white flex items-center gap-2">
               ABC PHARMACY
-              <span class="text-emerald-400 font-mono text-sm">DIGITAL TWIN COMMAND CENTER</span>
+              <span class="text-emerald-400 font-mono text-sm">2D DIGITAL TWIN COMMAND CENTER</span>
             </h1>
             <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              v2.0 LIVE
+              SQLite Persistent
             </span>
             <span id="gatewayStatusBadge" class="px-2 py-0.5 rounded text-[11px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/30">
               Gateway: Đang kiểm tra...
             </span>
           </div>
           <p class="text-xs text-slate-400 mt-0.5">
-            Mô phỏng 4 nhóm tác nhân thực chiến (Khách hàng COD, Dược sĩ POS, Quản lý cơ sở & Chuỗi cung ứng Kho tổng)
+            Sơ đồ 2D phân khoang độc lập theo Chi nhánh & Kho Tổng — Lưu vết lịch sử bền vững trên SQLite phục vụ kiểm toán & điều hành 24/7
           </p>
         </div>
       </div>
@@ -118,7 +166,7 @@
         </button>
 
         <!-- Utility Buttons -->
-        <button onclick="resetStats()" title="Đặt lại KPI về 0"
+        <button onclick="resetStats()" title="Đặt lại KPI và xóa lịch sử SQLite"
           class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 border border-slate-700 transition">
           Reset KPI
         </button>
@@ -140,7 +188,7 @@
       <div class="glass-card rounded-xl p-3">
         <div class="text-[11px] text-slate-400 font-medium">Lượt tìm kiếm</div>
         <div id="statSearches" class="text-xl font-black text-cyan-400 mt-0.5">0</div>
-        <div class="text-[10px] text-slate-400">Kafka Event Bus</div>
+        <div class="text-[10px] text-slate-400">Ghi mẫu thông minh 24/7</div>
       </div>
 
       <div class="glass-card rounded-xl p-3">
@@ -213,7 +261,115 @@
       </div>
     </div>
 
-    <!-- MAIN MONITOR & CHARTS AREA -->
+    <!-- ======================================================================= -->
+    <!-- SƠ ĐỒ GHẾ 2D THEO KHOANG CHI NHÁNH & KHUNG TRA CỨU QUÁ KHỨ SQLITE       -->
+    <!-- ======================================================================= -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+      <!-- CỘT TRÁI (8 COLS): SƠ ĐỒ 6 KHOANG RẠP PHIM / CHI NHÁNH & KHO TỔNG -->
+      <div class="lg:col-span-8 glass rounded-2xl p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div>
+            <h2 class="text-xs md:text-sm font-black uppercase tracking-wider text-white">
+              Sơ Đồ Trực Quan 2D — 5 Khoang Chi Nhánh & 1 Khoang Kho Tổng
+            </h2>
+            <p class="text-[11px] text-slate-400">
+              Mỗi chi nhánh là một khoang riêng biệt (Hàng ghế Nhân sự cố định + Hàng ghế Khách giao dịch). Click vào bất kỳ ghế nào để xem toàn bộ quá khứ từ SQLite.
+            </p>
+          </div>
+          <div class="flex items-center gap-3 text-[11px]">
+            <span class="flex items-center gap-1.5 text-emerald-300 font-semibold">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Vừa hoạt động
+            </span>
+            <span class="flex items-center gap-1.5 text-rose-300 font-semibold">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Cảnh báo / Trễ / Hết hàng
+            </span>
+            <span class="flex items-center gap-1.5 text-sky-300 font-semibold">
+              <span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Đang chọn xem
+            </span>
+          </div>
+        </div>
+
+        <!-- LƯỚI 6 KHOANG (2 CỘT TRÊN MÀN HÌNH LỚN) -->
+        <div id="compartmentsGrid" class="grid grid-cols-1 xl:grid-cols-2 gap-3.5 max-h-[820px] overflow-y-auto pr-1">
+          <div class="text-slate-500 text-xs p-6 text-center col-span-2">
+            Đang dựng sơ đồ ghế 2D cho 5 Chi nhánh và Kho Tổng...
+          </div>
+        </div>
+      </div>
+
+      <!-- CỘT PHẢI (4 COLS): BẢNG TRA CỨU LỊCH SỬ QUÁ KHỨ TỪ SQLITE (SEAT / BRANCH INSPECTOR) -->
+      <div class="lg:col-span-4 glass rounded-2xl p-4 flex flex-col h-[890px]">
+        <div class="border-b border-slate-800 pb-3 mb-3 flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-xs md:text-sm font-black uppercase tracking-wider text-sky-300">
+              Hồ Sơ Ghế & Lịch Sử Quá Khứ (SQLite)
+            </h2>
+            <p id="inspectorSubtitle" class="text-[11px] text-slate-400 mt-0.5">
+              Click vào một ghế nhân viên, ghế khách hoặc tiêu đề chi nhánh bên trái để tra cứu
+            </p>
+          </div>
+          <button onclick="refreshInspectorHistory()"
+            class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold border border-slate-700">
+            Làm mới
+          </button>
+        </div>
+
+        <!-- THẺ HỒ SƠ TỔNG QUAN CỦA GHẾ / CHI NHÁNH ĐANG CHỌN -->
+        <div id="inspectorProfileCard" class="rounded-xl bg-slate-900/90 border border-slate-800 p-3 mb-3 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div id="inspName" class="text-sm font-black text-white">Toàn Hệ Thống (Tất cả khoang)</div>
+              <div id="inspMeta" class="text-[11px] text-slate-400 font-mono">Đang hiển thị nhật ký tổng hợp từ SQLite</div>
+            </div>
+            <span id="inspBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+              ALL
+            </span>
+          </div>
+
+          <!-- 4 CHỈ SỐ TÍCH LŨY CỦA GHẾ -->
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Tổng sự kiện đã lưu</div>
+              <div id="inspTotalEvents" class="text-sm font-black text-white mt-0.5">0</div>
+            </div>
+            <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Đơn hàng / Doanh thu</div>
+              <div id="inspOrdersRev" class="text-xs font-black text-emerald-400 mt-0.5 truncate">0 đơn • 0đ</div>
+            </div>
+            <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Kỷ luật điểm danh</div>
+              <div id="inspAttendance" class="text-xs font-bold text-sky-300 mt-0.5">0 đúng giờ • 0 trễ</div>
+            </div>
+            <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Cảnh báo / Sự cố</div>
+              <div id="inspWarns" class="text-sm font-black text-rose-400 mt-0.5">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ô TÌM KIẾM LỊCH SỬ TRONG INSPECTOR -->
+        <div class="flex items-center gap-2 mb-2.5">
+          <input type="text" id="inspectorSearchInput" placeholder="Lọc trong lịch sử ghế này..."
+            oninput="renderInspectorTimeline()"
+            class="flex-1 px-2.5 py-1.5 text-xs rounded-lg bg-slate-900 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500" />
+          <button onclick="selectAllBranchesHistory()"
+            class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold border border-slate-700 whitespace-nowrap">
+            Xem tất cả
+          </button>
+        </div>
+
+        <!-- TIMELINE QUÁ KHỨ TỪ SQLITE -->
+        <div id="inspectorTimeline" class="flex-1 overflow-y-auto space-y-2 pr-1">
+          <div class="text-slate-500 text-xs p-4 text-center">Chưa có dữ liệu lịch sử.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- KHU VỰC BIỂU ĐỒ THỐNG KÊ & DÒNG HOẠT ĐỘNG TỔNG HỢP                      -->
+    <!-- ======================================================================= -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
       <!-- CỘT TRÁI: LIVE CHARTS & NHÂN SỰ (4 cols) -->
@@ -222,7 +378,7 @@
         <!-- REALTIME THROUGHPUT CHART -->
         <div class="glass rounded-2xl p-4">
           <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Tần suất Hoạt động (Throughput/min)</h2>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Tần suất Hoạt động (Throughput/3s)</h2>
             <span id="tpsBadge" class="text-[10px] font-mono text-emerald-400">Live 30s</span>
           </div>
           <div class="h-44 w-full">
@@ -254,13 +410,13 @@
       </div>
 
       <!-- CỘT PHẢI: LIVE ACTIVITY STREAM (8 cols) -->
-      <div class="lg:col-span-8 glass rounded-2xl p-4 flex flex-col h-[760px]">
+      <div class="lg:col-span-8 glass rounded-2xl p-4 flex flex-col h-[680px]">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-3">
           <div>
             <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">
-              Dòng Hoạt Động Trực Tiếp (Live Activity Stream)
+              Dòng Hoạt Động Trực Tiếp Toàn Hệ Thống (Live Activity Stream)
             </h2>
-            <span class="text-[11px] text-slate-400">Đồng bộ hai chiều qua WebSocket Socket.IO</span>
+            <span class="text-[11px] text-slate-400">Đồng bộ hai chiều qua WebSocket Socket.IO & Lưu trữ SQLite</span>
           </div>
 
           <!-- SEARCH & ROLE FILTERS -->
@@ -284,7 +440,7 @@
                 class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Hệ thống</button>
             </div>
 
-            <button onclick="clearLogs()" title="Xóa màn hình log"
+            <button onclick="clearLogs()" title="Xóa màn hình log tạm thời"
               class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white bg-slate-800 text-[11px]">
               Xóa màn hình
             </button>

@@ -1,4 +1,4 @@
-// Điểm khởi chạy của Bot Simulator & Live Traffic Command Center v2.0 Clean
+// Điểm khởi chạy của Bot Simulator & Live Traffic Command Center v2.0 Clean (Tích hợp SQLite & Bản đồ 2D)
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -8,6 +8,7 @@ const config = require('./config');
 const ApiClient = require('./src/api-client');
 const { BotEngine } = require('./src/bot-engine');
 const Scheduler = require('./src/scheduler');
+const SimulatorStore = require('./src/store');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,13 +20,84 @@ app.use(express.static(path.join(__dirname, 'public')));
 const apiClient = new ApiClient(config.gatewayUrl);
 const engine = new BotEngine(apiClient, config);
 const scheduler = new Scheduler(engine, config);
+const store = new SimulatorStore();
 
-// Bộ đệm 250 activity logs gần nhất để phục vụ client mới kết nối
-const recentLogs = [];
+// Khôi phục thống kê KPI và 250 sự kiện gần nhất từ SQLite khi khởi động lại container/server
+const savedStats = store.loadStats();
+if (savedStats && typeof savedStats === 'object') {
+  engine.state.stats = {
+    ...engine.state.stats,
+    ...savedStats,
+    activeViewers: 0,
+  };
+}
+
+store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+
 const MAX_SAVED_LOGS = 250;
+const recentLogs = store.getRecentEvents(MAX_SAVED_LOGS);
+
+function findPharmacistPersona(actorName, branchId) {
+  for (const p of Object.values(engine.state.tokens.pharmacists)) {
+    const pName = p.user?.fullName || '';
+    if (pName === actorName && (!branchId || p.branchId === branchId)) {
+      return p.persona || 'BALANCED';
+    }
+  }
+  return null;
+}
+
+function getMapPayload() {
+  store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+  const seats = store.getAllSeats();
+  const pharmMetaMap = new Map();
+  for (const p of Object.values(engine.state.tokens.pharmacists)) {
+    const key = `PHARM:${p.branchId || 'BR-001'}:${String(p.user?.fullName || 'Dược sĩ').trim()}`;
+    pharmMetaMap.set(key, {
+      isCheckedIn: Boolean(p.isCheckedIn),
+      scheduledToday: Boolean(p.scheduledToday),
+      assignedShiftName: p.assignedShift?.shiftName || null,
+      assignedShiftTime: p.assignedShift
+        ? `${p.assignedShift.shiftStart || '07:00'}-${p.assignedShift.shiftEnd || '15:00'}`
+        : null,
+    });
+  }
+
+  const enrichedSeats = seats.map(s => {
+    if (s.seatType !== 'PHARMACIST') {
+      return { ...s, isCheckedIn: true, scheduledToday: true, assignedShiftName: null };
+    }
+    const meta = pharmMetaMap.get(s.seatId);
+    const scheduledToday = meta ? meta.scheduledToday : false;
+    const assignedShiftName = meta ? meta.assignedShiftName : null;
+    const assignedShiftTime = meta ? meta.assignedShiftTime : null;
+    const defaultIdleAction = scheduledToday
+      ? `Có lịch trực hôm nay: ${assignedShiftName || 'Ca trực'} (${assignedShiftTime || '07:00-15:00'})`
+      : 'Nghỉ lịch hôm nay (Không có tên trong lịch phân công ngày hôm nay của Quản lý)';
+
+    return {
+      ...s,
+      isCheckedIn: meta ? meta.isCheckedIn : false,
+      scheduledToday,
+      assignedShiftName,
+      assignedShiftTime,
+      lastAction:
+        !s.totalEvents || s.lastAction === 'Đang chờ ca / Chưa phát sinh giao dịch'
+          ? defaultIdleAction
+          : s.lastAction,
+    };
+  });
+
+  return {
+    branches: engine.state.branches,
+    branchProfiles: engine.getPublicState().branchProfiles,
+    seats: enrichedSeats,
+    branchSummaries: store.getBranchSummaries(),
+  };
+}
 
 function emitActivity(role, badge, actorName, branchId, actionText, amount = null, status = 'SUCCESS') {
-  const logItem = {
+  const rawLog = {
     id: Date.now() + Math.random().toString(36).substring(2, 7),
     timestamp: new Date().toLocaleTimeString('vi-VN'),
     role,        // CUSTOMER | PHARMACIST | MANAGER | WAREHOUSE | SYSTEM
@@ -36,6 +108,10 @@ function emitActivity(role, badge, actorName, branchId, actionText, amount = nul
     amount,
     status,      // SUCCESS | WARN
   };
+
+  const persona = role === 'PHARMACIST' ? findPharmacistPersona(actorName, branchId) : null;
+  const logItem = store.recordActivity(rawLog, persona);
+  store.saveStats(engine.state.stats);
 
   recentLogs.unshift(logItem);
   if (recentLogs.length > MAX_SAVED_LOGS) {
@@ -49,10 +125,29 @@ function emitActivity(role, badge, actorName, branchId, actionText, amount = nul
 engine.setEmitter(emitActivity);
 
 // ============================================================================
-// REST API ĐIỀU KHIỂN & THỐNG KÊ
+// REST API ĐIỀU KHIỂN, THỐNG KÊ & BẢN ĐỒ 2D SQLITE
 // ============================================================================
 app.get('/api/sim/state', (req, res) => {
   res.json(engine.getPublicState());
+});
+
+app.get('/api/sim/map', (req, res) => {
+  res.json(getMapPayload());
+});
+
+app.get('/api/sim/history', (req, res) => {
+  const { seatId, branchId, role, actorName, limit } = req.query;
+  if (seatId) {
+    const detail = store.getSeatDetail(String(seatId), Number(limit) || 100);
+    return res.json(detail);
+  }
+  const events = store.queryHistory({
+    branchId: branchId ? String(branchId) : undefined,
+    role: role ? String(role) : undefined,
+    actorName: actorName ? String(actorName) : undefined,
+    limit: Number(limit) || 100,
+  });
+  res.json({ seat: null, events });
 });
 
 app.get('/api/sim/health', async (req, res) => {
@@ -66,17 +161,19 @@ app.get('/api/sim/health', async (req, res) => {
     speedMultiplier: engine.state.speedMultiplier,
     currentScenario: engine.state.currentScenario,
     isRunning: engine.state.isRunning,
+    sqliteDbPath: store.dbPath,
   });
 });
 
 app.get('/api/sim/export-logs', (req, res) => {
+  const logs = store.getRecentEvents(500);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', 'attachment; filename="bot_simulator_logs.json"');
   res.json({
     exportedAt: new Date().toISOString(),
     stats: engine.state.stats,
-    logsCount: recentLogs.length,
-    logs: recentLogs,
+    logsCount: logs.length,
+    logs,
   });
 });
 
@@ -110,7 +207,11 @@ app.post('/api/sim/scenario', (req, res) => {
 });
 
 app.post('/api/sim/reset', (req, res) => {
+  store.resetAll();
+  recentLogs.length = 0;
   engine.resetStats();
+  store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+  io.emit('bot:map-init', getMapPayload());
   res.json(engine.getPublicState());
 });
 
@@ -119,19 +220,26 @@ app.post('/api/sim/trigger/:action', async (req, res) => {
 
   try {
     if (action === 'checkin-all') {
+      await engine.ensureAllBranchesScheduled();
       for (const p of Object.values(engine.state.tokens.pharmacists)) {
         p.isCheckedIn = false;
         p.isCompleted = false;
       }
-      await engine.simulatePharmacistPOSAndAttendance();
+      const scheduledCount = Object.values(engine.state.tokens.pharmacists).filter(p => p.scheduledToday).length;
+      for (let i = 0; i < Math.max(1, scheduledCount); i++) {
+        await engine.simulatePharmacistPOSAndAttendance(true);
+      }
+      io.emit('bot:map-init', getMapPayload());
     } else if (action === 'handover-all') {
       for (const p of Object.values(engine.state.tokens.pharmacists)) {
         if (p.isCheckedIn && !p.isCompleted) {
           await engine.triggerHandoverAndCheckout(p);
         }
       }
+      io.emit('bot:map-init', getMapPayload());
     } else if (action === 'schedule-week') {
       await engine.triggerWeeklySchedule();
+      io.emit('bot:map-init', getMapPayload());
     } else if (action === 'payroll-month') {
       await engine.triggerMonthlyPayroll();
     } else if (action === 'burst-orders') {
@@ -153,6 +261,7 @@ app.post('/api/sim/trigger/:action', async (req, res) => {
 io.on('connection', (socket) => {
   socket.emit('bot:stats', engine.getPublicState());
   socket.emit('bot:init-logs', recentLogs);
+  socket.emit('bot:map-init', getMapPayload());
 });
 
 // ============================================================================
@@ -191,6 +300,8 @@ function startBackgroundWatchdogs() {
         );
         if (engine.state.allMedicines.length === 0 || !engine.state.tokens.admin) {
           await engine.bootstrap().catch(() => {});
+          store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+          io.emit('bot:map-init', getMapPayload());
         }
       }
     } catch {}
@@ -225,10 +336,12 @@ function gracefulShutdown(signal = 'SIGTERM') {
   console.log(`\n[Bot Simulator v2.0 Clean] Nhận tín hiệu ${signal}, đang tắt hệ thống an toàn...`);
   scheduler.stop();
   stopBackgroundWatchdogs();
+  store.saveStats(engine.state.stats);
+  store.close();
 
   io.close(() => {
     server.close(() => {
-      console.log('[Bot Simulator v2.0 Clean] Đã giải phóng toàn bộ kết nối HTTP và Socket.IO.');
+      console.log('[Bot Simulator v2.0 Clean] Đã giải phóng toàn bộ kết nối HTTP, Socket.IO và SQLite.');
       process.exit(0);
     });
   });
@@ -250,6 +363,8 @@ if (require.main === module) {
     console.log(`[Bot Simulator v2.0 Clean] Listening at: http://localhost:${config.simulatorPort}`);
     try {
       await engine.bootstrap();
+      store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+      io.emit('bot:map-init', getMapPayload());
       startBackgroundWatchdogs();
 
       if (config.autoStart) {
@@ -268,6 +383,7 @@ module.exports = {
   server,
   engine,
   scheduler,
+  store,
   recentLogs,
   startBackgroundWatchdogs,
   stopBackgroundWatchdogs,

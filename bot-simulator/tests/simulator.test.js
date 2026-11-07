@@ -587,6 +587,79 @@ describe('4. BotEngine End-to-End Simulation Flow with Biased Randomness', () =>
     }
     assert.ok(counts['BR-001'] > counts['BR-006'] * 2, 'BR-001 phải có lưu lượng gấp nhiều lần BR-006');
   });
+
+  test('Quản lý tự động tạo Ca làm việc, Đăng lịch tuần và chỉ nhân viên có lịch hôm nay (A và B) mới Check-in đi làm, người nghỉ (C) không Check-in', async () => {
+    const client = new ApiClient(`http://localhost:${gatewayPort}`);
+    const cfg = getTestConfig();
+    cfg.defaultBranches = [
+      {
+        branchCode: 'BR-003',
+        name: 'CN3 Đà Nẵng',
+        lat: 16.0544,
+        lng: 108.2022,
+        radius: 200,
+        shiftSchedule: { morningStart: '07:00', morningEnd: '15:00', afternoonStart: '14:00', afternoonEnd: '22:00' },
+      },
+    ];
+    const engine = new BotEngine(client, cfg);
+    engine.state.isRunning = true;
+    engine.state.tokens.managers = {
+      'BR-003': { token: 'mock-mgr-cn3-token', user: { id: 'mgr-cn3', fullName: 'Phạm Thị Lan (Quản Lý CN3)', branchId: 'BR-003' } },
+    };
+    engine.state.allMedicines = [
+      { id: 'med-001', name: 'Panadol Extra', price: 45000, unit: 'Hộp' },
+    ];
+    engine.state.tokens.pharmacists = {
+      'pharm-a': {
+        employeeId: 'pharm-a',
+        token: 'mock-token-a',
+        user: { id: 'pharm-a', fullName: 'DS. Nguyễn Văn A' },
+        persona: 'PUNCTUAL',
+        branchId: 'BR-003',
+        branchLat: 16.0544,
+        branchLng: 108.2022,
+        isCheckedIn: false,
+      },
+      'pharm-b': {
+        employeeId: 'pharm-b',
+        token: 'mock-token-b',
+        user: { id: 'pharm-b', fullName: 'DS. Trần Thị B' },
+        persona: 'BALANCED',
+        branchId: 'BR-003',
+        branchLat: 16.0544,
+        branchLng: 108.2022,
+        isCheckedIn: false,
+      },
+      'pharm-c': {
+        employeeId: 'pharm-c',
+        token: 'mock-token-c',
+        user: { id: 'pharm-c', fullName: 'DS. Lê Văn C' },
+        persona: 'CHRONIC_LATE',
+        branchId: 'BR-003',
+        branchLat: 16.0544,
+        branchLng: 108.2022,
+        isCheckedIn: false,
+      },
+    };
+    engine.setEmitter(() => {});
+
+    // Chạy 6 chu kỳ liên tiếp: Quản lý CN3 phải tự động đăng lịch tuần (2 người trực hôm nay, 1 người nghỉ)
+    for (let i = 0; i < 6; i++) {
+      await engine.simulatePharmacistPOSAndAttendance();
+    }
+
+    assert.ok(engine.state.branchSchedules['BR-003'], 'Chi nhánh BR-003 phải có lịch tuần được khởi tạo');
+    assert.strictEqual(engine.state.branchSchedules['BR-003'].status, 'published', 'Lịch tuần BR-003 phải ở trạng thái published');
+
+    const allPharms = Object.values(engine.state.tokens.pharmacists);
+    const scheduledTodayPharms = allPharms.filter(p => p.scheduledToday);
+    const offTodayPharms = allPharms.filter(p => !p.scheduledToday);
+
+    assert.strictEqual(scheduledTodayPharms.length, 2, 'Hôm nay chỉ đúng 2 dược sĩ có lịch trực');
+    assert.strictEqual(offTodayPharms.length, 1, 'Dược sĩ thứ 3 phải ở trạng thái nghỉ lịch hôm nay');
+    assert.ok(scheduledTodayPharms.every(p => p.isCheckedIn === true), 'Cả 2 dược sĩ có lịch hôm nay phải đã Check-in đi làm');
+    assert.strictEqual(offTodayPharms[0].isCheckedIn, false, 'Dược sĩ không có lịch hôm nay tuyệt đối không được Check-in');
+  });
 });
 
 describe('5. Server Express API Endpoints & State Management', () => {
@@ -660,6 +733,28 @@ describe('5. Server Express API Endpoints & State Management', () => {
         status: 400,
       }
     );
+  });
+
+  test('GET /api/sim/map và GET /api/sim/history trả về sơ đồ ghế 2D theo chi nhánh và lịch sử SQLite', async () => {
+    engine.emitActivity('PHARMACIST', 'POS', 'BR1-02. DS. Lê Thị Minh', 'BR-001', 'Bán lẻ POS 2 hộp Panadol', 90000, 'SUCCESS');
+    engine.emitActivity('PHARMACIST', 'ATTENDANCE', 'BR3-03. DS. Vũ Quốc Huy', 'BR-003', 'Check-in GPS ca 07:00 [CHRONIC_LATE]: ĐI MUỘN (18m)', null, 'WARN');
+
+    const mapRes = await client.get('/api/sim/map');
+    assert.ok(Array.isArray(mapRes.seats), 'Phải trả về danh sách ghế ngồi trên bản đồ 2D');
+    assert.ok(mapRes.seats.some(s => s.branchId === 'BR-001'), 'Phải có khoang BR-001');
+    assert.ok(mapRes.seats.some(s => s.branchId === 'CENTRAL_WH'), 'Phải có khoang CENTRAL_WH');
+
+    const seatId = 'PHARM:BR-001:BR1-02. DS. Lê Thị Minh';
+    const histRes = await client.get(`/api/sim/history?seatId=${encodeURIComponent(seatId)}`);
+    assert.ok(histRes.seat, 'Phải tìm thấy hồ sơ ghế trong SQLite');
+    assert.strictEqual(histRes.seat.branchId, 'BR-001');
+    assert.strictEqual(histRes.seat.totalOrders, 1);
+    assert.strictEqual(histRes.seat.totalRevenue, 90000);
+    assert.ok(Array.isArray(histRes.events) && histRes.events.length >= 1, 'Phải trả về lịch sử quá khứ của ghế');
+
+    const branchHist = await client.get('/api/sim/history?branchId=BR-003');
+    assert.ok(Array.isArray(branchHist.events));
+    assert.ok(branchHist.events.some(e => e.branchId === 'BR-003' && e.status === 'WARN'));
   });
 });
 
