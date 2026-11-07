@@ -2309,12 +2309,48 @@ export class OrdersServiceService implements OnModuleInit {
 
       const orders = await this.orderModel.find(query).lean().exec();
 
+      // Truy vấn thêm hóa đơn bán lẻ tại quầy POS từ collection salesorders
+      const salesQuery: any = {
+        createdAt: { $gte: startRange, $lte: endRange },
+      };
+      if (branchId && branchId !== 'all') {
+        salesQuery.branchId = branchId;
+      }
+      if (orConditions.length > 0) {
+        salesQuery.$or = [
+          ...orConditions,
+          ...(pharmacistId ? [{ pharmacistId }] : []),
+        ];
+      }
+
+      let posSalesOrders: any[] = [];
+      try {
+        posSalesOrders = await this.orderModel.db
+          .collection('salesorders')
+          .find(salesQuery)
+          .toArray();
+      } catch (err: any) {
+        this.logger.warn(`[getShiftSalesAggregation] Không thể đọc salesorders: ${err.message}`);
+      }
+
+      const existingOrderCodes = new Set(
+        orders.filter((o: any) => o.orderCode != null).map((o: any) => String(o.orderCode)),
+      );
+      const uniquePosSales = posSalesOrders.filter((s: any) => {
+        if (s.orderCode != null && existingOrderCodes.has(String(s.orderCode))) return false;
+        const sb = String(s.soldBy || '').trim();
+        if (sb === 'Khách đặt online' || sb.includes('Biên bản xuất hủy')) return false;
+        return true;
+      });
+
+      const combinedOrders = [...orders, ...uniquePosSales];
+
       let totalRevenue = 0;
       let cashSales = 0;
       let digitalSales = 0;
       let otcCount = 0;
 
-      const orderSummaries = orders.map((o: any) => {
+      const orderSummaries = combinedOrders.map((o: any) => {
         const rev = Number(o.totalAmount || 0);
         const isCash = o.paymentMethod === 'CASH' || o.paymentMethod === 'TIEN_MAT';
         totalRevenue += rev;
@@ -2338,7 +2374,7 @@ export class OrdersServiceService implements OnModuleInit {
           orderCode: o.orderCode || o._id,
           totalAmount: rev,
           paymentMethod: o.paymentMethod,
-          paymentStatus: o.paymentStatus,
+          paymentStatus: o.paymentStatus || 'PAID',
           patientName: o.patientName || 'Khách vãng lai',
           createdAt: o.createdAt,
           itemsCount: Array.isArray(o.items) ? o.items.length : 0,
@@ -2348,12 +2384,12 @@ export class OrdersServiceService implements OnModuleInit {
       return {
         branchId,
         date: date || startRange.toISOString().slice(0, 10),
-        ordersCount: orders.length,
+        ordersCount: combinedOrders.length,
         totalRevenue,
         cashSales,
         digitalSales,
         otcCount,
-        otcRate: orders.length > 0 ? Number(((otcCount / orders.length) * 100).toFixed(1)) : 0,
+        otcRate: combinedOrders.length > 0 ? Number(((otcCount / combinedOrders.length) * 100).toFixed(1)) : 0,
         recentOrders: orderSummaries.slice(-20),
       };
     } catch (error) {
@@ -2392,6 +2428,39 @@ export class OrdersServiceService implements OnModuleInit {
         end = new Date(year, month, 0, 23, 59, 59, 999);
       }
 
+      // Nạp danh sách Dược sĩ thuộc chi nhánh từ collection users để hiển thị đầy đủ nhân sự và map chuẩn ObjectId
+      const staffByNameMap = new Map<string, { id: string; fullName: string; branchId: string }>();
+      const staffByIdMap = new Map<string, { id: string; fullName: string; branchId: string }>();
+      try {
+        const staffFilter: any = {
+          role: 'pharmacist',
+          isActive: { $ne: false },
+        };
+        if (payload.branchId && payload.branchId !== 'all') {
+          staffFilter.branchId = payload.branchId;
+        }
+        if (payload.pharmacistId && Types.ObjectId.isValid(payload.pharmacistId)) {
+          staffFilter._id = new Types.ObjectId(payload.pharmacistId);
+        }
+
+        const branchPharmacists = await this.orderModel.db
+          .collection('users')
+          .find(staffFilter, { projection: { _id: 1, fullName: 1, branchId: 1, email: 1 } })
+          .toArray();
+
+        for (const u of branchPharmacists) {
+          const uid = String(u._id);
+          const uName = String(u.fullName || '').trim();
+          const uBranch = String(u.branchId || payload.branchId || 'BR-001');
+          if (!uName) continue;
+          const meta = { id: uid, fullName: uName, branchId: uBranch };
+          staffByIdMap.set(uid, meta);
+          staffByNameMap.set(uName.toLowerCase(), meta);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[getPharmacistKpiAggregation] Không thể nạp danh sách dược sĩ từ users: ${err.message}`);
+      }
+
       const query: any = {
         createdAt: { $gte: start, $lte: end },
         paymentStatus: { $in: ['PAID', 'PAYMENT_RECEIVED_INVENTORY_PENDING', 'INVENTORY_FULFILLING'] },
@@ -2399,6 +2468,11 @@ export class OrdersServiceService implements OnModuleInit {
       if (payload.branchId && payload.branchId !== 'all') {
         query.branchId = payload.branchId;
       }
+
+      const effectivePharmacistName =
+        (payload.pharmacistName && payload.pharmacistName.trim()) ||
+        (payload.pharmacistId && staffByIdMap.get(String(payload.pharmacistId))?.fullName) ||
+        '';
 
       // Khớp theo cả pharmacistId và pharmacistName để dược sĩ xem KPI chính mình không bị rỗng
       const orConditions: any[] = [];
@@ -2409,8 +2483,8 @@ export class OrdersServiceService implements OnModuleInit {
           { userId: payload.pharmacistId }
         );
       }
-      if (payload.pharmacistName && payload.pharmacistName.trim()) {
-        const trimmedName = payload.pharmacistName.trim();
+      if (effectivePharmacistName) {
+        const trimmedName = effectivePharmacistName.trim();
         orConditions.push(
           { soldBy: trimmedName },
           { pharmacistApprovedBy: trimmedName },
@@ -2422,6 +2496,30 @@ export class OrdersServiceService implements OnModuleInit {
       }
 
       const orders = await this.orderModel.find(query).lean().exec();
+
+      // Truy vấn thêm hóa đơn bán lẻ tại quầy POS từ collection salesorders (inventory-service)
+      const salesQuery: any = {
+        createdAt: { $gte: start, $lte: end },
+      };
+      if (payload.branchId && payload.branchId !== 'all') {
+        salesQuery.branchId = payload.branchId;
+      }
+      if (orConditions.length > 0) {
+        salesQuery.$or = [
+          ...orConditions,
+          ...(payload.pharmacistId ? [{ pharmacistId: payload.pharmacistId }] : []),
+        ];
+      }
+
+      let posSalesOrders: any[] = [];
+      try {
+        posSalesOrders = await this.orderModel.db
+          .collection('salesorders')
+          .find(salesQuery)
+          .toArray();
+      } catch (err: any) {
+        this.logger.warn(`[getPharmacistKpiAggregation] Không thể đọc salesorders: ${err.message}`);
+      }
 
       const pharmacistMap: Record<
         string,
@@ -2437,8 +2535,52 @@ export class OrdersServiceService implements OnModuleInit {
         }
       > = {};
 
-      for (const o of orders) {
-        const rawIdentifier = (o.soldBy || o.pharmacistApprovedBy || '').trim();
+      // Khởi tạo sẵn các dược sĩ chính thức của chi nhánh trong bảng KPI (tránh bảng bị trống khi đầu tháng chưa phát sinh đơn)
+      for (const staff of staffByIdMap.values()) {
+        // Bỏ qua các tài khoản test rác không có tên chuẩn nếu không có đơn
+        const lowerName = staff.fullName.toLowerCase();
+        if (
+          lowerName === 'ddd' ||
+          lowerName === 'duoc' ||
+          lowerName.startsWith('phuc') ||
+          lowerName.includes('test e2e') ||
+          lowerName.includes('đã sửa')
+        ) {
+          continue;
+        }
+        pharmacistMap[staff.id] = {
+          pharmacistId: staff.id,
+          pharmacistName: staff.fullName,
+          branchId: staff.branchId,
+          totalRevenue: 0,
+          cashRevenue: 0,
+          digitalRevenue: 0,
+          orderCount: 0,
+          otcCount: 0,
+        };
+      }
+
+      const existingOrderCodes = new Set(
+        orders.filter((o: any) => o.orderCode != null).map((o: any) => String(o.orderCode)),
+      );
+      const uniquePosSales = posSalesOrders.filter((s: any) => {
+        if (s.orderCode != null && existingOrderCodes.has(String(s.orderCode))) return false;
+        const sb = String(s.soldBy || '').trim();
+        if (
+          !sb ||
+          sb === 'Khách đặt online' ||
+          sb === 'System' ||
+          sb.includes('Biên bản xuất hủy')
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      const allCombinedOrders = [...orders, ...uniquePosSales];
+
+      for (const o of allCombinedOrders) {
+        const rawIdentifier = String(o.soldBy || o.pharmacistApprovedBy || '').trim();
         let pId = '';
         let pName = rawIdentifier;
 
@@ -2446,24 +2588,35 @@ export class OrdersServiceService implements OnModuleInit {
           !rawIdentifier ||
           rawIdentifier.toUpperCase() === 'UNASSIGNED' ||
           rawIdentifier.toLowerCase().includes('online') ||
-          rawIdentifier.toLowerCase().includes('vãng lai');
+          rawIdentifier.toLowerCase().includes('vãng lai') ||
+          rawIdentifier === 'System' ||
+          rawIdentifier.includes('Biên bản xuất hủy');
 
         if (isUnassigned) {
-          pId = 'ONLINE_UNASSIGNED';
-          pName = 'Đơn Online / Quầy Vãng Lai';
+          // Bỏ qua các đơn tự động của hệ thống hoặc khách tự đặt online không gắn với dược sĩ cụ thể
+          continue;
+        }
+
+        const matchedByName = staffByNameMap.get(rawIdentifier.toLowerCase());
+        const matchedById =
+          (o.pharmacistId && staffByIdMap.get(String(o.pharmacistId))) ||
+          (o.userId && staffByIdMap.get(String(o.userId))) ||
+          staffByIdMap.get(rawIdentifier);
+
+        if (matchedById) {
+          pId = matchedById.id;
+          pName = matchedById.fullName;
+        } else if (matchedByName) {
+          pId = matchedByName.id;
+          pName = matchedByName.fullName;
+        } else if (o.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(o.pharmacistId))) {
+          pId = String(o.pharmacistId);
+          pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
+        } else if (payload.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(payload.pharmacistId))) {
+          pId = String(payload.pharmacistId);
+          pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
         } else {
-          // Khớp dược sĩ bằng userId / soldBy dạng ObjectId chuẩn để liên kết chính xác với outgoingPharmacistId
-          if (o.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(o.pharmacistId))) {
-            pId = String(o.pharmacistId);
-          } else if (payload.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(payload.pharmacistId))) {
-            pId = String(payload.pharmacistId);
-          } else if (o.userId && /^[0-9a-fA-F]{24}$/.test(String(o.userId))) {
-            pId = String(o.userId);
-          } else if (/^[0-9a-fA-F]{24}$/.test(rawIdentifier)) {
-            pId = rawIdentifier;
-          } else {
-            pId = rawIdentifier;
-          }
+          pId = rawIdentifier;
           pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
         }
 
@@ -2496,6 +2649,10 @@ export class OrdersServiceService implements OnModuleInit {
               it.isGiftItem ||
               (it.name &&
                 (it.name.toLowerCase().includes('vitamin') ||
+                  it.name.toLowerCase().includes('kẽm') ||
+                  it.name.toLowerCase().includes('canxi') ||
+                  it.name.toLowerCase().includes('calci') ||
+                  it.name.toLowerCase().includes('oresol') ||
                   it.name.toLowerCase().includes('bổ') ||
                   it.name.toLowerCase().includes('tpbvsk'))),
           );
@@ -2504,19 +2661,21 @@ export class OrdersServiceService implements OnModuleInit {
 
       const assignedQuota = Math.max(1, Number(payload.assignedQuota) || Number(payload.quota) || 50000000);
 
-      const kpiList = Object.values(pharmacistMap).map((item) => {
-        const aov = item.orderCount > 0 ? Math.round(item.totalRevenue / item.orderCount) : 0;
-        const otcRate = item.orderCount > 0 ? Number(((item.otcCount / item.orderCount) * 100).toFixed(1)) : 0;
-        const completionRate = Number(((item.totalRevenue / assignedQuota) * 100).toFixed(1));
+      const kpiList = Object.values(pharmacistMap)
+        .map((item) => {
+          const aov = item.orderCount > 0 ? Math.round(item.totalRevenue / item.orderCount) : 0;
+          const otcRate = item.orderCount > 0 ? Number(((item.otcCount / item.orderCount) * 100).toFixed(1)) : 0;
+          const completionRate = Number(((item.totalRevenue / assignedQuota) * 100).toFixed(1));
 
-        return {
-          ...item,
-          averageOrderValue: aov,
-          otcAttachmentRate: otcRate,
-          assignedQuota,
-          quotaCompletionRate: completionRate,
-        };
-      });
+          return {
+            ...item,
+            averageOrderValue: aov,
+            otcAttachmentRate: otcRate,
+            assignedQuota,
+            quotaCompletionRate: completionRate,
+          };
+        })
+        .sort((a, b) => b.totalRevenue - a.totalRevenue || b.orderCount - a.orderCount);
 
       return {
         month,
