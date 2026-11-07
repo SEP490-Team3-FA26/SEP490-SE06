@@ -5,6 +5,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ABC Pharmacy — Digital Twin & Bản Đồ 2D Command Center v2.0</title>
+  <script>
+    if (window.location.pathname === '/simulator') {
+      window.history.replaceState(null, '', '/simulator/' + window.location.search + window.location.hash);
+    }
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="socket.io/socket.io.js"></script>
