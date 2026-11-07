@@ -11,17 +11,25 @@ const path = require('path');
 const mongoose = require(path.resolve(__dirname, '../backend/node_modules/mongoose'));
 const bcrypt = require(path.resolve(__dirname, '../backend/node_modules/bcryptjs'));
 
-// Doc URI tu file .env cua backend
+// Doc URI tu bien moi truong hoac file .env cua backend (tuyet doi khong hardcode credentials)
 function getMongoUri() {
-  const envPath = path.resolve(__dirname, '../backend/.env');
-  if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, 'utf8');
-    const match = content.match(/MONGODB_URI=(.+)/) || content.match(/MONGODB_CONNECTION_STRING=(.+)/);
-    if (match && match[1]) {
-      return match[1].trim();
+  if (process.env.MONGODB_URI || process.env.MONGODB_CONNECTION_STRING) {
+    return (process.env.MONGODB_URI || process.env.MONGODB_CONNECTION_STRING).trim();
+  }
+  const candidatePaths = [
+    path.resolve(__dirname, '../backend/.env'),
+    path.resolve(__dirname, '../.env'),
+  ];
+  for (const envPath of candidatePaths) {
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      const match = content.match(/^MONGODB_URI=(.+)$/m) || content.match(/^MONGODB_CONNECTION_STRING=(.+)$/m);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
     }
   }
-  return 'mongodb+srv://phuocthde180577_db_user:Phuoc12345@cluster0.ruhl6tb.mongodb.net/WDP201?appName=Cluster0';
+  throw new Error('Khong tim thay MONGODB_URI trong bien moi truong hoac file .env');
 }
 
 // Data pools tieng Viet

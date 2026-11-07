@@ -837,4 +837,60 @@ describe('6. 24/7 Resilience: Token Auto-Refresh & Circuit Breaker', () => {
 
     assert.strictEqual(callCount, 0, 'Không được bắn request khi isGatewayOnline = false');
   });
+
+  test('pendingReviewQueue luôn giải phóng phần tử đã quá hạn và giới hạn kích thước tối đa để chống OOM', async () => {
+    const dummyClient = {
+      post: async () => ({ orderCode: 112233, order: { _id: 'ord-test', totalAmount: 45000 } }),
+      patch: async () => ({ success: true }),
+    };
+    const dummyCfg = {
+      credentials: {},
+      defaultBranches: [{ branchCode: 'BR-001', name: 'CN1', lat: 10.77, lng: 106.70, radius: 200 }],
+      intervals: { browsingBaseMs: 3000, orderBaseMs: 5000, posBaseMs: 4000, warehouseBaseMs: 6000 },
+    };
+    const engine = new BotEngine(dummyClient, dummyCfg);
+    engine.state.isRunning = true;
+    engine.state.otcMedicines = [{ id: 'med-1', name: 'Panadol', price: 45000, unit: 'Hộp' }];
+    engine.state.heroMedicines = engine.state.otcMedicines;
+
+    // 1. Nạp 120 bản ghi vào pendingReviewQueue và kiểm tra giới hạn trần <= 100
+    for (let i = 0; i < 120; i++) {
+      engine.state.pendingReviewQueue.push({
+        orderCode: String(1000 + i),
+        medicineId: 'med-1',
+        medicineName: 'Panadol',
+        isProblematicMed: false,
+        customerName: 'Khách Test',
+        branchId: 'BR-001',
+        readyAt: Date.now() + 60000,
+      });
+    }
+    await engine.simulateCustomerOrderAndReview();
+    assert.ok(engine.state.pendingReviewQueue.length <= 100, 'Queue không được vượt quá ngưỡng giới hạn 100');
+
+    // 2. Kiểm tra phần tử đã đến hạn (readyAt = 0) luôn được splice ra khỏi queue kể cả khi rơi vào nhánh 15% không gửi review
+    engine.state.pendingReviewQueue = [
+      {
+        orderCode: '9001',
+        medicineId: 'med-1',
+        medicineName: 'Panadol',
+        customerName: 'Khách Quá Hạn',
+        branchId: 'BR-001',
+        readyAt: 0,
+      },
+    ];
+    const origRandom = Math.random;
+    Math.random = () => 0.99; // Ép rơi vào nhánh >= 0.85 (không gửi review)
+    try {
+      await engine.simulateCustomerOrderAndReview();
+    } finally {
+      Math.random = origRandom;
+    }
+
+    assert.strictEqual(
+      engine.state.pendingReviewQueue.some(r => r.orderCode === '9001'),
+      false,
+      'Phần tử quá hạn phải được splice khỏi pendingReviewQueue ngay cả khi khách bỏ qua đánh giá'
+    );
+  });
 });

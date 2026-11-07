@@ -191,14 +191,14 @@ app.post('/api/sim/toggle', (req, res) => {
 });
 
 app.post('/api/sim/speed', (req, res) => {
-  const speed = Number(req.body.speed) || 1;
+  const speed = Number(req.body?.speed) || 1;
   scheduler.updateSpeed(speed);
   emitActivity('SYSTEM', 'SPEED', 'Admin Control', 'ALL', `Đã đổi tốc độ mô phỏng sang ${engine.state.speedMultiplier}x`);
   res.json(engine.getPublicState());
 });
 
 app.post('/api/sim/scenario', (req, res) => {
-  const { scenario } = req.body;
+  const { scenario } = req.body || {};
   const ok = engine.setScenario(scenario);
   if (ok && engine.state.isRunning) {
     scheduler.start();
@@ -215,9 +215,31 @@ app.post('/api/sim/reset', (req, res) => {
   res.json(engine.getPublicState());
 });
 
+const VALID_TRIGGER_ACTIONS = new Set([
+  'checkin-all',
+  'handover-all',
+  'schedule-week',
+  'payroll-month',
+  'burst-orders',
+  'warehouse-cycle',
+]);
+let isTriggerBusy = false;
+
 app.post('/api/sim/trigger/:action', async (req, res) => {
   const { action } = req.params;
 
+  if (!VALID_TRIGGER_ACTIONS.has(action)) {
+    return res.status(400).json({ success: false, message: `Unknown action: ${action}` });
+  }
+
+  if (isTriggerBusy) {
+    return res.status(409).json({
+      success: false,
+      message: 'Một tác vụ kích hoạt cưỡng bức khác đang chạy, vui lòng đợi hoàn tất.',
+    });
+  }
+
+  isTriggerBusy = true;
   try {
     if (action === 'checkin-all') {
       await engine.ensureAllBranchesScheduled();
@@ -248,13 +270,13 @@ app.post('/api/sim/trigger/:action', async (req, res) => {
       }
     } else if (action === 'warehouse-cycle') {
       await engine.simulateWarehouseOperations(true);
-    } else {
-      return res.status(400).json({ success: false, message: `Unknown action: ${action}` });
     }
 
     res.json({ success: true, state: engine.getPublicState() });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    isTriggerBusy = false;
   }
 });
 
@@ -353,6 +375,12 @@ function gracefulShutdown(signal = 'SIGTERM') {
 }
 
 if (process.env.NODE_ENV !== 'test') {
+  process.on('uncaughtException', (err) => {
+    console.error('[Bot Simulator v2.0 Clean] Uncaught exception:', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[Bot Simulator v2.0 Clean] Unhandled rejection:', reason);
+  });
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 }

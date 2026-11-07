@@ -162,10 +162,36 @@ class SimulatorStore {
       WHERE seat_id = ?
     `);
 
+    this.stmtGetSeatHistory = this.db.prepare(`
+      SELECT
+        id, created_at AS createdAt, timestamp, role, badge,
+        seat_id AS seatId, actor_name AS actorName, branch_id AS branchId,
+        action_text AS actionText, amount, status
+      FROM events
+      WHERE seat_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `);
+
+    this.stmtGetBranchSummaries = this.db.prepare(`
+      SELECT
+        branch_id AS branchId,
+        SUM(total_events) AS totalEvents,
+        SUM(total_orders) AS totalOrders,
+        SUM(total_revenue) AS totalRevenue,
+        SUM(total_warns) AS totalWarns,
+        SUM(punctual_checkins) AS punctualCheckins,
+        SUM(late_checkins) AS lateCheckins
+      FROM seat_states
+      GROUP BY branch_id
+    `);
+
+    // Giữ tối đa 5000 bản ghi gần nhất dựa theo index idx_events_created_at để bảo vệ giới hạn RAM 128MB
     this.stmtPruneEvents = this.db.prepare(`
       DELETE FROM events
-      WHERE id NOT IN (
-        SELECT id FROM events ORDER BY created_at DESC LIMIT 40000
+      WHERE created_at < COALESCE(
+        (SELECT created_at FROM events ORDER BY created_at DESC LIMIT 1 OFFSET 5000),
+        0
       )
     `);
   }
@@ -383,17 +409,7 @@ class SimulatorStore {
   getSeatDetail(seatId, limit = 80) {
     try {
       const seat = this.stmtGetSeatById.get(seatId) || null;
-      const historyStmt = this.db.prepare(`
-        SELECT
-          id, created_at AS createdAt, timestamp, role, badge,
-          seat_id AS seatId, actor_name AS actorName, branch_id AS branchId,
-          action_text AS actionText, amount, status
-        FROM events
-        WHERE seat_id = ?
-        ORDER BY created_at DESC
-        LIMIT ?
-      `);
-      const events = historyStmt.all(seatId, Math.min(Number(limit) || 80, 500));
+      const events = this.stmtGetSeatHistory.all(seatId, Math.min(Math.max(Number(limit) || 80, 1), 500));
       return { seat, events };
     } catch {
       return { seat: null, events: [] };
@@ -444,19 +460,7 @@ class SimulatorStore {
 
   getBranchSummaries() {
     try {
-      const stmt = this.db.prepare(`
-        SELECT
-          branch_id AS branchId,
-          SUM(total_events) AS totalEvents,
-          SUM(total_orders) AS totalOrders,
-          SUM(total_revenue) AS totalRevenue,
-          SUM(total_warns) AS totalWarns,
-          SUM(punctual_checkins) AS punctualCheckins,
-          SUM(late_checkins) AS lateCheckins
-        FROM seat_states
-        GROUP BY branch_id
-      `);
-      return stmt.all();
+      return this.stmtGetBranchSummaries.all();
     } catch {
       return [];
     }

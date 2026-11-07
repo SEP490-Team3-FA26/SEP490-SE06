@@ -57,7 +57,7 @@ export default function PharmacistKpiReport() {
     loadKpiReport();
   }, [selectedMonth, selectedYear]);
 
-  const kpiList = reportData?.kpiList || [];
+  const kpiList = Array.isArray(reportData?.kpiList) ? reportData.kpiList : [];
 
   // Filter list by search query
   const filteredList = kpiList.filter((item: any) => {

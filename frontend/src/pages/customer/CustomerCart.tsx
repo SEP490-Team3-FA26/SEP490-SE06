@@ -30,7 +30,8 @@ export function CustomerCart() {
     if (!token) {
       try {
         const guestCartStr = localStorage.getItem("guest_cart");
-        const items = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const parsed = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const items = Array.isArray(parsed) ? parsed : [];
         setCartItems(items);
       } catch (err) {
         console.error("Error loading guest cart:", err);
@@ -109,7 +110,8 @@ export function CustomerCart() {
       // Guest mode: Cập nhật trực tiếp vào localStorage guest_cart
       try {
         const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const parsed = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const cart = Array.isArray(parsed) ? parsed : [];
         const updated = cart.map((it: any) => {
           if (it.id === id || it._id === id) {
             return { ...it, quantity: numericQty };
@@ -152,7 +154,8 @@ export function CustomerCart() {
     if (!token) {
       try {
         const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const parsed = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const cart = Array.isArray(parsed) ? parsed : [];
         const filtered = cart.filter((it: any) => it.id !== id && it._id !== id);
         localStorage.setItem("guest_cart", JSON.stringify(filtered));
         setCartItems(filtered);

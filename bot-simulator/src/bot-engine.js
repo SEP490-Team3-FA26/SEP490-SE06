@@ -135,6 +135,8 @@ class BotEngine {
       inFlightRestockKeys: new Set(),
     };
 
+    this._scheduleSyncPromise = null;
+    this._isWarehouseRunning = false;
     this.emitActivity = () => {};
 
     // Đăng ký hook tự động đăng nhập lại khi gặp 401 từ API Gateway
@@ -187,6 +189,9 @@ class BotEngine {
     );
     if (alreadyQueued) return false;
 
+    if (this.state.urgentRestockQueue.length >= 50) {
+      this.state.urgentRestockQueue.pop();
+    }
     this.state.urgentRestockQueue.unshift({
       medicineId: medId,
       medicineName: med.name || 'Thuốc thiết yếu',
@@ -474,24 +479,28 @@ class BotEngine {
         if (Array.isArray(dbBranches) && dbBranches.length > 0) {
           this.state.branches = dbBranches.map(b => {
             const defaultMatch = this.config.defaultBranches.find(db => db.branchCode === b.branchCode);
+            const hasDbCoords = Boolean(b.latitude && b.longitude);
             return {
               branchCode: b.branchCode || 'BR-001',
               name: b.name || `Chi nhánh ${b.branchCode}`,
-              lat: b.latitude || 10.7769,
-              lng: b.longitude || 106.7009,
-              radius: b.checkInRadiusMeters || 200,
+              lat: b.latitude || defaultMatch?.lat || 10.7769,
+              lng: b.longitude || defaultMatch?.lng || 106.7009,
+              radius: b.checkInRadiusMeters || defaultMatch?.radius || 200,
+              hasDbCoords,
               shiftSchedule: defaultMatch?.shiftSchedule || { morningStart: '07:00', morningEnd: '15:00', afternoonStart: '15:00', afternoonEnd: '23:00' },
             };
           });
         }
 
-        // Cập nhật tọa độ GPS chuẩn cho các chi nhánh
+        // Chỉ khởi tạo tọa độ GPS mặc định cho những chi nhánh chưa được Quản lý cơ sở thiết lập tọa độ trên DB
         for (const br of this.state.branches) {
-          await this.apiClient.patch(`/api/branches/${br.branchCode}/location`, {
-            latitude: br.lat,
-            longitude: br.lng,
-            checkInRadiusMeters: br.radius || 250,
-          }, this.state.tokens.admin).catch(() => {});
+          if (!br.hasDbCoords) {
+            await this.apiClient.patch(`/api/branches/${br.branchCode}/location`, {
+              latitude: br.lat,
+              longitude: br.lng,
+              checkInRadiusMeters: br.radius || 250,
+            }, this.state.tokens.admin).catch(() => {});
+          }
         }
       } catch {}
 
@@ -753,6 +762,9 @@ class BotEngine {
         const isActualHero = heroIdSet.has(medIdStr);
         const isActualProblematic = !isActualHero && this.state.problematicMedicines.some(pm => String(pm.id || pm._id) === medIdStr);
 
+        while (this.state.pendingReviewQueue.length >= 100) {
+          this.state.pendingReviewQueue.shift();
+        }
         this.state.pendingReviewQueue.push({
           orderCode: String(orderRes.orderCode),
           orderId: String(orderRes.order?._id || orderRes.orderCode),
@@ -780,8 +792,9 @@ class BotEngine {
     // 2B. Xử lý đánh giá sao sau khi nhận hàng COD (Tách bạch đánh giá Sản phẩm và chất lượng Chi nhánh)
     const now = Date.now();
     const readyIndex = this.state.pendingReviewQueue.findIndex(it => (it.readyAt || 0) <= now);
-    if (readyIndex !== -1 && Math.random() < 0.85) {
+    if (readyIndex !== -1) {
       const [itemToReview] = this.state.pendingReviewQueue.splice(readyIndex, 1);
+      if (Math.random() >= 0.85) return;
       const branchProfile = this.getBranchProfile(itemToReview.branchId);
 
       // 1. Đánh giá Sản phẩm: Hero product 100% 4-5 sao; Problematic 75% 1-2 sao
@@ -1071,6 +1084,7 @@ class BotEngine {
   // =========================================================================
   async simulateWarehouseOperations(force = false) {
     if (!this.state.isRunning && !force) return;
+    if (!force && this._isWarehouseRunning) return;
     const whToken = this.state.tokens.warehouse || this.state.tokens.admin;
     if (!whToken) return;
 
@@ -1078,282 +1092,293 @@ class BotEngine {
     const shouldRestock = force || hasUrgent || this.state.currentScenario === 'SUPPLY_CHAIN' || Math.random() < 0.65;
     if (!shouldRestock) return;
 
-    // GIAI ĐOẠN 1: Chi nhánh tạo yêu cầu nhập hàng (PR) - ưu tiên thuốc đang hết hoặc Hero bán chạy
+    this._isWarehouseRunning = true;
     try {
-      const urgentItem = this.state.urgentRestockQueue.shift();
-      let branch = null;
-      let med = null;
-      let prQty = Math.floor(200 + Math.random() * 200);
-      let note = randomPick(PR_REASON_NOTES);
-      let restockTargetBranch = null;
+      // GIAI ĐOẠN 1: Chi nhánh tạo yêu cầu nhập hàng (PR) - ưu tiên thuốc đang hết hoặc Hero bán chạy
+      try {
+        const urgentItem = this.state.urgentRestockQueue.shift();
+        let branch = null;
+        let med = null;
+        let prQty = Math.floor(200 + Math.random() * 200);
+        let note = randomPick(PR_REASON_NOTES);
+        let restockTargetBranch = null;
 
-      if (urgentItem) {
-        const matchedBranch = this.state.branches.find(b => b.branchCode === urgentItem.branchId);
-        branch = matchedBranch || randomPick(this.state.branches) || this.state.branches[0];
-        med = {
-          id: urgentItem.medicineId,
-          _id: urgentItem.medicineId,
-          name: urgentItem.medicineName,
-          unit: urgentItem.unit || 'Hộp',
-          price: urgentItem.price || 45000,
-        };
-        // Nhập 600-1000 đơn vị để đủ quy đổi cho các thuốc đóng gói 20-120 viên/hộp
-        prQty = Math.floor(600 + Math.random() * 400);
-        note = urgentItem.reason || randomPick(PR_REASON_NOTES);
-        restockTargetBranch = urgentItem.branchId;
-      } else {
-        branch = this.pickBranchWeighted() || this.state.branches[0];
-        med = (this.state.heroMedicines.length > 0 && Math.random() < 0.8)
-          ? randomPick(this.state.heroMedicines)
-          : randomPick(this.state.allMedicines);
-        restockTargetBranch = branch?.branchCode;
-      }
+        if (urgentItem) {
+          const matchedBranch = this.state.branches.find(b => b.branchCode === urgentItem.branchId);
+          branch = matchedBranch || randomPick(this.state.branches) || this.state.branches[0];
+          med = {
+            id: urgentItem.medicineId,
+            _id: urgentItem.medicineId,
+            name: urgentItem.medicineName,
+            unit: urgentItem.unit || 'Hộp',
+            price: urgentItem.price || 45000,
+          };
+          // Nhập 600-1000 đơn vị để đủ quy đổi cho các thuốc đóng gói 20-120 viên/hộp
+          prQty = Math.floor(600 + Math.random() * 400);
+          note = urgentItem.reason || randomPick(PR_REASON_NOTES);
+          restockTargetBranch = urgentItem.branchId;
+        } else {
+          branch = this.pickBranchWeighted() || this.state.branches[0];
+          med = (this.state.heroMedicines.length > 0 && Math.random() < 0.8)
+            ? randomPick(this.state.heroMedicines)
+            : randomPick(this.state.allMedicines);
+          restockTargetBranch = branch?.branchCode;
+        }
 
-      const mgr = branch ? this.state.tokens.managers[branch.branchCode] : null;
-      const tokenToUse = mgr?.token || this.state.tokens.admin || whToken;
+        const mgr = branch ? this.state.tokens.managers[branch.branchCode] : null;
+        const tokenToUse = mgr?.token || this.state.tokens.admin || whToken;
 
-      if (tokenToUse && med && branch) {
-        const prRes = await this.apiClient.post('/api/purchase-requisitions', {
-          branchId: branch.branchCode,
-          branchName: branch.name,
-          reason: note,
-          isUrgent: Boolean(urgentItem),
-          items: [{
+        if (tokenToUse && med && branch) {
+          const prRes = await this.apiClient.post('/api/purchase-requisitions', {
+            branchId: branch.branchCode,
+            branchName: branch.name,
+            reason: note,
+            isUrgent: Boolean(urgentItem),
+            items: [{
+              medicineId: med.id || med._id,
+              medicineName: med.name,
+              quantity: prQty,
+              unit: med.unit || 'Hộp',
+              estimatedPrice: med.price || 40000,
+            }],
+          }, tokenToUse);
+
+          const prId = prRes?._id || prRes?.id || prRes?.data?._id;
+          const prCode = prRes?.prCode || prRes?.data?.prCode || `PR-${Date.now().toString().slice(-5)}`;
+
+          this.state.stats.totalPRs += 1;
+          while (this.state.pendingPrQueue.length >= 50) {
+            this.state.pendingPrQueue.shift();
+          }
+          this.state.pendingPrQueue.push({
+            prId,
+            prCode,
+            branchId: restockTargetBranch || branch.branchCode,
             medicineId: med.id || med._id,
             medicineName: med.name,
             quantity: prQty,
             unit: med.unit || 'Hộp',
-            estimatedPrice: med.price || 40000,
-          }],
-        }, tokenToUse);
+            price: med.price || 40000,
+            isUrgent: Boolean(urgentItem),
+          });
 
-        const prId = prRes?._id || prRes?.id || prRes?.data?._id;
-        const prCode = prRes?.prCode || prRes?.data?.prCode || `PR-${Date.now().toString().slice(-5)}`;
-
-        this.state.stats.totalPRs += 1;
-        this.state.pendingPrQueue.push({
-          prId,
-          prCode,
-          branchId: restockTargetBranch || branch.branchCode,
-          medicineId: med.id || med._id,
-          medicineName: med.name,
-          quantity: prQty,
-          unit: med.unit || 'Hộp',
-          price: med.price || 40000,
-          isUrgent: Boolean(urgentItem),
-        });
-
-        this.emitActivity(
-          'MANAGER',
-          'PR',
-          mgr?.user?.fullName || `Quản lý ${branch.branchCode}`,
-          branch.branchCode,
-          `Tạo yêu cầu nhập hàng ${prCode}${urgentItem ? ' [KHẨN CẤP - HẾT THUỐC]' : ''}: ${prQty} ${med.unit || 'Hộp'} ${med.name} — ${note}`
-        );
+          this.emitActivity(
+            'MANAGER',
+            'PR',
+            mgr?.user?.fullName || `Quản lý ${branch.branchCode}`,
+            branch.branchCode,
+            `Tạo yêu cầu nhập hàng ${prCode}${urgentItem ? ' [KHẨN CẤP - HẾT THUỐC]' : ''}: ${prQty} ${med.unit || 'Hộp'} ${med.name} — ${note}`
+          );
+        }
+      } catch (err) {
+        this.emitActivity('MANAGER', 'PR', 'Quản lý Chi nhánh', 'ALL', `Tạo PR: ${err.message}`, null, 'WARN');
       }
-    } catch (err) {
-      this.emitActivity('MANAGER', 'PR', 'Quản lý Chi nhánh', 'ALL', `Tạo PR: ${err.message}`, null, 'WARN');
-    }
 
-    // GIAI ĐOẠN 2: Thủ kho gom PR tạo Đơn đặt hàng NCC (PO Auto Route) & Duyệt PO sang SHIPPING
-    if (this.state.pendingPrQueue.length > 0) {
-      try {
-        const prItem = this.state.pendingPrQueue.shift();
-        const supplier = randomPick(this.state.suppliers) || SUPPLIERS_POOL[0];
+      // GIAI ĐOẠN 2: Thủ kho gom PR tạo Đơn đặt hàng NCC (PO Auto Route) & Duyệt PO sang SHIPPING
+      if (this.state.pendingPrQueue.length > 0) {
+        try {
+          const prItem = this.state.pendingPrQueue.shift();
+          const supplier = randomPick(this.state.suppliers) || SUPPLIERS_POOL[0];
 
-        const poRes = await this.apiClient.post('/api/purchase-orders/auto-route', {
-          prIds: prItem.prId ? [prItem.prId] : [],
-          createdBy: 'Thủ kho Trung tâm',
-          items: [{
+          const poRes = await this.apiClient.post('/api/purchase-orders/auto-route', {
+            prIds: prItem.prId ? [prItem.prId] : [],
+            createdBy: 'Thủ kho Trung tâm',
+            items: [{
+              medicineId: prItem.medicineId,
+              medicineName: prItem.medicineName,
+              quantity: prItem.quantity,
+              unitPrice: Math.round(prItem.price * 0.7),
+            }],
+          }, whToken);
+
+          const poData = poRes?.data || poRes;
+          const firstPo = Array.isArray(poData?.pos)
+            ? poData.pos[0]
+            : (Array.isArray(poData) ? poData[0] : poData);
+          const poId =
+            firstPo?._id ||
+            firstPo?.id ||
+            (Array.isArray(poData?.poIds) && poData.poIds[0]);
+          const poCode = firstPo?.poCode || poData?.poCode || `PO-${Date.now().toString().slice(-5)}`;
+
+          this.state.stats.totalPOs += 1;
+
+          const approveToken = this.state.tokens.admin || whToken;
+          if (poId && approveToken) {
+            // Dùng PAID để tránh bị chặn bởi hạn mức công nợ NCC khi mô phỏng 24/7, đảm bảo PO chuyển sang SHIPPING
+            await this.apiClient.post('/api/purchase-orders/approve-pay', {
+              poId,
+              action: 'APPROVE',
+              paymentType: 'PAID',
+            }, approveToken);
+          }
+
+          while (this.state.pendingPoQueue.length >= 50) {
+            this.state.pendingPoQueue.shift();
+          }
+          this.state.pendingPoQueue.push({
+            poId,
+            poCode,
+            supplierName: supplier.name,
             medicineId: prItem.medicineId,
             medicineName: prItem.medicineName,
             quantity: prItem.quantity,
+            unit: prItem.unit || 'Hộp',
             unitPrice: Math.round(prItem.price * 0.7),
-          }],
-        }, whToken);
+            branchTarget: prItem.branchId,
+            isUrgent: prItem.isUrgent,
+          });
 
-        const poData = poRes?.data || poRes;
-        const firstPo = Array.isArray(poData?.pos)
-          ? poData.pos[0]
-          : (Array.isArray(poData) ? poData[0] : poData);
-        const poId =
-          firstPo?._id ||
-          firstPo?.id ||
-          (Array.isArray(poData?.poIds) && poData.poIds[0]);
-        const poCode = firstPo?.poCode || poData?.poCode || `PO-${Date.now().toString().slice(-5)}`;
-
-        this.state.stats.totalPOs += 1;
-
-        const approveToken = this.state.tokens.admin || whToken;
-        if (poId && approveToken) {
-          // Dùng PAID để tránh bị chặn bởi hạn mức công nợ NCC khi mô phỏng 24/7, đảm bảo PO chuyển sang SHIPPING
-          await this.apiClient.post('/api/purchase-orders/approve-pay', {
-            poId,
-            action: 'APPROVE',
-            paymentType: 'PAID',
-          }, approveToken);
+          this.emitActivity(
+            'WAREHOUSE',
+            'PO',
+            'Thủ kho Trung tâm',
+            'CENTRAL_WH',
+            `Gom PR tạo và duyệt đơn PO NCC ${poCode} gửi tới ${supplier.name} (${prItem.quantity} ${prItem.unit || 'Hộp'} ${prItem.medicineName})`
+          );
+        } catch (err) {
+          this.emitActivity('WAREHOUSE', 'PO', 'Thủ kho Trung tâm', 'CENTRAL_WH', `Tạo/Duyệt PO: ${err.message}`, null, 'WARN');
         }
-
-        this.state.pendingPoQueue.push({
-          poId,
-          poCode,
-          supplierName: supplier.name,
-          medicineId: prItem.medicineId,
-          medicineName: prItem.medicineName,
-          quantity: prItem.quantity,
-          unit: prItem.unit || 'Hộp',
-          unitPrice: Math.round(prItem.price * 0.7),
-          branchTarget: prItem.branchId,
-          isUrgent: prItem.isUrgent,
-        });
-
-        this.emitActivity(
-          'WAREHOUSE',
-          'PO',
-          'Thủ kho Trung tâm',
-          'CENTRAL_WH',
-          `Gom PR tạo và duyệt đơn PO NCC ${poCode} gửi tới ${supplier.name} (${prItem.quantity} ${prItem.unit || 'Hộp'} ${prItem.medicineName})`
-        );
-      } catch (err) {
-        this.emitActivity('WAREHOUSE', 'PO', 'Thủ kho Trung tâm', 'CENTRAL_WH', `Tạo/Duyệt PO: ${err.message}`, null, 'WARN');
       }
-    }
 
-    // GIAI ĐOẠN 3: Thủ kho nhận hàng từ NCC, Kiểm đếm & Phê duyệt GRN để cộng tồn kho thật vào CENTRAL_WH
-    if (this.state.pendingPoQueue.length > 0) {
-      try {
-        const poItem = this.state.pendingPoQueue.shift();
-        const batchNo = generateBatchNo('LOT');
-        const expDate = new Date(Date.now() + 730 * 86400000).toISOString().slice(0, 10);
-        const grnNote = randomPick(GRN_RECEIPT_NOTES);
-        // Xếp vào Khu Dự Trữ Tổng (slotType: RESERVE) để không xung đột nguyên tắc "1 Thùng = 1 Loại Thuốc" trên kệ chính MAIN
-        const shelfLocation = { zone: 'RESERVE', rack: 'RES1', shelf: 1, bin: 1, slotType: 'RESERVE' };
+      // GIAI ĐOẠN 3: Thủ kho nhận hàng từ NCC, Kiểm đếm & Phê duyệt GRN để cộng tồn kho thật vào CENTRAL_WH
+      if (this.state.pendingPoQueue.length > 0) {
+        try {
+          const poItem = this.state.pendingPoQueue.shift();
+          const batchNo = generateBatchNo('LOT');
+          const expDate = new Date(Date.now() + 730 * 86400000).toISOString().slice(0, 10);
+          const grnNote = randomPick(GRN_RECEIPT_NOTES);
+          // Xếp vào Khu Dự Trữ Tổng (slotType: RESERVE) để không xung đột nguyên tắc "1 Thùng = 1 Loại Thuốc" trên kệ chính MAIN
+          const shelfLocation = { zone: 'RESERVE', rack: 'RES1', shelf: 1, bin: 1, slotType: 'RESERVE' };
 
-        const grnPayload = {
-          poId: poItem.poId || 'MOCK_PO',
-          supplierName: poItem.supplierName,
-          receivedBy: 'Thủ kho Trung tâm',
-          receiptNote: grnNote,
-          items: [{
-            medicineId: poItem.medicineId,
-            medicineName: poItem.medicineName,
-            batchNo,
-            expDate,
-            quantity: poItem.quantity,
-            unitPrice: poItem.unitPrice,
-            location: shelfLocation,
-          }],
-        };
+          const grnPayload = {
+            poId: poItem.poId || 'MOCK_PO',
+            supplierName: poItem.supplierName,
+            receivedBy: 'Thủ kho Trung tâm',
+            receiptNote: grnNote,
+            items: [{
+              medicineId: poItem.medicineId,
+              medicineName: poItem.medicineName,
+              batchNo,
+              expDate,
+              quantity: poItem.quantity,
+              unitPrice: poItem.unitPrice,
+              location: shelfLocation,
+            }],
+          };
 
-        const grnRes = await this.apiClient.post('/api/goods-receipts', grnPayload, whToken);
-        const grnData = grnRes?.data || grnRes;
-        const grnId = grnData?._id || grnData?.id;
+          const grnRes = await this.apiClient.post('/api/goods-receipts', grnPayload, whToken);
+          const grnData = grnRes?.data || grnRes;
+          const grnId = grnData?._id || grnData?.id;
 
-        // Thực hiện đầy đủ quy trình Kiểm đếm (Inspection) -> Xác nhận (Verify) -> Duyệt GRN (Approve) để cộng tồn kho DB
-        if (grnId) {
-          const inspRes = await this.apiClient.post('/api/goods-receipts/inspections', {
-            grnId: String(grnId),
-            inspectedBy: 'Thủ kho Trung tâm',
-          }, whToken);
-
-          const inspRecord = inspRes?.data || inspRes;
-          const recordId = inspRecord?._id || inspRecord?.id;
-          const inspItems = Array.isArray(inspRecord?.items) ? inspRecord.items : [];
-
-          if (recordId && inspItems.length > 0) {
-            for (const inspItem of inspItems) {
-              await this.apiClient.post('/api/goods-receipts/inspections/verify', {
-                recordId: String(recordId),
-                itemId: String(inspItem._id || inspItem.id),
-                actualQty: Number(inspItem.expectedQty || poItem.quantity),
-                batchNo,
-                expDate,
-                location: shelfLocation,
-              }, whToken);
-            }
-          }
-
-          await this.apiClient.post(`/api/goods-receipts/${grnId}/submit-inspection`, {}, whToken);
-          await this.apiClient.post(`/api/goods-receipts/${grnId}/approve`, {
-            discrepancyReason: 'Đã kiểm đếm đủ 100% số lượng và chất lượng theo tiêu chuẩn GSP',
-          }, whToken);
-        }
-
-        this.state.stats.totalGRNs += 1;
-        this.emitActivity(
-          'WAREHOUSE',
-          'GRN',
-          'Thủ kho Trung tâm',
-          'CENTRAL_WH',
-          `Hoàn tất Kiểm đếm & Duyệt nhập kho GRN lô ${batchNo} (+${poItem.quantity} ${poItem.unit || 'Hộp'} ${poItem.medicineName} vào CENTRAL_WH, HSD: ${expDate}) — ${grnNote}`
-        );
-
-        // GIAI ĐOẠN 4: Điều chuyển kho (Stock Transfer) về cơ sở & Quản lý cơ sở xác nhận nhận hàng (Receive)
-        if (poItem.branchTarget && poItem.branchTarget !== 'CENTRAL_WH') {
-          try {
-            const transferQty = Math.max(10, Math.floor(poItem.quantity * 0.5));
-            const tfNote = randomPick(STOCK_TRANSFER_NOTES);
-
-            const tfRes = await this.apiClient.post('/api/stock-transfers/direct', {
-              fromBranchId: 'CENTRAL_WH',
-              toBranchId: poItem.branchTarget,
-              toBranchName: `Chi nhánh ${poItem.branchTarget}`,
-              shippedBy: 'Thủ kho Trung tâm',
-              items: [{
-                medicineId: poItem.medicineId,
-                medicineName: poItem.medicineName,
-                quantity: transferQty,
-                unit: poItem.unit || 'Hộp',
-              }],
+          // Thực hiện đầy đủ quy trình Kiểm đếm (Inspection) -> Xác nhận (Verify) -> Duyệt GRN (Approve) để cộng tồn kho DB
+          if (grnId) {
+            const inspRes = await this.apiClient.post('/api/goods-receipts/inspections', {
+              grnId: String(grnId),
+              inspectedBy: 'Thủ kho Trung tâm',
             }, whToken);
 
-            const tfData = tfRes?.data || tfRes;
-            const transferId = tfData?._id || tfData?.id;
-            const transferCode = tfData?.transferCode || 'ST-DIRECT';
+            const inspRecord = inspRes?.data || inspRes;
+            const recordId = inspRecord?._id || inspRecord?.id;
+            const inspItems = Array.isArray(inspRecord?.items) ? inspRecord.items : [];
 
-            this.state.stats.totalStockTransfers += 1;
-            this.emitActivity(
-              'WAREHOUSE',
-              'TRANSFER',
-              'Điều phối Kho',
-              poItem.branchTarget,
-              `Xuất chuyển kho ${transferCode}: ${transferQty} ${poItem.unit || 'Hộp'} ${poItem.medicineName} từ Kho Tổng về ${poItem.branchTarget}`
-            );
-
-            // Quản lý chi nhánh đích xác nhận nhận hàng để cộng tồn kho vào branch_inventories
-            if (transferId) {
-              const targetMgr = this.state.tokens.managers[poItem.branchTarget];
-              const receiveToken = targetMgr?.token || whToken;
-              const receiverName = targetMgr?.user?.fullName || `Quản lý ${poItem.branchTarget}`;
-              const inspectionItems = Array.isArray(tfData?.items)
-                ? tfData.items.map(it => ({
-                    medicineId: it.medicineId,
-                    batchNo: it.batchNo,
-                    actualQuantity: it.quantity,
-                  }))
-                : undefined;
-
-              await this.apiClient.post(`/api/stock-transfers/${transferId}/receive`, {
-                receivedBy: receiverName,
-                inspectionItems,
-                inspectionNote: tfNote,
-              }, receiveToken);
-
-              this.emitActivity(
-                'MANAGER',
-                'TRANSFER',
-                receiverName,
-                poItem.branchTarget,
-                `Xác nhận nhận hàng phiếu ${transferCode}: Đã cộng +${transferQty} ${poItem.unit || 'Hộp'} ${poItem.medicineName} vào tồn kho ${poItem.branchTarget}`
-              );
+            if (recordId && inspItems.length > 0) {
+              for (const inspItem of inspItems) {
+                await this.apiClient.post('/api/goods-receipts/inspections/verify', {
+                  recordId: String(recordId),
+                  itemId: String(inspItem._id || inspItem.id),
+                  actualQty: Number(inspItem.expectedQty || poItem.quantity),
+                  batchNo,
+                  expDate,
+                  location: shelfLocation,
+                }, whToken);
+              }
             }
-          } catch (tfErr) {
-            this.emitActivity('WAREHOUSE', 'TRANSFER', 'Điều phối Kho', poItem.branchTarget, `Chuyển kho: ${tfErr.message}`, null, 'WARN');
+
+            await this.apiClient.post(`/api/goods-receipts/${grnId}/submit-inspection`, {}, whToken);
+            await this.apiClient.post(`/api/goods-receipts/${grnId}/approve`, {
+              discrepancyReason: 'Đã kiểm đếm đủ 100% số lượng và chất lượng theo tiêu chuẩn GSP',
+            }, whToken);
           }
+
+          this.state.stats.totalGRNs += 1;
+          this.emitActivity(
+            'WAREHOUSE',
+            'GRN',
+            'Thủ kho Trung tâm',
+            'CENTRAL_WH',
+            `Hoàn tất Kiểm đếm & Duyệt nhập kho GRN lô ${batchNo} (+${poItem.quantity} ${poItem.unit || 'Hộp'} ${poItem.medicineName} vào CENTRAL_WH, HSD: ${expDate}) — ${grnNote}`
+          );
+
+          // GIAI ĐOẠN 4: Điều chuyển kho (Stock Transfer) về cơ sở & Quản lý cơ sở xác nhận nhận hàng (Receive)
+          if (poItem.branchTarget && poItem.branchTarget !== 'CENTRAL_WH') {
+            try {
+              const transferQty = Math.max(10, Math.floor(poItem.quantity * 0.5));
+              const tfNote = randomPick(STOCK_TRANSFER_NOTES);
+
+              const tfRes = await this.apiClient.post('/api/stock-transfers/direct', {
+                fromBranchId: 'CENTRAL_WH',
+                toBranchId: poItem.branchTarget,
+                toBranchName: `Chi nhánh ${poItem.branchTarget}`,
+                shippedBy: 'Thủ kho Trung tâm',
+                items: [{
+                  medicineId: poItem.medicineId,
+                  medicineName: poItem.medicineName,
+                  quantity: transferQty,
+                  unit: poItem.unit || 'Hộp',
+                }],
+              }, whToken);
+
+              const tfData = tfRes?.data || tfRes;
+              const transferId = tfData?._id || tfData?.id;
+              const transferCode = tfData?.transferCode || 'ST-DIRECT';
+
+              this.state.stats.totalStockTransfers += 1;
+              this.emitActivity(
+                'WAREHOUSE',
+                'TRANSFER',
+                'Điều phối Kho',
+                poItem.branchTarget,
+                `Xuất chuyển kho ${transferCode}: ${transferQty} ${poItem.unit || 'Hộp'} ${poItem.medicineName} từ Kho Tổng về ${poItem.branchTarget}`
+              );
+
+              // Quản lý chi nhánh đích xác nhận nhận hàng để cộng tồn kho vào branch_inventories
+              if (transferId) {
+                const targetMgr = this.state.tokens.managers[poItem.branchTarget];
+                const receiveToken = targetMgr?.token || whToken;
+                const receiverName = targetMgr?.user?.fullName || `Quản lý ${poItem.branchTarget}`;
+                const inspectionItems = Array.isArray(tfData?.items)
+                  ? tfData.items.map(it => ({
+                      medicineId: it.medicineId,
+                      batchNo: it.batchNo,
+                      actualQuantity: it.quantity,
+                    }))
+                  : undefined;
+
+                await this.apiClient.post(`/api/stock-transfers/${transferId}/receive`, {
+                  receivedBy: receiverName,
+                  inspectionItems,
+                  inspectionNote: tfNote,
+                }, receiveToken);
+
+                this.emitActivity(
+                  'MANAGER',
+                  'TRANSFER',
+                  receiverName,
+                  poItem.branchTarget,
+                  `Xác nhận nhận hàng phiếu ${transferCode}: Đã cộng +${transferQty} ${poItem.unit || 'Hộp'} ${poItem.medicineName} vào tồn kho ${poItem.branchTarget}`
+                );
+              }
+            } catch (tfErr) {
+              this.emitActivity('WAREHOUSE', 'TRANSFER', 'Điều phối Kho', poItem.branchTarget, `Chuyển kho: ${tfErr.message}`, null, 'WARN');
+            }
+          }
+        } catch (grnErr) {
+          this.emitActivity('WAREHOUSE', 'GRN', 'Thủ kho Trung tâm', 'CENTRAL_WH', `Nhập kho GRN: ${grnErr.message}`, null, 'WARN');
         }
-      } catch (grnErr) {
-        this.emitActivity('WAREHOUSE', 'GRN', 'Thủ kho Trung tâm', 'CENTRAL_WH', `Nhập kho GRN: ${grnErr.message}`, null, 'WARN');
       }
+    } finally {
+      this._isWarehouseRunning = false;
     }
   }
 
@@ -1560,16 +1585,33 @@ class BotEngine {
   }
 
   async ensureAllBranchesScheduled(options = {}) {
-    const branchCodeSet = new Set([
-      ...this.state.branches.map(b => b.branchCode),
-      ...Object.values(this.state.tokens.pharmacists).map(p => p.branchId || 'BR-001'),
-    ]);
-
-    for (const code of branchCodeSet) {
-      if (!code || code === 'CENTRAL_WH' || code === 'ALL') continue;
-      await this.ensureBranchShiftsAndSchedule(code, options);
+    if (this._scheduleSyncPromise && !options.forceRebuild) {
+      return await this._scheduleSyncPromise;
     }
-    this.state.lastScheduleSyncDate = getVietnamTodayStr();
+
+    const syncTask = (async () => {
+      const branchCodeSet = new Set([
+        ...this.state.branches.map(b => b.branchCode),
+        ...Object.values(this.state.tokens.pharmacists).map(p => p.branchId || 'BR-001'),
+      ]);
+
+      for (const code of branchCodeSet) {
+        if (!code || code === 'CENTRAL_WH' || code === 'ALL') continue;
+        await this.ensureBranchShiftsAndSchedule(code, options);
+      }
+      this.state.lastScheduleSyncDate = getVietnamTodayStr();
+    })();
+
+    if (!options.forceRebuild) {
+      this._scheduleSyncPromise = syncTask;
+    }
+    try {
+      await syncTask;
+    } finally {
+      if (this._scheduleSyncPromise === syncTask) {
+        this._scheduleSyncPromise = null;
+      }
+    }
   }
 
   async triggerWeeklySchedule() {

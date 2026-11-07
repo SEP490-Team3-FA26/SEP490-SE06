@@ -368,21 +368,27 @@ export function Landing() {
       const currentToken = localStorage.getItem("token");
       if (!currentToken) {
         const guestCartStr = localStorage.getItem("guest_cart");
-        const items = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const parsed = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const items = Array.isArray(parsed) ? parsed : [];
         const count = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
         setCartCount(count);
         return;
       }
       const data = await cartService.getCart();
-      if (data && data.items) {
+      if (data && Array.isArray(data.items)) {
         const count = data.items.reduce((acc: number, item: any) => acc + item.quantity, 0);
         setCartCount(count);
       }
     } catch (err: any) {
-      const guestCartStr = localStorage.getItem("guest_cart");
-      const items = guestCartStr ? JSON.parse(guestCartStr) : [];
-      const count = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-      setCartCount(count);
+      try {
+        const guestCartStr = localStorage.getItem("guest_cart");
+        const parsed = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const items = Array.isArray(parsed) ? parsed : [];
+        const count = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+        setCartCount(count);
+      } catch {
+        setCartCount(0);
+      }
     }
   };
 

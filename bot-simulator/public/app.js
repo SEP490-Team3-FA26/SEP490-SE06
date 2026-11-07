@@ -470,12 +470,12 @@ function renderCompartmentsMap() {
           <div class="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2.5">
             <div>
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="px-2 py-0.5 rounded text-[10px] font-black border ${meta.headerBadge}">${branchCode}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-black border ${meta.headerBadge}">${escapeHtml(branchCode)}</span>
                 <h3 class="text-xs md:text-sm font-black text-white">${escapeHtml(meta.title)}</h3>
               </div>
               <p class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(meta.subtitle)}</p>
             </div>
-            <button onclick="selectBranchHistory('${branchCode}')"
+            <button onclick="selectBranchHistory(decodeURIComponent('${encodeURIComponent(branchCode)}'))"
               class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 text-[10px] font-bold whitespace-nowrap">
               Lịch sử Kho (${totalEvents})
             </button>
@@ -502,13 +502,13 @@ function renderCompartmentsMap() {
         <div class="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2.5">
           <div>
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="px-2 py-0.5 rounded text-[10px] font-black border ${meta.headerBadge}">${branchCode}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-black border ${meta.headerBadge}">${escapeHtml(branchCode)}</span>
               <h3 class="text-xs md:text-sm font-black text-white">${escapeHtml(meta.title)}</h3>
             </div>
             <p class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(meta.subtitle)}</p>
           </div>
           <div class="text-right">
-            <button onclick="selectBranchHistory('${branchCode}')"
+            <button onclick="selectBranchHistory(decodeURIComponent('${encodeURIComponent(branchCode)}'))"
               class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 text-[10px] font-bold whitespace-nowrap">
               Xem cả khoang (${totalEvents})
             </button>
@@ -835,7 +835,7 @@ function renderActivityFeed() {
         <div class="space-y-1">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-slate-500 font-mono text-[10px]">${escapeHtml(item.timestamp)}</span>
-            <span class="px-2 py-0.5 rounded border font-black text-[10px] ${colorClass}">${item.role} · ${item.badge}</span>
+            <span class="px-2 py-0.5 rounded border font-black text-[10px] ${colorClass}">${escapeHtml(item.role)} · ${escapeHtml(item.badge)}</span>
             <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-semibold text-[10px]">${escapeHtml(item.branchId)}</span>
             <span class="font-bold text-white text-xs">${escapeHtml(item.actorName)}</span>
           </div>

@@ -36,7 +36,8 @@ export const cartService = {
     try {
       const medId = med.id || med._id || med.medicineId;
       const guestCartStr = localStorage.getItem("guest_cart");
-      const guestCart = guestCartStr ? JSON.parse(guestCartStr) : [];
+      const parsed = guestCartStr ? JSON.parse(guestCartStr) : [];
+      const guestCart = Array.isArray(parsed) ? parsed : [];
       const existingIndex = guestCart.findIndex((item: any) => (item.id || item._id || item.medicineId) === medId);
       if (existingIndex > -1) {
         guestCart[existingIndex].quantity = (Number(guestCart[existingIndex].quantity) || 1) + quantity;
