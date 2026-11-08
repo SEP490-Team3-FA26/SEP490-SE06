@@ -23,6 +23,7 @@ export interface BranchAttendanceRecord {
   handoverId?: string;
   isHandoverSubmitted?: boolean;
   isHandoverCompleted?: boolean;
+  isPastUnclosed?: boolean;
   note?: string;
   createdAt: string;
   updatedAt: string;
@@ -34,6 +35,7 @@ export interface AttendanceHistorySummary {
   lateCount: number;
   completedCount: number;
   inProgressCount: number;
+  missingCheckoutCount?: number;
   onLeaveCount: number;
 }
 
@@ -268,6 +270,11 @@ export const hrService = {
   }) => {
     const response = await api.get(API_ENDPOINTS.HR.ATTENDANCE_BRANCH_HISTORY, { params });
     return response.data as BranchAttendanceHistoryResponse;
+  },
+
+  managerCloseShift: async (attendanceId: string, data?: { checkOutTime?: string; note?: string }) => {
+    const response = await api.patch(API_ENDPOINTS.HR.ATTENDANCE_MANAGER_CLOSE(attendanceId), data || {});
+    return response.data;
   },
 
   // --- SHIFT HANDOVER & CASH DRAWER RECONCILIATION ---

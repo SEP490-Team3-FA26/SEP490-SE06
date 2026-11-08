@@ -39,6 +39,11 @@ function getVietnamTodayString(dateObj: Date = new Date()): string {
   return vnTime.toISOString().slice(0, 10);
 }
 
+function getVietnamYesterdayString(dateObj: Date = new Date()): string {
+  const vnYesterday = new Date(dateObj.getTime() + 7 * 60 * 60 * 1000 - 24 * 3600 * 1000);
+  return vnYesterday.toISOString().slice(0, 10);
+}
+
 /**
  * Helper chuyển đổi chuỗi giờ 'HH:mm' thành số phút trong ngày
  */
@@ -46,6 +51,14 @@ function parseTimeToMinutes(timeStr: string): number {
   if (!timeStr) return 0;
   const parts = timeStr.split(':');
   return parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
+}
+
+/**
+ * Kiểm tra ca làm việc có vắt qua nửa đêm hay không (VD: 22:00 - 06:00 hoặc 18:00 - 02:00)
+ */
+function isOvernightShift(startTime?: string, endTime?: string): boolean {
+  if (!startTime || !endTime) return false;
+  return parseTimeToMinutes(endTime) <= parseTimeToMinutes(startTime);
 }
 
 @Injectable()
@@ -133,43 +146,72 @@ export class AttendanceService {
     }
 
     const todayStr = getVietnamTodayString();
+    const yesterdayStr = getVietnamYesterdayString();
     const now = new Date();
     // Giờ hiện tại theo VN
     const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     const currentMinutes = vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
 
-    // Tìm ca phân công hôm nay của nhân viên
+    // Tìm ca phân công hiện tại của nhân viên (hỗ trợ cả 3 ca/ngày và ca đêm vắt qua 00:00 từ hôm qua)
     let assignedShiftId = dto.shiftId;
     let assignedShiftName = 'Ca mặc định';
+    let attendanceDateStr = todayStr;
     let isLate = false;
 
-    // Tra cứu lịch phân ca hôm nay trong work_schedules
+    // Tra cứu lịch phân ca đã đăng trong work_schedules
     const schedules = await this.workScheduleModel
       .find({ branchId, status: 'published' })
       .lean()
       .exec();
 
-    let matchedAssignment: any = null;
+    const candidateAssignments: Array<{ assign: any; dateStr: string; isYesterdayOvernight: boolean }> = [];
     for (const schedule of schedules) {
-      const found = schedule.assignments?.find((a: any) => {
+      for (const a of schedule.assignments || []) {
+        if (String(a.employeeId) !== String(dto.employeeId)) continue;
         const aDateStr = a.date ? new Date(a.date).toISOString().slice(0, 10) : '';
-        return (
-          a.employeeId === dto.employeeId &&
-          (aDateStr === todayStr || Math.abs(new Date(a.date).getTime() - now.getTime()) < 24 * 3600 * 1000)
-        );
-      });
-      if (found) {
-        matchedAssignment = found;
-        break;
+        if (aDateStr === todayStr) {
+          candidateAssignments.push({ assign: a, dateStr: todayStr, isYesterdayOvernight: false });
+        } else if (
+          aDateStr === yesterdayStr &&
+          isOvernightShift(a.shiftStart, a.shiftEnd) &&
+          currentMinutes <= parseTimeToMinutes(a.shiftEnd) + 120
+        ) {
+          candidateAssignments.push({ assign: a, dateStr: yesterdayStr, isYesterdayOvernight: true });
+        }
       }
     }
 
-    if (matchedAssignment) {
+    let matchedCandidate: { assign: any; dateStr: string; isYesterdayOvernight: boolean } | null = null;
+    if (candidateAssignments.length > 0) {
+      if (dto.shiftId) {
+        matchedCandidate =
+          candidateAssignments.find((c) => String(c.assign.shiftId) === String(dto.shiftId)) ||
+          candidateAssignments[0];
+      } else {
+        // Nếu có nhiều ca trong ngày (hoặc ca đêm hôm qua), ưu tiên ca có khoảng cách tới giờ hiện tại nhỏ nhất
+        matchedCandidate = candidateAssignments.reduce((best, curr) => {
+          const bestStart = parseTimeToMinutes(best.assign.shiftStart);
+          const bestEffNow = best.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+          const currStart = parseTimeToMinutes(curr.assign.shiftStart);
+          const currEffNow = curr.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+          const bestDiff = Math.abs(bestEffNow - bestStart);
+          const currDiff = Math.abs(currEffNow - currStart);
+          return currDiff < bestDiff ? curr : best;
+        }, candidateAssignments[0]);
+      }
+    }
+
+    const matchedAssignment = matchedCandidate?.assign || null;
+    if (matchedCandidate) {
+      attendanceDateStr = matchedCandidate.dateStr;
       assignedShiftId = matchedAssignment.shiftId;
       assignedShiftName = matchedAssignment.shiftName;
       const startMin = parseTimeToMinutes(matchedAssignment.shiftStart);
+      const effectiveCurrentMin = matchedCandidate.isYesterdayOvernight
+        ? currentMinutes + 1440
+        : currentMinutes;
       // Nếu check-in trễ quá 15 phút so với giờ bắt đầu ca
-      if (currentMinutes > startMin + 15) {
+      if (effectiveCurrentMin > startMin + 15) {
         isLate = true;
       }
     } else if (dto.shiftId) {
@@ -177,23 +219,49 @@ export class AttendanceService {
       if (shift) {
         assignedShiftName = shift.name;
         const startMin = parseTimeToMinutes(shift.startTime);
-        if (currentMinutes > startMin + 15) {
+        const overnight = isOvernightShift(shift.startTime, shift.endTime);
+        const effectiveCurrentMin =
+          overnight && currentMinutes <= parseTimeToMinutes(shift.endTime) + 120
+            ? currentMinutes + 1440
+            : currentMinutes;
+        if (effectiveCurrentMin > startMin + 15) {
           isLate = true;
         }
       }
     }
 
-    // Kiểm tra xem hôm nay đã check-in ca này chưa
-    const existing = await this.attendanceModel
+    const effectiveShiftId = assignedShiftId || 'DEFAULT';
+
+    // Kiểm tra xem đã check-in ca này chưa (hoặc đã có bản ghi DEFAULT đang mở trong ngày để tránh tạo trùng)
+    let existing = await this.attendanceModel
       .findOne({
         employeeId: new Types.ObjectId(dto.employeeId),
-        date: todayStr,
-        shiftId: assignedShiftId || 'DEFAULT',
+        date: attendanceDateStr,
+        shiftId: effectiveShiftId,
       })
       .exec();
 
+    if (!existing) {
+      existing = await this.attendanceModel
+        .findOne({
+          employeeId: new Types.ObjectId(dto.employeeId),
+          date: attendanceDateStr,
+          $or: [
+            { shiftId: 'DEFAULT', status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] } },
+            ...(effectiveShiftId === 'DEFAULT'
+              ? [{ status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] } }]
+              : []),
+          ],
+        })
+        .exec();
+    }
+
     if (existing) {
       // Giữ nguyên checkInTime ban đầu để tránh dời giờ vào ca của nhân viên
+      if (existing.shiftId === 'DEFAULT' && effectiveShiftId !== 'DEFAULT') {
+        existing.shiftId = effectiveShiftId;
+        existing.shiftName = assignedShiftName;
+      }
       existing.checkInLatitude = dto.latitude;
       existing.checkInLongitude = dto.longitude;
       existing.checkInDistanceMeters = Math.round(distanceMeters);
@@ -215,7 +283,7 @@ export class AttendanceService {
       branchId,
       shiftId: assignedShiftId || 'DEFAULT',
       shiftName: assignedShiftName,
-      date: todayStr,
+      date: attendanceDateStr,
       checkInTime: now,
       checkInLatitude: dto.latitude,
       checkInLongitude: dto.longitude,
@@ -306,10 +374,11 @@ export class AttendanceService {
     }
 
     const todayStr = getVietnamTodayString();
+    const yesterdayStr = getVietnamYesterdayString();
     const attendance = await this.attendanceModel
       .findOne({
         employeeId: new Types.ObjectId(dto.employeeId),
-        date: todayStr,
+        date: { $in: [todayStr, yesterdayStr] },
         status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
       })
       .sort({ createdAt: -1 })
@@ -355,39 +424,79 @@ export class AttendanceService {
       branch = await this.branchModel.findById(effectiveBranchId).lean().exec();
     }
     const todayStr = getVietnamTodayString();
+    const yesterdayStr = getVietnamYesterdayString();
+    const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const currentMinutes = vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
+    const recentOpenLimit = new Date(Date.now() - 14 * 3600 * 1000);
 
-    // 1. Kiểm tra bản ghi điểm danh hôm nay
+    // 1. Kiểm tra bản ghi điểm danh hôm nay (hoặc ca đêm mở từ hôm qua chưa quá 14 tiếng)
     const todayAttendance = await this.attendanceModel
       .findOne({
         employeeId: new Types.ObjectId(employeeId),
-        date: todayStr,
+        $or: [
+          { date: todayStr },
+          {
+            date: yesterdayStr,
+            status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
+            checkOutTime: null,
+            checkInTime: { $gte: recentOpenLimit },
+          },
+        ],
       })
       .sort({ createdAt: -1 })
       .lean()
       .exec();
 
-    // 2. Tra cứu lịch phân ca tuần này
+    // 2. Tra cứu lịch phân ca tuần này (hỗ trợ nhiều ca/ngày và ca đêm vắt qua 00:00)
     const schedules = await this.workScheduleModel
       .find({ branchId: effectiveBranchId, status: 'published' })
       .lean()
       .exec();
 
-    let matchedAssignment: any = null;
+    const candidateAssignments: any[] = [];
     for (const schedule of schedules) {
-      const found = schedule.assignments?.find((a: any) => {
+      for (const a of schedule.assignments || []) {
+        if (String(a.employeeId) !== String(employeeId)) continue;
         const aDateStr = a.date ? new Date(a.date).toISOString().slice(0, 10) : '';
-        return a.employeeId === employeeId && aDateStr === todayStr;
-      });
-      if (found) {
-        matchedAssignment = found;
-        break;
+        if (aDateStr === todayStr) {
+          candidateAssignments.push(a);
+        } else if (
+          aDateStr === yesterdayStr &&
+          isOvernightShift(a.shiftStart, a.shiftEnd) &&
+          currentMinutes <= parseTimeToMinutes(a.shiftEnd) + 120
+        ) {
+          candidateAssignments.push(a);
+        }
       }
     }
 
-    // 3. Đánh giá tính hợp lệ của ca hiện tại
-    const isCompleted = !!todayAttendance && (todayAttendance.status === AttendanceStatus.COMPLETED || !!todayAttendance.checkOutTime);
-    const isCheckedIn = !!todayAttendance && [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(todayAttendance.status as any) && !isCompleted;
-    const isHandoverSubmitted = !!todayAttendance?.isHandoverSubmitted;
+    let matchedAssignment: any = null;
+    if (candidateAssignments.length > 0) {
+      matchedAssignment = candidateAssignments.reduce((best, curr) => {
+        const bestDiff = Math.abs(parseTimeToMinutes(best.shiftStart) - currentMinutes);
+        const currDiff = Math.abs(parseTimeToMinutes(curr.shiftStart) - currentMinutes);
+        return currDiff < bestDiff ? curr : best;
+      }, candidateAssignments[0]);
+    }
+
+    // 3. Đánh giá tính hợp lệ của ca hiện tại (Nếu có ca 2 trong ngày khác với ca 1 đã đóng, cho phép vào ca 2)
+    const rawCompleted =
+      !!todayAttendance &&
+      (todayAttendance.status === AttendanceStatus.COMPLETED || !!todayAttendance.checkOutTime);
+    const hasNextDistinctShift =
+      rawCompleted &&
+      !!matchedAssignment &&
+      todayAttendance?.shiftId &&
+      todayAttendance.shiftId !== 'DEFAULT' &&
+      String(matchedAssignment.shiftId) !== String(todayAttendance.shiftId) &&
+      currentMinutes >= parseTimeToMinutes(matchedAssignment.shiftStart) - 30;
+
+    const isCompleted = rawCompleted && !hasNextDistinctShift;
+    const isCheckedIn =
+      !!todayAttendance &&
+      [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(todayAttendance.status as any) &&
+      !rawCompleted;
+    const isHandoverSubmitted = !hasNextDistinctShift && !!todayAttendance?.isHandoverSubmitted;
 
     // Nếu có lịch phân ca và chưa kết thúc ca làm việc
     const inShift = isCheckedIn || (!!matchedAssignment && !isCompleted);
@@ -513,9 +622,18 @@ export class AttendanceService {
       filter.shiftId = query.shiftId;
     }
 
+    const todayStr = getVietnamTodayString();
+
     // Lọc theo trạng thái
     if (query.status && query.status !== 'ALL') {
-      filter.status = query.status;
+      if (query.status === 'MISSING_CHECKOUT') {
+        filter.status = { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] };
+        filter.checkOutTime = null;
+        filter.isHandoverSubmitted = { $ne: true };
+        filter.date = filter.date ? { ...filter.date, $lt: todayStr } : { $lt: todayStr };
+      } else {
+        filter.status = query.status;
+      }
     }
 
     const page = Math.max(1, Number(query.page) || 1);
@@ -533,7 +651,7 @@ export class AttendanceService {
         .exec(),
       this.attendanceModel
         .find(filter)
-        .select('status checkInTime checkOutTime checkInDistanceMeters isMockLocation')
+        .select('date status checkInTime checkOutTime isHandoverSubmitted checkInDistanceMeters isMockLocation')
         .lean()
         .exec(),
     ]);
@@ -543,21 +661,35 @@ export class AttendanceService {
     let completedCount = 0;
     let onLeaveCount = 0;
     let inProgressCount = 0;
+    let missingCheckoutCount = 0;
+
+    const yesterdayStr = getVietnamYesterdayString();
+    const activeOvernightCutoffMs = Date.now() - 12 * 3600 * 1000;
 
     for (const rec of allFiltered) {
       const isShiftEnded = rec.status === AttendanceStatus.COMPLETED || !!rec.checkOutTime || !!rec.isHandoverSubmitted;
+      const isActiveOvernight =
+        !isShiftEnded &&
+        rec.date === yesterdayStr &&
+        Boolean(rec.checkInTime && new Date(rec.checkInTime).getTime() >= activeOvernightCutoffMs);
+      const isPastDay = Boolean(rec.date && rec.date < todayStr && !isActiveOvernight);
 
-      if (rec.status === AttendanceStatus.LATE && !isShiftEnded) {
-        lateCount++;
-      } else if (isShiftEnded) {
+      if (isShiftEnded) {
         completedCount++;
         if (rec.status === AttendanceStatus.LATE) {
           lateCount++;
         }
-      } else if (rec.status === AttendanceStatus.CHECKED_IN) {
-        inProgressCount++;
       } else if (rec.status === AttendanceStatus.ON_LEAVE_PAID || rec.status === AttendanceStatus.ON_LEAVE_UNPAID) {
         onLeaveCount++;
+      } else if (rec.status === AttendanceStatus.CHECKED_IN || rec.status === AttendanceStatus.LATE) {
+        if (rec.status === AttendanceStatus.LATE) {
+          lateCount++;
+        }
+        if (isPastDay) {
+          missingCheckoutCount++;
+        } else {
+          inProgressCount++;
+        }
       }
 
       if (rec.checkInTime && rec.status !== AttendanceStatus.LATE && rec.status !== AttendanceStatus.ABSENT) {
@@ -571,10 +703,19 @@ export class AttendanceService {
       if (rec.checkInTime && effectiveCheckOut) {
         durationMinutes = Math.max(1, Math.round((new Date(effectiveCheckOut).getTime() - new Date(rec.checkInTime).getTime()) / 60000));
       }
+      const isShiftEnded = rec.status === AttendanceStatus.COMPLETED || !!effectiveCheckOut || !!rec.isHandoverSubmitted;
+      const isActiveOvernight =
+        !isShiftEnded &&
+        rec.date === yesterdayStr &&
+        Boolean(rec.checkInTime && new Date(rec.checkInTime).getTime() >= activeOvernightCutoffMs);
+      const isPastDay = Boolean(rec.date && rec.date < todayStr && !isActiveOvernight);
+      const isPastUnclosed = !isShiftEnded && isPastDay && (rec.status === AttendanceStatus.CHECKED_IN || rec.status === AttendanceStatus.LATE);
+
       return {
         ...rec,
         checkOutTime: effectiveCheckOut,
         durationMinutes,
+        isPastUnclosed,
       };
     });
 
@@ -590,9 +731,60 @@ export class AttendanceService {
         lateCount,
         completedCount,
         inProgressCount,
+        missingCheckoutCount,
         onLeaveCount,
       },
     };
   }
 
+  /**
+   * Quản lý chi nhánh chốt đóng ca bổ sung cho các phiên ca quên check-out
+   */
+  async managerCloseShift(dto: {
+    attendanceId: string;
+    branchId: string;
+    requesterRole?: string;
+    managerName?: string;
+    checkOutTime?: string;
+    note?: string;
+  }) {
+    if (!dto.attendanceId || !Types.ObjectId.isValid(dto.attendanceId)) {
+      throw new RpcException('Mã bản ghi điểm danh không hợp lệ');
+    }
+
+    const attendance = await this.attendanceModel.findById(dto.attendanceId).exec();
+    if (!attendance) {
+      throw new RpcException('Không tìm thấy bản ghi điểm danh');
+    }
+
+    if (dto.requesterRole === 'branch' && dto.branchId && attendance.branchId !== dto.branchId) {
+      throw new RpcException('Bạn không có quyền chốt ca của chi nhánh khác');
+    }
+
+    const checkInMs = attendance.checkInTime ? new Date(attendance.checkInTime).getTime() : Date.now() - 8 * 3600 * 1000;
+    let resolvedCheckOut = new Date(checkInMs + 8 * 3600 * 1000);
+    if (dto.checkOutTime) {
+      const parsed = new Date(dto.checkOutTime);
+      if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > checkInMs) {
+        resolvedCheckOut = parsed;
+      }
+    }
+
+    attendance.checkOutTime = resolvedCheckOut;
+    attendance.isHandoverSubmitted = true;
+    // Nếu trước đó nhân viên đi muộn (LATE), giữ nguyên cờ LATE nhưng đã có checkOutTime để vừa ghi nhận hoàn thành ca vừa giữ lịch sử đi muộn
+    if (attendance.status !== AttendanceStatus.LATE) {
+      attendance.status = AttendanceStatus.COMPLETED;
+    }
+
+    const closeReason = dto.note?.trim() || `Quản lý ${dto.managerName || 'chi nhánh'} chốt đóng ca bổ sung (8h tiêu chuẩn)`;
+    attendance.note = attendance.note ? `${attendance.note} | ${closeReason}` : closeReason;
+
+    await attendance.save();
+    return {
+      success: true,
+      message: 'Đã chốt đóng ca bổ sung thành công',
+      attendance: attendance.toObject ? attendance.toObject() : attendance,
+    };
+  }
 }

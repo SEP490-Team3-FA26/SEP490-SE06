@@ -80,7 +80,7 @@ export class PayrollService {
       const shiftRate = Math.round(baseSalary / standardShifts);
 
       // 4.1 Thống kê Chấm công thực tế từ collection attendances (bao gồm cả nghỉ phép hưởng lương)
-      const attendances = await this.attendanceModel
+      const rawAttendances = await this.attendanceModel
         .find({
           employeeId: new Types.ObjectId(empId),
           date: { $gte: startDateStr, $lte: endDateStr },
@@ -88,6 +88,32 @@ export class PayrollService {
         })
         .lean()
         .exec();
+
+      // Khử trùng lặp nếu trong cùng 1 ngày nhân viên có cả bản ghi DEFAULT và bản ghi gắn mã ca cụ thể
+      const byDate = new Map<string, any[]>();
+      for (const att of rawAttendances) {
+        const d = att.date || '';
+        if (!byDate.has(d)) byDate.set(d, []);
+        byDate.get(d)!.push(att);
+      }
+
+      const attendances: any[] = [];
+      for (const [, dayAtts] of byDate.entries()) {
+        if (dayAtts.length <= 1) {
+          attendances.push(...dayAtts);
+        } else {
+          const realShiftAtts = dayAtts.filter((a) => a.shiftId && a.shiftId !== 'DEFAULT');
+          const sourceList = realShiftAtts.length > 0 ? realShiftAtts : [dayAtts[0]];
+          const seenShiftIds = new Set<string>();
+          for (const item of sourceList) {
+            const sKey = String(item.shiftId || 'DEFAULT');
+            if (!seenShiftIds.has(sKey)) {
+              seenShiftIds.add(sKey);
+              attendances.push(item);
+            }
+          }
+        }
+      }
 
       const actualShifts = attendances.length;
       const missingShifts = Math.max(0, standardShifts - actualShifts);
@@ -111,17 +137,25 @@ export class PayrollService {
         .lean()
         .exec();
 
-      let certificateAllowance = 0;
+      let baseCertificateAllowance = 0;
       for (const cert of approvedCerts) {
-        certificateAllowance += cert.monthlyAllowance || 0;
+        baseCertificateAllowance += cert.monthlyAllowance || 0;
       }
-      if (certificateAllowance === 0 && emp.certificateAllowance) {
-        certificateAllowance = emp.certificateAllowance;
+      if (baseCertificateAllowance === 0 && emp.certificateAllowance) {
+        baseCertificateAllowance = emp.certificateAllowance;
       }
 
       // 4.3 Phụ cấp trách nhiệm Dược sĩ Phụ trách chuyên môn (PTCM) chi nhánh
       const isPIC = !!emp.isBranchPIC || approvedCerts.some((c) => c.isBranchPIC);
-      const picAllowance = isPIC ? 3000000 : 0;
+      const basePicAllowance = isPIC ? 3000000 : 0;
+
+      // Tính phụ cấp CCHN & PTCM theo tỷ lệ số ca làm việc thực tế (Pro-rata trên định mức 26 ca chuẩn)
+      const certificateAllowance = actualShifts >= standardShifts
+        ? baseCertificateAllowance
+        : Math.round((baseCertificateAllowance * actualShifts) / standardShifts);
+      const picAllowance = actualShifts >= standardShifts
+        ? basePicAllowance
+        : Math.round((basePicAllowance * actualShifts) / standardShifts);
 
       // 4.4 Phụ cấp ăn trưa: tính theo định mức chung của chi nhánh (mặc định 50.000đ/ca, hoặc 60.000đ/ca do Quản lý cấu hình)
       const mealAllowance = actualShifts * mealAllowanceRate;
@@ -146,8 +180,11 @@ export class PayrollService {
       const commissionRate = 1.0; // 1%
       const commissionAmount = Math.round(personalSalesRevenue * 0.01);
 
-      // 4.7 Thưởng chi nhánh & Khấu trừ vi phạm
-      const branchBonus = 0; // Có thể điều chỉnh thủ công
+      // 4.7 Thưởng chi nhánh & Khấu trừ vi phạm (Giữ lại điều chỉnh thủ công nếu tính lại bản nháp)
+      const prevItem = existingPayroll?.items?.find((it: any) => String(it.employeeId) === empId);
+      const branchBonus = prevItem?.branchBonus || 0;
+      const manualAdjustment = prevItem?.manualAdjustment || 0;
+      const adjustmentNote = prevItem?.adjustmentNote || '';
       const penalties = lateCount * 50000; // Phạt 50k cho mỗi lần đi muộn
 
       // 4.8 Tổng thu nhập Gross và Lương thực lĩnh Net
@@ -159,7 +196,8 @@ export class PayrollService {
         mealAllowance +
         nightShiftAllowance +
         commissionAmount +
-        branchBonus;
+        branchBonus +
+        manualAdjustment;
 
       const netSalary = Math.max(0, grossSalary - penalties);
 
@@ -175,11 +213,14 @@ export class PayrollService {
         actualShifts,
         missingShifts,
         lateMinutes,
+        lateCount,
         otShifts,
         standardSalary,
         shiftRate,
         otSalary,
+        baseCertificateAllowance,
         certificateAllowance,
+        basePicAllowance,
         picAllowance,
         mealAllowanceRate,
         mealAllowance,
@@ -189,10 +230,10 @@ export class PayrollService {
         commissionAmount,
         branchBonus,
         penalties,
-        manualAdjustment: 0,
+        manualAdjustment,
         grossSalary,
         netSalary,
-        adjustmentNote: '',
+        adjustmentNote,
       });
     }
 

@@ -14,6 +14,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
 
   const mockAttendanceModel: any = {
     findOne: jest.fn(),
+    findById: jest.fn(),
     create: jest.fn(),
     find: jest.fn(),
     countDocuments: jest.fn(),
@@ -512,6 +513,10 @@ describe('AttendanceService (Unit & Security Tests)', () => {
           expect(res.summary.lateCount).toBe(1);
           expect(res.summary.completedCount).toBe(1);
           expect(res.summary.totalRecords).toBe(2);
+          // Bản ghi ngày quá khứ (2026-11-01) chưa có checkOutTime phải được đánh dấu isPastUnclosed = true và tính vào missingCheckoutCount
+          expect(res.items[1].isPastUnclosed).toBe(true);
+          expect(res.summary.missingCheckoutCount).toBe(1);
+          expect(res.summary.inProgressCount).toBe(0);
         });
       });
     });
@@ -558,6 +563,66 @@ describe('AttendanceService (Unit & Security Tests)', () => {
           service.getBranchAttendanceHistory('BR-001', { page: 1, limit: 10 }),
         ).rejects.toThrow('DB Connection Timeout');
       });
+    });
+  });
+
+  describe('T-MANAGER-CLOSE: managerCloseShift (Reconcile Forgotten Check-out)', () => {
+    it('should allow branch manager to manually close an unclosed shift of their own branch', async () => {
+      const validAttId = '507f1f77bcf86cd799439099';
+      const mockRecord: any = {
+        _id: validAttId,
+        branchId: 'BR-001',
+        date: '2026-11-05',
+        checkInTime: new Date('2026-11-05T07:00:00.000Z'),
+        checkOutTime: null,
+        status: AttendanceStatus.CHECKED_IN,
+        note: 'Vào ca sáng',
+        save: jest.fn().mockResolvedValue(true),
+        toObject: jest.fn().mockReturnValue({
+          _id: validAttId,
+          branchId: 'BR-001',
+          status: AttendanceStatus.COMPLETED,
+        }),
+      };
+
+      mockAttendanceModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockRecord),
+      });
+
+      const res = await service.managerCloseShift({
+        attendanceId: validAttId,
+        branchId: 'BR-001',
+        requesterRole: 'branch',
+        checkOutTime: '2026-11-05T15:00:00.000Z',
+        note: 'Nhân viên quên bấm tan ca, xác nhận từ camera quầy',
+        managerName: 'Quản lý CN1',
+      });
+
+      expect(res.success).toBe(true);
+      expect(mockRecord.status).toBe(AttendanceStatus.COMPLETED);
+      expect(mockRecord.checkOutTime).toBeInstanceOf(Date);
+      expect(mockRecord.note).toContain('Nhân viên quên bấm tan ca');
+      expect(mockRecord.save).toHaveBeenCalled();
+    });
+
+    it('should reject cross-branch IDOR when manager attempts to close shift of another branch', async () => {
+      const validAttId = '507f1f77bcf86cd799439098';
+      mockAttendanceModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: validAttId,
+          branchId: 'BR-002',
+          date: '2026-11-05',
+        }),
+      });
+
+      await expect(
+        service.managerCloseShift({
+          attendanceId: validAttId,
+          branchId: 'BR-001',
+          requesterRole: 'branch',
+          note: 'Cố tình đóng ca chi nhánh khác',
+        }),
+      ).rejects.toThrow(RpcException);
     });
   });
 

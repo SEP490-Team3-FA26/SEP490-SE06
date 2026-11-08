@@ -81,6 +81,69 @@ function normalizeIsoDateStr(val) {
   }
 }
 
+function parseTimeMin(tStr, fallback = '07:00') {
+  const parts = String(tStr || fallback).split(':');
+  return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+}
+
+/**
+ * Đánh giá khung giờ thực tế của ca trực (Hỗ trợ cả ca ban ngày lẫn ca vắt qua nửa đêm 00:00 như 22:00 - 06:00)
+ */
+function evaluateShiftWindow(shiftStart, shiftEnd, currentMinutes, assignmentDateStr, todayStr, yesterdayStr) {
+  const startMin = parseTimeMin(shiftStart, '07:00');
+  const endMin = parseTimeMin(shiftEnd, '15:00');
+  const isOvernight = endMin <= startMin;
+
+  if (!isOvernight) {
+    if (assignmentDateStr !== todayStr) {
+      return {
+        isActiveWindow: false,
+        isShiftEnded: assignmentDateStr < todayStr,
+        isFutureShift: assignmentDateStr > todayStr,
+        isLate: false,
+        isOvernight: false,
+        startMin,
+        endMin,
+      };
+    }
+    // Cho phép dược sĩ đến check-in sớm tối đa 30 phút trước giờ mở ca
+    const isFutureShift = currentMinutes < startMin - 30;
+    const isShiftEnded = currentMinutes >= endMin;
+    const isActiveWindow = !isFutureShift && !isShiftEnded;
+    const isLate = currentMinutes > startMin + 15;
+    return { isActiveWindow, isShiftEnded, isFutureShift, isLate, isOvernight: false, startMin, endMin };
+  }
+
+  // Ca vắt qua nửa đêm (VD: 22:00 ngày D -> 06:00 sáng ngày D+1)
+  const effectiveEndMin = endMin + 1440;
+  if (assignmentDateStr === todayStr) {
+    const isFutureShift = currentMinutes < startMin - 30;
+    const isShiftEnded = false; // Kết thúc vào sáng ngày hôm sau (D+1)
+    const isActiveWindow = !isFutureShift;
+    const isLate = currentMinutes > startMin + 15;
+    return { isActiveWindow, isShiftEnded, isFutureShift, isLate, isOvernight: true, startMin, endMin };
+  }
+
+  if (assignmentDateStr === yesterdayStr) {
+    const effectiveCurrent = currentMinutes + 1440;
+    const isFutureShift = false;
+    const isShiftEnded = effectiveCurrent >= effectiveEndMin;
+    const isActiveWindow = effectiveCurrent < effectiveEndMin;
+    const isLate = effectiveCurrent > startMin + 15;
+    return { isActiveWindow, isShiftEnded, isFutureShift, isLate, isOvernight: true, startMin, endMin };
+  }
+
+  return {
+    isActiveWindow: false,
+    isShiftEnded: assignmentDateStr < todayStr,
+    isFutureShift: assignmentDateStr > todayStr,
+    isLate: false,
+    isOvernight: true,
+    startMin,
+    endMin,
+  };
+}
+
 // Thiết lập hồ sơ phân tầng lưu lượng, chất lượng phục vụ và tỷ lệ xử lý SLA theo từng chi nhánh
 const BRANCH_PROFILES = {
   'BR-001': { trafficWeight: 35, negativeReviewRate: 0.04, slaResolveRate: 0.95 },
@@ -597,6 +660,9 @@ class BotEngine {
           shiftSchedule: branchInfo?.shiftSchedule || { morningStart: '07:00', morningEnd: '15:00' },
           isCheckedIn: false,
           isCompleted: false,
+          inActiveShiftWindow: false,
+          activeShiftKey: null,
+          completedShiftKeys: new Set(),
           scheduledToday: false,
           assignedShift: null,
           creds: { email: p.email, password: p.password },
@@ -633,8 +699,28 @@ class BotEngine {
       } catch {}
     }
 
-    // 8. Quản lý các chi nhánh tự động kiểm tra thiết lập Ca làm việc (Ca Sáng/Ca Chiều) và Đăng lịch tuần hiện tại trước khi nhân viên vào ca
+    // 8. Quản lý các chi nhánh tự động kiểm tra thiết lập Ca làm việc (hỗ trợ động 2 ca, 3 ca, ca đêm...) và Đăng lịch tuần hiện tại trước khi nhân viên vào ca
     await this.ensureAllBranchesScheduled().catch(() => {});
+
+    // 9. Đồng bộ trạng thái Check-in / Check-out thực tế từ DB cho từng Dược sĩ khi khởi động lại Bot
+    for (const pharm of Object.values(this.state.tokens.pharmacists)) {
+      if (!pharm.token) continue;
+      try {
+        const myStatus = await this.apiClient.get('/api/hr/attendance/my-status', pharm.token).catch(() => null);
+        if (myStatus) {
+          pharm.isCheckedIn = Boolean(myStatus.isCheckedIn);
+          pharm.isCompleted = Boolean(myStatus.isCompleted);
+          if (myStatus.attendance?.date && myStatus.attendance?.shiftId) {
+            const sKey = `${myStatus.attendance.date}_${myStatus.attendance.shiftId}`;
+            if (myStatus.isCompleted) {
+              pharm.completedShiftKeys.add(sKey);
+            } else if (myStatus.isCheckedIn) {
+              pharm.activeShiftKey = sKey;
+            }
+          }
+        }
+      } catch {}
+    }
 
     const totalPharms = Object.keys(this.state.tokens.pharmacists).length;
     const scheduledPharmsCount = Object.values(this.state.tokens.pharmacists).filter(p => p.scheduledToday).length;
@@ -876,19 +962,71 @@ class BotEngine {
   }
 
   // =========================================================================
-  // 3. DƯỢC SĨ: CHỈ ĐIỂM DANH & BÁN POS KHI CÓ LỊCH TRỰC HÔM NAY ĐÃ ĐƯỢC QUẢN LÝ ĐĂNG
+  // 3. DƯỢC SĨ: CHỈ ĐIỂM DANH & BÁN POS KHI CÓ LỊCH TRỰC ĐANG TRONG KHUNG GIỜ CA
   // =========================================================================
-  getPharmacistTodayAssignment(pharmKey, pharm, todayStr = getVietnamTodayStr()) {
+  getPharmacistTodayAssignment(pharmKey, pharm, todayStr = getVietnamTodayStr(), currentMinutes = null) {
     if (!pharm) return null;
     const branchCode = pharm.branchId || 'BR-001';
     const sched = this.state.branchSchedules[branchCode];
     if (!sched || sched.status !== 'published' || !Array.isArray(sched.assignments)) {
       return null;
     }
+
+    const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const nowMin = currentMinutes !== null ? currentMinutes : vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
+    const yesterdayStr = addDaysStr(todayStr, -1);
     const empId = String(pharm.user?.id || pharm.user?._id || pharm.employeeId || pharmKey);
-    return sched.assignments.find(
-      a => normalizeIsoDateStr(a.date) === todayStr && String(a.employeeId) === empId
-    ) || null;
+    const completedSet = pharm.completedShiftKeys instanceof Set ? pharm.completedShiftKeys : new Set();
+
+    // Lấy toàn bộ các ca của dược sĩ này trong ngày hôm nay VÀ ca qua đêm từ ngày hôm qua
+    const candidates = [];
+    for (const a of sched.assignments) {
+      if (String(a.employeeId) !== empId) continue;
+      const aDateStr = normalizeIsoDateStr(a.date);
+      if (aDateStr !== todayStr && aDateStr !== yesterdayStr) continue;
+
+      const timing = evaluateShiftWindow(a.shiftStart, a.shiftEnd, nowMin, aDateStr, todayStr, yesterdayStr);
+      // Nếu là phân công của ngày hôm qua nhưng không phải ca qua đêm thì bỏ qua
+      if (aDateStr === yesterdayStr && !timing.isOvernight) continue;
+
+      const shiftKey = `${aDateStr}_${a.shiftId}`;
+      const isAlreadyCompleted = completedSet.has(shiftKey);
+
+      candidates.push({
+        ...a,
+        _assignmentDateStr: aDateStr,
+        _shiftKey: shiftKey,
+        _timing: timing,
+        _isCompleted: isAlreadyCompleted,
+      });
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Ưu tiên 1: Nếu dược sĩ đang ở trạng thái isCheckedIn trên 1 ca cụ thể, trả về ca đó để kiểm tra giờ kết thúc (check-out) hoặc bán POS tiếp
+    if (pharm.isCheckedIn && pharm.activeShiftKey) {
+      const currentOpen = candidates.find(c => c._shiftKey === pharm.activeShiftKey && !c._isCompleted);
+      if (currentOpen) return currentOpen;
+    }
+
+    // Ưu tiên 2: Ca đang nằm trong khung giờ trực hợp lệ (từ startMin - 30p đến trước endMin) và chưa hoàn thành
+    const activeNow = candidates.find(c => c._timing.isActiveWindow && !c._isCompleted);
+    if (activeNow) return activeNow;
+
+    // Ưu tiên 3: Nếu dược sĩ đang isCheckedIn nhưng chưa gắn activeShiftKey, lấy ca vừa kết thúc để đóng ca
+    if (pharm.isCheckedIn) {
+      const justEnded = candidates.find(c => c._timing.isShiftEnded && !c._isCompleted);
+      if (justEnded) return justEnded;
+    }
+
+    // Ưu tiên 4: Ca sắp tới trong ngày hôm nay (để hiển thị có lịch hôm nay nhưng chờ đến giờ mới check-in)
+    const upcomingToday = candidates
+      .filter(c => c._assignmentDateStr === todayStr && c._timing.isFutureShift && !c._isCompleted)
+      .sort((a, b) => a._timing.startMin - b._timing.startMin)[0];
+    if (upcomingToday) return upcomingToday;
+
+    // Cuối cùng: Trả về ca trong ngày hôm nay (đã hoàn thành hoặc đã qua giờ) để biết trạng thái
+    return candidates.find(c => c._assignmentDateStr === todayStr) || candidates[0];
   }
 
   async simulatePharmacistPOSAndAttendance(force = false) {
@@ -898,76 +1036,104 @@ class BotEngine {
 
     const todayStr = getVietnamTodayStr();
     const currentWeekMonday = getWeekMondayStr(todayStr);
+    const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const currentMinutes = vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
 
-    // Đảm bảo mọi chi nhánh có dược sĩ đều đã được Quản lý tạo Ca làm việc và Đăng lịch tuần hiện tại trước khi bất kỳ ai Check-in
+    // Đồng bộ lịch chi nhánh nếu sang ngày mới hoặc quá 60 giây (để nhận diện ngay khi Quản lý vừa thêm Ca thứ 3 / Ca Đêm trên UI)
     const branchCodesInPlay = [...new Set(pharmEntries.map(([, p]) => p.branchId || 'BR-001'))];
+    const nowMs = Date.now();
     const needsSync =
       this.state.lastScheduleSyncDate !== todayStr ||
       branchCodesInPlay.some(code => {
         const sc = this.state.branchSchedules[code];
-        return !sc || sc.status !== 'published' || sc.weekStart !== currentWeekMonday;
+        return (
+          !sc ||
+          sc.status !== 'published' ||
+          sc.weekStart !== currentWeekMonday ||
+          nowMs - (sc.updatedAt || 0) > 60000
+        );
       });
 
     if (needsSync) {
       await this.ensureAllBranchesScheduled({ weekStartOverride: currentWeekMonday });
     }
 
-    // Đồng bộ trạng thái có lịch trực hôm nay (scheduledToday) cho từng dược sĩ; ai không có lịch hôm nay tuyệt đối nghỉ
+    // 1. Đánh giá lịch trực và khung giờ thực tế của từng dược sĩ
     const scheduledPharms = [];
     for (const [key, p] of pharmEntries) {
-      const todayAssign = this.getPharmacistTodayAssignment(key, p, todayStr);
-      p.scheduledToday = Boolean(todayAssign);
-      p.assignedShift = todayAssign || null;
-      if (p.scheduledToday) {
-        scheduledPharms.push(p);
-      } else {
-        p.isCheckedIn = false;
+      if (!(p.completedShiftKeys instanceof Set)) {
+        p.completedShiftKeys = new Set();
       }
+      const matchAssign = this.getPharmacistTodayAssignment(key, p, todayStr, currentMinutes);
+      p.scheduledToday = Boolean(matchAssign);
+      p.assignedShift = matchAssign || null;
+
+      if (!matchAssign) {
+        p.inActiveShiftWindow = false;
+        p.isCheckedIn = false;
+        continue;
+      }
+
+      p.isCompleted = Boolean(matchAssign._isCompleted);
+      p.inActiveShiftWindow = Boolean(matchAssign._timing?.isActiveWindow && !matchAssign._isCompleted);
+
+      // Nếu dược sĩ đang trong ca (isCheckedIn) mà ca đó đã đến/qua giờ kết thúc -> lập tức bàn giao két & Check-out đóng ca
+      if (p.isCheckedIn && matchAssign._timing?.isShiftEnded && !matchAssign._isCompleted) {
+        await this.triggerHandoverAndCheckout(p);
+        continue;
+      }
+
+      scheduledPharms.push(p);
     }
 
-    // Nếu hôm nay không có ai được phân công trong lịch tuần đã đăng thì dừng lại, không cho phép check-in tự do
     if (scheduledPharms.length === 0) return;
 
-    // Chỉ chọn trong tập dược sĩ CÓ LỊCH HÔM NAY và chưa hoàn thành ca trực (chưa Check-out)
-    let availablePharms = scheduledPharms.filter(p => !p.isCompleted);
-    if (availablePharms.length === 0) {
-      scheduledPharms.forEach(p => { p.isCompleted = false; p.isCheckedIn = false; });
-      availablePharms = scheduledPharms;
+    // Chỉ chọn những dược sĩ ĐANG TRONG KHUNG GIỜ CA TRỰC HIỆN TẠI (inActiveShiftWindow === true) và chưa Check-out
+    const activeWindowPharms = scheduledPharms.filter(p => p.inActiveShiftWindow && !p.isCompleted);
+    if (activeWindowPharms.length === 0) {
+      // Không có ca nào đang mở ở khung giờ hiện tại (hoặc các dược sĩ của ca hiện tại đã hoàn thành ca)
+      return;
     }
 
-    // Ưu tiên dược sĩ có lịch hôm nay nhưng chưa check-in vào ca trước; khi đã check-in đủ thì phân tầng lưu lượng POS theo Chi nhánh
-    const uncheckedPharms = availablePharms.filter(p => !p.isCheckedIn);
+    // Ưu tiên dược sĩ đang trong khung giờ ca nhưng chưa check-in; khi đã check-in đủ thì phân tầng lưu lượng POS theo Chi nhánh
+    const uncheckedPharms = activeWindowPharms.filter(p => !p.isCheckedIn);
     let pharm;
     if (uncheckedPharms.length > 0) {
       pharm = randomPick(uncheckedPharms);
     } else {
-      const activeBranchCodes = [...new Set(availablePharms.map(p => p.branchId))];
+      const activeBranchCodes = [...new Set(activeWindowPharms.map(p => p.branchId))];
       const chosenBranchCode = pickWeighted(
         activeBranchCodes,
         code => this.getBranchProfile(code).trafficWeight
       );
-      const branchPharms = availablePharms.filter(p => p.branchId === chosenBranchCode);
-      pharm = randomPick(branchPharms) || randomPick(availablePharms);
+      const branchPharms = activeWindowPharms.filter(p => p.branchId === chosenBranchCode);
+      pharm = randomPick(branchPharms) || randomPick(activeWindowPharms);
     }
 
-    // 1. Check-in GPS Geofencing đúng theo Ca được Quản lý phân công hôm nay và Persona
+    const shiftName = pharm.assignedShift?.shiftName || 'Ca Sáng';
+    const shiftStart = pharm.assignedShift?.shiftStart || pharm.shiftSchedule?.morningStart || '07:00';
+    const shiftEnd = pharm.assignedShift?.shiftEnd || pharm.shiftSchedule?.morningEnd || '15:00';
+    const shiftTiming = pharm.assignedShift?._timing || evaluateShiftWindow(
+      shiftStart,
+      shiftEnd,
+      currentMinutes,
+      pharm.assignedShift?._assignmentDateStr || todayStr,
+      todayStr,
+      addDaysStr(todayStr, -1)
+    );
+
+    // Nếu ca trực đã kết thúc và dược sĩ đang trong ca -> tự động bàn giao & check-out đóng ca
+    if (pharm.isCheckedIn && shiftTiming.isShiftEnded) {
+      await this.triggerHandoverAndCheckout(pharm);
+      return;
+    }
+
     if (!pharm.isCheckedIn) {
       try {
         const gps = jitterGps(pharm.branchLat, pharm.branchLng);
 
-        // Tính toán đi muộn dựa theo persona
-        let isLate = false;
-        if (pharm.persona === 'CHRONIC_LATE') {
-          isLate = Math.random() < 0.75; // 75% đi muộn
-        } else if (pharm.persona === 'PUNCTUAL') {
-          isLate = Math.random() < 0.05; // 95% đến đúng giờ/đến sớm
-        } else {
-          isLate = Math.random() < 0.2;  // 20% đi muộn
-        }
-
-        const shiftName = pharm.assignedShift?.shiftName || 'Ca Sáng';
-        const shiftStart = pharm.assignedShift?.shiftStart || pharm.shiftSchedule?.morningStart || '07:00';
-        const shiftEnd = pharm.assignedShift?.shiftEnd || pharm.shiftSchedule?.morningEnd || '15:00';
+        // Đồng bộ trạng thái đi muộn với bộ đếm thực tế của Backend (trễ > 15 phút so với giờ bắt đầu ca, hỗ trợ cả ca đêm)
+        const isLate = Boolean(shiftTiming.isLate);
         const assignedShiftId = pharm.assignedShift?.shiftId;
         const note = isLate
           ? `${randomPick(CHECKIN_NOTES.late)} (${shiftName} ${shiftStart}-${shiftEnd})`
@@ -986,6 +1152,7 @@ class BotEngine {
         const checkInRes = await this.apiClient.post('/api/hr/attendance/check-in', checkInPayload, pharm.token);
 
         pharm.isCheckedIn = true;
+        pharm.activeShiftKey = pharm.assignedShift?._shiftKey || `${todayStr}_${assignedShiftId || 'DEFAULT'}`;
         this.state.stats.totalCheckIns += 1;
         this.emitActivity(
           'PHARMACIST',
@@ -999,10 +1166,14 @@ class BotEngine {
       } catch (err) {
         if (err.message && (err.message.includes('Cập nhật') || err.message.includes('Cap nhat') || err.message.includes('thành công') || err.message.includes('thanh cong') || err.message.includes('đã Check-in') || err.message.includes('da Check-in'))) {
           pharm.isCheckedIn = true;
+          pharm.activeShiftKey = pharm.assignedShift?._shiftKey || `${todayStr}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
         } else if (err.message && (err.message.includes('Check-out') || err.message.includes('hoàn thành ca trực') || err.message.includes('đã hoàn thành') || err.message.includes('da hoan thanh'))) {
-          // Dược sĩ này đã từng check-out trước đó trên backend -> đánh dấu isCompleted và chuyển sang người khác có lịch hôm nay
+          // Dược sĩ này đã từng check-out ca này trước đó trên backend -> đánh dấu hoàn thành ca này
+          const doneKey = pharm.assignedShift?._shiftKey || `${todayStr}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
+          pharm.completedShiftKeys.add(doneKey);
           pharm.isCompleted = true;
           pharm.isCheckedIn = false;
+          pharm.activeShiftKey = null;
           return;
         } else {
           this.emitActivity('PHARMACIST', 'ATTENDANCE', pharm.user?.fullName || 'Dược sĩ', pharm.branchId, `Check-in: ${err.message}`, null, 'WARN');
@@ -1053,9 +1224,14 @@ class BotEngine {
         );
       } catch (err) {
         if (err.message && (err.message.includes('Check-out') || err.message.includes('hoàn thành ca trực') || err.message.includes('đã hoàn thành') || err.message.includes('da hoan thanh'))) {
-          // Dược sĩ đã kết thúc ca trực -> đánh dấu isCompleted và tự động chuyển quầy POS cho người khác
+          // Dược sĩ đã kết thúc ca trực -> đánh dấu hoàn thành ca hiện tại và tự động chuyển quầy POS cho người khác
+          const doneKey = pharm.activeShiftKey || pharm.assignedShift?._shiftKey || `${todayStr}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
+          if (pharm.completedShiftKeys instanceof Set) {
+            pharm.completedShiftKeys.add(doneKey);
+          }
           pharm.isCompleted = true;
           pharm.isCheckedIn = false;
+          pharm.activeShiftKey = null;
           this.emitActivity(
             'PHARMACIST',
             'ATTENDANCE',
@@ -1410,19 +1586,14 @@ class BotEngine {
     const weekStartStr = weekStartOverride || getWeekMondayStr(todayStr);
 
     try {
-      // BƯỚC 1: Đảm bảo chi nhánh có đầy đủ Ca Sáng và Ca Chiều trong work_shifts
+      // BƯỚC 1: Lấy toàn bộ danh sách Ca làm việc đang Active của chi nhánh (hỗ trợ động 2 ca, 3 ca, 4 ca, kể cả Ca Đêm 22:00-06:00)
       const rawShifts = await this.apiClient.get('/api/hr/shifts', token).catch(() => []);
       const activeShifts = (Array.isArray(rawShifts) ? rawShifts : []).filter(
         s => s && (s._id || s.id) && s.isActive !== false
       );
 
-      let morningShift = activeShifts.find(s => String(s.name || '').toLowerCase().includes('sáng')) || activeShifts[0];
-      let afternoonShift =
-        activeShifts.find(s => s !== morningShift && String(s.name || '').toLowerCase().includes('chiều')) ||
-        activeShifts.find(s => s !== morningShift);
-
       let createdNewShift = false;
-      if (!morningShift) {
+      if (activeShifts.length === 0) {
         const createdM = await this.apiClient.post('/api/hr/shifts', {
           name: 'Ca Sáng',
           startTime: br.shiftSchedule?.morningStart || '07:00',
@@ -1430,16 +1601,16 @@ class BotEngine {
           color: '#3B82F6',
         }, token).catch(() => null);
 
-        morningShift = {
+        activeShifts.push({
           _id: createdM?._id || createdM?.id || 'SHIFT_MORNING',
           name: createdM?.name || 'Ca Sáng',
           startTime: createdM?.startTime || br.shiftSchedule?.morningStart || '07:00',
           endTime: createdM?.endTime || br.shiftSchedule?.morningEnd || '15:00',
-        };
+        });
         if (createdM?._id || createdM?.id) createdNewShift = true;
       }
 
-      if (!afternoonShift) {
+      if (activeShifts.length < 2) {
         const createdA = await this.apiClient.post('/api/hr/shifts', {
           name: 'Ca Chiều',
           startTime: br.shiftSchedule?.afternoonStart || '14:00',
@@ -1447,30 +1618,34 @@ class BotEngine {
           color: '#F97316',
         }, token).catch(() => null);
 
-        afternoonShift = {
+        activeShifts.push({
           _id: createdA?._id || createdA?.id || 'SHIFT_AFTERNOON',
           name: createdA?.name || 'Ca Chiều',
           startTime: createdA?.startTime || br.shiftSchedule?.afternoonStart || '14:00',
           endTime: createdA?.endTime || br.shiftSchedule?.afternoonEnd || '22:00',
-        };
+        });
         if (createdA?._id || createdA?.id) createdNewShift = true;
       }
 
+      // Sắp xếp toàn bộ các ca đang Active theo thứ tự giờ bắt đầu (VD: Ca Sáng 06:00 -> Ca Chiều 14:00 -> Ca Đêm 22:00)
+      const orderedShifts = [...activeShifts].sort(
+        (a, b) => parseTimeMin(a.startTime, '07:00') - parseTimeMin(b.startTime, '07:00')
+      );
+
       if (createdNewShift) {
+        const shiftSummaryText = orderedShifts
+          .map(s => `${s.name} (${s.startTime}-${s.endTime})`)
+          .join(', ');
         this.emitActivity(
           'MANAGER',
           'SCHEDULE',
           mgr?.user?.fullName || `Quản lý ${branchCode}`,
           branchCode,
-          `Thiết lập danh mục Ca làm việc chuẩn cho ${branchCode}: ${morningShift.name} (${morningShift.startTime}-${morningShift.endTime}) & ${afternoonShift.name} (${afternoonShift.startTime}-${afternoonShift.endTime})`
+          `Thiết lập danh mục Ca làm việc chuẩn cho ${branchCode}: ${shiftSummaryText}`
         );
       }
 
-      const validShiftIds = new Set([
-        String(morningShift._id || morningShift.id),
-        String(afternoonShift._id || afternoonShift.id),
-        ...activeShifts.map(s => String(s._id || s.id)),
-      ]);
+      const validShiftIds = new Set(orderedShifts.map(s => String(s._id || s.id)));
 
       // BƯỚC 2: Kiểm tra lịch tuần hiện tại trên Backend (work_schedules)
       const existingSched = await this.apiClient
@@ -1485,17 +1660,17 @@ class BotEngine {
       );
       const isAlreadyPublished = existingSched?.status === 'published';
 
-      // Mỗi ngày chỉ phân công tối đa 2 dược sĩ (1 Ca Sáng + 1 Ca Chiều); nếu cơ sở có 3 dược sĩ thì người thứ 3 nghỉ lịch hôm đó
-      const targetPerDay = Math.min(2, branchPharms.length);
+      // Số ca cần phân công mỗi ngày khớp với số ca Active trên /branch/shifts (VD: 2 ca -> 2 người/ngày; 3 ca cả nửa đêm -> 3 người/ngày)
+      const targetPerDay = Math.min(orderedShifts.length, branchPharms.length);
       const botEmpIdSet = new Set(branchPharms.map(bp => bp.empId));
 
       let allDaysCovered = branchPharms.length > 0;
       for (let d = 0; d < 7; d++) {
         const dStr = addDaysStr(weekStartStr, d);
-        const botAssignedOnDay = validExisting.filter(
-          a => normalizeIsoDateStr(a.date) === dStr && botEmpIdSet.has(String(a.employeeId))
-        );
-        if (botAssignedOnDay.length < targetPerDay) {
+        const dayAssigns = validExisting.filter(a => normalizeIsoDateStr(a.date) === dStr);
+        const coveredShiftsOnDay = new Set(dayAssigns.map(a => String(a.shiftId)));
+        const botAssignedOnDay = dayAssigns.filter(a => botEmpIdSet.has(String(a.employeeId)));
+        if (botAssignedOnDay.length < targetPerDay || coveredShiftsOnDay.size < targetPerDay) {
           allDaysCovered = false;
           break;
         }
@@ -1504,28 +1679,47 @@ class BotEngine {
       let finalAssignments = validExisting;
 
       if (forceRebuild || !isAlreadyPublished || !allDaysCovered) {
-        // Nếu chi nhánh có >= 3 dược sĩ, khi tạo lịch chuẩn sẽ giữ đúng 2 dược sĩ/ngày theo lịch xoay vòng của Quản lý
-        const merged = forceRebuild
-          ? []
-          : validExisting.filter(a => !botEmpIdSet.has(String(a.employeeId)));
+        // Nếu chỉ bổ sung thêm ca mới (VD: Quản lý vừa thêm Ca Đêm thứ 3 trên /branch/shifts), giữ nguyên lịch các ca đã xếp và chỉ điền thêm ca còn thiếu
+        const merged = forceRebuild ? [] : [...validExisting];
 
         for (let d = 0; d < 7; d++) {
           const dStr = addDaysStr(weekStartStr, d);
           const isoDate = `${dStr}T00:00:00.000Z`;
+          const existingOnDay = merged.filter(a => normalizeIsoDateStr(a.date) === dStr);
+          const coveredShiftIds = new Set(existingOnDay.map(a => String(a.shiftId)));
+          const busyEmpIds = new Set(existingOnDay.map(a => String(a.employeeId)));
 
           for (let slot = 0; slot < targetPerDay; slot++) {
-            const bp = branchPharms[(d + slot) % branchPharms.length];
-            if (!bp) continue;
-            const shiftObj = slot === 0 ? morningShift : afternoonShift;
+            const shiftObj = orderedShifts[slot];
+            if (!shiftObj) continue;
+            const sId = String(shiftObj._id || shiftObj.id);
+            if (!forceRebuild && coveredShiftIds.has(sId)) continue;
+
+            // Chọn dược sĩ xoay vòng chưa bị trùng ca trong ngày đó
+            let chosenPharm = null;
+            for (let offset = 0; offset < branchPharms.length; offset++) {
+              const candidate = branchPharms[(d + slot + offset) % branchPharms.length];
+              if (candidate && !busyEmpIds.has(candidate.empId)) {
+                chosenPharm = candidate;
+                break;
+              }
+            }
+            if (!chosenPharm) {
+              chosenPharm = branchPharms[(d + slot) % branchPharms.length];
+            }
+            if (!chosenPharm) continue;
+
+            busyEmpIds.add(chosenPharm.empId);
+            coveredShiftIds.add(sId);
 
             merged.push({
               date: isoDate,
-              shiftId: String(shiftObj._id || shiftObj.id),
-              shiftName: shiftObj.name || (slot === 0 ? 'Ca Sáng' : 'Ca Chiều'),
-              shiftStart: shiftObj.startTime || (slot === 0 ? '07:00' : '14:00'),
-              shiftEnd: shiftObj.endTime || (slot === 0 ? '15:00' : '22:00'),
-              employeeId: bp.empId,
-              employeeName: bp.empName,
+              shiftId: sId,
+              shiftName: shiftObj.name || `Ca ${slot + 1}`,
+              shiftStart: shiftObj.startTime || '07:00',
+              shiftEnd: shiftObj.endTime || '15:00',
+              employeeId: chosenPharm.empId,
+              employeeName: chosenPharm.empName,
               note: `Ca làm việc cố định cơ sở ${branchCode}`,
             });
           }
@@ -1545,7 +1739,7 @@ class BotEngine {
 
         const todayBotShifts = finalAssignments
           .filter(a => normalizeIsoDateStr(a.date) === todayStr && botEmpIdSet.has(String(a.employeeId)))
-          .map(a => `${a.employeeName} [${a.shiftName}]`)
+          .map(a => `${a.employeeName} [${a.shiftName} ${a.shiftStart}-${a.shiftEnd}]`)
           .join(', ');
 
         this.emitActivity(
@@ -1553,25 +1747,42 @@ class BotEngine {
           'SCHEDULE',
           mgr?.user?.fullName || `Quản lý ${branchCode}`,
           branchCode,
-          `Đã công bố lịch tuần (${weekStartStr} → ${addDaysStr(weekStartStr, 6)}): Hôm nay (${todayStr}) trực gồm ${todayBotShifts || `${finalAssignments.length} ca`}`
+          `Đã công bố lịch tuần (${weekStartStr} → ${addDaysStr(weekStartStr, 6)}, ${orderedShifts.length} ca/ngày): Hôm nay (${todayStr}) trực gồm ${todayBotShifts || `${finalAssignments.length} ca`}`
         );
+      }
+
+      // Nếu hôm nay là Thứ Hai đầu tuần, nối thêm lịch Chủ Nhật tuần trước vào bộ nhớ đệm để Ca Đêm tối Chủ Nhật vắt sang sáng Thứ Hai không bị đứt
+      let cachedAssignments = [...finalAssignments];
+      if (todayStr === weekStartStr) {
+        const prevWeekMonday = addDaysStr(weekStartStr, -7);
+        const prevSched = await this.apiClient
+          .get(`/api/hr/schedules/week?weekStart=${prevWeekMonday}`, token)
+          .catch(() => null);
+        if (Array.isArray(prevSched?.assignments)) {
+          const yesterdayStr = addDaysStr(todayStr, -1);
+          const sundayOvernights = prevSched.assignments.filter(
+            a => normalizeIsoDateStr(a.date) === yesterdayStr
+          );
+          cachedAssignments = [...sundayOvernights, ...cachedAssignments];
+        }
       }
 
       // BƯỚC 3: Lưu bộ nhớ đệm lịch chi nhánh & cập nhật cờ scheduledToday cho từng Dược sĩ của chi nhánh
       this.state.branchSchedules[branchCode] = {
         weekStart: weekStartStr,
         status: 'published',
-        shifts: [morningShift, afternoonShift],
-        assignments: finalAssignments,
+        shifts: orderedShifts,
+        assignments: cachedAssignments,
         updatedAt: Date.now(),
       };
 
+      const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+      const currentMinutes = vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
       for (const bp of branchPharms) {
-        const myTodayAssign = finalAssignments.find(
-          a => normalizeIsoDateStr(a.date) === todayStr && String(a.employeeId) === bp.empId
-        );
-        bp.pharmRef.scheduledToday = Boolean(myTodayAssign);
-        bp.pharmRef.assignedShift = myTodayAssign || null;
+        const myAssign = this.getPharmacistTodayAssignment(bp.empId, bp.pharmRef, todayStr, currentMinutes);
+        bp.pharmRef.scheduledToday = Boolean(myAssign);
+        bp.pharmRef.assignedShift = myAssign || null;
+        bp.pharmRef.inActiveShiftWindow = Boolean(myAssign?._timing?.isActiveWindow && !myAssign?._isCompleted);
         if (!bp.pharmRef.scheduledToday) {
           bp.pharmRef.isCheckedIn = false;
         }
@@ -1707,8 +1918,13 @@ class BotEngine {
         note: 'Hoàn thành bàn giao két tiền và check-out đúng quy định',
       }, pharm.token);
 
+      const doneKey = pharm.activeShiftKey || pharm.assignedShift?._shiftKey || `${getVietnamTodayStr()}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
+      if (pharm.completedShiftKeys instanceof Set) {
+        pharm.completedShiftKeys.add(doneKey);
+      }
       pharm.isCompleted = true;
       pharm.isCheckedIn = false;
+      pharm.activeShiftKey = null;
       this.emitActivity(
         'PHARMACIST',
         'ATTENDANCE',
@@ -1717,7 +1933,7 @@ class BotEngine {
         `Nộp Biên bản bàn giao két (${expectedCash.toLocaleString('vi-VN')}đ) và Check-out tan ca! Quầy POS sẵn sàng chuyển giao cho ca trực tiếp theo.`
       );
 
-      // Tự động chuyển giao ca: chỉ kích hoạt Dược sĩ kế tiếp của chi nhánh CÓ LỊCH TRỰC HÔM NAY vào nhận ca
+      // Tự động chuyển giao ca: kích hoạt Dược sĩ kế tiếp của chi nhánh đang trong khung giờ ca trực vào nhận ca
       const nextPharm = Object.values(this.state.tokens.pharmacists).find(
         p => p.branchId === pharm.branchId && p !== pharm && p.scheduledToday && !p.isCompleted
       );
@@ -1742,4 +1958,5 @@ module.exports = {
   getVietnamTodayStr,
   getWeekMondayStr,
   addDaysStr,
+  evaluateShiftWindow,
 };
