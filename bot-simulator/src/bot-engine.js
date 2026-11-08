@@ -754,6 +754,7 @@ class BotEngine {
               pharm.completedShiftKeys.add(sKey);
             } else if (myStatus.isCheckedIn) {
               pharm.activeShiftKey = sKey;
+              pharm.checkedInDuringActiveWindow = true;
             }
           }
         }
@@ -1075,8 +1076,12 @@ class BotEngine {
       .sort((a, b) => a._timing.startMin - b._timing.startMin)[0];
     if (upcomingToday) return upcomingToday;
 
-    // Cuối cùng: Trả về ca trong ngày hôm nay (đã hoàn thành hoặc đã qua giờ) để biết trạng thái
-    return candidates.find(c => c._assignmentDateStr === todayStr) || candidates[0];
+    // Cuối cùng: Trả về ca trong ngày hôm nay (ưu tiên ca chưa hoàn thành) để biết trạng thái
+    return (
+      candidates.find(c => c._assignmentDateStr === todayStr && !c._isCompleted) ||
+      candidates.find(c => c._assignmentDateStr === todayStr) ||
+      candidates[0]
+    );
   }
 
   async simulatePharmacistPOSAndAttendance(force = false) {
@@ -1140,18 +1145,32 @@ class BotEngine {
     let pharm;
     if (uncheckedPharms.length > 0) {
       const inWindowUnchecked = uncheckedPharms.filter(p => p.inActiveShiftWindow);
-      pharm = inWindowUnchecked.length > 0 ? randomPick(inWindowUnchecked) : randomPick(uncheckedPharms);
-    } else {
-      const inWindowChecked = availablePharms.filter(p => p.inActiveShiftWindow);
-      const pool = inWindowChecked.length > 0 ? inWindowChecked : availablePharms;
-      const activeBranchCodes = [...new Set(pool.map(p => p.branchId))];
-      const chosenBranchCode = pickWeighted(
-        activeBranchCodes,
-        code => this.getBranchProfile(code).trafficWeight
-      );
-      const branchPharms = pool.filter(p => p.branchId === chosenBranchCode);
-      pharm = randomPick(branchPharms) || randomPick(pool);
+      // Tránh điểm danh ca trong tương lai xa (chặn sớm > 30 phút theo chuẩn Backend)
+      const eligibleUnchecked = uncheckedPharms.filter(p => !p.assignedShift?._timing?.isFutureShift);
+
+      if (inWindowUnchecked.length > 0) {
+        pharm = randomPick(inWindowUnchecked);
+      } else if (eligibleUnchecked.length > 0) {
+        pharm = randomPick(eligibleUnchecked);
+      }
     }
+
+    if (!pharm) {
+      const checkedInPharms = availablePharms.filter(p => p.isCheckedIn);
+      if (checkedInPharms.length > 0) {
+        const inWindowChecked = checkedInPharms.filter(p => p.inActiveShiftWindow);
+        const pool = inWindowChecked.length > 0 ? inWindowChecked : checkedInPharms;
+        const activeBranchCodes = [...new Set(pool.map(p => p.branchId))];
+        const chosenBranchCode = pickWeighted(
+          activeBranchCodes,
+          code => this.getBranchProfile(code).trafficWeight
+        );
+        const branchPharms = pool.filter(p => p.branchId === chosenBranchCode);
+        pharm = randomPick(branchPharms) || randomPick(pool);
+      }
+    }
+
+    if (!pharm) return;
 
     const shiftName = pharm.assignedShift?.shiftName || 'Ca Sáng';
     const shiftStart = pharm.assignedShift?.shiftStart || pharm.shiftSchedule?.morningStart || '07:00';
@@ -1740,11 +1759,12 @@ class BotEngine {
             const sId = String(shiftObj._id || shiftObj.id);
             if (!forceRebuild && coveredShiftIds.has(sId)) continue;
 
-            // Chọn dược sĩ xoay vòng chưa bị trùng ca trong ngày đó
+            // Chọn dược sĩ xoay vòng (hỗ trợ thỉnh thoảng xếp ca đôi: 1 nhân viên làm 2 ca/ngày vào Thứ Hai hoặc xác suất)
+            const allowDoubleShiftToday = (d === 0 || d === 3) && slot > 0 && branchPharms.length >= 2;
             let chosenPharm = null;
             for (let offset = 0; offset < branchPharms.length; offset++) {
               const candidate = branchPharms[(d + slot + offset) % branchPharms.length];
-              if (candidate && !busyEmpIds.has(candidate.empId)) {
+              if (candidate && (!busyEmpIds.has(candidate.empId) || allowDoubleShiftToday)) {
                 chosenPharm = candidate;
                 break;
               }
@@ -1967,15 +1987,30 @@ class BotEngine {
       if (pharm.completedShiftKeys instanceof Set) {
         pharm.completedShiftKeys.add(doneKey);
       }
-      pharm.isCompleted = true;
       pharm.isCheckedIn = false;
       pharm.activeShiftKey = null;
+
+      // Đánh giá xem nhân viên này hôm nay còn ca làm việc tiếp theo (ca đôi) chưa hoàn thành không
+      const todayStr = getVietnamTodayStr();
+      const nextShift = this.getPharmacistTodayAssignment(
+        pharm.employeeId || pharm.user?.id || pharm.user?._id,
+        pharm,
+        todayStr
+      );
+      pharm.isCompleted = !nextShift || Boolean(nextShift._isCompleted);
+      pharm.assignedShift = nextShift || null;
+      pharm.inActiveShiftWindow = Boolean(nextShift?._timing?.isActiveWindow && !nextShift?._isCompleted);
+
       this.emitActivity(
         'PHARMACIST',
         'ATTENDANCE',
         pharm.user?.fullName || 'Dược sĩ',
         pharm.branchId,
-        `Nộp Biên bản bàn giao két (${expectedCash.toLocaleString('vi-VN')}đ) và Check-out tan ca! Quầy POS sẵn sàng chuyển giao cho ca trực tiếp theo.`
+        `Nộp Biên bản bàn giao két (${expectedCash.toLocaleString('vi-VN')}đ) và Check-out tan ca! ${
+          !pharm.isCompleted && nextShift
+            ? `Nhân viên còn ${nextShift.shiftName} (${nextShift.shiftStart}-${nextShift.shiftEnd}) tiếp theo trong ngày.`
+            : 'Quầy POS sẵn sàng chuyển giao cho ca trực tiếp theo.'
+        }`
       );
 
       // Tự động chuyển giao ca: kích hoạt Dược sĩ kế tiếp của chi nhánh đang trong khung giờ ca trực vào nhận ca

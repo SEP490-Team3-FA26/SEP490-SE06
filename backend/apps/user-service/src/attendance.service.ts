@@ -152,7 +152,27 @@ export class AttendanceService {
     const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     const currentMinutes = vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
 
-    // Tìm ca phân công hiện tại của nhân viên (hỗ trợ cả 3 ca/ngày và ca đêm vắt qua 00:00 từ hôm qua)
+    // 1. Tìm các bản ghi điểm danh hiện có hôm nay và hôm qua của nhân viên
+    const existingDayAttendances = await this.attendanceModel
+      .find({
+        employeeId: new Types.ObjectId(dto.employeeId),
+        date: { $in: [todayStr, yesterdayStr] },
+      })
+      .exec();
+
+    const openAttendance = existingDayAttendances.find(
+      (a) =>
+        [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(a.status as any) &&
+        !a.checkOutTime,
+    );
+
+    const completedShiftKeys = new Set(
+      existingDayAttendances
+        .filter((a) => a.status === AttendanceStatus.COMPLETED || !!a.checkOutTime)
+        .map((a) => `${a.date}_${a.shiftId}`),
+    );
+
+    // Tìm ca phân công hiện tại của nhân viên (hỗ trợ nhiều ca/ngày và ca đêm vắt qua 00:00 từ hôm qua)
     let assignedShiftId = dto.shiftId;
     let assignedShiftName = 'Ca mặc định';
     let attendanceDateStr = todayStr;
@@ -188,28 +208,58 @@ export class AttendanceService {
           candidateAssignments.find((c) => String(c.assign.shiftId) === String(dto.shiftId)) ||
           candidateAssignments[0];
       } else {
-        // Nếu có nhiều ca trong ngày (hoặc ca đêm hôm qua), ưu tiên ca có khoảng cách tới giờ hiện tại nhỏ nhất
-        matchedCandidate = candidateAssignments.reduce((best, curr) => {
-          const bestStart = parseTimeToMinutes(best.assign.shiftStart);
-          const bestEffNow = best.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
-          const currStart = parseTimeToMinutes(curr.assign.shiftStart);
-          const currEffNow = curr.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
-          const bestDiff = Math.abs(bestEffNow - bestStart);
-          const currDiff = Math.abs(currEffNow - currStart);
-          return currDiff < bestDiff ? curr : best;
-        }, candidateAssignments[0]);
+        // Lọc các ca chưa hoàn thành trong ngày
+        const uncompletedCandidates = candidateAssignments.filter(
+          (c) => !completedShiftKeys.has(`${c.dateStr}_${c.assign.shiftId}`),
+        );
+        const pool = uncompletedCandidates.length > 0 ? uncompletedCandidates : candidateAssignments;
+
+        // Ưu tiên ca đang trong khung giờ trực hợp lệ (startMin - 30p đến endMin)
+        const inWindow = pool.filter((c) => {
+          const startMin = parseTimeToMinutes(c.assign.shiftStart);
+          const endMin = parseTimeToMinutes(c.assign.shiftEnd);
+          const isOvernight = isOvernightShift(c.assign.shiftStart, c.assign.shiftEnd);
+          const effNow = c.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+          const effEnd = isOvernight && !c.isYesterdayOvernight ? endMin + 1440 : endMin;
+          return effNow >= startMin - 30 && effNow < effEnd;
+        });
+
+        if (inWindow.length > 0) {
+          matchedCandidate = inWindow[0];
+        } else {
+          // Nếu không có ca nào trong khung giờ, chọn ca có giờ bắt đầu gần giờ hiện tại nhất
+          matchedCandidate = pool.reduce((best, curr) => {
+            const bestStart = parseTimeToMinutes(best.assign.shiftStart);
+            const bestEffNow = best.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+            const currStart = parseTimeToMinutes(curr.assign.shiftStart);
+            const currEffNow = curr.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+            const bestDiff = Math.abs(bestEffNow - bestStart);
+            const currDiff = Math.abs(currEffNow - currStart);
+            return currDiff < bestDiff ? curr : best;
+          }, pool[0]);
+        }
       }
     }
 
     const matchedAssignment = matchedCandidate?.assign || null;
+    let shiftStartTimeStr = '';
     if (matchedCandidate) {
       attendanceDateStr = matchedCandidate.dateStr;
       assignedShiftId = matchedAssignment.shiftId;
       assignedShiftName = matchedAssignment.shiftName;
+      shiftStartTimeStr = matchedAssignment.shiftStart;
       const startMin = parseTimeToMinutes(matchedAssignment.shiftStart);
       const effectiveCurrentMin = matchedCandidate.isYesterdayOvernight
         ? currentMinutes + 1440
         : currentMinutes;
+
+      // Giới hạn điểm danh sớm tối đa 30 phút trước giờ bắt đầu ca
+      if (effectiveCurrentMin < startMin - 30) {
+        throw new RpcException(
+          `Chưa tới khung giờ điểm danh cho ${assignedShiftName} (${matchedAssignment.shiftStart} - ${matchedAssignment.shiftEnd}). Bạn chỉ có thể điểm danh trước giờ bắt đầu ca tối đa 30 phút.`,
+        );
+      }
+
       // Nếu check-in trễ quá 15 phút so với giờ bắt đầu ca
       if (effectiveCurrentMin > startMin + 15) {
         isLate = true;
@@ -218,12 +268,21 @@ export class AttendanceService {
       const shift = await this.workShiftModel.findById(dto.shiftId).lean().exec();
       if (shift) {
         assignedShiftName = shift.name;
+        shiftStartTimeStr = shift.startTime;
         const startMin = parseTimeToMinutes(shift.startTime);
         const overnight = isOvernightShift(shift.startTime, shift.endTime);
         const effectiveCurrentMin =
           overnight && currentMinutes <= parseTimeToMinutes(shift.endTime) + 120
             ? currentMinutes + 1440
             : currentMinutes;
+
+        // Giới hạn điểm danh sớm tối đa 30 phút
+        if (effectiveCurrentMin < startMin - 30) {
+          throw new RpcException(
+            `Chưa tới khung giờ điểm danh cho ${assignedShiftName} (${shift.startTime} - ${shift.endTime}). Bạn chỉ có thể điểm danh trước giờ bắt đầu ca tối đa 30 phút.`,
+          );
+        }
+
         if (effectiveCurrentMin > startMin + 15) {
           isLate = true;
         }
@@ -231,6 +290,17 @@ export class AttendanceService {
     }
 
     const effectiveShiftId = assignedShiftId || 'DEFAULT';
+
+    // Ràng buộc bảo vệ ca đôi: Nếu nhân viên này đang có 1 ca khác đang mở chưa check-out, yêu cầu check-out ca trước
+    if (
+      openAttendance &&
+      openAttendance.shiftId !== effectiveShiftId &&
+      openAttendance.shiftId !== 'DEFAULT'
+    ) {
+      throw new RpcException(
+        `Bạn đang có ca trực "${openAttendance.shiftName || 'trước'}" chưa Check-out. Theo quy chuẩn quản lý, vui lòng Check-out hoàn tất ca trước trước khi điểm danh vào ca mới!`,
+      );
+    }
 
     // Kiểm tra xem đã check-in ca này chưa (hoặc đã có bản ghi DEFAULT đang mở trong ngày để tránh tạo trùng)
     let existing = await this.attendanceModel
@@ -380,6 +450,7 @@ export class AttendanceService {
         employeeId: new Types.ObjectId(dto.employeeId),
         date: { $in: [todayStr, yesterdayStr] },
         status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
+        checkOutTime: null,
       })
       .sort({ createdAt: -1 })
       .exec();
@@ -429,9 +500,9 @@ export class AttendanceService {
     const currentMinutes = vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
     const recentOpenLimit = new Date(Date.now() - 14 * 3600 * 1000);
 
-    // 1. Kiểm tra bản ghi điểm danh hôm nay (hoặc ca đêm mở từ hôm qua chưa quá 14 tiếng)
-    const todayAttendance = await this.attendanceModel
-      .findOne({
+    // 1. Lấy toàn bộ các bản ghi điểm danh hôm nay và ca đêm mở từ hôm qua
+    const dayAttendances = await this.attendanceModel
+      .find({
         employeeId: new Types.ObjectId(employeeId),
         $or: [
           { date: todayStr },
@@ -447,68 +518,116 @@ export class AttendanceService {
       .lean()
       .exec();
 
+    // Tìm ca đang mở (đã check-in nhưng chưa check-out)
+    const activeOpenAtt = dayAttendances.find(
+      (a) =>
+        [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(a.status as any) &&
+        !a.checkOutTime,
+    );
+
+    const completedShiftKeys = new Set(
+      dayAttendances
+        .filter((a) => a.status === AttendanceStatus.COMPLETED || !!a.checkOutTime)
+        .map((a) => `${a.date}_${a.shiftId}`),
+    );
+
     // 2. Tra cứu lịch phân ca tuần này (hỗ trợ nhiều ca/ngày và ca đêm vắt qua 00:00)
     const schedules = await this.workScheduleModel
       .find({ branchId: effectiveBranchId, status: 'published' })
       .lean()
       .exec();
 
-    const candidateAssignments: any[] = [];
+    const candidateAssignments: Array<{ assign: any; dateStr: string; isYesterdayOvernight: boolean }> = [];
     for (const schedule of schedules) {
       for (const a of schedule.assignments || []) {
         if (String(a.employeeId) !== String(employeeId)) continue;
         const aDateStr = a.date ? new Date(a.date).toISOString().slice(0, 10) : '';
         if (aDateStr === todayStr) {
-          candidateAssignments.push(a);
+          candidateAssignments.push({ assign: a, dateStr: todayStr, isYesterdayOvernight: false });
         } else if (
           aDateStr === yesterdayStr &&
           isOvernightShift(a.shiftStart, a.shiftEnd) &&
           currentMinutes <= parseTimeToMinutes(a.shiftEnd) + 120
         ) {
-          candidateAssignments.push(a);
+          candidateAssignments.push({ assign: a, dateStr: yesterdayStr, isYesterdayOvernight: true });
         }
       }
     }
 
-    let matchedAssignment: any = null;
-    if (candidateAssignments.length > 0) {
-      matchedAssignment = candidateAssignments.reduce((best, curr) => {
-        const bestDiff = Math.abs(parseTimeToMinutes(best.shiftStart) - currentMinutes);
-        const currDiff = Math.abs(parseTimeToMinutes(curr.shiftStart) - currentMinutes);
-        return currDiff < bestDiff ? curr : best;
-      }, candidateAssignments[0]);
+    let currentShift: any = null;
+    let isCheckedIn = false;
+    let isCompleted = false;
+    let isHandoverSubmitted = false;
+    let inShift = false;
+    let effectiveAttendance: any = null;
+
+    if (activeOpenAtt) {
+      // Đang có ca mở trực tiếp
+      effectiveAttendance = activeOpenAtt;
+      isCheckedIn = true;
+      inShift = true;
+      isCompleted = false;
+      isHandoverSubmitted = Boolean(activeOpenAtt.isHandoverSubmitted);
+      const match = candidateAssignments.find((c) => String(c.assign.shiftId) === String(activeOpenAtt.shiftId));
+      currentShift = match?.assign || {
+        name: activeOpenAtt.shiftName,
+        shiftId: activeOpenAtt.shiftId,
+      };
+    } else {
+      // Không có ca nào đang mở: Tìm ca kế tiếp trong ngày chưa hoàn thành
+      const uncompletedCandidates = candidateAssignments.filter(
+        (c) => !completedShiftKeys.has(`${c.dateStr}_${c.assign.shiftId}`),
+      );
+
+      if (uncompletedCandidates.length > 0) {
+        // Ưu tiên ca đang trong khung giờ hoặc ca tiếp theo gần nhất
+        const nextCandidate = uncompletedCandidates.reduce((best, curr) => {
+          const bestStart = parseTimeToMinutes(best.assign.shiftStart);
+          const bestEffNow = best.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+          const currStart = parseTimeToMinutes(curr.assign.shiftStart);
+          const currEffNow = curr.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+          const bestDiff = Math.abs(bestEffNow - bestStart);
+          const currDiff = Math.abs(currEffNow - currStart);
+          return currDiff < bestDiff ? curr : best;
+        }, uncompletedCandidates[0]);
+
+        currentShift = nextCandidate.assign;
+        effectiveAttendance = null;
+        isCheckedIn = false;
+        isCompleted = false;
+        isHandoverSubmitted = false;
+        const startMin = parseTimeToMinutes(nextCandidate.assign.shiftStart);
+        const endMin = parseTimeToMinutes(nextCandidate.assign.shiftEnd);
+        const effNow = nextCandidate.isYesterdayOvernight ? currentMinutes + 1440 : currentMinutes;
+        const effEnd = isOvernightShift(nextCandidate.assign.shiftStart, nextCandidate.assign.shiftEnd) && !nextCandidate.isYesterdayOvernight
+          ? endMin + 1440
+          : endMin;
+        // Nhân viên được coi là đang trong khung giờ vào ca nếu từ startMin - 30p đến endMin
+        inShift = effNow >= startMin - 30 && effNow < effEnd;
+      } else if (candidateAssignments.length > 0) {
+        // Toàn bộ các ca trong ngày đã hoàn thành
+        isCompleted = true;
+        isCheckedIn = false;
+        inShift = false;
+        isHandoverSubmitted = true;
+        effectiveAttendance = dayAttendances[0] || null;
+        currentShift = candidateAssignments[candidateAssignments.length - 1].assign;
+      } else {
+        effectiveAttendance = dayAttendances[0] || null;
+        isCheckedIn = false;
+        isCompleted = dayAttendances.length > 0 && dayAttendances[0].status === AttendanceStatus.COMPLETED;
+        inShift = false;
+      }
     }
-
-    // 3. Đánh giá tính hợp lệ của ca hiện tại (Nếu có ca 2 trong ngày khác với ca 1 đã đóng, cho phép vào ca 2)
-    const rawCompleted =
-      !!todayAttendance &&
-      (todayAttendance.status === AttendanceStatus.COMPLETED || !!todayAttendance.checkOutTime);
-    const hasNextDistinctShift =
-      rawCompleted &&
-      !!matchedAssignment &&
-      todayAttendance?.shiftId &&
-      todayAttendance.shiftId !== 'DEFAULT' &&
-      String(matchedAssignment.shiftId) !== String(todayAttendance.shiftId) &&
-      currentMinutes >= parseTimeToMinutes(matchedAssignment.shiftStart) - 30;
-
-    const isCompleted = rawCompleted && !hasNextDistinctShift;
-    const isCheckedIn =
-      !!todayAttendance &&
-      [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(todayAttendance.status as any) &&
-      !rawCompleted;
-    const isHandoverSubmitted = !hasNextDistinctShift && !!todayAttendance?.isHandoverSubmitted;
-
-    // Nếu có lịch phân ca và chưa kết thúc ca làm việc
-    const inShift = isCheckedIn || (!!matchedAssignment && !isCompleted);
 
     return {
       inShift,
       isCheckedIn,
       isCompleted,
       isHandoverSubmitted,
-      handoverId: todayAttendance?.handoverId || null,
-      currentShift: matchedAssignment || (todayAttendance ? { name: todayAttendance.shiftName, shiftId: todayAttendance.shiftId } : null),
-      attendance: todayAttendance,
+      handoverId: effectiveAttendance?.handoverId || null,
+      currentShift,
+      attendance: effectiveAttendance,
       branch: branch ? {
         branchCode: branch.branchCode || effectiveBranchId,
         name: branch.name || 'Chi nhánh ' + effectiveBranchId,

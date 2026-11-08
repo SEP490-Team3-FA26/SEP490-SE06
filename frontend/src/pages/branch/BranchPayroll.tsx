@@ -471,7 +471,7 @@ export default function BranchPayroll() {
                   • <strong>Phạt đi muộn</strong>: Tự động trừ <strong>50.000 đ / lần</strong> Check-in trễ quá 15 phút so với giờ bắt đầu ca.
                 </p>
                 <p className="text-slate-600 leading-relaxed text-[11px]">
-                  • <strong>Mỗi ngày tối đa 1 công chuẩn</strong>: Hệ thống tự động chống trùng bản ghi chấm công trong cùng 1 ngày.
+                  • <strong>Tính công theo từng ca trực</strong>: Mỗi ca làm việc (kể cả nhân sự tăng cường làm nhiều ca/ngày) tính đủ 1 công chuẩn sau khi hoàn thành Check-in và Check-out. Hệ thống tự động chống trùng bản ghi trong cùng 1 ca.
                 </p>
               </div>
             </div>

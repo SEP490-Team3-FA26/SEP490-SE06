@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const http = require('http');
 
 const ApiClient = require('../src/api-client');
-const { BotEngine, BRANCH_PROFILES, jitterGps, randomPick, pickWeighted, generateBatchNo } = require('../src/bot-engine');
+const { BotEngine, BRANCH_PROFILES, jitterGps, randomPick, pickWeighted, generateBatchNo, getVietnamTodayStr, getWeekMondayStr } = require('../src/bot-engine');
 const Scheduler = require('../src/scheduler');
 const {
   CUSTOMER_NAMES,
@@ -678,6 +678,68 @@ describe('4. BotEngine End-to-End Simulation Flow with Biased Randomness', () =>
     assert.strictEqual(offTodayPharms.length, 1, 'Dược sĩ thứ 3 phải ở trạng thái nghỉ lịch hôm nay');
     assert.ok(scheduledTodayPharms.every(p => p.isCheckedIn === true), 'Cả 2 dược sĩ có lịch hôm nay phải đã Check-in đi làm');
     assert.strictEqual(offTodayPharms[0].isCheckedIn, false, 'Dược sĩ không có lịch hôm nay tuyệt đối không được Check-in');
+  });
+
+  test('Dược sĩ được phân công ca đôi (2 ca/ngày): Sau khi check-out ca 1, tự động chuyển tiếp và sẵn sàng vào ca 2', async () => {
+    const client = new ApiClient(`http://localhost:${gatewayPort}`);
+    const cfg = getTestConfig();
+    const engine = new BotEngine(client, cfg);
+    engine.state.isRunning = true;
+
+    const todayStr = getVietnamTodayStr();
+    const mockPharm = {
+      employeeId: 'pharm-double',
+      token: 'mock-double-token',
+      user: { id: 'pharm-double', fullName: 'DS. Đặng Hữu Long' },
+      persona: 'PUNCTUAL',
+      branchId: 'BR-001',
+      branchLat: 10.7769,
+      branchLng: 106.7009,
+      isCheckedIn: true,
+      activeShiftKey: `${todayStr}_shift-morning`,
+      completedShiftKeys: new Set(),
+      assignedShift: {
+        shiftId: 'shift-morning',
+        shiftName: 'Ca Sáng',
+        shiftStart: '06:00',
+        shiftEnd: '14:00',
+        _timing: { isShiftEnded: true },
+      },
+    };
+
+    engine.state.tokens.pharmacists = { 'pharm-double': mockPharm };
+    engine.state.branchSchedules['BR-001'] = {
+      status: 'published',
+      weekStart: getWeekMondayStr(todayStr),
+      assignments: [
+        {
+          date: `${todayStr}T00:00:00.000Z`,
+          employeeId: 'pharm-double',
+          shiftId: 'shift-morning',
+          shiftName: 'Ca Sáng',
+          shiftStart: '06:00',
+          shiftEnd: '14:00',
+        },
+        {
+          date: `${todayStr}T00:00:00.000Z`,
+          employeeId: 'pharm-double',
+          shiftId: 'shift-afternoon',
+          shiftName: 'Ca Chiều',
+          shiftStart: '14:00',
+          shiftEnd: '22:00',
+        },
+      ],
+    };
+
+    engine.setEmitter(() => {});
+
+    // Gọi triggerHandoverAndCheckout để kết thúc Ca Sáng
+    await engine.triggerHandoverAndCheckout(mockPharm);
+
+    assert.strictEqual(mockPharm.isCheckedIn, false, 'Dược sĩ phải ở trạng thái chưa check-in sau khi check-out ca 1');
+    assert.ok(mockPharm.completedShiftKeys.has(`${todayStr}_shift-morning`), 'Ca sáng phải được đưa vào danh sách hoàn thành');
+    assert.strictEqual(mockPharm.isCompleted, false, 'Chưa hoàn thành ngày làm việc vì vẫn còn Ca Chiều');
+    assert.strictEqual(mockPharm.assignedShift.shiftId, 'shift-afternoon', 'Ca tiếp theo phải tự động chuyển thành Ca Chiều');
   });
 });
 
