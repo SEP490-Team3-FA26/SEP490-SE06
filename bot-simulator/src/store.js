@@ -114,7 +114,11 @@ class SimulatorStore {
         last_badge, last_action, last_status, last_amount, last_timestamp, last_active_at
       ) VALUES (?, ?, ?, ?, ?, 'IDLE', 'Đang chờ ca / Chưa phát sinh giao dịch', 'SUCCESS', NULL, '--:--:--', 0)
       ON CONFLICT(seat_id) DO UPDATE SET
-        actor_name = excluded.actor_name,
+        actor_name = CASE
+          WHEN seat_states.total_events = 0 OR seat_states.actor_name LIKE 'Khách Online #%' OR seat_states.actor_name LIKE 'Ghế Khách #%'
+          THEN excluded.actor_name
+          ELSE seat_states.actor_name
+        END,
         persona = COALESCE(excluded.persona, seat_states.persona)
     `);
 
@@ -238,12 +242,12 @@ class SimulatorStore {
     }
 
     if (role === 'CUSTOMER') {
-      // Mỗi khoang chi nhánh có 4 ghế khách hàng giao dịch (1..4) xoay vòng
-      const slotIdx = ((this.customerSlotCursor[cleanBranch] || 0) % 4) + 1;
-      this.customerSlotCursor[cleanBranch] = slotIdx;
+      // Kênh Khách Hàng Online (Web / App) độc lập gồm 8 phiên người dùng trực tuyến xoay vòng
+      const slotIdx = ((this.customerSlotCursor['ONLINE_WEB'] || 0) % 8) + 1;
+      this.customerSlotCursor['ONLINE_WEB'] = slotIdx;
       return {
-        seatId: `CUST:${cleanBranch}:${slotIdx}`,
-        branchId: cleanBranch,
+        seatId: `CUST:ONLINE_WEB:${slotIdx}`,
+        branchId: 'ONLINE_WEB',
         seatType: 'CUSTOMER',
       };
     }
@@ -255,8 +259,13 @@ class SimulatorStore {
     };
   }
 
-  // Khởi tạo sẵn sơ đồ ghế ngồi cho 5 chi nhánh và Kho Tổng khi bootstrap
-  seedInitialSeats(branches = [], managersMap = {}, pharmacistsMap = {}) {
+  // Khởi tạo sẵn sơ đồ ghế ngồi cho Kênh Khách Online, 5 Chi nhánh và Kho Tổng khi bootstrap
+  seedInitialSeats(branches = [], managersMap = {}, pharmacistsMap = {}, customersList = []) {
+    try {
+      // Dọn dẹp các ghế khách cũ từng bị gắn nhầm vào chi nhánh vật lý
+      this.db.exec(`DELETE FROM seat_states WHERE seat_type = 'CUSTOMER' AND branch_id != 'ONLINE_WEB'`);
+    } catch {}
+
     const validBranches = branches.length > 0
       ? branches
       : [
@@ -272,16 +281,21 @@ class SimulatorStore {
       const mgr = managersMap[code];
       const mgrName = mgr?.user?.fullName || `Quản lý ${code}`;
       this.stmtInitSeatIfMissing.run(`MGR:${code}`, code, 'MANAGER', mgrName, 'MANAGER');
+    }
 
-      for (let slot = 1; slot <= 4; slot++) {
-        this.stmtInitSeatIfMissing.run(
-          `CUST:${code}:${slot}`,
-          code,
-          'CUSTOMER',
-          `Ghế Khách #${slot}`,
-          'CUSTOMER'
-        );
-      }
+    // 8 phiên giao dịch trực tuyến đại diện cho tập 100+ Khách hàng Online (Web / App)
+    for (let slot = 1; slot <= 8; slot++) {
+      const sampleCust = Array.isArray(customersList) && customersList.length > 0
+        ? customersList[(slot - 1) * Math.max(1, Math.floor(customersList.length / 8)) % customersList.length]
+        : null;
+      const custName = sampleCust?.user?.fullName || `Khách Online #${slot}`;
+      this.stmtInitSeatIfMissing.run(
+        `CUST:ONLINE_WEB:${slot}`,
+        'ONLINE_WEB',
+        'CUSTOMER',
+        custName,
+        'CUSTOMER'
+      );
     }
 
     for (const pharm of Object.values(pharmacistsMap)) {
@@ -312,10 +326,14 @@ class SimulatorStore {
       logItem.branchId
     );
 
+    const resolvedBranchId = seatType === 'CUSTOMER'
+      ? 'ONLINE_WEB'
+      : (logItem.branchId === 'ONLINE' ? branchId : (logItem.branchId || branchId));
+
     const enrichedItem = {
       ...logItem,
       seatId,
-      branchId: logItem.branchId === 'ONLINE' ? branchId : (logItem.branchId || branchId),
+      branchId: resolvedBranchId,
       createdAt: now,
     };
 

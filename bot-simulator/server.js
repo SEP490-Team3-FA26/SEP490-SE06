@@ -48,7 +48,12 @@ function findPharmacistPersona(actorName, branchId) {
 }
 
 function getMapPayload() {
-  store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+  store.seedInitialSeats(
+    engine.state.branches,
+    engine.state.tokens.managers,
+    engine.state.tokens.pharmacists,
+    engine.state.tokens.customers
+  );
   const seats = store.getAllSeats();
   const pharmMetaMap = new Map();
   for (const p of Object.values(engine.state.tokens.pharmacists)) {
@@ -91,6 +96,7 @@ function getMapPayload() {
   return {
     branches: engine.state.branches,
     branchProfiles: engine.getPublicState().branchProfiles,
+    customersCount: engine.state.tokens.customers.length,
     seats: enrichedSeats,
     branchSummaries: store.getBranchSummaries(),
   };
@@ -210,7 +216,12 @@ app.post('/api/sim/reset', (req, res) => {
   store.resetAll();
   recentLogs.length = 0;
   engine.resetStats();
-  store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+  store.seedInitialSeats(
+    engine.state.branches,
+    engine.state.tokens.managers,
+    engine.state.tokens.pharmacists,
+    engine.state.tokens.customers
+  );
   io.emit('bot:map-init', getMapPayload());
   res.json(engine.getPublicState());
 });
@@ -391,7 +402,12 @@ if (require.main === module) {
     console.log(`[Bot Simulator v2.0 Clean] Listening at: http://localhost:${config.simulatorPort}`);
     try {
       await engine.bootstrap();
-      store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists);
+      store.seedInitialSeats(
+        engine.state.branches,
+        engine.state.tokens.managers,
+        engine.state.tokens.pharmacists,
+        engine.state.tokens.customers
+      );
       io.emit('bot:map-init', getMapPayload());
       startBackgroundWatchdogs();
 

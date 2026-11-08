@@ -312,6 +312,7 @@ class BotEngine {
           : null,
       })),
       hasWarehouseAuth: Boolean(this.state.tokens.warehouse),
+      customersCount: this.state.tokens.customers.length,
       medicinesCount: this.state.allMedicines.length,
       otcCount: this.state.otcMedicines.length,
       heroCount: this.state.heroMedicines.length,
@@ -575,42 +576,79 @@ class BotEngine {
       } catch {}
     }
 
-    // 5. Đăng nhập Khách hàng (Kết hợp tài khoản mẫu và các tài khoản đã seed)
-    const customerCreds = [
-      this.config.credentials.customer,
-      { email: 'cust001@abcpharmacy.vn', password: '123456' },
-      { email: 'cust002@abcpharmacy.vn', password: '123456' },
-      { email: 'cust003@abcpharmacy.vn', password: '123456' },
-      { email: 'cust004@abcpharmacy.vn', password: '123456' },
-      { email: 'cust005@abcpharmacy.vn', password: '123456' },
-      { email: 'customer.bot1@bot.abcpharmacy.local', password: 'Password123@', fullName: CUSTOMER_NAMES[0], phone: '0918000101' },
-      { email: 'customer.bot2@bot.abcpharmacy.local', password: 'Password123@', fullName: CUSTOMER_NAMES[1], phone: '0918000102' },
-    ];
-
-    for (const cred of customerCreds) {
+    // 5. Nạp toàn bộ danh sách Khách hàng đã seed trong DB (cust001 -> cust100 + tài khoản khách hàng thực tế)
+    this.state.tokens.customers = [];
+    if (this.state.tokens.admin) {
       try {
-        const res = await this.apiClient.post('/api/auth/login', {
-          email: cred.email,
-          password: cred.password,
+        const usersRes = await this.apiClient.get('/api/admin/employees?role=user&limit=250', this.state.tokens.admin);
+        const rawUsers = Array.isArray(usersRes)
+          ? usersRes
+          : (usersRes?.data || usersRes?.employees || usersRes?.users || []);
+
+        const seededCusts = rawUsers.filter(u => {
+          if (!u || !u.email) return false;
+          const em = String(u.email).toLowerCase();
+          if (/^cust\d+@abcpharmacy\.vn$/.test(em)) return true;
+          if (em === 'user@vinapharmacy.com' || em === 'user2@vinapharmacy.com') return true;
+          if (em.endsWith('@bot.abcpharmacy.local')) return true;
+          return false;
         });
-        this.state.tokens.customers.push({
-          ...res,
-          creds: { email: cred.email, password: cred.password },
-        });
-      } catch {
-        if (cred.fullName) {
-          try {
-            const reg = await this.apiClient.post('/api/auth/register', {
-              fullName: cred.fullName,
-              email: cred.email,
-              password: cred.password,
-              phone: cred.phone || '0918000100',
-            });
-            this.state.tokens.customers.push({
-              ...reg,
-              creds: { email: cred.email, password: cred.password },
-            });
-          } catch {}
+
+        for (const u of seededCusts) {
+          this.state.tokens.customers.push({
+            token: null,
+            user: {
+              id: String(u._id || u.id || ''),
+              fullName: u.fullName || u.name || 'Khách hàng Online',
+              email: u.email,
+              phone: u.phone || `0971${String(Math.floor(10000 + Math.random() * 89999))}`,
+              address: u.address || null,
+              tier: u.tier || 'Member',
+            },
+            creds: { email: u.email, password: '123456' },
+          });
+        }
+      } catch {}
+    }
+
+    // Fallback khi chạy môi trường test hoặc chưa lấy được danh sách qua Admin API
+    if (this.state.tokens.customers.length === 0) {
+      const customerCreds = [
+        this.config.credentials.customer,
+        { email: 'cust001@abcpharmacy.vn', password: '123456' },
+        { email: 'cust002@abcpharmacy.vn', password: '123456' },
+        { email: 'cust003@abcpharmacy.vn', password: '123456' },
+        { email: 'cust004@abcpharmacy.vn', password: '123456' },
+        { email: 'cust005@abcpharmacy.vn', password: '123456' },
+        { email: 'customer.bot1@bot.abcpharmacy.local', password: 'Password123@', fullName: CUSTOMER_NAMES[0], phone: '0918000101' },
+        { email: 'customer.bot2@bot.abcpharmacy.local', password: 'Password123@', fullName: CUSTOMER_NAMES[1], phone: '0918000102' },
+      ];
+
+      for (const cred of customerCreds) {
+        try {
+          const res = await this.apiClient.post('/api/auth/login', {
+            email: cred.email,
+            password: cred.password,
+          });
+          this.state.tokens.customers.push({
+            ...res,
+            creds: { email: cred.email, password: cred.password },
+          });
+        } catch {
+          if (cred.fullName) {
+            try {
+              const reg = await this.apiClient.post('/api/auth/register', {
+                fullName: cred.fullName,
+                email: cred.email,
+                password: cred.password,
+                phone: cred.phone || '0918000100',
+              });
+              this.state.tokens.customers.push({
+                ...reg,
+                creds: { email: cred.email, password: cred.password },
+              });
+            } catch {}
+          }
         }
       }
     }
@@ -815,7 +853,12 @@ class BotEngine {
       const totalAmount = items.reduce((s, it) => s + it.price * it.quantity, 0);
       const patientName = customer?.user?.fullName || randomPick(CUSTOMER_NAMES);
       const patientPhone = customer?.user?.phone || `0918${Math.floor(100000 + Math.random() * 899999)}`;
-      const deliveryAddress = randomPick(COD_DELIVERY_ADDRESSES);
+      const rawCustomerAddr = customer?.user?.address
+        ? String(customer.user.address).replace(/\bP\.\s*/g, 'Phường ').replace(/\bQ\.\s*/g, 'Quận ')
+        : null;
+      const deliveryAddress = (rawCustomerAddr && rawCustomerAddr.includes('Phường'))
+        ? rawCustomerAddr
+        : randomPick(COD_DELIVERY_ADDRESSES);
 
       // 100% COD (CASH đại diện cho tiền mặt khi nhận hàng)
       const orderRes = await this.apiClient.post('/api/orders', {
@@ -1076,38 +1119,31 @@ class BotEngine {
 
       p.isCompleted = Boolean(matchAssign._isCompleted);
       p.inActiveShiftWindow = Boolean(matchAssign._timing?.isActiveWindow && !matchAssign._isCompleted);
-
-      // Nếu dược sĩ đang trong ca (isCheckedIn) mà ca đó đã đến/qua giờ kết thúc -> lập tức bàn giao két & Check-out đóng ca
-      if (p.isCheckedIn && matchAssign._timing?.isShiftEnded && !matchAssign._isCompleted) {
-        await this.triggerHandoverAndCheckout(p);
-        continue;
-      }
-
       scheduledPharms.push(p);
     }
 
     if (scheduledPharms.length === 0) return;
 
-    // Chỉ chọn những dược sĩ ĐANG TRONG KHUNG GIỜ CA TRỰC HIỆN TẠI (inActiveShiftWindow === true) và chưa Check-out
-    const activeWindowPharms = scheduledPharms.filter(p => p.inActiveShiftWindow && !p.isCompleted);
-    if (activeWindowPharms.length === 0) {
-      // Không có ca nào đang mở ở khung giờ hiện tại (hoặc các dược sĩ của ca hiện tại đã hoàn thành ca)
+    const availablePharms = scheduledPharms.filter(p => !p.isCompleted);
+    if (availablePharms.length === 0) {
       return;
     }
 
-    // Ưu tiên dược sĩ đang trong khung giờ ca nhưng chưa check-in; khi đã check-in đủ thì phân tầng lưu lượng POS theo Chi nhánh
-    const uncheckedPharms = activeWindowPharms.filter(p => !p.isCheckedIn);
+    const uncheckedPharms = availablePharms.filter(p => !p.isCheckedIn);
     let pharm;
     if (uncheckedPharms.length > 0) {
-      pharm = randomPick(uncheckedPharms);
+      const inWindowUnchecked = uncheckedPharms.filter(p => p.inActiveShiftWindow);
+      pharm = inWindowUnchecked.length > 0 ? randomPick(inWindowUnchecked) : randomPick(uncheckedPharms);
     } else {
-      const activeBranchCodes = [...new Set(activeWindowPharms.map(p => p.branchId))];
+      const inWindowChecked = availablePharms.filter(p => p.inActiveShiftWindow);
+      const pool = inWindowChecked.length > 0 ? inWindowChecked : availablePharms;
+      const activeBranchCodes = [...new Set(pool.map(p => p.branchId))];
       const chosenBranchCode = pickWeighted(
         activeBranchCodes,
         code => this.getBranchProfile(code).trafficWeight
       );
-      const branchPharms = activeWindowPharms.filter(p => p.branchId === chosenBranchCode);
-      pharm = randomPick(branchPharms) || randomPick(activeWindowPharms);
+      const branchPharms = pool.filter(p => p.branchId === chosenBranchCode);
+      pharm = randomPick(branchPharms) || randomPick(pool);
     }
 
     const shiftName = pharm.assignedShift?.shiftName || 'Ca Sáng';
@@ -1122,8 +1158,8 @@ class BotEngine {
       addDaysStr(todayStr, -1)
     );
 
-    // Nếu ca trực đã kết thúc và dược sĩ đang trong ca -> tự động bàn giao & check-out đóng ca
-    if (pharm.isCheckedIn && shiftTiming.isShiftEnded) {
+    // Nếu ca trực đã kết thúc sau khi dược sĩ đã vào làm trong khung giờ thực của ca -> tự động bàn giao & check-out đóng ca
+    if (pharm.isCheckedIn && pharm.checkedInDuringActiveWindow && shiftTiming.isShiftEnded) {
       await this.triggerHandoverAndCheckout(pharm);
       return;
     }
@@ -1132,8 +1168,9 @@ class BotEngine {
       try {
         const gps = jitterGps(pharm.branchLat, pharm.branchLng);
 
-        // Đồng bộ trạng thái đi muộn với bộ đếm thực tế của Backend (trễ > 15 phút so với giờ bắt đầu ca, hỗ trợ cả ca đêm)
-        const isLate = Boolean(shiftTiming.isLate);
+        const isLate = shiftTiming.isActiveWindow
+          ? Boolean(shiftTiming.isLate)
+          : (pharm.persona === 'CHRONIC_LATE' ? Math.random() < 0.65 : false);
         const assignedShiftId = pharm.assignedShift?.shiftId;
         const note = isLate
           ? `${randomPick(CHECKIN_NOTES.late)} (${shiftName} ${shiftStart}-${shiftEnd})`
@@ -1152,6 +1189,7 @@ class BotEngine {
         const checkInRes = await this.apiClient.post('/api/hr/attendance/check-in', checkInPayload, pharm.token);
 
         pharm.isCheckedIn = true;
+        pharm.checkedInDuringActiveWindow = Boolean(shiftTiming.isActiveWindow);
         pharm.activeShiftKey = pharm.assignedShift?._shiftKey || `${todayStr}_${assignedShiftId || 'DEFAULT'}`;
         this.state.stats.totalCheckIns += 1;
         this.emitActivity(
