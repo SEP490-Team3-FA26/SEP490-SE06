@@ -162,6 +162,9 @@ export class Order extends Document {
   @Prop({ type: Date })
   approvedAt?: Date;
 
+  @Prop({ type: String, sparse: true, index: true })
+  idempotencyKey?: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

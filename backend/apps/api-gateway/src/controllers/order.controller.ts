@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Post,
   Get,
@@ -100,6 +100,13 @@ export class OrderController implements OnModuleInit {
     }
     if (data.type === 'ONLINE') {
       data.branchId = 'CENTRAL_WH';
+    }
+    const headerIdempotencyKey =
+      req.headers?.['idempotency-key'] ||
+      req.headers?.['x-idempotency-key'] ||
+      (data as any)?.idempotencyKey;
+    if (headerIdempotencyKey && typeof headerIdempotencyKey === 'string' && headerIdempotencyKey.trim()) {
+      (data as any).idempotencyKey = headerIdempotencyKey.trim();
     }
     const result = await sendKafkaMessage(this.orderClient, 'orders.create', { ...data });
     await this.clearMedicineCache();

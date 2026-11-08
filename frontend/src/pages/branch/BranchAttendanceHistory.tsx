@@ -536,9 +536,20 @@ export const BranchAttendanceHistory: React.FC = () => {
 
     setIsClosingShift(true);
     try {
-      const checkOutIso = `${rec.date}T${closeShiftTime || '14:00'}:00+07:00`;
+      const targetTime = closeShiftTime || '14:00';
+      let checkOutDate = new Date(`${rec.date}T${targetTime}:00+07:00`);
+      if (rec.checkInTime) {
+        const checkInMs = new Date(rec.checkInTime).getTime();
+        // Hỗ trợ ca đêm vắt qua 00:00 sang ngày hôm sau
+        if (checkOutDate.getTime() <= checkInMs) {
+          checkOutDate = new Date(checkOutDate.getTime() + 24 * 3600 * 1000);
+        }
+      }
+      if (checkOutDate.getTime() > Date.now()) {
+        checkOutDate = new Date();
+      }
       await hrService.managerCloseShift(rec._id, {
-        checkOutTime: checkOutIso,
+        checkOutTime: checkOutDate.toISOString(),
         note: closeShiftNote,
       });
 
@@ -1562,7 +1573,7 @@ export const BranchAttendanceHistory: React.FC = () => {
                   )}
 
                   {/* Khu vực Quản lý chốt đóng ca bổ sung nếu nhân viên quên check-out */}
-                  {rec && !isEnded && (
+                  {rec && !isEnded && (rec.status === 'CHECKED_IN' || rec.status === 'LATE') && Boolean(rec.checkInTime) && (
                     <div className="bg-orange-50/80 border border-orange-200 rounded-xl p-4 space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-orange-900">
                         <UserCheck className="w-4 h-4 text-orange-700" />

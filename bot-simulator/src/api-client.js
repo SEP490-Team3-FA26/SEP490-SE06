@@ -10,7 +10,9 @@ class ApiClient {
   async request(method, endpoint, body = null, token = null, extraHeaders = {}, options = {}) {
     const url = `${this.baseUrl}${endpoint}`;
     const timeoutMs = options.timeoutMs || this.defaultTimeoutMs;
-    const maxRetries = options.retries !== undefined ? options.retries : 1;
+    const upperMethod = String(method || 'GET').toUpperCase();
+    const isReadMethod = upperMethod === 'GET' || upperMethod === 'HEAD' || upperMethod === 'OPTIONS';
+    const maxRetries = options.retries !== undefined ? options.retries : (isReadMethod ? 1 : 0);
 
     const headers = {
       'Content-Type': 'application/json',

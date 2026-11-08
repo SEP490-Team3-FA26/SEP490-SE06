@@ -300,5 +300,98 @@ describe('Order Management - OrdersServiceController (Report 5: F02 & F03)', () 
 
       await expect(controller.getPharmacistKpiReport({ branchId: 'BR-001' })).rejects.toThrow(RpcException);
     });
+
+    it('TC-111.7: [Regression] Báo cáo KPI toàn chuỗi không gộp nhầm doanh thu của 2 dược sĩ trùng tên ở 2 chi nhánh khác nhau', async () => {
+      const usersDocs = [
+        { _id: '507f1f77bcf86cd799439001', fullName: 'DS. Nguyễn Văn An', branchId: 'BR-001', role: 'pharmacist' },
+        { _id: '507f1f77bcf86cd799439002', fullName: 'DS. Nguyễn Văn An', branchId: 'BR-002', role: 'pharmacist' },
+      ];
+      const salesOrdersDocs = [
+        { orderCode: 1001, branchId: 'BR-001', soldBy: 'DS. Nguyễn Văn An', totalAmount: 100, paymentMethod: 'CASH', items: [] },
+        { orderCode: 1002, branchId: 'BR-002', soldBy: 'DS. Nguyễn Văn An', totalAmount: 200, paymentMethod: 'CASH', items: [] },
+      ];
+
+      const mockOrderModel: any = {
+        find: jest.fn().mockReturnValue({
+          lean: () => ({ exec: jest.fn().mockResolvedValue([]) }),
+        }),
+        db: {
+          collection: jest.fn((name: string) => ({
+            find: jest.fn().mockReturnValue({
+              toArray: jest.fn().mockResolvedValue(name === 'users' ? usersDocs : salesOrdersDocs),
+            }),
+          })),
+        },
+      };
+
+      const realService = new OrdersServiceService(
+        mockOrderModel,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { get: jest.fn().mockReturnValue('mock-key') } as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+
+      const report = await realService.getPharmacistKpiAggregation({
+        branchId: 'all',
+        month: 11,
+        year: 2026,
+      });
+
+      const byId = new Map(report.kpiList.map((k: any) => [k.pharmacistId, k.totalRevenue]));
+      expect(byId.get('507f1f77bcf86cd799439001')).toBe(100);
+      expect(byId.get('507f1f77bcf86cd799439002')).toBe(200);
+    });
+
+    it('TC-111.8: [Regression] createOrder kiểm tra idempotencyKey để chống tạo đơn COD trùng khi mất phản hồi', async () => {
+      const existingOrder = {
+        _id: '507f1f77bcf86cd799439099',
+        orderCode: 888999,
+        paymentMethod: 'CASH',
+        paymentStatus: 'PAID',
+        totalAmount: 150000,
+        idempotencyKey: 'SIM-COD-UNIQUE-KEY-001',
+      };
+
+      const mockOrderModel: any = {
+        findOne: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(existingOrder),
+        }),
+      };
+
+      const realService = new OrdersServiceService(
+        mockOrderModel,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { get: jest.fn().mockReturnValue('mock-key') } as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+
+      const res: any = await realService.createOrder({
+        patientName: 'Khách COD',
+        patientPhone: '0918000111',
+        paymentMethod: 'CASH',
+        type: 'ONLINE',
+        idempotencyKey: 'SIM-COD-UNIQUE-KEY-001',
+        items: [{ medicineId: 'm1', name: 'Panadol', quantity: 1, price: 150000 }],
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.idempotentReplay).toBe(true);
+      expect(res.orderCode).toBe(888999);
+      expect(mockOrderModel.findOne).toHaveBeenCalledWith({ idempotencyKey: 'SIM-COD-UNIQUE-KEY-001' });
+    });
   });
 });

@@ -860,17 +860,24 @@ class BotEngine {
         ? rawCustomerAddr
         : randomPick(COD_DELIVERY_ADDRESSES);
 
-      // 100% COD (CASH đại diện cho tiền mặt khi nhận hàng)
-      const orderRes = await this.apiClient.post('/api/orders', {
-        patientName,
-        patientPhone,
-        shippingAddress: deliveryAddress,
-        items,
-        totalAmount,
-        paymentMethod: 'CASH', // 100% COD
-        type: 'ONLINE',
-        branchId: 'CENTRAL_WH',
-      });
+      // 100% COD (CASH đại diện cho tiền mặt khi nhận hàng) kèm khóa chống tạo trùng Idempotency-Key
+      const idempotencyKey = `SIM-COD-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const orderRes = await this.apiClient.post(
+        '/api/orders',
+        {
+          patientName,
+          patientPhone,
+          shippingAddress: deliveryAddress,
+          items,
+          totalAmount,
+          paymentMethod: 'CASH', // 100% COD
+          type: 'ONLINE',
+          branchId: 'CENTRAL_WH',
+          idempotencyKey,
+        },
+        null,
+        { 'Idempotency-Key': idempotencyKey }
+      );
 
       const finalAmount = orderRes?.order?.totalAmount || orderRes?.totalAmount || totalAmount;
       this.state.stats.totalOrders += 1;

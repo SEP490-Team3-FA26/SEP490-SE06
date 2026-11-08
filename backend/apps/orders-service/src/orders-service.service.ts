@@ -125,6 +125,23 @@ export class OrdersServiceService implements OnModuleInit {
     }
     this.logger.log(`Creating order in DB. PaymentMethod: ${data?.paymentMethod}, patientName: ${data?.patientName}, totalAmount: ${data?.totalAmount}`);
 
+    const normalizedIdempotencyKey =
+      typeof data?.idempotencyKey === 'string' && data.idempotencyKey.trim()
+        ? data.idempotencyKey.trim()
+        : undefined;
+    if (normalizedIdempotencyKey) {
+      const existingOrder = await this.orderModel.findOne({ idempotencyKey: normalizedIdempotencyKey }).exec();
+      if (existingOrder) {
+        return {
+          success: true,
+          idempotentReplay: true,
+          orderCode: existingOrder.orderCode,
+          paymentMethod: existingOrder.paymentMethod,
+          order: existingOrder,
+        };
+      }
+    }
+
     const quote = await sendKafkaMessage(this.inventoryClient, 'inventory.pricing.quote', {
       branchId: data.branchId,
       type: data.type === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
@@ -397,6 +414,7 @@ export class OrdersServiceService implements OnModuleInit {
       cashierVoucherDailyCount,
       approvedBy: data.approvedBy,
       approvedAt: data.approvedAt ? new Date(data.approvedAt) : undefined,
+      idempotencyKey: normalizedIdempotencyKey,
     });
 
     // ========================================================
@@ -855,7 +873,8 @@ export class OrdersServiceService implements OnModuleInit {
       })),
       patientName: order.patientName,
       patientPhone: order.patientPhone,
-      soldBy: order.type === 'ONLINE' ? 'Khách đặt online' : 'Dược sĩ tại quầy',
+      soldBy: order.type === 'ONLINE' ? 'Khách đặt online' : (order.soldBy || 'Dược sĩ tại quầy'),
+      pharmacistId: order.type === 'ONLINE' ? undefined : order.pharmacistId,
       // Đơn online ưu tiên trừ kho tổng CENTRAL_WH
       branchId: order.type === 'ONLINE' ? 'CENTRAL_WH' : (order.branchId || 'CENTRAL_WH'),
       approvedBy: order.approvedBy,
@@ -2293,14 +2312,19 @@ export class OrdersServiceService implements OnModuleInit {
       // Map khớp theo cả pharmacistId (ObjectId) và pharmacistName (họ tên lưu ở order.soldBy)
       const orConditions: any[] = [];
       if (pharmacistId) {
-        orConditions.push({ soldBy: pharmacistId }, { pharmacistApprovedBy: pharmacistId }, { userId: pharmacistId });
+        orConditions.push(
+          { pharmacistId },
+          { soldBy: pharmacistId },
+          { pharmacistApprovedBy: pharmacistId },
+          { userId: pharmacistId },
+        );
       }
       if (pharmacistName && pharmacistName.trim()) {
         const trimmedName = pharmacistName.trim();
         orConditions.push(
           { soldBy: trimmedName },
           { pharmacistApprovedBy: trimmedName },
-          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') }
+          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
         );
       }
       if (orConditions.length > 0) {
@@ -2429,8 +2453,10 @@ export class OrdersServiceService implements OnModuleInit {
       }
 
       // Nạp danh sách Dược sĩ thuộc chi nhánh từ collection users để hiển thị đầy đủ nhân sự và map chuẩn ObjectId
-      const staffByNameMap = new Map<string, { id: string; fullName: string; branchId: string }>();
-      const staffByIdMap = new Map<string, { id: string; fullName: string; branchId: string }>();
+      type StaffMeta = { id: string; fullName: string; branchId: string };
+      const staffByIdMap = new Map<string, StaffMeta>();
+      const staffByBranchAndNameMap = new Map<string, StaffMeta[]>();
+      const staffByGlobalNameMap = new Map<string, StaffMeta[]>();
       try {
         const staffFilter: any = {
           role: 'pharmacist',
@@ -2438,9 +2464,6 @@ export class OrdersServiceService implements OnModuleInit {
         };
         if (payload.branchId && payload.branchId !== 'all') {
           staffFilter.branchId = payload.branchId;
-        }
-        if (payload.pharmacistId && Types.ObjectId.isValid(payload.pharmacistId)) {
-          staffFilter._id = new Types.ObjectId(payload.pharmacistId);
         }
 
         const branchPharmacists = await this.orderModel.db
@@ -2453,9 +2476,20 @@ export class OrdersServiceService implements OnModuleInit {
           const uName = String(u.fullName || '').trim();
           const uBranch = String(u.branchId || payload.branchId || 'BR-001');
           if (!uName) continue;
-          const meta = { id: uid, fullName: uName, branchId: uBranch };
+          const meta: StaffMeta = { id: uid, fullName: uName, branchId: uBranch };
           staffByIdMap.set(uid, meta);
-          staffByNameMap.set(uName.toLowerCase(), meta);
+
+          const lowerName = uName.toLowerCase();
+          const branchKey = `${uBranch}::${lowerName}`;
+          if (!staffByBranchAndNameMap.has(branchKey)) {
+            staffByBranchAndNameMap.set(branchKey, []);
+          }
+          staffByBranchAndNameMap.get(branchKey)!.push(meta);
+
+          if (!staffByGlobalNameMap.has(lowerName)) {
+            staffByGlobalNameMap.set(lowerName, []);
+          }
+          staffByGlobalNameMap.get(lowerName)!.push(meta);
         }
       } catch (err: any) {
         this.logger.warn(`[getPharmacistKpiAggregation] Không thể nạp danh sách dược sĩ từ users: ${err.message}`);
@@ -2478,9 +2512,10 @@ export class OrdersServiceService implements OnModuleInit {
       const orConditions: any[] = [];
       if (payload.pharmacistId) {
         orConditions.push(
+          { pharmacistId: payload.pharmacistId },
           { soldBy: payload.pharmacistId },
           { pharmacistApprovedBy: payload.pharmacistId },
-          { userId: payload.pharmacistId }
+          { userId: payload.pharmacistId },
         );
       }
       if (effectivePharmacistName) {
@@ -2488,7 +2523,7 @@ export class OrdersServiceService implements OnModuleInit {
         orConditions.push(
           { soldBy: trimmedName },
           { pharmacistApprovedBy: trimmedName },
-          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') }
+          { soldBy: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
         );
       }
       if (orConditions.length > 0) {
@@ -2537,12 +2572,14 @@ export class OrdersServiceService implements OnModuleInit {
 
       // Khởi tạo sẵn các dược sĩ chính thức của chi nhánh trong bảng KPI (tránh bảng bị trống khi đầu tháng chưa phát sinh đơn)
       for (const staff of staffByIdMap.values()) {
+        if (payload.pharmacistId && String(staff.id) !== String(payload.pharmacistId)) {
+          continue;
+        }
         // Bỏ qua các tài khoản test rác không có tên chuẩn nếu không có đơn
         const lowerName = staff.fullName.toLowerCase();
         if (
           lowerName === 'ddd' ||
           lowerName === 'duoc' ||
-          lowerName.startsWith('phuc') ||
           lowerName.includes('test e2e') ||
           lowerName.includes('đã sửa')
         ) {
@@ -2585,7 +2622,7 @@ export class OrdersServiceService implements OnModuleInit {
         let pName = rawIdentifier;
 
         const isUnassigned =
-          !rawIdentifier ||
+          (!rawIdentifier && !o.pharmacistId) ||
           rawIdentifier.toUpperCase() === 'UNASSIGNED' ||
           rawIdentifier.toLowerCase().includes('online') ||
           rawIdentifier.toLowerCase().includes('vãng lai') ||
@@ -2597,30 +2634,58 @@ export class OrdersServiceService implements OnModuleInit {
           continue;
         }
 
-        const matchedByName = staffByNameMap.get(rawIdentifier.toLowerCase());
+        const orderBranch = o.branchId
+          ? String(o.branchId)
+          : (payload.branchId && payload.branchId !== 'all' ? String(payload.branchId) : '');
+
         const matchedById =
           (o.pharmacistId && staffByIdMap.get(String(o.pharmacistId))) ||
           (o.userId && staffByIdMap.get(String(o.userId))) ||
           staffByIdMap.get(rawIdentifier);
 
+        let matchedByUniqueName: StaffMeta | undefined = undefined;
+        if (!matchedById && !o.pharmacistId && rawIdentifier) {
+          const lowerRaw = rawIdentifier.toLowerCase();
+          if (orderBranch) {
+            const branchCandidates = staffByBranchAndNameMap.get(`${orderBranch}::${lowerRaw}`) || [];
+            if (branchCandidates.length === 1) {
+              matchedByUniqueName = branchCandidates[0];
+            }
+          } else {
+            const globalCandidates = staffByGlobalNameMap.get(lowerRaw) || [];
+            if (globalCandidates.length === 1) {
+              matchedByUniqueName = globalCandidates[0];
+            }
+          }
+        }
+
         if (matchedById) {
           pId = matchedById.id;
           pName = matchedById.fullName;
-        } else if (matchedByName) {
-          pId = matchedByName.id;
-          pName = matchedByName.fullName;
         } else if (o.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(o.pharmacistId))) {
           pId = String(o.pharmacistId);
           pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
-        } else if (payload.pharmacistId && /^[0-9a-fA-F]{24}$/.test(String(payload.pharmacistId))) {
-          pId = String(payload.pharmacistId);
-          pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
-        } else {
+        } else if (matchedByUniqueName) {
+          pId = matchedByUniqueName.id;
+          pName = matchedByUniqueName.fullName;
+        } else if (/^[0-9a-fA-F]{24}$/.test(rawIdentifier)) {
           pId = rawIdentifier;
+          pName = payload.pharmacistName || 'Dược sĩ trực quầy';
+        } else {
+          // Dữ liệu cũ không có pharmacistId và bị trùng tên (ambiguous) hoặc chưa khớp nhân sự: tách khóa theo chi nhánh + tên để không gộp nhầm sang người trùng tên
+          pId = orderBranch ? `${orderBranch}:${rawIdentifier}` : rawIdentifier;
           pName = rawIdentifier || payload.pharmacistName || 'Dược sĩ trực quầy';
         }
 
-        const bId = o.branchId || payload.branchId || 'BR-001';
+        if (payload.pharmacistId && pId !== String(payload.pharmacistId)) {
+          continue;
+        }
+
+        const bId =
+          matchedById?.branchId ||
+          matchedByUniqueName?.branchId ||
+          o.branchId ||
+          (payload.branchId && payload.branchId !== 'all' ? payload.branchId : 'BR-001');
         const rev = Number(o.totalAmount || 0);
         const isCash = o.paymentMethod === 'CASH' || o.paymentMethod === 'TIEN_MAT';
 

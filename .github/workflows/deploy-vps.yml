@@ -65,6 +65,12 @@ jobs:
           npm run lint || true
           npm run test:ci
 
+      - name: 🤖 Verify Bot Simulator Tests & Docker Image Build
+        run: |
+          npm --prefix bot-simulator ci
+          npm --prefix bot-simulator test
+          docker build -t wdp301-bot-simulator:ci -f bot-simulator/Dockerfile bot-simulator
+
   # ============================================================
   # 2. CD: Tự động SSH vào VPS và triển khai Production (Chỉ cho main, dev, demo khi FULL TEST PASS)
   # ============================================================

@@ -624,7 +624,7 @@ export class HrController implements OnModuleInit {
   ) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.manager_close', {
       attendanceId,
-      branchId: req.user.branchId || 'BR-001',
+      branchId: req.user.branchId,
       requesterRole: req.user.role,
       managerName: req.user.fullName,
       checkOutTime: body?.checkOutTime,

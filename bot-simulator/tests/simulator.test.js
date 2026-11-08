@@ -102,6 +102,12 @@ describe('2. ApiClient Module with Retry & Ping', () => {
           return;
         }
 
+        if (req.url === '/api/gateway-timeout') {
+          res.writeHead(504, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ message: 'Gateway Timeout' }));
+          return;
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, data: 'ok' }));
       });
@@ -149,6 +155,19 @@ describe('2. ApiClient Module with Retry & Ping', () => {
     const ping = await client.ping();
     assert.strictEqual(ping.ok, true);
     assert.strictEqual(typeof ping.latencyMs, 'number');
+  });
+
+  test('ApiClient tắt retry mặc định cho thao tác ghi (POST/PATCH) để chống tạo đơn trùng khi mất phản hồi', async () => {
+    const client = new ApiClient(`http://localhost:${mockPort}`);
+    const beforeCount = receivedRequests.filter(r => r.url === '/api/gateway-timeout' && r.method === 'POST').length;
+
+    await assert.rejects(
+      async () => client.post('/api/gateway-timeout', { order: 1 }),
+      /Gateway Timeout/
+    );
+
+    const afterCount = receivedRequests.filter(r => r.url === '/api/gateway-timeout' && r.method === 'POST').length;
+    assert.strictEqual(afterCount - beforeCount, 1, 'POST mặc định chỉ được gửi đúng 1 lần, không tự động retry');
   });
 });
 

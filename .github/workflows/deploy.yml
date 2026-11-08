@@ -77,6 +77,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build bot-simulator image (verify, no push)
+        if: github.ref != 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: bot-simulator
+          file: bot-simulator/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Gửi thông báo Discord cho Team (Thành công)
         if: success() && env.DISCORD_WEBHOOK_URL != ''
         continue-on-error: true

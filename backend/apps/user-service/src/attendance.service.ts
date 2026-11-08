@@ -742,7 +742,7 @@ export class AttendanceService {
    */
   async managerCloseShift(dto: {
     attendanceId: string;
-    branchId: string;
+    branchId?: string;
     requesterRole?: string;
     managerName?: string;
     checkOutTime?: string;
@@ -757,21 +757,45 @@ export class AttendanceService {
       throw new RpcException('Không tìm thấy bản ghi điểm danh');
     }
 
-    if (dto.requesterRole === 'branch' && dto.branchId && attendance.branchId !== dto.branchId) {
+    if (dto.requesterRole === 'branch' && (!dto.branchId || attendance.branchId !== dto.branchId)) {
       throw new RpcException('Bạn không có quyền chốt ca của chi nhánh khác');
     }
 
-    const checkInMs = attendance.checkInTime ? new Date(attendance.checkInTime).getTime() : Date.now() - 8 * 3600 * 1000;
-    let resolvedCheckOut = new Date(checkInMs + 8 * 3600 * 1000);
-    if (dto.checkOutTime) {
+    const isOpenShiftStatus =
+      attendance.status === AttendanceStatus.CHECKED_IN ||
+      attendance.status === AttendanceStatus.LATE;
+    if (!isOpenShiftStatus || attendance.checkOutTime) {
+      throw new RpcException('Chỉ có thể chốt đóng ca bổ sung cho phiên ca đang mở (chưa check-out và không phải ngày nghỉ phép)');
+    }
+
+    const checkInMs = attendance.checkInTime ? new Date(attendance.checkInTime).getTime() : Number.NaN;
+    if (!attendance.checkInTime || Number.isNaN(checkInMs)) {
+      throw new RpcException('Bản ghi điểm danh không có giờ check-in hợp lệ');
+    }
+
+    const nowMs = Date.now();
+    let resolvedCheckOut = new Date(Math.min(nowMs, checkInMs + 8 * 3600 * 1000));
+    if (dto.checkOutTime !== undefined && dto.checkOutTime !== null && String(dto.checkOutTime).trim() !== '') {
       const parsed = new Date(dto.checkOutTime);
-      if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > checkInMs) {
-        resolvedCheckOut = parsed;
+      const parsedMs = parsed.getTime();
+      if (Number.isNaN(parsedMs)) {
+        throw new RpcException('Thời gian check-out không hợp lệ');
       }
+      if (parsedMs <= checkInMs) {
+        throw new RpcException('Thời gian check-out phải lớn hơn thời gian check-in');
+      }
+      if (parsedMs > nowMs) {
+        throw new RpcException('Thời gian check-out không được vượt quá thời điểm hiện tại');
+      }
+      if (parsedMs - checkInMs > 24 * 3600 * 1000) {
+        throw new RpcException('Thời lượng ca làm việc không được vượt quá 24 giờ');
+      }
+      resolvedCheckOut = parsed;
+    } else if (resolvedCheckOut.getTime() <= checkInMs) {
+      throw new RpcException('Thời gian check-out phải lớn hơn thời gian check-in');
     }
 
     attendance.checkOutTime = resolvedCheckOut;
-    attendance.isHandoverSubmitted = true;
     // Nếu trước đó nhân viên đi muộn (LATE), giữ nguyên cờ LATE nhưng đã có checkOutTime để vừa ghi nhận hoàn thành ca vừa giữ lịch sử đi muộn
     if (attendance.status !== AttendanceStatus.LATE) {
       attendance.status = AttendanceStatus.COMPLETED;

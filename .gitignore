@@ -110,6 +110,7 @@ gitops/monitoring/dozzle/users.yml
 # Dependency Lock Files (Chống xung đột lockfile nhảy hàng ngàn dòng liên tục)
 package-lock.json
 **/package-lock.json
+!bot-simulator/package-lock.json
 yarn.lock
 **/yarn.lock
 pnpm-lock.yaml

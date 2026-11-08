@@ -601,8 +601,87 @@ describe('AttendanceService (Unit & Security Tests)', () => {
       expect(res.success).toBe(true);
       expect(mockRecord.status).toBe(AttendanceStatus.COMPLETED);
       expect(mockRecord.checkOutTime).toBeInstanceOf(Date);
+      expect(mockRecord.isHandoverSubmitted).toBeUndefined();
       expect(mockRecord.note).toContain('Nhân viên quên bấm tan ca');
       expect(mockRecord.save).toHaveBeenCalled();
+    });
+
+    it('should reject closing a paid leave record (ON_LEAVE_PAID) or an already closed shift (COMPLETED)', async () => {
+      const leaveAttId = '507f1f77bcf86cd799439097';
+      mockAttendanceModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue({
+          _id: leaveAttId,
+          branchId: 'BR-001',
+          date: '2026-11-05',
+          status: AttendanceStatus.ON_LEAVE_PAID,
+          checkInTime: null,
+          checkOutTime: null,
+        }),
+      });
+
+      await expect(
+        service.managerCloseShift({
+          attendanceId: leaveAttId,
+          branchId: 'BR-001',
+          requesterRole: 'branch',
+        }),
+      ).rejects.toThrow(RpcException);
+
+      const completedAttId = '507f1f77bcf86cd799439096';
+      mockAttendanceModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue({
+          _id: completedAttId,
+          branchId: 'BR-001',
+          date: '2026-11-05',
+          status: AttendanceStatus.COMPLETED,
+          checkInTime: new Date('2026-11-05T07:00:00.000Z'),
+          checkOutTime: new Date('2026-11-05T15:00:00.000Z'),
+        }),
+      });
+
+      await expect(
+        service.managerCloseShift({
+          attendanceId: completedAttId,
+          branchId: 'BR-001',
+          requesterRole: 'branch',
+          checkOutTime: '2026-11-05T16:00:00.000Z',
+        }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('should reject future checkOutTime or checkOutTime earlier than checkInTime', async () => {
+      const validAttId = '507f1f77bcf86cd799439095';
+      const openShift = {
+        _id: validAttId,
+        branchId: 'BR-001',
+        date: '2026-11-05',
+        status: AttendanceStatus.CHECKED_IN,
+        checkInTime: new Date('2026-11-05T07:00:00.000Z'),
+        checkOutTime: null,
+      };
+
+      mockAttendanceModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(openShift),
+      });
+
+      const futureIso = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
+      await expect(
+        service.managerCloseShift({
+          attendanceId: validAttId,
+          branchId: 'BR-001',
+          requesterRole: 'branch',
+          checkOutTime: futureIso,
+        }),
+      ).rejects.toThrow(RpcException);
+
+      await expect(
+        service.managerCloseShift({
+          attendanceId: validAttId,
+          branchId: 'BR-001',
+          requesterRole: 'branch',
+          checkOutTime: '2026-11-05T06:00:00.000Z',
+        }),
+      ).rejects.toThrow(RpcException);
     });
 
     it('should reject cross-branch IDOR when manager attempts to close shift of another branch', async () => {

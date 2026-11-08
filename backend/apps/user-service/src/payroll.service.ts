@@ -164,11 +164,24 @@ export class PayrollService {
       const nightShiftAllowance = 0;
 
       // 4.6 Doanh số bán hàng POS cá nhân và Hoa hồng (1.0%)
+      const isUniqueNameInBranch =
+        employees.filter(
+          (e: any) =>
+            String(e.fullName || '').trim().toLowerCase() ===
+            String(emp.fullName || '').trim().toLowerCase(),
+        ).length === 1;
       const sales = await this.salesOrderModel
         .find({
           branchId,
-          soldBy: emp.fullName,
           createdAt: { $gte: startDateTime, $lte: endDateTime },
+          ...(isUniqueNameInBranch
+            ? {
+                $or: [
+                  { pharmacistId: empId },
+                  { pharmacistId: { $in: [null, undefined, ''] }, soldBy: emp.fullName },
+                ],
+              }
+            : { pharmacistId: empId }),
         })
         .lean()
         .exec();
