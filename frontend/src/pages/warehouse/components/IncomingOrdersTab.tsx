@@ -130,9 +130,13 @@ export function IncomingOrdersTab({
     { value: 'D', label: 'Khu D' },
     { value: 'E', label: 'Khu E' },
     { value: 'F', label: 'Khu F' },
+    { value: 'RESERVE', label: 'Khu Dự Trữ (RESERVE)' },
   ];
   const SHELF_OPTIONS = [1, 2, 3, 4];
   const getRackOptions = (zone: string) => {
+    if (zone === 'RESERVE') {
+      return ['RES1', 'RES2', 'RES3', 'RES4'];
+    }
     const counts: Record<string, number> = { A: 4, B: 4, C: 4, D: 4, E: 4, F: 4 };
     const n = counts[zone] || 4;
     return Array.from({ length: n }, (_, i) => `${zone}${i + 1}`);
@@ -293,22 +297,30 @@ export function IncomingOrdersTab({
             }
             if (!Array.isArray(hits) || hits.length === 0) return;
 
-            // Ưu tiên lô MAIN có stock > 0 hoặc vị trí quy hoạch cố định GSP, bỏ qua RESERVE
-            const mainHit = hits.find(
+            // 1. Ưu tiên 1: Lô MAIN hoặc vị trí quy hoạch cố định GSP (không phải RESERVE)
+            let targetHit = hits.find(
               h => h.location && h.location.zone && h.location.zone !== 'RESERVE' && !h.unassigned && !h.isReserve
             ) || hits.find(h => h.location && h.location.zone && h.location.zone !== 'RESERVE');
 
-            if (!mainHit?.location) return; // Thuốc chưa được xếp kệ → dùng default
+            // 2. Ưu tiên 2: Nếu chưa có kệ MAIN nhưng thuốc đang nằm ở Khu Kệ Dự Trữ (RESERVE), trỏ chính xác đến vị trí RESERVE của thuốc!
+            if (!targetHit?.location) {
+              targetHit = hits.find(
+                h => h.location && (h.location.zone === 'RESERVE' || h.isReserve)
+              );
+            }
 
+            if (!targetHit?.location) return; // Thuốc hoàn toàn chưa có vị trí → giữ nguyên
+
+            const isReserve = (targetHit.location.zone || '').toUpperCase() === 'RESERVE' || targetHit.isReserve;
             const loc = {
-              zone: mainHit.location.zone || 'A',
-              rack: mainHit.location.rack || 'A1',
-              shelf: Number(mainHit.location.shelf || 1),
-              bin: Number(mainHit.location.bin || 1),
-              slotType: 'MAIN' as const,
+              zone: isReserve ? 'RESERVE' : (targetHit.location.zone || 'A'),
+              rack: targetHit.location.rack || (isReserve ? 'RES1' : 'A1'),
+              shelf: Number(targetHit.location.shelf || 1),
+              bin: Number(targetHit.location.bin || 1),
+              slotType: isReserve ? ('RESERVE' as const) : ('MAIN' as const),
             };
             updated[mId] = { ...updated[mId], location: loc };
-            console.log(`📍 [Auto-fill thành công] ${medicineName} → Khu ${loc.zone} / Kệ ${loc.rack} / Tầng ${loc.shelf} / Thùng B${loc.bin}`);
+            console.log(`📍 [Auto-fill thành công] ${medicineName} → ${isReserve ? 'Khu Dự Trữ' : 'Khu'} ${loc.zone} / Kệ ${loc.rack} / Tầng ${loc.shelf} / Thùng B${loc.bin}`);
           } catch (err) {
             console.warn(`[Auto-fill lỗi] Không thể tra cứu vị trí cho thuốc ${medicineName}:`, err);
           }

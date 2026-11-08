@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { NotificationProvider } from "./contexts/NotificationContext";
 
 // Layouts
@@ -31,6 +31,7 @@ import { LotTracking } from "./components/common/LotTracking";
 
 // Customer Pages
 import { CustomerShop } from "./pages/customer/CustomerShop";
+import { ProductDetailPage } from "./pages/customer/ProductDetailPage";
 import { CustomerCart } from "./pages/customer/CustomerCart";
 import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
 import { AIConsultant } from "./pages/customer/AIConsultant";
@@ -99,6 +100,11 @@ import { InspectorDashboard } from "./pages/inspector/InspectorDashboard";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
 // Helper component to preserve query parameters on redirect
+function ProductRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/customer/product/${id}`} replace />;
+}
+
 function RedirectWithSearch({ to }: { to: string }) {
   const location = useLocation();
   return <Navigate to={{ pathname: to, search: location.search }} replace />;
@@ -136,10 +142,13 @@ export default function App() {
           <Route path="/marketing/email-campaigns/new" element={<RedirectWithSearch to="/admin/marketing/email-campaigns/new" />} />
           <Route path="/marketing/email-campaigns/:id" element={<RedirectWithSearch to="/admin/marketing/email-campaigns" />} />
 
+          <Route path="/product/:id" element={<ProductRedirect />} />
+
           {/* --- Customer Routes --- */}
           <Route path="/customer" element={<CustomerLayout />}>
             <Route index element={<Navigate to="shop" replace />} />
             <Route path="shop" element={<CustomerShop />} />
+            <Route path="product/:id" element={<ProductDetailPage />} />
             <Route path="cart" element={<CustomerCart />} />
             <Route path="checkout" element={<CustomerCheckout />} />
             <Route path="ai-consult" element={<AIConsultant />} />

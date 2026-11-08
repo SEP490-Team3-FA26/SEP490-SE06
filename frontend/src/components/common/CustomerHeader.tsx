@@ -19,7 +19,6 @@ import {
 } from "../../utils/authEvents";
 import { LoginRequiredModal } from "./LoginRequiredModal";
 import { MascotLogoIcon } from "../ui/Logo";
-import { MedicineDetailModal } from "../MedicineDetailModal";
 
 // Top trending tags under search bar (Long Chau style)
 const headerTrendingTags = [
@@ -617,7 +616,6 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     file: null as File | null
   });
 
-  const [selectedMedicineForModal, setSelectedMedicineForModal] = useState<any | null>(null);
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
   const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
 
@@ -1093,8 +1091,8 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                                 type="button"
                                 key={medId}
                                 onClick={() => {
-                                  setSelectedMedicineForModal(med);
                                   setShowSearchDropdown(false);
+                                  navigate(`/customer/product/${medId}`);
                                 }}
                                 className="group min-w-0 p-3 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-blue-50/40 transition-all cursor-pointer flex gap-3 items-center relative hover:shadow-md bg-white text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                               >
@@ -1812,18 +1810,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 5. MEDICINE DETAIL MODAL (ON CLICK FROM SEARCH DROPDOWN) */}
-      {/* ========================================================================= */}
-      {selectedMedicineForModal && (
-        <MedicineDetailModal
-          medicine={selectedMedicineForModal}
-          isOpen={!!selectedMedicineForModal}
-          onClose={() => setSelectedMedicineForModal(null)}
-          onAddToCart={handleAddToCart}
-          addedItems={addedItems}
-        />
-      )}
+      {/* Đã đồng bộ sang trang /customer/product/:id chuẩn Long Châu */}
 
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}

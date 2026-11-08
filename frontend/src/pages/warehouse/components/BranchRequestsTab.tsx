@@ -19,16 +19,23 @@ export function BranchRequestsTab({
   const [prList, setPrList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [selectedPrs, setSelectedPrs] = useState<string[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get("status") || "SUBMITTED";
+
+  // Hàm chuyển sub-tab và reset lại danh sách PR đã chọn
   const setStatusFilter = (status: string) => {
+    setSelectedPrs([]);
     setSearchParams(prev => {
       prev.set("status", status);
       return prev;
     });
   };
+
+  // Cho phép chọn checkbox và gom tạo PO ở cả tab "Chờ xử lý" và "Hết hàng"
+  const isSelectableStatus = statusFilter === "SUBMITTED" || statusFilter === "OUT_OF_STOCK";
+
   const [detailPr, setDetailPr] = useState<any>(null);
-  const [selectedPrs, setSelectedPrs] = useState<string[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
   const [fromBranchId, setFromBranchId] = useState("CENTRAL_WH");
   const [outOfStockPrId, setOutOfStockPrId] = useState<string | null>(null);
@@ -55,7 +62,7 @@ export function BranchRequestsTab({
 
   useEffect(() => { fetchData(); setSelectedPrs([]); }, []);
 
-  // Real-time listener for PR updates
+  // Lắng nghe realtime sự kiện cập nhật PR qua Socket.IO
   const { onEvent, offEvent } = useSocket();
   useEffect(() => {
     const handlePrUpdated = () => {
@@ -93,7 +100,7 @@ export function BranchRequestsTab({
     setActionLoading(true);
     try {
       await purchaseRequisitionService.updatePurchaseRequisitionStatus(prId, "OUT_OF_STOCK");
-      onMsg({ type: "success", text: "Đã báo hết hàng. Thủ kho có thể tạo yêu cầu mua hàng từ tab bên cạnh." });
+      onMsg({ type: "success", text: "Đã báo hết hàng. Thủ kho có thể chọn tạo PO ngay tại tab Hết hàng hoặc tab Mua hàng." });
       setDetailPr(null);
       setOutOfStockPrId(null);
       fetchData();
@@ -131,7 +138,7 @@ export function BranchRequestsTab({
             placeholder="Tìm mã PR hoặc chi nhánh..."
             className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
-        {statusFilter === "SUBMITTED" && selectedPrs.length > 0 && (
+        {isSelectableStatus && selectedPrs.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
             <span className="text-xs font-bold text-blue-700">Đã chọn {selectedPrs.length}</span>
@@ -142,7 +149,7 @@ export function BranchRequestsTab({
                 );
                 onCreatePO(items);
               }}
-              className="px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+              className="px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-sm">
               <ShoppingCart size={12} /> Tạo PO mua hàng
             </button>
           </motion.div>
@@ -165,7 +172,7 @@ export function BranchRequestsTab({
           <table className="w-full text-sm text-left">
             <thead className="text-[11px] text-slate-500 font-bold uppercase tracking-wider bg-slate-50 border-b border-slate-200">
               <tr>
-                {statusFilter === "SUBMITTED" && (
+                {isSelectableStatus && (
                   <th className="px-4 py-3 w-10">
                     <input type="checkbox" className="rounded"
                       checked={selectedPrs.length === filtered.length && filtered.length > 0}
@@ -184,7 +191,7 @@ export function BranchRequestsTab({
             <tbody className="divide-y divide-slate-100">
               {filtered.map(pr => (
                 <tr key={pr._id} className="hover:bg-slate-50 transition-colors">
-                  {statusFilter === "SUBMITTED" && (
+                  {isSelectableStatus && (
                     <td className="px-4 py-3">
                       <input type="checkbox" className="rounded"
                         checked={selectedPrs.includes(pr._id)}
@@ -226,6 +233,18 @@ export function BranchRequestsTab({
                           </button>
                         </>
                       )}
+                      {pr.status === "OUT_OF_STOCK" && (
+                        <button
+                          onClick={() => {
+                            const items = (pr.items || []).map((it: any) => ({ ...it, prId: pr._id, prCode: pr.prCode }));
+                            onCreatePO(items);
+                          }}
+                          title="Tạo PO mua hàng"
+                          className="p-1.5 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                        >
+                          <ShoppingCart size={15} />
+                        </button>
+                      )}
                       <button onClick={() => setDetailPr(pr)} title="Xem chi tiết"
                         className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                         <Eye size={15} />
@@ -239,7 +258,7 @@ export function BranchRequestsTab({
         )}
       </div>
 
-      {/* Out of stock confirm */}
+      {/* Cảnh báo không thể xuất kho do thiếu tồn */}
       <AnimatePresence>
         {shipError && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -288,6 +307,7 @@ export function BranchRequestsTab({
         )}
       </AnimatePresence>
 
+      {/* Hộp thoại xác nhận Báo hết hàng */}
       <AnimatePresence>
         {outOfStockPrId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -301,7 +321,7 @@ export function BranchRequestsTab({
                 <p className="text-xs text-orange-700 mt-1">Kho không đủ hàng để xử lý yêu cầu này.</p>
               </div>
               <div className="p-5 text-sm text-slate-600">
-                Xác nhận báo <strong>HẾT HÀNG</strong> cho yêu cầu này? Sau đó bạn có thể tạo <strong>Yêu cầu Mua hàng</strong> ở tab bên cạnh để gửi Admin phê duyệt nhập thêm hàng.
+                Xác nhận báo <strong>HẾT HÀNG</strong> cho yêu cầu này? Sau đó bạn có thể chọn tạo PO mua hàng ngay tại tab <strong>Hết hàng</strong> để gửi Admin duyệt nhập thêm hàng.
               </div>
               <div className="px-5 py-3 border-t border-slate-100 flex justify-end gap-2">
                 <button onClick={() => setOutOfStockPrId(null)} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-xl text-sm">Hủy</button>
@@ -315,7 +335,7 @@ export function BranchRequestsTab({
         )}
       </AnimatePresence>
 
-      {/* Detail / Ship Modal */}
+      {/* Modal chi tiết PR / Xử lý xuất kho */}
       <AnimatePresence>
         {detailPr && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -368,6 +388,23 @@ export function BranchRequestsTab({
                       Xuất kho & Giao hàng
                     </button>
                   </div>
+                </div>
+              )}
+              {detailPr.status === "OUT_OF_STOCK" && (
+                <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-between items-center">
+                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                    Kho tổng không đủ tồn để đáp ứng yêu cầu này
+                  </span>
+                  <button
+                    onClick={() => {
+                      const items = (detailPr.items || []).map((it: any) => ({ ...it, prId: detailPr._id, prCode: detailPr.prCode }));
+                      setDetailPr(null);
+                      onCreatePO(items);
+                    }}
+                    className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl text-sm flex items-center gap-1.5 shadow-sm"
+                  >
+                    <ShoppingCart size={14} /> Tạo PO mua hàng
+                  </button>
                 </div>
               )}
             </motion.div>

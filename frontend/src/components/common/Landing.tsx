@@ -133,8 +133,6 @@ export function Landing() {
   const [loadingFlashSale, setLoadingFlashSale] = useState<boolean>(true);
   const [cartCount, setCartCount] = useState(0);
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
-  const [selectedMedicineForModal, setSelectedMedicineForModal] = useState<any | null>(null);
-  const [modalQuantity, setModalQuantity] = useState<number>(1);
 
   // Multi-dimensional Search & Filter states (Long Chau & Pharmacity style)
   const [searchQuery, setSearchQuery] = useState("");
@@ -890,8 +888,7 @@ export function Landing() {
                   <div
                     key={dealId}
                     onClick={() => {
-                      setSelectedMedicineForModal({ ...deal, id: dealId, price, originalPrice, discount, image: dealImage });
-                      setModalQuantity(1);
+                      navigate(`/customer/product/${dealId}`);
                     }}
                     className="bg-white rounded-2xl p-4 text-slate-800 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 relative"
                   >
@@ -1096,8 +1093,7 @@ export function Landing() {
                   <div
                     key={medId}
                     onClick={() => {
-                      setSelectedMedicineForModal(med);
-                      setModalQuantity(1);
+                      navigate(`/customer/product/${medId}`);
                     }}
                     className="product-card bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 flex flex-col overflow-hidden group hover:-translate-y-1.5 relative cursor-pointer"
                   >
@@ -1554,157 +1550,7 @@ export function Landing() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 12. MEDICINE QUICK VIEW DETAIL MODAL */}
-      {/* ========================================================================= */}
-      {selectedMedicineForModal && (() => {
-        const med = selectedMedicineForModal;
-        const medId = med.id || med._id;
-        const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
-        const isOutOfStock = med.stock <= 0;
-
-        return (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
-            onClick={() => {
-              setSelectedMedicineForModal(null);
-              setModalQuantity(1);
-            }}
-          >
-            <div
-              className="bg-white rounded-[32px] border border-slate-100 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col relative cursor-default"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${isRx ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-blue-50 text-[#0057cd] border-blue-200"
-                      }`}>
-                      {isRx ? "Thuốc kê đơn (Rx)" : "Không kê đơn"}
-                    </span>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      Mã: {med.sku || med.barcode || medId.substring(0, 8).toUpperCase()}
-                    </span>
-                  </div>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">
-                    {med.name}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedMedicineForModal(null);
-                    setModalQuantity(1);
-                  }}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
-                >
-                  <XCircle size={24} />
-                </button>
-              </div>
-
-              <div className="p-6 md:p-8 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-12 gap-8">
-                <div className="md:col-span-5 flex flex-col gap-5">
-                  <div className="w-full aspect-square bg-slate-50 rounded-2xl flex items-center justify-center p-6 border border-slate-100 relative">
-                    <img
-                      src={med.image || "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60"}
-                      alt={med.name}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        target.src = "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=500&auto=format&fit=crop&q=60";
-                      }}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
-
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col gap-3">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs font-bold text-slate-400 uppercase">Giá niêm yết</span>
-                      <span className="text-2xl font-black text-[#0057cd]">
-                        {med.price ? med.price.toLocaleString() + "₫" : "Liên hệ"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-slate-200/60 pt-3">
-                      <span className="text-xs font-bold text-slate-600">Số lượng:</span>
-                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-                        <button
-                          onClick={() => setModalQuantity(q => Math.max(1, q - 1))}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100"
-                        >
-                          -
-                        </button>
-                        <span className="w-8 text-center font-black text-slate-800 text-sm">
-                          {modalQuantity}
-                        </span>
-                        <button
-                          onClick={() => setModalQuantity(q => Math.min(med.stock, q + 1))}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={(e) => handleAddToCart(med, e, modalQuantity)}
-                      disabled={isOutOfStock}
-                      className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${isOutOfStock
-                        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        : addedItems[medId]
-                          ? "bg-emerald-600 text-white"
-                          : "bg-[#0057cd] hover:bg-[#0b5ed7] text-white active:scale-95"
-                        }`}
-                    >
-                      {isOutOfStock ? "Hết hàng" : addedItems[medId] ? "Đã thêm vào giỏ!" : "Thêm vào giỏ hàng"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="md:col-span-7 flex flex-col gap-4 text-left">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      <span className="text-[10px] font-black text-[#0057cd] uppercase tracking-wider block">Hoạt chất</span>
-                      <span className="font-bold text-slate-800 text-xs">{med.active_ingredient || "Đang cập nhật"}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      <span className="text-[10px] font-black text-[#0057cd] uppercase tracking-wider block">Nhóm điều trị</span>
-                      <span className="font-bold text-slate-800 text-xs">{med.category || "Đang cập nhật"}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      <span className="text-[10px] font-black text-[#0057cd] uppercase tracking-wider block">Dạng bào chế</span>
-                      <span className="font-bold text-slate-800 text-xs">{med.dosage_form || "Viên / Gói / Chai"}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      <span className="text-[10px] font-black text-[#0057cd] uppercase tracking-wider block">Nhà sản xuất</span>
-                      <span className="font-bold text-slate-800 text-xs">{med.manufacturer || "Đang cập nhật"}</span>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-3 space-y-3">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
-                        <Info size={14} className="text-[#0057cd]" /> Chỉ định & Công dụng
-                      </h4>
-                      <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                        {med.cong_dung || "Chỉ định điều trị theo hướng dẫn của bác sĩ hoặc dược sĩ chuyên môn."}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
-                        <Activity size={14} className="text-[#0057cd]" /> Hướng dẫn & Liều dùng
-                      </h4>
-                      <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                        {med.cach_dung || "Đọc kỹ hướng dẫn sử dụng trước khi dùng. Tham khảo ý kiến Dược sĩ khi dùng chung với các thuốc khác."}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Đã đồng bộ sang trang chi tiết /customer/product/:id chuẩn Long Châu (Issue #267) */}
 
       {/* Dược sĩ Bồ Câu AI nổi ở góc phải (đã gộp linh vật và khung chat) */}
       <ChatWidget />
