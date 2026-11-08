@@ -187,7 +187,7 @@ export function HQApproval() {
   const statusBadge = (s: string) => {
     const styles: Record<string, string> = {
       PENDING_APPROVAL: "bg-amber-50 text-amber-700 border-amber-200",
-      SHIPPING: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      SHIPPING: "bg-sky-50 text-sky-700 border-sky-200",
       CANCELLED: "bg-rose-50 text-rose-700 border-rose-200",
       RETURNED: "bg-rose-50 text-rose-700 border-rose-200",
       COMPLETED: "bg-blue-50 text-blue-700 border-blue-200",
@@ -234,13 +234,13 @@ export function HQApproval() {
           <ArrowRight size={14} className="text-slate-400" />
           <span className="px-3 py-1.5 bg-violet-500 text-white rounded-lg ring-2 ring-violet-300">3. Admin Thanh Toán</span>
           <ArrowRight size={14} className="text-slate-400" />
-          <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg opacity-50">4. Kho Nhận Hàng</span>
+          <span className="px-3 py-1.5 bg-sky-100 text-sky-700 rounded-lg opacity-50">4. Kho Nhận Hàng</span>
         </div>
       </div>
 
       {msg && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className={`mb-4 p-3 rounded-xl text-sm font-bold flex items-center gap-2 ${msg.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+          className={`mb-4 p-3 rounded-xl text-sm font-bold flex items-center gap-2 ${msg.type === "success" ? "bg-sky-50 text-sky-700 border border-sky-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
           {msg.type === "success" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}{msg.text}
           <button onClick={() => setMsg(null)} className="ml-auto opacity-50 hover:opacity-100"><X size={14} /></button>
         </motion.div>
@@ -289,7 +289,7 @@ export function HQApproval() {
           <span className="text-sm font-bold text-violet-800">Đã chọn {selectedPos.length} Đơn đặt hàng (PO)</span>
           <div className="flex gap-2">
             <button onClick={() => handleAction("APPROVE", "PAID")} disabled={actionLoading}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 disabled:opacity-50">
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 disabled:opacity-50">
               {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />} Thanh toán ngay (PAID)
             </button>
             <button onClick={() => handleAction("APPROVE", "CREDIT")} disabled={actionLoading}
@@ -400,7 +400,7 @@ export function HQApproval() {
                       <div className="flex justify-end gap-2 items-center">
                         {tab === "PENDING_APPROVAL" && (
                           <>
-                            <button onClick={(e) => { e.stopPropagation(); handleAction("APPROVE", "PAID", po._id); }} disabled={actionLoading} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded disabled:opacity-50" title="Thanh toán ngay">
+                            <button onClick={(e) => { e.stopPropagation(); handleAction("APPROVE", "PAID", po._id); }} disabled={actionLoading} className="p-1.5 text-sky-600 hover:bg-sky-50 rounded disabled:opacity-50" title="Thanh toán ngay">
                               <DollarSign size={16} />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); handleAction("APPROVE", "CREDIT", po._id); }} disabled={actionLoading} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50" title="Duyệt mua nợ">
@@ -464,7 +464,7 @@ export function HQApproval() {
                 <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
                   <button onClick={() => { setDetailPo(null); setSelectedPos([detailPo._id]); setShowRejectModal(true); }} disabled={actionLoading} className="px-4 py-2 text-rose-600 font-bold hover:bg-rose-50 rounded-xl text-sm border border-transparent hover:border-rose-200">Từ chối (Hủy)</button>
                   <button onClick={() => { handleAction("APPROVE", "CREDIT", detailPo._id); setDetailPo(null); }} disabled={actionLoading} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center gap-1.5"><CreditCard size={16} /> Duyệt mua nợ</button>
-                  <button onClick={() => { handleAction("APPROVE", "PAID", detailPo._id); setDetailPo(null); }} disabled={actionLoading} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm flex items-center gap-1.5"><DollarSign size={16} /> Thanh toán ngay</button>
+                  <button onClick={() => { handleAction("APPROVE", "PAID", detailPo._id); setDetailPo(null); }} disabled={actionLoading} className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-sm flex items-center gap-1.5"><DollarSign size={16} /> Thanh toán ngay</button>
                 </div>
               )}
             </motion.div>
@@ -584,7 +584,7 @@ export function HQApproval() {
                                     <td className="py-3 font-semibold text-slate-800">{rec.branchName}</td>
                                     <td className="py-3 text-center font-bold text-slate-900">{rec.currentStock}</td>
                                     <td className="py-3 text-center font-semibold text-slate-500">{rec.safetyStock}</td>
-                                    <td className="py-3 text-center font-bold text-emerald-600">+{rec.surplus}</td>
+                                    <td className="py-3 text-center font-bold text-sky-600">+{rec.surplus}</td>
                                     <td className="py-3 text-center">
                                       <span className="px-2.5 py-1 bg-violet-100 text-violet-700 rounded-lg font-black text-xs">
                                         {rec.suggestedQty} Hộp
@@ -594,7 +594,7 @@ export function HQApproval() {
                                       <button
                                         onClick={() => handleExecuteTransfer(rec)}
                                         disabled={actionLoading}
-                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg disabled:opacity-50"
+                                        className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-[11px] rounded-lg disabled:opacity-50"
                                       >
                                         Duyệt điều phối
                                       </button>

@@ -131,7 +131,7 @@ Anh yêu **KHÔNG CẦN** phải chạy lệnh thủ công mỗi lần! Hệ th�
 
 | Chế độ | Cách thức hoạt động | Trường hợp sử dụng |
 |---|---|---|
-| **1. Tự động khi khởi động (Auto-train on Startup)** | Khi AI Service bật lên, hệ thống sẽ tự động quét thư mục `models/`. Nếu chưa có file `pharma_forecast_model.pth` (ví dụ lần đầu deploy container mới), server sẽ **tự động train ngầm trong background thread** mà không làm treo hay gián đoạn API server. | Tự động hóa 100% khi deploy Docker / Cloud / Railway / Kubernetes. |
+| **1. Tự động khi khởi động (Auto-train on Startup)** | Khi AI Service bật lên, hệ thống sẽ tự động quét thư mục `models/`. Nếu chưa có file `pharma_forecast_model.pth` (ví dụ lần đầu deploy container mới), server sẽ **tự động train ngầm trong background thread** mà không làm treo hay gián đoạn API server. | Tự động hóa 100% khi deploy VPS / Docker / Kubernetes. |
 | **2. Kích hoạt qua API (On-Demand API Trigger)** | Gửi HTTP POST tới `http://localhost:8000/api/ai/forecast/train` (hoặc bấm nút "Huấn luyện lại AI" trên Dashboard). | Khi có đợt nhập dữ liệu mới lớn hoặc định kỳ chạy Cronjob hàng tuần/tháng. |
 | **3. Lệnh thủ công (Manual CLI Script)** | Chạy lệnh `python scripts/train_forecast_gpu.py`. | Dành cho kỹ sư AI muốn debug trực tiếp, tùy chỉnh số Epochs hoặc Hyperparameters. |
 

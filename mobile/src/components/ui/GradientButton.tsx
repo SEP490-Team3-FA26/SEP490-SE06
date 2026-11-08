@@ -25,13 +25,13 @@ interface GradientButtonProps {
 }
 
 const GRADIENT_PRESETS = {
-  sky: ['#0284C7', '#0EA5E9'] as const,     // Medical Sky Blue (Customer Theme)
-  primary: ['#0284C7', '#0EA5E9'] as const, // Default Customer Sky Blue
-  success: ['#10B981', '#34D399'] as const, // Fresh Mint
+  primary: ['#0284C7', '#0EA5E9'] as const, // Xanh Auth chuẩn dự án
+  sky: ['#0284C7', '#38BDF8'] as const,     // Xanh biển tươi sáng
+  success: ['#0284C7', '#38BDF8'] as const, // Đồng bộ màu Xanh Auth
   warning: ['#D97706', '#F59E0B'] as const, // Amber
   danger: ['#DC2626', '#EF4444'] as const,  // Rose
-  indigo: ['#4F46E5', '#6366F1'] as const, // Deep Indigo
-  cyan: ['#0891B2', '#06B6D4'] as const,   // Medical Cyan
+  indigo: ['#0369A1', '#0EA5E9'] as const, // Deep Sky Blue
+  cyan: ['#0284C7', '#06B6D4'] as const,   // Medical Cyan
   purple: ['#7C3AED', '#8B5CF6'] as const, // Royal Purple
 };
 

@@ -43,7 +43,7 @@ export const TransactionJsonModal: React.FC<TransactionJsonModalProps> = ({
         </div>
 
         {/* Modal Body: Monospace JSON */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 font-mono text-xs bg-slate-900 text-emerald-400">
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 font-mono text-xs bg-slate-900 text-sky-400">
           <pre className="whitespace-pre-wrap">{jsonString}</pre>
         </div>
 

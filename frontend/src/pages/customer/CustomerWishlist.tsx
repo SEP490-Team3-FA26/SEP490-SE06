@@ -130,7 +130,7 @@ export function CustomerWishlist() {
       {/* Toast thông báo nhanh */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+          <CheckCircle2 size={18} className="text-sky-400 shrink-0" />
           <span className="text-xs sm:text-sm font-semibold">{toastMessage}</span>
         </div>
       )}
@@ -406,7 +406,7 @@ export function CustomerWishlist() {
                         isOutOfStock
                           ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                           : isAdded
-                          ? 'bg-emerald-600 text-white shadow-emerald-200'
+                          ? 'bg-sky-600 text-white shadow-sky-200'
                           : 'bg-[#0057cd] hover:bg-blue-700 text-white shadow-blue-200 active:scale-95'
                       }`}
                     >

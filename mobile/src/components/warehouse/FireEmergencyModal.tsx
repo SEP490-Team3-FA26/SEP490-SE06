@@ -10,8 +10,6 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
-
 import { FireEmergencyNotifeeService } from '../../services/fireEmergencyNotifee.service';
 
 interface EmergencyData {
@@ -51,12 +49,6 @@ export const FireEmergencyModal: React.FC = () => {
     setVisible(false);
     setData(null);
     await FireEmergencyNotifeeService.stopAlarm();
-
-    try {
-      await Notifications.dismissAllNotificationsAsync();
-    } catch (err) {
-      console.warn('Lỗi dismiss notification:', err);
-    }
   };
 
   if (!visible || !data) return null;

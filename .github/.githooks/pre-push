@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Git Hook: pre-push
+# Tự động kích hoạt Local CI Quality Gate trước khi mã nguồn được đẩy lên GitHub
+# ==============================================================================
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+
+echo ""
+echo "🔍 [Git Pre-Push Hook] Đang kiểm tra mã nguồn tại máy cá nhân trước khi push..."
+echo ""
+
+# Mặc định chạy chế độ --quick (~5-7s) để push siêu tốc và tránh idle timeout kết nối SSH với GitHub
+# Nếu muốn chạy full 4 bước (bao gồm 373 test cases và Frontend build): gõ FULL_CI=1 git push
+HOOK_ARGS="--quick"
+if [ "${FULL_CI:-0}" = "1" ]; then
+  HOOK_ARGS=""
+fi
+
+# Chạy script kiểm tra chất lượng Local CI
+if ! bash "$ROOT_DIR/scripts/local-ci.sh" $HOOK_ARGS; then
+  echo ""
+  echo "❌ [Git Pre-Push Hook] LỆNH PUSH ĐÃ BỊ CHẶN!"
+  echo "👉 Phát hiện lỗi biên dịch hoặc vi phạm kiểm thử. Vui lòng sửa hết lỗi ở trên rồi thực hiện push lại."
+  echo "💡 Mẹo: Nếu cần push gấp để lưu nháp và bỏ qua kiểm tra, hãy thêm cờ: git push --no-verify"
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✅ [Git Pre-Push Hook] Kiểm tra đạt chuẩn 100%! Tiến hành đẩy mã nguồn lên remote..."
+echo ""
+exit 0

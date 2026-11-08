@@ -632,11 +632,11 @@ export function RFQManagement() {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Đã chọn thầu</p>
-            <p className="text-2xl font-black text-emerald-600 mt-1">{stats.awarded}</p>
-            <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">Đã tự động phát hành PO</p>
+            <p className="text-xs font-bold text-sky-500 uppercase tracking-wider">Đã chọn thầu</p>
+            <p className="text-2xl font-black text-sky-600 mt-1">{stats.awarded}</p>
+            <p className="text-[11px] text-sky-600 font-semibold mt-0.5">Đã tự động phát hành PO</p>
           </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+          <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
             <Award size={22} />
           </div>
         </div>
@@ -754,7 +754,7 @@ export function RFQManagement() {
                           </span>
                         )}
                         {rfq.status === 'AWARDED' && (
-                          <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 w-fit">
+                          <span className="bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 w-fit">
                             <CheckCircle2 size={11} /> Đã chọn thầu
                           </span>
                         )}
@@ -1015,7 +1015,7 @@ export function RFQManagement() {
                                       Tồn thấp ({stock})
                                     </span>
                                   ) : (
-                                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                    <span className="bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
                                       Còn hàng ({stock})
                                     </span>
                                   )}
@@ -1038,7 +1038,7 @@ export function RFQManagement() {
                                 </td>
                                 <td className="py-2 px-3 text-right">
                                   {isSelected ? (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold px-2 py-1 bg-emerald-50 rounded">
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-sky-600 font-bold px-2 py-1 bg-sky-50 rounded">
                                       <Check size={13} /> Đã chọn
                                     </span>
                                   ) : (
@@ -1118,7 +1118,7 @@ export function RFQManagement() {
                                   <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
                                     <span>{item.sku ? `SKU: ${item.sku}` : 'SKU: Tự động'} • {item.unit}</span>
                                     {item.declaredPrice ? (
-                                      <span className="text-emerald-700 font-medium">
+                                      <span className="text-sky-700 font-medium">
                                         • Giá trần BYT: {item.declaredPrice.toLocaleString('vi-VN')} đ
                                       </span>
                                     ) : null}
@@ -1299,7 +1299,7 @@ export function RFQManagement() {
                         key={target.supplierId}
                         className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 transition-all ${
                           hasSubmitted
-                            ? 'bg-white border-emerald-200 shadow-xs'
+                            ? 'bg-white border-sky-200 shadow-xs'
                             : 'bg-white border-slate-200 shadow-xs'
                         }`}
                       >
@@ -1309,7 +1309,7 @@ export function RFQManagement() {
                               {target.supplierName}
                             </span>
                             {hasSubmitted ? (
-                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full shrink-0">
+                              <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full shrink-0">
                                 Đã báo giá
                               </span>
                             ) : (
@@ -1383,7 +1383,7 @@ export function RFQManagement() {
                                 {target.supplierName}
                               </span>
                               {quotation?.isSelected && (
-                                <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded shrink-0">
+                                <span className="text-[9px] bg-sky-600 text-white font-bold px-1.5 py-0.5 rounded shrink-0">
                                   TRÚNG THẦU
                                 </span>
                               )}
@@ -1417,7 +1417,7 @@ export function RFQManagement() {
                               </span>
                             )}
                             {item.declaredPrice && item.declaredPrice > 0 ? (
-                              <span className="text-[10px] text-emerald-700 font-medium block w-full mt-0.5">
+                              <span className="text-[10px] text-sky-700 font-medium block w-full mt-0.5">
                                 Trần kê khai BYT: {Number(item.declaredPrice).toLocaleString('vi-VN')} đ
                               </span>
                             ) : null}
@@ -1467,7 +1467,7 @@ export function RFQManagement() {
                                   </div>
                                   <div className="flex items-center gap-1">
                                     {isCompliant ? (
-                                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
+                                      <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded font-bold">
                                         HSD: {offeredMonths} tháng
                                       </span>
                                     ) : (
@@ -1514,7 +1514,7 @@ export function RFQManagement() {
                                 <div className="mt-2.5">
                                   {selectedRfq.status === 'AWARDED' ? (
                                     quotation.isSelected ? (
-                                      <span className="inline-flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs bg-emerald-100/80 px-2.5 py-1 rounded-lg">
+                                      <span className="inline-flex items-center gap-1.5 text-sky-700 font-extrabold text-xs bg-sky-100/80 px-2.5 py-1 rounded-lg">
                                         <CheckCircle2 size={14} /> Đơn vị trúng thầu
                                       </span>
                                     ) : (
@@ -1525,7 +1525,7 @@ export function RFQManagement() {
                                       type="button"
                                       onClick={() => handleAward(quotation)}
                                       disabled={isSubmitting}
-                                      className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                      className="w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                                     >
                                       <Award size={14} />
                                       Chọn Thầu & Sinh PO
@@ -1679,14 +1679,14 @@ export function RFQManagement() {
                   ? 'bg-amber-950/95 text-amber-100 border-amber-800'
                   : t.type === 'info'
                   ? 'bg-blue-950/95 text-blue-100 border-blue-800'
-                  : 'bg-emerald-950/95 text-emerald-100 border-emerald-800'
+                  : 'bg-sky-950/95 text-sky-100 border-sky-800'
               }`}
             >
               <div className="shrink-0 mt-0.5">
                 {t.type === 'error' && <AlertCircle size={18} className="text-rose-400" />}
                 {t.type === 'warning' && <AlertTriangle size={18} className="text-amber-400" />}
                 {t.type === 'info' && <Info size={18} className="text-blue-400" />}
-                {t.type === 'success' && <CheckCircle2 size={18} className="text-emerald-400" />}
+                {t.type === 'success' && <CheckCircle2 size={18} className="text-sky-400" />}
               </div>
               <div className="flex-1 text-xs font-semibold leading-relaxed">
                 {t.message}

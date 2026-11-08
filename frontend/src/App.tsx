@@ -37,6 +37,7 @@ import { CustomerCheckout } from "./pages/customer/CustomerCheckout";
 import { AIConsultant } from "./pages/customer/AIConsultant";
 import { CustomerProfile } from "./pages/customer/CustomerProfile";
 import { CustomerWishlist } from "./pages/customer/CustomerWishlist";
+import { CustomerMedicalRecord } from "./pages/customer/CustomerMedicalRecord";
 import { CustomerOrders } from "./pages/customer/CustomerOrders";
 import { FeedbackPage } from "./pages/customer/FeedbackPage";
 import { BranchFeedbackPage } from "./pages/branch/BranchFeedbackPage";
@@ -87,8 +88,10 @@ import { BranchShiftSwap } from "./pages/branch/BranchShiftSwap";
 import { BranchLeaveApproval } from "./pages/branch/BranchLeaveApproval";
 import BranchPayroll from "./pages/branch/BranchPayroll";
 import PharmacistKpiReport from "./pages/branch/PharmacistKpiReport";
+import { BranchAttendanceHistory } from "./pages/branch/BranchAttendanceHistory";
 
 import { Sales } from "./pages/pharmacist/Sales";
+import { MobilePosScanner } from "./pages/pharmacist/MobilePosScanner";
 import { PharmacistSchedule } from "./pages/pharmacist/PharmacistSchedule";
 import { PharmacistShiftSwap } from "./pages/pharmacist/PharmacistShiftSwap";
 import { PharmacistLeaveRequest } from "./pages/pharmacist/PharmacistLeaveRequest";
@@ -121,6 +124,7 @@ export default function App() {
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:orderCode" element={<FeedbackPage />} />
           <Route path="/supplier-quote/:token" element={<SupplierQuotePortal />} />
+          <Route path="/pos/mobile-scanner" element={<MobilePosScanner />} />
           <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
           {/* Auth Routes */}
@@ -134,6 +138,7 @@ export default function App() {
 
           {/* Cũ (Redirect để tương thích trong trường hợp back lại) */}
           <Route path="/login" element={<RedirectWithSearch to="/auth/login" />} />
+          <Route path="/dev-login" element={<Navigate to="/auth/login?dev=true" replace />} />
           <Route path="/register" element={<RedirectWithSearch to="/auth/register" />} />
           <Route path="/forgot-password" element={<RedirectWithSearch to="/auth/forgot-password" />} />
           <Route path="/verify-email" element={<RedirectWithSearch to="/auth/verify-email" />} />
@@ -154,6 +159,7 @@ export default function App() {
             <Route path="ai-consult" element={<AIConsultant />} />
             <Route path="profile" element={<CustomerProfile />} />
             <Route path="wishlist" element={<CustomerWishlist />} />
+            <Route path="medical-record" element={<CustomerMedicalRecord />} />
             <Route path="orders" element={<CustomerOrders />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="feedback/:orderCode" element={<FeedbackPage />} />
@@ -270,6 +276,7 @@ export default function App() {
               <Route path="schedule" element={<BranchSchedule />} />
               <Route path="shift-swaps" element={<BranchShiftSwap />} />
               <Route path="leave-approvals" element={<BranchLeaveApproval />} />
+              <Route path="attendance-history" element={<BranchAttendanceHistory />} />
               <Route path="pricing" element={<PriceManagement />} />
               <Route path="requisitions" element={<BranchRequisition />} />
               <Route path="receive-transfers" element={<BranchStockReceive />} />

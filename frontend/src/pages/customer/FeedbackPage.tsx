@@ -70,10 +70,10 @@ export const FeedbackPage: React.FC = () => {
   // Màn hình hoàn tất đánh giá thành công
   if (submittedResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-teal-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-xl border border-emerald-100 max-w-md w-full p-6 sm:p-8 text-center animate-in fade-in zoom-in-95 duration-200">
-          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
-            <CheckCircle2 size={44} className="text-emerald-600 animate-bounce" />
+      <div className="min-h-screen bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-xl border border-sky-100 max-w-md w-full p-6 sm:p-8 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+            <CheckCircle2 size={44} className="text-sky-600 animate-bounce" />
           </div>
 
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Cảm Ơn Đóng Góp Của Bạn!</h2>
@@ -82,18 +82,18 @@ export const FeedbackPage: React.FC = () => {
           </p>
 
           {/* Hộp điểm thưởng Loyalty */}
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mt-6 text-left">
-            <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
-              <Sparkles size={18} className="text-emerald-600" />
+          <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 mt-6 text-left">
+            <div className="flex items-center gap-2 text-sky-800 font-bold text-sm">
+              <Sparkles size={18} className="text-sky-600" />
               <span>Điểm Thưởng Tích Lũy Thành Viên:</span>
             </div>
-            <div className="text-2xl font-black text-emerald-700 mt-1">
+            <div className="text-2xl font-black text-sky-700 mt-1">
               +{submittedResult.rewardPointsEarned?.toLocaleString('vi-VN') || '1.000'} Điểm
-              <span className="text-xs text-emerald-600 font-medium ml-2">
+              <span className="text-xs text-sky-600 font-medium ml-2">
                 (Đã cộng vào SĐT {phone})
               </span>
             </div>
-            <p className="text-xs text-emerald-700 mt-1">
+            <p className="text-xs text-sky-700 mt-1">
               Hạng thành viên hiện tại: <strong className="uppercase">{submittedResult.customerTier || 'Bronze'}</strong>
             </p>
           </div>
@@ -124,7 +124,7 @@ export const FeedbackPage: React.FC = () => {
 
           <button
             onClick={() => navigate('/customer/shop')}
-            className="w-full mt-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-2"
+            className="w-full mt-6 py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-2"
           >
             Tiếp Tục Khám Phá Cửa Hàng <ChevronRight size={18} />
           </button>
@@ -137,20 +137,20 @@ export const FeedbackPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 py-8 px-4 flex justify-center items-start">
       <div className="max-w-lg w-full bg-white rounded-3xl shadow-lg border border-slate-200/80 overflow-hidden">
         {/* Header thương hiệu */}
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 text-white text-center">
+        <div className="bg-gradient-to-r from-sky-600 to-blue-700 p-6 text-white text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold uppercase tracking-wider mb-2">
             <Heart size={14} className="fill-white" /> Trải Nghiệm Khách Hàng
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight">Đánh Giá Dịch Vụ Nhà Thuốc</h1>
-          <p className="text-emerald-100 text-xs mt-1">
+          <p className="text-sky-100 text-xs mt-1">
             Góp ý của bạn giúp dược sĩ và chi nhánh phục vụ bạn chu đáo hơn!
           </p>
         </div>
 
         {/* Thông tin đơn hàng & chi nhánh */}
-        <div className="p-4 bg-emerald-50/60 border-b border-emerald-100 flex items-center justify-between text-xs">
+        <div className="p-4 bg-sky-50/60 border-b border-sky-100 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-slate-700 font-semibold">
-            <Store size={16} className="text-emerald-700" />
+            <Store size={16} className="text-sky-700" />
             <span>{orderData?.branchName || 'ABC Pharmacy'}</span>
           </div>
           <div className="flex items-center gap-2 text-slate-500 font-mono">
@@ -160,14 +160,14 @@ export const FeedbackPage: React.FC = () => {
         </div>
 
         {/* Banner điểm thưởng Loyalty */}
-        <div className="m-4 p-3.5 bg-gradient-to-r from-amber-50 to-emerald-50 rounded-2xl border border-amber-200/70 flex items-center gap-3">
+        <div className="m-4 p-3.5 bg-gradient-to-r from-amber-50 to-sky-50 rounded-2xl border border-amber-200/70 flex items-center gap-3">
           <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
             <Gift size={20} className="text-amber-600" />
           </div>
           <div className="text-xs">
             <div className="font-bold text-amber-900">Quà Tặng Tri Ân Đánh Giá</div>
             <div className="text-slate-600 mt-0.5 leading-snug">
-              Nhận ngay <strong className="text-emerald-700">+1.000đ – +2.000đ Điểm Thưởng</strong> tích lũy và <strong className="text-amber-800">Voucher 5.000đ</strong> cho đơn kế tiếp!
+              Nhận ngay <strong className="text-sky-700">+1.000đ – +2.000đ Điểm Thưởng</strong> tích lũy và <strong className="text-amber-800">Voucher 5.000đ</strong> cho đơn kế tiếp!
             </div>
           </div>
         </div>
@@ -230,7 +230,7 @@ export const FeedbackPage: React.FC = () => {
                     className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
                       isSelected
                         ? rating >= 4
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
                           : 'bg-rose-600 text-white border-rose-600 shadow-sm'
                         : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
@@ -249,7 +249,7 @@ export const FeedbackPage: React.FC = () => {
                 Nhận xét chi tiết (tùy chọn):
               </label>
               {comment.trim().length >= 30 && (
-                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                <span className="text-[11px] font-bold text-sky-600 flex items-center gap-1">
                   <Sparkles size={12} /> Đạt mốc thưởng +1.000 điểm
                 </span>
               )}
@@ -259,14 +259,14 @@ export const FeedbackPage: React.FC = () => {
               onChange={(e) => setComment(e.target.value)}
               placeholder="Chia sẻ thêm cảm nhận của bạn về dược sĩ, thời gian chờ hoặc thuốc..."
               rows={3}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-slate-400"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-sky-500 transition-all placeholder:text-slate-400"
             />
           </div>
 
           {/* Thông tin định danh nhận điểm */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <UserCheck size={16} className="text-emerald-600" />
+              <UserCheck size={16} className="text-sky-600" />
               <span>Thông tin nhận điểm & Voucher quà tặng:</span>
             </div>
             <div>
@@ -276,7 +276,7 @@ export const FeedbackPage: React.FC = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Nhập số điện thoại của bạn (bắt buộc)..."
-                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-sky-500"
               />
               <span className="text-[10px] text-slate-500 mt-1 block">
                 * Điểm thưởng sẽ được cộng trực tiếp vào số điện thoại này để trừ tiền cho lần mua sau.
@@ -287,7 +287,7 @@ export const FeedbackPage: React.FC = () => {
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Họ và tên của bạn (tùy chọn)..."
-              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
 
@@ -295,7 +295,7 @@ export const FeedbackPage: React.FC = () => {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+            className="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-2xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>

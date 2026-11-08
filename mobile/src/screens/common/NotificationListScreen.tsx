@@ -32,7 +32,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
         return { icon: 'document-text', color: '#3B82F6', bg: '#EFF6FF', badgeStatus: 'info' as const, badgeLabel: 'Hồ sơ' };
       case 'PR_APPROVED':
       case 'GRN_COMPLETED':
-        return { icon: 'checkmark-circle', color: '#10B981', bg: '#ECFDF5', badgeStatus: 'success' as const, badgeLabel: 'Thành công' };
+        return { icon: 'checkmark-circle', color: '#0284C7', bg: '#F0F9FF', badgeStatus: 'success' as const, badgeLabel: 'Thành công' };
       case 'PR_REJECTED':
         return { icon: 'close-circle', color: '#EF4444', bg: '#FEF2F2', badgeStatus: 'danger' as const, badgeLabel: 'Từ chối' };
       case 'LOW_STOCK':
@@ -87,7 +87,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
         title="Trung Tâm Thông Báo"
         subtitle="Cảnh báo ca làm, đơn hàng & tồn kho"
         onBack={() => navigation.goBack()}
-        gradientVariant="emerald"
+        gradientVariant="sky"
         rightAction={{
           icon: 'checkmark-done',
           onPress: markAllAsRead,
@@ -103,7 +103,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
           <RefreshControl
             refreshing={isLoading}
             onRefresh={refreshNotifications}
-            colors={['#059669']}
+            colors={['#0284C7']}
           />
         }
         ListEmptyComponent={
@@ -145,8 +145,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   unreadCard: {
-    borderColor: '#A7F3D0',
-    backgroundColor: '#F0FDF4',
+    borderColor: '#BAE6FD',
+    backgroundColor: '#F0F9FF',
   },
   iconBox: {
     width: 44,
@@ -173,13 +173,13 @@ const styles = StyleSheet.create({
   },
   unreadTitle: {
     fontWeight: '800',
-    color: '#065F46',
+    color: '#0369A1',
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0284C7',
     marginLeft: 6,
   },
   message: {

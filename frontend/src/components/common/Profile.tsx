@@ -11,8 +11,8 @@ const ROLE_MAP: Record<string, { label: string; color: string; bg: string }> = {
   director:    { label: 'Ban Giám Đốc',         color: 'text-indigo-700', bg: 'bg-indigo-100' },
   head_branch: { label: 'Ban Giám Đốc',         color: 'text-indigo-700', bg: 'bg-indigo-100' },
   warehouse:   { label: 'Thủ kho Tổng',         color: 'text-orange-700', bg: 'bg-orange-100' },
-  branch:      { label: 'Quản lý Chi nhánh',    color: 'text-emerald-700', bg: 'bg-emerald-100' },
-  pharmacist:  { label: 'Dược sĩ Chi nhánh',   color: 'text-green-700',  bg: 'bg-green-100'  },
+  branch:      { label: 'Quản lý Chi nhánh',    color: 'text-sky-700', bg: 'bg-sky-100' },
+  pharmacist:  { label: 'Dược sĩ Chi nhánh',   color: 'text-sky-700',  bg: 'bg-sky-100'  },
   user:        { label: 'Khách hàng',           color: 'text-slate-700',  bg: 'bg-slate-100'  },
 };
 
@@ -22,8 +22,8 @@ function getAvatarGradient(role: string) {
     case 'director':
     case 'head_branch': return 'from-indigo-600 to-violet-700';
     case 'warehouse':   return 'from-orange-500 to-amber-600';
-    case 'branch':      return 'from-emerald-500 to-teal-600';
-    case 'pharmacist':  return 'from-green-500 to-emerald-600';
+    case 'branch':      return 'from-sky-500 to-blue-600';
+    case 'pharmacist':  return 'from-sky-500 to-sky-600';
     default:            return 'from-slate-500 to-slate-700';
   }
 }
@@ -232,8 +232,8 @@ export function Profile() {
 
       {/* ── Success Banner ── */}
       {profileSuccess && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+        <div className="bg-sky-50 border border-sky-200 text-sky-700 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium">
+          <CheckCircle2 size={18} className="text-sky-500 shrink-0" />
           {profileSuccess}
         </div>
       )}
@@ -387,12 +387,12 @@ export function Profile() {
 
             <div className="p-6">
               {passwordSuccess ? (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center">
-                  <div className="w-14 h-14 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
+                <div className="bg-sky-50 border border-sky-200 rounded-2xl p-6 text-center">
+                  <div className="w-14 h-14 bg-sky-100 text-sky-500 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
                     <CheckCircle2 size={28} />
                   </div>
-                  <h4 className="text-base font-bold text-emerald-800 mb-1">Thành công!</h4>
-                  <p className="text-sm text-emerald-600 font-medium">{passwordSuccess}</p>
+                  <h4 className="text-base font-bold text-sky-800 mb-1">Thành công!</h4>
+                  <p className="text-sm text-sky-600 font-medium">{passwordSuccess}</p>
                 </div>
               ) : (
                 <form onSubmit={handleChangePassword} className="space-y-4">

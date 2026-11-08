@@ -128,12 +128,12 @@ export function PurchaseRequisition() {
           <ArrowRight size={14} className="text-slate-400" />
           <span className={`px-3 py-1.5 rounded-lg ${tab === "SUBMITTED" ? "bg-amber-500 text-white ring-2 ring-amber-300" : "bg-amber-100 text-amber-700"}`}>2. Gom nhóm & Lên đơn (Auto-routing)</span>
           <ArrowRight size={14} className="text-slate-400" />
-          <span className={`px-3 py-1.5 rounded-lg ${tab === "CONSOLIDATED" ? "bg-emerald-500 text-white ring-2 ring-emerald-300" : "bg-emerald-100 text-emerald-700"}`}>3. Admin duyệt & Thanh toán</span>
+          <span className={`px-3 py-1.5 rounded-lg ${tab === "CONSOLIDATED" ? "bg-sky-500 text-white ring-2 ring-sky-300" : "bg-sky-100 text-sky-700"}`}>3. Admin duyệt & Thanh toán</span>
         </div>
       </div>
 
       {msg && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`mb-4 p-3 rounded-xl text-sm font-bold flex items-center gap-2 ${msg.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`mb-4 p-3 rounded-xl text-sm font-bold flex items-center gap-2 ${msg.type === "success" ? "bg-sky-50 text-sky-700 border border-sky-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
           {msg.type === "success" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}{msg.text}
           <button onClick={() => setMsg(null)} className="ml-auto opacity-50 hover:opacity-100"><X size={14} /></button>
         </motion.div>
@@ -151,8 +151,8 @@ export function PurchaseRequisition() {
 
       {/* Action bar for SUBMITTED tab */}
       {tab === "SUBMITTED" && selectedPrs.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-          <span className="text-sm font-bold text-emerald-800">Đã chọn {selectedPrs.length} phiếu PR để lên đơn</span>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-4 bg-sky-50 border border-sky-200 rounded-xl flex items-center justify-between">
+          <span className="text-sm font-bold text-sky-800">Đã chọn {selectedPrs.length} phiếu PR để lên đơn</span>
           <button onClick={() => {
             const selectedPrObjects = filtered.filter(pr => selectedPrs.includes(pr._id));
             const prefillPrItems = selectedPrObjects.flatMap(pr =>
@@ -168,7 +168,7 @@ export function PurchaseRequisition() {
             setPrefillData(prefillPrItems);
             setShowCreatePOModal(true);
           }}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm">
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm">
             <FileText size={14} /> Tiếp tục tạo Đơn Đặt Hàng (PO)
           </button>
         </motion.div>

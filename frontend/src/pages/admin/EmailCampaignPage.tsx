@@ -649,7 +649,7 @@ const EmailCampaignPage: React.FC = () => {
       {toast && (
         <div
           className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-5 py-3 rounded-xl text-white text-sm font-semibold shadow-xl transition-all ${
-            toast.type === "success" ? "bg-emerald-600" : "bg-rose-600"
+            toast.type === "success" ? "bg-sky-600" : "bg-rose-600"
           }`}
         >
           {toast.msg}
@@ -1059,18 +1059,18 @@ const EmailCampaignPage: React.FC = () => {
             {formData.sendMode === "IMMEDIATE" ? (
               <div
                 style={{
-                  background: "#f0fdf4",
-                  border: "1px solid #bbf7d0",
+                  background: "#f0f9ff",
+                  border: "1px solid #bae6fd",
                   borderRadius: 10,
                   padding: "14px 16px",
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  color: "#166534",
+                  color: "#075985",
                   fontSize: 13,
                 }}
               >
-                <Sparkles size={18} style={{ color: "#16a34a", flexShrink: 0 }} />
+                <Sparkles size={18} style={{ color: "#0284c7", flexShrink: 0 }} />
                 <div>
                   <strong>Chế độ phát tán ngay:</strong> Email sẽ được gửi vào hàng đợi xử lý ngay lập tức khi bạn bấm nút <strong>"Kích Hoạt & Gửi Ngay"</strong> bên dưới (không cần chọn giờ gửi hẹn trước).
                 </div>

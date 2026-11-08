@@ -106,7 +106,7 @@ export const InspectorFilterBar: React.FC<InspectorFilterBarProps> = ({
             <button
               onClick={() => setFacilityFilterType("BRANCH")}
               className={`px-3 py-1 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
-                facilityFilterType === "BRANCH" ? "bg-emerald-600 text-white" : "text-emerald-700 hover:bg-emerald-50"
+                facilityFilterType === "BRANCH" ? "bg-sky-600 text-white" : "text-sky-700 hover:bg-sky-50"
               }`}
             >
               <Store size={13} />

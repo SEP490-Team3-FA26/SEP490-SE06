@@ -20,6 +20,7 @@ import {
   QrCode,
   ShoppingBag,
   LogIn,
+  ShieldCheck,
 } from "lucide-react";
 import { ChatMessage, MessageItem } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -27,8 +28,9 @@ import { QuickReplies } from "./QuickReplies";
 import { ChatDrugItem } from "./DrugCard";
 import { prescriptionService } from "../../services/sales/prescription.service";
 import { cartService } from "../../services/sales/cart.service";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 import { useChatPayOSCheckout } from "../../hooks/useChatPayOSCheckout";
-import { notifyAuthLoginRequired } from "../../utils/authEvents";
+import { notifyAuthLoginRequired, AUTH_TOKEN_CHANGED_EVENT } from "../../utils/authEvents";
 import { DoveFigure } from "../mascot/DoveFigure";
 import api from "../../services/core/api";
 
@@ -131,10 +133,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  // Tùy chọn tự động gửi kèm hồ sơ y tế cá nhân (dị ứng, bệnh nền) - mặc định bật
+  const [autoAttachMedicalProfile, setAutoAttachMedicalProfile] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("abc_chat_auto_attach_medical_profile");
+      if (saved !== null) return saved === "true";
+    } catch {
+      // Fallback
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("abc_chat_auto_attach_medical_profile", String(autoAttachMedicalProfile));
+    } catch {
+      // Fallback
+    }
+  }, [autoAttachMedicalProfile]);
+
   const [userProfile, setUserProfile] = useState<{
     age_group?: string;
     gender?: string;
     allergies?: string[];
+    allergicMedicines?: string[];
+    allergicIngredients?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    medicalNotes?: string;
     fullName?: string;
     name?: string;
     phone?: string;
@@ -143,57 +170,151 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Check login state and ensure valid currentSessionId
-  useEffect(() => {
+  // Hàm tải dữ liệu người dùng và đồng bộ bù toàn bộ phiên chat của khách vãng lai lên Cloud khi đăng nhập
+  const syncAndFetchUserData = async () => {
     const token = localStorage.getItem("token");
-    setIsLoggedIn(Boolean(token));
+    const loggedIn = Boolean(token);
+    setIsLoggedIn(loggedIn);
 
+    if (!loggedIn) {
+      // Khi người dùng đăng xuất: Xóa trắng hồ sơ và reset về phiên mới sạch sẽ chống rò rỉ dữ liệu y tế nhạy cảm
+      setUserProfile({});
+      return;
+    }
+
+    try {
+      // 1. Tải hồ sơ người dùng và hồ sơ an toàn lâm sàng
+      const [profileRes, clinicalRes] = await Promise.allSettled([
+        api.get("/api/auth/profile"),
+        api.get("/api/users/clinical-safety/me"),
+      ]);
+
+      const u = profileRes.status === "fulfilled" ? profileRes.value?.data : null;
+      const c = clinicalRes.status === "fulfilled" && !clinicalRes.value?.data?.error ? clinicalRes.value?.data : null;
+
+      if (u) {
+        setUserProfile({
+          fullName: u.fullName || u.name,
+          name: u.fullName || u.name,
+          phone: u.phone || u.phoneNumber,
+          address: u.address,
+          email: u.email,
+          age_group: u.age ? (u.age < 18 ? "child" : u.age > 60 ? "elderly" : "adult") : undefined,
+          gender: u.gender,
+          allergies: c?.allergies || u.allergies || [],
+          allergicMedicines: c?.allergicMedicines || u.allergicMedicines || [],
+          allergicIngredients: c?.allergicIngredients || u.allergicIngredients || [],
+          chronicConditions: c?.chronicConditions || u.chronicConditions || [],
+          bloodType: c?.bloodType || u.bloodType || null,
+          medicalNotes: c?.medicalNotes || u.medicalNotes || null,
+        });
+      }
+
+      // 2. Lấy danh sách session từ Cloud và đồng bộ các session khách chưa lưu lên Cloud
+      try {
+        const cloudSessionsRes = await prescriptionService.getChatSessions();
+        const cloudSessions: ChatSession[] =
+          cloudSessionsRes?.success && Array.isArray(cloudSessionsRes.sessions)
+            ? cloudSessionsRes.sessions
+            : [];
+
+        // Lấy danh sách session cục bộ hiện tại (bao gồm cả phiên chat vừa trao đổi lúc chưa đăng nhập)
+        let currentLocal: ChatSession[] = [];
+        try {
+          const raw = localStorage.getItem(STORAGE_SESSIONS_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) currentLocal = parsed;
+          }
+        } catch {
+          // Fallback
+        }
+
+        // Lọc các session cục bộ có tin nhắn thực tế của người dùng
+        const sessionsToPreserve = (currentLocal.length > 0 ? currentLocal : sessions).filter(
+          (s) => s.messages && s.messages.some((m) => m.sender === "user")
+        );
+
+        const cloudSessionIds = new Set(cloudSessions.map((cs) => cs.id));
+        const newlySyncedSessions: ChatSession[] = [];
+
+        // Đồng bộ bù (Auto-Sync) tất cả session của khách chưa có trên Cloud vào tài khoản MongoDB
+        for (const localSess of sessionsToPreserve) {
+          if (!cloudSessionIds.has(localSess.id)) {
+            try {
+              await prescriptionService.saveChatSession(localSess);
+              newlySyncedSessions.push(localSess);
+              cloudSessionIds.add(localSess.id);
+            } catch (err) {
+              console.warn("Không thể đồng bộ session khách lên cloud:", err);
+            }
+          }
+        }
+
+        // Hợp nhất (Merge) danh sách Cloud sessions và các session cục bộ của khách vừa đồng bộ
+        const sessionMap = new Map<string, ChatSession>();
+        cloudSessions.forEach((s) => sessionMap.set(s.id, s));
+        newlySyncedSessions.forEach((s) => sessionMap.set(s.id, s));
+        sessionsToPreserve.forEach((s) => {
+          if (!sessionMap.has(s.id)) sessionMap.set(s.id, s);
+        });
+
+        const merged = Array.from(sessionMap.values()).sort(
+          (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
+        );
+
+        if (merged.length > 0) {
+          setSessions(merged);
+          // Giữ nguyên phiên chat người dùng đang xem dở, không bị nhảy lung tung
+          if (!merged.some((s) => s.id === currentSessionId)) {
+            setCurrentSessionId(merged[0].id);
+          }
+        }
+      } catch (cloudErr) {
+        console.warn("Lỗi khi tải hoặc hợp nhất cloud sessions:", cloudErr);
+      }
+    } catch {
+      // Fallback silently if offline or token expired
+    }
+  };
+
+  // Khởi động và lắng nghe sự kiện đăng nhập / đăng xuất (AUTH_TOKEN_CHANGED_EVENT)
+  useEffect(() => {
+    syncAndFetchUserData();
+
+    const handleAuthChange = () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        // Đăng xuất: Xóa sạch phiên chat nhạy cảm khỏi bộ nhớ để chống rò rỉ chéo giữa các tài khoản
+        const fresh = [createNewSession()];
+        setSessions(fresh);
+        setCurrentSessionId(fresh[0].id);
+        setIsLoggedIn(false);
+        setUserProfile({});
+        try {
+          localStorage.setItem(STORAGE_SESSIONS_KEY, JSON.stringify(fresh));
+          localStorage.setItem(STORAGE_ACTIVE_ID_KEY, fresh[0].id);
+        } catch {
+          // Fallback
+        }
+      } else {
+        syncAndFetchUserData();
+      }
+    };
+
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, handleAuthChange);
+    };
+  }, []);
+
+  // Đảm bảo currentSessionId hợp lệ
+  useEffect(() => {
     if (!currentSessionId && (sessions || []).length > 0) {
       setCurrentSessionId(sessions[0].id);
       localStorage.setItem(STORAGE_ACTIVE_ID_KEY, sessions[0].id);
     }
   }, [currentSessionId, sessions]);
-
-  // Load user profile and cloud sessions if logged in
-  useEffect(() => {
-    const fetchUserData = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      try {
-        const profileRes = await api.get("/api/auth/profile");
-        if (profileRes?.data) {
-          const u = profileRes.data;
-          setUserProfile({
-            fullName: u.fullName || u.name,
-            name: u.fullName || u.name,
-            phone: u.phone || u.phoneNumber,
-            address: u.address,
-            email: u.email,
-            age_group: u.age ? (u.age < 18 ? "child" : u.age > 60 ? "elderly" : "adult") : undefined,
-            gender: u.gender,
-            allergies: u.allergies || [],
-          });
-        }
-      } catch {
-        // Fallback silently if offline or token expired
-      }
-
-      try {
-        const cloudSessionsRes = await prescriptionService.getChatSessions();
-        if (cloudSessionsRes?.success && Array.isArray(cloudSessionsRes.sessions) && cloudSessionsRes.sessions.length > 0) {
-          setSessions(cloudSessionsRes.sessions);
-          if (!cloudSessionsRes.sessions.some((s) => s.id === currentSessionId)) {
-            setCurrentSessionId(cloudSessionsRes.sessions[0].id);
-          }
-        }
-      } catch {
-        // Fallback to local storage if cloud fetch fails
-      }
-    };
-
-    fetchUserData();
-  }, []);
 
   // Save sessions to localStorage whenever they change
   useEffect(() => {
@@ -259,9 +380,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  // Add single drug to cart for both guests and authenticated users
+  // Add single drug to cart for both guests and authenticated users (Chặn cứng thuốc kê đơn Rx)
   const addToCartItem = async (drug: ChatDrugItem): Promise<boolean> => {
-    if (!drug.medicine_id || !drug.in_stock) return false;
+    if (!drug.medicine_id || !drug.in_stock || isPrescriptionMedicine(drug)) return false;
     try {
       const token = localStorage.getItem("token");
       if (!token) {
@@ -324,7 +445,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     try {
       let count = 0;
       for (const d of drugs) {
-        if (d.in_stock && d.medicine_id) {
+        if (d.in_stock && d.medicine_id && !isPrescriptionMedicine(d)) {
           const ok = await addToCartItem(d);
           if (ok) count++;
         }
@@ -425,10 +546,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setIsLoading(true);
 
     try {
-      // Xây dựng history đầy đủ ngữ cảnh thuốc đã đề xuất
+      // Xây dựng history đầy đủ ngữ cảnh thuốc đã đề xuất (giữ tối đa 24 tin nhắn gần nhất ~ 12 lượt đối thoại để tránh tràn token)
       const historyPayload = newMessages
         .filter((m) => (m.text || (m.drugs && m.drugs.length > 0)) && !m.payment)
-        .slice(-6)
+        .slice(-24)
         .map((m) => {
           let fullContent = m.text || "";
 
@@ -455,7 +576,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         image_base64: imageBase64,
         age_group: userProfile.age_group,
         gender: userProfile.gender,
-        allergies: userProfile.allergies,
+        allergies: autoAttachMedicalProfile ? userProfile.allergies : [],
+        allergic_medicines: autoAttachMedicalProfile ? userProfile.allergicMedicines : [],
+        allergic_ingredients: autoAttachMedicalProfile ? userProfile.allergicIngredients : [],
+        chronic_conditions: autoAttachMedicalProfile ? userProfile.chronicConditions : [],
+        blood_type: autoAttachMedicalProfile ? userProfile.bloodType : undefined,
+        medical_notes: autoAttachMedicalProfile ? userProfile.medicalNotes : undefined,
       });
 
       if (res && res.success) {
@@ -672,7 +798,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   type="button"
                   onClick={() => handleSaveRename(sess.id)}
                   aria-label="Lưu tên cuộc trò chuyện"
-                  className="p-1 rounded text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                  className="p-1 rounded text-sky-600 hover:bg-sky-50 cursor-pointer"
                   title="Lưu tên"
                 >
                   <Check size={13} />
@@ -736,7 +862,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       {/* Toast Alert Feedback */}
       {toastMessage && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white text-xs font-medium px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5 animate-in fade-in duration-200">
-          <Check size={13} className="text-emerald-400 shrink-0" />
+          <Check size={13} className="text-sky-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -803,7 +929,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="flex items-center gap-1.5">
               {isLoggedIn ? (
                 <>
-                  <Database size={13} className="text-emerald-500 shrink-0" />
+                  <Database size={13} className="text-sky-500 shrink-0" />
                   <span className="text-[11px] text-slate-600 truncate">
                     Đồng bộ Cloud
                   </span>
@@ -845,7 +971,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {/* Mascot Avatar Figure */}
             <div className="relative w-8 h-8 rounded-full bg-slate-50 border border-slate-200/80 flex items-center justify-center overflow-hidden pt-0.5 shadow-2xs shrink-0">
               <DoveFigure size={28} kaal={true} decoratief={true} />
-              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-white"></span>
+              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-sky-500 border border-white"></span>
             </div>
 
             {/* Title & Online Status */}
@@ -856,7 +982,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   : "Dược Sĩ Bồ Câu AI"}
               </span>
               <span className="text-[10px] flex items-center gap-1 text-slate-400 font-normal">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                 Trực tuyến 24/7 • ABC Pharmacy
               </span>
             </div>
@@ -969,7 +1095,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="p-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400">
               {isLoggedIn ? (
                 <>
-                  <Database size={12} className="text-emerald-500" />
+                  <Database size={12} className="text-sky-500" />
                   <span>Đồng bộ Cloud</span>
                 </>
               ) : (
@@ -1077,7 +1203,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               : "bg-white border-t border-slate-100 p-2.5"
           }`}
         >
-          <div className={isFullscreen ? "max-w-3xl mx-auto w-full" : "w-full"}>
+          <div className={isFullscreen ? "max-w-3xl mx-auto w-full space-y-2" : "w-full space-y-1.5"}>
+            {/* Tùy chọn tự động gửi kèm hồ sơ y tế cá nhân */}
+            <div className="flex items-center justify-between text-[11px] px-1 text-slate-500">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer select-none group">
+                <input
+                  type="checkbox"
+                  checked={autoAttachMedicalProfile}
+                  onChange={(e) => setAutoAttachMedicalProfile(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer accent-emerald-600 transition"
+                />
+                <span className={`font-semibold transition-colors ${autoAttachMedicalProfile ? "text-emerald-700" : "text-slate-500 group-hover:text-slate-700"}`}>
+                  Tự động gửi kèm hồ sơ y tế cá nhân (dị ứng, bệnh nền)
+                </span>
+              </label>
+
+              {autoAttachMedicalProfile && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 font-bold shrink-0 hidden sm:inline-flex items-center gap-1">
+                  <ShieldCheck size={11} className="text-emerald-600" />
+                  {((userProfile.allergies?.length || 0) + (userProfile.allergicMedicines?.length || 0) + (userProfile.chronicConditions?.length || 0)) > 0
+                    ? `${(userProfile.allergies?.length || 0) + (userProfile.allergicMedicines?.length || 0)} dị ứng • ${userProfile.chronicConditions?.length || 0} bệnh nền`
+                    : "Đang bảo vệ an toàn"}
+                </span>
+              )}
+            </div>
+
             <ChatInput onSend={handleSendMessage} disabled={isLoading} />
           </div>
         </div>

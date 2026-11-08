@@ -24,11 +24,11 @@ type ColorScheme = {
 };
 
 const STATUS_COLOR_MAP: Record<string, ColorScheme> = {
-  // ── Positive / Active ──────────────────────────────────────────────────────
-  approved:  { badge: 'bg-emerald-50/80 border-emerald-200/60', dot: 'bg-emerald-500', label: 'text-emerald-700' },
-  active:    { badge: 'bg-emerald-50/80 border-emerald-200/60', dot: 'bg-emerald-500', label: 'text-emerald-700' },
-  completed: { badge: 'bg-emerald-50/80 border-emerald-200/60', dot: 'bg-emerald-500', label: 'text-emerald-700' },
-  received:  { badge: 'bg-emerald-50/80 border-emerald-200/60', dot: 'bg-emerald-500', label: 'text-emerald-700' },
+  // ── Trạng thái tích cực / Hoạt động (Chuyển sang Tone Xanh Chuẩn Sky) ───────
+  approved:  { badge: 'bg-sky-50/80 border-sky-200/60', dot: 'bg-sky-500', label: 'text-sky-700' },
+  active:    { badge: 'bg-sky-50/80 border-sky-200/60', dot: 'bg-sky-500', label: 'text-sky-700' },
+  completed: { badge: 'bg-sky-50/80 border-sky-200/60', dot: 'bg-sky-500', label: 'text-sky-700' },
+  received:  { badge: 'bg-sky-50/80 border-sky-200/60', dot: 'bg-sky-500', label: 'text-sky-700' },
 
   // ── In-progress / Warning ──────────────────────────────────────────────────
   pending:     { badge: 'bg-amber-50/80 border-amber-200/60', dot: 'bg-amber-500', label: 'text-amber-700' },

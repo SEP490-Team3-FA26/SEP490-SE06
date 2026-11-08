@@ -38,9 +38,9 @@ const STATUS_CONFIG: Record<
 > = {
   NORMAL: {
     label: "Bình thường",
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    border: "border-emerald-200",
+    bg: "bg-sky-50",
+    text: "text-sky-700",
+    border: "border-sky-200",
     icon: <CheckCircle size={10} />,
   },
   NEAR_EXPIRY: {
@@ -268,7 +268,7 @@ export function ReserveBatchesPanel({
               </div>
 
               <div className="text-xs text-slate-500 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Có hàng
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Có hàng
                 <span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block ml-2" /> Thùng trống
                 <span className="text-[11px] text-slate-400 italic ml-2">
                   (Click ô thùng để xem chi tiết hoặc dời thuốc)
@@ -515,7 +515,7 @@ export function ReserveBatchesPanel({
           <div
             className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold ${
               toast.type === "success"
-                ? "bg-emerald-600 text-white border-emerald-700"
+                ? "bg-sky-600 text-white border-sky-700"
                 : toast.type === "warning"
                 ? "bg-amber-600 text-white border-amber-700"
                 : "bg-rose-600 text-white border-rose-700"

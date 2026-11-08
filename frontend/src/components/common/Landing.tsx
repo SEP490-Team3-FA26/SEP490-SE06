@@ -24,6 +24,7 @@ import { CustomerHeader } from "./CustomerHeader";
 import { PharmaSmartRecommender } from "../customer/PharmaSmartRecommender";
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import { notifyAuthLoginRequired } from "../../utils/authEvents";
+import { isPrescriptionMedicine } from "../../utils/prescriptionUtils";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -107,8 +108,8 @@ const heroSlides = [
     badge: "Tư vấn 1:1 miễn phí",
     ctaText: "Gửi toa thuốc ngay",
     ctaAction: "openPrescriptionModal",
-    bgGradient: "from-emerald-600 via-teal-600 to-blue-600",
-    pillBg: "bg-emerald-500/20"
+    bgGradient: "from-sky-600 via-teal-600 to-blue-600",
+    pillBg: "bg-sky-500/20"
   }
 ];
 
@@ -679,26 +680,26 @@ export function Landing() {
             {/* Sub-card 1: Prescription fast processing */}
             <div
               onClick={() => setIsPrescriptionModalOpen(true)}
-              className="bg-white rounded-[24px] p-6 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-emerald-300 transition-all cursor-pointer flex-1 flex flex-col justify-between group"
+              className="bg-white rounded-[24px] p-6 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-sky-300 transition-all cursor-pointer flex-1 flex flex-col justify-between group"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider">
+                  <span className="px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-black uppercase tracking-wider">
                     DỊCH VỤ 15 PHÚT
                   </span>
-                  <h3 className="text-lg font-black text-slate-900 mt-2 group-hover:text-emerald-600 transition-colors">
+                  <h3 className="text-lg font-black text-slate-900 mt-2 group-hover:text-sky-600 transition-colors">
                     Chụp & Báo Giá Đơn Thuốc
                   </h3>
                   <p className="text-xs text-slate-500 font-medium mt-1">
                     Gửi ảnh toa thuốc của bác sĩ, Dược sĩ ABC Pharmacy sẽ gọi lại tư vấn chi tiết.
                   </p>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                   <UploadCloud size={24} />
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-600">
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-sky-600">
                 <span>Gửi ảnh đơn ngay</span>
                 <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </div>
@@ -746,9 +747,9 @@ export function Landing() {
             {
               title: "Gửi Toa Thuốc",
               subtitle: "Dược sĩ tư vấn 15p",
-              icon: <FileText size={22} className="text-emerald-500" />,
+              icon: <FileText size={22} className="text-sky-500" />,
               action: () => setIsPrescriptionModalOpen(true),
-              bg: "hover:border-emerald-200"
+              bg: "hover:border-sky-200"
             },
             {
               title: "Flash Sale Giờ Vàng",
@@ -941,7 +942,7 @@ export function Landing() {
                         }}
                         className={`w-full py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${
                           addedItems[dealId]
-                            ? "bg-emerald-600 text-white"
+                            ? "bg-sky-600 text-white"
                             : "bg-rose-600 hover:bg-rose-700 text-white active:scale-95"
                         }`}
                       >
@@ -1086,7 +1087,7 @@ export function Landing() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {medicines.map((med) => {
                 const medId = med.id || med._id;
-                const isRx = med.drug_classification === "PRESCRIPTION_ANTIBIOTIC";
+                const isRx = isPrescriptionMedicine(med);
                 const isOutOfStock = med.stock <= 0;
 
                 return (
@@ -1143,31 +1144,46 @@ export function Landing() {
                           </span>
                         </div>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddToCart(med, e);
-                          }}
-                          disabled={isOutOfStock}
-                          className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${isOutOfStock
-                            ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                            : addedItems[medId]
-                              ? "bg-emerald-600 text-white"
-                              : "bg-[#0057cd] hover:bg-[#0b5ed7] text-white active:scale-95 shadow-md shadow-blue-500/15"
-                            }`}
-                        >
-                          {isOutOfStock ? (
-                            "Hết hàng"
-                          ) : addedItems[medId] ? (
-                            <>
-                              <Check size={14} /> Đã thêm vào giỏ!
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart size={14} /> Thêm vào giỏ
-                            </>
-                          )}
-                        </button>
+                        {isRx ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMedicineForModal(med);
+                            }}
+                            disabled
+                            className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-none bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80"
+                            title="Thuốc kê đơn (Rx) - Theo quy định Bộ Y Tế, chỉ bán tại quầy theo đơn bác sĩ"
+                          >
+                            <ShieldAlert size={14} className="text-amber-500 shrink-0" /> Thuốc kê đơn - Mua tại quầy
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToCart(med, e);
+                            }}
+                            disabled={isOutOfStock}
+                            className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${isOutOfStock
+                              ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                              : addedItems[medId]
+                                ? "bg-sky-600 text-white"
+                                : "bg-[#0057cd] hover:bg-[#0b5ed7] text-white active:scale-95 shadow-md shadow-blue-500/15"
+                              }`}
+                          >
+                            {isOutOfStock ? (
+                              "Hết hàng"
+                            ) : addedItems[medId] ? (
+                              <>
+                                <Check size={14} /> Đã thêm vào giỏ!
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart size={14} /> Thêm vào giỏ
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1221,7 +1237,7 @@ export function Landing() {
               desc: "Giao thuốc tận nhà đúng hẹn, đóng gói chuyên dụng bảo quản nhiệt độ chuẩn GSP."
             },
             {
-              icon: <Stethoscope size={28} className="text-emerald-500" />,
+              icon: <Stethoscope size={28} className="text-sky-500" />,
               title: "Dược Sĩ Tư Vấn Tận Tâm",
               desc: "Đội ngũ Dược sĩ Đại học có chứng chỉ hành nghề, tư vấn đúng thuốc, đúng liều lượng 24/7."
             },
@@ -1423,7 +1439,7 @@ export function Landing() {
             </div>
 
             <h4 className="font-bold text-white text-xs uppercase tracking-wider mb-2">Chứng Nhận Chuẩn Y Tế</h4>
-            <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+            <div className="flex items-center gap-2 text-sky-400 text-xs font-bold">
               <ShieldCheck size={18} />
               <span>Đạt Chuẩn GPP - GDP - GSP</span>
             </div>
@@ -1454,7 +1470,7 @@ export function Landing() {
           >
             <div className="flex items-start justify-between mb-5">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase">
+                <span className="px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-black uppercase">
                   TƯ VẤN TOA THUỐC 1:1
                 </span>
                 <h3 className="text-xl font-black text-slate-900 mt-1">Gửi Đơn Thuốc Nhanh</h3>
@@ -1541,7 +1557,7 @@ export function Landing() {
               <button
                 type="submit"
                 disabled={prescriptionSubmitted}
-                className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
+                className="w-full py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-sky-600/20 active:scale-95 transition-all cursor-pointer"
               >
                 {prescriptionSubmitted ? "Đang gửi toa thuốc..." : "Gửi Toa Thuốc Cho Dược Sĩ →"}
               </button>
@@ -1550,7 +1566,7 @@ export function Landing() {
         </div>
       )}
 
-      {/* Đã đồng bộ sang trang chi tiết /customer/product/:id chuẩn Long Châu (Issue #267) */}
+            {/* Đã đồng bộ sang trang chi tiết /customer/product/:id chuẩn Long Châu (Issue #267) */}
 
       {/* Dược sĩ Bồ Câu AI nổi ở góc phải (đã gộp linh vật và khung chat) */}
       <ChatWidget />

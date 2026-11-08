@@ -103,7 +103,7 @@ export const FlatInput: React.FC<FlatInputProps> = ({
           <Ionicons
             name={leftIcon}
             size={20}
-            color={hasError ? '#EF4444' : isFocused ? '#059669' : '#64748B'}
+            color={hasError ? '#EF4444' : isFocused ? '#0284C7' : '#64748B'}
             style={styles.leftIcon}
           />
         )}
@@ -134,7 +134,7 @@ export const FlatInput: React.FC<FlatInputProps> = ({
             <Ionicons
               name={rightIcon}
               size={20}
-              color={hasError ? '#EF4444' : isFocused ? '#059669' : '#64748B'}
+              color={hasError ? '#EF4444' : isFocused ? '#0284C7' : '#64748B'}
               style={styles.rightIcon}
             />
           </TouchableOpacity>
@@ -202,11 +202,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   inputWrapperFocused: {
-    borderColor: '#059669',
+    borderColor: '#0284C7',
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
     ...Platform.select({
       ios: {
-        shadowColor: '#059669',
+        shadowColor: '#0284C7',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 12,

@@ -121,7 +121,7 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
         {/* Classic Clean Header */}
         <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+            <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
               <UserPlus size={15} />
             </div>
             <h2 className="text-sm font-bold text-slate-800">
@@ -167,7 +167,7 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
                 className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-semibold focus:outline-none transition-all ${
                   fieldErrors.fullName
                     ? 'border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/30'
-                    : 'border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30'
+                    : 'border-slate-200 focus:border-sky-600 focus:ring-1 focus:ring-sky-600/30'
                 }`}
               />
               {fieldErrors.fullName && (
@@ -192,7 +192,7 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
                 className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-mono font-bold focus:outline-none transition-all ${
                   fieldErrors.phone
                     ? 'border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/30'
-                    : 'border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30'
+                    : 'border-slate-200 focus:border-sky-600 focus:ring-1 focus:ring-sky-600/30'
                 }`}
               />
               {fieldErrors.phone && (
@@ -218,7 +218,7 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
               className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-medium focus:outline-none transition-all ${
                 fieldErrors.email
                   ? 'border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/30'
-                  : 'border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30'
+                  : 'border-slate-200 focus:border-sky-600 focus:ring-1 focus:ring-sky-600/30'
               }`}
             />
             {fieldErrors.email && (
@@ -306,7 +306,7 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
           {/* Classic Minimal Footer Note (Replaces huge boxes) */}
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
             <span>Mật khẩu mặc định: <strong className="font-mono text-slate-700">abccamon</strong></span>
-            <span className="text-emerald-700 font-semibold">• Tặng 1.000 điểm</span>
+            <span className="text-sky-700 font-semibold">• Tặng 1.000 điểm</span>
           </div>
 
           {/* Modal Actions */}
@@ -322,7 +322,7 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-colors"
+              className="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-colors"
             >
               {submitting ? 'Đang lưu...' : 'Lưu khách hàng'}
             </button>

@@ -442,11 +442,11 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
                   </span>
                 </div>
 
-                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2.5">
-                  <ShieldCheck size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                <div className="p-3 bg-sky-50/80 border border-sky-200 rounded-xl text-xs text-sky-800 flex items-start gap-2.5">
+                  <ShieldCheck size={16} className="text-sky-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-emerald-900">Quản lý chi nhánh tự chịu trách nhiệm</p>
-                    <p className="text-[11px] text-emerald-700 mt-0.5 leading-relaxed">
+                    <p className="font-bold text-sky-900">Quản lý chi nhánh tự chịu trách nhiệm</p>
+                    <p className="text-[11px] text-sky-700 mt-0.5 leading-relaxed">
                       Yêu cầu nhập thuốc không bị giới hạn bởi ngưỡng tiền. Quản lý chi nhánh chịu trách nhiệm trực tiếp về số lượng và tính cần thiết của đơn hàng.
                     </p>
                   </div>

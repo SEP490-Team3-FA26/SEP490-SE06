@@ -1,0 +1,892 @@
+{
+  "range": "'Trang tính1'!A1:Z200",
+  "majorDimension": "ROWS",
+  "values": [
+    [
+      "BẢNG TỔNG HỢP 11 PHÂN HỆ TÍNH NĂNG (FEATURES) & TIẾN ĐỘ THỰC HIỆN"
+    ],
+    [
+      "Dự án: Hệ Thống Nhà Thuốc Chuỗi Thông Minh (ABC Pharmacy - WDP301/SEP490) | Tham chiếu từ phan_task_v2"
+    ],
+    [
+      "QUY ĐỊNH PROCESS: [DONE] = Report 3 done + Report 4 done + Unit Test done + Test Report done | [WORKING] = Dang dở | [OPEN] = Hoàn toàn chưa đụng vào"
+    ],
+    [
+      "PHẦN I: BẢNG TỔNG QUAN 11 FEATURE (TIẾN ĐỘ & PHÂN CÔNG)"
+    ],
+    [
+      "STT",
+      "Feature",
+      "Function",
+      "Member"
+    ],
+    [
+      "1",
+      "Xác thực & Phân quyền",
+      "• [UC-58] Quản lý tài khoản người dùng & phân quyền RBAC -> DONE\n• [UC-45] Tạo account nhân viên -> DONE\n• [UC-113] Đăng nhập App Khách hàng bằng Sinh trắc học (FaceID/Vân tay) -> OPEN\n• [UC-59] Ghi nhận Audit Log – ai làm gì, lúc nào -> DONE\n• [UC-60] Cấu hình hệ thống: AI, thông báo, backup, ngưỡng -> OPEN\n• [UC-112] Nhật ký sao lưu & khôi phục dữ liệu thủ công -> OPEN",
+      "Phúc, Phước, Thành, Chưa phân công"
+    ],
+    [
+      "2",
+      "Danh mục dược phẩm",
+      "• [UC-40] Quản lý danh mục thuốc – thêm/sửa/xóa SKU -> DONE\n• [UC-41] Nhóm thuốc & hoạt chất -> DONE\n• [UC-42] Liên kết mã QR/Barcode với SKU -> DONE\n• [UC-49] Tra cứu thông tin thuốc (hướng dẫn, tương tác) -> DONE\n• [UC-78] In mã vạch / tem nhãn phụ cho thuốc nhập khẩu -> DONE\n• [UC-91] Thiết lập mã SKU & sinh Barcode cho sản phẩm -> OPEN\n• [UC-92] Quản lý quy đổi đơn vị tính (viên - vỉ - hộp) -> OPEN\n• [UC-102] Quản lý thuốc kiểm soát đặc biệt (gây nghiện, hướng thần) -> OPEN",
+      "Nam, Phước, Đạt, Chưa phân công"
+    ],
+    [
+      "3",
+      "Bán hàng tại quầy POS",
+      "• [UC-03] Xác nhận thanh toán & in hóa đơn -> DONE\n• [UC-04] Bán theo đơn thuốc – quét QR điện tử -> DONE\n• [UC-06] Bán sỉ – lập hóa đơn & giá bậc thang -> DONE\n• [UC-07] Quản lý hạn mức công nợ đại lý -> DONE\n• [UC-08] Xử lý đổi / trả hàng -> DONE\n• [UC-09] Hoàn tiền & cập nhật tồn kho -> DONE\n• [UC-12] Gửi hóa đơn điện tử qua email / Zalo OA -> DONE\n• [UC-67] Quản lý tiền tại từng chi nhánh -> DONE\n• [UC-68] Dược sĩ xác nhận OCR -> DONE\n• [UC-69] Lưu lịch sử OCR -> DONE\n• [UC-70] Quản lý lịch sử ghi âm tư vấn -> DONE\n• [UC-71] Lập phiếu thu tiền mặt / chuyển khoản tự động -> OPEN\n• [UC-84] Kết ca & đối soát tiền mặt cuối ca -> OPEN\n• [UC-85] Hủy đơn hàng / hủy giao dịch đã tạo -> WORKING\n• [UC-95] Gợi ý bán kèm / combo (Cross-sell) -> OPEN",
+      "Nam, Phúc, Phước, Đạt, Chưa phân công"
+    ],
+    [
+      "4",
+      "Kênh bán hàng trực tuyến",
+      "• [UC-01] Tìm kiếm & thêm thuốc vào giỏ hàng -> DONE\n• [UC-44] Khách hàng tự tra cứu lịch sử đơn hàng -> DONE\n• [UC-63] Đối soát thanh toán qua Ví điện tử / Ngân hàng (Webhook) -> DONE\n• [UC-64] Phân công tài xế giao hàng nội bộ (Shipper nhà thuốc) -> OPEN\n• [UC-77] Khách hàng đánh giá & review sản phẩm trên App -> OPEN\n• [UC-81] Tính năng tìm kiếm thuốc bằng Giọng nói (Voice Search) -> OPEN\n• [UC-86] Tự động tính phí giao hàng theo khoảng cách -> OPEN\n• [UC-96] Danh sách sản phẩm yêu thích (Wishlist) -> OPEN\n• [UC-97] Pre-order quản lý đặt hàng trước thuốc khan hiếm -> OPEN\n• [UC-100] Quét mã QR xác nhận bàn giao hàng cho khách -> OPEN\n• [UC-109] Voice Commerce đa ngôn ngữ -> OPEN",
+      "Nam, Phước, Thành, Đạt, Chưa phân công"
+    ],
+    [
+      "5",
+      "Trợ lý lâm sàng AI & Sổ sức khỏe",
+      "• [UC-05] Kiểm tra tương tác thuốc -> DONE\n• [UC-36] Gợi ý thuốc thay thế khi hết hàng -> DONE\n• [UC-80] Chatbot AI tư vấn triệu chứng bệnh cơ bản -> DONE\n• [UC-106] Hồ sơ sức khỏe số đa nhà thuốc (Digital Health Passport) -> OPEN\n• [UC-107] Gợi ý thuốc theo tiền sử dị ứng || bệnh nền || thuốc dị ứng || dị ứng vớithành phần thuốc -> OPEN\n• [UC-108] Quản lý tuân thủ điều trị & báo cáo bác sĩ -> WORKING",
+      "Phúc, Phước, Đạt"
+    ],
+    [
+      "6",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "• [UC-14] Scan QR/Barcode bằng Mobile khi nhập kho -> OPEN\n• [UC-15] Nhập thông tin lô / HSD / số lô -> DONE\n• [UC-16] Xuất theo FIFO & cảnh báo gần HSD -> DONE\n• [UC-17] Tạo phiếu xuất nội bộ (không bán) -> DONE\n• [UC-18] Tạo phiên kiểm kê theo khu vực / toàn bộ -> DONE\n• [UC-19] Scan & đối chiếu số lượng thực tế -> DONE\n• [UC-20] Lưu biên bản & điều chỉnh tồn kho -> DONE\n• [UC-23] Truy xuất nguồn gốc lô thuốc (Lot Tracking) -> DONE\n• [UC-32] Cảnh báo thuốc sắp hết hạn (đỏ/vàng/xanh) -> DONE\n• [UC-33] Đề xuất xử lý thuốc sắp hết hạn -> DONE\n• [UC-38] Cảnh báo tồn kho dưới mức tối thiểu an toàn -> DONE\n• [UC-65] Sơ đồ 2D kho tổng -> DONE\n• [UC-82] IOT: Cảnh báo nhiệt độ và độ ẩm -> WORKING\n• [UC-87] Quét Barcode nhập kho (nhập hàng từ NCC) -> OPEN\n• [UC-88] Quét Barcode xuất kho (bán hàng / chuyển kho) -> OPEN\n• [UC-89] Kiểm kê kho bằng máy quét Barcode -> WORKING\n• [UC-90] Quản lý vị trí kho -> WORKING\n• [UC-94] Cảnh báo tồn kho âm / sai lệch bất thường -> WORKING\n• [UC-114] IOT Plan Chi tiết -> OPEN",
+      "Nam, Phúc, Phước, Thành, Đạt, Chưa phân công"
+    ],
+    [
+      "7",
+      "Mua hàng & Quản lý Nhà cung cấp",
+      "• [UC-13] Tạo phiếu nhập & chọn nhà cung cấp -> DONE\n• [UC-46] Quản lý nhà cung cấp – thêm/sửa/đánh giá -> DONE\n• [UC-79] Gửi Yêu cầu báo giá (RFQ) hàng loạt cho NCC -> DONE\n• [UC-103] Quản lý hợp đồng & điều khoản với nhà cung cấp -> OPEN\n• [UC-104] Lập phiếu chi trả nhà cung cấp / đối tác -> OPEN\n• [UC-110] Đề xuất nhà cung cấp có giá nhập tốt nhất bằng AI -> OPEN",
+      "Nam, Đạt, Chưa phân công"
+    ],
+    [
+      "8",
+      "Quản trị chuỗi đa chi nhánh",
+      "• [UC-21] Tạo phiếu điều chuyển giữa chi nhánh -> DONE\n• [UC-22] Xác nhận xuất/nhận hàng bằng QR -> OPEN\n• [UC-24] Quản lý chi nhánh – thêm/sửa/xóa -> DONE\n• [UC-27] Phân bổ hạn mức nhập hàng theo chi nhánh -> DONE\n• [UC-28] Đồng bộ danh mục & giá bán toàn chuỗi -> DONE\n• [UC-30] Xem tồn kho thời gian thực toàn chuỗi -> DONE\n• [UC-48] Quản lý bảng giá bán lẻ / sỉ theo chi nhánh -> DONE\n• [UC-93] Cấu hình chính sách giá / khuyến mãi riêng theo chi nhánh -> OPEN",
+      "Nam, Phúc, Phước, Thành, Đạt"
+    ],
+    [
+      "9",
+      "Dự báo nhu cầu AI & Điều phối kho",
+      "• [UC-29] Gợi ý điều phối hàng tự động giữa chi nhánh -> DONE\n• [UC-34] Dự báo nhu cầu nhập hàng theo kỳ (AI Forecast) -> DONE\n• [UC-35] Tự động tạo đơn đặt hàng từ kết quả dự báo -> DONE\n• [UC-37] Phát hiện bất thường tồn kho -> DONE\n• [UC-39] Phân tích xu hướng bán hàng theo mùa/dịch bệnh -> DONE\n• [UC-105] AI cảnh báo rủi ro chuỗi cung ứng -> OPEN",
+      "Nam, Phước, Thành, Đạt, Chưa phân công"
+    ],
+    [
+      "10",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "• [UC-02] Áp dụng khuyến mãi / mã giảm giá -> DONE\n• [UC-10] Tích điểm & quy đổi khách hàng thân thiết -> DONE\n• [UC-43] Quản lý hồ sơ khách hàng & lịch sử mua -> DONE\n• [UC-47] Quản lý chương trình khuyến mãi & giá nhóm -> DONE\n• [UC-61] Cổng tiếp nhận và xử lý khiếu nại khách hàng -> DONE\n• [UC-62] Quản lý hạng thẻ thành viên (Đồng, Bạc, Vàng) -> DONE\n• [UC-66] Phân nhóm khách hàng theo hành vi mua sắm (RFM) -> DONE\n• [UC-74] Thiết lập chương trình Flash Sale theo khung giờ -> WORKING\n• [UC-75] Tạo mã giảm giá theo điều kiện (Mua X tặng Y, Combo) -> DONE\n• [UC-76] Tạo và gửi Email Marketing tự động (Newsletter) -> OPEN\n• [UC-83] Phân tích hiệu quả các chiến dịch Marketing (ROI) -> WORKING\n• [UC-98] Khảo sát mức độ hài lòng khách hàng sau mua -> OPEN\n• [UC-99] Gamification – nhiệm vụ sức khỏe đổi điểm -> OPEN\n• [UC-101] Link với facebook -> OPEN",
+      "Nam, Phước, Thành, Đạt, Chưa phân công"
+    ],
+    [
+      "11",
+      "Quản lý tài chính & Báo cáo",
+      "• [UC-25] Dashboard tổng – doanh thu & tồn kho toàn chuỗi -> DONE\n• [UC-26] So sánh hiệu suất kinh doanh giữa các chi nhánh -> DONE\n• [UC-31] Thông báo realtime sự kiện quan trọng toàn chuỗi -> DONE\n• [UC-50] Báo cáo doanh thu theo ngày/tuần/tháng/quý -> DONE\n• [UC-51] Báo cáo doanh thu theo chi nhánh & nhân viên -> DONE\n• [UC-52] Báo cáo tồn kho – nhập/xuất/tồn hiện tại -> DONE\n• [UC-53] Báo cáo lợi nhuận -> DONE\n• [UC-54] Báo cáo hàng bán chạy & chậm luân chuyển -> DONE\n• [UC-55] Báo cáo công nợ đại lý / nhà cung cấp -> DONE\n• [UC-56] Xuất báo cáo ra Excel / PDF -> DONE\n• [UC-57] Lập lịch gửi báo cáo tự động qua email -> OPEN\n• [UC-72] Báo cáo dòng tiền (Cash flow) chi nhánh & tổng -> DONE\n• [UC-73] Báo cáo tỷ lệ giao hàng đúng hạn & phản hồi -> OPEN\n• [UC-111] Báo cáo hiệu suất nhân viên bán hàng (KPI) -> OPEN",
+      "Nam, Phúc, Phước, Thành, Đạt, Chưa phân công"
+    ],
+    [],
+    [
+      "PHẦN II: BẢNG CHI TIẾT TOÀN BỘ 113 CHỨC NĂNG PHÂN LOẠI THEO 11 FEATURE"
+    ],
+    [
+      "STT",
+      "Feature",
+      "Function",
+      "Member",
+      "Status"
+    ],
+    [
+      "1,1",
+      "Xác thực & Phân quyền",
+      "[UC-58] Quản lý tài khoản người dùng & phân quyền RBAC",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "1,2",
+      "Xác thực & Phân quyền",
+      "[UC-45] Tạo account nhân viên",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "1,3",
+      "Xác thực & Phân quyền",
+      "[UC-113] Đăng nhập App Khách hàng bằng Sinh trắc học (FaceID/Vân tay)",
+      "Phúc",
+      "OPEN"
+    ],
+    [
+      "1,4",
+      "Xác thực & Phân quyền",
+      "[UC-59] Ghi nhận Audit Log – ai làm gì, lúc nào",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "1,5",
+      "Xác thực & Phân quyền",
+      "[UC-60] Cấu hình hệ thống: AI, thông báo, backup, ngưỡng",
+      "Thành",
+      "OPEN"
+    ],
+    [
+      "1,6",
+      "Xác thực & Phân quyền",
+      "[UC-112] Nhật ký sao lưu & khôi phục dữ liệu thủ công",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "2,1",
+      "Danh mục dược phẩm",
+      "[UC-40] Quản lý danh mục thuốc – thêm/sửa/xóa SKU",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "2,2",
+      "Danh mục dược phẩm",
+      "[UC-41] Nhóm thuốc & hoạt chất",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "2,3",
+      "Danh mục dược phẩm",
+      "[UC-42] Liên kết mã QR/Barcode với SKU",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "2,4",
+      "Danh mục dược phẩm",
+      "[UC-49] Tra cứu thông tin thuốc (hướng dẫn, tương tác)",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "2,5",
+      "Danh mục dược phẩm",
+      "[UC-78] In mã vạch / tem nhãn phụ cho thuốc nhập khẩu",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "2,6",
+      "Danh mục dược phẩm",
+      "[UC-91] Thiết lập mã SKU & sinh Barcode cho sản phẩm",
+      "Nam",
+      "OPEN"
+    ],
+    [
+      "2,7",
+      "Danh mục dược phẩm",
+      "[UC-92] Quản lý quy đổi đơn vị tính (viên - vỉ - hộp)",
+      "Nam",
+      "OPEN"
+    ],
+    [
+      "2,8",
+      "Danh mục dược phẩm",
+      "[UC-102] Quản lý thuốc kiểm soát đặc biệt (gây nghiện, hướng thần)",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "3,1",
+      "Bán hàng tại quầy POS",
+      "[UC-03] Xác nhận thanh toán & in hóa đơn",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "3,2",
+      "Bán hàng tại quầy POS",
+      "[UC-04] Bán theo đơn thuốc – quét QR điện tử",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "3,3",
+      "Bán hàng tại quầy POS",
+      "[UC-06] Bán sỉ – lập hóa đơn & giá bậc thang",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "3,4",
+      "Bán hàng tại quầy POS",
+      "[UC-07] Quản lý hạn mức công nợ đại lý",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "3,5",
+      "Bán hàng tại quầy POS",
+      "[UC-08] Xử lý đổi / trả hàng",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "3,6",
+      "Bán hàng tại quầy POS",
+      "[UC-09] Hoàn tiền & cập nhật tồn kho",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "3,7",
+      "Bán hàng tại quầy POS",
+      "[UC-12] Gửi hóa đơn điện tử qua email / Zalo OA",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "3,8",
+      "Bán hàng tại quầy POS",
+      "[UC-67] Quản lý tiền tại từng chi nhánh",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "3,9",
+      "Bán hàng tại quầy POS",
+      "[UC-68] Dược sĩ xác nhận OCR",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "3,1",
+      "Bán hàng tại quầy POS",
+      "[UC-69] Lưu lịch sử OCR",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "3,11",
+      "Bán hàng tại quầy POS",
+      "[UC-70] Quản lý lịch sử ghi âm tư vấn",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "3,12",
+      "Bán hàng tại quầy POS",
+      "[UC-71] Lập phiếu thu tiền mặt / chuyển khoản tự động",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "3,13",
+      "Bán hàng tại quầy POS",
+      "[UC-84] Kết ca & đối soát tiền mặt cuối ca",
+      "Phúc",
+      "OPEN"
+    ],
+    [
+      "3,14",
+      "Bán hàng tại quầy POS",
+      "[UC-85] Hủy đơn hàng / hủy giao dịch đã tạo",
+      "Phước",
+      "WORKING"
+    ],
+    [
+      "3,15",
+      "Bán hàng tại quầy POS",
+      "[UC-95] Gợi ý bán kèm / combo (Cross-sell)",
+      "Đạt",
+      "OPEN"
+    ],
+    [
+      "4,1",
+      "Kênh bán hàng trực tuyến",
+      "[UC-01] Tìm kiếm & thêm thuốc vào giỏ hàng",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "4,2",
+      "Kênh bán hàng trực tuyến",
+      "[UC-44] Khách hàng tự tra cứu lịch sử đơn hàng",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "4,3",
+      "Kênh bán hàng trực tuyến",
+      "[UC-63] Đối soát thanh toán qua Ví điện tử / Ngân hàng (Webhook)",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "4,4",
+      "Kênh bán hàng trực tuyến",
+      "[UC-64] Phân công tài xế giao hàng nội bộ (Shipper nhà thuốc)",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "4,5",
+      "Kênh bán hàng trực tuyến",
+      "[UC-77] Khách hàng đánh giá & review sản phẩm trên App",
+      "Đạt",
+      "OPEN"
+    ],
+    [
+      "4,6",
+      "Kênh bán hàng trực tuyến",
+      "[UC-81] Tính năng tìm kiếm thuốc bằng Giọng nói (Voice Search)",
+      "Phước",
+      "OPEN"
+    ],
+    [
+      "4,7",
+      "Kênh bán hàng trực tuyến",
+      "[UC-86] Tự động tính phí giao hàng theo khoảng cách",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "4,8",
+      "Kênh bán hàng trực tuyến",
+      "[UC-96] Danh sách sản phẩm yêu thích (Wishlist)",
+      "Phước",
+      "OPEN"
+    ],
+    [
+      "4,9",
+      "Kênh bán hàng trực tuyến",
+      "[UC-97] Pre-order quản lý đặt hàng trước thuốc khan hiếm",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "4,1",
+      "Kênh bán hàng trực tuyến",
+      "[UC-100] Quét mã QR xác nhận bàn giao hàng cho khách",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "4,11",
+      "Kênh bán hàng trực tuyến",
+      "[UC-109] Voice Commerce đa ngôn ngữ",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "5,1",
+      "Trợ lý lâm sàng AI & Sổ sức khỏe",
+      "[UC-05] Kiểm tra tương tác thuốc",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "5,2",
+      "Trợ lý lâm sàng AI & Sổ sức khỏe",
+      "[UC-36] Gợi ý thuốc thay thế khi hết hàng",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "5,3",
+      "Trợ lý lâm sàng AI & Sổ sức khỏe",
+      "[UC-80] Chatbot AI tư vấn triệu chứng bệnh cơ bản",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "5,4",
+      "Trợ lý lâm sàng AI & Sổ sức khỏe",
+      "[UC-106] Hồ sơ sức khỏe số đa nhà thuốc (Digital Health Passport)",
+      "Phúc",
+      "OPEN"
+    ],
+    [
+      "5,5",
+      "Trợ lý lâm sàng AI & Sổ sức khỏe",
+      "[UC-107] Gợi ý thuốc theo tiền sử dị ứng || bệnh nền || thuốc dị ứng || dị ứng vớithành phần thuốc",
+      "Phước",
+      "OPEN"
+    ],
+    [
+      "5,6",
+      "Trợ lý lâm sàng AI & Sổ sức khỏe",
+      "[UC-108] Quản lý tuân thủ điều trị & báo cáo bác sĩ",
+      "Đạt",
+      "WORKING"
+    ],
+    [
+      "6,1",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-14] Scan QR/Barcode bằng Mobile khi nhập kho",
+      "Phúc",
+      "OPEN"
+    ],
+    [
+      "6,2",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-15] Nhập thông tin lô / HSD / số lô",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "6,3",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-16] Xuất theo FIFO & cảnh báo gần HSD",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "6,4",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-17] Tạo phiếu xuất nội bộ (không bán)",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "6,5",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-18] Tạo phiên kiểm kê theo khu vực / toàn bộ",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "6,6",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-19] Scan & đối chiếu số lượng thực tế",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "6,7",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-20] Lưu biên bản & điều chỉnh tồn kho",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "6,8",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-23] Truy xuất nguồn gốc lô thuốc (Lot Tracking)",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "6,9",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-32] Cảnh báo thuốc sắp hết hạn (đỏ/vàng/xanh)",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "6,1",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-33] Đề xuất xử lý thuốc sắp hết hạn",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "6,11",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-38] Cảnh báo tồn kho dưới mức tối thiểu an toàn",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "6,12",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-65] Sơ đồ 2D kho tổng",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "6,13",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-82] IOT: Cảnh báo nhiệt độ và độ ẩm",
+      "Phúc",
+      "WORKING"
+    ],
+    [
+      "6,14",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-87] Quét Barcode nhập kho (nhập hàng từ NCC)",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "6,15",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-88] Quét Barcode xuất kho (bán hàng / chuyển kho)",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "6,16",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-89] Kiểm kê kho bằng máy quét Barcode",
+      "Nam",
+      "WORKING"
+    ],
+    [
+      "6,17",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-90] Quản lý vị trí kho",
+      "Đạt",
+      "WORKING"
+    ],
+    [
+      "6,18",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-94] Cảnh báo tồn kho âm / sai lệch bất thường",
+      "Nam",
+      "WORKING"
+    ],
+    [
+      "6,19",
+      "Vận hành kho & Kiểm soát tồn kho",
+      "[UC-114] IOT Plan Chi tiết",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "7,1",
+      "Mua hàng & Quản lý Nhà cung cấp",
+      "[UC-13] Tạo phiếu nhập & chọn nhà cung cấp",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "7,2",
+      "Mua hàng & Quản lý Nhà cung cấp",
+      "[UC-46] Quản lý nhà cung cấp – thêm/sửa/đánh giá",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "7,3",
+      "Mua hàng & Quản lý Nhà cung cấp",
+      "[UC-79] Gửi Yêu cầu báo giá (RFQ) hàng loạt cho NCC",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "7,4",
+      "Mua hàng & Quản lý Nhà cung cấp",
+      "[UC-103] Quản lý hợp đồng & điều khoản với nhà cung cấp",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "7,5",
+      "Mua hàng & Quản lý Nhà cung cấp",
+      "[UC-104] Lập phiếu chi trả nhà cung cấp / đối tác",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "7,6",
+      "Mua hàng & Quản lý Nhà cung cấp",
+      "[UC-110] Đề xuất nhà cung cấp có giá nhập tốt nhất bằng AI",
+      "Nam",
+      "OPEN"
+    ],
+    [
+      "8,1",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-21] Tạo phiếu điều chuyển giữa chi nhánh",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "8,2",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-22] Xác nhận xuất/nhận hàng bằng QR",
+      "Thành",
+      "OPEN"
+    ],
+    [
+      "8,3",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-24] Quản lý chi nhánh – thêm/sửa/xóa",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "8,4",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-27] Phân bổ hạn mức nhập hàng theo chi nhánh",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "8,5",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-28] Đồng bộ danh mục & giá bán toàn chuỗi",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "8,6",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-30] Xem tồn kho thời gian thực toàn chuỗi",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "8,7",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-48] Quản lý bảng giá bán lẻ / sỉ theo chi nhánh",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "8,8",
+      "Quản trị chuỗi đa chi nhánh",
+      "[UC-93] Cấu hình chính sách giá / khuyến mãi riêng theo chi nhánh",
+      "Phước",
+      "OPEN"
+    ],
+    [
+      "9,1",
+      "Dự báo nhu cầu AI & Điều phối kho",
+      "[UC-29] Gợi ý điều phối hàng tự động giữa chi nhánh",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "9,2",
+      "Dự báo nhu cầu AI & Điều phối kho",
+      "[UC-34] Dự báo nhu cầu nhập hàng theo kỳ (AI Forecast)",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "9,3",
+      "Dự báo nhu cầu AI & Điều phối kho",
+      "[UC-35] Tự động tạo đơn đặt hàng từ kết quả dự báo",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "9,4",
+      "Dự báo nhu cầu AI & Điều phối kho",
+      "[UC-37] Phát hiện bất thường tồn kho",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "9,5",
+      "Dự báo nhu cầu AI & Điều phối kho",
+      "[UC-39] Phân tích xu hướng bán hàng theo mùa/dịch bệnh",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "9,6",
+      "Dự báo nhu cầu AI & Điều phối kho",
+      "[UC-105] AI cảnh báo rủi ro chuỗi cung ứng",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "10,1",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-02] Áp dụng khuyến mãi / mã giảm giá",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "10,2",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-10] Tích điểm & quy đổi khách hàng thân thiết",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "10,3",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-43] Quản lý hồ sơ khách hàng & lịch sử mua",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "10,4",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-47] Quản lý chương trình khuyến mãi & giá nhóm",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "10,5",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-61] Cổng tiếp nhận và xử lý khiếu nại khách hàng",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "10,6",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-62] Quản lý hạng thẻ thành viên (Đồng, Bạc, Vàng)",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "10,7",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-66] Phân nhóm khách hàng theo hành vi mua sắm (RFM)",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "10,8",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-74] Thiết lập chương trình Flash Sale theo khung giờ",
+      "Phước",
+      "WORKING"
+    ],
+    [
+      "10,9",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-75] Tạo mã giảm giá theo điều kiện (Mua X tặng Y, Combo)",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "10,1",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-76] Tạo và gửi Email Marketing tự động (Newsletter)",
+      "Đạt",
+      "OPEN"
+    ],
+    [
+      "10,11",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-83] Phân tích hiệu quả các chiến dịch Marketing (ROI)",
+      "Nam",
+      "WORKING"
+    ],
+    [
+      "10,12",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-98] Khảo sát mức độ hài lòng khách hàng sau mua",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "10,13",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-99] Gamification – nhiệm vụ sức khỏe đổi điểm",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "10,14",
+      "Chiến dịch Marketing & Chăm sóc khách hàng",
+      "[UC-101] Link với facebook",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "11,1",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-25] Dashboard tổng – doanh thu & tồn kho toàn chuỗi",
+      "Thành",
+      "DONE"
+    ],
+    [
+      "11,2",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-26] So sánh hiệu suất kinh doanh giữa các chi nhánh",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "11,3",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-31] Thông báo realtime sự kiện quan trọng toàn chuỗi",
+      "Phúc",
+      "DONE"
+    ],
+    [
+      "11,4",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-50] Báo cáo doanh thu theo ngày/tuần/tháng/quý",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "11,5",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-51] Báo cáo doanh thu theo chi nhánh & nhân viên",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "11,6",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-52] Báo cáo tồn kho – nhập/xuất/tồn hiện tại",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "11,7",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-53] Báo cáo lợi nhuận",
+      "Đạt",
+      "DONE"
+    ],
+    [
+      "11,8",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-54] Báo cáo hàng bán chạy & chậm luân chuyển",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "11,9",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-55] Báo cáo công nợ đại lý / nhà cung cấp",
+      "Nam",
+      "DONE"
+    ],
+    [
+      "11,1",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-56] Xuất báo cáo ra Excel / PDF",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "11,11",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-57] Lập lịch gửi báo cáo tự động qua email",
+      "Phúc",
+      "OPEN"
+    ],
+    [
+      "11,12",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-72] Báo cáo dòng tiền (Cash flow) chi nhánh & tổng",
+      "Phước",
+      "DONE"
+    ],
+    [
+      "11,13",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-73] Báo cáo tỷ lệ giao hàng đúng hạn & phản hồi",
+      "Chưa phân công",
+      "OPEN"
+    ],
+    [
+      "11,14",
+      "Quản lý tài chính & Báo cáo",
+      "[UC-111] Báo cáo hiệu suất nhân viên bán hàng (KPI)",
+      "Chưa phân công",
+      "OPEN"
+    ]
+  ]
+}

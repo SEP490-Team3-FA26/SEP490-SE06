@@ -219,8 +219,8 @@ export function SalesAnalyticsDashboard() {
             />
             <KpiCard
               icon={<ShoppingBag size={24} />}
-              iconBgClass="bg-emerald-50"
-              iconColorClass="text-emerald-600"
+              iconBgClass="bg-sky-50"
+              iconColorClass="text-sky-600"
               title="Số đơn hàng"
               value={`${totalOrders} đơn`}
             />

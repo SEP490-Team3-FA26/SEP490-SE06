@@ -84,5 +84,29 @@ export const goodsReceiptService = {
   async getItemInspection(grnId: string, itemId: string) {
     const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.INSPECTION(grnId, itemId));
     return response.data;
+  },
+
+  // Gửi hình ảnh kiện hàng lên AI Vision kiểm đếm số lượng thực tế
+  async inspectReceiptItemAI(receiptId: string, itemId: string, file: File | Blob): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/api/goods-receipts/${receiptId}/items/${itemId}/inspection`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Lưu kết quả kiểm đếm PO trên Mobile lên máy chủ để đồng bộ đa thiết bị
+  async savePoInspection(poId: string, data: any) {
+    const response = await api.post(`/api/goods-receipts/po-inspections/${poId}`, data);
+    return response.data;
+  },
+
+  // Lấy kết quả kiểm đếm PO từ máy chủ về máy tính kho
+  async getPoInspection(poId: string) {
+    const response = await api.get(`/api/goods-receipts/po-inspections/${poId}`);
+    return response.data;
   }
 };

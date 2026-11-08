@@ -18,14 +18,14 @@ const ZONE_CONFIG: Record<string, {
   A: { label: "Khu A", bgColor: "#eff6ff", headerBg: "#dbeafe", borderColor: "#93c5fd", textColor: "#1d4ed8", badgeBg: "#bfdbfe", badgeText: "#1e40af", accentColor: "#3b82f6" },
   B: { label: "Khu B", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#fcd34d", textColor: "#b45309", badgeBg: "#fde68a", badgeText: "#92400e", accentColor: "#f59e0b" },
   C: { label: "Khu C", bgColor: "#fff1f2", headerBg: "#ffe4e6", borderColor: "#fda4af", textColor: "#be123c", badgeBg: "#fecdd3", badgeText: "#9f1239", accentColor: "#f43f5e" },
-  D: { label: "Khu D", bgColor: "#f0fdf4", headerBg: "#dcfce7", borderColor: "#86efac", textColor: "#15803d", badgeBg: "#bbf7d0", badgeText: "#166534", accentColor: "#22c55e" },
+  D: { label: "Khu D", bgColor: "#f0f9ff", headerBg: "#e0f2fe", borderColor: "#7dd3fc", textColor: "#0369a1", badgeBg: "#bae6fd", badgeText: "#075985", accentColor: "#0ea5e9" },
   E: { label: "Khu E", bgColor: "#faf5ff", headerBg: "#f3e8ff", borderColor: "#d8b4fe", textColor: "#7e22ce", badgeBg: "#e9d5ff", badgeText: "#6b21a8", accentColor: "#a855f7" },
   F: { label: "Khu F", bgColor: "#f8fafc", headerBg: "#f1f5f9", borderColor: "#cbd5e1", textColor: "#475569", badgeBg: "#e2e8f0", badgeText: "#334155", accentColor: "#64748b" },
   RESERVE: { label: "Khu Dự Trữ", bgColor: "#fffbeb", headerBg: "#fef3c7", borderColor: "#f59e0b", textColor: "#92400e", badgeBg: "#fde68a", badgeText: "#78350f", accentColor: "#d97706" },
 };
 
 const BIN_STATUS: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
-  NORMAL:      { bg: "#f0fdf4", border: "#86efac", text: "#15803d", dot: "#22c55e", label: "An toàn" },
+  NORMAL:      { bg: "#f0f9ff", border: "#7dd3fc", text: "#0369a1", dot: "#0ea5e9", label: "An toàn" },
   LOW_STOCK:   { bg: "#fefce8", border: "#fde047", text: "#854d0e", dot: "#eab308", label: "Sắp hết" },
   NEAR_EXPIRY: { bg: "#fff7ed", border: "#fdba74", text: "#9a3412", dot: "#f97316", label: "Cận date" },
   EXPIRED:     { bg: "#fef2f2", border: "#fca5a5", text: "#991b1b", dot: "#ef4444", label: "Hết hạn" },
@@ -33,7 +33,7 @@ const BIN_STATUS: Record<string, { bg: string; border: string; text: string; dot
 };
 
 const STATUS_SHELF: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-  NORMAL:      { bg: "#dcfce7", border: "#86efac", text: "#15803d", dot: "#22c55e" },
+  NORMAL:      { bg: "#e0f2fe", border: "#7dd3fc", text: "#0369a1", dot: "#0ea5e9" },
   LOW_STOCK:   { bg: "#fef9c3", border: "#fde047", text: "#a16207", dot: "#eab308" },
   NEAR_EXPIRY: { bg: "#ffedd5", border: "#fdba74", text: "#c2410c", dot: "#f97316" },
   EXPIRED:     { bg: "#fee2e2", border: "#fca5a5", text: "#b91c1c", dot: "#ef4444" },
@@ -357,12 +357,12 @@ export function WarehouseMap2D({
       `}</style>
 
       {/* Khu vực tiếp nhận hàng nhập */}
-      <div className="w-full mb-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-emerald-50 border border-dashed border-emerald-300">
-        <span className="flex items-center gap-2 font-semibold text-emerald-700">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+      <div className="w-full mb-4 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs shrink-0 bg-sky-50 border border-dashed border-sky-300">
+        <span className="flex items-center gap-2 font-semibold text-sky-700">
+          <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse inline-block" />
           🚚 CỬA NHẬP HÀNG (Inbound Docks) — Khu Tiếp Nhận & Kiểm Đếm
         </span>
-        <span className="font-mono text-[10px] text-emerald-500">Luồng một chiều → GSP</span>
+        <span className="font-mono text-[10px] text-sky-500">Luồng một chiều → GSP</span>
       </div>
 
       {/* Lưới các khu vực Kệ Chính (Zone A - F) */}
@@ -522,7 +522,7 @@ export function WarehouseMap2D({
                                   ) : shelfData.status === "EXPIRED" ? (
                                     <AlertTriangle size={9} className="text-rose-600" />
                                   ) : shelfData.status === "NORMAL" ? (
-                                    <CheckCircle size={9} className="text-emerald-600" />
+                                    <CheckCircle size={9} className="text-sky-600" />
                                   ) : null}
                                 </span>
                               </button>

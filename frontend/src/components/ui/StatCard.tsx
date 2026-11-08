@@ -3,7 +3,7 @@ import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type CardColor = 'emerald' | 'teal' | 'sky' | 'amber' | 'rose' | 'violet';
+type CardColor = 'sky' | 'teal' | 'amber' | 'rose' | 'violet';
 
 interface TrendData {
   /** Numeric percentage change (positive = up, negative = down) */
@@ -32,18 +32,16 @@ interface StatCardProps {
 // ─── Color Gradient Map ───────────────────────────────────────────────────────
 
 const iconGradientMap: Record<CardColor, string> = {
-  emerald: 'from-emerald-400 to-teal-500',
-  teal:    'from-teal-400 to-cyan-500',
   sky:     'from-sky-400 to-blue-500',
+  teal:    'from-sky-500 to-blue-600',
   amber:   'from-amber-400 to-orange-500',
   rose:    'from-rose-400 to-pink-500',
   violet:  'from-violet-400 to-purple-500',
 };
 
 const iconShadowMap: Record<CardColor, string> = {
-  emerald: 'shadow-emerald-200/60',
-  teal:    'shadow-teal-200/60',
   sky:     'shadow-sky-200/60',
+  teal:    'shadow-sky-200/60',
   amber:   'shadow-amber-200/60',
   rose:    'shadow-rose-200/60',
   violet:  'shadow-violet-200/60',
@@ -83,7 +81,7 @@ const StatCard: React.FC<StatCardProps> = ({
   icon,
   trend,
   loading = false,
-  color = 'emerald',
+  color = 'sky',
   className = '',
 }) => {
   const iconGradient = iconGradientMap[color];
@@ -142,7 +140,7 @@ const StatCard: React.FC<StatCardProps> = ({
             <div
               className={[
                 'mt-2 inline-flex items-center gap-1 text-xs font-medium',
-                isPositiveTrend ? 'text-emerald-600' : 'text-rose-600',
+                isPositiveTrend ? 'text-sky-600' : 'text-rose-600',
               ].join(' ')}
               aria-label={`Trend: ${trend.value >= 0 ? '+' : ''}${trend.value}% ${trend.label}`}
             >

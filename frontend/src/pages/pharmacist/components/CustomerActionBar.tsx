@@ -75,7 +75,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
             KHÁCH HÀNG THÂN THIẾT
           </h3>
           {customer ? (
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase">
+            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded uppercase">
               {customer.loyalty.tier} VIP
             </span>
           ) : isWalkIn ? (
@@ -87,7 +87,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsRegisterModalOpen(true)}
-                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                className="px-2 py-1 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
               >
                 <Plus size={12} />
                 <span>Thêm</span>
@@ -110,7 +110,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
           <div className="flex flex-col gap-2.5 text-xs text-left">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center font-bold shrink-0">
                   <UserCheck size={15} />
                 </div>
                 <div>
@@ -145,30 +145,30 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
 
             <div className="flex items-center justify-between py-1 border-t border-slate-100 text-[11px]">
               <span className="text-slate-500 font-medium">Điểm tích lũy:</span>
-              <strong className="text-emerald-700 font-mono font-bold text-xs">
-                {customer.loyalty.points.toLocaleString()}đ
+              <strong className="text-sky-700 font-mono font-bold text-xs">
+                {(customer?.loyalty?.points || 0).toLocaleString()}đ
               </strong>
             </div>
 
-            {customer.clinical.allergies && customer.clinical.allergies.length > 0 && (
+            {customer?.clinical?.allergies && customer.clinical.allergies.length > 0 && (
               <div className="px-2 py-1 rounded bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[10px]">
                 Dị ứng: {customer.clinical.allergies.join(', ')}
               </div>
             )}
 
-            {customer.loyalty.points > 0 && (
+            {(customer?.loyalty?.points || 0) > 0 && (
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={usePoints}
                     onChange={(e) => onToggleUsePoints(e.target.checked)}
-                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
+                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5 cursor-pointer"
                   />
                   <span className="text-[11px] font-semibold text-slate-700">Dùng điểm</span>
                 </label>
                 {usePoints && (
-                  <span className="text-xs font-bold text-emerald-700 font-mono">
+                  <span className="text-xs font-bold text-sky-700 font-mono">
                     -{redeemedPoints.toLocaleString()}đ
                   </span>
                 )}
@@ -187,7 +187,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
                   Khách lẻ vãng lai
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Không cần SĐT • Vai trò: <strong className="font-mono text-emerald-700">Role: guest</strong>
+                  Không cần SĐT • Vai trò: <strong className="font-mono text-sky-700">Role: guest</strong>
                 </div>
               </div>
             </div>
@@ -212,7 +212,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="w-full pl-3 pr-20 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-emerald-600 focus:bg-white"
+                className="w-full pl-3 pr-20 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-sky-600 focus:bg-white"
               />
               <div className="absolute right-1 top-1 bottom-1 flex items-center gap-1">
                 {searchQuery && (
@@ -232,7 +232,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
                   type="button"
                   onClick={() => onSearch()}
                   disabled={isSearching || !searchQuery.trim()}
-                  className="px-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded-lg cursor-pointer h-full"
+                  className="px-3 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded-lg cursor-pointer h-full"
                 >
                   {isSearching ? '...' : 'Tìm'}
                 </button>
@@ -254,7 +254,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsRegisterModalOpen(true)}
-                  className="font-bold underline text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                  className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
                 >
                   + Đăng ký
                 </button>
@@ -270,7 +270,7 @@ export const CustomerActionBar: React.FC<CustomerActionBarProps> = ({
                     key={rc.phone}
                     type="button"
                     onClick={() => onSelectRecent(rc)}
-                    className="hover:text-emerald-700 hover:underline cursor-pointer"
+                    className="hover:text-sky-700 hover:underline cursor-pointer"
                   >
                     {rc.fullName} ({rc.phone.slice(-4)})
                   </button>

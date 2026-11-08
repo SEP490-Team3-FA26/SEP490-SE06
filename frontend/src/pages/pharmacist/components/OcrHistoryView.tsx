@@ -61,7 +61,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-200">
               UC-69 • GPP Audit
             </span>
             <span className="flex items-center gap-1 text-xs font-semibold text-slate-500">
@@ -96,7 +96,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng Đơn Quét</p>
             <p className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1">{totalScans}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
             <FileText size={20} />
           </div>
         </div>
@@ -104,7 +104,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Đã Thẩm Định</p>
-            <p className="text-2xl font-black text-emerald-700 font-mono tabular-nums mt-1">{reviewedCount}</p>
+            <p className="text-2xl font-black text-sky-700 font-mono tabular-nums mt-1">{reviewedCount}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
             <ShieldCheck size={20} />
@@ -141,7 +141,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
             placeholder="Tìm theo Mã quét, Mã GPP, Tên bệnh nhân, Bác sĩ kê đơn..."
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition"
           />
         </div>
 
@@ -150,7 +150,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
           <select
             value={selectedBranch}
             onChange={(e) => setSelectedBranch(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 bg-white focus:outline-none focus:border-emerald-500"
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 bg-white focus:outline-none focus:border-sky-500"
           >
             <option value="ALL">Toàn bộ chi nhánh</option>
             <option value="BR-001">Chi nhánh 1 (Quận 1)</option>
@@ -162,7 +162,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 bg-white focus:outline-none focus:border-emerald-500"
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 bg-white focus:outline-none focus:border-sky-500"
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="SCANNED">Mới quét (Chờ đối soát)</option>
@@ -192,7 +192,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
               {loading && logs.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-12 text-center text-slate-400">
-                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-emerald-600" />
+                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-sky-600" />
                     <span>Đang tải lịch sử quét đơn OCR...</span>
                   </td>
                 </tr>
@@ -282,7 +282,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                       {/* Extracted Items Count */}
                       <td className="p-3.5">
                         <div className="font-bold text-slate-800 flex items-center gap-1">
-                          <Layers size={13} className="text-emerald-600" />
+                          <Layers size={13} className="text-sky-600" />
                           <span>{totalItems} khoản mục thuốc</span>
                         </div>
                         {log.hasAdjustments && (
@@ -297,11 +297,11 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                         <div className="flex items-center gap-1.5">
                           <div className="w-12 bg-slate-100 h-2 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-emerald-500 rounded-full"
+                              className="h-full bg-sky-500 rounded-full"
                               style={{ width: `${Math.round((log.confidenceScore || 0.95) * 100)}%` }}
                             />
                           </div>
-                          <span className="font-mono font-bold text-emerald-700 text-xs">
+                          <span className="font-mono font-bold text-sky-700 text-xs">
                             {Math.round((log.confidenceScore || 0.95) * 100)}%
                           </span>
                         </div>
@@ -314,7 +314,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                             log.status === 'DISPENSED'
                               ? 'bg-sky-100 text-sky-800 border border-sky-200'
                               : log.status === 'REVIEWED'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              ? 'bg-sky-100 text-sky-800 border border-sky-200'
                               : 'bg-amber-100 text-amber-800 border border-amber-200'
                           }`}
                         >
@@ -345,7 +345,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                           {log.pharmacistInfo?.name || 'Chưa phân công'}
                         </div>
                         {log.auditCode && (
-                          <div className="font-mono text-[11px] text-emerald-700 font-extrabold mt-0.5 flex items-center gap-1">
+                          <div className="font-mono text-[11px] text-sky-700 font-extrabold mt-0.5 flex items-center gap-1">
                             <ShieldCheck size={12} /> {log.auditCode}
                           </div>
                         )}
@@ -355,7 +355,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                       <td className="p-3.5 pr-5 text-right">
                         <button
                           onClick={() => setSelectedLog(log)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95"
                         >
                           <Eye size={13} />
                           <span>Đối chiếu</span>
@@ -375,7 +375,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="p-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0">
+            <div className="p-5 bg-gradient-to-r from-sky-600 to-blue-700 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
                   <ShieldCheck size={22} />
@@ -385,7 +385,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                     <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white">
                       Đối Soát Lâm Sàng GPP
                     </span>
-                    <span className="text-xs text-emerald-100 font-mono font-bold">
+                    <span className="text-xs text-sky-100 font-mono font-bold">
                       {selectedLog.scanId}
                     </span>
                   </div>
@@ -469,7 +469,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
                       <span className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-                        <Sparkles size={14} className="text-emerald-600" /> Kết Quả AI Quét Ban Đầu
+                        <Sparkles size={14} className="text-sky-600" /> Kết Quả AI Quét Ban Đầu
                       </span>
                       <span className="text-[10px] font-mono font-bold text-slate-500">
                         Độ tin cậy: {Math.round((selectedLog.confidenceScore || 0.95) * 100)}%
@@ -493,25 +493,25 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
                   </div>
 
                   {/* Right: Pharmacist Adjusted Items */}
-                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200">
-                    <div className="flex items-center justify-between border-b border-emerald-200 pb-2 mb-3">
-                      <span className="font-bold text-xs text-emerald-800 flex items-center gap-1.5">
-                        <ShieldCheck size={14} className="text-emerald-600" /> Dược Sĩ Đã Thẩm Định / Chỉnh Sửa
+                  <div className="bg-sky-50/50 p-4 rounded-2xl border border-sky-200">
+                    <div className="flex items-center justify-between border-b border-sky-200 pb-2 mb-3">
+                      <span className="font-bold text-xs text-sky-800 flex items-center gap-1.5">
+                        <ShieldCheck size={14} className="text-sky-600" /> Dược Sĩ Đã Thẩm Định / Chỉnh Sửa
                       </span>
-                      <span className="text-[10px] font-bold text-emerald-700">
+                      <span className="text-[10px] font-bold text-sky-700">
                         {selectedLog.pharmacistAdjustedItems?.length || 0} mục xác nhận
                       </span>
                     </div>
 
                     <div className="space-y-3">
                       {(selectedLog.pharmacistAdjustedItems || []).map((item, idx) => (
-                        <div key={idx} className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs text-xs">
+                        <div key={idx} className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs text-xs">
                           <div className="font-bold text-slate-900">{item.name}</div>
                           {item.active_ingredient && (
                             <div className="text-[11px] text-slate-500">Hoạt chất: {item.active_ingredient}</div>
                           )}
                           <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-slate-600">
-                            <span>SL: <strong className="text-emerald-700 font-mono">{item.quantity}</strong> {item.unit || 'Hộp'}</span>
+                            <span>SL: <strong className="text-sky-700 font-mono">{item.quantity}</strong> {item.unit || 'Hộp'}</span>
                             <span className="italic text-[11px] text-slate-500">{item.dosage}</span>
                           </div>
                         </div>
@@ -523,10 +523,10 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
 
               {/* GPP Confirmation Stamp */}
               {selectedLog.auditCode && (
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   <div>
-                    <div className="flex items-center gap-1.5 text-emerald-800 font-black text-sm">
-                      <ShieldCheck size={18} className="text-emerald-600" />
+                    <div className="flex items-center gap-1.5 text-sky-800 font-black text-sm">
+                      <ShieldCheck size={18} className="text-sky-600" />
                       Biên Bản Thẩm Định GPP Hợp Lệ
                     </div>
                     <div className="text-slate-600 mt-1">
@@ -536,7 +536,7 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
 
                   <div className="text-right">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mã Duyệt Lâm Sàng</span>
-                    <span className="font-mono font-black text-emerald-700 text-sm bg-white px-2.5 py-1 rounded-lg border border-emerald-300 inline-block mt-0.5">
+                    <span className="font-mono font-black text-sky-700 text-sm bg-white px-2.5 py-1 rounded-lg border border-sky-300 inline-block mt-0.5">
                       {selectedLog.auditCode}
                     </span>
                   </div>

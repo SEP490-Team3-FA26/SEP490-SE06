@@ -116,8 +116,8 @@ export function DashboardHome() {
               name: "Quét đơn thuốc điện tử",
               desc: "Nhận diện mã đơn quốc gia, phân tích hoạt chất & cảnh báo tương tác AI",
               icon: <ScanBarcode size={22} />,
-              color: "bg-emerald-500 text-white",
-              bgCard: "hover:border-emerald-300",
+              color: "bg-sky-500 text-white",
+              bgCard: "hover:border-sky-300",
               badge: "AI OCR",
               link: "/pharmacist/sales"
             },
@@ -190,8 +190,8 @@ export function DashboardHome() {
               name: "Báo cáo nhân viên",
               desc: "Đánh giá doanh số từng nhân sự và lịch phân ca làm việc chi nhánh",
               icon: <Users size={22} />,
-              color: "bg-emerald-500 text-white",
-              bgCard: "hover:border-emerald-300",
+              color: "bg-sky-500 text-white",
+              bgCard: "hover:border-sky-300",
               badge: "Nhân sự",
               link: "/admin/employees"
             },
@@ -214,8 +214,8 @@ export function DashboardHome() {
               name: "Biên Bản Kiểm Kê Định Kỳ",
               desc: "Kiểm đếm thực tế, đối soát sai lệch tồn kho và xử lý hao hụt theo quy chuẩn",
               icon: <ClipboardCheck size={22} />,
-              color: "bg-emerald-600 text-white",
-              bgCard: "hover:border-emerald-300",
+              color: "bg-sky-600 text-white",
+              bgCard: "hover:border-sky-300",
               badge: "Kiểm kê",
               link: "/warehouse/inventory/checks"
             },
@@ -286,7 +286,7 @@ export function DashboardHome() {
               trendUp: true,
               subtitle: "An toàn vận hành toàn chuỗi",
               progress: 96.8,
-              color: "from-emerald-600 to-teal-600"
+              color: "from-sky-600 to-blue-700"
             },
             {
               title: "Dự Báo Nhu Cầu AI & Chuỗi Cung Ứng",
@@ -345,7 +345,7 @@ export function DashboardHome() {
               name: "Giám sát Chuỗi Cung ứng",
               desc: "Bản đồ nhiệt tồn kho toàn hệ thống và điều phối thuốc khẩn cấp giữa các cơ sở",
               icon: <Layers size={24} />,
-              color: "bg-gradient-to-br from-teal-500 to-emerald-600 text-white",
+              color: "bg-gradient-to-br from-teal-500 to-sky-600 text-white",
               badge: "Supply Chain",
               badgeColor: "bg-teal-100 text-teal-700 border-teal-200",
               link: "/director/supply-chain"
@@ -377,7 +377,7 @@ export function DashboardHome() {
               trendUp: true,
               subtitle: "100% tài khoản active",
               progress: 98.4,
-              color: "from-emerald-600 to-teal-600"
+              color: "from-sky-600 to-blue-700"
             },
             {
               title: "Danh mục Dược phẩm & NCC",
@@ -480,8 +480,8 @@ export function DashboardHome() {
                 <span className="w-2 h-2 rounded-full bg-[#0057cd] animate-ping inline-block" />
                 {data.badge}
               </span>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                <CheckCircle2 size={13} className="text-emerald-600" />
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
+                <CheckCircle2 size={13} className="text-sky-600" />
                 {isConnected ? "Real-time Live Sync" : "Đã đồng bộ máy chủ"}
               </span>
               <span className="text-xs text-slate-400 font-medium hidden sm:inline">
@@ -562,7 +562,7 @@ export function DashboardHome() {
 
               <div className="space-y-2.5 pt-2 border-t border-slate-100">
                 <div className="flex items-center justify-between text-xs">
-                  <span className={`flex items-center gap-1 font-bold ${stat.trendUp ? "text-emerald-600" : "text-rose-600"}`}>
+                  <span className={`flex items-center gap-1 font-bold ${stat.trendUp ? "text-sky-600" : "text-rose-600"}`}>
                     {stat.trendUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
                     {stat.trend}
                   </span>
@@ -784,8 +784,8 @@ export function DashboardHome() {
                   <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0057cd] flex items-center justify-center font-black text-xs">
                     0{idx + 1}
                   </div>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                     {b.status}
                   </span>
                 </div>
@@ -824,7 +824,7 @@ function StatCard({
         <div className={`p-2.5 rounded-2xl bg-slate-50 text-slate-600`}>{icon}</div>
       </div>
       <div className="text-3xl font-black text-slate-900 mb-2 tracking-tight">{value}</div>
-      <div className={`text-xs flex items-center gap-1.5 font-bold ${trendUp ? "text-emerald-700 bg-emerald-50 border border-emerald-100 self-start px-2.5 py-1 rounded-lg" : "text-rose-700 bg-rose-50 border border-rose-100 self-start px-2.5 py-1 rounded-lg"}`}>
+      <div className={`text-xs flex items-center gap-1.5 font-bold ${trendUp ? "text-sky-700 bg-sky-50 border border-sky-100 self-start px-2.5 py-1 rounded-lg" : "text-rose-700 bg-rose-50 border border-rose-100 self-start px-2.5 py-1 rounded-lg"}`}>
         {trendUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
         {trend}
       </div>

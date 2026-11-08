@@ -224,7 +224,7 @@ export function IncomingOrdersTab({
     }, 1200);
   };
 
-  // Áp dụng kết quả AI Vision vào Form kiểm đếm
+  // Áp dụng kết quả AI Vision vào Form kiểm đếm (bảo toàn location GSP đã quy hoạch)
   const applyAiVisionResultToForm = () => {
     if (!imageInspectionItem || !aiVisionResult) return;
     const mId = imageInspectionItem.medicineId || imageInspectionItem.id;
@@ -232,15 +232,17 @@ export function IncomingOrdersTab({
     setInspectionData(prev => ({
       ...prev,
       [mId]: {
+        ...prev[mId],
         batchNo: aiVisionResult.batchNo,
         expDate: aiVisionResult.expDate,
-        actualQty: aiVisionResult.detectedCount
+        actualQty: aiVisionResult.detectedCount,
+        location: prev[mId]?.location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const }
       }
     }));
     
     setInspectionErrors(prev => ({
       ...prev,
-      [mId]: { ...prev[mId], actualQty: undefined, batchNo: undefined, expDate: undefined }
+      [mId]: { ...prev[mId], actualQty: undefined, batchNo: undefined, expDate: undefined, location: undefined }
     }));
     
     setModalError("");
@@ -251,6 +253,68 @@ export function IncomingOrdersTab({
     onMsg({
       type: "success",
       text: `✅ Đã tự động cập nhật số lượng (${aiVisionResult.detectedCount} hộp), Số lô & Hạn dùng từ phân tích AI hình ảnh!`
+    });
+  };
+
+  // Đồng bộ kết quả kiểm đếm vừa thực hiện từ thiết bị Mobile (hỗ trợ liên thiết bị Mobile <-> PC)
+  const syncFromMobile = async () => {
+    if (!selectedPo?._id) return;
+
+    let parsed: any = null;
+    // 1. Thử lấy từ máy chủ API Gateway (đồng bộ giữa điện thoại và máy tính thật)
+    try {
+      const serverRes = await goodsReceiptService.getPoInspection(selectedPo._id);
+      if (serverRes?.data && Array.isArray(serverRes.data.items) && serverRes.data.items.length > 0) {
+        parsed = serverRes.data;
+      }
+    } catch (_) {}
+
+    // 2. Dự phòng lấy từ localStorage nếu test trên cùng một trình duyệt máy tính
+    if (!parsed) {
+      const saved = localStorage.getItem(`PO_INSPECTION_${selectedPo._id}`);
+      if (saved) {
+        try {
+          parsed = JSON.parse(saved);
+        } catch (_) {}
+      }
+    }
+
+    if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+      setInspectionData(prev => {
+        const next = { ...prev };
+        let updatedCount = 0;
+        parsed.items.forEach((it: any) => {
+          const mId = it._id;
+          if (next[mId] && Number(it.actualQty) > 0) {
+            next[mId] = {
+              ...next[mId],
+              actualQty: it.actualQty,
+              batchNo: it.batchNo || next[mId].batchNo,
+              expDate: it.expDate || next[mId].expDate,
+              location: next[mId].location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' }
+            };
+            updatedCount++;
+          }
+        });
+        if (updatedCount > 0) {
+          onMsg({
+            type: "success",
+            text: `✅ Đã đồng bộ thành công kết quả kiểm đếm cho ${updatedCount} mặt hàng từ thiết bị Mobile!`
+          });
+        } else {
+          onMsg({
+            type: "error",
+            text: "Chưa có mặt hàng nào được chốt số lượng trên thiết bị di động."
+          });
+        }
+        return next;
+      });
+      return;
+    }
+
+    onMsg({
+      type: "error",
+      text: "Chưa tìm thấy dữ liệu kiểm đếm Mobile cho đơn PO này. Vui lòng quét trên điện thoại trước!"
     });
   };
 
@@ -610,7 +674,7 @@ export function IncomingOrdersTab({
 
         {subTab === "po" && (
           <div className="text-xs text-slate-500 flex items-center gap-2 font-medium">
-            <span className="flex items-center gap-1 text-emerald-700 font-bold"><CheckCircle2 size={14} /> Bước 1: Xem Xe Đến</span>
+            <span className="flex items-center gap-1 text-sky-700 font-bold"><CheckCircle2 size={14} /> Bước 1: Xem Xe Đến</span>
             <ChevronRight size={14} className="text-slate-300" />
             <span className="flex items-center gap-1 text-indigo-700 font-bold"><PackageCheck size={14} /> Bước 2: Kiểm Đếm</span>
             <ChevronRight size={14} className="text-slate-300" />
@@ -663,13 +727,13 @@ export function IncomingOrdersTab({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-slate-700">{po.items?.length || 0}</td>
-                    <td className="px-4 py-3 text-right font-black text-emerald-700">{po.totalAmount?.toLocaleString("vi-VN")}đ</td>
+                    <td className="px-4 py-3 text-right font-black text-sky-700">{po.totalAmount?.toLocaleString("vi-VN")}đ</td>
                     
                     {/* Cột Vận chuyển IoT */}
                     <td className="px-4 py-3 text-center">
                       <div className="inline-flex flex-col items-center">
                         {isArrived ? (
-                          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-full border border-emerald-200 flex items-center gap-1">
+                          <span className="px-2.5 py-1 bg-sky-100 text-sky-800 font-bold text-xs rounded-full border border-sky-200 flex items-center gap-1">
                             <CheckCircle2 size={12} /> Đã Đến Cửa Kho
                           </span>
                         ) : (
@@ -716,7 +780,7 @@ export function IncomingOrdersTab({
                         {!isArrived && !activeGrn && (
                           <button
                             onClick={() => handleMarkAsArrived(po._id)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1"
+                            className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1"
                             title="Xác nhận xe tải đã dừng tại cửa tiếp nhận kho"
                           >
                             <CheckCircle2 size={13} /> Đã Đến Kho
@@ -766,12 +830,12 @@ export function IncomingOrdersTab({
                 </div>
                 <p className="text-[11px] text-indigo-600 mt-1">Được giám sát nhiệt độ xe lạnh 24/7</p>
               </div>
-              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
-                <span className="text-xs font-bold text-emerald-700 uppercase">Đã Đến Cửa Kho Tiếp Nhận</span>
-                <div className="text-2xl font-black text-emerald-950 mt-1">
+              <div className="p-4 bg-sky-50 border border-sky-100 rounded-2xl">
+                <span className="text-xs font-bold text-sky-700 uppercase">Đã Đến Cửa Kho Tiếp Nhận</span>
+                <div className="text-2xl font-black text-sky-950 mt-1">
                   {filteredPo.filter(p => !!arrivedPoIds[p._id] || p.status === "RECEIVING").length} Chuyến
                 </div>
-                <p className="text-[11px] text-emerald-600 mt-1">Sẵn sàng mở thùng kiểm đếm GSP</p>
+                <p className="text-[11px] text-sky-600 mt-1">Sẵn sàng mở thùng kiểm đếm GSP</p>
               </div>
               <div className="p-4 bg-purple-50 border border-purple-100 rounded-2xl">
                 <span className="text-xs font-bold text-purple-700 uppercase">Tiêu Chuẩn Chuỗi Lạnh (GDP)</span>
@@ -804,7 +868,7 @@ export function IncomingOrdersTab({
                       <div className="flex items-center gap-3">
                         <div className="text-right">
                           <div className="text-xs font-bold text-slate-500">Cảm biến nhiệt xe lạnh</div>
-                          <div className="text-base font-black text-emerald-600 flex items-center gap-1 justify-end">
+                          <div className="text-base font-black text-sky-600 flex items-center gap-1 justify-end">
                             <Thermometer size={16} /> {logistics.temperature}°C (An Toàn)
                           </div>
                         </div>
@@ -929,10 +993,10 @@ export function IncomingOrdersTab({
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Nhiệt độ thùng xe (IoT)</span>
-                      <strong className="text-emerald-700 block text-sm font-black mt-0.5 flex items-center gap-1">
+                      <strong className="text-sky-700 block text-sm font-black mt-0.5 flex items-center gap-1">
                         <Thermometer size={14} /> {logistics.temperature}°C
                       </strong>
-                      <span className="text-[10px] text-emerald-600 font-bold">Chuẩn GDP (2-8°C)</span>
+                      <span className="text-[10px] text-sky-600 font-bold">Chuẩn GDP (2-8°C)</span>
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Độ ẩm khoang hàng</span>
@@ -950,7 +1014,7 @@ export function IncomingOrdersTab({
                       {logistics.milestones.map((m, idx) => (
                         <div key={idx} className="relative">
                           <span className={`absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white flex items-center justify-center ${
-                            m.status === "COMPLETED" ? "bg-emerald-600" :
+                            m.status === "COMPLETED" ? "bg-sky-600" :
                             m.status === "CURRENT" ? "bg-indigo-600 animate-ping" : "bg-slate-300"
                           }`} />
                           
@@ -983,7 +1047,7 @@ export function IncomingOrdersTab({
                           handleMarkAsArrived(trackingModalPo._id);
                           setTrackingModalPo(null);
                         }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
                       >
                         <CheckCircle2 size={14} /> Xác Nhận Xe Đã Đến Cổng Kho
                       </button>
@@ -1218,7 +1282,7 @@ export function IncomingOrdersTab({
                         {isLockedGrn && (it as any).location && (
                           <div className="mt-2 pt-2 border-t border-slate-200 flex items-center gap-2 text-xs text-slate-500">
                             <span>📍</span>
-                            <span className="font-semibold text-emerald-700">
+                            <span className="font-semibold text-sky-700">
                               Khu {(it as any).location.zone} — Kệ {(it as any).location.rack} — Tầng {(it as any).location.shelf} — Thùng B{(it as any).location.bin || 1}
                             </span>
                           </div>
@@ -1231,13 +1295,23 @@ export function IncomingOrdersTab({
 
               {/* Modal Footer */}
               <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setQrModalPo(selectedPo)}
-                  className="px-3 py-2 text-indigo-700 hover:bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-                >
-                  <QrCode size={14} /> Mã QR Đồng Bộ Mobile
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQrModalPo(selectedPo)}
+                    className="px-3 py-2 text-indigo-700 hover:bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <QrCode size={14} /> Mã QR Mobile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={syncFromMobile}
+                    className="px-3 py-2 text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Lấy kết quả kiểm đếm vừa thực hiện trên điện thoại"
+                  >
+                    <RefreshCw size={14} /> Đồng Bộ Từ Mobile
+                  </button>
+                </div>
 
                 <div className="flex gap-2">
                   <button onClick={() => setSelectedPo(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl text-xs font-bold transition-colors">
@@ -1391,9 +1465,9 @@ export function IncomingOrdersTab({
                                 width: `${box.width}%`,
                                 height: `${box.height}%`,
                               }}
-                              className="absolute border-2 border-emerald-400 bg-emerald-400/15 rounded-lg transition-all animate-pulse"
+                              className="absolute border-2 border-sky-400 bg-sky-400/15 rounded-lg transition-all animate-pulse"
                             >
-                              <span className="absolute -top-5 left-0 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
+                              <span className="absolute -top-5 left-0 bg-sky-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
                                 {box.label}
                               </span>
                             </div>
@@ -1404,32 +1478,32 @@ export function IncomingOrdersTab({
 
                     {/* Extracted Data Card */}
                     {!aiVisionProcessing && aiVisionResult && (
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
+                      <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <CheckCircle2 size={18} className="text-emerald-600" />
-                            <span className="font-bold text-emerald-950 text-sm">Kết quả phân tích hình ảnh AI hoàn tất</span>
+                            <CheckCircle2 size={18} className="text-sky-600" />
+                            <span className="font-bold text-sky-950 text-sm">Kết quả phân tích hình ảnh AI hoàn tất</span>
                           </div>
-                          <span className="text-xs bg-emerald-200/80 text-emerald-900 font-bold px-2.5 py-0.5 rounded-full">
+                          <span className="text-xs bg-sky-200/80 text-sky-900 font-bold px-2.5 py-0.5 rounded-full">
                             Độ tin cậy: {aiVisionResult.confidence}%
                           </span>
                         </div>
 
                         <div className="grid grid-cols-3 gap-3 text-xs">
-                          <div className="bg-white p-3 rounded-xl border border-emerald-100">
+                          <div className="bg-white p-3 rounded-xl border border-sky-100">
                             <span className="text-slate-400 block text-[10px] font-bold uppercase">Số lượng đếm được</span>
-                            <span className="text-lg font-black text-emerald-700">{aiVisionResult.detectedCount} Hộp</span>
+                            <span className="text-lg font-black text-sky-700">{aiVisionResult.detectedCount} Hộp</span>
                             <span className="text-[10px] text-slate-500 block mt-0.5">Trùng khớp với PO</span>
                           </div>
-                          <div className="bg-white p-3 rounded-xl border border-emerald-100">
+                          <div className="bg-white p-3 rounded-xl border border-sky-100">
                             <span className="text-slate-400 block text-[10px] font-bold uppercase">Số lô OCR bóc tách</span>
                             <span className="text-sm font-mono font-black text-slate-900">{aiVisionResult.batchNo}</span>
-                            <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">Nhãn hợp chuẩn</span>
+                            <span className="text-[10px] text-sky-600 font-bold block mt-0.5">Nhãn hợp chuẩn</span>
                           </div>
-                          <div className="bg-white p-3 rounded-xl border border-emerald-100">
+                          <div className="bg-white p-3 rounded-xl border border-sky-100">
                             <span className="text-slate-400 block text-[10px] font-bold uppercase">Hạn dùng OCR</span>
                             <span className="text-sm font-bold text-slate-900">{new Date(aiVisionResult.expDate).toLocaleDateString("vi-VN")}</span>
-                            <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">Đạt chuẩn GSP (&gt;24 tháng)</span>
+                            <span className="text-[10px] text-sky-600 font-bold block mt-0.5">Đạt chuẩn GSP (&gt;24 tháng)</span>
                           </div>
                         </div>
                       </div>
@@ -1533,7 +1607,7 @@ export function IncomingOrdersTab({
                     }}
                     className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
                   >
-                    {copiedLink ? <CheckCheck size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                    {copiedLink ? <CheckCheck size={14} className="text-sky-600" /> : <Copy size={14} />}
                     {copiedLink ? "Đã Sao Chép!" : "Sao Chép Link"}
                   </button>
 

@@ -77,11 +77,11 @@ export const ClinicalButton: React.FC<ClinicalButtonProps> = ({
       case 'danger':
         return styles.textWhite;
       case 'secondary':
-        return styles.textEmerald;
+        return styles.textAuthBlue;
       case 'outline':
         return styles.textSlate;
       case 'ghost':
-        return styles.textEmerald;
+        return styles.textAuthBlue;
       default:
         return styles.textWhite;
     }
@@ -114,7 +114,7 @@ export const ClinicalButton: React.FC<ClinicalButtonProps> = ({
   const spinnerColor =
     variant === 'primary' || variant === 'danger'
       ? '#FFFFFF'
-      : ColorTokens.emerald[600];
+      : '#0284C7';
 
   return (
     <AnimatedPressable
@@ -212,21 +212,24 @@ const styles = StyleSheet.create({
   textWhite: {
     color: '#FFFFFF',
   },
+  textAuthBlue: {
+    color: '#0284C7',
+  },
   textEmerald: {
-    color: ColorTokens.emerald[700],
+    color: '#0284C7',
   },
   textSlate: {
     color: ColorTokens.slate[700],
   },
 
-  // Variants
+  // Variants (Tone Xanh Auth Chuẩn Dự Án)
   btnPrimary: {
-    backgroundColor: ColorTokens.emerald[600],
-    borderColor: ColorTokens.emerald[700],
+    backgroundColor: '#0284C7',
+    borderColor: '#0369A1',
   },
   btnSecondary: {
-    backgroundColor: ColorTokens.emerald[50],
-    borderColor: ColorTokens.emerald[200],
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
   },
   btnOutline: {
     backgroundColor: ColorTokens.surface.card,

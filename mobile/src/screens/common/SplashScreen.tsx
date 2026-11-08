@@ -96,7 +96,7 @@ export const SplashScreen: React.FC<{ navigation?: any; onFinish?: () => void }>
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="light-content" />
       <LinearGradient
         colors={['#0369A1', '#0284C7', '#38BDF8']}
         start={{ x: 0, y: 0 }}

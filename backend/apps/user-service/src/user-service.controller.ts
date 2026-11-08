@@ -142,13 +142,28 @@ export class UserServiceController {
     return this.userService.getUserByPhone(data.phone);
   }
 
+  /** Truy vấn hồ sơ bệnh án & tiền sử y khoa qua SĐT hoặc User ID */
   @MessagePattern('user.clinical_profile.get')
-  handleGetClinicalProfile(@Payload() data: { phone: string }) {
-    return this.userService.lookupLoyaltyByPhone(data.phone);
+  handleGetClinicalProfile(@Payload() data: { phone?: string; userId?: string }) {
+    if (data.userId) {
+      return this.userService.getClinicalProfileByUserId(data.userId);
+    }
+    return this.userService.lookupLoyaltyByPhone(data.phone || '');
   }
 
+  /** Cập nhật hồ sơ bệnh án & tiền sử dị ứng, bệnh nền */
   @MessagePattern('user.clinical_profile.update')
-  handleUpdateClinicalProfile(@Payload() data: { phone?: string; userId?: string; allergies?: string[]; chronicConditions?: string[] }) {
+  handleUpdateClinicalProfile(@Payload() data: {
+    phone?: string;
+    userId?: string;
+    allergies?: string[];
+    allergicMedicines?: string[];
+    allergicIngredients?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    medicalNotes?: string;
+    hasCompletedHealthOnboarding?: boolean;
+  }) {
     return this.userService.updateClinicalProfile(data);
   }
 
@@ -482,6 +497,20 @@ export class UserServiceController {
   @MessagePattern('hr.attendance.history')
   handleGetMyAttendanceHistory(@Payload() data: { employeeId: string; startDate?: string; endDate?: string }) {
     return this.attendanceService.getMyAttendanceHistory(data.employeeId, data.startDate, data.endDate);
+  }
+
+  @MessagePattern('hr.attendance.branch_history')
+  handleGetBranchAttendanceHistory(@Payload() data: {
+    branchId: string;
+    startDate?: string;
+    endDate?: string;
+    employeeId?: string;
+    shiftId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    return this.attendanceService.getBranchAttendanceHistory(data.branchId, data);
   }
 
   // --- HR: SHIFT HANDOVER (BÀN GIAO CA & CHỐT KÉT) ---

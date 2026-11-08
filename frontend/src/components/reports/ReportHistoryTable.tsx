@@ -87,7 +87,7 @@ export function ReportHistoryTable({ reports }: ReportHistoryTableProps) {
                     {report.format === 'PDF' ? (
                       <FilePdf size={16} className="text-rose-500" />
                     ) : (
-                      <FileSpreadsheet size={16} className="text-emerald-500" />
+                      <FileSpreadsheet size={16} className="text-sky-500" />
                     )}
                     <span className="font-semibold text-slate-700">{report.format}</span>
                   </div>
@@ -107,7 +107,7 @@ export function ReportHistoryTable({ reports }: ReportHistoryTableProps) {
                 <td className="px-6 py-4 text-slate-500 font-mono text-xs">{report.size}</td>
                 <td className="px-6 py-4">
                   {report.status === 'Hoàn thành' ? (
-                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded border border-emerald-200">
+                    <span className="px-2.5 py-1 bg-sky-50 text-sky-700 text-xs font-bold rounded border border-sky-200">
                       Hoàn thành
                     </span>
                   ) : (
@@ -131,7 +131,7 @@ export function ReportHistoryTable({ reports }: ReportHistoryTableProps) {
                         </a>
                         <button
                           onClick={() => handleDownload(report.downloadUrl, `${report.id}.pdf`)}
-                          className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors inline-block"
+                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors inline-block"
                           title="Tải xuống máy"
                         >
                           <Download size={18} />

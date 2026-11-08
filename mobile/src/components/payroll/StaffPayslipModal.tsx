@@ -81,7 +81,7 @@ export const StaffPayslipModal: React.FC<StaffPayslipModalProps> = ({ visible, o
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.iconCircle}>
-                <Ionicons name="receipt" size={22} color="#059669" />
+                <Ionicons name="receipt" size={22} color="#0284C7" />
               </View>
               <View>
                 <Text style={styles.sheetTitle}>Phiếu Lương Cá Nhân</Text>
@@ -95,7 +95,7 @@ export const StaffPayslipModal: React.FC<StaffPayslipModalProps> = ({ visible, o
 
           {loading ? (
             <View style={styles.centerLoading}>
-              <ActivityIndicator size="large" color="#059669" />
+              <ActivityIndicator size="large" color="#0284C7" />
               <Text style={styles.loadingText}>Đang tải phiếu lương từ máy chủ...</Text>
             </View>
           ) : payslips.length === 0 ? (
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#F0F9FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   monthTabActive: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0284C7',
   },
   monthTabText: {
     fontSize: 13,
@@ -402,24 +402,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   topCard: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0F9FF',
     padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     borderBottomWidth: 1,
-    borderBottomColor: '#D1FAE5',
+    borderBottomColor: '#BAE6FD',
   },
   netTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#047857',
+    color: '#0369A1',
     letterSpacing: 0.5,
   },
   netAmount: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#065F46',
+    color: '#0284C7',
     marginTop: 4,
   },
   badge: {
@@ -428,12 +428,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeSuccess: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#E0F2FE',
   },
   badgeSuccessText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0284C7',
   },
   badgePending: {
     backgroundColor: '#FEF3C7',
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   bonusText: {
-    color: '#059669',
+    color: '#0284C7',
   },
   deductText: {
     color: '#DC2626',
@@ -529,6 +529,6 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#059669',
+    color: '#0284C7',
   },
 });

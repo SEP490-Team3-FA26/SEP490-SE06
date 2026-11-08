@@ -145,7 +145,7 @@ export function ProfitAnalyticsDashboard() {
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
         <div className="flex items-center gap-2">
-          <TrendingUp size={20} className="text-emerald-600" />
+          <TrendingUp size={20} className="text-sky-600" />
           <span className="font-bold text-slate-800">Bộ lọc phân tích lợi nhuận (FEFO)</span>
         </div>
         
@@ -154,13 +154,13 @@ export function ProfitAnalyticsDashboard() {
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            className="px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-600"
           />
           
           <select
             value={selectedBranch}
             onChange={(e) => setSelectedBranch(e.target.value)}
-            className="px-3.5 py-2 border border-slate-200 bg-white rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            className="px-3.5 py-2 border border-slate-200 bg-white rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-600"
           >
             <option value="all">Tất cả chi nhánh</option>
             {branchesList.map(b => (
@@ -181,7 +181,7 @@ export function ProfitAnalyticsDashboard() {
 
       {loadingAnalytics ? (
         <div className="h-64 flex flex-col items-center justify-center gap-3">
-          <Loader2 size={36} className="animate-spin text-emerald-600" />
+          <Loader2 size={36} className="animate-spin text-sky-600" />
           <p className="text-sm font-bold text-slate-500">Đang tổng hợp báo cáo lợi nhuận chi tiết...</p>
         </div>
       ) : (
@@ -204,8 +204,8 @@ export function ProfitAnalyticsDashboard() {
             />
             <KpiCard
               icon={<TrendingUp size={24} />}
-              iconBgClass="bg-emerald-50"
-              iconColorClass="text-emerald-600"
+              iconBgClass="bg-sky-50"
+              iconColorClass="text-sky-600"
               title="Lợi nhuận gộp (Profit)"
               value={`${totalProfit.toLocaleString('vi-VN')} đ`}
             />
@@ -266,7 +266,7 @@ export function ProfitAnalyticsDashboard() {
                           <p className="text-slate-200">Ngày {dayData.day}:</p>
                           <p className="text-blue-300">Net: {dayData.sales.toLocaleString('vi-VN')}đ</p>
                           <p className="text-orange-300">COGS: {dayData.cogs.toLocaleString('vi-VN')}đ</p>
-                          <p className="text-emerald-300 font-extrabold border-t border-slate-700 pt-0.5">Lời: {dayData.profit.toLocaleString('vi-VN')}đ</p>
+                          <p className="text-sky-300 font-extrabold border-t border-slate-700 pt-0.5">Lời: {dayData.profit.toLocaleString('vi-VN')}đ</p>
                         </div>
                       </div>
                     );
@@ -328,9 +328,9 @@ export function ProfitAnalyticsDashboard() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <h3 className="font-bold text-slate-880 text-sm flex items-center gap-2">
-                <Building size={16} className="text-emerald-600" /> Báo cáo tổng hợp doanh thu & lợi nhuận chi nhánh
+                <Building size={16} className="text-sky-600" /> Báo cáo tổng hợp doanh thu & lợi nhuận chi nhánh
               </h3>
-              <span className="text-xs font-bold text-emerald-600 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded">
+              <span className="text-xs font-bold text-sky-600 px-2.5 py-1 bg-sky-50 border border-sky-200 rounded">
                 Tháng {month}/{year}
               </span>
             </div>
@@ -358,7 +358,7 @@ export function ProfitAnalyticsDashboard() {
                         <td className="px-6 py-3.5 font-medium">{item.name}</td>
                         <td className="px-6 py-3.5 text-right font-semibold text-slate-700">{item.sales.toLocaleString('vi-VN')} đ</td>
                         <td className="px-6 py-3.5 text-right font-medium text-slate-500">{item.cogs.toLocaleString('vi-VN')} đ</td>
-                        <td className="px-6 py-3.5 text-right font-bold text-emerald-700">{item.profit.toLocaleString('vi-VN')} đ</td>
+                        <td className="px-6 py-3.5 text-right font-bold text-sky-700">{item.profit.toLocaleString('vi-VN')} đ</td>
                         <td className="px-6 py-3.5 text-center font-bold text-purple-700">{margin}%</td>
                         <td className="px-6 py-3.5">
                           <div className="flex items-center gap-2 justify-center">
@@ -385,7 +385,7 @@ export function ProfitAnalyticsDashboard() {
                       <td colSpan={2} className="px-6 py-4 text-left uppercase text-xs tracking-wide text-slate-700">Tổng cộng (Grand Total)</td>
                       <td className="px-6 py-4 text-right text-blue-800">{totalRevenue.toLocaleString('vi-VN')} đ</td>
                       <td className="px-6 py-4 text-right text-slate-500">{totalCogs.toLocaleString('vi-VN')} đ</td>
-                      <td className="px-6 py-4 text-right text-emerald-800">{totalProfit.toLocaleString('vi-VN')} đ</td>
+                      <td className="px-6 py-4 text-right text-sky-800">{totalProfit.toLocaleString('vi-VN')} đ</td>
                       <td className="px-6 py-4 text-center text-purple-800">{profitMargin}%</td>
                       <td className="px-6 py-4 text-center">100.0%</td>
                     </tr>

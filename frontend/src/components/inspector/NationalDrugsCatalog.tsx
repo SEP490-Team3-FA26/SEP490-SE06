@@ -56,7 +56,7 @@ export const NationalDrugsCatalog: React.FC<NationalDrugsCatalogProps> = ({ drug
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       d.prescription_status === 1
                         ? "bg-amber-100 text-amber-800"
-                        : "bg-emerald-100 text-emerald-700"
+                        : "bg-sky-100 text-sky-700"
                     }`}
                   >
                     {d.prescription_status === 1 ? "ETC (Kê đơn)" : "OTC (Không kê đơn)"}
@@ -66,8 +66,8 @@ export const NationalDrugsCatalog: React.FC<NationalDrugsCatalogProps> = ({ drug
                   {d.unit || "Hộp"}
                 </td>
                 <td className="py-3 px-4">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                     Đã đồng bộ BYT
                   </span>
                 </td>

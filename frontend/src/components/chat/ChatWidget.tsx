@@ -63,9 +63,9 @@ export const ChatWidget: React.FC = () => {
                 paasei={false}
               />
               {/* Online status indicator */}
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full z-10"></span>
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-sky-500 border-2 border-white rounded-full z-10"></span>
               {hasUnreadPulse && (
-                <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full animate-ping opacity-75 z-0"></span>
+                <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-sky-400 rounded-full animate-ping opacity-75 z-0"></span>
               )}
             </div>
           )}

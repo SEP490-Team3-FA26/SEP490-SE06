@@ -124,11 +124,11 @@ export function BinLocationPicker({
   return (
     <div className="mt-2 pt-2 border-t border-slate-200">
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-[10px] font-bold text-emerald-800 flex items-center gap-1 uppercase tracking-wide">
-          <MapPin size={12} className="text-emerald-600" />
+        <label className="text-[10px] font-bold text-sky-800 flex items-center gap-1 uppercase tracking-wide">
+          <MapPin size={12} className="text-sky-600" />
           <span>Vị trí xếp hàng: Khu → Kệ → Tầng → Thùng (Bin 1..10)</span>
           {isAutoLocated && (
-            <span className="ml-1.5 px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold rounded-full normal-case flex items-center gap-1 shadow-xs animate-fadeIn">
+            <span className="ml-1.5 px-2 py-0.5 bg-sky-100 text-sky-800 border border-sky-300 text-[10px] font-bold rounded-full normal-case flex items-center gap-1 shadow-xs animate-fadeIn">
               ✨ Đã tự xác định ô thùng
             </span>
           )}
@@ -145,7 +145,7 @@ export function BinLocationPicker({
             onChange={(e) => handleZoneChange(e.target.value)}
             disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
-              error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
+              error ? "border-rose-400 focus:ring-rose-400" : "border-sky-300 focus:ring-sky-500"
             } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {ZONE_OPTIONS.map((z) => (
@@ -162,7 +162,7 @@ export function BinLocationPicker({
             onChange={(e) => handleRackChange(e.target.value)}
             disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
-              error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
+              error ? "border-rose-400 focus:ring-rose-400" : "border-sky-300 focus:ring-sky-500"
             } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {getRackOptions(zone).map((r) => (
@@ -179,7 +179,7 @@ export function BinLocationPicker({
             onChange={(e) => handleShelfChange(Number(e.target.value))}
             disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
-              error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
+              error ? "border-rose-400 focus:ring-rose-400" : "border-sky-300 focus:ring-sky-500"
             } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {SHELF_OPTIONS.map((s) => (
@@ -196,7 +196,7 @@ export function BinLocationPicker({
             onChange={(e) => handleBinChange(Number(e.target.value))}
             disabled={isLoading}
             className={`w-full px-2 py-1.5 bg-white border rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 ${
-              error ? "border-rose-400 focus:ring-rose-400" : "border-emerald-300 focus:ring-emerald-500"
+              error ? "border-rose-400 focus:ring-rose-400" : "border-sky-300 focus:ring-sky-500"
             } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             {BIN_OPTIONS.map((b) => (
@@ -230,11 +230,11 @@ export function BinLocationPicker({
         ) : existingBinInfo?.hasOldBatch ? (
           isSameMedicine ? (
             // ĐÚNG THUỐC: Hiển thị trạng thái xác nhận chuẩn FEFO
-            <div className="mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-300 flex items-start gap-2 text-xs text-emerald-900 animate-fadeIn">
-              <CheckCircle2 size={15} className="text-emerald-600 mt-0.5 shrink-0" />
+            <div className="mt-2 p-2 rounded-lg bg-sky-50 border border-sky-300 flex items-start gap-2 text-xs text-sky-900 animate-fadeIn">
+              <CheckCircle2 size={15} className="text-sky-600 mt-0.5 shrink-0" />
               <div className="flex-1">
                 <span className="font-bold">📦 Ô thùng chuẩn của thuốc: Hiện có {existingBinInfo.oldStock} {displayUnit} ({existingBinInfo.oldBatchCount} lô cũ, cận date nhất: {existingBinInfo.nearestExp})</span>
-                <p className="text-[11px] text-emerald-700 mt-0.5 leading-snug">
+                <p className="text-[11px] text-sky-700 mt-0.5 leading-snug">
                   Lô mới sẽ được xếp vào cùng ô thùng này. Khi xuất kho, hệ thống tự động ưu tiên xuất các lô cũ theo chuẩn FEFO.
                 </p>
               </div>

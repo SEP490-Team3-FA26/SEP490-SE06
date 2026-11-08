@@ -96,7 +96,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
         {/* ========================================================================= */}
         {/* 1. MODERN HERO HEADER (Soft Emerald & Sky Gradient) */}
         {/* ========================================================================= */}
-        <div className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 text-white shrink-0 overflow-hidden">
+        <div className="relative bg-gradient-to-r from-sky-600 via-teal-600 to-cyan-600 p-6 text-white shrink-0 overflow-hidden">
           {/* Subtle background circles for depth */}
           <div className="absolute -top-12 -right-12 w-44 h-44 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
           <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-cyan-400/15 rounded-full blur-lg pointer-events-none"></div>
@@ -111,14 +111,14 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
                   <span className="text-[10px] font-black tracking-widest uppercase bg-white/20 text-white border border-white/30 px-2 py-0.5 rounded-full backdrop-blur-xs">
                     Chứng nhận chuẩn GPP
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-100 flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-sky-100 flex items-center gap-1">
                     <Sparkles size={11} className="text-amber-300" /> AI-Assisted Clinical Audit
                   </span>
                 </div>
                 <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1">
                   Biên Bản Thẩm Định Đơn Thuốc
                 </h2>
-                <p className="text-xs text-emerald-100/90 font-medium mt-0.5">
+                <p className="text-xs text-sky-100/90 font-medium mt-0.5">
                   Lưu vết trách nhiệm chuyên môn Dược sĩ lâm sàng đối soát hỗ trợ AI
                 </p>
               </div>
@@ -146,19 +146,19 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
           {/* Audit Code Banner */}
           <div className="relative mt-4 pt-3 border-t border-white/15 flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2">
-              <span className="text-emerald-100/80 font-medium">Mã thẩm định:</span>
+              <span className="text-sky-100/80 font-medium">Mã thẩm định:</span>
               <span className="font-mono font-black text-white bg-black/20 px-2.5 py-0.5 rounded-lg border border-white/20 tracking-wider">
                 {data.auditCode}
               </span>
               <button
                 onClick={handleCopyCode}
-                className="text-emerald-200 hover:text-white p-1 transition-colors cursor-pointer"
+                className="text-sky-200 hover:text-white p-1 transition-colors cursor-pointer"
                 title="Sao chép mã"
               >
                 {copied ? <Check size={13} className="text-amber-300" /> : <Copy size={13} />}
               </button>
             </div>
-            <div className="flex items-center gap-1.5 text-emerald-100 text-[11px] font-medium">
+            <div className="flex items-center gap-1.5 text-sky-100 text-[11px] font-medium">
               <Clock size={12} />
               <span>{formattedTime} • {formattedDate}</span>
             </div>
@@ -174,7 +174,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Card 1: Duoc si phu trach */}
             <div className="bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/80 flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-200 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center shrink-0 border border-sky-200 shadow-2xs">
                 <User size={20} />
               </div>
               <div className="min-w-0 flex-1">
@@ -185,7 +185,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
                   {data.pharmacistName}
                 </h4>
                 <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500 font-medium">
-                  <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  <span className="font-mono text-sky-700 font-bold bg-sky-50 px-1.5 py-0.2 rounded border border-sky-200">
                     {data.pharmacistLicense || "CCHN-GPP/02849-HN"}
                   </span>
                 </div>
@@ -218,7 +218,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
                     {data.source === "AI_VISION_SCAN" ? "Nhận diện đơn thuốc (Vision OCR)" : "Tư vấn triệu chứng giọng nói (AI Voice)"}
                   </span>
                 </div>
-                <span className="text-[10px] font-semibold text-emerald-700 mt-1 block">
+                <span className="text-[10px] font-semibold text-sky-700 mt-1 block">
                   ✓ Trạng thái: Đã thẩm định lâm sàng 100%
                 </span>
               </div>
@@ -242,17 +242,17 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <FileCheck size={14} className="text-emerald-600" />
+                <FileCheck size={14} className="text-sky-600" />
                 4 Tiêu chí Thẩm định Chuyên môn Dược (Chuẩn GPP)
               </h4>
-              <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-black text-sky-800 bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-full">
                 4/4 ĐẠT
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-emerald-50/40 hover:border-emerald-200 transition-colors">
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-sky-50/40 hover:border-sky-200 transition-colors">
+                <CheckCircle2 size={16} className="text-sky-600 shrink-0 mt-0.5" />
                 <div>
                   <h5 className="font-bold text-slate-900 text-xs">Đối chiếu hoạt chất & nồng độ</h5>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
@@ -261,8 +261,8 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-emerald-50/40 hover:border-emerald-200 transition-colors">
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-sky-50/40 hover:border-sky-200 transition-colors">
+                <CheckCircle2 size={16} className="text-sky-600 shrink-0 mt-0.5" />
                 <div>
                   <h5 className="font-bold text-slate-900 text-xs">Kiểm tra tương tác thuốc (DDI)</h5>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
@@ -271,8 +271,8 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-emerald-50/40 hover:border-emerald-200 transition-colors">
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-sky-50/40 hover:border-sky-200 transition-colors">
+                <CheckCircle2 size={16} className="text-sky-600 shrink-0 mt-0.5" />
                 <div>
                   <h5 className="font-bold text-slate-900 text-xs">Liều dùng & Đường dùng an toàn</h5>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
@@ -281,8 +281,8 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-emerald-50/40 hover:border-emerald-200 transition-colors">
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-slate-200/70 hover:bg-sky-50/40 hover:border-sky-200 transition-colors">
+                <CheckCircle2 size={16} className="text-sky-600 shrink-0 mt-0.5" />
                 <div>
                   <h5 className="font-bold text-slate-900 text-xs">Lô cận hạn FEFO & Xuất kho GSP</h5>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
@@ -294,31 +294,31 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
           </div>
 
           {/* Dau Chung Nhan Ky Thuat So (Digital Cryptographic Stamp) */}
-          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-4 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-sky-50 via-teal-50 to-sky-50 p-4 rounded-2xl border border-sky-200 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-left">
-              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+              <div className="w-11 h-11 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-sky-500/20">
                 <Award size={22} />
               </div>
               <div>
-                <span className="text-[11px] font-black text-emerald-950 uppercase tracking-wide flex items-center gap-1.5">
+                <span className="text-[11px] font-black text-sky-950 uppercase tracking-wide flex items-center gap-1.5">
                   Chứng Thư Ký Số Điện Tử Dược Sĩ
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
                 </span>
-                <p className="text-[11px] text-emerald-800 mt-0.5 leading-tight">
+                <p className="text-[11px] text-sky-800 mt-0.5 leading-tight">
                   Xác nhận lưu vết số trên hệ thống máy chủ ABC Pharmacy GPP • Sẵn sàng phục vụ thanh tra.
                 </p>
               </div>
             </div>
 
             {/* Chu ky so Duoc si */}
-            <div className="text-center sm:text-right shrink-0 bg-white/80 px-4 py-2 rounded-xl border border-emerald-200/80 shadow-2xs">
+            <div className="text-center sm:text-right shrink-0 bg-white/80 px-4 py-2 rounded-xl border border-sky-200/80 shadow-2xs">
               <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
                 DƯỢC SĨ PHÊ DUYỆT
               </span>
-              <span className="text-xs font-black text-emerald-900 block font-mono">
+              <span className="text-xs font-black text-sky-900 block font-mono">
                 {data.pharmacistName}
               </span>
-              <span className="text-[9px] text-emerald-700 font-mono block">
+              <span className="text-[9px] text-sky-700 font-mono block">
                 {data.auditCode}
               </span>
             </div>
@@ -330,7 +330,7 @@ export const AIPharmacistAuditModal: React.FC<AIPharmacistAuditModalProps> = ({
         {/* ========================================================================= */}
         <div className="bg-slate-50 border-t border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0">
           <div className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
-            <CheckCircle2 size={13} className="text-emerald-600" />
+            <CheckCircle2 size={13} className="text-sky-600" />
             <span>Biên bản có giá trị pháp lý lưu trữ nội bộ chuẩn GPP.</span>
           </div>
           <div className="flex items-center gap-2">

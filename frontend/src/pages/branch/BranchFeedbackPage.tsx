@@ -68,7 +68,7 @@ export const BranchFeedbackPage: React.FC = () => {
       {/* Tiêu đề & Nút làm mới */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase tracking-wider mb-1.5">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-100 text-sky-800 rounded-full text-xs font-bold uppercase tracking-wider mb-1.5">
             <Award size={14} /> Quản Trị Trải Nghiệm Khách Hàng & CSKH
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
@@ -136,12 +136,12 @@ export const BranchFeedbackPage: React.FC = () => {
 
         {/* Tỷ lệ 5 sao */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-emerald-600">
+          <div className="w-12 h-12 bg-sky-50 rounded-2xl border border-sky-100 flex items-center justify-center text-sky-600">
             <CheckCircle2 size={24} />
           </div>
           <div>
             <div className="text-xs font-bold text-slate-500">Đánh Giá Xuất Sắc (5★)</div>
-            <div className="text-2xl font-black text-emerald-600 mt-0.5">
+            <div className="text-2xl font-black text-sky-600 mt-0.5">
               {stats.ratingBreakdown?.[5] || 0} lượt
             </div>
           </div>
@@ -157,7 +157,7 @@ export const BranchFeedbackPage: React.FC = () => {
             placeholder="Tìm theo mã đơn, SĐT khách, nhận xét..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
 
@@ -193,7 +193,7 @@ export const BranchFeedbackPage: React.FC = () => {
       <div className="space-y-3">
         {loading ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-500 text-sm">
-            <Loader2 size={24} className="animate-spin mx-auto mb-2 text-emerald-600" />
+            <Loader2 size={24} className="animate-spin mx-auto mb-2 text-sky-600" />
             Đang tải dữ liệu đánh giá chi nhánh...
           </div>
         ) : filteredFeedbacks.length === 0 ? (
@@ -233,7 +233,7 @@ export const BranchFeedbackPage: React.FC = () => {
                     </div>
 
                     <span className="font-bold text-slate-800 text-sm">
-                      Mã đơn: <span className="font-mono text-emerald-700">{fb.orderCode}</span>
+                      Mã đơn: <span className="font-mono text-sky-700">{fb.orderCode}</span>
                     </span>
 
                     {/* Hạng thành viên */}
@@ -274,7 +274,7 @@ export const BranchFeedbackPage: React.FC = () => {
                           className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${
                             isNegative
                               ? 'bg-rose-100 text-rose-800'
-                              : 'bg-emerald-50 text-emerald-700'
+                              : 'bg-sky-50 text-sky-700'
                           }`}
                         >
                           {t}
@@ -296,7 +296,7 @@ export const BranchFeedbackPage: React.FC = () => {
                 <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   <div>
                     {fb.status === 'RESOLVED' && fb.resolution ? (
-                      <div className="flex items-center gap-2 text-emerald-700 font-medium">
+                      <div className="flex items-center gap-2 text-sky-700 font-medium">
                         <CheckCircle2 size={16} />
                         <span>
                           Đã giải quyết bởi <strong>{fb.resolution.handledByName}</strong>: "{fb.resolution.notes}"
@@ -392,7 +392,7 @@ export const BranchFeedbackPage: React.FC = () => {
                   id="satCheckbox"
                   checked={customerSatisfied}
                   onChange={(e) => setCustomerSatisfied(e.target.checked)}
-                  className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
                 />
                 <label htmlFor="satCheckbox" className="font-semibold text-slate-700 cursor-pointer">
                   Khách hàng đã hài lòng và đồng ý khép lại khiếu nại
@@ -412,7 +412,7 @@ export const BranchFeedbackPage: React.FC = () => {
                 type="button"
                 onClick={onConfirmResolve}
                 disabled={resolving}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
               >
                 {resolving ? 'Đang lưu...' : 'Hoàn Tất Giải Quyết & Đóng Phiếu'}
               </button>

@@ -14,6 +14,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 
 interface BarcodeScannerModalProps {
@@ -35,6 +36,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   subtitle = 'Đưa mã vạch hoặc mã QR vào khung ngắm để nhận diện',
   mode = 'ALL',
 }) => {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState<boolean>(false);
   const [manualCode, setManualCode] = useState<string>('');
@@ -46,11 +48,12 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const laserAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    let animLoop: Animated.CompositeAnimation | null = null;
     if (visible) {
       isProcessingRef.current = false;
       setIsProcessing(false);
       setManualCode('');
-      Animated.loop(
+      animLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(laserAnim, {
             toValue: 1,
@@ -63,10 +66,16 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             useNativeDriver: true,
           }),
         ])
-      ).start();
+      );
+      animLoop.start();
     } else {
       isProcessingRef.current = false;
     }
+
+    return () => {
+      animLoop?.stop();
+      laserAnim.stopAnimation();
+    };
   }, [visible, laserAnim]);
 
   const handleBarcodeScanned = (result: BarcodeScanningResult) => {
@@ -144,10 +153,10 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <StatusBar barStyle="light-content" backgroundColor="#090D16" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.container}>
         {/* Header Bar */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) }]}>
           <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
             <Ionicons name="close" size={24} color="#FFFFFF" />
           </TouchableOpacity>

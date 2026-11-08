@@ -125,7 +125,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           'relative flex items-center w-full',
           'bg-white/70 backdrop-blur-sm',
           'border border-slate-200/80 rounded-xl',
-          'focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-500/20',
+          'focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-500/20',
           'transition-all duration-200',
         ].join(' ')}
       >

@@ -132,7 +132,7 @@ export default function BranchPayroll() {
         return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">Dự Thảo (Chưa Duyệt)</span>;
       case "SUBMITTED":
       case "APPROVED":
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Quản Lý Đã Phê Duyệt</span>;
+        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-sky-50 text-sky-700 border border-sky-200">Quản Lý Đã Phê Duyệt</span>;
       case "PAID":
         return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200">Đã Chi Trả</span>;
       default:
@@ -146,7 +146,7 @@ export default function BranchPayroll() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
-            <Coins className="text-emerald-600" size={26} />
+            <Coins className="text-sky-600" size={26} />
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Quản Lý Bảng Lương & Hoa Hồng Chi Nhánh</h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -181,7 +181,7 @@ export default function BranchPayroll() {
 
           {/* Cấu hình tiền ăn trưa chung cho toàn chi nhánh */}
           <div className="flex items-center gap-1.5 bg-slate-50 p-1 px-2.5 rounded-xl border border-slate-200">
-            <Utensils size={14} className="text-emerald-600 shrink-0" />
+            <Utensils size={14} className="text-sky-600 shrink-0" />
             <span className="text-xs font-semibold text-slate-500">Ăn trưa:</span>
             <input
               type="number"
@@ -190,7 +190,7 @@ export default function BranchPayroll() {
               value={mealRate}
               disabled={calculating || (payroll && ["APPROVED", "PAID"].includes(payroll.status))}
               onChange={(e) => setMealRate(Math.max(0, Number(e.target.value)))}
-              className="w-20 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 px-2 py-1 outline-none focus:border-emerald-500 text-right"
+              className="w-20 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 px-2 py-1 outline-none focus:border-sky-500 text-right"
               title="Định mức phụ cấp ăn trưa chung cho toàn bộ nhân sự chi nhánh (VNĐ/ca)"
             />
             <span className="text-[11px] font-semibold text-slate-500">đ/ca</span>
@@ -199,7 +199,7 @@ export default function BranchPayroll() {
           <button
             onClick={handleCalculateDraft}
             disabled={calculating || (payroll && ["APPROVED", "PAID"].includes(payroll.status))}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
           >
             {calculating ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />}
             <span>Tính Dự Thảo Lương</span>
@@ -209,7 +209,7 @@ export default function BranchPayroll() {
             <button
               onClick={handleApprovePayroll}
               disabled={submitting}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
               <span>Quản Lý Phê Duyệt Bảng Lương</span>
@@ -226,15 +226,15 @@ export default function BranchPayroll() {
         </div>
       )}
       {success && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-emerald-800">
-          <CheckCircle size={16} className="text-emerald-600 shrink-0" />
+        <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-sky-800">
+          <CheckCircle size={16} className="text-sky-600 shrink-0" />
           <span>{success}</span>
         </div>
       )}
 
       {loading ? (
         <div className="bg-white p-12 rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-3">
-          <Loader2 size={30} className="animate-spin text-emerald-600" />
+          <Loader2 size={30} className="animate-spin text-sky-600" />
           <p className="text-xs font-semibold text-slate-500">Đang tải dữ liệu bảng lương...</p>
         </div>
       ) : !payroll ? (
@@ -265,9 +265,9 @@ export default function BranchPayroll() {
             <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-2xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500">Thực Lĩnh Chi Trả (Net)</span>
-                <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><Coins size={18} /></span>
+                <span className="p-2 bg-sky-50 text-sky-600 rounded-xl"><Coins size={18} /></span>
               </div>
-              <p className="text-xl font-extrabold text-emerald-700 mt-2">{formatVND(payroll.totalNet)}</p>
+              <p className="text-xl font-extrabold text-sky-700 mt-2">{formatVND(payroll.totalNet)}</p>
               <p className="text-[11px] text-slate-500 mt-2">Tổng số nhân sự: <strong className="text-slate-800">{payroll.items?.length || 0}</strong></p>
             </div>
 
@@ -347,7 +347,7 @@ export default function BranchPayroll() {
                       </td>
                       <td className="py-3.5 px-3 text-right">
                         <div className="font-semibold text-slate-700">{formatVND(item.mealAllowance)}</div>
-                        <div className="text-[10px] text-emerald-600 font-medium">
+                        <div className="text-[10px] text-sky-600 font-medium">
                           ({formatVND(item.mealAllowanceRate || payroll.mealAllowanceRate || mealRate)}/ca)
                         </div>
                       </td>
@@ -360,14 +360,14 @@ export default function BranchPayroll() {
                       <td className="py-3.5 px-3 text-right text-rose-600 font-medium">
                         {item.penalties > 0 ? `-${formatVND(item.penalties)}` : "-"}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-extrabold text-emerald-800 text-sm">
+                      <td className="py-3.5 px-4 text-right font-extrabold text-sky-800 text-sm">
                         {formatVND(item.netSalary)}
                       </td>
                       <td className="py-3.5 px-3 text-center">
                         {payroll.status === "DRAFT" && (
                           <button
                             onClick={() => handleOpenAdjustModal(item)}
-                            className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                            className="p-1.5 text-slate-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition cursor-pointer"
                             title="Điều chỉnh thưởng/phạt"
                           >
                             <Edit3 size={15} />
@@ -388,7 +388,7 @@ export default function BranchPayroll() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
             <h3 className="text-sm font-bold text-slate-900">
-              Điều Chỉnh Lương: <span className="text-emerald-700">{adjustingItem.employeeName}</span>
+              Điều Chỉnh Lương: <span className="text-sky-700">{adjustingItem.employeeName}</span>
             </h3>
 
             <div className="space-y-3 text-xs">
@@ -401,7 +401,7 @@ export default function BranchPayroll() {
                   value={adjustmentAmount}
                   onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
                   onChange={(e) => setAdjustmentAmount(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 font-bold outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 font-bold outline-none focus:border-sky-500"
                   placeholder="0"
                 />
               </div>
@@ -425,7 +425,7 @@ export default function BranchPayroll() {
                 <textarea
                   value={adjustmentNote}
                   onChange={(e) => setAdjustmentNote(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-sky-500"
                   rows={3}
                   placeholder="Lý do điều chỉnh thưởng KPI hoặc phạt vi phạm..."
                 />
@@ -442,7 +442,7 @@ export default function BranchPayroll() {
               <button
                 onClick={handleSaveAdjustment}
                 disabled={isSavingAdjust}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50"
               >
                 {isSavingAdjust ? "Đang lưu..." : "Lưu Điều Chỉnh"}
               </button>

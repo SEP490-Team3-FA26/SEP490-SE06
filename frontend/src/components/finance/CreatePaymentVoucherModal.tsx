@@ -331,7 +331,7 @@ export const CreatePaymentVoucherModal: React.FC<CreatePaymentVoucherModalProps>
                                 {s.name}
                               </div>
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200/60">
                                   {s.gdpNumber || 'Đạt chuẩn GDP'}
                                 </span>
                                 <span className="text-[10px] text-slate-400 font-mono">
@@ -431,13 +431,13 @@ export const CreatePaymentVoucherModal: React.FC<CreatePaymentVoucherModalProps>
                 className={cn(
                   "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
                   paymentMethod === 'CASH'
-                    ? "border-emerald-600 bg-emerald-50/40 shadow-xs ring-1 ring-emerald-600"
+                    ? "border-sky-600 bg-sky-50/40 shadow-xs ring-1 ring-sky-600"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
                 )}
               >
                 <div className={cn(
                   "w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0",
-                  paymentMethod === 'CASH' ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                  paymentMethod === 'CASH' ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-500"
                 )}>
                   <Banknote className="w-4 h-4" />
                 </div>
@@ -446,13 +446,13 @@ export const CreatePaymentVoucherModal: React.FC<CreatePaymentVoucherModalProps>
                   <div className="text-[11px] text-slate-500">Trừ két ca trực</div>
                 </div>
                 {paymentMethod === 'CASH' && (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
                 )}
               </div>
             </div>
             {paymentMethod === 'CASH' && (
-              <div className="mt-2 text-[11px] font-medium text-emerald-800 bg-emerald-50/80 border border-emerald-200/60 p-2.5 rounded-lg flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <div className="mt-2 text-[11px] font-medium text-sky-800 bg-sky-50/80 border border-sky-200/60 p-2.5 rounded-lg flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                 <span>Khoản chi tiền mặt sẽ được tự động khấu trừ vào Két tiền mặt ca trực hiện tại.</span>
               </div>
             )}

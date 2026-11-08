@@ -23,19 +23,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 ' +
-    'text-white shadow-md shadow-emerald-200/60 border-transparent',
+    'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 ' +
+    'text-white shadow-md shadow-sky-200/60 border-transparent',
   secondary:
     'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm',
   danger:
     'bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 ' +
     'text-white shadow-md shadow-rose-200/60 border-transparent',
   outline:
-    'border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50 bg-transparent',
+    'border-2 border-sky-500 text-sky-600 hover:bg-sky-50 bg-transparent',
   ghost:
     'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border-transparent bg-transparent',
   success:
-    'bg-gradient-to-r from-emerald-400 to-green-500 text-white border-transparent shadow-sm',
+    'bg-gradient-to-r from-sky-500 to-blue-600 text-white border-transparent shadow-sm',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -81,8 +81,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       'active:scale-[0.97]',
       // Disabled / loading state
       isDisabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer',
-      // Focus ring
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500',
+      // Viền focus chuẩn sky
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500',
     ].join(' ');
 
     return (

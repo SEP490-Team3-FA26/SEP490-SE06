@@ -1,0 +1,392 @@
+{
+  "origin": "https://abcpharmacy.store",
+  "label": "DEMO R2",
+  "synthetic": true,
+  "notForClinicalUse": true,
+  "products": [
+    {
+      "name": "DEMO R2 - Vitamin C 500mg",
+      "sku": "DEMO-R2-VITC",
+      "price": 25000,
+      "unit": "Hộp",
+      "category": "Vitamin & Khoáng chất",
+      "active_ingredient": "Vitamin C - du lieu thu nghiem",
+      "zone": "E",
+      "qty": 110,
+      "buyPrice": 18000,
+      "id": "6ad3e406b3263f345aea9a97",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 10,
+        "slotType": "RESERVE"
+      },
+      "locationAssigned": true
+    },
+    {
+      "name": "DEMO R2 - Bong y te 100g",
+      "sku": "DEMO-R2-BONG",
+      "price": 12000,
+      "unit": "Gói",
+      "category": "Vật tư y tế",
+      "active_ingredient": "Bong y te - du lieu thu nghiem",
+      "zone": "F",
+      "qty": 8,
+      "buyPrice": 8000,
+      "id": "6ad3e53eb3263f345aea9b43",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 9,
+        "slotType": "RESERVE"
+      },
+      "locationAssigned": true
+    },
+    {
+      "name": "DEMO R2 - Khau trang y te",
+      "sku": "DEMO-R2-KT",
+      "price": 30000,
+      "unit": "Hộp",
+      "category": "Vật tư y tế",
+      "active_ingredient": "Vat tu - du lieu thu nghiem",
+      "zone": "F",
+      "qty": 60,
+      "buyPrice": 20000,
+      "id": "6ad3e53eb3263f345aea9b45",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 8,
+        "slotType": "RESERVE"
+      },
+      "locationAssigned": true
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "6ad3e4f56e2f0007e1bdf0c2",
+      "name": "DEMO R2 - NCC A - KHONG GIAO DICH THAT"
+    },
+    {
+      "id": "6ad3e50d6e2f0007e1bdf0c6",
+      "name": "DEMO R2 - NCC B - KHONG GIAO DICH THAT"
+    }
+  ],
+  "receipts": [
+    {
+      "id": "6ad3e593b3263f345aea9d1c",
+      "marker": "DEMO-R2-NEAR",
+      "poId": "6ad3e592b3263f345aea9bc3",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "batchNo": "DEMO-R2-VITC-NEAR",
+          "expDate": "2027-01-06T00:00:00.000Z",
+          "quantity": 30,
+          "unitPrice": 18000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 10,
+            "slotType": "RESERVE"
+          }
+        },
+        {
+          "medicineId": "6ad3e53eb3263f345aea9b43",
+          "batchNo": "DEMO-R2-BONG-NEAR",
+          "expDate": "2028-10-17T00:00:00.000Z",
+          "quantity": 8,
+          "unitPrice": 8000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 9,
+            "slotType": "RESERVE"
+          }
+        },
+        {
+          "medicineId": "6ad3e53eb3263f345aea9b45",
+          "batchNo": "DEMO-R2-KT-NEAR",
+          "expDate": "2028-10-17T00:00:00.000Z",
+          "quantity": 60,
+          "unitPrice": 20000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 8,
+            "slotType": "RESERVE"
+          }
+        }
+      ]
+    },
+    {
+      "id": "6ad3e596b3263f345aea9d83",
+      "marker": "DEMO-R2-FAR",
+      "poId": "6ad3e592b3263f345aea9bc3",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "batchNo": "DEMO-R2-VITC-FAR",
+          "expDate": "2028-10-17T00:00:00.000Z",
+          "quantity": 80,
+          "unitPrice": 18000,
+          "shelvedLocation": {
+            "zone": "RESERVE",
+            "rack": "RES4",
+            "shelf": 1,
+            "bin": 10,
+            "slotType": "RESERVE"
+          }
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "event": "demo_product_supplier_linked",
+      "medicineId": "6ad3e406b3263f345aea9a97",
+      "at": "2026-10-17T21:14:36.899Z"
+    },
+    {
+      "event": "demo_product_created",
+      "name": "DEMO R2 - Bong y te 100g",
+      "medicineId": "6ad3e53eb3263f345aea9b43",
+      "at": "2026-10-17T21:14:37.100Z"
+    },
+    {
+      "event": "demo_product_created",
+      "name": "DEMO R2 - Khau trang y te",
+      "medicineId": "6ad3e53eb3263f345aea9b45",
+      "at": "2026-10-17T21:14:37.398Z"
+    },
+    {
+      "event": "demo_location_assigned",
+      "medicineId": "6ad3e406b3263f345aea9a97",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 10,
+        "slotType": "RESERVE"
+      },
+      "at": "2026-10-17T21:15:15.526Z"
+    },
+    {
+      "event": "demo_location_assigned",
+      "medicineId": "6ad3e53eb3263f345aea9b43",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 9,
+        "slotType": "RESERVE"
+      },
+      "at": "2026-10-17T21:15:17.860Z"
+    },
+    {
+      "event": "demo_location_assigned",
+      "medicineId": "6ad3e53eb3263f345aea9b45",
+      "location": {
+        "zone": "RESERVE",
+        "rack": "RES4",
+        "shelf": 1,
+        "bin": 8,
+        "slotType": "RESERVE"
+      },
+      "at": "2026-10-17T21:15:19.716Z"
+    },
+    {
+      "event": "demo_rfq_created",
+      "rfqId": "",
+      "at": "2026-10-17T21:15:20.729Z"
+    },
+    {
+      "event": "demo_quote_created",
+      "rfqId": "6ad3e569b3263f345aea9ba5",
+      "supplierId": "6ad3e4f56e2f0007e1bdf0c2",
+      "scenario": "meets_demo_expiry_parameter",
+      "at": "2026-10-17T21:15:39.172Z"
+    },
+    {
+      "event": "demo_quote_created",
+      "rfqId": "6ad3e569b3263f345aea9ba5",
+      "supplierId": "6ad3e50d6e2f0007e1bdf0c6",
+      "scenario": "cheaper_but_short_expiry",
+      "at": "2026-10-17T21:16:01.323Z"
+    },
+    {
+      "event": "demo_rfq_awarded",
+      "rfqId": "6ad3e569b3263f345aea9ba5",
+      "poId": "6ad3e592b3263f345aea9bc3",
+      "at": "2026-10-17T21:16:02.468Z"
+    },
+    {
+      "event": "demo_po_status_prepared",
+      "poId": "6ad3e592b3263f345aea9bc3",
+      "paymentType": "CREDIT",
+      "actualPayment": false,
+      "at": "2026-10-17T21:16:03.243Z"
+    },
+    {
+      "event": "demo_grn_created",
+      "grnId": "6ad3e593b3263f345aea9d1c",
+      "marker": "DEMO-R2-NEAR",
+      "at": "2026-10-17T21:16:03.545Z"
+    },
+    {
+      "event": "demo_grn_approved",
+      "grnId": "6ad3e593b3263f345aea9d1c",
+      "marker": "DEMO-R2-NEAR",
+      "manualFixtureCount": true,
+      "at": "2026-10-17T21:16:06.395Z"
+    },
+    {
+      "event": "demo_grn_created",
+      "grnId": "6ad3e596b3263f345aea9d83",
+      "marker": "DEMO-R2-FAR",
+      "at": "2026-10-17T21:16:06.689Z"
+    },
+    {
+      "event": "demo_grn_approved",
+      "grnId": "6ad3e596b3263f345aea9d83",
+      "marker": "DEMO-R2-FAR",
+      "manualFixtureCount": true,
+      "at": "2026-10-17T21:16:12.523Z"
+    },
+    {
+      "event": "demo_main_fixtures_prepared",
+      "products": 3,
+      "receipts": 2,
+      "at": "2026-10-17T21:16:13.625Z"
+    },
+    {
+      "event": "demo_branch_pr_created",
+      "prId": "6ad3e5c8b3263f345aea9f63",
+      "key": "READY",
+      "at": "2026-10-17T21:16:56.282Z"
+    },
+    {
+      "event": "demo_stock_transfer_prepared",
+      "transferId": "6ad3e5c9b3263f345aea9f9d",
+      "code": "ST-20261017-0001",
+      "key": "READY",
+      "quantity": 20,
+      "at": "2026-10-17T21:16:57.241Z"
+    },
+    {
+      "event": "demo_branch_receipt_prepared",
+      "transferId": "6ad3e5c9b3263f345aea9f9d",
+      "quantity": 20,
+      "at": "2026-10-17T21:16:58.056Z"
+    },
+    {
+      "event": "demo_branch_pr_created",
+      "prId": "6ad3e5cab3263f345aeaa071",
+      "key": "LIVE-RECEIVE",
+      "at": "2026-10-17T21:16:58.893Z"
+    },
+    {
+      "event": "demo_stock_transfer_prepared",
+      "transferId": "6ad3e5cbb3263f345aeaa0ac",
+      "code": "ST-20261017-0002",
+      "key": "LIVE-RECEIVE",
+      "quantity": 5,
+      "at": "2026-10-17T21:16:59.582Z"
+    },
+    {
+      "event": "demo_main_fixtures_prepared",
+      "products": 3,
+      "receipts": 2,
+      "at": "2026-10-17T21:17:00.820Z"
+    },
+    {
+      "event": "demo_unit_normalized",
+      "medicineId": "6ad3e406b3263f345aea9a97",
+      "unit": "Hộp",
+      "exchangeValue": 1,
+      "at": "2026-10-17T21:21:16.804Z"
+    },
+    {
+      "event": "demo_unit_normalized",
+      "medicineId": "6ad3e53eb3263f345aea9b43",
+      "unit": "Gói",
+      "exchangeValue": 1,
+      "at": "2026-10-17T21:21:17.317Z"
+    },
+    {
+      "event": "demo_unit_normalized",
+      "medicineId": "6ad3e53eb3263f345aea9b45",
+      "unit": "Hộp",
+      "exchangeValue": 1,
+      "at": "2026-10-17T21:21:17.793Z"
+    }
+  ],
+  "rfq": {
+    "id": "6ad3e569b3263f345aea9ba5",
+    "code": "RFQ-20261017-0008",
+    "title": "DEMO R2 - WORKFLOW mua nhap ban - du lieu thu nghiem"
+  },
+  "po": {
+    "id": "6ad3e592b3263f345aea9bc3",
+    "code": "PO-RFQ-20261017-0008",
+    "status": "COMPLETED"
+  },
+  "branch": {
+    "id": "6a2bc52d446f5ecaa1f508bd",
+    "code": "BR-001",
+    "name": "Nhà thuốc VinaPharmacy - CN1"
+  },
+  "transfers": [
+    {
+      "key": "READY",
+      "id": "6ad3e5c9b3263f345aea9f9d",
+      "code": "ST-20261017-0001",
+      "prId": "6ad3e5c8b3263f345aea9f63",
+      "prCode": "PR-20261017-0003",
+      "quantity": 20,
+      "medicineId": "6ad3e406b3263f345aea9a97",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "medicineName": "DEMO R2 - Vitamin C 500mg",
+          "batchNo": "DEMO-R2-VITC-NEAR",
+          "quantity": 20,
+          "receivedQuantity": 20,
+          "discrepancyQuantity": 0,
+          "unit": "Hộp",
+          "_id": "6ad3e5c9b3263f345aea9f9e"
+        }
+      ]
+    },
+    {
+      "key": "LIVE-RECEIVE",
+      "id": "6ad3e5cbb3263f345aeaa0ac",
+      "code": "ST-20261017-0002",
+      "prId": "6ad3e5cab3263f345aeaa071",
+      "prCode": "PR-20261017-0004",
+      "quantity": 5,
+      "medicineId": "6ad3e406b3263f345aea9a97",
+      "status": "SHIPPING",
+      "items": [
+        {
+          "medicineId": "6ad3e406b3263f345aea9a97",
+          "medicineName": "DEMO R2 - Vitamin C 500mg",
+          "batchNo": "DEMO-R2-VITC-NEAR",
+          "quantity": 5,
+          "receivedQuantity": 0,
+          "discrepancyQuantity": 0,
+          "unit": "Hộp",
+          "_id": "6ad3e5cbb3263f345aeaa0ad"
+        }
+      ]
+    }
+  ],
+  "lastVerifiedAt": "2026-10-17T21:21:21.247Z"
+}

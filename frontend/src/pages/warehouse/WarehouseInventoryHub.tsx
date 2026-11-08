@@ -82,14 +82,14 @@ export function WarehouseInventoryHub() {
       label: "Đơn hàng đang về",
       icon: <ArrowDownToLine size={16} />,
       desc: "Theo dõi & nhận hàng từ Nhà cung cấp (PO đã Admin duyệt)",
-      color: "emerald",
+      color: "sky",
     },
   ];
 
   const colorMap: Record<string, string> = {
     blue: "border-blue-600 text-blue-700 bg-blue-50",
     violet: "border-violet-600 text-violet-700 bg-violet-50",
-    emerald: "border-emerald-600 text-emerald-700 bg-emerald-50",
+    sky: "border-sky-600 text-sky-700 bg-sky-50",
   };
 
   return (
@@ -98,8 +98,8 @@ export function WarehouseInventoryHub() {
       <AnimatePresence>
         {msg && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-            className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border ${msg.type === "success" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
-            {msg.type === "success" ? <CheckCircle2 size={20} className="text-green-600" /> : <AlertTriangle size={20} className="text-red-600" />}
+            className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border ${msg.type === "success" ? "bg-sky-50 border-sky-200 text-sky-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+            {msg.type === "success" ? <CheckCircle2 size={20} className="text-sky-600" /> : <AlertTriangle size={20} className="text-red-600" />}
             <span className="font-medium text-sm">{msg.text}</span>
             <button onClick={() => setMsg(null)} className="ml-2 hover:bg-black/5 p-1 rounded-full"><X size={16} /></button>
           </motion.div>

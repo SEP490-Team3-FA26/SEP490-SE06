@@ -37,7 +37,7 @@ export const FlatCard: React.FC<FlatCardProps> = ({
   subtitle,
   headerRight,
   headerIcon,
-  headerIconColor = '#059669',
+  headerIconColor = '#0284C7',
   footer,
   onPress,
   padded = true,
@@ -51,13 +51,13 @@ export const FlatCard: React.FC<FlatCardProps> = ({
   const getBorderColor = () => {
     switch (borderVariant) {
       case 'primary':
-        return 'rgba(5, 150, 105, 0.45)';
+        return 'rgba(2, 132, 199, 0.45)';
       case 'warning':
         return 'rgba(245, 158, 11, 0.45)';
       case 'danger':
         return 'rgba(239, 68, 68, 0.45)';
       case 'success':
-        return 'rgba(16, 185, 129, 0.45)';
+        return 'rgba(2, 132, 199, 0.45)';
       case 'default':
       default:
         return 'rgba(255, 255, 255, 0.6)';

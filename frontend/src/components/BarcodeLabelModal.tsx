@@ -579,7 +579,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
             <div>
               <h3 className="font-bold text-base flex items-center gap-2">
                 In Mã Vạch & Tem Nhãn Dược Phẩm
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-mono">
+                <span className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full font-mono">
                   GSP Compliant
                 </span>
               </h3>
@@ -615,7 +615,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
             onClick={() => setLabelMode('retail_barcode')}
             className={`pb-2.5 px-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
               labelMode === 'retail_barcode'
-                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg shadow-sm'
+                ? 'border-sky-600 text-sky-700 bg-white rounded-t-lg shadow-sm'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -629,13 +629,13 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
           {/* Risk Mitigation: Double-Check Verification Scan */}
           <div className={`p-3.5 rounded-xl border transition-all ${
             isVerified 
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-900' 
+              ? 'bg-sky-50 border-sky-300 text-sky-900' 
               : 'bg-amber-50/70 border-amber-300 text-amber-900'
           }`}>
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
                 {isVerified ? (
-                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  <CheckCircle2 size={18} className="text-sky-600 shrink-0" />
                 ) : (
                   <AlertTriangle size={18} className="text-amber-600 shrink-0" />
                 )}
@@ -660,7 +660,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   value={verifyBarcodeScan}
                   onChange={(e) => handleVerifyScan(e.target.value)}
                   className={`w-full px-2.5 py-1 text-xs rounded-lg border font-mono font-bold outline-none ${
-                    isVerified ? 'border-emerald-400 bg-white text-emerald-700' : 'border-amber-300 bg-white'
+                    isVerified ? 'border-sky-400 bg-white text-sky-700' : 'border-amber-300 bg-white'
                   }`}
                 />
               </div>
@@ -804,7 +804,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   <div className="font-bold text-xs truncate">{medicine.name}</div>
                   <div className="flex justify-between text-[10px] font-semibold">
                     <span>SKU: {medicine.sku || barcodeValue}</span>
-                    <span className="font-bold text-emerald-700">{Number(currentPrice).toLocaleString('vi-VN')} đ</span>
+                    <span className="font-bold text-sky-700">{Number(currentPrice).toLocaleString('vi-VN')} đ</span>
                   </div>
                   <div className="flex justify-center scale-90">{svgBarcode}</div>
                   <div className="flex justify-between text-[8px] text-slate-500 border-t border-slate-200 pt-0.5">
@@ -874,7 +874,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               className="p-1.5 text-slate-400 hover:text-indigo-600 rounded transition-colors"
               title="Sao chép mã barcode"
             >
-              {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+              {copied ? <Check size={14} className="text-sky-600" /> : <Copy size={14} />}
             </button>
             <button
               type="button"

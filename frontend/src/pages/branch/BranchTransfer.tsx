@@ -161,7 +161,7 @@ export function BranchTransfer() {
 
       {msg && (
         <div className={`p-4 rounded-xl text-sm font-bold flex items-center gap-2 border ${
-          msg.type === "success" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
+          msg.type === "success" ? "bg-sky-50 text-sky-700 border-sky-200" : "bg-rose-50 text-rose-700 border-rose-200"
         }`}>
           {msg.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
           <span>{msg.text}</span>
@@ -283,7 +283,7 @@ export function BranchTransfer() {
                   <div className="flex-1 min-w-0 pr-3">
                     <div className="text-xs font-bold text-slate-800 truncate">{med.name}</div>
                     <div className="flex gap-2 text-[10px] text-slate-500 font-semibold mt-1">
-                      <span>Tồn: <strong className={med.stock <= 20 ? "text-rose-600" : "text-emerald-600"}>{med.stock}</strong></span>
+                      <span>Tồn: <strong className={med.stock <= 20 ? "text-rose-600" : "text-sky-600"}>{med.stock}</strong></span>
                       <span>•</span>
                       <span>Đơn vị: {med.unit || "Hộp"}</span>
                     </div>

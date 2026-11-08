@@ -25,6 +25,8 @@
   },
   "exclude": [
     "next.config.ts",
+    "playwright.config.ts",
+    "tests",
     "**/*.spec.ts",
     "**/*.spec.tsx",
     "**/*.test.ts",

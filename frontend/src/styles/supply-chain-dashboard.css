@@ -316,7 +316,7 @@
   display: inline-block;
 }
 
-.scd-dot.stable { background: #22c55e; }
+.scd-dot.stable { background: #0284c7; }
 .scd-dot.warning { background: #f97316; }
 .scd-dot.critical { background: #ef4444; }
 
@@ -450,7 +450,7 @@
   font-weight: 700;
 }
 
-.scd-branch-status-lbl.healthy { color: #16a34a; }
+.scd-branch-status-lbl.healthy { color: #0284c7; }
 .scd-branch-status-lbl.warning { color: #ea580c; }
 .scd-branch-status-lbl.critical { color: #dc2626; }
 
@@ -491,7 +491,7 @@
   shrink-0: 0;
 }
 
-.scd-timeline-item.stock-in .scd-timeline-icon { background: #dcfce7; color: #15803d; }
+.scd-timeline-item.stock-in .scd-timeline-icon { background: #e0f2fe; color: #0369a1; }
 .scd-timeline-item.transfer .scd-timeline-icon { background: #eff6ff; color: #1d4ed8; }
 .scd-timeline-item.stock-out .scd-timeline-icon { background: #fee2e2; color: #b91c1c; }
 
@@ -838,7 +838,7 @@
 
 .scd-badge.red { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
 .scd-badge.orange { background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; }
-.scd-badge.green { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
+.scd-badge.sky { background: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; }
 .scd-badge.blue { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
 
 /* ── BAR MARKERS IN GRID ── */

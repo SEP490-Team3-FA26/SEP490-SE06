@@ -11,6 +11,10 @@
     "dev": "npx concurrently -k -p \"[{name}]\" -n \"Backend,Frontend\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:all": "npm run --prefix backend build:all",
     "infra:k8s-logs": "bash scripts/k8s-logs.sh",
+    "ci:local": "bash scripts/local-ci.sh",
+    "ci:local:quick": "bash scripts/local-ci.sh --quick",
+    "setup:hooks": "git config core.hooksPath .github/.githooks && chmod +x .github/.githooks/pre-push",
+    "prepare": "git config core.hooksPath .github/.githooks 2>/dev/null || true",
     "prod:up": "docker compose -f docker-compose.prod.yml up -d",
     "prod:down": "docker compose -f docker-compose.prod.yml down",
     "prod:logs": "docker compose -f docker-compose.prod.yml logs -f"

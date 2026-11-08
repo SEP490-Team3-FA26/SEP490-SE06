@@ -546,8 +546,8 @@ export function VoucherManagement() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm">
-          <CheckCircle2 size={16} className="text-emerald-500" />
+        <div className="mb-4 p-4 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm">
+          <CheckCircle2 size={16} className="text-sky-500" />
           {successMsg}
         </div>
       )}
@@ -573,9 +573,9 @@ export function VoucherManagement() {
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">ĐANG HOẠT ĐỘNG</span>
-            <span className="text-xl font-black text-emerald-600 mt-1 block">{activeCount}</span>
+            <span className="text-xl font-black text-sky-600 mt-1 block">{activeCount}</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
             <CheckCircle2 size={20} />
           </div>
         </div>
@@ -767,7 +767,7 @@ export function VoucherManagement() {
                           disabled={updatingIds.has(v._id)}
                           onClick={() => toggleActive(v)}
                           className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            v.isActive ? "bg-emerald-500" : "bg-slate-200"
+                            v.isActive ? "bg-sky-500" : "bg-slate-200"
                           } ${updatingIds.has(v._id) ? "opacity-50 pointer-events-none" : ""}`}
                           title={v.isActive ? "Nhấn để tạm dừng" : "Nhấn để kích hoạt"}
                         >

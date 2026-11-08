@@ -137,11 +137,11 @@ export function VietQRPopup({
             transition={{ type: "spring", stiffness: 340, damping: 28 }}
             className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/60 w-full max-w-sm mx-auto overflow-hidden"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-teal-500/10 to-emerald-500/5 border-b border-teal-100/60">
+            {/* Tiêu đề popup */}
+            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-sky-500/10 to-blue-500/5 border-b border-sky-100/60">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-teal-100 rounded-xl flex items-center justify-center">
-                  <QrCode size={16} className="text-teal-600" />
+                <div className="w-8 h-8 bg-sky-100 rounded-xl flex items-center justify-center">
+                  <QrCode size={16} className="text-sky-600" />
                 </div>
                 <div>
                   <h2 className="font-bold text-slate-800 text-sm leading-tight">
@@ -160,16 +160,16 @@ export function VietQRPopup({
             </div>
 
             <div className="px-5 py-5 space-y-4">
-              {/* QR placeholder */}
+              {/* Vùng hiển thị mã QR */}
               <div className="flex flex-col items-center gap-3">
-                <div className="w-[200px] h-[200px] bg-gradient-to-br from-emerald-100 to-teal-100 rounded-xl flex flex-col items-center justify-center gap-2 border border-emerald-200/60 shadow-inner">
-                  <QrCode size={80} className="text-teal-600 opacity-60" />
-                  <span className="font-mono text-xs text-teal-700 font-semibold tracking-wider">
+                <div className="w-[200px] h-[200px] bg-gradient-to-br from-sky-100 to-blue-100 rounded-xl flex flex-col items-center justify-center gap-2 border border-sky-200/60 shadow-inner">
+                  <QrCode size={80} className="text-sky-600 opacity-60" />
+                  <span className="font-mono text-xs text-sky-700 font-semibold tracking-wider">
                     {orderCode}
                   </span>
                 </div>
 
-                {/* Countdown timer */}
+                {/* Đồng hồ đếm ngược */}
                 <div className="flex items-center gap-1.5 text-slate-500">
                   <Clock size={13} />
                   <span className="text-xs">Hết hạn sau</span>
@@ -179,7 +179,7 @@ export function VietQRPopup({
                         ? "text-rose-500"
                         : countdown <= 60
                         ? "text-amber-500"
-                        : "text-teal-600"
+                        : "text-sky-600"
                     }`}
                   >
                     {formatCountdown(countdown)}
@@ -217,14 +217,14 @@ export function VietQRPopup({
                 <div className="border-t border-slate-200/80 pt-2 flex justify-between items-center">
                   <span className="text-slate-400 text-xs font-semibold">Số tiền</span>
                   <div className="text-right">
-                    <span className="font-mono tabular-nums font-black text-2xl text-emerald-700">
+                    <span className="font-mono tabular-nums font-black text-2xl text-sky-700">
                       {formatVND(amount)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Instruction */}
+              {/* Hướng dẫn thanh toán */}
               <p className="text-xs text-slate-400 text-center leading-relaxed">
                 Quét mã để thanh toán. Mã hết hạn sau{" "}
                 <span className="font-mono font-semibold text-slate-500">
@@ -233,9 +233,9 @@ export function VietQRPopup({
                 .
               </p>
 
-              {/* Action buttons */}
+              {/* Nút thao tác */}
               <div className="flex gap-3 pt-1">
-                {/* Cancel */}
+                {/* Nút hủy */}
                 <button
                   onClick={handleCancel}
                   className="flex-1 py-2.5 rounded-xl border-2 border-rose-200 text-rose-500 hover:bg-rose-50 hover:border-rose-300 font-bold text-sm flex items-center justify-center gap-1.5 transition-all"
@@ -244,11 +244,11 @@ export function VietQRPopup({
                   <span>Hủy</span>
                 </button>
 
-                {/* Confirm paid */}
+                {/* Xác nhận đã thanh toán */}
                 <button
                   onClick={handleConfirm}
                   disabled={isConfirming || isExpired}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-500/20"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-1.5 transition-all shadow-md shadow-sky-500/20"
                 >
                   {isConfirming ? (
                     <Loader2 size={16} className="animate-spin text-white" />

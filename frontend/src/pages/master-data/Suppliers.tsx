@@ -153,7 +153,7 @@ export function Suppliers() {
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-600 max-w-[200px] truncate" title={supplier.contact_info}>{supplier.contact_info}</td>
                     <td className="px-6 py-4 text-center">
-                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-[11px] border ${expired ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-[11px] border ${expired ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
                         {supplier.gdp_expiry_date ? new Date(supplier.gdp_expiry_date).toLocaleDateString() : 'N/A'}
                       </div>
                     </td>
@@ -163,7 +163,7 @@ export function Suppliers() {
                             <ShieldAlert size={14} /> HẾT HẠN GDP
                          </div>
                       ) : (
-                         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 rounded-full text-emerald-600 text-xs font-bold border border-emerald-100">
+                         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 rounded-full text-sky-600 text-xs font-bold border border-sky-100">
                             <CheckCircle2 size={14} /> HỢP LỆ
                          </div>
                       )}
@@ -251,14 +251,14 @@ export function Suppliers() {
                 </div>
 
                 {formData.gdp_expiry_date && (
-                   <div className={`p-4 rounded-xl border ${isFormExpired ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                   <div className={`p-4 rounded-xl border ${isFormExpired ? 'bg-rose-50 border-rose-200' : 'bg-sky-50 border-sky-200'}`}>
                       <div className="flex items-start gap-3">
-                         {isFormExpired ? <ShieldAlert size={20} className="text-rose-600 mt-0.5 shrink-0" /> : <CheckCircle2 size={20} className="text-emerald-600 mt-0.5 shrink-0" />}
+                         {isFormExpired ? <ShieldAlert size={20} className="text-rose-600 mt-0.5 shrink-0" /> : <CheckCircle2 size={20} className="text-sky-600 mt-0.5 shrink-0" />}
                          <div>
-                            <h4 className={`font-bold text-sm ${isFormExpired ? 'text-rose-800' : 'text-emerald-800'}`}>
+                            <h4 className={`font-bold text-sm ${isFormExpired ? 'text-rose-800' : 'text-sky-800'}`}>
                                {isFormExpired ? 'Giấy chứng nhận GDP đã hết hạn!' : 'Hồ sơ pháp lý hợp lệ'}
                             </h4>
-                            <p className={`text-xs mt-1 leading-relaxed ${isFormExpired ? 'text-rose-700' : 'text-emerald-700'}`}>
+                            <p className={`text-xs mt-1 leading-relaxed ${isFormExpired ? 'text-rose-700' : 'text-sky-700'}`}>
                                {isFormExpired 
                                  ? 'Lưu ý: Nếu bạn thêm nhà cung cấp này, hệ thống Lên Đơn Nhập Hàng (Purchase Order) sẽ tự động CHẶN không cho phép nhập thuốc từ doanh nghiệp này.' 
                                  : 'Giấy phép GDP còn thời hạn sử dụng. Doanh nghiệp này sẽ được cấp quyền nhập hàng trên hệ thống.'}

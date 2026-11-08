@@ -16,6 +16,11 @@ import { ApiService } from '../../services/api.service';
 import { useAuth } from '../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showToast } from '../ui/toastHelper';
+import {
+  searchColleagues,
+  getColleagueRoleLabel,
+  ColleagueRecord,
+} from '../../services/colleagueSearch.service';
 
 interface ShiftSwapModalProps {
   visible: boolean;
@@ -72,18 +77,13 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
   const [selectedColleague, setSelectedColleague] = useState<any | null>(null);
   const [showColleagueDropdown, setShowColleagueDropdown] = useState<boolean>(false);
   const [colleagueSearch, setColleagueSearch] = useState<string>('');
+  const [colleagueRoleFilter, setColleagueRoleFilter] = useState<'ALL' | 'PHARMACIST' | 'BRANCH' | 'WAREHOUSE'>('ALL');
   const [showMyShiftDropdown, setShowMyShiftDropdown] = useState<boolean>(false);
 
+  // Tìm kiếm đồng nghiệp chuẩn hóa: không dấu, theo tên, SĐT, CCHN & bộ lọc vai trò
   const filteredColleagues = useMemo(() => {
-    if (!colleagueSearch.trim()) return colleagues;
-    const q = colleagueSearch.toLowerCase();
-    return colleagues.filter((c: any) => {
-      const name = (c.fullName || c.name || '').toLowerCase();
-      const phone = (c.phone || '').toLowerCase();
-      const role = (c.role || '').toLowerCase();
-      return name.includes(q) || phone.includes(q) || role.includes(q);
-    });
-  }, [colleagues, colleagueSearch]);
+    return searchColleagues(colleagues, colleagueSearch, colleagueRoleFilter);
+  }, [colleagues, colleagueSearch, colleagueRoleFilter]);
   const [targetShiftDate, setTargetShiftDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -111,16 +111,19 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
       nextMonDate.setDate(nextMonDate.getDate() + 7);
       const nextMon = formatDate(nextMonDate);
 
+      // Bọc từng request với catch để lỗi 1 API không làm sập toàn bộ dữ liệu đồng nghiệp
       const [mySwapsRes, branchSwapsRes, colleaguesRes, scheduleThisWeek, scheduleNextWeek] = await Promise.all([
-        ApiService.listMySwaps(),
-        isManager ? ApiService.listBranchSwaps() : Promise.resolve([]),
-        ApiService.getColleagues(),
-        ApiService.getMyWeekSchedule(thisMon),
-        ApiService.getMyWeekSchedule(nextMon),
+        ApiService.listMySwaps().catch(() => []),
+        isManager ? ApiService.listBranchSwaps().catch(() => []) : Promise.resolve([]),
+        ApiService.getColleagues().catch(() => []),
+        ApiService.getMyWeekSchedule(thisMon).catch(() => null),
+        ApiService.getMyWeekSchedule(nextMon).catch(() => null),
       ]);
 
       setMySwaps(mySwapsRes || []);
       setBranchSwaps(branchSwapsRes || []);
+
+      // Tuân thủ Zero Mock Data Policy: Lấy danh sách đồng nghiệp từ API thực tế
       setColleagues(colleaguesRes || []);
 
       // Extract my upcoming shifts from schedule (cả tuần này và tuần sau)
@@ -328,8 +331,8 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
         );
       case 'approved':
         return (
-          <View style={[styles.statusBadge, { backgroundColor: '#ECFDF5' }]}>
-            <Text style={[styles.statusBadgeText, { color: '#047857' }]}>Đã đổi lịch thành công</Text>
+          <View style={[styles.statusBadge, { backgroundColor: '#F0F9FF' }]}>
+            <Text style={[styles.statusBadgeText, { color: '#0369A1' }]}>Đã đổi lịch thành công</Text>
           </View>
         );
       case 'rejected':
@@ -586,8 +589,8 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                       activeOpacity={0.7}
                     >
                       <View style={styles.dropdownSelectorLeft}>
-                        <View style={[styles.dropdownIconCircle, { backgroundColor: '#F0FDF4' }]}>
-                          <Ionicons name="calendar" size={16} color="#059669" />
+                        <View style={[styles.dropdownIconCircle, { backgroundColor: '#F0F9FF' }]}>
+                          <Ionicons name="calendar" size={16} color="#0284C7" />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.dropdownSelectorLabel}>Ca làm việc cần đổi</Text>
@@ -643,6 +646,69 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                     </View>
                     <Ionicons name="chevron-down" size={18} color="#64748B" />
                   </TouchableOpacity>
+
+                  {/* Dải gợi ý nhanh đồng nghiệp (1 chạm để chọn tức thì) */}
+                  {colleagues.length > 0 && (
+                    <View style={styles.quickColleaguesContainer}>
+                      <View style={styles.quickColleaguesHeaderRow}>
+                        <Text style={styles.quickColleaguesHeader}>GỢI Ý ĐỒNG NGHIỆP CÙNG CHI NHÁNH:</Text>
+                        <TouchableOpacity onPress={() => setShowColleagueDropdown(true)}>
+                          <Text style={styles.quickColleaguesMore}>Tìm thêm ({colleagues.length}) ›</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.quickColleaguesScroll}
+                      >
+                        {colleagues.slice(0, 6).map((c: any) => {
+                          const isSelected =
+                            selectedColleague?._id === c._id || selectedColleague?.id === c.id;
+                          return (
+                            <TouchableOpacity
+                              key={`quick-${c._id || c.id}`}
+                              onPress={() => setSelectedColleague(c)}
+                              style={[
+                                styles.quickColleagueChip,
+                                isSelected && styles.quickColleagueChipActive,
+                              ]}
+                              activeOpacity={0.7}
+                            >
+                              <View
+                                style={[
+                                  styles.quickColleagueAvatar,
+                                  isSelected && { backgroundColor: '#0284C7' },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.quickColleagueAvatarText,
+                                    isSelected && { color: '#FFFFFF' },
+                                  ]}
+                                >
+                                  {(c.fullName || c.name || '?').slice(0, 1).toUpperCase()}
+                                </Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={[
+                                    styles.quickColleagueName,
+                                    isSelected && { color: '#0284C7', fontWeight: '800' },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {c.fullName || c.name}
+                                </Text>
+                                <Text style={styles.quickColleagueRole} numberOfLines={1}>
+                                  {getColleagueRoleLabel(c.role)}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
 
                   <Text style={styles.formSectionHeader}>3. THÔNG TIN CA ĐỒNG NGHIỆP BẠN MUỐN ĐỔI</Text>
 
@@ -702,7 +768,7 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                         <View style={styles.swapCardHeader}>
                           <Text style={styles.requesterTitle}>
                             <Text style={{ fontWeight: '800', color: '#0284C7' }}>{item.requesterName}</Text> ↔{' '}
-                            <Text style={{ fontWeight: '800', color: '#059669' }}>{item.targetName}</Text>
+                            <Text style={{ fontWeight: '800', color: '#0369A1' }}>{item.targetName}</Text>
                           </Text>
                           {renderStatusBadge(item.status)}
                         </View>
@@ -743,7 +809,7 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
 
                           <TouchableOpacity
                             onPress={() => handleManagerApprove(item._id || item.id)}
-                            style={[styles.approveBtn, { backgroundColor: '#059669' }]}
+                            style={[styles.approveBtn, { backgroundColor: '#0284C7' }]}
                             disabled={actionLoadingId === (item._id || item.id)}
                           >
                             {actionLoadingId === (item._id || item.id) ? (
@@ -851,7 +917,7 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                           <View
                             style={[
                               styles.dropdownIconCircle,
-                              { backgroundColor: isSelected ? '#059669' : '#F1F5F9' },
+                              { backgroundColor: isSelected ? '#0284C7' : '#F1F5F9' },
                             ]}
                           >
                             <Ionicons
@@ -864,7 +930,7 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                             <Text
                               style={[
                                 styles.dropdownItemName,
-                                isSelected && { color: '#059669', fontWeight: '800' },
+                                isSelected && { color: '#0284C7', fontWeight: '800' },
                               ]}
                             >
                               {s.date?.slice(0, 10)} — {s.shiftName}
@@ -875,7 +941,7 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                           </View>
                         </View>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={20} color="#059669" />
+                          <Ionicons name="checkmark-circle" size={20} color="#0284C7" />
                         )}
                       </TouchableOpacity>
                     );
@@ -916,23 +982,62 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                {colleagues.length > 4 && (
-                  <View style={styles.dropdownSearchBox}>
-                    <Ionicons name="search" size={16} color="#94A3B8" />
-                    <TextInput
-                      style={styles.dropdownSearchInput}
-                      value={colleagueSearch}
-                      onChangeText={setColleagueSearch}
-                      placeholder="Tìm theo tên hoặc số điện thoại..."
-                      placeholderTextColor="#94A3B8"
-                    />
-                    {colleagueSearch.length > 0 && (
-                      <TouchableOpacity onPress={() => setColleagueSearch('')}>
-                        <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
+                {/* Thanh tìm kiếm đồng nghiệp realtime - Luôn hiển thị theo yêu cầu */}
+                <View style={styles.dropdownSearchBox}>
+                  <Ionicons name="search" size={16} color="#0284C7" />
+                  <TextInput
+                    style={styles.dropdownSearchInput}
+                    value={colleagueSearch}
+                    onChangeText={setColleagueSearch}
+                    placeholder="Tìm kiếm đồng nghiệp theo tên, SĐT, chức vụ..."
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="none"
+                  />
+                  {colleagueSearch.length > 0 && (
+                    <TouchableOpacity onPress={() => setColleagueSearch('')}>
+                      <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Bộ lọc vai trò đồng nghiệp */}
+                <View style={styles.roleFilterRow}>
+                  {(
+                    [
+                      { key: 'ALL', label: 'Tất cả' },
+                      { key: 'PHARMACIST', label: 'Dược Sĩ' },
+                      { key: 'WAREHOUSE', label: 'Kho GSP' },
+                      { key: 'BRANCH', label: 'Quản Lý' },
+                    ] as const
+                  ).map((tab) => (
+                    <TouchableOpacity
+                      key={tab.key}
+                      onPress={() => setColleagueRoleFilter(tab.key)}
+                      style={[
+                        styles.roleFilterPill,
+                        colleagueRoleFilter === tab.key && styles.roleFilterPillActive,
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.roleFilterText,
+                          colleagueRoleFilter === tab.key && styles.roleFilterTextActive,
+                        ]}
+                      >
+                        {tab.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Thanh trạng thái số lượng kết quả tìm kiếm */}
+                <View style={styles.resultCountBanner}>
+                  <Ionicons name="people" size={13} color="#0284C7" />
+                  <Text style={styles.resultCountText}>
+                    Tìm thấy {filteredColleagues.length} đồng nghiệp sẵn sàng đổi ca
+                  </Text>
+                </View>
 
                 <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={true}>
                   {filteredColleagues.length > 0 ? (
@@ -968,23 +1073,33 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                               </Text>
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text
-                                style={[
-                                  styles.dropdownItemName,
-                                  isSelected && styles.dropdownItemNameActive,
-                                ]}
-                              >
-                                {c.fullName || c.name}
-                              </Text>
-                              {c.role && (
-                                <Text style={styles.dropdownItemRole}>
-                                  {c.role === 'pharmacist'
-                                    ? 'Dược Sĩ'
-                                    : c.role === 'branch'
-                                    ? 'Quản Lý Cơ Sở'
-                                    : c.role}
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text
+                                  style={[
+                                    styles.dropdownItemName,
+                                    isSelected && styles.dropdownItemNameActive,
+                                  ]}
+                                >
+                                  {c.fullName || c.name}
                                 </Text>
-                              )}
+                                <View style={styles.colleagueRoleBadge}>
+                                  <Text style={styles.colleagueRoleBadgeText}>
+                                    {getColleagueRoleLabel(c.role)}
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={styles.colleagueMetaRow}>
+                                {c.phone ? (
+                                  <Text style={styles.colleaguePhoneText}>📞 {c.phone}</Text>
+                                ) : null}
+                                {c.cchn ? (
+                                  <Text style={styles.colleagueCchnText}>• {c.cchn}</Text>
+                                ) : (
+                                  <Text style={styles.colleagueBranchText}>
+                                    • {c.branchName || 'Cơ Sở Chi Nhánh'}
+                                  </Text>
+                                )}
+                              </View>
                             </View>
                           </View>
                           {isSelected && (
@@ -997,7 +1112,7 @@ export const ShiftSwapModal: React.FC<ShiftSwapModalProps> = ({
                     <View style={{ padding: 24, alignItems: 'center' }}>
                       <Ionicons name="people-outline" size={32} color="#CBD5E1" />
                       <Text style={{ marginTop: 8, fontSize: 13, color: '#94A3B8' }}>
-                        Không tìm thấy đồng nghiệp nào
+                        Không tìm thấy đồng nghiệp nào phù hợp
                       </Text>
                     </View>
                   )}
@@ -1567,5 +1682,139 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     marginTop: 1,
+  },
+  // Gợi ý nhanh đồng nghiệp
+  quickColleaguesContainer: {
+    marginBottom: 14,
+  },
+  quickColleaguesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  quickColleaguesHeader: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.5,
+  },
+  quickColleaguesMore: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  quickColleaguesScroll: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  quickColleagueChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    minWidth: 140,
+  },
+  quickColleagueChipActive: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
+    borderWidth: 1.5,
+  },
+  quickColleagueAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickColleagueAvatarText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  quickColleagueName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  quickColleagueRole: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  // Bộ lọc vai trò
+  roleFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  roleFilterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+  },
+  roleFilterPillActive: {
+    backgroundColor: '#0284C7',
+  },
+  roleFilterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  roleFilterTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  resultCountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  resultCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  colleagueRoleBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  colleagueRoleBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0369A1',
+  },
+  colleagueMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  colleaguePhoneText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  colleagueCchnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  colleagueBranchText: {
+    fontSize: 11,
+    color: '#94A3B8',
   },
 });

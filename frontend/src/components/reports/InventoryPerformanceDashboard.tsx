@@ -104,9 +104,9 @@ export function InventoryPerformanceDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Selling Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
-            <div className="p-5 border-b border-slate-100 bg-emerald-50/50 flex items-center justify-between shrink-0">
+            <div className="p-5 border-b border-slate-100 bg-sky-50/50 flex items-center justify-between shrink-0">
               <h3 className="font-bold text-slate-880 text-sm flex items-center gap-2">
-                <TrendingUp size={18} className="text-emerald-600" /> Top 20 Hàng Bán Chạy (Theo số lượng)
+                <TrendingUp size={18} className="text-sky-600" /> Top 20 Hàng Bán Chạy (Theo số lượng)
               </h3>
             </div>
             <div className="overflow-auto flex-1 p-0">
@@ -124,7 +124,7 @@ export function InventoryPerformanceDashboard() {
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3.5 font-bold text-slate-400">{idx + 1}</td>
                       <td className="px-5 py-3.5 font-bold text-slate-800">{item.name}</td>
-                      <td className="px-5 py-3.5 text-center font-black text-emerald-600">{item.totalQuantity}</td>
+                      <td className="px-5 py-3.5 text-center font-black text-sky-600">{item.totalQuantity}</td>
                       <td className="px-5 py-3.5 text-right font-semibold text-slate-600">{(item.totalRevenue || 0).toLocaleString('vi-VN')} đ</td>
                     </tr>
                   ))}

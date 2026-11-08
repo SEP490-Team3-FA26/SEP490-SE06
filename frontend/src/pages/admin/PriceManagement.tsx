@@ -340,13 +340,13 @@ export function PriceManagement() {
         </div>
 
         {/* Quick stats */}
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl shadow-sm border border-emerald-200 p-4 flex flex-col justify-center">
-          <div className="flex items-center gap-2 text-emerald-700 mb-1">
+        <div className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-xl shadow-sm border border-sky-200 p-4 flex flex-col justify-center">
+          <div className="flex items-center gap-2 text-sky-700 mb-1">
             <DollarSign size={18} />
             <span className="text-xs font-semibold uppercase tracking-wider">Giá đã thiết lập</span>
           </div>
-          <span className="text-2xl font-bold text-emerald-900">{pagination.total}</span>
-          <span className="text-xs text-emerald-600 mt-0.5">sản phẩm có giá riêng</span>
+          <span className="text-2xl font-bold text-sky-900">{pagination.total}</span>
+          <span className="text-xs text-sky-600 mt-0.5">sản phẩm có giá riêng</span>
         </div>
 
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-4 flex flex-col justify-center">
@@ -442,11 +442,11 @@ export function PriceManagement() {
                       {formatVND(item.defaultPrice)}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className={`font-bold ${item.retailPrice != null ? "text-emerald-700" : "text-slate-300"}`}>
+                      <span className={`font-bold ${item.retailPrice != null ? "text-sky-700" : "text-slate-300"}`}>
                         {item.retailPrice != null ? formatVND(item.retailPrice) : "Giá gốc"}
                       </span>
                       {item.retailPrice != null && item.defaultPrice > 0 && (
-                        <span className={`block text-[10px] mt-0.5 ${item.retailPrice < item.defaultPrice ? "text-red-500" : item.retailPrice > item.defaultPrice ? "text-emerald-500" : "text-slate-400"}`}>
+                        <span className={`block text-[10px] mt-0.5 ${item.retailPrice < item.defaultPrice ? "text-red-500" : item.retailPrice > item.defaultPrice ? "text-sky-500" : "text-slate-400"}`}>
                           {item.retailPrice < item.defaultPrice
                             ? `▼ ${Math.round(((item.defaultPrice - item.retailPrice) / item.defaultPrice) * 100)}%`
                             : item.retailPrice > item.defaultPrice
@@ -471,7 +471,7 @@ export function PriceManagement() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       {item.isActive ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
                           <Check size={12} /> Hoạt động
                         </span>
                       ) : (
@@ -570,7 +570,7 @@ export function PriceManagement() {
                       Giá bán lẻ (VNĐ)
                     </label>
                     {formRetailPrice !== "" && Number(formRetailPrice) >= 0 && (
-                      <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formRetailPrice))}</span>
+                      <span className="text-xs font-bold text-sky-600">{formatVND(Number(formRetailPrice))}</span>
                     )}
                   </div>
                   <input
@@ -610,7 +610,7 @@ export function PriceManagement() {
                       Giá bán sỉ cơ bản (VNĐ)
                     </label>
                     {formWholesalePrice !== "" && Number(formWholesalePrice) >= 0 && (
-                      <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formWholesalePrice))}</span>
+                      <span className="text-xs font-bold text-sky-600">{formatVND(Number(formWholesalePrice))}</span>
                     )}
                   </div>
                   <input
@@ -823,7 +823,7 @@ export function PriceManagement() {
                             Giá bán lẻ (VNĐ)
                           </label>
                           {formRetailPrice !== "" && Number(formRetailPrice) >= 0 && (
-                            <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formRetailPrice))}</span>
+                            <span className="text-xs font-bold text-sky-600">{formatVND(Number(formRetailPrice))}</span>
                           )}
                         </div>
                         <input
@@ -863,7 +863,7 @@ export function PriceManagement() {
                             Giá bán sỉ cơ bản (VNĐ)
                           </label>
                           {formWholesalePrice !== "" && Number(formWholesalePrice) >= 0 && (
-                            <span className="text-xs font-bold text-emerald-600">{formatVND(Number(formWholesalePrice))}</span>
+                            <span className="text-xs font-bold text-sky-600">{formatVND(Number(formWholesalePrice))}</span>
                           )}
                         </div>
                         <input

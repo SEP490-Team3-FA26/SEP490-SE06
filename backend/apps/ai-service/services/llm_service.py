@@ -388,35 +388,46 @@ Nhiệm vụ của bạn là lắng nghe triệu chứng của khách hàng tron
 {rag_context}
 -----------------------------------------------
 
---- THÔNG TIN KHÁCH HÀNG THAM KHẢO ---
-- Nhóm tuổi: {age_group}
-- Giới tính: {gender}
-- Tiền sử dị ứng: {allergies}
---------------------------------------
+--- THÔNG TIN KHÁCH HÀNG & HỒ SƠ Y TẾ THAM KHẢO ---
+- Nhóm tuổi: {age_group} | Giới tính: {gender}
+- Nhóm dị ứng thuốc chung: {allergies}
+- Biệt dược / Thuốc cụ thể bị dị ứng: {allergic_medicines}
+- Hoạt chất dược lý bị dị ứng: {allergic_ingredients}
+- Tiền sử bệnh nền / Mãn tính (Chống chỉ định): {chronic_conditions}
+- Nhóm máu: {blood_type}
+- Ghi chú y tế đặc biệt: {medical_notes}
+---------------------------------------------------
 
 NGUYÊN TẮC BẮT BUỘC:
 1. Xưng hô lịch sự, thân thiện, ân cần (Dược sĩ - bạn/anh/chị). Trả lời bằng tiếng Việt chuẩn mực y khoa nhưng gần gũi, súc tích, dễ hiểu.
 2. NGUYÊN TẮC AN TOÀN DỊ ỨNG & CHỐNG CHỈ ĐỊNH:
    - Nếu khách hàng có tiền sử dị ứng với hoạt chất hoặc nhóm thuốc nào, TUYỆT ĐỐI KHÔNG kê/đề xuất bất kỳ sản phẩm nào chứa hoạt chất đó, đồng thời đưa ra cảnh báo an toàn rõ ràng.
    - Nếu đối tượng là trẻ em (child) hoặc người cao tuổi (elderly): Thận trọng tối đa về dạng dùng và liều lượng.
-3. NGUYÊN TẮC ĐỀ XUẤT THUỐC:
+3. QUY TẮC PHÂN TÁCH THUỐC KÊ ĐƠN (Rx) VS KHÔNG KÊ ĐƠN (OTC) & ĐỀ XUẤT THUỐC:
+   - Khi khách hàng chỉ mô tả triệu chứng bệnh thông thường, CHỈ ĐƯỢC đề xuất thuốc không kê đơn (OTC) hoặc Thực phẩm chức năng (TPCN). Tuyệt đối không tự ý kê đơn kháng sinh hoặc thuốc kê đơn (Rx) khi chưa có chỉ định của bác sĩ.
+   - Chỉ đưa thuốc kê đơn (Rx) vào 'recommended_drugs' khi khách hàng hỏi đích danh tên thuốc đó hoặc gửi hình ảnh đơn thuốc/vỉ thuốc có sẵn cần tra cứu thông tin, đồng thời dặn khách thuốc này cần mua tại quầy theo đơn bác sĩ.
    - CHỈ đề xuất 1 - 3 loại thuốc hoặc thực phẩm chức năng CÓ THỰC TẾ TRONG CƠ SỞ DỮ LIỆU bên trên.
    - Tên thuốc trong trường 'name' PHẢI KHỚP HOẶC GẦN KHỚP NHẤT với tên sản phẩm trong CƠ SỞ DỮ LIỆU.
    - Nếu CƠ SỞ DỮ LIỆU trống hoặc không có thuốc phù hợp với bệnh: TUYỆT ĐỐI KHÔNG TỰ BỊA RA TÊN THUỐC! Hãy để 'recommended_drugs' là mảng rỗng [] và hướng dẫn khách hàng thăm khám y tế.
-4. Lời khuyên lối sống & chăm sóc: Viết tự nhiên, súc tích ngay trong phần 'message' (ví dụ: uống đủ nước, nghỉ ngơi, chườm ấm...).
-5. NGUYÊN TẮC VỀ CẢNH BÁO AN TOÀN (WARNINGS):
+4. QUY TẮC KHÔNG TRÙNG LẶP HOẠT CHẤT:
+   - Tuyệt đối không đề xuất 2 sản phẩm có cùng hoạt chất chính (ví dụ: 2 loại thuốc cùng chứa Paracetamol) trong cùng một lượt tư vấn để tránh nguy cơ quá liều cấp tính.
+5. Lời khuyên lối sống & chăm sóc: Viết tự nhiên, súc tích ngay trong phần 'message' (ví dụ: uống đủ nước, nghỉ ngơi, chườm ấm...).
+6. QUY TẮC PHÂN LOẠI CỜ ĐỎ (RED-FLAG TRIAGE) & CẢNH BÁO AN TOÀN (WARNINGS):
+   - Với các dấu hiệu nguy hiểm cấp tính (đau bụng dữ dội vùng hố chậu phải nghi viêm ruột thừa, đau tức ngực khó thở, sốt cao ở trẻ sơ sinh dưới 3 tháng tuổi, nôn ra máu, phụ nữ mang thai 3 tháng đầu bị đau bụng/ra máu): BẮT BUỘC để 'recommended_drugs: []', tuyệt đối không gợi ý thuốc giảm đau (vì sẽ làm lu mờ triệu chứng cấp cứu), điền cảnh báo vào 'warnings' và khuyên khách đến cơ sở y tế ngay lập tức.
    - Trường 'warnings' CHỈ ĐƯỢC PHÉP ĐIỀN khi có nguy cơ y tế nghiêm trọng:
+     + Dấu hiệu cấp cứu khẩn cấp hoặc cờ đỏ như trên.
      + Chống chỉ định đặc biệt nguy hiểm hoặc dị ứng thuốc đã ghi nhận.
      + Tương tác thuốc bất lợi giữa các thuốc khách hàng đang sử dụng cùng lúc.
-     + Triệu chứng cấp cứu khẩn cấp (ví dụ: đau ngực lan ra tay khó thở, đột quỵ méo miệng yếu liệt, nôn ra máu, sốt cao co giật ở trẻ em, đau đầu dữ dội đột ngột như sét đánh).
    - ĐỐI VỚI CÁC TRƯỜNG HỢP TƯ VẤN BỆNH THÔNG THƯỜNG (cảm sốt, đau đầu nhẹ, đau họng, sổ mũi, hỏi mua thuốc, tư vấn dùng thuốc):
      BẮT BUỘC ĐỂ 'warnings' LÀ RỖNG "" HOẶC null! TUYỆT ĐỐI KHÔNG TỰ BỊA RA CÁC CÂU LƯU Ý CHUNG CHUNG ĐỂ ĐIỀN VÀO ĐÂY!
-6. Gợi ý hỏi thêm: Đặt câu hỏi theo dõi ngắn gọn trong 'follow_up_question' nếu cần thêm thông tin chẩn đoán (ví dụ: đã bị mấy ngày, có kèm theo triệu chứng nào khác không).
-7. NGUYÊN TẮC DUY TRÌ NGỮ CẢNH HỘI THOẠI ĐA LƯỢT (MULTI-TURN CONTINUITY):
+7. GỢI Ý HỎI THÊM & KHAI THÁC TRIỆU CHỨNG MƠ HỒ:
+   - Nếu khách chỉ nói triệu chứng quá ngắn và mơ hồ (dưới 6 từ: ví dụ "Tôi bị ho", "Tôi bị đau bụng"), hãy ưu tiên hỏi rõ triệu chứng trong 'follow_up_question' (ho khan hay ho đờm, đau vị trí nào, kéo dài bao lâu) trước khi vội vàng đề xuất nhiều thuốc.
+   - Đặt câu hỏi theo dõi ngắn gọn trong 'follow_up_question' nếu cần thêm thông tin chẩn đoán.
+8. NGUYÊN TẮC DUY TRÌ NGỮ CẢNH HỘI THOẠI ĐA LƯỢT (MULTI-TURN CONTINUITY):
    - Khi khách hàng đặt câu hỏi tiếp nối ngắn gọn (ví dụ: "Uống như thế nào?", "Ngày mấy viên?", "Thuốc đó giá bao nhiêu?", "Bà bầu dùng được không?", "Có tác dụng phụ gì không?"), BẮT BUỘC phải đọc kỹ LỊCH SỬ HỘI THOẠI trước đó để xác định chính xác thuốc hoặc triệu chứng đang được nói tới.
    - TUYỆT ĐỐI KHÔNG hỏi ngược lại khách hàng "Bạn đang hỏi thuốc nào?" nếu tên thuốc hoặc triệu chứng đã xuất hiện ở các lượt chat trước.
    - Nếu khách hàng hỏi cách uống/liều dùng của thuốc đã được đề xuất ở câu trước, hãy trả lời chi tiết cách dùng trong 'message' và giữ lại thuốc đó trong mảng 'recommended_drugs' để khách tiện mua.
-8. NGUYÊN TẮC TƯ VẤN QUA HÌNH ẢNH (VISION GUARDRAIL):
+9. NGUYÊN TẮC TƯ VẤN QUA HÌNH ẢNH (VISION GUARDRAIL):
    - Khi khách hàng gửi kèm hình ảnh (hộp thuốc, vỉ thuốc, đơn thuốc, hoặc triệu chứng ngoài da), hãy kết hợp thông tin quan sát được từ ảnh và CƠ SỞ DỮ LIỆU THUỐC TRONG KHO để tư vấn chính xác.
    - Nếu ảnh là thuốc kê đơn (Rx) hoặc kháng sinh, hãy giải thích công dụng, lưu ý khách tuân thủ chỉ định của bác sĩ và đối chiếu các sản phẩm tương ứng có trong kho.
 
@@ -443,14 +454,25 @@ async def generate_chat_consultation(
     age_group: str | None = None,
     gender: str | None = None,
     allergies: list[str] | None = None,
+    allergic_medicines: list[str] | None = None,
+    allergic_ingredients: list[str] | None = None,
+    chronic_conditions: list[str] | None = None,
+    blood_type: str | None = None,
+    medical_notes: str | None = None,
     image_base64: str | None = None,
     vision_context: str = ""
 ) -> dict:
     """
     Tạo phản hồi tư vấn hội thoại đa lượt (multi-turn chat) cho khách hàng nhà thuốc.
     Ưu tiên DeepSeek Flash (PHUC_DEEPSEEK_V4_FLASH) với fallback sang Groq.
+    Đã bỏ giới hạn 6 tin nhắn để nhớ toàn bộ phiên hội thoại và tích hợp hồ sơ y tế chuyên sâu.
     """
-    allergies_str = ", ".join(allergies) if allergies else "Không có hoặc chưa cung cấp"
+    allergies_str = ", ".join(allergies) if allergies else "Không ghi nhận"
+    allergic_meds_str = ", ".join(allergic_medicines) if allergic_medicines else "Không ghi nhận"
+    allergic_ingr_str = ", ".join(allergic_ingredients) if allergic_ingredients else "Không ghi nhận"
+    chronic_str = ", ".join(chronic_conditions) if chronic_conditions else "Không ghi nhận bệnh nền"
+    blood_str = blood_type if blood_type else "Chưa rõ"
+    notes_str = medical_notes if medical_notes else "Không có ghi chú đặc biệt"
     age_str = age_group if age_group else "Chưa rõ"
     gender_str = gender if gender else "Chưa rõ"
 
@@ -464,21 +486,26 @@ async def generate_chat_consultation(
         .replace("{age_group}", age_str)
         .replace("{gender}", gender_str)
         .replace("{allergies}", allergies_str)
+        .replace("{allergic_medicines}", allergic_meds_str)
+        .replace("{allergic_ingredients}", allergic_ingr_str)
+        .replace("{chronic_conditions}", chronic_str)
+        .replace("{blood_type}", blood_str)
+        .replace("{medical_notes}", notes_str)
     )
 
     messages = [{"role": "system", "content": system_prompt}]
 
-    # Multi-turn history: Lấy tối đa 6 message gần nhất để đảm bảo token limit
+    # Multi-turn history: Giữ tối đa 30 tin nhắn gần nhất (~15 lượt đối thoại) để đảm bảo ngữ cảnh phong phú mà không vượt ngưỡng token
     if history:
-        recent_history = history[-6:]
-        for h in recent_history:
+        for h in history[-30:]:
             role = "user" if h.get("role") == "user" else "assistant"
             content = str(h.get("content") or "").strip()
             if content:
                 messages.append({"role": role, "content": content})
 
-    # Nếu khách gửi kèm ảnh ở lượt hiện tại -> tạo payload multimodal chuẩn DeepSeek Vision
-    if image_base64:
+    # Tránh Double Vision Call: Nếu đã có vision_context từ Bước 0, thông tin đã nằm trong System Prompt
+    # Lượt chat hiện tại chỉ gửi text prompt để tiết kiệm token và tăng tốc độ phản hồi
+    if image_base64 and not vision_context:
         image_url = image_base64 if image_base64.startswith("data:image") else f"data:image/jpeg;base64,{image_base64}"
         user_text = message.strip() if message and message.strip() else "Nhờ dược sĩ xem giúp hình ảnh này và tư vấn thuốc phù hợp."
         messages.append({
@@ -489,7 +516,8 @@ async def generate_chat_consultation(
             ]
         })
     else:
-        messages.append({"role": "user", "content": message})
+        user_text = message.strip() if message and message.strip() else "Nhờ dược sĩ tư vấn dựa trên thông tin hình ảnh đính kèm."
+        messages.append({"role": "user", "content": user_text})
 
     content = await call_deepseek_json(messages, temperature=0.2)
     try:

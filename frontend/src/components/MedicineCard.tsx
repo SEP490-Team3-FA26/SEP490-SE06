@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart, Star } from "lucide-react";
+import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart, ShieldAlert, Star } from "lucide-react";
+import { isPrescriptionMedicine } from "../utils/prescriptionUtils";
 
 interface MedicineCardProps {
   med: any;
@@ -9,6 +10,7 @@ interface MedicineCardProps {
   allowOutOfStock?: boolean;
   isWishlisted?: boolean;
   onToggleWishlist?: (med: any) => void;
+  allowPrescriptionPurchase?: boolean;
 }
 
 export const MedicineCard: React.FC<MedicineCardProps> = ({
@@ -19,9 +21,12 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
   allowOutOfStock = false,
   isWishlisted = false,
   onToggleWishlist,
+  allowPrescriptionPurchase = false,
 }) => {
   const isOutOfStock = med.stock <= 0;
   const isLowStock = med.stock > 0 && med.stock <= 50;
+  const isRx = isPrescriptionMedicine(med);
+  const isRxBlocked = isRx && !allowPrescriptionPurchase && !allowOutOfStock;
 
   const parsePackaging = (spec: string, defaultUnit: string) => {
     const cleanSpec = (spec || "").toLowerCase().trim();
@@ -73,10 +78,10 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className="group relative bg-white rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] transition-all duration-300 flex flex-col overflow-hidden cursor-pointer"
+      className="group relative bg-white rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-[0_8px_30px_rgba(59,130,246,0.12)] transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer h-full"
     >
-      {/* Image Area */}
-      <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 h-40 flex items-center justify-center p-4 overflow-hidden">
+      {/* Image Area - Tỉ lệ vuông 1:1 chuẩn Shopee (Width === Height) */}
+      <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 aspect-square w-full flex items-center justify-center p-4 overflow-hidden">
         {/* Khối hiển thị ảnh sản phẩm thực tế, có referrerPolicy để tránh bị CDN chặn hotlink */}
         <img
           src={med.image || (Array.isArray(med.images) && med.images.length > 0 ? med.images[0] : "") || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60"}
@@ -126,8 +131,16 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
           </div>
         )}
 
+        {/* Rx Badge */}
+        {isRx && (
+          <div className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-rose-50/95 backdrop-blur-xs border border-rose-200 text-rose-700 text-[9px] font-black rounded-lg uppercase tracking-wider shadow-xs flex items-center gap-1">
+            <ShieldAlert size={10} className="text-rose-600" />
+            <span>Kê đơn (Rx)</span>
+          </div>
+        )}
+
         {/* Country Badge */}
-        {countryName && (
+        {countryName && !isRx && (
           <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-xl text-[9px] font-bold text-slate-600 border border-slate-100 shadow-sm flex items-center gap-1">
             <span>{getFlag(countryName)}</span>
             <span className="max-w-[60px] truncate">{countryName}</span>
@@ -205,23 +218,34 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
             <p className="text-[10px] text-slate-400 font-semibold truncate">/ {selectedUnit}</p>
           </div>
 
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onAddToCart(med, currentMultiplier, selectedUnit); }}
-            disabled={isOutOfStock && !allowOutOfStock}
-            className={`shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-              isOutOfStock && !allowOutOfStock
-                ? "bg-slate-100 text-slate-300 cursor-not-allowed"
-                : added
-                  ? "bg-emerald-500 text-white shadow-md shadow-emerald-200"
-                  : isOutOfStock
-                    ? "bg-amber-600 text-white hover:bg-amber-700 shadow-md shadow-amber-200 active:scale-90"
-                    : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 active:scale-90"
-            }`}
-            title={added ? "Đã có trong đơn" : "Thêm vào đơn"}
-          >
-            {added ? <CheckCircle2 size={16} /> : <Plus size={16} />}
-          </button>
+          {isRxBlocked ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-xl flex items-center justify-center transition-all bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80"
+              title="Thuốc kê đơn (Rx) - Theo quy định Bộ Y Tế, chỉ bán tại quầy theo đơn bác sĩ"
+            >
+              <ShieldAlert size={15} className="text-amber-500" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAddToCart(med, currentMultiplier, selectedUnit); }}
+              disabled={isOutOfStock && !allowOutOfStock}
+              className={`shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                isOutOfStock && !allowOutOfStock
+                  ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  : added
+                    ? "bg-sky-600 text-white shadow-md shadow-sky-200"
+                    : isOutOfStock
+                      ? "bg-amber-600 text-white hover:bg-amber-700 shadow-md shadow-amber-200 active:scale-90"
+                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 active:scale-90"
+              }`}
+              title={added ? "Đã có trong đơn" : "Thêm vào đơn"}
+            >
+              {added ? <CheckCircle2 size={16} /> : <Plus size={16} />}
+            </button>
+          )}
         </div>
       </div>
     </div>
