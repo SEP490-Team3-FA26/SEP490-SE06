@@ -76,6 +76,7 @@ export interface AllergyCheckResult {
 export interface FullCustomerProfile {
   loyalty: CustomerLoyaltyData;
   clinical: CustomerClinicalSafety;
+  clinicalWarning?: string;
 }
 
 export interface QuickRegisterCustomerDto {
@@ -218,7 +219,12 @@ export const customerService = {
   },
 
   /**
-   * Fast customer registration at counter (3-5 seconds workflow)
+   * Đăng ký nhanh tài khoản khách hàng tại quầy POS (Quy trình 3-5 giây)
+   * Tuân thủ bảo mật thông tin & an toàn lâm sàng GPP:
+   * 1. Sinh mật khẩu ngẫu nhiên bảo mật cao (ngăn ngừa đăng nhập trái phép qua SĐT + mật khẩu mặc định).
+   * 2. Fail-Fast: Ngừng ngay khi đăng ký thất bại hoặc trùng SĐT (409 Conflict), tuyệt đối không ghi đè dị ứng của khách cũ.
+   * 3. Báo rõ khi tạo tài khoản thành công nhưng bước lưu dị ứng lâm sàng vào MongoDB gặp sự cố.
+   * 4. Điểm tích lũy khởi tạo là 0, không trả về điểm giả mạo (Zero Mock Data).
    */
   async quickRegister(dto: QuickRegisterCustomerDto): Promise<FullCustomerProfile> {
     const validation = this.validateCustomer(dto);
@@ -229,23 +235,48 @@ export const customerService = {
     const cleanPhone = dto.phone.trim().replace(/[\s.-]/g, '');
     const cleanName = dto.fullName.trim();
     const cleanEmail = dto.email?.trim() || `${cleanPhone}@khachhang.wdp301.local`;
-    const defaultPassword = 'abccamon';
+
+    // Sinh mật khẩu ngẫu nhiên an toàn cao thay vì mật khẩu cố định
+    const randomChars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+    let secureRandomPassword = '';
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      const randomValues = new Uint32Array(16);
+      window.crypto.getRandomValues(randomValues);
+      for (let i = 0; i < 16; i++) {
+        secureRandomPassword += randomChars.charAt(randomValues[i] % randomChars.length);
+      }
+    } else {
+      for (let i = 0; i < 16; i++) {
+        secureRandomPassword += randomChars.charAt(Math.floor(Math.random() * randomChars.length));
+      }
+    }
+    secureRandomPassword += 'Aa1!'; // Đảm bảo đáp ứng đầy đủ chữ hoa, chữ thường, số, ký tự đặc biệt
 
     try {
-      // Register account in system
+      // 1. Đăng ký tài khoản trong hệ thống Auth
       await api.post(API_ENDPOINTS.AUTH.REGISTER, {
         fullName: cleanName,
         email: cleanEmail,
-        password: defaultPassword,
+        password: secureRandomPassword,
         phone: cleanPhone,
         role: 'user',
       });
     } catch (regErr: any) {
-      // If user already exists, ignore and continue
-      console.warn('Registration notice:', regErr.response?.data?.message || regErr.message);
+      const status = regErr?.response?.status;
+      const errMsg = regErr?.response?.data?.message || regErr?.message || '';
+      // Nguyên tắc Fail-fast & An toàn lâm sàng:
+      // Nếu số điện thoại đã tồn tại (409 Conflict) hoặc lỗi đăng ký, DỪNG NGAY LẬP TỨC!
+      // Tuyệt đối không nuốt lỗi 409 để không chạy tiếp lệnh ghi đè hồ sơ dị ứng của khách hàng cũ.
+      if (status === 409 || errMsg.toLowerCase().includes('đã tồn tại') || errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('tồn tại')) {
+        throw new Error(
+          `Số điện thoại ${cleanPhone} đã tồn tại trong hệ thống. Vui lòng tra cứu khách hàng cũ hoặc cập nhật hồ sơ bệnh án theo ID khách hàng, không thể tạo mới đè lên.`
+        );
+      }
+      throw new Error(`Đăng ký tài khoản khách hàng thất bại: ${errMsg}`);
     }
 
-    // Persist medical allergies & chronic notes to MongoDB for clinical safety
+    // 2. Lưu hồ sơ an toàn lâm sàng (Dị ứng thuốc & bệnh nền mãn tính) vào MongoDB
+    let clinicalSaveWarning: string | null = null;
     if ((dto.allergies && dto.allergies.length > 0) || (dto.chronicConditions && dto.chronicConditions.length > 0)) {
       try {
         await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone), {
@@ -253,24 +284,29 @@ export const customerService = {
           chronicConditions: dto.chronicConditions || [],
         });
       } catch (clinicalErr: any) {
-        console.warn('Persist clinical flags warning:', clinicalErr);
+        // Cảnh báo rõ ràng cho Dược sĩ biết nếu tài khoản đã tạo nhưng lưu hồ sơ bệnh án thất bại
+        clinicalSaveWarning = `Tài khoản đã tạo nhưng chưa thể lưu hồ sơ sức khỏe/dị ứng vào hệ thống (${clinicalErr?.response?.data?.message || clinicalErr?.message || 'Lỗi mạng'}). Vui lòng cập nhật lại hồ sơ bệnh án!`;
+        console.warn('⚠️ Lỗi lưu hồ sơ an toàn lâm sàng:', clinicalSaveWarning);
       }
     }
 
-    // Attempt to lookup fresh loyalty profile with persisted clinical data
+    // 3. Tra cứu hồ sơ khách hàng mới tạo từ máy chủ
     const existing = await this.lookupCustomer(cleanPhone);
     if (existing) {
+      if (clinicalSaveWarning) {
+        existing.clinicalWarning = clinicalSaveWarning;
+      }
       return existing;
     }
 
-    // Fallback profile if gateway delay
+    // Fallback profile nếu máy chủ có độ trễ: Điểm khởi tạo là 0 (Zero Mock Data)
     const fallbackProfile: FullCustomerProfile = {
       loyalty: {
         fullName: cleanName,
         phone: cleanPhone,
         email: cleanEmail,
-        points: 1000, // Welcome points
-        accumulatedPoints: 1000,
+        points: 0, // Điểm bắt đầu thực tế là 0, tuyệt đối không gán điểm ảo
+        accumulatedPoints: 0,
         tier: 'Bronze',
         multiplier: 1.0,
         conversionRate: 1,
@@ -280,13 +316,14 @@ export const customerService = {
         chronicConditions: dto.chronicConditions || [],
         refillReminder: null,
       },
+      clinicalWarning: clinicalSaveWarning || undefined,
     };
 
     this.saveRecentCustomer({
       phone: cleanPhone,
       fullName: cleanName,
       tier: 'Bronze',
-      points: 1000,
+      points: 0,
       lastVisited: Date.now(),
     });
 

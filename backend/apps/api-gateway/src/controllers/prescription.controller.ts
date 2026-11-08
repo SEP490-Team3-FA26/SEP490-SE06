@@ -395,8 +395,18 @@ export class PrescriptionController implements OnModuleInit {
   async textConsult(
     @Body("symptoms") symptoms: string,
     @Body("branch_id") branchId?: string,
+    @Body("terms_confirmed") termsConfirmed?: boolean | string,
     @Req() req?: any,
   ) {
+    // Nguyên tắc Fail-closed: Bắt buộc người dùng/khách phải đồng ý với nội quy tư vấn AI
+    const isTermsConfirmed = termsConfirmed === true || termsConfirmed === "true" || Boolean(req?.user);
+    if (termsConfirmed === false || termsConfirmed === "false" || (!isTermsConfirmed && !req?.user)) {
+      throw new HttpException(
+        "Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI trước khi gửi yêu cầu (Fail-closed).",
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     if (!symptoms) {
       throw new HttpException(
         "Vui lòng cung cấp triệu chứng",
@@ -490,8 +500,8 @@ export class PrescriptionController implements OnModuleInit {
         },
         {
           order: 7,
-          title: "Bảo vệ dữ liệu y tế & Giảm thiểu dữ liệu",
-          summary: "Che giấu thông tin định danh (PII) khi xử lý qua AI; bảo mật dữ liệu sức khỏe theo luật định.",
+          title: "Bảo vệ & Minh bạch xử lý dữ liệu y tế qua AI",
+          summary: "Thông tin định danh (họ tên, SĐT, CCCD) được che giấu 100% trước khi xử lý qua mô hình AI (DeepSeek / LLM). Dữ liệu lâm sàng (tiền sử dị ứng, bệnh nền) chỉ được đính kèm khi khách hàng chủ động chọn đính kèm, nhằm mục đích duy nhất là phát hiện tương tác thuốc và chống sốc phản vệ an toàn.",
         },
         {
           order: 8,
@@ -509,8 +519,10 @@ export class PrescriptionController implements OnModuleInit {
     @Req() req: any,
   ) {
     const version = body?.version || "v1.0-OTC";
-    const acceptedAt = body?.acceptedAt || new Date().toISOString();
-    const userId = req?.user?.id || req?.user?._id || "anonymous-guest";
+    // Lưu thời điểm chính xác từ máy chủ (Server Timestamp)
+    const acceptedAt = new Date().toISOString();
+    // Đọc chuẩn userId: ưu tiên req.user.sub theo chuẩn JWT RFC 7519
+    const userId = req?.user?.sub || req?.user?.userId || req?.user?.id || req?.user?._id || "anonymous-guest";
     const ip = req?.ip || req?.headers?.["x-forwarded-for"] || "127.0.0.1";
 
     // Ghi nhận nhật ký kiểm toán (Audit Trail) phục vụ đối soát y tế
@@ -546,11 +558,13 @@ export class PrescriptionController implements OnModuleInit {
       blood_type?: string;
       medical_notes?: string;
       image_base64?: string;
-      terms_confirmed?: boolean;
+      terms_confirmed?: boolean | string;
     },
   ) {
-    // Nguyên tắc Fail-closed: Chặn nếu người dùng từ chối xác nhận nội quy
-    if (body?.terms_confirmed === false) {
+    // Nguyên tắc Fail-closed: Bắt buộc client phải đọc và gửi terms_confirmed === true
+    // Chặn triệt để khi: bỏ trống (undefined/null), hoặc false, hoặc chuỗi "false"
+    const isTermsConfirmed = body?.terms_confirmed === true || body?.terms_confirmed === "true";
+    if (!isTermsConfirmed) {
       throw new HttpException(
         "Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI trước khi gửi yêu cầu (Fail-closed).",
         HttpStatus.FORBIDDEN,

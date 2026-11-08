@@ -275,12 +275,52 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(result.audit.userAgent).toBe('unknown');
     });
 
-    it('Nên ném lỗi FORBIDDEN khi người dùng cố tình gửi terms_confirmed là false (Fail-closed)', async () => {
+    it('Nên ghi nhận đúng userId từ JWT sub khi người dùng đã đăng nhập (không bị gán nhầm anonymous-guest)', () => {
+      const mockReq = {
+        user: { sub: 'usr-sub-12345', email: 'benhnhan@gmail.com' },
+        ip: '192.168.1.100',
+        headers: { 'user-agent': 'Chrome/Test' },
+      };
+      const result = controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq as any);
+
+      expect(result.success).toBe(true);
+      expect(result.audit.userId).toBe('usr-sub-12345');
+      expect(result.audit.ip).toBe('192.168.1.100');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi người dùng bỏ trống terms_confirmed hoặc gửi undefined (Fail-closed)', async () => {
+      await expect(
+        controller.chatConsult({
+          message: 'Tư vấn giúp tôi thuốc hạ sốt',
+        } as any),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi gửi terms_confirmed là chuỗi "false" (Fail-closed)', async () => {
+      await expect(
+        controller.chatConsult({
+          message: 'Tư vấn giúp tôi thuốc hạ sốt',
+          terms_confirmed: 'false' as any,
+        }),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi người dùng cố tình gửi terms_confirmed là false boolean (Fail-closed)', async () => {
       await expect(
         controller.chatConsult({
           message: 'Tư vấn giúp tôi thuốc hạ sốt',
           terms_confirmed: false,
         }),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN trên endpoint symptom-consult nếu gửi terms_confirmed là false hoặc "false"', async () => {
+      await expect(
+        controller.textConsult('Đau đầu sốt nhẹ', undefined, false, {}),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+
+      await expect(
+        controller.textConsult('Đau đầu sốt nhẹ', undefined, 'false', {}),
       ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
     });
   });

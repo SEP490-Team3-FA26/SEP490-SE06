@@ -221,6 +221,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phone: string;
     password: string;
     gender?: string;
+    agreePrivacy?: boolean;
+    privacyPolicyVersion?: string;
+    privacyAgreedAt?: string;
   }) => {
     try {
       setIsLoading(true);

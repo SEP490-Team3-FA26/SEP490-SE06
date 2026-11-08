@@ -85,6 +85,10 @@ export class AuthService implements OnApplicationBootstrap {
       phone: phone || undefined,
       isActive: true,
       isApproved: 'approved',
+      // Lưu bằng chứng kiểm toán (Audit Trail) chấp thuận Quy định bảo mật thông tin
+      privacyAgreed: dto.agreePrivacy ?? true,
+      privacyPolicyVersion: dto.privacyPolicyVersion || 'v1.0',
+      privacyAgreedAt: dto.privacyAgreedAt ? new Date(dto.privacyAgreedAt) : new Date(),
     });
 
     let savedUser: any;

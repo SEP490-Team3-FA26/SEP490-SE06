@@ -705,10 +705,11 @@ export function AIConsultant() {
       {/* Modal Bắt Buộc Đọc Nội Quy Khi Mở AI Consultant */}
       <AIConsultantTermsModal
         isOpen={showTermsModal}
-        onConfirm={(auditData) => {
+        onConfirm={async (auditData) => {
+          // Bắt buộc gọi API xác nhận lên server thành công mới mở giao diện tư vấn
+          await prescriptionService.acceptAITerms(auditData);
           setHasAcceptedTerms(true);
           setShowTermsModal(false);
-          prescriptionService.acceptAITerms(auditData).catch(() => {});
         }}
         onDecline={() => {
           setShowTermsModal(false);

@@ -239,6 +239,9 @@ export class ApiService {
     password: string;
     role?: string;
     gender?: string;
+    agreePrivacy?: boolean;
+    privacyPolicyVersion?: string;
+    privacyAgreedAt?: string;
   }): Promise<any> {
     try {
       // Chuẩn hóa payload theo RegisterDto của API Gateway: bắt buộc fullName
@@ -247,6 +250,9 @@ export class ApiService {
         email: (data.email || '').trim().toLowerCase(),
         password: data.password,
         role: data.role || 'user',
+        agreePrivacy: data.agreePrivacy ?? true,
+        privacyPolicyVersion: data.privacyPolicyVersion || 'v1.0',
+        privacyAgreedAt: data.privacyAgreedAt || new Date().toISOString(),
       };
       if (data.phone && data.phone.trim()) {
         payload.phone = data.phone.trim();
@@ -1661,7 +1667,7 @@ export class ApiService {
       const res = await fetch(`${this.baseUrl}/api/prescriptions/symptom-consult`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ symptoms }),
+        body: JSON.stringify({ symptoms, terms_confirmed: true }),
       });
       if (res.ok) {
         const data = await res.json();

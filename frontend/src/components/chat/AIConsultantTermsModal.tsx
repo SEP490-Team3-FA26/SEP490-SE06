@@ -27,7 +27,7 @@ import {
 
 export interface AIConsultantTermsModalProps {
   isOpen: boolean;
-  onConfirm: (auditData: { version: string; acceptedAt: string }) => void;
+  onConfirm: (auditData: { version: string; acceptedAt: string }) => Promise<void> | void;
   onDecline: () => void;
   title?: string;
   forceReadMode?: boolean;
@@ -45,6 +45,7 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [justUnlocked, setJustUnlocked] = useState<boolean>(false);
   const [shakeLocked, setShakeLocked] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +58,7 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
       setIsSubmitting(false);
       setJustUnlocked(false);
       setShakeLocked(false);
+      setSubmitError(null);
 
       const timer = setTimeout(() => {
         if (scrollContainerRef.current) {
@@ -115,13 +117,20 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
   };
 
   // Xác nhận chấp thuận nội quy
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (!hasScrolledToBottom || !isAgreementChecked || isSubmitting) return;
 
     setIsSubmitting(true);
+    setSubmitError(null);
     const nowIso = new Date().toISOString();
 
     try {
+      // Chỉ khi onConfirm (API xác nhận lên server) thành công mới ghi nhận vào Storage và đóng modal
+      await onConfirm({
+        version: AI_TERMS_VERSION,
+        acceptedAt: nowIso,
+      });
+
       localStorage.setItem(STORAGE_KEY_AI_TERMS_ACCEPTED, "true");
       localStorage.setItem(STORAGE_KEY_AI_TERMS_TIMESTAMP, nowIso);
       sessionStorage.setItem(STORAGE_KEY_AI_TERMS_ACCEPTED, "true");
@@ -134,14 +143,12 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
         userAgent: navigator.userAgent,
       });
       localStorage.setItem(STORAGE_KEY_AI_TERMS_AUDIT, JSON.stringify(existingLogs.slice(-20)));
-    } catch (e) {
-      console.warn("Không thể lưu audit log vào LocalStorage:", e);
+    } catch (e: any) {
+      console.warn("Không thể xác nhận điều khoản AI:", e);
+      setSubmitError(e?.response?.data?.message || e?.message || "Không thể kết nối đến máy chủ để xác nhận nội quy. Vui lòng thử lại.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onConfirm({
-      version: AI_TERMS_VERSION,
-      acceptedAt: nowIso,
-    });
   };
 
   if (!isOpen) return null;
@@ -318,13 +325,13 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
               <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
                 7
               </span>
-              <span>Giữ kín thông tin cá nhân của bạn</span>
+              <span>Minh bạch xử lý dữ liệu AI & Bảo vệ thông tin y tế</span>
             </h4>
             <p className="pl-5.5 text-slate-600 text-[11px] leading-relaxed">
-              Thông tin bạn chia sẻ được <strong>bảo mật tuyệt đối</strong> và chỉ dùng để chăm sóc sức khỏe cho bạn.
+              Mọi thông tin nhận dạng cá nhân (họ tên, SĐT, CCCD) đều được <strong>che giấu và ẩn danh hoàn toàn (100%)</strong> trước khi gửi tới mô hình AI (DeepSeek / LLM).
             </p>
             <p className="pl-5.5 text-slate-600 text-[11px] leading-relaxed">
-              Nhà thuốc cam kết <strong>không bán hay chia sẻ thông tin cá nhân</strong> của bạn cho bất kỳ ai.
+              Thông tin dị ứng thuốc và bệnh nền chỉ được gửi kèm khi bạn <strong>chủ động bật tùy chọn đính kèm hồ sơ y tế</strong> trên khung chat, nhằm mục đích duy nhất là giúp AI và Dược sĩ kiểm tra tương tác thuốc, phòng tránh sốc phản vệ an toàn. Bạn có quyền tắt đính kèm bất kỳ lúc nào.
             </p>
           </div>
 
@@ -430,6 +437,14 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Thông báo lỗi nếu gửi API thất bại */}
+          {submitError && (
+            <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-1.5">
+              <span>⚠️</span>
+              <span>{submitError}</span>
+            </div>
+          )}
 
           {/* Nút Thao Tác (Gọn gàng) */}
           <div className="flex items-center justify-between gap-3 pt-0.5">

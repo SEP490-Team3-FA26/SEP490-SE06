@@ -112,7 +112,11 @@ export function useCustomerLookup(options?: UseCustomerLookupOptions) {
         setSearchQuery(newCustomer.loyalty.phone);
         refreshRecentCustomers();
         onCustomerSelected?.(newCustomer);
-        showToast?.(`Đã tạo mới & liên kết tài khoản cho ${newCustomer.loyalty.fullName}!`, 'success');
+        if (newCustomer.clinicalWarning) {
+          showToast?.(`⚠️ ${newCustomer.clinicalWarning}`, 'warning');
+        } else {
+          showToast?.(`Đã tạo mới & liên kết tài khoản cho ${newCustomer.loyalty.fullName}!`, 'success');
+        }
         return { success: true, customer: newCustomer };
       } catch (err: any) {
         const msg = err.response?.data?.message || err.message || 'Lỗi tạo khách hàng mới';

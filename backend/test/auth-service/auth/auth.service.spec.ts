@@ -122,6 +122,31 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('test@example.com');
     });
 
+    it('Nên lưu vết chấp thuận Quy định bảo mật thông tin (Audit Consent) khi đăng ký tài khoản mới', async () => {
+      userModel.findOne.mockResolvedValue(null);
+      jest.spyOn(bcrypt, 'hash').mockImplementation(() => Promise.resolve('hashedPassword'));
+
+      const agreedAtIso = '2026-11-08T12:00:00.000Z';
+      await service.register({
+        fullName: 'Trần Văn Bảo',
+        email: 'bao.tran@example.com',
+        password: 'password123',
+        agreePrivacy: true,
+        privacyPolicyVersion: 'v1.0',
+        privacyAgreedAt: agreedAtIso,
+      });
+
+      expect(userModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fullName: 'Trần Văn Bảo',
+          email: 'bao.tran@example.com',
+          privacyAgreed: true,
+          privacyPolicyVersion: 'v1.0',
+          privacyAgreedAt: expect.any(Date),
+        }),
+      );
+    });
+
     it('should throw ConflictException if email already exists', async () => {
       userModel.findOne.mockResolvedValue(mockUser);
 

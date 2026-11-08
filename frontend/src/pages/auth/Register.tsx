@@ -73,7 +73,14 @@ export function Register() {
     setLoading(true);
 
     try {
-      const res = await authService.register(fullName.trim(), email.trim(), password);
+      const res = await authService.register(
+        fullName.trim(),
+        email.trim(),
+        password,
+        undefined,
+        agreePrivacy,
+        "v1.0",
+      );
       const token = res?.access_token || res?.data?.access_token;
       const user = res?.user || res?.data?.user;
 

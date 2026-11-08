@@ -309,10 +309,11 @@ export const prescriptionService = {
     };
   },
 
-  async textConsult(symptoms: string, branchId?: string) {
+  async textConsult(symptoms: string, branchId?: string, termsConfirmed: boolean = true) {
     const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.SYMPTOM_CONSULT, {
       symptoms,
       branch_id: branchId,
+      terms_confirmed: termsConfirmed,
     });
     return response.data;
   },
@@ -329,8 +330,12 @@ export const prescriptionService = {
     blood_type?: string;
     medical_notes?: string;
     image_base64?: string;
+    terms_confirmed?: boolean | string;
   }) {
-    const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.CHAT, payload);
+    const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.CHAT, {
+      ...payload,
+      terms_confirmed: payload.terms_confirmed !== undefined ? payload.terms_confirmed : true,
+    });
     return response.data;
   },
 
@@ -375,14 +380,11 @@ export const prescriptionService = {
 
   /**
    * Gửi biên bản xác nhận đã đọc và chấp thuận nội quy AI lên hệ thống phục vụ Audit Trail
+   * Ném lỗi nếu thất bại để UI xử lý theo nguyên tắc Fail-closed (không tự tiện mở chat khi API lỗi)
    */
   async acceptAITerms(data: { version: string; acceptedAt: string; metadata?: any }) {
-    try {
-      const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.ACCEPT_AI_TERMS, data);
-      return response.data;
-    } catch {
-      return { success: false };
-    }
+    const response = await api.post(API_ENDPOINTS.PRESCRIPTIONS.ACCEPT_AI_TERMS, data);
+    return response.data;
   },
 };
 

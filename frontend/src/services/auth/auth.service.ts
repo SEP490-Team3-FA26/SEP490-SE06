@@ -108,9 +108,25 @@ export const authService = {
     }
   },
 
-  async register(fullName: string, email: string, password: string) {
+  async register(
+    fullName: string,
+    email: string,
+    password: string,
+    phone?: string,
+    agreePrivacy: boolean = true,
+    privacyPolicyVersion: string = 'v1.0',
+  ) {
     try {
-      const response = await api.post(API_ENDPOINTS.AUTH.REGISTER, { fullName, email, password, role: 'user' });
+      const response = await api.post(API_ENDPOINTS.AUTH.REGISTER, {
+        fullName,
+        email,
+        password,
+        phone,
+        role: 'user',
+        agreePrivacy,
+        privacyPolicyVersion,
+        privacyAgreedAt: new Date().toISOString(),
+      });
       const data = response.data;
       if (data?.access_token && data?.user) {
         this.setSession(data.access_token, data.user);

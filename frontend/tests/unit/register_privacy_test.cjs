@@ -71,6 +71,25 @@ console.log('--- 1. [Normal Values] Luồng nghiệp vụ chuẩn ---');
   console.log('✔ [Normal] Chấp thuận qua Modal Quy định bảo mật tự động tích chọn checkbox.');
 }
 
+// Test 1.3: Đóng gói payload gửi Gateway chứa đầy đủ bằng chứng kiểm toán (Audit Consent)
+{
+  const buildRegisterPayload = (fullName, email, password, agreePrivacy, version = 'v1.0') => ({
+    fullName: fullName.trim(),
+    email: email.trim().toLowerCase(),
+    password,
+    role: 'user',
+    agreePrivacy,
+    privacyPolicyVersion: version,
+    privacyAgreedAt: new Date().toISOString(),
+  });
+
+  const payload = buildRegisterPayload('Nguyễn Văn An', 'an.nguyen@gmail.com', 'Pass123456!', true, 'v1.0');
+  assert.strictEqual(payload.agreePrivacy, true, 'Payload bắt buộc phải chứa agreePrivacy: true');
+  assert.strictEqual(payload.privacyPolicyVersion, 'v1.0', 'Phải ghi nhận phiên bản chính sách bảo mật v1.0');
+  assert.ok(payload.privacyAgreedAt, 'Phải có mốc thời gian ISO chấp thuận chính sách');
+  console.log('✔ [Normal] Đóng gói payload đăng ký gửi Gateway đầy đủ bằng chứng kiểm toán (Audit Consent).');
+}
+
 // ============================================================================
 // 2. [Boundary Values] Giá trị biên & Thang đo mật khẩu
 // ============================================================================
@@ -173,6 +192,6 @@ console.log('\n--- 3. [Abnormal Values] Dữ liệu dị thường & Ràng buộ
 }
 
 console.log('\n================================================================================');
-console.log('🎉 TẤT CẢ 9 BÀI TEST ĐĂNG KÝ & QUY ĐỊNH BẢO MẬT ĐỀU ĐẠT 100%!');
+console.log('🎉 TẤT CẢ 10 BÀI TEST ĐĂNG KÝ & QUY ĐỊNH BẢO MẬT ĐỀU ĐẠT 100%!');
 console.log('================================================================================');
 

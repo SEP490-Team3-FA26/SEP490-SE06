@@ -261,7 +261,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         setSearchCustomerNotFound(false);
         setIsRegisterCustomerModalOpen(false);
 
-        if (fullLoyalty.allergies && fullLoyalty.allergies.length > 0) {
+        if (newProfile.clinicalWarning) {
+          showToast(`⚠️ ${newProfile.clinicalWarning}`, "warning");
+        } else if (fullLoyalty.allergies && fullLoyalty.allergies.length > 0) {
           showToast(`Đã tạo tài khoản cho ${newProfile.loyalty.fullName}! ⚠️ Tiền sử dị ứng: ${fullLoyalty.allergies.join(", ")}`, "warning");
         } else {
           showToast(`Đã tạo tài khoản thành công cho khách hàng ${newProfile.loyalty.fullName}!`, "success");

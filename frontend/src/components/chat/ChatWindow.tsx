@@ -1281,7 +1281,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="w-3.5 h-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer accent-emerald-600 transition"
                 />
                 <span className={`font-semibold transition-colors ${autoAttachMedicalProfile ? "text-emerald-700" : "text-slate-500 group-hover:text-slate-700"}`}>
-                  Tự động gửi kèm hồ sơ y tế cá nhân (dị ứng, bệnh nền)
+                  Chủ động đính kèm hồ sơ y tế (dị ứng, bệnh nền) để đối soát an toàn qua AI
                 </span>
               </label>
 
@@ -1303,12 +1303,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       {/* Modal Thông Báo Bắt Buộc Đọc Nội Quy Khi Mở Chat AI Assistant */}
       <AIConsultantTermsModal
         isOpen={showTermsModal}
-        onConfirm={(auditData) => {
+        onConfirm={async (auditData) => {
+          // Bắt buộc gọi API xác nhận lên server thành công mới mở cửa sổ chat
+          await prescriptionService.acceptAITerms(auditData);
           setHasAcceptedTerms(true);
           setTermsAcceptedAt(auditData.acceptedAt);
           setShowTermsModal(false);
           showToast("✅ Đã xác nhận tuân thủ Nội quy Dược sĩ AI!");
-          prescriptionService.acceptAITerms(auditData).catch(() => {});
         }}
         onDecline={() => {
           setShowTermsModal(false);

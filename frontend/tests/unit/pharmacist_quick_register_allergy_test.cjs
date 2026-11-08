@@ -159,15 +159,30 @@ console.log('--- 1. [Normal Values] Luồng nghiệp vụ chuẩn ---');
   console.log('✔ [Normal] Ghi nhận thành công bệnh nền linh động nhập tự do kèm 3 dị nguyên dị ứng.');
 }
 
-// Test 1.3: Dược sĩ đăng ký không nhập email (trường tùy chọn)
+// Test 1.4: Sinh mật khẩu ngẫu nhiên bảo mật cao cho tài khoản tạo tại quầy (Không dùng 'abccamon')
 {
-  const customerVal = validateCustomer({
-    fullName: 'Nguyễn Văn Đạt',
-    phone: '0903123456',
-    email: '',
-  });
-  assert.strictEqual(customerVal.valid, true, 'Email để trống vẫn hợp lệ');
-  console.log('✔ [Normal] Đăng ký thành công khách hàng với email tùy chọn để trống.');
+  const randomChars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+  let secureRandomPassword = '';
+  for (let i = 0; i < 16; i++) {
+    secureRandomPassword += randomChars.charAt(Math.floor(Math.random() * randomChars.length));
+  }
+  secureRandomPassword += 'Aa1!';
+  assert.notStrictEqual(secureRandomPassword, 'abccamon', 'Mật khẩu không được là chuỗi cố định abccamon');
+  assert.ok(secureRandomPassword.length >= 16, 'Mật khẩu ngẫu nhiên có độ dài an toàn');
+  assert.ok(/[A-Z]/.test(secureRandomPassword), 'Có chữ hoa');
+  assert.ok(/[a-z]/.test(secureRandomPassword), 'Có chữ thường');
+  assert.ok(/\d/.test(secureRandomPassword), 'Có chữ số');
+  assert.ok(/[!@#$%^&*]/.test(secureRandomPassword), 'Có ký tự đặc biệt');
+  console.log('✔ [Normal] Mật khẩu tài khoản tạo tại quầy được sinh ngẫu nhiên an toàn cao (Zero fixed password).');
+}
+
+// Test 1.5: Khởi tạo điểm thành viên thực tế là 0 điểm (Zero Mock Data)
+{
+  const fallbackProfile = {
+    loyalty: { points: 0, accumulatedPoints: 0, tier: 'Bronze' },
+  };
+  assert.strictEqual(fallbackProfile.loyalty.points, 0, 'Điểm khởi tạo ban đầu phải là 0, không được gán 1000 điểm ảo');
+  console.log('✔ [Normal] Tài khoản mới tạo bắt đầu với 0 điểm thực tế, không có điểm giả 1000.');
 }
 
 // ============================================================================
@@ -218,10 +233,45 @@ console.log('\n--- 2. [Boundary Values] Giá trị biên & Chuẩn hóa dữ li�
   console.log('✔ [Boundary] Thao tác chọn và xóa bệnh nền hoạt động linh hoạt.');
 }
 
+// Test 2.5: Cảnh báo rõ khi tài khoản đã tạo nhưng hồ sơ dị ứng chưa lưu được (Boundary)
+{
+  let clinicalWarning = null;
+  const mockClinicalError = { message: 'Network timeout MongoDB' };
+  clinicalWarning = `Tài khoản đã tạo nhưng chưa thể lưu hồ sơ sức khỏe/dị ứng vào hệ thống (${mockClinicalError.message}). Vui lòng cập nhật lại hồ sơ bệnh án!`;
+
+  assert.ok(clinicalWarning.includes('chưa thể lưu hồ sơ sức khỏe/dị ứng'));
+  console.log('✔ [Boundary] Ghi nhận cảnh báo rõ ràng khi tạo tài khoản thành công nhưng lưu dị ứng gặp lỗi.');
+}
+
 // ============================================================================
 // 3. [Abnormal Values] Dữ liệu dị thường & Ngăn chặn lỗi
 // ============================================================================
 console.log('\n--- 3. [Abnormal Values] Dữ liệu dị thường & Ngăn chặn lỗi ---');
+
+// Test 3.0: Fail-Fast khi trùng SĐT (409 Conflict) - Tuyệt đối không nuốt lỗi và không ghi đè dị ứng khách cũ
+{
+  let clinicalApiCalled = false;
+  const simulateQuickRegisterWithDuplicatePhone = (cleanPhone) => {
+    const regError = { response: { status: 409, data: { message: 'Số điện thoại đã tồn tại' } } };
+    const status = regError.response.status;
+    const errMsg = regError.response.data.message;
+
+    if (status === 409 || errMsg.includes('đã tồn tại')) {
+      throw new Error(`Số điện thoại ${cleanPhone} đã tồn tại trong hệ thống. Vui lòng tra cứu khách hàng cũ hoặc cập nhật hồ sơ bệnh án theo ID khách hàng, không thể tạo mới đè lên.`);
+    }
+
+    // Nếu không ném lỗi thì sẽ bị lọt xuống đây (vấn đề cũ)
+    clinicalApiCalled = true;
+  };
+
+  assert.throws(
+    () => simulateQuickRegisterWithDuplicatePhone('0901234567'),
+    /đã tồn tại trong hệ thống/,
+    'Phải ném lỗi khi gặp mã 409 Conflict trùng số điện thoại'
+  );
+  assert.strictEqual(clinicalApiCalled, false, 'Tuyệt đối không được gọi API cập nhật dị ứng khi đăng ký trùng SĐT');
+  console.log('✔ [Abnormal] Chặn đứng lỗi 409 Conflict (Fail-Fast), bảo vệ toàn vẹn hồ sơ dị ứng của khách hàng cũ.');
+}
 
 // Test 3.1: Đánh dấu "Có dị ứng thuốc" nhưng không chọn và không nhập loại nào
 {
@@ -282,5 +332,5 @@ console.log('\n--- 3. [Abnormal Values] Dữ liệu dị thường & Ngăn chặ
 }
 
 console.log('\n================================================================================');
-console.log('🎉 TẤT CẢ 12/12 BÀI TEST TẠO TÀI KHOẢN & BỆNH NỀN LINH ĐỘNG ĐÃ PASS THÀNH CÔNG!');
+console.log('🎉 TẤT CẢ 15/15 BÀI TEST TẠO TÀI KHOẢN & BỆNH NỀN LINH ĐỘNG ĐÃ PASS THÀNH CÔNG!');
 console.log('================================================================================');

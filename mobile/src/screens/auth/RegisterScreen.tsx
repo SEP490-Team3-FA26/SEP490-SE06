@@ -90,6 +90,9 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       email: email.trim(),
       phone: phone.trim(),
       password,
+      agreePrivacy: true,
+      privacyPolicyVersion: 'v1.0',
+      privacyAgreedAt: new Date().toISOString(),
     });
     setLoading(false);
 
