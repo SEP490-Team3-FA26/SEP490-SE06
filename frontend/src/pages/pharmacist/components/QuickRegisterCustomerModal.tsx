@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Check, ShieldAlert, ShieldCheck, AlertCircle, HeartPulse, Pill, Plus } from 'lucide-react';
+import { X, UserPlus, Check, ShieldAlert, ShieldCheck, AlertCircle, HeartPulse, Pill, Plus, RefreshCw } from 'lucide-react';
 import { QuickRegisterCustomerDto, customerService } from '../../../services/sales/customer.service';
 
 interface QuickRegisterCustomerModalProps {
   isOpen: boolean;
   initialPhone?: string;
   onClose: () => void;
-  onSubmit: (dto: QuickRegisterCustomerDto) => Promise<{ success: boolean; error?: string }>;
+  onSubmit: (dto: QuickRegisterCustomerDto) => Promise<{
+    success: boolean;
+    isClinicalSaveError?: boolean;
+    error?: string;
+    userId?: string;
+    phone?: string;
+    fullName?: string;
+    allergies?: string[];
+    chronicConditions?: string[];
+  }>;
+  onSuccessLinked?: (phone: string) => void;
 }
 
 // Danh mục nhóm thuốc dị ứng thường gặp trong thực hành Dược (GPP)
@@ -61,6 +71,16 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; phone?: string; email?: string }>({});
 
+  // Lưu trạng thái khi tạo Auth thành công nhưng bước lưu dị ứng MongoDB gặp sự cố
+  const [clinicalSaveFailedData, setClinicalSaveFailedData] = useState<{
+    userId?: string;
+    phone: string;
+    fullName: string;
+    allergies: string[];
+    chronicConditions: string[];
+  } | null>(null);
+  const [isRetryingClinical, setIsRetryingClinical] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       setPhone(initialPhone);
@@ -74,6 +94,8 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
       setCustomCondition('');
       setError(null);
       setFieldErrors({});
+      setClinicalSaveFailedData(null);
+      setIsRetryingClinical(false);
     }
   }, [isOpen, initialPhone]);
 
@@ -159,7 +181,41 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
 
     setSubmitting(false);
     if (!res.success) {
+      if (res.isClinicalSaveError) {
+        // Lưu dữ liệu để hiển thị nút "Thử lưu lại hồ sơ dị ứng"
+        setClinicalSaveFailedData({
+          userId: res.userId,
+          phone: res.phone || phone.trim().replace(/[\s.-]/g, ''),
+          fullName: res.fullName || fullName.trim(),
+          allergies: res.allergies || (hasAllergy ? selectedAllergies : []),
+          chronicConditions: res.chronicConditions || (hasConditions ? selectedConditions : []),
+        });
+      }
       setError(res.error || 'Đăng ký khách hàng không thành công');
+    }
+  };
+
+  // Xử lý thử lưu lại hồ sơ an toàn lâm sàng (Dị ứng & bệnh nền)
+  const handleRetryClinicalSafety = async () => {
+    if (!clinicalSaveFailedData) return;
+    setIsRetryingClinical(true);
+    setError(null);
+    try {
+      await customerService.updateClinicalSafety(clinicalSaveFailedData.phone, {
+        allergies: clinicalSaveFailedData.allergies,
+        chronicConditions: clinicalSaveFailedData.chronicConditions,
+      });
+
+      // Tra cứu lại hồ sơ hoàn chỉnh sau khi cập nhật thành công
+      const full = await customerService.lookupCustomer(clinicalSaveFailedData.phone);
+      if (full) {
+        setClinicalSaveFailedData(null);
+        onClose();
+      }
+    } catch (err: any) {
+      setError(`Thử lưu lại hồ sơ dị ứng thất bại: ${err?.message || 'Lỗi mạng'}. Vui lòng bấm thử lại!`);
+    } finally {
+      setIsRetryingClinical(false);
     }
   };
 
@@ -197,6 +253,35 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
             <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
               <ShieldAlert size={15} className="shrink-0 text-rose-600" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Banner Cảnh báo Lâm sàng khi lưu dị ứng thất bại - Giữ trạng thái chưa xác minh và cho lưu lại */}
+          {clinicalSaveFailedData && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 space-y-2 animate-fadeIn">
+              <div className="flex items-start gap-2">
+                <ShieldAlert size={16} className="shrink-0 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="font-bold">⚠️ Tài khoản đã được tạo nhưng chưa ghi nhận hồ sơ dị ứng vào hệ thống!</p>
+                  <p className="text-[11px] text-amber-800 mt-1">
+                    Khách hàng <strong>{clinicalSaveFailedData.fullName}</strong> ({clinicalSaveFailedData.phone}) có tiền sử dị ứng: <strong>{clinicalSaveFailedData.allergies.join(', ') || 'Chưa ghi nhận'}</strong>.
+                  </p>
+                  <p className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                    Dược sĩ tuyệt đối không được bán thuốc khi chưa hoàn tất ghi nhận dị ứng an toàn!
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  disabled={isRetryingClinical}
+                  onClick={handleRetryClinicalSafety}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <RefreshCw size={13} className={isRetryingClinical ? 'animate-spin' : ''} />
+                  <span>{isRetryingClinical ? 'Đang lưu lại hồ sơ dị ứng...' : '🔄 Thử lưu lại hồ sơ dị ứng'}</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -544,11 +629,11 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
             )}
           </div>
 
-          {/* Ghi chú chính sách & Điểm thành viên - Tinh gọn, hiện đại */}
+          {/* Ghi chú chính sách bảo mật & Điểm thành viên */}
           <div className="py-2 px-3 bg-sky-50/60 border border-sky-100 rounded-xl flex items-center justify-between text-[11px] text-slate-600">
-            <span>Mật khẩu mặc định: <strong className="font-mono text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200">abccamon</strong></span>
-            <span className="text-sky-700 font-bold flex items-center gap-1">
-              🎁 Tặng 1.000 điểm thành viên
+            <span>Bảo mật: <strong className="text-slate-800">Kích hoạt tài khoản qua OTP SMS / Email</strong></span>
+            <span className="text-slate-700 font-bold flex items-center gap-1">
+              Điểm tích lũy khởi tạo: <strong className="font-mono text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200">0 điểm</strong>
             </span>
           </div>
 

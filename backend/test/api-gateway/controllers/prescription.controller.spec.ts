@@ -288,40 +288,163 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(result.audit.ip).toBe('192.168.1.100');
     });
 
+    beforeEach(() => {
+      PrescriptionController.clearConsentStoreForTesting();
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi client tự bịa terms_confirmed: true mà chưa từng xác nhận trên máy chủ (Server Consent Check)', async () => {
+      // Client tự gửi terms_confirmed: true nhưng máy chủ chưa có bản ghi
+      await expect(
+        controller.chatConsult(
+          {
+            message: 'Tư vấn giúp tôi thuốc hạ sốt',
+            terms_confirmed: true,
+          },
+          { headers: { 'x-client-session-id': 'unconfirmed-session-123' }, ip: '10.0.0.1' },
+        ),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi tài khoản đã đăng nhập gọi symptom-consult nhưng chưa xác nhận điều khoản trên server', async () => {
+      const mockReq = {
+        user: { sub: 'unconfirmed-user-456' },
+        ip: '10.0.0.2',
+      };
+      await expect(
+        controller.textConsult('Tôi bị đau bụng dưới', undefined, true, undefined, mockReq),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi khách vãng lai gửi giọng nói tới recommend mà chưa xác nhận điều khoản trên server', async () => {
+      const mockFile: any = {
+        buffer: Buffer.from('fake-audio-bytes'),
+        mimetype: 'audio/webm',
+        originalname: 'voice.webm',
+      };
+      const mockReq = {
+        headers: { 'x-client-session-id': 'unconfirmed-voice-guest' },
+        ip: '10.0.0.3',
+      };
+      await expect(
+        controller.recommendPrescription(mockFile, undefined, undefined, mockReq),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
     it('Nên ném lỗi FORBIDDEN khi người dùng bỏ trống terms_confirmed hoặc gửi undefined (Fail-closed)', async () => {
       await expect(
         controller.chatConsult({
           message: 'Tư vấn giúp tôi thuốc hạ sốt',
-        } as any),
-      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+        } as any, { ip: '10.0.0.4' }),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
     });
 
     it('Nên ném lỗi FORBIDDEN khi gửi terms_confirmed là chuỗi "false" (Fail-closed)', async () => {
+      // Kể cả đã có consent, nếu request chủ động gửi false thì vẫn bị chặn
+      PrescriptionController.setConsentForTesting('session:sess-false-test');
       await expect(
         controller.chatConsult({
           message: 'Tư vấn giúp tôi thuốc hạ sốt',
           terms_confirmed: 'false' as any,
-        }),
+          session_id: 'sess-false-test',
+        }, { headers: { 'x-client-session-id': 'sess-false-test' } }),
       ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
     });
 
     it('Nên ném lỗi FORBIDDEN khi người dùng cố tình gửi terms_confirmed là false boolean (Fail-closed)', async () => {
+      PrescriptionController.setConsentForTesting('session:sess-false-bool');
       await expect(
         controller.chatConsult({
           message: 'Tư vấn giúp tôi thuốc hạ sốt',
           terms_confirmed: false,
-        }),
+          session_id: 'sess-false-bool',
+        }, { headers: { 'x-client-session-id': 'sess-false-bool' } }),
       ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
     });
 
     it('Nên ném lỗi FORBIDDEN trên endpoint symptom-consult nếu gửi terms_confirmed là false hoặc "false"', async () => {
+      PrescriptionController.setConsentForTesting('session:sess-symptom-false');
+      const mockReq = { headers: { 'x-client-session-id': 'sess-symptom-false' } };
+
       await expect(
-        controller.textConsult('Đau đầu sốt nhẹ', undefined, false, {}),
+        controller.textConsult('Đau đầu sốt nhẹ', undefined, false, 'sess-symptom-false', mockReq),
       ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
 
       await expect(
-        controller.textConsult('Đau đầu sốt nhẹ', undefined, 'false', {}),
+        controller.textConsult('Đau đầu sốt nhẹ', undefined, 'false', 'sess-symptom-false', mockReq),
       ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+    });
+
+    it('[Lỗi 2 - P1] Nên làm sạch thông tin định danh (PII Scrubbing: SĐT, CCCD, Email) trước khi chuyển sang AI Service', async () => {
+      // Giả lập đã xác nhận điều khoản trên server
+      PrescriptionController.setConsentForTesting('user:usr-pii-test');
+
+      let capturedPayload: any = null;
+      global.fetch = jest.fn().mockImplementation((url, opts) => {
+        if (opts?.body) {
+          try {
+            capturedPayload = JSON.parse(opts.body);
+          } catch (_) {}
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, reply: 'Dược sĩ đã tiếp nhận thông tin' }),
+        } as any);
+      });
+
+      const mockReq = {
+        user: { sub: 'usr-pii-test' },
+      };
+
+      await controller.chatConsult(
+        {
+          message: 'Tôi là bệnh nhân, SĐT 0988123456, CCCD 001201012345, email benhnhan@gmail.com cần tư vấn.',
+          medical_notes: 'Ghi chú: liên hệ người nhà qua số 0909999888 hoặc mail giadinh@wdp301.com',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(capturedPayload).toBeDefined();
+      expect(capturedPayload.message).not.toContain('0988123456');
+      expect(capturedPayload.message).not.toContain('001201012345');
+      expect(capturedPayload.message).not.toContain('benhnhan@gmail.com');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN SĐT]');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN CCCD]');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN EMAIL]');
+
+      expect(capturedPayload.medical_notes).not.toContain('0909999888');
+      expect(capturedPayload.medical_notes).not.toContain('giadinh@wdp301.com');
+      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN SĐT]');
+      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN EMAIL]');
+    });
+
+    it('[Lỗi 1 - P1] Luồng chuẩn: Người dùng gọi acceptAiConsultantTerms thành công, sau đó chatConsult được thông qua', async () => {
+      const mockReq = {
+        user: { sub: 'usr-flow-success' },
+        headers: { 'x-client-session-id': 'sess-flow-success' },
+        ip: '192.168.1.50',
+      };
+
+      // 1. Ghi nhận xác nhận điều khoản trên server
+      const acceptRes = controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq);
+      expect(acceptRes.success).toBe(true);
+
+      // 2. Gọi chatConsult thành công
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ success: true, reply: 'Xin chào, Dược sĩ có thể giúp gì cho bạn?' }),
+      });
+
+      const chatRes = await controller.chatConsult(
+        {
+          message: 'Tư vấn thuốc cảm cúm thông thường',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(chatRes.success).toBe(true);
+      expect(chatRes.reply).toContain('Xin chào');
     });
   });
 });

@@ -8,13 +8,24 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '', // Resolves to backend URL in prod, or relative in dev
 });
 
-// Automatically inject JWT Token to requests if present in localStorage
+// Automatically inject JWT Token and Client Session ID to requests
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Đính kèm x-client-session-id để Gateway định danh phiên làm việc phục vụ xác nhận Điều khoản AI & Audit Trail
+    let sessionId = localStorage.getItem('abc_client_session_id');
+    if (!sessionId) {
+      sessionId = 'sess_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
+      try {
+        localStorage.setItem('abc_client_session_id', sessionId);
+      } catch (_) {}
+    }
+    config.headers['x-client-session-id'] = sessionId;
+
     return config;
   },
   (error) => {

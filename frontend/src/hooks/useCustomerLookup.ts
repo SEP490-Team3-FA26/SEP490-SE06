@@ -112,14 +112,24 @@ export function useCustomerLookup(options?: UseCustomerLookupOptions) {
         setSearchQuery(newCustomer.loyalty.phone);
         refreshRecentCustomers();
         onCustomerSelected?.(newCustomer);
-        if (newCustomer.clinicalWarning) {
-          showToast?.(`⚠️ ${newCustomer.clinicalWarning}`, 'warning');
-        } else {
-          showToast?.(`Đã tạo mới & liên kết tài khoản cho ${newCustomer.loyalty.fullName}!`, 'success');
-        }
+        showToast?.(`Đã tạo mới & liên kết tài khoản cho ${newCustomer.loyalty.fullName}!`, 'success');
         return { success: true, customer: newCustomer };
       } catch (err: any) {
         const msg = err.response?.data?.message || err.message || 'Lỗi tạo khách hàng mới';
+        // Nguyên tắc An toàn Lâm sàng: Nếu lưu dị ứng thất bại, KHÔNG đóng form và KHÔNG liên kết khách dị ứng rỗng!
+        if (err.isClinicalSaveError) {
+          showToast?.(`⚠️ ${msg}`, 'warning');
+          return {
+            success: false,
+            isClinicalSaveError: true,
+            error: msg,
+            userId: err.userId,
+            phone: err.phone,
+            fullName: err.fullName,
+            allergies: err.allergies,
+            chronicConditions: err.chronicConditions,
+          };
+        }
         showToast?.(msg, 'error');
         return { success: false, error: msg };
       } finally {

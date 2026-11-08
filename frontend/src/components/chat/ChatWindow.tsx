@@ -164,7 +164,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   }, [isOpen]);
 
-  // Tùy chọn tự động gửi kèm hồ sơ y tế cá nhân (dị ứng, bệnh nền) - mặc định bật
+  // Tùy chọn gửi kèm hồ sơ y tế cá nhân (dị ứng, bệnh nền) - mặc định TẮT (Opt-in để đảm bảo quyền riêng tư và cam kết ẩn danh 100%)
   const [autoAttachMedicalProfile, setAutoAttachMedicalProfile] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("abc_chat_auto_attach_medical_profile");
@@ -172,7 +172,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     } catch {
       // Fallback
     }
-    return true;
+    return false; // Mặc định tắt (opt-in)
   });
 
   useEffect(() => {

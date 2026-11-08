@@ -252,15 +252,18 @@ export const customerService = {
     }
     secureRandomPassword += 'Aa1!'; // Đảm bảo đáp ứng đầy đủ chữ hoa, chữ thường, số, ký tự đặc biệt
 
+    let realUserId: string | undefined;
     try {
       // 1. Đăng ký tài khoản trong hệ thống Auth
-      await api.post(API_ENDPOINTS.AUTH.REGISTER, {
+      const regRes = await api.post(API_ENDPOINTS.AUTH.REGISTER, {
         fullName: cleanName,
         email: cleanEmail,
         password: secureRandomPassword,
         phone: cleanPhone,
         role: 'user',
+        agreePrivacy: true,
       });
+      realUserId = regRes?.data?.user?.id || regRes?.data?.user?._id || regRes?.data?.id;
     } catch (regErr: any) {
       const status = regErr?.response?.status;
       const errMsg = regErr?.response?.data?.message || regErr?.message || '';
@@ -276,58 +279,78 @@ export const customerService = {
     }
 
     // 2. Lưu hồ sơ an toàn lâm sàng (Dị ứng thuốc & bệnh nền mãn tính) vào MongoDB
-    let clinicalSaveWarning: string | null = null;
-    if ((dto.allergies && dto.allergies.length > 0) || (dto.chronicConditions && dto.chronicConditions.length > 0)) {
+    const hasClinicalData = (dto.allergies && dto.allergies.length > 0) || (dto.chronicConditions && dto.chronicConditions.length > 0);
+    if (hasClinicalData) {
       try {
         await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone), {
           allergies: dto.allergies || [],
           chronicConditions: dto.chronicConditions || [],
         });
       } catch (clinicalErr: any) {
-        // Cảnh báo rõ ràng cho Dược sĩ biết nếu tài khoản đã tạo nhưng lưu hồ sơ bệnh án thất bại
-        clinicalSaveWarning = `Tài khoản đã tạo nhưng chưa thể lưu hồ sơ sức khỏe/dị ứng vào hệ thống (${clinicalErr?.response?.data?.message || clinicalErr?.message || 'Lỗi mạng'}). Vui lòng cập nhật lại hồ sơ bệnh án!`;
-        console.warn('⚠️ Lỗi lưu hồ sơ an toàn lâm sàng:', clinicalSaveWarning);
+        // BẢO VỆ AN TOÀN LÂM SÀNG: Tuyệt đối không nuốt lỗi để tạo ra khách có dị ứng rỗng!
+        // Ném lỗi có cấu trúc để UI giữ nguyên trạng thái chưa xác minh và hiển thị nút "Thử lưu lại hồ sơ dị ứng"
+        const clinicalError: any = new Error(
+          `Đã tạo tài khoản (${cleanName} - ID: ${realUserId || cleanPhone}), nhưng bước lưu hồ sơ dị ứng/bệnh nền vào hệ thống gặp sự cố (${clinicalErr?.response?.data?.message || clinicalErr?.message || 'Lỗi mạng'}). Dược sĩ vui lòng bấm "Thử lưu lại hồ sơ dị ứng" để đảm bảo an toàn!`
+        );
+        clinicalError.isClinicalSaveError = true;
+        clinicalError.userId = realUserId;
+        clinicalError.phone = cleanPhone;
+        clinicalError.fullName = cleanName;
+        clinicalError.allergies = dto.allergies || [];
+        clinicalError.chronicConditions = dto.chronicConditions || [];
+        throw clinicalError;
       }
     }
 
     // 3. Tra cứu hồ sơ khách hàng mới tạo từ máy chủ
     const existing = await this.lookupCustomer(cleanPhone);
     if (existing) {
-      if (clinicalSaveWarning) {
-        existing.clinicalWarning = clinicalSaveWarning;
+      if (realUserId && !existing.loyalty.userId) {
+        existing.loyalty.userId = realUserId;
       }
+      this.saveRecentCustomer({
+        phone: cleanPhone,
+        fullName: cleanName,
+        tier: existing.loyalty.tier || 'Bronze',
+        points: existing.loyalty.points || 0,
+        lastVisited: Date.now(),
+      });
       return existing;
     }
 
-    // Fallback profile nếu máy chủ có độ trễ: Điểm khởi tạo là 0 (Zero Mock Data)
-    const fallbackProfile: FullCustomerProfile = {
-      loyalty: {
-        fullName: cleanName,
+    // Bỏ hồ sơ dự phòng thiếu ID! Chỉ trả về profile khi có ID thật từ kết quả tạo Auth
+    if (realUserId) {
+      const verifiedProfile: FullCustomerProfile = {
+        loyalty: {
+          userId: realUserId,
+          fullName: cleanName,
+          phone: cleanPhone,
+          email: cleanEmail,
+          points: 0, // Điểm bắt đầu thực tế là 0 (Zero Mock Data)
+          accumulatedPoints: 0,
+          tier: 'Bronze',
+          multiplier: 1.0,
+          conversionRate: 1,
+        },
+        clinical: {
+          allergies: dto.allergies || [],
+          chronicConditions: dto.chronicConditions || [],
+          refillReminder: null,
+        },
+      };
+
+      this.saveRecentCustomer({
         phone: cleanPhone,
-        email: cleanEmail,
-        points: 0, // Điểm bắt đầu thực tế là 0, tuyệt đối không gán điểm ảo
-        accumulatedPoints: 0,
+        fullName: cleanName,
         tier: 'Bronze',
-        multiplier: 1.0,
-        conversionRate: 1,
-      },
-      clinical: {
-        allergies: dto.allergies || [],
-        chronicConditions: dto.chronicConditions || [],
-        refillReminder: null,
-      },
-      clinicalWarning: clinicalSaveWarning || undefined,
-    };
+        points: 0,
+        lastVisited: Date.now(),
+      });
 
-    this.saveRecentCustomer({
-      phone: cleanPhone,
-      fullName: cleanName,
-      tier: 'Bronze',
-      points: 0,
-      lastVisited: Date.now(),
-    });
+      return verifiedProfile;
+    }
 
-    return fallbackProfile;
+    throw new Error('Đăng ký tài khoản thành công nhưng không tìm thấy thông tin định danh ID từ máy chủ.');
   },
 
   /**
@@ -451,6 +474,23 @@ export const customerService = {
   }): Promise<any> {
     const res = await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY_ME, data);
     return res.data;
+  },
+
+  /**
+   * Cập nhật trực tiếp hồ sơ an toàn lâm sàng của khách hàng theo số điện thoại (Dùng khi Dược sĩ retry lưu lại)
+   */
+  async updateClinicalSafety(
+    phone: string,
+    data: {
+      allergies?: string[];
+      chronicConditions?: string[];
+      allergicMedicines?: string[];
+      allergicIngredients?: string[];
+    }
+  ): Promise<boolean> {
+    const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
+    await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone), data);
+    return true;
   },
 
   /**

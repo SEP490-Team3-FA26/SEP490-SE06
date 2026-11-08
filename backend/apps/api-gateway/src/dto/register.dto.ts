@@ -39,7 +39,7 @@ export class RegisterDto {
 
   @ApiProperty({ example: true, required: false, description: 'Đồng ý với Quy định bảo mật thông tin' })
   @IsOptional()
-  agreePrivacy?: boolean;
+  agreePrivacy?: boolean | string;
 
   @ApiProperty({ example: 'v1.0', required: false, description: 'Phiên bản chính sách bảo mật' })
   @IsOptional()

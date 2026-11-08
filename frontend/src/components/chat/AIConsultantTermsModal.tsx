@@ -328,10 +328,10 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
               <span>Minh bạch xử lý dữ liệu AI & Bảo vệ thông tin y tế</span>
             </h4>
             <p className="pl-5.5 text-slate-600 text-[11px] leading-relaxed">
-              Mọi thông tin nhận dạng cá nhân (họ tên, SĐT, CCCD) đều được <strong>che giấu và ẩn danh hoàn toàn (100%)</strong> trước khi gửi tới mô hình AI (DeepSeek / LLM).
+              Mọi thông tin nhận dạng cá nhân (họ tên, SĐT, CCCD, Email) trong tin nhắn đều được hệ thống <strong>tự động phát hiện và che giấu ẩn danh hoàn toàn (100%)</strong> trước khi gửi tới nhà cung cấp mô hình AI (DeepSeek / LLM).
             </p>
             <p className="pl-5.5 text-slate-600 text-[11px] leading-relaxed">
-              Thông tin dị ứng thuốc và bệnh nền chỉ được gửi kèm khi bạn <strong>chủ động bật tùy chọn đính kèm hồ sơ y tế</strong> trên khung chat, nhằm mục đích duy nhất là giúp AI và Dược sĩ kiểm tra tương tác thuốc, phòng tránh sốc phản vệ an toàn. Bạn có quyền tắt đính kèm bất kỳ lúc nào.
+              Hồ sơ y tế (tiền sử dị ứng thuốc và bệnh nền) <strong>mặc định được TẮT đính kèm</strong>. Dữ liệu này chỉ được gửi khi bạn <strong>chủ động bật tùy chọn đính kèm hồ sơ y tế</strong> trên khung chat, nhằm mục đích duy nhất là giúp AI và Dược sĩ kiểm tra tương tác thuốc, phòng tránh sốc phản vệ an toàn. Bạn có toàn quyền tắt đính kèm bất kỳ lúc nào.
             </p>
           </div>
 

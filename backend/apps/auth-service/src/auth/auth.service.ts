@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  BadRequestException,
   InternalServerErrorException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
@@ -73,6 +74,15 @@ export class AuthService implements OnApplicationBootstrap {
       }
     }
 
+    // Nguyên tắc Fail-closed: Bắt buộc người dùng phải tích chọn đồng ý Quy định bảo mật thông tin
+    // Chặn triệt để khi bỏ trống (undefined/null), hoặc false, hoặc chuỗi "false"
+    const isPrivacyAgreed = dto.agreePrivacy === true || dto.agreePrivacy === 'true';
+    if (!isPrivacyAgreed) {
+      throw new BadRequestException(
+        'Bắt buộc người dùng phải đọc và đồng ý với Quy định bảo mật thông tin để đăng ký tài khoản (Fail-closed).',
+      );
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const role = dto.role ?? UserRole.USER;
 
@@ -85,10 +95,10 @@ export class AuthService implements OnApplicationBootstrap {
       phone: phone || undefined,
       isActive: true,
       isApproved: 'approved',
-      // Lưu bằng chứng kiểm toán (Audit Trail) chấp thuận Quy định bảo mật thông tin
-      privacyAgreed: dto.agreePrivacy ?? true,
-      privacyPolicyVersion: dto.privacyPolicyVersion || 'v1.0',
-      privacyAgreedAt: dto.privacyAgreedAt ? new Date(dto.privacyAgreedAt) : new Date(),
+      // Lưu bằng chứng kiểm toán (Audit Trail) chấp thuận Quy định bảo mật thông tin theo giờ và phiên bản máy chủ
+      privacyAgreed: true,
+      privacyPolicyVersion: 'v1.0',
+      privacyAgreedAt: new Date(),
     });
 
     let savedUser: any;

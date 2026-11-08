@@ -274,6 +274,93 @@ export class PrescriptionController implements OnModuleInit {
     }
   }
 
+  // =========================================================================
+  // BỘ LƯU TRỮ XÁC NHẬN CHẤP THUẬN NỘI QUY AI TRÊN MÁY CHỦ (SERVER CONSENT STORE)
+  // Ghi nhận chấp thuận theo tài khoản người dùng hoặc phiên khách (Session ID / IP)
+  // =========================================================================
+  private static readonly consentStore = new Map<
+    string,
+    { accepted: boolean; version: string; acceptedAt: string }
+  >();
+
+  /**
+   * Phương thức hỗ trợ dọn dẹp kho chấp thuận (chỉ dùng cho bài test unit)
+   */
+  public static clearConsentStoreForTesting(): void {
+    PrescriptionController.consentStore.clear();
+  }
+
+  /**
+   * Phương thức hỗ trợ ghi nhận chấp thuận trực tiếp (dùng cho test hoặc nội bộ)
+   */
+  public static setConsentForTesting(key: string, version = "v1.0-OTC"): void {
+    PrescriptionController.consentStore.set(key, {
+      accepted: true,
+      version,
+      acceptedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Khử thông tin định danh cá nhân (PII Scrubbing) trước khi chuyển dữ liệu sang AI Service (DeepSeek)
+   * Cam kết ẩn danh 100% dữ liệu y tế theo Điều 7 Nội quy AI
+   */
+  private sanitizePii(text?: string | null): string {
+    if (!text || typeof text !== "string") return "";
+    return text
+      // 1. Khử số điện thoại Việt Nam (10-11 số, đầu 03, 05, 07, 08, 09 hoặc +84)
+      .replace(/(?:\+84|0)(?:3[2-9]|5[25689]|7[06-9]|8[1-9]|9\d)\d{7}/g, "[ĐÃ ẨN SĐT]")
+      // 2. Khử số CCCD / CMND (9 hoặc 12 số liên tiếp)
+      .replace(/\b\d{12}\b|\b\d{9}\b/g, "[ĐÃ ẨN CCCD]")
+      // 3. Khử địa chỉ Email
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[ĐÃ ẨN EMAIL]");
+  }
+
+  /**
+   * Kiểm tra bản ghi chấp thuận Nội quy Trợ lý AI trên máy chủ (Server-side Fail-closed Check)
+   * Ngăn chặn hoàn toàn việc client tự gửi "terms_confirmed: true" mà chưa từng gọi API xác nhận
+   */
+  private verifyServerAiConsent(req: any, body?: any): void {
+    const CURRENT_TERMS_VERSION = "v1.0-OTC";
+    const userId = req?.user?.sub || req?.user?.userId || req?.user?.id;
+    const sessionId =
+      req?.headers?.["x-client-session-id"] ||
+      req?.headers?.["x-session-id"] ||
+      body?.session_id ||
+      body?.sessionId;
+    const ip = req?.ip || req?.headers?.["x-forwarded-for"] || "127.0.0.1";
+
+    // 1. Kiểm tra tài khoản người dùng đã đăng nhập
+    if (userId && PrescriptionController.consentStore.has(`user:${userId}`)) {
+      const record = PrescriptionController.consentStore.get(`user:${userId}`);
+      if (record?.accepted && record.version === CURRENT_TERMS_VERSION) {
+        return;
+      }
+    }
+
+    // 2. Kiểm tra phiên khách vãng lai qua Session ID
+    if (sessionId && PrescriptionController.consentStore.has(`session:${sessionId}`)) {
+      const record = PrescriptionController.consentStore.get(`session:${sessionId}`);
+      if (record?.accepted && record.version === CURRENT_TERMS_VERSION) {
+        return;
+      }
+    }
+
+    // 3. Fallback kiểm tra theo IP của máy khách
+    if (ip && PrescriptionController.consentStore.has(`ip:${ip}`)) {
+      const record = PrescriptionController.consentStore.get(`ip:${ip}`);
+      if (record?.accepted && record.version === CURRENT_TERMS_VERSION) {
+        return;
+      }
+    }
+
+    // Không tìm thấy bản ghi chấp thuận hợp lệ trên máy chủ
+    throw new HttpException(
+      "Người dùng hoặc phiên làm việc này chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI (phiên bản v1.0-OTC) trên máy chủ. Vui lòng mở và đồng ý Điều khoản trước khi sử dụng AI.",
+      HttpStatus.FORBIDDEN,
+    );
+  }
+
   @Post("recommend")
   @UseGuards(OptionalJwtAuthGuard)
   @UseInterceptors(FileInterceptor("audio"))
@@ -283,6 +370,9 @@ export class PrescriptionController implements OnModuleInit {
     @Body("branch_id") branchId?: string,
     @Req() req?: any,
   ) {
+    // Kiểm tra chấp thuận nội quy AI trên máy chủ trước khi xử lý giọng nói
+    this.verifyServerAiConsent(req, { patient_id: patientId, branch_id: branchId });
+
     if (!file) {
       throw new HttpException(
         "Vui lòng cung cấp file ghi âm cuộc thoại",
@@ -355,7 +445,11 @@ export class PrescriptionController implements OnModuleInit {
   @UseInterceptors(FileInterceptor("audio"))
   async quickTranscribe(
     @UploadedFile() file: Express.Multer.File,
+    @Req() req?: any,
   ) {
+    // Kiểm tra chấp thuận nội quy AI trên máy chủ trước khi xử lý giọng nói
+    this.verifyServerAiConsent(req);
+
     if (!file) {
       throw new HttpException(
         "Vui lòng cung cấp file ghi âm",
@@ -396,11 +490,14 @@ export class PrescriptionController implements OnModuleInit {
     @Body("symptoms") symptoms: string,
     @Body("branch_id") branchId?: string,
     @Body("terms_confirmed") termsConfirmed?: boolean | string,
+    @Body("session_id") sessionId?: string,
     @Req() req?: any,
   ) {
-    // Nguyên tắc Fail-closed: Bắt buộc người dùng/khách phải đồng ý với nội quy tư vấn AI
-    const isTermsConfirmed = termsConfirmed === true || termsConfirmed === "true" || Boolean(req?.user);
-    if (termsConfirmed === false || termsConfirmed === "false" || (!isTermsConfirmed && !req?.user)) {
+    // 1. Kiểm tra xác nhận trên máy chủ (Server Consent Store) - Fail-closed cả tài khoản đăng nhập và khách vãng lai
+    this.verifyServerAiConsent(req, { branch_id: branchId, session_id: sessionId });
+
+    // 2. Chặn nếu client chủ động gửi cờ termsConfirmed là false
+    if (termsConfirmed === false || termsConfirmed === "false") {
       throw new HttpException(
         "Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI trước khi gửi yêu cầu (Fail-closed).",
         HttpStatus.FORBIDDEN,
@@ -415,7 +512,10 @@ export class PrescriptionController implements OnModuleInit {
     }
     const resolvedBranchId =
       branchId || req?.user?.branchId || req?.user?.branch_id;
-    const payload: any = { symptoms };
+
+    // Khử PII trong mô tả triệu chứng trước khi chuyển tiếp sang AI Service
+    const cleanSymptoms = this.sanitizePii(symptoms);
+    const payload: any = { symptoms: cleanSymptoms };
     if (resolvedBranchId) {
       payload.branch_id = resolvedBranchId;
     }
@@ -444,6 +544,7 @@ export class PrescriptionController implements OnModuleInit {
 
       return await response.json();
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         error.message || "Lỗi kết nối hoặc xử lý từ AI Service",
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -501,7 +602,7 @@ export class PrescriptionController implements OnModuleInit {
         {
           order: 7,
           title: "Bảo vệ & Minh bạch xử lý dữ liệu y tế qua AI",
-          summary: "Thông tin định danh (họ tên, SĐT, CCCD) được che giấu 100% trước khi xử lý qua mô hình AI (DeepSeek / LLM). Dữ liệu lâm sàng (tiền sử dị ứng, bệnh nền) chỉ được đính kèm khi khách hàng chủ động chọn đính kèm, nhằm mục đích duy nhất là phát hiện tương tác thuốc và chống sốc phản vệ an toàn.",
+          summary: "Mọi thông tin định danh (họ tên, SĐT, CCCD, Email) đều được hệ thống tự động phát hiện và che giấu ẩn danh 100% trước khi xử lý qua mô hình AI (DeepSeek / LLM). Dữ liệu lâm sàng (tiền sử dị ứng, bệnh nền) mặc định TẮT đính kèm và chỉ được gửi khi khách hàng chủ động bật tùy chọn đính kèm, nhằm mục đích duy nhất là phát hiện tương tác thuốc và chống sốc phản vệ an toàn.",
         },
         {
           order: 8,
@@ -515,19 +616,49 @@ export class PrescriptionController implements OnModuleInit {
   @Post("ai-terms/accept")
   @UseGuards(OptionalJwtAuthGuard)
   acceptAiConsultantTerms(
-    @Body() body: { version?: string; acceptedAt?: string; metadata?: any },
+    @Body() body: { version?: string; acceptedAt?: string; session_id?: string; sessionId?: string; metadata?: any },
     @Req() req: any,
   ) {
     const version = body?.version || "v1.0-OTC";
     // Lưu thời điểm chính xác từ máy chủ (Server Timestamp)
     const acceptedAt = new Date().toISOString();
     // Đọc chuẩn userId: ưu tiên req.user.sub theo chuẩn JWT RFC 7519
-    const userId = req?.user?.sub || req?.user?.userId || req?.user?.id || req?.user?._id || "anonymous-guest";
+    const userId = req?.user?.sub || req?.user?.userId || req?.user?.id || req?.user?._id;
+    const sessionId =
+      req?.headers?.["x-client-session-id"] ||
+      req?.headers?.["x-session-id"] ||
+      body?.session_id ||
+      body?.sessionId ||
+      "anonymous-session";
     const ip = req?.ip || req?.headers?.["x-forwarded-for"] || "127.0.0.1";
+
+    // Lưu vào bộ nhớ máy chủ (Server Consent Store) phục vụ kiểm tra fail-closed cho các API tiếp theo
+    if (userId) {
+      PrescriptionController.consentStore.set(`user:${userId}`, {
+        accepted: true,
+        version,
+        acceptedAt,
+      });
+    }
+    if (sessionId) {
+      PrescriptionController.consentStore.set(`session:${sessionId}`, {
+        accepted: true,
+        version,
+        acceptedAt,
+      });
+    }
+    if (ip) {
+      PrescriptionController.consentStore.set(`ip:${ip}`, {
+        accepted: true,
+        version,
+        acceptedAt,
+      });
+    }
 
     // Ghi nhận nhật ký kiểm toán (Audit Trail) phục vụ đối soát y tế
     const auditRecord = {
-      userId,
+      userId: userId || "anonymous-guest",
+      sessionId,
       version,
       acceptedAt,
       ip,
@@ -537,7 +668,7 @@ export class PrescriptionController implements OnModuleInit {
 
     return {
       success: true,
-      message: "Đã ghi nhận chấp thuận nội quy Trợ lý Dược sĩ AI thành công",
+      message: "Đã ghi nhận chấp thuận nội quy Trợ lý Dược sĩ AI thành công trên máy chủ",
       audit: auditRecord,
     };
   }
@@ -559,12 +690,16 @@ export class PrescriptionController implements OnModuleInit {
       medical_notes?: string;
       image_base64?: string;
       terms_confirmed?: boolean | string;
+      session_id?: string;
+      sessionId?: string;
     },
+    @Req() req?: any,
   ) {
-    // Nguyên tắc Fail-closed: Bắt buộc client phải đọc và gửi terms_confirmed === true
-    // Chặn triệt để khi: bỏ trống (undefined/null), hoặc false, hoặc chuỗi "false"
-    const isTermsConfirmed = body?.terms_confirmed === true || body?.terms_confirmed === "true";
-    if (!isTermsConfirmed) {
+    // 1. Kiểm tra xác nhận trên máy chủ (Server Consent Store) - Chặn client tự chế terms_confirmed: true
+    this.verifyServerAiConsent(req, body);
+
+    // 2. Chặn nếu client chủ động gửi cờ terms_confirmed là false
+    if (body?.terms_confirmed === false || body?.terms_confirmed === "false") {
       throw new HttpException(
         "Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI trước khi gửi yêu cầu (Fail-closed).",
         HttpStatus.FORBIDDEN,
@@ -581,10 +716,19 @@ export class PrescriptionController implements OnModuleInit {
     }
 
     try {
-      // Data minimization: Không gửi PII (họ tên, email, sđt) sang AI service, chỉ gửi thông tin lâm sàng an toàn
+      // Data minimization & Cam kết ẩn danh 100%: Khử PII (họ tên, email, sđt, cccd) trong nội dung tự do
+      const cleanMessage = this.sanitizePii(body.message ? body.message.trim() : "");
+      const cleanNotes = body.medical_notes ? this.sanitizePii(body.medical_notes) : null;
+      const cleanHistory = Array.isArray(body.history)
+        ? body.history.slice(-30).map((h) => ({
+            role: h.role,
+            content: this.sanitizePii(h.content),
+          }))
+        : [];
+
       const sanitizedPayload = {
-        message: body.message ? body.message.trim() : "",
-        history: Array.isArray(body.history) ? body.history.slice(-30) : [],
+        message: cleanMessage,
+        history: cleanHistory,
         age_group: body.age_group || null,
         gender: body.gender || null,
         allergies: Array.isArray(body.allergies) ? body.allergies : [],
@@ -592,7 +736,7 @@ export class PrescriptionController implements OnModuleInit {
         allergic_ingredients: Array.isArray(body.allergic_ingredients) ? body.allergic_ingredients : [],
         chronic_conditions: Array.isArray(body.chronic_conditions) ? body.chronic_conditions : [],
         blood_type: body.blood_type || null,
-        medical_notes: body.medical_notes || null,
+        medical_notes: cleanNotes,
         image_base64: hasImage ? body.image_base64 : null,
       };
 

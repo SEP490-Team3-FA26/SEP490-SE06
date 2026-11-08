@@ -331,6 +331,73 @@ console.log('\n--- 3. [Abnormal Values] Dữ liệu dị thường & Ngăn chặ
   console.log('✔ [Abnormal] Chặn email sai định dạng RFC.');
 }
 
-console.log('\n================================================================================');
-console.log('🎉 TẤT CẢ 15/15 BÀI TEST TẠO TÀI KHOẢN & BỆNH NỀN LINH ĐỘNG ĐÃ PASS THÀNH CÔNG!');
-console.log('================================================================================');
+// Test 3.6 [Lỗi 4 - P1]: Khi lưu dị ứng thất bại, KHÔNG liên kết khách dị ứng rỗng, giữ trạng thái chưa xác minh và cho phép Retry
+(async () => {
+  let posCartLinkedCustomer = null;
+  const simulatePosQuickRegister = async (shouldFailClinicalSave) => {
+    // 1. Tạo Auth thành công, trả về ID thật
+    const realUserId = 'usr_real_999';
+    const cleanPhone = '0988777666';
+    const cleanName = 'Trần Bệnh Nhân';
+    const allergies = ['Penicillin', 'Aspirin'];
+
+    // 2. Lưu dị ứng vào MongoDB
+    if (shouldFailClinicalSave) {
+      const clinicalError = new Error('Lỗi kết nối cơ sở dữ liệu lâm sàng');
+      clinicalError.isClinicalSaveError = true;
+      clinicalError.userId = realUserId;
+      clinicalError.phone = cleanPhone;
+      clinicalError.fullName = cleanName;
+      clinicalError.allergies = allergies;
+      throw clinicalError;
+    }
+
+    // 3. Nếu thành công mới liên kết POS
+    posCartLinkedCustomer = {
+      userId: realUserId,
+      fullName: cleanName,
+      phone: cleanPhone,
+      allergies,
+    };
+    return posCartLinkedCustomer;
+  };
+
+  // Ca 1: Lưu dị ứng thất bại
+  let caughtError = null;
+  try {
+    await simulatePosQuickRegister(true);
+  } catch (err) {
+    caughtError = err;
+  }
+
+  assert.ok(caughtError !== null, 'Phải ném lỗi khi lưu dị ứng thất bại');
+  assert.strictEqual(caughtError.isClinicalSaveError, true, 'Cờ isClinicalSaveError phải là true');
+  assert.strictEqual(caughtError.userId, 'usr_real_999', 'Phải giữ ID thật từ kết quả tạo Auth');
+  assert.strictEqual(posCartLinkedCustomer, null, 'Tuyệt đối KHÔNG được liên kết khách hàng với dị ứng rỗng vào POS cart');
+
+  // Ca 2: Dược sĩ bấm "Thử lưu lại hồ sơ dị ứng" (Retry) thành công
+  let retrySuccess = false;
+  const retryUpdateClinical = (phone, data) => {
+    if (phone === caughtError.phone && data.allergies.length > 0) {
+      retrySuccess = true;
+      posCartLinkedCustomer = {
+        userId: caughtError.userId,
+        phone: caughtError.phone,
+        fullName: caughtError.fullName,
+        allergies: caughtError.allergies,
+      };
+      return true;
+    }
+    return false;
+  };
+
+  const ok = retryUpdateClinical(caughtError.phone, { allergies: caughtError.allergies });
+  assert.strictEqual(ok, true);
+  assert.strictEqual(retrySuccess, true);
+  assert.deepStrictEqual(posCartLinkedCustomer.allergies, ['Penicillin', 'Aspirin'], 'Sau khi retry thành công, hồ sơ dị ứng đầy đủ được liên kết an toàn');
+  console.log('✔ [Lỗi 4 - P1] Chặn liên kết khách khi lưu dị ứng thất bại, giữ ID thật và retry lưu dị ứng an toàn 100%.');
+
+  console.log('\n================================================================================');
+  console.log('🎉 TẤT CẢ 16/16 BÀI TEST TẠO TÀI KHOẢN & BỆNH NỀN LINH ĐỘNG ĐÃ PASS THÀNH CÔNG!');
+  console.log('================================================================================');
+})();

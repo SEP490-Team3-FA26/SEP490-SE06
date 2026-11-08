@@ -80,6 +80,42 @@ export class ApiService {
     return EnvService.getAiBaseUrl();
   }
 
+  private static clientSessionId: string = '';
+
+  public static async getClientSessionId(): Promise<string> {
+    if (this.clientSessionId) return this.clientSessionId;
+    try {
+      const saved = await AsyncStorage.getItem('client_session_id');
+      if (saved) {
+        this.clientSessionId = saved;
+        return saved;
+      }
+    } catch (_) {}
+    const newId = 'mob_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
+    this.clientSessionId = newId;
+    AsyncStorage.setItem('client_session_id', newId).catch(() => {});
+    return newId;
+  }
+
+  public static async acceptAiConsultantTerms(version = 'v1.0-OTC'): Promise<boolean> {
+    try {
+      const sessionId = await this.getClientSessionId();
+      const headers = { ...this.authHeaders, 'x-client-session-id': sessionId };
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/ai-terms/accept`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          version,
+          session_id: sessionId,
+          acceptedAt: new Date().toISOString(),
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   private static get authHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -87,6 +123,9 @@ export class ApiService {
     };
     if (this.currentToken) {
       headers['Authorization'] = `Bearer ${this.currentToken}`;
+    }
+    if (this.clientSessionId) {
+      headers['x-client-session-id'] = this.clientSessionId;
     }
     return headers;
   }
@@ -1656,9 +1695,14 @@ export class ApiService {
   }
 
   public static async consultSymptomsAI(symptoms: string): Promise<any> {
+    const sessionId = await this.getClientSessionId();
+    // Đảm bảo ghi nhận chấp thuận điều khoản AI trên máy chủ trước khi gọi tư vấn triệu chứng
+    await this.acceptAiConsultantTerms().catch(() => {});
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
+      'x-client-session-id': sessionId,
     };
     if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
 
@@ -1667,7 +1711,7 @@ export class ApiService {
       const res = await fetch(`${this.baseUrl}/api/prescriptions/symptom-consult`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ symptoms, terms_confirmed: true }),
+        body: JSON.stringify({ symptoms, session_id: sessionId, terms_confirmed: true }),
       });
       if (res.ok) {
         const data = await res.json();
