@@ -213,13 +213,27 @@ export function CustomerCheckout() {
 
   const clearAllCarts = () => {
     localStorage.removeItem("customer_cart");
-    localStorage.removeItem("guest_cart");
     localStorage.removeItem("applied_voucher");
     const token = localStorage.getItem("token");
     if (token) {
-      cartService.clearCart().catch((e) => console.warn("Error clearing cart on server:", e));
+      // Xóa các sản phẩm đã thanh toán thành công khỏi giỏ hàng trên server
+      if (Array.isArray(cartItems) && cartItems.length > 0) {
+        Promise.all(
+          cartItems.map((it) => {
+            const id = it.id || it._id || it.medicineId;
+            return id ? cartService.deleteCartItem(id).catch(() => {}) : Promise.resolve();
+          })
+        ).finally(() => {
+          window.dispatchEvent(new Event("cartUpdated"));
+        });
+      } else {
+        cartService.clearCart().catch((e) => console.warn("Error clearing cart on server:", e));
+        window.dispatchEvent(new Event("cartUpdated"));
+      }
+    } else {
+      localStorage.removeItem("guest_cart");
+      window.dispatchEvent(new Event("cartUpdated"));
     }
-    window.dispatchEvent(new Event("cartUpdated"));
   };
 
   const handleApplyVoucher = async () => {

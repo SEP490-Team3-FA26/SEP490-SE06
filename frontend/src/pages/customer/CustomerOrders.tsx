@@ -866,12 +866,14 @@ export function CustomerOrders() {
             const isCancelled = order.paymentStatus === 'CANCELLED' || order.status === 'CANCELLED';
             
             // Phân biệt chính xác: Đơn mua tại quầy POS vs Đơn giao Online
-            const isPosInStore = order.type === 'POS' || 
+            // Đơn tại quầy phải đã thanh toán (bằng CASH hoặc đã PAID qua QR) mới coi là hoàn tất GPP
+            const isPosInStore = (order.type === 'POS' || 
                                 order.type === 'COUNTER' || 
                                 !order.shippingAddress || 
                                 order.shippingAddress === 'Mua tại quầy' || 
                                 order.shippingAddress.toLowerCase().includes('mua tại quầy') ||
-                                order.shippingAddress.toLowerCase().includes('khu vực');
+                                order.shippingAddress.toLowerCase().includes('khu vực')) &&
+                                (order.paymentMethod === 'CASH' || isPaid);
 
             return (
               <div 

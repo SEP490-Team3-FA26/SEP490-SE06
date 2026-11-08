@@ -18,6 +18,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { medicineService } from '../../services/inventory/medicine.service';
+import { sanitizeReviewerName, maskReviewerPhone } from '../../utils/reviewSanitizer';
 import {
   productReviewService,
   ProductReviewItem,
@@ -292,12 +293,6 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
         prev.map((r) => (r._id === reviewId ? { ...r, helpfulCount: Math.max(0, (r.helpfulCount || 0) - 1) } : r)),
       );
     }
-  };
-
-  // Ẩn 4 số giữa của SĐT
-  const maskPhone = (phone: string) => {
-    if (!phone || phone.length < 7) return phone;
-    return phone.slice(0, 3) + '****' + phone.slice(-3);
   };
 
   return (
@@ -798,28 +793,35 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
                     >
                       {/* Review Header */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-sky-100 border border-sky-200 text-sky-700 flex items-center justify-center text-xs font-bold">
-                            {(rev.reviewerName || 'K')[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-800">
-                                {rev.reviewerName || 'Khách hàng'}
-                              </span>
-                              {rev.isVerifiedPurchase && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
-                                  <ShieldCheck size={10} />
-                                  <span>Đã mua tại nhà thuốc</span>
+                        {(() => {
+                          const cleanName = sanitizeReviewerName(rev.reviewerName);
+                          const cleanPhone = maskReviewerPhone(rev.reviewerPhone);
+                          const cleanLetter = (cleanName || 'K')[0].toUpperCase();
+                          return (
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-sky-100 border border-sky-200 text-sky-700 flex items-center justify-center text-xs font-bold">
+                                {cleanLetter}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-800">
+                                    {cleanName}
+                                  </span>
+                                  {rev.isVerifiedPurchase && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
+                                      <ShieldCheck size={10} />
+                                      <span>Đã mua tại nhà thuốc</span>
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400">
+                                  {cleanPhone ? cleanPhone + ' • ' : ''}
+                                  {new Date(rev.createdAt).toLocaleDateString('vi-VN')}
                                 </span>
-                              )}
+                              </div>
                             </div>
-                            <span className="text-[10px] text-slate-400">
-                              {maskPhone(rev.reviewerPhone)} •{' '}
-                              {new Date(rev.createdAt).toLocaleDateString('vi-VN')}
-                            </span>
-                          </div>
-                        </div>
+                          );
+                        })()}
 
                         {/* Stars */}
                         <div className="flex items-center gap-1">
