@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Camera,
+  CameraOff,
   CheckCircle2,
   AlertTriangle,
   Loader2,
@@ -77,6 +78,25 @@ export function GoodsReceiptInspectionPage() {
 
   const [inputBarcode, setInputBarcode] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // State quản lý luồng Webcam / Camera quét mã vạch trực tiếp
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const [isCameraLoading, setIsCameraLoading] = useState<boolean>(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
+
+  // Giữ ref cho items và isPaused để tránh stale closure trong vòng lặp animation frame
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   // Toast Notification State
   const [toasts, setToasts] = useState<
@@ -181,16 +201,15 @@ export function GoodsReceiptInspectionPage() {
   const progressPercent = totalOrdered > 0 ? Math.min(100, ((totalScanned / totalOrdered) * 100)).toFixed(1) : "0";
 
   // Xử lý quét barcode: Khớp chính xác mặt hàng trong đơn PO; Từ chối mã không hợp lệ
-  const handleBarcodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputBarcode.trim() || isPaused) return;
+  const processBarcode = (rawCode: string) => {
+    if (!rawCode || !rawCode.trim() || isPausedRef.current) return;
 
-    const code = inputBarcode.trim();
-    setInputBarcode("");
+    const code = rawCode.trim();
+    const currentItems = itemsRef.current;
 
     // Tìm kiếm sản phẩm tương ứng với barcode, SKU, mã thuốc hoặc tên trong PO
     const q = code.toLowerCase();
-    const foundIdx = items.findIndex(
+    const foundIdx = currentItems.findIndex(
       (it) =>
         (it.barcode && it.barcode.toLowerCase() === q) ||
         (it.sku && it.sku.toLowerCase() === q) ||
@@ -200,7 +219,7 @@ export function GoodsReceiptInspectionPage() {
     );
 
     if (foundIdx !== -1) {
-      const targetItem = items[foundIdx];
+      const targetItem = currentItems[foundIdx];
       const maxReceivable = targetItem.remainingQty > 0 ? targetItem.remainingQty : targetItem.orderedQty;
 
       if (targetItem.scannedQty >= maxReceivable) {
@@ -208,7 +227,7 @@ export function GoodsReceiptInspectionPage() {
         return;
       }
 
-      const updated = [...items];
+      const updated = [...currentItems];
       updated[foundIdx] = {
         ...targetItem,
         scannedQty: targetItem.scannedQty + 1,
@@ -228,6 +247,124 @@ export function GoodsReceiptInspectionPage() {
       showToast(`Mã vạch "${code}" không thuộc bất kỳ sản phẩm nào trong đơn hàng PO này!`, "error");
     }
   };
+
+  const handleBarcodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputBarcode.trim() || isPaused) return;
+    const code = inputBarcode.trim();
+    setInputBarcode("");
+    processBarcode(code);
+  };
+
+  // Khởi động Camera / Webcam máy tính
+  const startCamera = async () => {
+    setIsCameraLoading(true);
+    setCameraError(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError("Trình duyệt không hỗ trợ truy cập Webcam/Camera trực tiếp.");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+      setIsCameraActive(true);
+      showToast("Đã kích hoạt Camera quét mã vạch thành công!", "success");
+    } catch (err: any) {
+      console.warn("Lỗi mở camera:", err);
+      setCameraError(
+        err.name === "NotAllowedError" || err.name === "PermissionDeniedError"
+          ? "Bạn đã chặn quyền truy cập Camera trên trình duyệt. Vui lòng cho phép quyền Camera trên thanh địa chỉ URL."
+          : "Không thể kết nối đến Camera/Webcam. Vui lòng kiểm tra thiết bị camera của bạn."
+      );
+      setIsCameraActive(false);
+    } finally {
+      setIsCameraLoading(false);
+    }
+  };
+
+  // Dừng Camera / Webcam
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  // Tự động tắt camera khi component unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  // Vòng lặp nhận diện Barcode từ Camera Stream qua BarcodeDetector API
+  useEffect(() => {
+    if (!isCameraActive || typeof window === "undefined") return;
+
+    let active = true;
+    let animId: number;
+    let detector: any = null;
+
+    if ("BarcodeDetector" in window) {
+      try {
+        detector = new (window as any).BarcodeDetector({
+          formats: ["qr_code", "ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e"],
+        });
+      } catch (err) {
+        console.warn("Không khởi tạo được BarcodeDetector:", err);
+      }
+    }
+
+    const scanFrame = async () => {
+      if (!active) return;
+
+      const video = videoRef.current;
+      if (
+        video &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        detector &&
+        !isPausedRef.current
+      ) {
+        const now = Date.now();
+        // Giới hạn tần suất quét: cách nhau tối thiểu 1.5s để tránh quét dồn dập 1 mặt hàng
+        if (now - lastScanTimeRef.current >= 1500) {
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes && barcodes.length > 0 && active) {
+              const rawValue = barcodes[0].rawValue;
+              if (rawValue && rawValue.trim()) {
+                lastScanTimeRef.current = now;
+                processBarcode(rawValue.trim());
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      animId = requestAnimationFrame(scanFrame);
+    };
+
+    animId = requestAnimationFrame(scanFrame);
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(animId);
+    };
+  }, [isCameraActive]);
 
   // Tiện ích hỗ trợ nghiệm thu nhanh toàn bộ đơn hàng (rất hữu ích khi demo)
   const handleScanAllFull = () => {
@@ -446,41 +583,121 @@ export function GoodsReceiptInspectionPage() {
         <div className="lg:col-span-5 bg-slate-950 text-white rounded-3xl p-5 border border-slate-800 shadow-2xl flex flex-col justify-between space-y-4">
           {/* Header trong hộp scanner */}
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-2 bg-sky-950/80 text-sky-400 border border-sky-800/80 px-3 py-1 rounded-full text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-              Camera Barcode Scanner Live
+            <span className={`inline-flex items-center gap-2 border px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              isCameraActive
+                ? "bg-emerald-950/80 text-emerald-400 border-emerald-800/80"
+                : "bg-sky-950/80 text-sky-400 border-sky-800/80"
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${isCameraActive ? "bg-emerald-400 animate-ping" : "bg-sky-400 animate-pulse"}`} />
+              {isCameraActive ? "Camera Barcode Live (Đang Chạy)" : "Camera Barcode Scanner"}
             </span>
-            <span className="text-[11px] font-mono text-slate-400 font-semibold tracking-wider">
-              FPS: 30 | 1080p
-            </span>
+
+            {/* Nút Bật / Tắt Camera trực tiếp trên Laptop */}
+            <button
+              type="button"
+              onClick={isCameraActive ? stopCamera : startCamera}
+              disabled={isCameraLoading}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                isCameraActive
+                  ? "bg-rose-900/80 hover:bg-rose-800 text-rose-200 border border-rose-700/80"
+                  : "bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-600/30"
+              }`}
+              title={isCameraActive ? "Bấm để tắt camera" : "Bấm để bật webcam laptop quét mã vạch"}
+            >
+              {isCameraLoading ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  <span>Đang mở...</span>
+                </>
+              ) : isCameraActive ? (
+                <>
+                  <CameraOff size={13} />
+                  <span>Tắt Camera</span>
+                </>
+              ) : (
+                <>
+                  <Camera size={13} />
+                  <span>Bật Camera</span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* Vùng quét Camera Viewport */}
           <div className="relative w-full aspect-4/3 bg-slate-900/90 rounded-2xl border border-slate-800/90 flex flex-col items-center justify-center overflow-hidden p-6 text-center">
+            {/* Live Video Stream từ Webcam / Camera Laptop */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                isCameraActive ? "opacity-100 z-0" : "opacity-0 pointer-events-none -z-10"
+              }`}
+            />
+
+            {/* Lớp phủ mờ bảo vệ text khi camera đang chạy */}
+            {isCameraActive && (
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none z-10" />
+            )}
+
             {/* Lưới tọa độ ngắm laser */}
-            <div className="absolute inset-4 border border-dashed border-cyan-500/30 rounded-xl pointer-events-none" />
+            <div className="absolute inset-4 border border-dashed border-cyan-500/40 rounded-xl pointer-events-none z-10" />
 
             {/* 4 góc khung ngắm nhắm Barcode */}
-            <div className="absolute top-8 left-8 w-6 h-6 border-t-2 border-l-2 border-cyan-400" />
-            <div className="absolute top-8 right-8 w-6 h-6 border-t-2 border-r-2 border-cyan-400" />
-            <div className="absolute bottom-8 left-8 w-6 h-6 border-b-2 border-l-2 border-cyan-400" />
-            <div className="absolute bottom-8 right-8 w-6 h-6 border-b-2 border-r-2 border-cyan-400" />
+            <div className="absolute top-8 left-8 w-6 h-6 border-t-2 border-l-2 border-cyan-400 z-10" />
+            <div className="absolute top-8 right-8 w-6 h-6 border-t-2 border-r-2 border-cyan-400 z-10" />
+            <div className="absolute bottom-8 left-8 w-6 h-6 border-b-2 border-l-2 border-cyan-400 z-10" />
+            <div className="absolute bottom-8 right-8 w-6 h-6 border-b-2 border-r-2 border-cyan-400 z-10" />
 
             {/* Tia laser quét chạy lên xuống */}
             {!isPaused && (
-              <div className="absolute inset-x-6 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] animate-pulse duration-1000 top-1/2 -translate-y-1/2" />
+              <div className="absolute inset-x-6 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] animate-pulse duration-1000 top-1/2 -translate-y-1/2 z-10" />
             )}
 
-            <Barcode size={48} className="text-cyan-500/40 mb-3" />
-            <p className="text-xs font-semibold text-slate-300">
-              {isPaused ? "Máy quét đang tạm dừng" : "Đặt mã vạch kiện hàng vào khung quét"}
-            </p>
-            <p className="text-[10px] text-slate-500 mt-1">
-              Hỗ trợ chuẩn GS1-128, QR Code Dược Quốc Gia, EAN-13
-            </p>
+            {/* Nội dung khi CHƯA BẬT camera */}
+            {!isCameraActive ? (
+              <div className="relative z-10 flex flex-col items-center">
+                <Barcode size={48} className="text-cyan-500/40 mb-3" />
+                <p className="text-xs font-semibold text-slate-300">
+                  {isPaused ? "Máy quét đang tạm dừng" : "Đặt mã vạch kiện hàng vào khung quét"}
+                </p>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Hỗ trợ chuẩn GS1-128, QR Code Dược Quốc Gia, EAN-13
+                </p>
 
-            {/* Input giả lập hoặc tiếp nhận tín hiệu từ máy quét phần cứng */}
-            <form onSubmit={handleBarcodeSubmit} className="mt-4 w-full max-w-xs relative">
+                {cameraError ? (
+                  <div className="mt-3 px-3 py-1.5 bg-rose-950/90 border border-rose-800 text-rose-300 text-[11px] rounded-lg max-w-xs font-medium">
+                    {cameraError}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    disabled={isCameraLoading}
+                    className="mt-3 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-600/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Camera size={14} />
+                    <span>Bật Camera Quét Trực Tiếp</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* Huy hiệu khi ĐANG BẬT camera */
+              <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
+                <span className="bg-slate-950/80 backdrop-blur-xs text-cyan-300 text-[11px] px-2.5 py-1 rounded-lg border border-slate-700/80 font-mono flex items-center gap-1.5 shadow-sm">
+                  <Scan size={12} className="text-cyan-400 animate-spin" />
+                  Đang nhận diện Barcode...
+                </span>
+                <span className="bg-emerald-950/90 text-emerald-400 text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-800 font-bold flex items-center gap-1 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  LIVE 1080P
+                </span>
+              </div>
+            )}
+
+            {/* Input tiếp nhận tín hiệu từ máy quét phần cứng hoặc nhập thủ công */}
+            <form onSubmit={handleBarcodeSubmit} className="mt-4 w-full max-w-xs relative z-20">
               <input
                 ref={inputRef}
                 type="text"
@@ -488,7 +705,7 @@ export function GoodsReceiptInspectionPage() {
                 value={inputBarcode}
                 onChange={(e) => setInputBarcode(e.target.value)}
                 disabled={isPaused}
-                className="w-full bg-slate-800/80 border border-slate-700 text-cyan-300 text-xs px-3 py-1.5 rounded-lg outline-none focus:border-cyan-400 text-center font-mono placeholder:text-slate-500"
+                className="w-full bg-slate-800/90 border border-slate-700 text-cyan-300 text-xs px-3 py-1.5 rounded-lg outline-none focus:border-cyan-400 text-center font-mono placeholder:text-slate-500 shadow-md backdrop-blur-xs"
               />
             </form>
           </div>
