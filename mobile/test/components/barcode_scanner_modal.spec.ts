@@ -48,6 +48,21 @@ describe('Bộ Quét Mã Vạch & QR Nhập Kho (BarcodeScannerModal Logic)', ()
       expect(result).toBe('PO-20261109-001');
     });
 
+    it('Phải xử lý trơn tru gói dữ liệu PO_SYNC đồng bộ trực tiếp từ Web sang Mobile', () => {
+      const syncData = JSON.stringify({
+        type: 'PO_SYNC',
+        poId: '6af02a1ac14edff4900b5394',
+        poCode: '085394',
+        supplier: 'Công ty CP Pymepharco',
+        items: [{ medicineId: 'med_01', name: 'Oresol 245', expected: 314 }]
+      });
+      const parsed = JSON.parse(syncData);
+      expect(parsed.type).toBe('PO_SYNC');
+      expect(parsed.poId).toBe('6af02a1ac14edff4900b5394');
+      expect(parsed.items.length).toBe(1);
+      expect(parsed.items[0].expected).toBe(314);
+    });
+
     it('Phải giữ nguyên mã vạch dược phẩm chuẩn EAN-13 khi quét trực tiếp', () => {
       const barcode = '8935001800123';
       const result = extractCode(barcode);

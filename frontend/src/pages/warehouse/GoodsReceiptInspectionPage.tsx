@@ -91,6 +91,13 @@ export function GoodsReceiptInspectionPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const zxingReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
+  // Trạng thái bộ nhận diện máy quét (Scanner Engine HUD) & Heartbeat
+  const [scannerEngineStatus, setScannerEngineStatus] = useState<string>("Đang nạp...");
+  const [scanFrameCount, setScanFrameCount] = useState<number>(0);
+  const [lastDetectedRaw, setLastDetectedRaw] = useState<string>("");
+  const [syncQrTab, setSyncQrTab] = useState<"FULL_DATA" | "RAW_ID">("FULL_DATA");
+  const frameCounterRef = useRef<number>(0);
+
   // Khởi tạo ZXing MultiFormat Reader một lần duy nhất
   useEffect(() => {
     if (!zxingReaderRef.current) {
@@ -360,6 +367,24 @@ export function GoodsReceiptInspectionPage() {
     };
   }, []);
 
+  // Gói dữ liệu đồng bộ đầy đủ dành cho Mobile (Cross-network instant sync)
+  const fullSyncPayload = useMemo(() => {
+    return JSON.stringify({
+      type: "PO_SYNC",
+      poId: poData?._id || poId || "",
+      poCode: poData?.poCode || (poData?._id || poId || "").slice(-6).toUpperCase(),
+      supplier: supplierName || "Nhà Cung Cấp",
+      items: items.map((it) => ({
+        medicineId: it.medicineId,
+        name: it.medicineName,
+        expected: it.remainingQty > 0 ? it.remainingQty : it.orderedQty,
+        unit: it.unit || "Hộp",
+        barcode: it.barcode || "",
+        sku: it.sku || "",
+      })),
+    });
+  }, [poData, poId, supplierName, items]);
+
   // Vòng lặp nhận diện Barcode & QR Code: Kết hợp BarcodeDetector Native + jsQR + ZXing Fallback (100% trình duyệt)
   useEffect(() => {
     if (!isCameraActive || typeof window === "undefined") return;
@@ -378,6 +403,15 @@ export function GoodsReceiptInspectionPage() {
       }
     }
 
+    // Hiển thị và ghi log các engines nhận diện sẵn sàng
+    const activeEngines: string[] = [];
+    if (detector) activeEngines.push("BarcodeDetector Native");
+    activeEngines.push("jsQR 2D");
+    activeEngines.push("ZXing MultiFormat");
+    const engineText = activeEngines.join(" + ");
+    setScannerEngineStatus(engineText);
+    console.log("📷 [Webcam Scanner] Đã kích hoạt vòng lặp nhận diện với bộ Engines:", engineText);
+
     const scanFrame = async () => {
       if (!active) return;
 
@@ -387,10 +421,20 @@ export function GoodsReceiptInspectionPage() {
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
         !isPausedRef.current
       ) {
+        // Tăng đếm frame và cập nhật HUD
+        frameCounterRef.current++;
+        if (frameCounterRef.current % 15 === 0) {
+          setScanFrameCount(frameCounterRef.current);
+        }
+        if (frameCounterRef.current % 180 === 0) {
+          console.log(`📷 [Webcam Scanner] Heartbeat: Đã xử lý ${frameCounterRef.current} frames... Sẵn sàng quét mã.`);
+        }
+
         const now = Date.now();
         // Giới hạn tần suất quét: cách nhau tối thiểu 1.2s để tránh quét dồn dập 1 mặt hàng
         if (now - lastScanTimeRef.current >= 1200) {
           let scannedCode = "";
+          let detectedEngine = "";
 
           // Cách 1: Thử dùng Native BarcodeDetector nếu trình duyệt hỗ trợ
           if (detector) {
@@ -400,6 +444,7 @@ export function GoodsReceiptInspectionPage() {
                 const rawValue = barcodes[0].rawValue;
                 if (rawValue && rawValue.trim()) {
                   scannedCode = rawValue.trim();
+                  detectedEngine = "BarcodeDetector Native";
                 }
               }
             } catch (_) {}
@@ -432,6 +477,7 @@ export function GoodsReceiptInspectionPage() {
                   });
                   if (qrCode && qrCode.data && qrCode.data.trim()) {
                     scannedCode = qrCode.data.trim();
+                    detectedEngine = "jsQR 2D";
                   }
 
                   // 2.2 Nếu không phải QR Code, thử giải mã mã vạch 1D qua ZXing
@@ -440,6 +486,7 @@ export function GoodsReceiptInspectionPage() {
                       const zxingResult = zxingReaderRef.current.decodeFromCanvas(canvas);
                       if (zxingResult && zxingResult.getText()) {
                         scannedCode = zxingResult.getText().trim();
+                        detectedEngine = "ZXing MultiFormat";
                       }
                     } catch (_) {}
                   }
@@ -449,6 +496,8 @@ export function GoodsReceiptInspectionPage() {
           }
 
           if (scannedCode && active) {
+            console.log(`🎯 [Webcam Scanner] Đã đọc được mã: "${scannedCode}" bằng Engine: ${detectedEngine}`);
+            setLastDetectedRaw(scannedCode);
             lastScanTimeRef.current = now;
             processBarcode(scannedCode);
           }
@@ -808,6 +857,26 @@ export function GoodsReceiptInspectionPage() {
                 className="w-full bg-slate-800/90 border border-slate-700 text-cyan-300 text-xs px-3 py-1.5 rounded-lg outline-none focus:border-cyan-400 text-center font-mono placeholder:text-slate-500 shadow-md backdrop-blur-xs"
               />
             </form>
+
+            {/* Thanh hiển thị trạng thái bộ quét thời gian thực (Scanner Engine Live HUD) */}
+            {isCameraActive && (
+              <div className="absolute bottom-2.5 inset-x-3 z-20 flex items-center justify-between bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/80 text-[10px] font-mono text-slate-300 shadow-md pointer-events-none">
+                <div className="flex items-center gap-2 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="text-cyan-300 font-bold truncate">Engine: {scannerEngineStatus}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-slate-400">FPS frames: {scanFrameCount}</span>
+                  {lastDetectedRaw ? (
+                    <span className="text-emerald-400 font-bold bg-emerald-950/90 px-1.5 py-0.5 rounded border border-emerald-700/60 max-w-[120px] truncate">
+                      Mã: {lastDetectedRaw}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 italic">Đang quét...</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Khung thông tin mặt hàng vừa quét thành công */}
@@ -1090,12 +1159,38 @@ export function GoodsReceiptInspectionPage() {
                 Mở ứng dụng <strong>ABC Pharmacy Mobile</strong> (Tab <strong>Phiếu Nhập Kho</strong> hoặc nút <strong>Quét Đơn PO</strong>) để quét mã QR bên dưới:
               </p>
 
+              {/* Nút chuyển đổi định dạng mã QR */}
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setSyncQrTab("FULL_DATA")}
+                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    syncQrTab === "FULL_DATA"
+                      ? "bg-white text-indigo-900 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  ⚡ Đồng Bộ Ngay (Khuyên dùng)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSyncQrTab("RAW_ID")}
+                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    syncQrTab === "RAW_ID"
+                      ? "bg-white text-indigo-900 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  🏷️ Mã ID Đơn Hàng
+                </button>
+              </div>
+
               <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border-2 border-dashed border-indigo-200 rounded-2xl">
                 <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-100">
                   <QRCodeSVG
-                    value={poData?._id || poId || "PO"}
+                    value={syncQrTab === "FULL_DATA" ? fullSyncPayload : (poData?._id || poId || "PO")}
                     size={200}
-                    level="H"
+                    level={syncQrTab === "FULL_DATA" ? "L" : "H"}
                     includeMargin={true}
                   />
                 </div>
@@ -1103,7 +1198,7 @@ export function GoodsReceiptInspectionPage() {
                   MÃ ĐƠN: #{poData?.poCode || (poData?._id || poId || '').slice(-6).toUpperCase()}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1 font-mono">
-                  ID: {poData?._id || poId}
+                  {syncQrTab === "FULL_DATA" ? "Chế độ: Gói dữ liệu đồng bộ tức thì" : `ID: ${poData?._id || poId}`}
                 </span>
               </div>
 
