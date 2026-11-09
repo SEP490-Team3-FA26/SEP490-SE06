@@ -1970,7 +1970,7 @@ export class ApiService {
     ];
   }
 
-  // Lấy chi tiết đơn hàng PO theo ID trực tiếp từ API Gateway (hỗ trợ truy vấn chéo Cloud nếu máy quét đang kết nối LAN)
+  // Lấy chi tiết PO từ API Gateway của môi trường đang cấu hình.
   public static async getPurchaseOrderById(id: string): Promise<any> {
     try {
       let token = this.currentToken;
@@ -1989,18 +1989,8 @@ export class ApiService {
 
       const cleanId = encodeURIComponent(String(id).trim());
 
-      // 1. Thử gọi qua máy chủ API cấu hình hiện tại (Local / LAN / Cloud)
-      let res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers }).catch(() => null);
-
-      // 2. Nếu không tìm thấy hoặc lỗi và baseUrl khác máy chủ Cloud Production, tự động truy vấn sang Cloud Server
-      if ((!res || !res.ok) && this.baseUrl !== 'https://abcpharmacy.store') {
-        const cloudRes = await fetch(`https://abcpharmacy.store/api/purchase-orders/${cleanId}`, { headers }).catch(() => null);
-        if (cloudRes && cloudRes.ok) {
-          res = cloudRes;
-        }
-      }
-
-      if (res && res.ok) {
+      const res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers });
+      if (res.ok) {
         const decoded = await res.json();
         return decoded?.data || decoded;
       }

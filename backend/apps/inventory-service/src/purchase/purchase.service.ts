@@ -1505,11 +1505,12 @@ export class PurchaseService {
   async getPurchaseOrderById(id: string) {
     if (!id) return null;
     const cleanId = String(id).replace('#', '').trim();
+    if (!cleanId) return null;
 
     // 1. Tìm theo ObjectId hợp lệ
     if (isValidObjectId(cleanId)) {
       try {
-        const po = await this.poModel.findById(cleanId).exec();
+        const po = await this.poModel.findById(cleanId).lean().exec();
         if (po) return po;
       } catch (_) {}
     }
@@ -1522,21 +1523,24 @@ export class PurchaseService {
           { poCode: `PO-${cleanId}` },
           { poCode: `#${cleanId}` },
         ]
-      }).exec();
+      }).lean().exec();
       if (poByCode) return poByCode;
     } catch (_) {}
 
-    // 3. Tìm theo 6 ký tự đuôi của _id (short code trên QR)
+    // 3. Tra cứu hậu tố QR ngay trên MongoDB, kể cả với PO cũ.
     if (cleanId.length >= 6) {
-      try {
-        const allPos = await this.poModel.find().sort({ createdAt: -1 }).limit(100).exec();
-        const matched = allPos.find(p => {
-          const strId = p._id.toString();
-          const strCode = p.poCode || '';
-          return strId.toLowerCase().endsWith(cleanId.toLowerCase()) || strCode.toLowerCase().endsWith(cleanId.toLowerCase());
-        });
-        if (matched) return matched;
-      } catch (_) {}
+      const escapedId = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const suffix = escapedId + '$';
+      return this.poModel.findOne({
+        $or: [
+          { poCode: { $regex: suffix, $options: 'i' } },
+          {
+            $expr: {
+              $regexMatch: { input: { $toString: '$_id' }, regex: suffix, options: 'i' },
+            },
+          },
+        ],
+      }).sort({ createdAt: -1, _id: -1 }).lean().exec();
     }
 
     return null;

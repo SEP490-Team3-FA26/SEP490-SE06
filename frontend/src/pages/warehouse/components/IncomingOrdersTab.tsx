@@ -30,7 +30,6 @@ import {
   Upload,
   QrCode,
   Smartphone,
-  Sparkles,
   Image as ImageIcon,
   Copy,
   CheckCheck,
@@ -43,7 +42,7 @@ import { purchaseOrderService } from "../../../services/purchase/purchaseOrder.s
 import { goodsReceiptService } from "../../../services/purchase/goodsReceipt.service";
 import { BinLocationPicker } from "./BinLocationPicker";
 import { inventoryMapService } from "../../../services/inventory/inventoryMap.service";
-import { RoboflowVisionService } from "../../../services/purchase/roboflowVision.service";
+import { RoboflowVisionService, type RoboflowCountResult } from "../../../services/purchase/roboflowVision.service";
 
 interface ShipmentLogisticsInfo {
   carrierName: string;
@@ -148,78 +147,28 @@ export function IncomingOrdersTab({
   const [inspectionData, setInspectionData] = useState<Record<string, { batchNo: string, expDate: string, actualQty: number | string, location: { zone: string, rack: string, shelf: number, bin: number, slotType?: 'MAIN' | 'RESERVE' } }>>({});
   const [inspectionErrors, setInspectionErrors] = useState<Record<string, { batchNo?: string; expDate?: string; actualQty?: string; location?: string }>>({});
   const [modalError, setModalError] = useState("");
-  const [aiScanning, setAiScanning] = useState<string | null>(null);
   // Trạng thái đang tra cứu vị trí kho tự động khi mở modal
   const [isFillLocLoading, setIsFillLocLoading] = useState(false);
 
-  // State cho Modal Phân Tích Hình Ảnh (AI Computer Vision & OCR Counting)
+  // Trạng thái của cửa sổ phân tích ảnh kiểm đếm.
   const [imageInspectionItem, setImageInspectionItem] = useState<any | null>(null);
   const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null);
   const [aiVisionProcessing, setAiVisionProcessing] = useState(false);
-  const [aiVisionResult, setAiVisionResult] = useState<{
-    detectedCount: number;
-    confidence: number;
-    batchNo: string;
-    expDate: string;
-    ocrText: string;
-    boxes: { top: number; left: number; width: number; height: number; label: string }[];
-    annotatedImage?: string;
-  } | null>(null);
+  const [aiVisionResult, setAiVisionResult] = useState<RoboflowCountResult | null>(null);
 
   // State cho Modal Quét QR Chuyển Sang Mobile
   const [qrModalPo, setQrModalPo] = useState<any | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Mẫu ảnh thuốc demo có sẵn để thủ kho test nhanh
-  const SAMPLE_INSPECTION_IMAGES = [
-    {
-      id: "panadol",
-      title: "Kiện Thùng Panadol Extra (100 Hộp)",
-      url: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ad?w=600&q=80",
-      batchNo: "LOT-PANA-202409-99",
-      expDate: "2028-12-31",
-      boxesCount: 6
-    },
-    {
-      id: "augmentin",
-      title: "Khay Augmentin 625mg Kháng Sinh (50 Hộp)",
-      url: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=600&q=80",
-      batchNo: "LOT-AUG-202410-02",
-      expDate: "2027-08-15",
-      boxesCount: 4
-    },
-    {
-      id: "vitamin",
-      title: "Hộp Berocca / Vitamin C 500mg (200 Hộp)",
-      url: "https://images.unsplash.com/photo-1576602976047-174e57a47881?w=600&q=80",
-      batchNo: "LOT-VITC-202411-45",
-      expDate: "2029-01-20",
-      boxesCount: 5
-    }
-  ];
-
-  // Xử lý phân tích AI hình ảnh thực tế qua mô hình Roboflow Computer Vision (Zero Mock Data)
-  const triggerAiVisionAnalysis = async (imageUrl: string, item: any, presetData?: { batchNo?: string, expDate?: string }) => {
-    setUploadedImagePreview(imageUrl);
+  // Gửi ảnh kiện hàng qua Gateway để AI kiểm đếm số hộp.
+  const triggerAiVisionAnalysis = async (file: File, preview: string) => {
+    setUploadedImagePreview(preview);
     setAiVisionProcessing(true);
     setAiVisionResult(null);
 
     try {
-      // 1. Gửi ảnh trực tiếp tới mô hình Roboflow Serverless Workflow
-      const aiRes = await RoboflowVisionService.analyzeImage(imageUrl);
-
-      const generatedBatch = presetData?.batchNo || item.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
-      const generatedExp = presetData?.expDate || item.expDate || "2028-12-31";
-
-      setAiVisionResult({
-        detectedCount: aiRes.detectedCount,
-        confidence: aiRes.confidence,
-        batchNo: generatedBatch,
-        expDate: generatedExp,
-        ocrText: `[ROBOFLOW_AI] PHÁT HIỆN: ${aiRes.detectedCount} HỘP THUỐC | ĐỘ TIN CẬY: ${aiRes.confidence}% | SỐ LÔ: ${generatedBatch}`,
-        boxes: aiRes.boxes,
-        annotatedImage: aiRes.annotatedImage,
-      });
+      const aiRes = await RoboflowVisionService.analyzeImage(file);
+      setAiVisionResult(aiRes);
 
       // Nếu Roboflow có ảnh annotated (đã vẽ mask & boxes), hiển thị preview trực quan
       if (aiRes.annotatedImage) {
@@ -228,7 +177,7 @@ export function IncomingOrdersTab({
     } catch (err: any) {
       console.error("Lỗi khi phân tích AI kiểm đếm:", err);
       // Khi API ngoại lệ hoặc mất kết nối: Tuyệt đối không mock hay gán số lượng của PO
-      alert(`Không thể kết nối máy chủ AI Roboflow Vision: ${err?.message || 'Lỗi mạng hoặc API'}.\nVui lòng thử lại với ảnh rõ nét hơn hoặc nhập số lượng thủ công.`);
+      alert(err?.response?.data?.message || 'Không thể phân tích ảnh. Vui lòng thử lại hoặc nhập số lượng thủ công.');
     } finally {
       setAiVisionProcessing(false);
     }
@@ -243,8 +192,8 @@ export function IncomingOrdersTab({
       ...prev,
       [mId]: {
         ...prev[mId],
-        batchNo: aiVisionResult.batchNo,
-        expDate: aiVisionResult.expDate,
+        batchNo: prev[mId]?.batchNo || "",
+        expDate: prev[mId]?.expDate || "",
         actualQty: aiVisionResult.detectedCount,
         location: prev[mId]?.location || { zone: 'A', rack: 'A1', shelf: 1, bin: 1, slotType: 'MAIN' as const }
       }
@@ -252,7 +201,7 @@ export function IncomingOrdersTab({
     
     setInspectionErrors(prev => ({
       ...prev,
-      [mId]: { ...prev[mId], actualQty: undefined, batchNo: undefined, expDate: undefined, location: undefined }
+      [mId]: { ...prev[mId], actualQty: undefined }
     }));
     
     setModalError("");
@@ -262,7 +211,7 @@ export function IncomingOrdersTab({
 
     onMsg({
       type: "success",
-      text: `✅ Đã tự động cập nhật số lượng (${aiVisionResult.detectedCount} hộp), Số lô & Hạn dùng từ phân tích AI hình ảnh!`
+      text: `✅ Đã tự động cập nhật số lượng (${aiVisionResult.detectedCount} hộp) từ ảnh. Vui lòng đối chiếu số lô và hạn dùng trên nhãn.`
     });
   };
 
@@ -1163,8 +1112,6 @@ export function IncomingOrdersTab({
                 <div className="space-y-3">
                   {itemsToDisplay?.map((it: any) => {
                     const mId = it.medicineId || it.id;
-                    const isScanning = aiScanning === mId;
-                    const remainingQuantity = Number(it.quantity) - Number(it.receivedQuantity || 0);
                     const displayedActualQty = isLockedGrn ? it.actualQty : inspectionData[mId]?.actualQty;
                     const itemErrors = inspectionErrors[mId] || {};
 
@@ -1175,11 +1122,7 @@ export function IncomingOrdersTab({
                             <span className="font-bold text-slate-900 text-sm">{it.medicineName || mId}</span>
                             <span className="text-xs text-slate-500 block">Số lượng đặt theo PO: <span className="font-bold text-indigo-700">{Number(it.quantity)}</span></span>
                           </div>
-                          {!isLockedGrn && (isScanning ? (
-                            <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold flex items-center gap-1 animate-pulse"><Scan size={12} /> Đang quét...</span>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              {/* Nút Tải Ảnh / Chụp Ảnh Đếm AI */}
+                          {!isLockedGrn && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1188,39 +1131,11 @@ export function IncomingOrdersTab({
                                   setAiVisionResult(null);
                                 }}
                                 className="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-bold border border-purple-200 flex items-center gap-1 transition-colors shadow-sm"
-                                title="Tải ảnh chụp kiện hàng/thùng thuốc để AI đếm số hộp & đọc OCR số lô"
+                                title="Tải ảnh chụp kiện hàng để AI đếm số hộp"
                               >
                                 <Upload size={12} /> Tải Ảnh Đếm AI
                               </button>
-
-                              {/* Nút Quét Nhanh */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAiScanning(mId);
-                                  setTimeout(() => {
-                                    setInspectionData(prev => ({
-                                      ...prev,
-                                      [mId]: { 
-                                        batchNo: `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
-                                        expDate: "2028-12-31",
-                                        actualQty: remainingQuantity 
-                                      }
-                                    }));
-                                    setInspectionErrors(prev => ({
-                                      ...prev,
-                                      [mId]: { ...prev[mId], actualQty: undefined, batchNo: undefined, expDate: undefined },
-                                    }));
-                                    setModalError("");
-                                    setAiScanning(null);
-                                  }, 1000);
-                                }}
-                                className="px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold border border-indigo-200 flex items-center gap-1 transition-colors"
-                              >
-                                <Sparkles size={12} /> Quét Nhanh
-                              </button>
-                            </div>
-                          ))}
+                          )}
                         </div>
 
                         <div className="grid grid-cols-3 gap-3">
@@ -1347,11 +1262,11 @@ export function IncomingOrdersTab({
         )}
       </AnimatePresence>
 
-      {/* ─── MODAL PHÂN TÍCH HÌNH ẢNH KIỆN HÀNG BẰNG AI COMPUTER VISION & OCR ─── */}
+      {/* Cửa sổ phân tích ảnh kiện hàng bằng AI */}
       <AnimatePresence>
         {imageInspectionItem && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-md" onClick={() => setImageInspectionItem(null)} />
+            <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-md" onClick={aiVisionProcessing ? undefined : () => setImageInspectionItem(null)} />
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col border border-slate-200">
               
@@ -1365,7 +1280,7 @@ export function IncomingOrdersTab({
                     <h3 className="font-black text-base flex items-center gap-2">
                       Quét AI Hình Ảnh & Đếm Hộp Tự Động
                       <span className="text-[10px] bg-purple-400/20 text-purple-200 border border-purple-300/30 px-2 py-0.5 rounded-full font-mono">
-                        Computer Vision + OCR
+                        Computer Vision
                       </span>
                     </h3>
                     <p className="text-xs text-purple-200 mt-0.5">
@@ -1373,50 +1288,32 @@ export function IncomingOrdersTab({
                     </p>
                   </div>
                 </div>
-                <button onClick={() => setImageInspectionItem(null)} className="p-2 text-purple-200 hover:text-white rounded-full hover:bg-white/10">
+                <button disabled={aiVisionProcessing} onClick={() => setImageInspectionItem(null)} className="p-2 text-purple-200 hover:text-white rounded-full hover:bg-white/10">
                   <X size={18} />
                 </button>
               </div>
 
               {/* Body */}
               <div className="p-6 space-y-6 overflow-y-auto flex-1 font-sans text-sm">
-                {/* Upload or Choose sample image */}
+                {/* Tải ảnh kiện hàng */}
                 <div>
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">
-                    1. Tải ảnh chụp kiện hàng hoặc chọn ảnh mẫu thực nghiệm
+                    1. Tải ảnh chụp kiện hàng
                   </label>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                    {SAMPLE_INSPECTION_IMAGES.map((sample) => (
-                      <button
-                        key={sample.id}
-                        type="button"
-                        onClick={() => triggerAiVisionAnalysis(sample.url, imageInspectionItem, { batchNo: sample.batchNo, expDate: sample.expDate })}
-                        className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col gap-2 ${
-                          uploadedImagePreview === sample.url ? "border-purple-600 bg-purple-50 ring-2 ring-purple-200" : "border-slate-200 bg-slate-50 hover:bg-white"
-                        }`}
-                      >
-                        <img src={sample.url} alt={sample.title} className="w-full h-24 object-cover rounded-xl" />
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 line-clamp-1">{sample.title}</p>
-                          <span className="text-[10px] text-purple-600 font-semibold block mt-0.5">Số lô: {sample.batchNo}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
 
                   {/* File Upload Input */}
                   <div className="relative border-2 border-dashed border-slate-300 hover:border-purple-400 bg-slate-50/50 rounded-2xl p-4 text-center cursor-pointer transition-colors">
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={aiVisionProcessing}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
                           const reader = new FileReader();
                           reader.onload = (event) => {
                             if (event.target?.result) {
-                              triggerAiVisionAnalysis(event.target.result as string, imageInspectionItem);
+                              triggerAiVisionAnalysis(file, event.target.result as string);
                             }
                           };
                           reader.readAsDataURL(file);
@@ -1499,7 +1396,7 @@ export function IncomingOrdersTab({
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 text-xs">
+                        <div className="text-xs">
                           <div className="bg-white p-3 rounded-xl border border-sky-100">
                             <span className="text-slate-400 block text-[10px] font-bold uppercase">Số lượng đếm được</span>
                             <span className="text-lg font-black text-sky-700">{aiVisionResult.detectedCount} Hộp</span>
@@ -1513,16 +1410,7 @@ export function IncomingOrdersTab({
                               })()}
                             </span>
                           </div>
-                          <div className="bg-white p-3 rounded-xl border border-sky-100">
-                            <span className="text-slate-400 block text-[10px] font-bold uppercase">Số lô OCR bóc tách</span>
-                            <span className="text-sm font-mono font-black text-slate-900">{aiVisionResult.batchNo}</span>
-                            <span className="text-[10px] text-sky-600 font-bold block mt-0.5">Nhãn hợp chuẩn</span>
-                          </div>
-                          <div className="bg-white p-3 rounded-xl border border-sky-100">
-                            <span className="text-slate-400 block text-[10px] font-bold uppercase">Hạn dùng OCR</span>
-                            <span className="text-sm font-bold text-slate-900">{new Date(aiVisionResult.expDate).toLocaleDateString("vi-VN")}</span>
-                            <span className="text-[10px] text-sky-600 font-bold block mt-0.5">Đạt chuẩn GSP (&gt;24 tháng)</span>
-                          </div>
+                          <p className="mt-2 text-slate-600">Nhập số lô và hạn dùng theo nhãn sản phẩm.</p>
                         </div>
                       </div>
                     )}
@@ -1534,7 +1422,7 @@ export function IncomingOrdersTab({
               <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
                 <button
                   type="button"
-                  onClick={() => setImageInspectionItem(null)}
+                  disabled={aiVisionProcessing} onClick={() => setImageInspectionItem(null)}
                   className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl text-xs font-bold transition-colors"
                 >
                   Hủy Bỏ

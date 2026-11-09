@@ -28,7 +28,8 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import jsQR from "jsqr";
-import { BrowserMultiFormatReader } from "@zxing/library";
+import { BinaryBitmap, HybridBinarizer, MultiFormatReader, RGBLuminanceSource } from "@zxing/library";
+import { medicineService } from "../../services/inventory/medicine.service";
 import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
 import { supplierService } from "../../services/purchase/supplier.service";
@@ -90,7 +91,6 @@ export function GoodsReceiptInspectionPage() {
   const lastAttemptTimeRef = useRef<number>(0);
   const lastSuccessScanRef = useRef<number>(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const zxingReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
   // Trạng thái bộ nhận diện máy quét (Scanner Engine HUD) & Heartbeat
   const [scannerEngineStatus, setScannerEngineStatus] = useState<string>("Đang nạp...");
@@ -98,13 +98,6 @@ export function GoodsReceiptInspectionPage() {
   const [lastDetectedRaw, setLastDetectedRaw] = useState<string>("");
   const [syncQrTab, setSyncQrTab] = useState<"FULL_DATA" | "RAW_ID">("FULL_DATA");
   const frameCounterRef = useRef<number>(0);
-
-  // Khởi tạo ZXing MultiFormat Reader một lần duy nhất
-  useEffect(() => {
-    if (!zxingReaderRef.current) {
-      zxingReaderRef.current = new BrowserMultiFormatReader();
-    }
-  }, []);
 
   // Phát âm thanh Beep phản hồi khi nhận diện mã thành công qua Web Audio API
   const playBeep = () => {
@@ -186,23 +179,27 @@ export function GoodsReceiptInspectionPage() {
           }
 
           // Chuyển đổi danh mục thuốc trong PO sang InspectionItem với số lượng khởi tạo = 0 thực tế
-          const mappedItems: InspectionItem[] = (currentPo.items || []).map((it: any, idx: number) => {
+          const mappedItems: InspectionItem[] = await Promise.all((currentPo.items || []).map(async (it: any, idx: number) => {
+            // PO cũ không lưu mã vạch. Lấy mã đối chiếu từ danh mục thuốc theo đúng ID.
+            const medicine = !it.barcode && it.medicineId
+              ? await medicineService.getMedicineById(it.medicineId).catch(() => undefined)
+              : undefined;
             const totalOrdered = Number(it.quantity || it.orderedQuantity || 0);
             const received = Number(it.receivedQuantity || 0);
             const remaining = Math.max(0, totalOrdered - received);
             // Khởi tạo số lượng đã quét bằng 0 thực tế (hoặc kết quả kiểm đếm lưu sẵn)
             const initialScanned = Number(it.actualQuantity || 0);
             
-            // Giữ nguyên chuỗi ngày ISO, không format thành chuỗi hiển thị sai lệch khi gửi lên backend
-            let isoExp = "";
+            // Chuẩn hóa ngày để hiển thị trong trường nhập hạn dùng.
+            let expiryDate = "";
             if (it.expiryDate || it.expDate) {
               const d = new Date(it.expiryDate || it.expDate);
-              isoExp = !isNaN(d.getTime()) ? d.toISOString() : "";
+              expiryDate = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "";
             }
 
             return {
               medicineId: it.medicineId || `med-${idx}`,
-              sku: it.sku || `SKU-${idx + 100}`,
+              sku: it.sku || medicine?.sku || "",
               medicineName: it.medicineName || `Dược phẩm #${idx + 1}`,
               orderedQty: totalOrdered,
               previouslyReceivedQty: received,
@@ -211,10 +208,10 @@ export function GoodsReceiptInspectionPage() {
               unit: it.unit || "Hộp",
               unitPrice: Number(it.unitPrice || 0),
               batchNo: it.batchNo ? String(it.batchNo).trim() : "",
-              expDate: isoExp,
-              barcode: it.barcode ? String(it.barcode).trim() : "",
+              expDate: expiryDate,
+              barcode: String(it.barcode || medicine?.barcode || "").trim(),
             };
-          });
+          }));
 
           setItems(mappedItems);
           if (mappedItems.length === 0) {
@@ -393,6 +390,7 @@ export function GoodsReceiptInspectionPage() {
     let active = true;
     let animId: number;
     let detector: any = null;
+    const zxingReader = new MultiFormatReader();
 
     if ("BarcodeDetector" in window) {
       try {
@@ -499,13 +497,14 @@ export function GoodsReceiptInspectionPage() {
                 }
 
                 // 2.2 Nếu không phải QR Code, thử giải mã mã vạch 1D qua ZXing
-                if (!scannedCode && zxingReaderRef.current) {
+                if (!scannedCode) {
                   try {
-                    const zxingResult = (zxingReaderRef.current as any).decodeFromCanvas?.(canvas) || (zxingReaderRef.current as any).decodeFromImageElement?.(canvas);
-                    if (zxingResult && zxingResult.getText()) {
-                      scannedCode = zxingResult.getText().trim();
-                      detectedEngine = "ZXing MultiFormat";
-                    }
+                    const { data, width, height } = imageData;
+                    const pixels = new Int32Array(data.buffer, data.byteOffset, data.length / 4);
+                    const source = new RGBLuminanceSource(pixels, width, height);
+                    const bitmap = new BinaryBitmap(new HybridBinarizer(source));
+                    scannedCode = zxingReader.decodeWithState(bitmap).getText().trim();
+                    detectedEngine = "ZXing MultiFormat";
                   } catch (_) {}
                 }
               }
@@ -539,8 +538,6 @@ export function GoodsReceiptInspectionPage() {
       return {
         ...it,
         scannedQty: maxReceivable,
-        batchNo: it.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}-01`,
-        expDate: it.expDate || new Date("2028-12-31").toISOString(),
       };
     });
     setItems(updated);
@@ -581,9 +578,20 @@ export function GoodsReceiptInspectionPage() {
 
   // Hoàn tất kiểm nhận: Tạo GRN, lập biên bản kiểm đếm, verify, nộp và duyệt liên thông CSDL Dược
   const handleCompleteAndCreateGrn = async () => {
-    const totalCurrentScanned = items.reduce((sum, it) => sum + it.scannedQty, 0);
-    if (totalCurrentScanned <= 0) {
+    const receivedItems = items.filter((it) => it.scannedQty > 0);
+    if (receivedItems.length === 0) {
       showToast("Vui lòng quét ít nhất một mặt hàng trước khi hoàn tất kiểm nhận!", "warning");
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const invalidItem = receivedItems.find((it) => {
+      const expiryDate = new Date(it.expDate + "T00:00:00");
+      return !it.batchNo.trim() || Number.isNaN(expiryDate.getTime()) || expiryDate <= today;
+    });
+    if (invalidItem) {
+      showToast("Nhập số lô và hạn dùng thực tế (sau ngày hôm nay) cho " + invalidItem.medicineName + ".", "warning");
       return;
     }
 
@@ -595,20 +603,13 @@ export function GoodsReceiptInspectionPage() {
       }
 
       // 1. Chuẩn hóa payload GRN theo chuẩn GoodsReceiptPayload (có receivedBy)
-      const grnItems = items
-        .filter((it) => it.scannedQty > 0)
-        .map((it) => {
+      const grnItems = receivedItems.map((it) => {
           // Tính toán số lượng cần nhập (Hỗ trợ partial delivery: quantity - receivedQuantity)
           const targetQty = it.remainingQty > 0 ? it.remainingQty : it.orderedQty;
-          // Giữ định dạng ngày ISO chuẩn để backend new Date() không bị lỗi Invalid Date hay đảo ngày/tháng
-          const validExpDate = it.expDate && !isNaN(new Date(it.expDate).getTime())
-            ? new Date(it.expDate).toISOString()
-            : new Date(Date.now() + 730 * 86400000).toISOString();
-
           return {
             medicineId: it.medicineId,
-            batchNo: it.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-            expDate: validExpDate,
+            batchNo: it.batchNo.trim(),
+            expDate: new Date(it.expDate).toISOString(),
             quantity: targetQty,
             actualQty: it.scannedQty,
             unitPrice: it.unitPrice || 0,
@@ -1112,11 +1113,32 @@ export function GoodsReceiptInspectionPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-3.5 font-mono text-[11px] text-slate-600">
-                        <span className="font-bold text-slate-800">{item.batchNo || "---"}</span>{" "}
-                        <span className="text-slate-400">
-                          ({item.expDate ? new Date(item.expDate).toLocaleDateString("vi-VN") : "Chưa có HSD"})
-                        </span>
+                      <td className="py-3.5 px-3.5 font-mono text-[11px] text-slate-600 space-y-1">
+                        <input
+                          type="text"
+                          aria-label={"Số lô " + item.medicineName}
+                          placeholder="Nhập số lô"
+                          value={item.batchNo}
+                          onChange={(e) => {
+                            const batchNo = e.target.value;
+                            setItems((current) => current.map((it) =>
+                              it.medicineId === item.medicineId ? { ...it, batchNo } : it
+                            ));
+                          }}
+                          className="block w-full rounded border border-slate-200 px-2 py-1"
+                        />
+                        <input
+                          type="date"
+                          aria-label={"Hạn dùng " + item.medicineName}
+                          value={item.expDate}
+                          onChange={(e) => {
+                            const expDate = e.target.value;
+                            setItems((current) => current.map((it) =>
+                              it.medicineId === item.medicineId ? { ...it, expDate } : it
+                            ));
+                          }}
+                          className="block w-full rounded border border-slate-200 px-2 py-1"
+                        />
                       </td>
                       <td className="py-3.5 px-3.5 text-right">
                         {isDone ? (

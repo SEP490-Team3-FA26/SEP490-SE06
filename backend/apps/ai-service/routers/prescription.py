@@ -18,6 +18,7 @@ from services.rag_service import (
 from services.db_service import validate_drugs_in_inventory
 import time
 import os
+from secrets import compare_digest
 import re
 import traceback
 import pymongo
@@ -1137,9 +1138,11 @@ def parse_roboflow_workflow_count(result: dict) -> tuple:
             for key, val in out.items():
                 if isinstance(val, dict) and "predictions" in val:
                     preds = val["predictions"]
+                    if not isinstance(preds, list) or not all(isinstance(p, dict) for p in preds):
+                        raise ValueError("Danh sách nhận diện không hợp lệ.")
                     count = len(preds)
-                    confs = [p.get("confidence", 0.95) for p in preds if isinstance(p, dict)]
-                    avg_conf = (sum(confs) / len(confs) * 100) if confs else 98.0
+                    confs = [p["confidence"] for p in preds if isinstance(p.get("confidence"), (int, float))]
+                    avg_conf = (sum(confs) / len(confs) * 100) if confs else 0.0
                     
                     # Lấy kích thước ảnh gốc để chuẩn hóa tọa độ bounding box theo %
                     img_meta = val.get("image", {})
@@ -1153,7 +1156,10 @@ def parse_roboflow_workflow_count(result: dict) -> tuple:
                             y = float(p.get("y", 0))
                             w = float(p.get("width", 0))
                             h = float(p.get("height", 0))
-                            conf = round(float(p.get("confidence", 0.95)) * 100, 1)
+                            confidence = p.get("confidence")
+                            label = f"Hộp {idx + 1}"
+                            if isinstance(confidence, (int, float)):
+                                label += f" • {round(confidence * 100, 1)}%"
 
                             left = max(0.0, round(((x - w / 2.0) / img_w) * 100.0, 2))
                             top = max(0.0, round(((y - h / 2.0) / img_h) * 100.0, 2))
@@ -1165,16 +1171,14 @@ def parse_roboflow_workflow_count(result: dict) -> tuple:
                                 "left": left,
                                 "width": width_pct,
                                 "height": height_pct,
-                                "label": f"Hộp {idx + 1} • {conf}%"
+                                "label": label
                             })
 
                     return count, round(avg_conf, 1), boxes, annotated_img_b64, preds
 
-                if isinstance(val, list):
-                    return len(val), 96.0, [], "", val
-        return 0, 95.0, [], "", []
-    except Exception:
-        return 0, 95.0, [], "", []
+        raise ValueError("Roboflow không trả về dữ liệu nhận diện.")
+    except (AttributeError, TypeError, ValueError, ZeroDivisionError) as exc:
+        raise ValueError("Phản hồi nhận diện của Roboflow không hợp lệ.") from exc
 
 @router.post("/api/ai/receipts/{receiptId}/items/{receiptItemId}/inspection")
 async def inspect_receipt_item(
@@ -1397,7 +1401,11 @@ async def inspect_receipt_item(
 
 # Endpoint phân tích và kiểm đếm hộp thuốc trực tiếp qua Roboflow Computer Vision (Độc lập, Zero Mock)
 @router.post("/api/ai/vision/count-boxes")
-async def count_boxes_direct(file: UploadFile = File(...)):
+async def count_boxes_direct(file: UploadFile = File(...), x_internal_token: str | None = Header(None)):
+    expected_token = os.getenv("INTERNAL_SERVICE_TOKEN") or os.getenv("JWT_SECRET")
+    if not expected_token or not x_internal_token or not compare_digest(x_internal_token, expected_token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Yêu cầu AI nội bộ không hợp lệ.")
+
     allowed_types = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -1412,7 +1420,12 @@ async def count_boxes_direct(file: UploadFile = File(...)):
             detail="ROBOFLOW_API_KEY chưa được cấu hình trên máy chủ AI."
         )
 
-    image_bytes = await file.read()
+    max_image_size = 10 * 1024 * 1024
+    image_bytes = await file.read(max_image_size + 1)
+    if not image_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ảnh tải lên trống.")
+    if len(image_bytes) > max_image_size:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Ảnh vượt quá 10 MB.")
     base64_image = base64.b64encode(image_bytes).decode('utf-8')
     url = "https://serverless.roboflow.com/infer/workflows/thanh-le-truong/general-segmentation-api-13"
 
@@ -1444,15 +1457,20 @@ async def count_boxes_direct(file: UploadFile = File(...)):
             else:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Dịch vụ Roboflow Vision phản hồi lỗi {response.status_code}: {response.text}"
+                    detail=f"Dịch vụ Roboflow Vision phản hồi lỗi {response.status_code}."
                 )
     except HTTPException:
         raise
-    except Exception as e:
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Phản hồi nhận diện của Roboflow không hợp lệ."
+        ) from exc
+    except httpx.RequestError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Lỗi kết nối máy chủ Roboflow Vision: {str(e)}"
-        )
+            detail="Không kết nối được máy chủ Roboflow Vision."
+        ) from exc
 
 @router.post("/api/ai/inspections/{inspectionRecordId}/verify")
 async def verify_receipt_item_count(
