@@ -10,8 +10,8 @@
 
 const assert = require('assert');
 
-// 1. Dữ liệu chuẩn nội quy trích xuất từ tài liệu nghiệp vụ mục 18
-const AI_TERMS_VERSION = 'Bản an toàn 2026';
+// 1. Dữ liệu chuẩn nội quy trích xuất từ tài liệu nghiệp vụ mục 18 do máy chủ cấp
+const AI_TERMS_VERSION = 'v1.0-OTC';
 const AI_TERMS_RELEASE_DATE = '01/11/2026';
 
 const MANDATORY_ARTICLE_TITLES = [

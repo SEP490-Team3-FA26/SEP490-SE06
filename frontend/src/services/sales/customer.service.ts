@@ -477,23 +477,6 @@ export const customerService = {
   },
 
   /**
-   * Cập nhật trực tiếp hồ sơ an toàn lâm sàng của khách hàng theo số điện thoại (Dùng khi Dược sĩ retry lưu lại)
-   */
-  async updateClinicalSafety(
-    phone: string,
-    data: {
-      allergies?: string[];
-      chronicConditions?: string[];
-      allergicMedicines?: string[];
-      allergicIngredients?: string[];
-    }
-  ): Promise<boolean> {
-    const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
-    await api.put(API_ENDPOINTS.USERS.CLINICAL_SAFETY(cleanPhone), data);
-    return true;
-  },
-
-  /**
    * UC-107: Đối soát chéo giỏ hàng với tiền sử dị ứng và bệnh lý nền của bệnh nhân
    * Trả về phân tích nguy cơ lâm sàng và gợi ý các thuốc thay thế an toàn
    */

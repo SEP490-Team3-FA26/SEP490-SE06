@@ -8,7 +8,8 @@
  * =========================================================================
  */
 
-export const AI_TERMS_VERSION = "Bản an toàn 2026";
+// Mã phiên bản quy chuẩn thống nhất do máy chủ (API Gateway) cấp
+export const AI_TERMS_VERSION = "v1.0-OTC";
 export const STORAGE_KEY_AI_TERMS_ACCEPTED = "abc_ai_terms_accepted_v1";
 export const STORAGE_KEY_AI_TERMS_TIMESTAMP = "abc_ai_terms_accepted_at";
 export const STORAGE_KEY_AI_TERMS_AUDIT = "abc_ai_terms_audit_log";

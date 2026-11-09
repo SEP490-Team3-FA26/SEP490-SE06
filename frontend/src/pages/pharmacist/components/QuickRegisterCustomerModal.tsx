@@ -52,6 +52,7 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
   initialPhone = '',
   onClose,
   onSubmit,
+  onSuccessLinked,
 }) => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState(initialPhone);
@@ -209,7 +210,11 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
       // Tra cứu lại hồ sơ hoàn chỉnh sau khi cập nhật thành công
       const full = await customerService.lookupCustomer(clinicalSaveFailedData.phone);
       if (full) {
+        if (clinicalSaveFailedData.userId && !full.loyalty.userId) {
+          full.loyalty.userId = clinicalSaveFailedData.userId;
+        }
         setClinicalSaveFailedData(null);
+        onSuccessLinked?.(full);
         onClose();
       }
     } catch (err: any) {

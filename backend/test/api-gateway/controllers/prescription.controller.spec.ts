@@ -6,18 +6,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrescriptionController } from '../../../apps/api-gateway/src/controllers/prescription.controller';
 import { ClientKafka } from '@nestjs/microservices';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () => {
   let controller: PrescriptionController;
   const mockInventoryClient: Partial<ClientKafka> = {};
+  const mockCacheManager = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+  };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PrescriptionController],
       providers: [
         {
           provide: 'INVENTORY_SERVICE',
           useValue: mockInventoryClient,
+        },
+        {
+          provide: CACHE_MANAGER,
+          useValue: mockCacheManager,
         },
       ],
     }).compile();
@@ -137,14 +148,14 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(result.articles[0].title).toContain('Mục tiêu & Phạm vi');
     });
 
-    it('Nên ghi nhận chấp thuận nội quy thành công với người dùng đã xác thực', () => {
+    it('Nên ghi nhận chấp thuận nội quy thành công với người dùng đã xác thực', async () => {
       const mockReq = {
         user: { id: 'usr-12345' },
         ip: '192.168.1.50',
         headers: { 'user-agent': 'Chrome/120.0' },
       };
 
-      const result = controller.acceptAiConsultantTerms(
+      const result = await controller.acceptAiConsultantTerms(
         { version: 'v1.0-OTC', acceptedAt: '2026-11-04T12:00:00.000Z' },
         mockReq,
       );
@@ -161,18 +172,18 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
   // 2. [Boundary Values] - Ranh giới dữ liệu, giỏ rỗng, chuỗi chuẩn hóa tiếng Việt
   // =========================================================================
   describe('[Boundary Values] Ranh giới & Dữ liệu biên', () => {
-    it('Nên áp dụng phiên bản mặc định v1.0-OTC khi client gửi version rỗng hoặc khoảng trắng', () => {
+    it('Nên áp dụng phiên bản mặc định v1.0-OTC khi client gửi version rỗng hoặc khoảng trắng', async () => {
       const mockReq = { user: null, ip: '127.0.0.1' };
-      const result = controller.acceptAiConsultantTerms({ version: '' }, mockReq);
+      const result = await controller.acceptAiConsultantTerms({ version: '' }, mockReq);
 
       expect(result.success).toBe(true);
       expect(result.audit.version).toBe('v1.0-OTC');
       expect(result.audit.userId).toBe('anonymous-guest');
     });
 
-    it('Nên tự động sinh acceptedAt hợp lệ nếu client không truyền thời điểm xác nhận', () => {
+    it('Nên tự động sinh acceptedAt hợp lệ nếu client không truyền thời điểm xác nhận', async () => {
       const mockReq = { user: null };
-      const result = controller.acceptAiConsultantTerms({}, mockReq);
+      const result = await controller.acceptAiConsultantTerms({}, mockReq);
 
       expect(result.success).toBe(true);
       expect(typeof result.audit.acceptedAt).toBe('string');
@@ -266,8 +277,8 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(result.severity).toBe('SAFE');
     });
 
-    it('Nên xử lý an toàn khi req khuyết thiếu user và headers cho acceptAiConsultantTerms', () => {
-      const result = controller.acceptAiConsultantTerms({}, null as any);
+    it('Nên xử lý an toàn khi req khuyết thiếu user và headers cho acceptAiConsultantTerms', async () => {
+      const result = await controller.acceptAiConsultantTerms({}, null as any);
 
       expect(result.success).toBe(true);
       expect(result.audit.userId).toBe('anonymous-guest');
@@ -275,13 +286,13 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(result.audit.userAgent).toBe('unknown');
     });
 
-    it('Nên ghi nhận đúng userId từ JWT sub khi người dùng đã đăng nhập (không bị gán nhầm anonymous-guest)', () => {
+    it('Nên ghi nhận đúng userId từ JWT sub khi người dùng đã đăng nhập (không bị gán nhầm anonymous-guest)', async () => {
       const mockReq = {
         user: { sub: 'usr-sub-12345', email: 'benhnhan@gmail.com' },
         ip: '192.168.1.100',
         headers: { 'user-agent': 'Chrome/Test' },
       };
-      const result = controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq as any);
+      const result = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq as any);
 
       expect(result.success).toBe(true);
       expect(result.audit.userId).toBe('usr-sub-12345');
@@ -418,6 +429,155 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN EMAIL]');
     });
 
+    it('[Lỗi 4 - P1] Nâng cấp bộ lọc PII: Khử sạch SĐT có dấu cách/dấu chấm, CCCD có dấu cách và xưng danh họ tên', async () => {
+      PrescriptionController.setConsentForTesting('user:usr-pii-advanced');
+
+      let capturedPayload: any = null;
+      global.fetch = jest.fn().mockImplementation((url, opts) => {
+        if (opts?.body) {
+          try {
+            capturedPayload = JSON.parse(opts.body);
+          } catch (_) {}
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, reply: 'Dược sĩ đã tiếp nhận' }),
+        } as any);
+      });
+
+      const mockReq = { user: { sub: 'usr-pii-advanced' } };
+
+      await controller.chatConsult(
+        {
+          message: 'Tôi là Nguyễn Văn An, số điện thoại của tôi là 090 123 4567 hoặc 09.88.12.34.56, CCCD 079 099 123 456 cần tư vấn thuốc hạ sốt.',
+          medical_notes: 'Bệnh nhân: Trần Thị Mai, SĐT người thân 09 88 12 34 56',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(capturedPayload).toBeDefined();
+      // Kiểm tra SĐT có khoảng trắng và dấu chấm đã bị lọc
+      expect(capturedPayload.message).not.toContain('090 123 4567');
+      expect(capturedPayload.message).not.toContain('09.88.12.34.56');
+      // Kiểm tra CCCD có khoảng trắng đã bị lọc
+      expect(capturedPayload.message).not.toContain('079 099 123 456');
+      // Kiểm tra họ tên xưng danh đã bị lọc
+      expect(capturedPayload.message).not.toContain('Nguyễn Văn An');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN SĐT]');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN CCCD]');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN TÊN]');
+
+      // Kiểm tra medical_notes
+      expect(capturedPayload.medical_notes).not.toContain('Trần Thị Mai');
+      expect(capturedPayload.medical_notes).not.toContain('09 88 12 34 56');
+      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN TÊN]');
+      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN SĐT]');
+    });
+
+    it('[Lỗi 1 - P1] Nên từ chối 400 Bad Request ngay tại acceptAiConsultantTerms nếu client gửi sai phiên bản nội quy', async () => {
+      const mockReq = {
+        user: { sub: 'usr-invalid-version' },
+        headers: { 'x-client-session-id': 'sess-invalid-version' },
+        ip: '192.168.1.1',
+      };
+
+      await expect(
+        controller.acceptAiConsultantTerms({ version: 'Bản an toàn 2026' }, mockReq),
+      ).rejects.toThrow('Phiên bản nội quy không hợp lệ: "Bản an toàn 2026"');
+    });
+
+    it('[Lỗi 2 - P1] Không cho phép tài khoản B dùng chung quyền trên cùng IP sau khi tài khoản A đã đồng ý', async () => {
+      const SHARED_IP = '192.168.1.99';
+
+      // 1. Tài khoản A chấp thuận nội quy thành công
+      const reqA = {
+        user: { sub: 'user-A-confirmed' },
+        headers: { 'x-client-session-id': 'session-A' },
+        ip: SHARED_IP,
+      };
+      const resA = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, reqA);
+      expect(resA.success).toBe(true);
+
+      // 2. Tài khoản B chưa từng xác nhận, dù gửi request từ cùng địa chỉ IP (SHARED_IP)
+      const reqB = {
+        user: { sub: 'user-B-unconfirmed' },
+        headers: { 'x-client-session-id': 'session-B' },
+        ip: SHARED_IP,
+      };
+
+      // Tài khoản B phải bị từ chối 403 Forbidden (không được ké quyền của A trên cùng IP)
+      await expect(
+        controller.chatConsult(
+          {
+            message: 'Tôi muốn tư vấn thuốc dạ dày',
+            terms_confirmed: true,
+          },
+          reqB,
+        ),
+      ).rejects.toThrow('Tài khoản người dùng chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('[Lỗi 2 - P1] Không cho phép phiên khách B dùng chung quyền trên cùng IP sau khi phiên khách A đã đồng ý', async () => {
+      const SHARED_IP = '192.168.1.100';
+
+      // 1. Khách A chấp thuận nội quy qua session-guest-A
+      const reqGuestA = {
+        headers: { 'x-client-session-id': 'session-guest-A' },
+        ip: SHARED_IP,
+      };
+      const resA = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, reqGuestA);
+      expect(resA.success).toBe(true);
+
+      // 2. Khách B với session-guest-B gửi request từ cùng IP
+      const reqGuestB = {
+        headers: { 'x-client-session-id': 'session-guest-B' },
+        ip: SHARED_IP,
+      };
+
+      // Khách B phải bị từ chối 403 Forbidden
+      await expect(
+        controller.chatConsult(
+          {
+            message: 'Tôi bị đau rát họng',
+            terms_confirmed: true,
+          },
+          reqGuestB,
+        ),
+      ).rejects.toThrow('Phiên làm việc này chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('[Lỗi 2 - P1] Nên khôi phục quyền từ Redis CacheManager khi máy chủ khởi động lại (RAM store bị xóa)', async () => {
+      PrescriptionController.clearConsentStoreForTesting();
+
+      // Giả lập Redis cache manager đang lưu bản ghi của user-redis-restored
+      mockCacheManager.get.mockResolvedValueOnce({
+        accepted: true,
+        version: 'v1.0-OTC',
+        acceptedAt: new Date().toISOString(),
+      });
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ success: true, reply: 'Xin chào, Dược sĩ có thể giúp gì?' }),
+      });
+
+      const mockReq = {
+        user: { sub: 'user-redis-restored' },
+      };
+
+      const res = await controller.chatConsult(
+        {
+          message: 'Tư vấn thuốc bổ',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(res.success).toBe(true);
+      expect(mockCacheManager.get).toHaveBeenCalledWith('ai_terms:user:user-redis-restored');
+    });
+
     it('[Lỗi 1 - P1] Luồng chuẩn: Người dùng gọi acceptAiConsultantTerms thành công, sau đó chatConsult được thông qua', async () => {
       const mockReq = {
         user: { sub: 'usr-flow-success' },
@@ -426,7 +586,7 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       };
 
       // 1. Ghi nhận xác nhận điều khoản trên server
-      const acceptRes = controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq);
+      const acceptRes = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq);
       expect(acceptRes.success).toBe(true);
 
       // 2. Gọi chatConsult thành công

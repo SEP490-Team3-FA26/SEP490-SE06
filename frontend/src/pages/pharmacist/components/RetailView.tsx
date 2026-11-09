@@ -275,6 +275,12 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       console.error("Lỗi khi tạo tài khoản khách hàng tại POS:", err);
       return {
         success: false,
+        isClinicalSaveError: Boolean(err.isClinicalSaveError),
+        userId: err.userId,
+        phone: err.phone || dto.phone,
+        fullName: err.fullName || dto.fullName,
+        allergies: err.allergies || dto.allergies || [],
+        chronicConditions: err.chronicConditions || dto.chronicConditions || [],
         error: err.response?.data?.message || err.message || "Tạo tài khoản khách hàng thất bại.",
       };
     }
@@ -3757,6 +3763,21 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         initialPhone={customerPhone}
         onClose={() => setIsRegisterCustomerModalOpen(false)}
         onSubmit={handleQuickRegisterCustomer}
+        onSuccessLinked={(fullProfile) => {
+          const fullLoyalty = {
+            ...fullProfile.loyalty,
+            allergies: fullProfile.clinical?.allergies || [],
+            chronicConditions: fullProfile.clinical?.chronicConditions || [],
+          };
+          setLoyaltyInfo(fullLoyalty);
+          setCustomerPhone(fullProfile.loyalty.phone);
+          if (fullProfile.loyalty.email) {
+            setPatientEmail(fullProfile.loyalty.email);
+          }
+          setSearchCustomerNotFound(false);
+          setIsRegisterCustomerModalOpen(false);
+          showToast(`Đã lưu & liên kết thành công hồ sơ dị ứng cho ${fullProfile.loyalty.fullName}!`, "success");
+        }}
       />
     </div>
   );
