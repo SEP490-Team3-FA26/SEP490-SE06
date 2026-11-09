@@ -61,6 +61,50 @@ function shouldProcessCameraFrame(now, lastScanTime, minIntervalMs = 1500) {
   return now - lastScanTime >= minIntervalMs;
 }
 
+/**
+ * Mô phỏng vòng lặp requestAnimationFrame (RAF) 60fps khi camera đang quét hình ảnh.
+ * Dùng để kiểm thử chống tràn CPU Main UI Thread (Throttling Regression Test).
+ */
+function simulateCameraRafLoop({ hasBarcode = false, useFixedThrottling = true, durationMs = 1000, fps = 60 }) {
+  let decodeCalls = 0;
+  let lastAttemptTime = 0;
+  let lastSuccessScan = 0;
+  let oldLastScanTime = 0;
+
+  const frameInterval = Math.floor(1000 / fps); // ~16ms
+
+  for (let elapsed = 0; elapsed <= durationMs; elapsed += frameInterval) {
+    const now = elapsed;
+
+    if (useFixedThrottling) {
+      // Logic mới: Tách riêng cooldown quét thành công (1200ms) và throttling giải mã (250ms)
+      if (now - lastSuccessScan < 1200 && lastSuccessScan > 0) {
+        continue;
+      }
+      if (now - lastAttemptTime < 250 && lastAttemptTime > 0) {
+        continue;
+      }
+      // Cập nhật mốc thời gian giải mã NGAY LẬP TỨC dù có tìm thấy barcode hay không
+      lastAttemptTime = now;
+      decodeCalls++;
+
+      if (hasBarcode) {
+        lastSuccessScan = now;
+      }
+    } else {
+      // Logic cũ: Chỉ cập nhật khi tìm thấy mã vạch -> Nếu không có mã thì gọi 60 lần/giây
+      if (now - oldLastScanTime >= 1200 || oldLastScanTime === 0) {
+        decodeCalls++;
+        if (hasBarcode) {
+          oldLastScanTime = now;
+        }
+      }
+    }
+  }
+
+  return decodeCalls;
+}
+
 // =============================================================================
 // THỰC THI BỘ KIỂM THỬ
 // =============================================================================
@@ -149,6 +193,22 @@ console.log('\n--- 2. [Boundary Values] Giá trị biên & Dung sai tần suất
   // Khung hình sau 2000ms -> Chấp nhận
   assert.strictEqual(shouldProcessCameraFrame(t0 + 2000, t0, 1500), true);
   console.log('✔ [Boundary] Giới hạn tần suất 1500ms chống quét trùng lặp hoạt động chuẩn xác.');
+}
+
+// Test 2.3: [REGRESSION TEST - CPU 100% SATURATION FIX]
+// Mô phỏng 60 FPS trong 1000ms khi KHÔNG có mã vạch trong khung hình
+{
+  // 1. Kiểm tra với logic cũ (bị lỗi): decodeCalls chạm mốc ~61 lần/giây
+  const oldBuggyCalls = simulateCameraRafLoop({ hasBarcode: false, useFixedThrottling: false, durationMs: 1000, fps: 60 });
+  assert.ok(oldBuggyCalls >= 60, 'Logic cũ phải gọi decode liên tục 60 lần/giây gây tràn 100% CPU');
+
+  // 2. Kiểm tra với logic mới đã fix: decodeCalls chỉ tối đa 4-5 lần/giây (khoảng cách 250ms/lần)
+  const fixedCalls = simulateCameraRafLoop({ hasBarcode: false, useFixedThrottling: true, durationMs: 1000, fps: 60 });
+  assert.ok(
+    fixedCalls <= 5,
+    `Tổng số lần gọi giải mã ảnh khi không có barcode trong 1 giây không được vượt quá 5 lần (Thực tế: ${fixedCalls} lần, giảm tải >90% CPU)`
+  );
+  console.log(`✔ [Boundary - Regression] Chống bão hòa CPU: Trong 1 giây không có barcode, số lần giải mã chỉ ${fixedCalls} lần thay vì ${oldBuggyCalls} lần.`);
 }
 
 // -----------------------------------------------------------------------------

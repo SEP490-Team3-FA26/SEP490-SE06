@@ -87,7 +87,8 @@ export function GoodsReceiptInspectionPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const lastScanTimeRef = useRef<number>(0);
+  const lastAttemptTimeRef = useRef<number>(0);
+  const lastSuccessScanRef = useRef<number>(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const zxingReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
@@ -431,76 +432,92 @@ export function GoodsReceiptInspectionPage() {
         }
 
         const now = Date.now();
-        // Giới hạn tần suất quét: cách nhau tối thiểu 1.2s để tránh quét dồn dập 1 mặt hàng
-        if (now - lastScanTimeRef.current >= 1200) {
-          let scannedCode = "";
-          let detectedEngine = "";
 
-          // Cách 1: Thử dùng Native BarcodeDetector nếu trình duyệt hỗ trợ
-          if (detector) {
-            try {
-              const barcodes = await detector.detect(video);
-              if (barcodes && barcodes.length > 0 && active) {
-                const rawValue = barcodes[0].rawValue;
-                if (rawValue && rawValue.trim()) {
-                  scannedCode = rawValue.trim();
-                  detectedEngine = "BarcodeDetector Native";
+        // 1. Cooldown giữa 2 lần quét thành công liên tiếp (1.2s) để tránh quét dồn dập
+        if (now - lastSuccessScanRef.current < 1200) {
+          animId = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        // 2. Throttling tần suất giải mã trên Main UI Thread: tối đa 1 lần mỗi 250ms (chống 100% CPU khi không có mã vạch)
+        if (now - lastAttemptTimeRef.current < 250) {
+          animId = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        // Cập nhật mốc thời gian thử giải mã NGAY LẬP TỨC (dù có tìm thấy mã hay không)
+        lastAttemptTimeRef.current = now;
+
+        let scannedCode = "";
+        let detectedEngine = "";
+
+        // Cách 1: Thử dùng Native BarcodeDetector nếu trình duyệt hỗ trợ
+        if (detector) {
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes && barcodes.length > 0 && active) {
+              const rawValue = barcodes[0].rawValue;
+              if (rawValue && rawValue.trim()) {
+                scannedCode = rawValue.trim();
+                detectedEngine = "BarcodeDetector Native";
+              }
+            }
+          } catch (_) {}
+        }
+
+        // Cách 2: Fallback qua Canvas HTML5 bằng jsQR (siêu nhạy cho QR) & ZXing (mã vạch EAN-13)
+        if (!scannedCode) {
+          try {
+            let canvas = canvasRef.current;
+            if (!canvas) {
+              canvas = document.createElement("canvas");
+              canvasRef.current = canvas;
+            }
+            // Tối ưu kích thước Canvas: scale về tối đa 640px chiều rộng để giảm tải CPU 4x mà vẫn giữ độ nét
+            const rawWidth = video.videoWidth || 640;
+            const rawHeight = video.videoHeight || 480;
+            const targetWidth = Math.min(640, rawWidth);
+            const targetHeight = Math.round(targetWidth * (rawHeight / rawWidth || 0.75));
+
+            if (targetWidth > 0 && targetHeight > 0) {
+              if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+              }
+              const ctx = canvas.getContext("2d", { willReadFrequently: true });
+              if (ctx) {
+                ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+                const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+
+                // 2.1 Giải mã QR Code qua jsQR (nhận diện cực nhanh kể cả khi đưa camera máy tính)
+                const qrCode = jsQR(imageData.data, targetWidth, targetHeight, {
+                  inversionAttempts: "dontInvert",
+                });
+                if (qrCode && qrCode.data && qrCode.data.trim()) {
+                  scannedCode = qrCode.data.trim();
+                  detectedEngine = "jsQR 2D";
+                }
+
+                // 2.2 Nếu không phải QR Code, thử giải mã mã vạch 1D qua ZXing
+                if (!scannedCode && zxingReaderRef.current) {
+                  try {
+                    const zxingResult = zxingReaderRef.current.decodeFromCanvas(canvas);
+                    if (zxingResult && zxingResult.getText()) {
+                      scannedCode = zxingResult.getText().trim();
+                      detectedEngine = "ZXing MultiFormat";
+                    }
+                  } catch (_) {}
                 }
               }
-            } catch (_) {}
-          }
+            }
+          } catch (_) {}
+        }
 
-          // Cách 2: Fallback qua Canvas HTML5 bằng jsQR (siêu nhạy cho QR) & ZXing (mã vạch EAN-13)
-          if (!scannedCode) {
-            try {
-              let canvas = canvasRef.current;
-              if (!canvas) {
-                canvas = document.createElement("canvas");
-                canvasRef.current = canvas;
-              }
-              const width = video.videoWidth || 640;
-              const height = video.videoHeight || 480;
-
-              if (width > 0 && height > 0) {
-                if (canvas.width !== width || canvas.height !== height) {
-                  canvas.width = width;
-                  canvas.height = height;
-                }
-                const ctx = canvas.getContext("2d", { willReadFrequently: true });
-                if (ctx) {
-                  ctx.drawImage(video, 0, 0, width, height);
-                  const imageData = ctx.getImageData(0, 0, width, height);
-
-                  // 2.1 Giải mã QR Code qua jsQR (nhận diện cực nhanh kể cả khi đưa camera máy tính)
-                  const qrCode = jsQR(imageData.data, width, height, {
-                    inversionAttempts: "dontInvert",
-                  });
-                  if (qrCode && qrCode.data && qrCode.data.trim()) {
-                    scannedCode = qrCode.data.trim();
-                    detectedEngine = "jsQR 2D";
-                  }
-
-                  // 2.2 Nếu không phải QR Code, thử giải mã mã vạch 1D qua ZXing
-                  if (!scannedCode && zxingReaderRef.current) {
-                    try {
-                      const zxingResult = zxingReaderRef.current.decodeFromCanvas(canvas);
-                      if (zxingResult && zxingResult.getText()) {
-                        scannedCode = zxingResult.getText().trim();
-                        detectedEngine = "ZXing MultiFormat";
-                      }
-                    } catch (_) {}
-                  }
-                }
-              }
-            } catch (_) {}
-          }
-
-          if (scannedCode && active) {
-            console.log(`🎯 [Webcam Scanner] Đã đọc được mã: "${scannedCode}" bằng Engine: ${detectedEngine}`);
-            setLastDetectedRaw(scannedCode);
-            lastScanTimeRef.current = now;
-            processBarcode(scannedCode);
-          }
+        if (scannedCode && active) {
+          console.log(`🎯 [Webcam Scanner] Đã đọc được mã: "${scannedCode}" bằng Engine: ${detectedEngine}`);
+          setLastDetectedRaw(scannedCode);
+          lastSuccessScanRef.current = now;
+          processBarcode(scannedCode);
         }
       }
 
