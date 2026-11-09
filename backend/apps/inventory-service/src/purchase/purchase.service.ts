@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { ClientKafka, RpcException } from "@nestjs/microservices";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model, ClientSession } from "mongoose";
+import { Model, ClientSession, isValidObjectId } from "mongoose";
 import { PurchaseRequisition } from "./schemas/purchase-requisition.schema";
 import { PurchaseOrder } from "./schemas/purchase-order.schema";
 import { GoodsReceiptNote } from "./schemas/goods-receipt-note.schema";
@@ -1503,7 +1503,47 @@ export class PurchaseService {
   }
 
   async getPurchaseOrderById(id: string) {
-    return this.poModel.findById(id).exec();
+    if (!id) return null;
+    const cleanId = String(id).replace('#', '').trim();
+    if (!cleanId) return null;
+
+    // 1. Tìm theo ObjectId hợp lệ
+    if (isValidObjectId(cleanId)) {
+      try {
+        const po = await this.poModel.findById(cleanId).lean().exec();
+        if (po) return po;
+      } catch (_) {}
+    }
+
+    // 2. Tìm theo poCode
+    try {
+      const poByCode = await this.poModel.findOne({
+        $or: [
+          { poCode: cleanId },
+          { poCode: `PO-${cleanId}` },
+          { poCode: `#${cleanId}` },
+        ]
+      }).lean().exec();
+      if (poByCode) return poByCode;
+    } catch (_) {}
+
+    // 3. Tra cứu hậu tố QR ngay trên MongoDB, kể cả với PO cũ.
+    if (cleanId.length >= 6) {
+      const escapedId = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const suffix = escapedId + '$';
+      return this.poModel.findOne({
+        $or: [
+          { poCode: { $regex: suffix, $options: 'i' } },
+          {
+            $expr: {
+              $regexMatch: { input: { $toString: '$_id' }, regex: suffix, options: 'i' },
+            },
+          },
+        ],
+      }).sort({ createdAt: -1, _id: -1 }).lean().exec();
+    }
+
+    return null;
   }
 
   async listGoodsReceiptNotes(): Promise<any> {

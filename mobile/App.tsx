@@ -20,10 +20,11 @@ LogBox.ignoreLogs([
 ]);
 
 const linking = {
-  prefixes: ['wdp301://', 'https://abcpharmacy.store'],
+  prefixes: ['wdp301://', 'https://abcpharmacy.store', 'http://localhost:3001', 'http://localhost:3000'],
   config: {
     screens: {
       OrderConfirmation: 'checkout',
+      WarehouseScreen: 'warehouse/goods-receipt/inspection',
     },
   },
 };

@@ -37,6 +37,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
+        "CAMERA",
         "READ_CALENDAR",
         "WRITE_CALENDAR",
         "VIBRATE",
@@ -51,6 +52,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cho phép ứng dụng sử dụng máy ảnh để quét mã vạch thuốc và mã QR nhập kho."
+        }
+      ],
       "expo-secure-store",
       "expo-local-authentication",
       "expo-web-browser",

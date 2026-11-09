@@ -162,6 +162,7 @@ export const API_ENDPOINTS = {
   },
 
   GOODS_RECEIPTS: {
+    COUNT_BOXES: '/api/goods-receipts/vision/count-boxes',
     LIST: '/api/goods-receipts',
     CREATE: '/api/goods-receipts',
     DETAIL: (id: string) => `/api/goods-receipts/${encodeURIComponent(id)}`,
