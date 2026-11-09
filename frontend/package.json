@@ -61,6 +61,8 @@
     "@rollup/rollup-linux-x64-musl": "^4.62.2",
     "@rollup/rollup-linux-x64-gnu": "^4.62.2",
     "lightningcss-linux-x64-musl": "^1.33.0",
-    "lightningcss-linux-arm64-musl": "^1.33.0"
+    "lightningcss-linux-arm64-musl": "^1.33.0",
+    "@tailwindcss/oxide-linux-x64-musl": "^4.3.1",
+    "@tailwindcss/oxide-linux-arm64-musl": "^4.3.1"
   }
 }
