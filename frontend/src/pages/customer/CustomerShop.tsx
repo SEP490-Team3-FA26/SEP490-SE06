@@ -7,7 +7,6 @@ import { Loader2, Search, ShoppingCart, Star, Heart, Info, Check,
 import { MedicineCard } from "../../components/MedicineCard";
 import { ShopFilterSidebar } from "../../components/ShopFilterSidebar";
 import { Pagination } from "../../components/Pagination";
-import { MedicineDetailModal } from "../../components/MedicineDetailModal";
 import { PharmaSmartRecommender } from "../../components/customer/PharmaSmartRecommender";
 import { recommendationService } from "../../services/recommendation/recommendation.service";
 import { medicineService } from "../../services/inventory/medicine.service";
@@ -134,7 +133,6 @@ export function CustomerShop() {
   });
 
   // Modal states
-  const [selectedMedicineForModal, setSelectedMedicineForModal] = useState<any | null>(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -644,7 +642,7 @@ export function CustomerShop() {
                       added={!!addedItems[medId]}
                       isWishlisted={isInWishlist(medId)}
                       onToggleWishlist={toggleWishlist}
-                      onClick={() => { setSelectedMedicineForModal(med); }}
+                      onClick={() => { navigate(`/customer/product/${medId}`); }}
                       onAddToCart={(m, qty, _unit) => { handleAddToCart(m, qty); }}
                     />
                   );
@@ -670,15 +668,7 @@ export function CustomerShop() {
           )}
         </div>
       </div>
-
-      {/* Styled Product Details Preview Modal */}
-      <MedicineDetailModal
-        medicine={selectedMedicineForModal}
-        isOpen={!!selectedMedicineForModal}
-        onClose={() => setSelectedMedicineForModal(null)}
-        onAddToCart={handleAddToCart}
-        addedItems={addedItems}
-      />
+      {/* Sản phẩm đã được đồng bộ hóa sang trang /customer/product/:id chuẩn Long Châu */}
     </div>
   );
 }

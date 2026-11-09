@@ -49,7 +49,12 @@ export interface Medicine {
   active_ingredient?: string;
   drug_classification?: string;
   type?: string;
+  category?: string;
+  stock?: number;
+  averageRating?: number;
+  reviewCount?: number;
   unit?: string;
+  [key: string]: any;
   supplierId?: string;
   status?: string;
   // --- Chuẩn đồng bộ CSDL Dược Quốc Gia ---

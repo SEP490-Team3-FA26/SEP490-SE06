@@ -19,12 +19,16 @@ const ZONE_OPTIONS = [
   { value: 'D', label: 'Khu D' },
   { value: 'E', label: 'Khu E' },
   { value: 'F', label: 'Khu F' },
+  { value: 'RESERVE', label: 'Khu Dự Trữ (RESERVE)' },
 ];
 
 const SHELF_OPTIONS = [1, 2, 3, 4];
 const BIN_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 const getRackOptions = (zone: string) => {
+  if (zone === 'RESERVE') {
+    return ['RES1', 'RES2', 'RES3', 'RES4'];
+  }
   const counts: Record<string, number> = { A: 4, B: 4, C: 4, D: 4, E: 4, F: 4 };
   const n = counts[zone] || 4;
   return Array.from({ length: n }, (_, i) => `${zone}${i + 1}`);
@@ -52,9 +56,10 @@ export function BinLocationPicker({
   const [checking, setChecking] = useState(false);
 
   const zone = value?.zone || 'A';
-  const rack = value?.rack || 'A1';
+  const rack = value?.rack || (zone === 'RESERVE' ? 'RES1' : 'A1');
   const shelf = Number(value?.shelf || 1);
   const bin = Number(value?.bin || 1);
+  const isReserve = zone === 'RESERVE';
 
   // Kiểm tra thông tin thùng khi vị trí thay đổi
   useEffect(() => {
@@ -91,24 +96,25 @@ export function BinLocationPicker({
   }, [zone, rack, shelf, bin]);
 
   const handleZoneChange = (newZone: string) => {
-    const firstRack = `${newZone}1`;
-    onChange({ zone: newZone, rack: firstRack, shelf: 1, bin: 1, slotType: 'MAIN' });
+    const isRes = newZone === 'RESERVE';
+    const firstRack = isRes ? 'RES1' : `${newZone}1`;
+    onChange({ zone: newZone, rack: firstRack, shelf: 1, bin: 1, slotType: isRes ? 'RESERVE' : 'MAIN' });
   };
 
   const handleRackChange = (newRack: string) => {
-    onChange({ ...value, rack: newRack, slotType: 'MAIN' });
+    onChange({ ...value, rack: newRack, slotType: isReserve ? 'RESERVE' : 'MAIN' });
   };
 
   const handleShelfChange = (newShelf: number) => {
-    onChange({ ...value, shelf: newShelf, slotType: 'MAIN' });
+    onChange({ ...value, shelf: newShelf, slotType: isReserve ? 'RESERVE' : 'MAIN' });
   };
 
   const handleBinChange = (newBin: number) => {
-    onChange({ ...value, bin: newBin, slotType: 'MAIN' });
+    onChange({ ...value, bin: newBin, slotType: isReserve ? 'RESERVE' : 'MAIN' });
   };
 
   // Xác định thuốc trong thùng có đúng là thuốc đang kiểm đếm hay không
-  const isAutoLocated = (zone !== 'A' || rack !== 'A1' || shelf !== 1 || bin !== 1);
+  const isAutoLocated = (zone !== 'A' || rack !== 'A1' || shelf !== 1 || bin !== 1) || isReserve;
   const displayUnit = existingBinInfo?.unit || unit;
   const isSameMedicine = existingBinInfo && (
     (existingBinInfo.medicineId && String(existingBinInfo.medicineId) === String(medicineId)) ||
@@ -209,30 +215,43 @@ export function BinLocationPicker({
       )}
 
       {/* Cảnh báo hoặc xác nhận ô thùng dựa trên tính nhất quán thuốc */}
-      {!isLoading && existingBinInfo?.hasOldBatch && (
-        isSameMedicine ? (
-          // ĐÚNG THUỐC: Hiển thị trạng thái xác nhận chuẩn FEFO
-          <div className="mt-2 p-2 rounded-lg bg-sky-50 border border-sky-300 flex items-start gap-2 text-xs text-sky-900 animate-fadeIn">
-            <CheckCircle2 size={15} className="text-sky-600 mt-0.5 shrink-0" />
+      {!isLoading && (
+        isReserve ? (
+          // KHU DỰ TRỮ: Hiển thị trạng thái xác nhận chuẩn FEFO lưu kho dự trữ
+          <div className="mt-2 p-2 rounded-lg bg-indigo-50 border border-indigo-300 flex items-start gap-2 text-xs text-indigo-900 animate-fadeIn">
+            <CheckCircle2 size={15} className="text-indigo-600 mt-0.5 shrink-0" />
             <div className="flex-1">
-              <span className="font-bold">📦 Ô thùng chuẩn của thuốc: Hiện có {existingBinInfo.oldStock} {displayUnit} ({existingBinInfo.oldBatchCount} lô cũ, cận date nhất: {existingBinInfo.nearestExp})</span>
-              <p className="text-[11px] text-sky-700 mt-0.5 leading-snug">
-                Lô mới sẽ được xếp vào cùng ô thùng này. Khi xuất kho, hệ thống tự động ưu tiên xuất các lô cũ theo chuẩn FEFO.
+              <span className="font-bold">📦 Ô Kệ Dự Trữ FEFO: Thùng {rack}-T{shelf}-B{bin} (Khu Dự Trữ RESERVE)</span>
+              <p className="text-[11px] text-indigo-700 mt-0.5 leading-snug">
+                Thuốc đang được phân bổ tại Khu Kệ Dự Trữ {rack}. Lô nhập mới sẽ được xếp vào ô thùng này và sẵn sàng điều chuyển bổ sung lên kệ chính khi hết hàng.
               </p>
             </div>
           </div>
-        ) : (
-          // KHÁC THUỐC: Cảnh báo chuẩn GSP vi phạm lẫn lộn thuốc
-          <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-300 flex items-start gap-2 text-xs text-amber-900 animate-fadeIn">
-            <AlertCircle size={15} className="text-amber-600 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <span className="font-bold">⚠️ Chú ý: Thùng {rack}-T{shelf}-B{bin} đang chứa thuốc khác: {existingBinInfo.medicineName || 'Thuốc khác'} ({existingBinInfo.oldStock} {displayUnit})!</span>
-              <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
-                Theo chuẩn GSP, mỗi ô Thùng chỉ chứa 1 loại thuốc. Vui lòng chọn đúng ô thùng đã quy hoạch của thuốc hoặc chọn ô trống.
-              </p>
+        ) : existingBinInfo?.hasOldBatch ? (
+          isSameMedicine ? (
+            // ĐÚNG THUỐC: Hiển thị trạng thái xác nhận chuẩn FEFO
+            <div className="mt-2 p-2 rounded-lg bg-sky-50 border border-sky-300 flex items-start gap-2 text-xs text-sky-900 animate-fadeIn">
+              <CheckCircle2 size={15} className="text-sky-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <span className="font-bold">📦 Ô thùng chuẩn của thuốc: Hiện có {existingBinInfo.oldStock} {displayUnit} ({existingBinInfo.oldBatchCount} lô cũ, cận date nhất: {existingBinInfo.nearestExp})</span>
+                <p className="text-[11px] text-sky-700 mt-0.5 leading-snug">
+                  Lô mới sẽ được xếp vào cùng ô thùng này. Khi xuất kho, hệ thống tự động ưu tiên xuất các lô cũ theo chuẩn FEFO.
+                </p>
+              </div>
             </div>
-          </div>
-        )
+          ) : (
+            // KHÁC THUỐC: Cảnh báo chuẩn GSP vi phạm lẫn lộn thuốc
+            <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-300 flex items-start gap-2 text-xs text-amber-900 animate-fadeIn">
+              <AlertCircle size={15} className="text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <span className="font-bold">⚠️ Chú ý: Thùng {rack}-T{shelf}-B{bin} đang chứa thuốc khác: {existingBinInfo.medicineName || 'Thuốc khác'} ({existingBinInfo.oldStock} {displayUnit})!</span>
+                <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
+                  Theo chuẩn GSP, mỗi ô Thùng chỉ chứa 1 loại thuốc. Vui lòng chọn đúng ô thùng đã quy hoạch của thuốc hoặc chọn ô trống.
+                </p>
+              </div>
+            </div>
+          )
+        ) : null
       )}
 
       {error && <p className="mt-1 text-[10px] font-semibold text-rose-600">{error}</p>}

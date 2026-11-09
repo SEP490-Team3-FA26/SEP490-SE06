@@ -268,7 +268,7 @@ export class MedicineService implements OnModuleInit {
       if (!id || typeof id !== 'string') {
         throw new RpcException(`Mã thuốc "${id}" không hợp lệ`);
       }
-      this.logger.log(`[getMedicineById] Querying medicine from MongoDB: "${id}"`);
+      this.logger.debug(`[getMedicineById] Querying medicine from MongoDB: "${id}"`);
 
       let medicine: any = null;
       if (id.match(/^[0-9a-fA-F]{24}$/)) {
@@ -292,12 +292,12 @@ export class MedicineService implements OnModuleInit {
         throw new RpcException(`Medicine with ID ${id} not found in database`);
       }
       const actualId = medicine._id.toString();
-      this.logger.log(`[getMedicineById] Found medicine: "${medicine.name}" (ID: ${actualId})`);
+      this.logger.debug(`[getMedicineById] Found medicine: "${medicine.name}" (ID: ${actualId})`);
 
       // Lấy danh sách lô hàng khả dụng
       const batches = await this.batchModel.find({ medicineId: actualId, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
       const totalStock = batches.reduce((sum, b) => sum + b.stock, 0);
-      this.logger.log(`[getMedicineById] Found ${batches.length} active batches. Total stock: ${totalStock}`);
+      this.logger.debug(`[getMedicineById] Found ${batches.length} active batches. Total stock: ${totalStock}`);
 
       // Tìm hạn dùng gần nhất
       const earliestExpiryStr = MedicineMapper.calculateEarliestExpiry(batches);
@@ -311,7 +311,7 @@ export class MedicineService implements OnModuleInit {
         status: totalStock > 0 ? 'In Stock' : 'Out of Stock',
         minStock: medicine.safetyStock ?? medicine.reorderPoint ?? 0
       };
-      this.logger.log(`[getMedicineById] Returning enriched medicine object: ${JSON.stringify(result)}`);
+      this.logger.debug(`[getMedicineById] Returning medicine: "${result.name}" (ID: ${result.id}, Stock: ${result.stock}, Status: ${result.status})`);
       return result;
     } catch (error) {
       this.logger.error(`[getMedicineById] Error fetching medicine by ID "${id}": ${error.message}`, error.stack);
