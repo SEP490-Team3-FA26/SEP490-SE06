@@ -337,6 +337,15 @@ function startBackgroundWatchdogs() {
           io.emit('bot:map-init', getMapPayload());
         }
       }
+
+      // Tự động bù đắp nạp danh mục thuốc nếu lần đầu khởi động container bị Gateway timeout
+      if (pingRes.ok && engine.state.allMedicines.length === 0) {
+        const loaded = await engine.ensureMedicinesLoaded().catch(() => false);
+        if (loaded) {
+          store.seedInitialSeats(engine.state.branches, engine.state.tokens.managers, engine.state.tokens.pharmacists, engine.state.tokens.customers);
+          io.emit('bot:map-init', getMapPayload());
+        }
+      }
     } catch {}
   }, config.healthCheckIntervalMs);
 

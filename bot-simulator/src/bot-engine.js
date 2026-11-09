@@ -460,53 +460,76 @@ class BotEngine {
   // =========================================================================
   // BOOTSTRAP: NẠP DỮ LIỆU & PHÂN LOẠI SẢN PHẨM / NHÂN SỰ CÓ THIÊN VỊ
   // =========================================================================
+  async loadMedicines(maxRetries = 3) {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        const medRes = await this.apiClient.get('/api/medicines?page=1&limit=250&directDb=true');
+        const meds = medRes?.data || (Array.isArray(medRes) ? medRes : []);
+        if (!Array.isArray(meds) || meds.length === 0) {
+          throw new Error('Danh mục thuốc trả về rỗng từ API Gateway');
+        }
+
+        this.state.allMedicines = meds.filter(m => (m.stock ?? 0) > 0 && (m.price ?? 0) > 0);
+        if (this.state.allMedicines.length === 0) {
+          this.state.allMedicines = meds.filter(m => (m.price ?? 0) > 0);
+        }
+
+        this.state.otcMedicines = this.state.allMedicines.filter(
+          m => m.prescription_status !== 1 &&
+               !['PRESCRIPTION', 'PRESCRIPTION_ANTIBIOTIC'].includes(String(m.drug_classification || '').toUpperCase())
+        );
+        if (this.state.otcMedicines.length === 0) {
+          this.state.otcMedicines = this.state.allMedicines;
+        }
+
+        // Thiết lập thiên vị sản phẩm (Hero vs Problematic - tách bạch hoàn toàn, không giao nhau)
+        // Top 30% đầu tiên (hoặc thuốc hạ sốt/vitamin/ho) trở thành Hero Products (Best-seller)
+        this.state.heroMedicines = this.state.otcMedicines.filter(m => {
+          const name = (m.name || '').toLowerCase();
+          return name.includes('panadol') || name.includes('vitamin') || name.includes('prospan') ||
+                 name.includes('hapacol') || name.includes('efferalgan') || name.includes('oresol');
+        });
+        if (this.state.heroMedicines.length === 0 && this.state.otcMedicines.length > 0) {
+          this.state.heroMedicines = this.state.otcMedicines.slice(0, Math.max(1, Math.floor(this.state.otcMedicines.length * 0.3)));
+        }
+
+        // Chỉ chọn Problematic từ tập thuốc OTC KHÔNG thuộc nhóm Hero để tránh kéo tụt sao của Best-seller
+        const heroIdSet = new Set(this.state.heroMedicines.map(m => String(m.id || m._id)));
+        const nonHeroOtc = this.state.otcMedicines.filter(m => !heroIdSet.has(String(m.id || m._id)));
+        const problematicSource = nonHeroOtc.length > 0 ? nonHeroOtc : [];
+        this.state.problematicMedicines = problematicSource.slice(-Math.max(1, Math.floor(problematicSource.length * 0.2)));
+
+        this.emitActivity(
+          'SYSTEM',
+          'INIT',
+          'Bot Engine',
+          'ALL',
+          `Đã nạp ${this.state.allMedicines.length} mặt hàng (${this.state.otcMedicines.length} OTC, ${this.state.heroMedicines.length} Hero best-seller).`
+        );
+        return true;
+      } catch (err) {
+        if (attempt >= maxRetries) {
+          this.emitActivity('SYSTEM', 'WARN', 'Bot Engine', 'ALL', `Không tải được danh mục thuốc (Lần ${attempt}/${maxRetries}): ${err.message}`);
+          return false;
+        }
+        await new Promise(r => setTimeout(r, 1500 * attempt));
+      }
+    }
+    return false;
+  }
+
+  async ensureMedicinesLoaded() {
+    if (this.state.allMedicines.length > 0) return true;
+    return await this.loadMedicines(2);
+  }
+
   async bootstrap() {
     this.emitActivity('SYSTEM', 'INIT', 'Bot Engine', 'ALL', 'Đang kết nối API Gateway để khởi tạo hệ thống...');
 
-    // 1. Nạp danh mục thuốc từ API
-    try {
-      const medRes = await this.apiClient.get('/api/medicines?page=1&limit=250&directDb=true');
-      const meds = medRes?.data || (Array.isArray(medRes) ? medRes : []);
-      this.state.allMedicines = meds.filter(m => (m.stock ?? 0) > 0 && (m.price ?? 0) > 0);
-      if (this.state.allMedicines.length === 0) {
-        this.state.allMedicines = meds.filter(m => (m.price ?? 0) > 0);
-      }
-
-      this.state.otcMedicines = this.state.allMedicines.filter(
-        m => m.prescription_status !== 1 &&
-             !['PRESCRIPTION', 'PRESCRIPTION_ANTIBIOTIC'].includes(String(m.drug_classification || '').toUpperCase())
-      );
-      if (this.state.otcMedicines.length === 0) {
-        this.state.otcMedicines = this.state.allMedicines;
-      }
-
-      // 2. Thiết lập thiên vị sản phẩm (Hero vs Problematic - tách bạch hoàn toàn, không giao nhau)
-      // Top 30% đầu tiên (hoặc thuốc hạ sốt/vitamin/ho) trở thành Hero Products (Best-seller)
-      this.state.heroMedicines = this.state.otcMedicines.filter(m => {
-        const name = (m.name || '').toLowerCase();
-        return name.includes('panadol') || name.includes('vitamin') || name.includes('prospan') ||
-               name.includes('hapacol') || name.includes('efferalgan') || name.includes('oresol');
-      });
-      if (this.state.heroMedicines.length === 0 && this.state.otcMedicines.length > 0) {
-        this.state.heroMedicines = this.state.otcMedicines.slice(0, Math.max(1, Math.floor(this.state.otcMedicines.length * 0.3)));
-      }
-
-      // Chỉ chọn Problematic từ tập thuốc OTC KHÔNG thuộc nhóm Hero để tránh kéo tụt sao của Best-seller
-      const heroIdSet = new Set(this.state.heroMedicines.map(m => String(m.id || m._id)));
-      const nonHeroOtc = this.state.otcMedicines.filter(m => !heroIdSet.has(String(m.id || m._id)));
-      const problematicSource = nonHeroOtc.length > 0 ? nonHeroOtc : [];
-      this.state.problematicMedicines = problematicSource.slice(-Math.max(1, Math.floor(problematicSource.length * 0.2)));
-
-      this.emitActivity(
-        'SYSTEM',
-        'INIT',
-        'Bot Engine',
-        'ALL',
-        `Đã nạp ${this.state.allMedicines.length} mặt hàng (${this.state.otcMedicines.length} OTC, ${this.state.heroMedicines.length} Hero best-seller).`
-      );
-    } catch (err) {
-      this.emitActivity('SYSTEM', 'WARN', 'Bot Engine', 'ALL', `Không tải được danh mục thuốc: ${err.message}`);
-    }
+    // 1. Nạp danh mục thuốc từ API (tự động thử lại tối đa 5 lần nếu backend đang khởi động)
+    await this.loadMedicines(5);
 
     // 2. Đăng nhập Admin
     try {
@@ -827,7 +850,11 @@ class BotEngine {
   // 2. KHÁCH HÀNG: 100% ĐẶT MUA COD ĐẦY ĐỦ ĐỊA CHỈ & ĐÁNH GIÁ CÓ THIÊN VỊ
   // =========================================================================
   async simulateCustomerOrderAndReview() {
-    if (!this.state.isRunning || this.state.otcMedicines.length === 0) return;
+    if (!this.state.isRunning) return;
+    if (this.state.otcMedicines.length === 0) {
+      await this.ensureMedicinesLoaded();
+      if (this.state.otcMedicines.length === 0) return;
+    }
 
     // 2A. Tạo đơn hàng Online 100% COD
     let selectedMed = null;
@@ -1118,6 +1145,9 @@ class BotEngine {
 
   async simulatePharmacistPOSAndAttendance(force = false) {
     if (!this.state.isRunning && !force) return;
+    if (this.state.allMedicines.length === 0) {
+      await this.ensureMedicinesLoaded().catch(() => {});
+    }
     const pharmEntries = Object.entries(this.state.tokens.pharmacists);
     if (pharmEntries.length === 0) return;
 
@@ -1277,16 +1307,38 @@ class BotEngine {
           isLate ? 'WARN' : 'SUCCESS'
         );
       } catch (err) {
-        if (err.message && (err.message.includes('Cập nhật') || err.message.includes('Cap nhat') || err.message.includes('thành công') || err.message.includes('thanh cong') || err.message.includes('đã Check-in') || err.message.includes('da Check-in'))) {
+        const msg = String(err.message || '');
+        if (
+          msg.includes('Cập nhật') ||
+          msg.includes('Cap nhat') ||
+          msg.includes('thành công') ||
+          msg.includes('thanh cong') ||
+          msg.includes('đã Check-in') ||
+          msg.includes('da Check-in')
+        ) {
           pharm.isCheckedIn = true;
           pharm.activeShiftKey = pharm.assignedShift?._shiftKey || `${todayStr}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
-        } else if (err.message && (err.message.includes('Check-out') || err.message.includes('hoàn thành ca trực') || err.message.includes('đã hoàn thành') || err.message.includes('da hoan thanh'))) {
+        } else if (
+          (msg.includes('đã Check-out') ||
+           msg.includes('da Check-out') ||
+           msg.includes('hoàn thành ca trực') ||
+           msg.includes('đã hoàn thành') ||
+           msg.includes('da hoan thanh')) &&
+          !msg.includes('chưa Check-out') &&
+          !msg.includes('chua Check-out')
+        ) {
           // Dược sĩ này đã từng check-out ca này trước đó trên backend -> đánh dấu hoàn thành ca này
           const doneKey = pharm.assignedShift?._shiftKey || `${todayStr}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
           pharm.completedShiftKeys.add(doneKey);
           pharm.isCompleted = true;
           pharm.isCheckedIn = false;
           pharm.activeShiftKey = null;
+          return;
+        } else if (msg.includes('chưa Check-out') || msg.includes('chua Check-out')) {
+          // Dược sĩ đang có ca trực trước đó chưa Check-out -> giải phóng trạng thái kẹt bằng cách tự động bàn giao/check-out ca cũ
+          pharm.isCheckedIn = true;
+          this.emitActivity('PHARMACIST', 'ATTENDANCE', pharm.user?.fullName || 'Dược sĩ', pharm.branchId, `Chưa Check-out ca trước: Đang bàn giao đóng ca cũ...`, null, 'WARN');
+          await this.triggerHandoverAndCheckout(pharm).catch(() => {});
           return;
         } else {
           this.emitActivity('PHARMACIST', 'ATTENDANCE', pharm.user?.fullName || 'Dược sĩ', pharm.branchId, `Check-in: ${err.message}`, null, 'WARN');
@@ -1374,6 +1426,9 @@ class BotEngine {
   async simulateWarehouseOperations(force = false) {
     if (!this.state.isRunning && !force) return;
     if (!force && this._isWarehouseRunning) return;
+    if (this.state.allMedicines.length === 0) {
+      await this.ensureMedicinesLoaded().catch(() => {});
+    }
     const whToken = this.state.tokens.warehouse || this.state.tokens.admin;
     if (!whToken) return;
 

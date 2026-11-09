@@ -1061,6 +1061,77 @@ describe('AttendanceService (Unit & Security Tests)', () => {
       expect(status.isCheckedIn).toBe(false);
       expect(status.currentShift.shiftId).toBe('shift-afternoon');
     });
+
+    it('T-DOUBLE-04: Cho phép check-in ca hôm nay khi có ca hôm qua chưa check-out nhưng ca đó là ca ban ngày đã kết thúc', async () => {
+      // Giả lập đồng hồ hệ thống lúc 08:00 AM VN (01:00 UTC) ngày 09/11/2026
+      jest.useFakeTimers({ now: new Date('2026-11-09T01:00:00.000Z') });
+
+      try {
+        const unclosedYesterdayAfternoon = {
+          _id: 'att-unclosed-yesterday',
+          employeeId: mockUser._id,
+          date: '2026-11-08',
+          shiftId: 'shift-afternoon-yesterday',
+          shiftName: 'Ca Chiều',
+          status: AttendanceStatus.CHECKED_IN,
+          checkOutTime: null,
+          checkInTime: new Date('2026-11-08T07:00:00.000Z'),
+        };
+
+        mockAttendanceModel.find.mockReturnValue({
+          exec: jest.fn().mockResolvedValue([unclosedYesterdayAfternoon]),
+        });
+
+        mockWorkScheduleModel.find.mockReturnValue({
+          lean: () => ({
+            exec: jest.fn().mockResolvedValue([
+              {
+                branchId: 'BR-002',
+                status: 'published',
+                assignments: [
+                  {
+                    employeeId: mockUser._id,
+                    shiftId: 'shift-morning-today',
+                    shiftName: 'Ca Sáng',
+                    shiftStart: '06:00',
+                    shiftEnd: '14:00',
+                    date: '2026-11-09T00:00:00.000Z',
+                  },
+                ],
+              },
+            ]),
+          }),
+        });
+
+        mockAttendanceModel.findOne.mockReturnValue({
+          exec: jest.fn().mockResolvedValue(null),
+        });
+
+        const createdAtt = {
+          _id: 'att-morning-today',
+          employeeId: mockUser._id,
+          date: '2026-11-09',
+          shiftId: 'shift-morning-today',
+          shiftName: 'Ca Sáng',
+          status: AttendanceStatus.CHECKED_IN,
+          checkInDistanceMeters: 25,
+        };
+        mockAttendanceModel.create.mockResolvedValue(createdAtt);
+
+        const result = await service.checkIn({
+          employeeId: mockUser._id,
+          branchId: 'BR-002',
+          latitude: 10.7769,
+          longitude: 106.7009,
+        });
+
+        expect(result).toBeDefined();
+        expect(result.attendance.status).toBe(AttendanceStatus.CHECKED_IN);
+        expect(result.attendance.shiftName).toBe('Ca Sáng');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
 });
