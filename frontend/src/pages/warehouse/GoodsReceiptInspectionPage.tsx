@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
@@ -501,7 +501,7 @@ export function GoodsReceiptInspectionPage() {
                 // 2.2 Nếu không phải QR Code, thử giải mã mã vạch 1D qua ZXing
                 if (!scannedCode && zxingReaderRef.current) {
                   try {
-                    const zxingResult = zxingReaderRef.current.decodeFromCanvas(canvas);
+                    const zxingResult = (zxingReaderRef.current as any).decodeFromCanvas?.(canvas) || (zxingReaderRef.current as any).decodeFromImageElement?.(canvas);
                     if (zxingResult && zxingResult.getText()) {
                       scannedCode = zxingResult.getText().trim();
                       detectedEngine = "ZXing MultiFormat";

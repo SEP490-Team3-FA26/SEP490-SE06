@@ -1126,22 +1126,55 @@ async def get_uploaded_file(filename: str):
     return FileResponse(file_path)
 
 def parse_roboflow_workflow_count(result: dict) -> tuple:
-    # Trích xuất số lượng kiện thuốc và độ tin cậy từ phản hồi Roboflow Computer Vision
+    # Trích xuất số lượng kiện thuốc, độ tin cậy, bounding boxes và ảnh annotated từ phản hồi Roboflow Computer Vision
     try:
         outputs = result.get("outputs", [])
         for out in outputs:
+            annotated_img_b64 = ""
+            if "annotated_image" in out and isinstance(out["annotated_image"], dict):
+                annotated_img_b64 = out["annotated_image"].get("value", "")
+
             for key, val in out.items():
                 if isinstance(val, dict) and "predictions" in val:
                     preds = val["predictions"]
                     count = len(preds)
                     confs = [p.get("confidence", 0.95) for p in preds if isinstance(p, dict)]
                     avg_conf = (sum(confs) / len(confs) * 100) if confs else 98.0
-                    return count, round(avg_conf, 1)
+                    
+                    # Lấy kích thước ảnh gốc để chuẩn hóa tọa độ bounding box theo %
+                    img_meta = val.get("image", {})
+                    img_w = float(img_meta.get("width", 1000) or 1000)
+                    img_h = float(img_meta.get("height", 1000) or 1000)
+
+                    boxes = []
+                    for idx, p in enumerate(preds):
+                        if isinstance(p, dict):
+                            x = float(p.get("x", 0))
+                            y = float(p.get("y", 0))
+                            w = float(p.get("width", 0))
+                            h = float(p.get("height", 0))
+                            conf = round(float(p.get("confidence", 0.95)) * 100, 1)
+
+                            left = max(0.0, round(((x - w / 2.0) / img_w) * 100.0, 2))
+                            top = max(0.0, round(((y - h / 2.0) / img_h) * 100.0, 2))
+                            width_pct = min(100.0, round((w / img_w) * 100.0, 2))
+                            height_pct = min(100.0, round((h / img_h) * 100.0, 2))
+
+                            boxes.append({
+                                "top": top,
+                                "left": left,
+                                "width": width_pct,
+                                "height": height_pct,
+                                "label": f"Hộp {idx + 1} • {conf}%"
+                            })
+
+                    return count, round(avg_conf, 1), boxes, annotated_img_b64, preds
+
                 if isinstance(val, list):
-                    return len(val), 96.0
-        return 0, 95.0
+                    return len(val), 96.0, [], "", val
+        return 0, 95.0, [], "", []
     except Exception:
-        return 0, 95.0
+        return 0, 95.0, [], "", []
 
 @router.post("/api/ai/receipts/{receiptId}/items/{receiptItemId}/inspection")
 async def inspect_receipt_item(
@@ -1275,18 +1308,25 @@ async def inspect_receipt_item(
                 "type": "base64",
                 "value": base64_image
             },
-            "classes": "Medicine"
+            "classes": ["Medicine"]
         }
     }
     
+    boxes = []
+    annotated_image_b64 = ""
+    raw_predictions = []
+
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client_http:
+        async with httpx.AsyncClient(timeout=25.0) as client_http:
             response = await client_http.post(url, json=payload)
             if response.status_code == 200:
                 result = response.json()
-                parsed_count, parsed_conf = parse_roboflow_workflow_count(result)
+                parsed_count, parsed_conf, parsed_boxes, parsed_annotated_img, raw_preds = parse_roboflow_workflow_count(result)
                 ai_count = parsed_count
                 confidence = parsed_conf
+                boxes = parsed_boxes
+                annotated_image_b64 = parsed_annotated_img
+                raw_predictions = raw_preds
             else:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
@@ -1349,8 +1389,70 @@ async def inspect_receipt_item(
         "status": inspection_status,
         "evidenceImage": evidence_url,
         "batchNo": item_batch_no,
-        "expDate": item_exp_date
+        "expDate": item_exp_date,
+        "boxes": boxes,
+        "annotatedImage": f"data:image/jpeg;base64,{annotated_image_b64}" if annotated_image_b64 else "",
+        "predictions": raw_predictions
     }
+
+# Endpoint phân tích và kiểm đếm hộp thuốc trực tiếp qua Roboflow Computer Vision (Độc lập, Zero Mock)
+@router.post("/api/ai/vision/count-boxes")
+async def count_boxes_direct(file: UploadFile = File(...)):
+    allowed_types = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Định dạng ảnh không hợp lệ. Chỉ chấp nhận JPEG, JPG, PNG hoặc WEBP."
+        )
+
+    api_key = os.getenv("ROBOFLOW_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ROBOFLOW_API_KEY chưa được cấu hình trên máy chủ AI."
+        )
+
+    image_bytes = await file.read()
+    base64_image = base64.b64encode(image_bytes).decode('utf-8')
+    url = "https://serverless.roboflow.com/infer/workflows/thanh-le-truong/general-segmentation-api-13"
+
+    payload = {
+        "api_key": api_key,
+        "inputs": {
+            "image": {
+                "type": "base64",
+                "value": base64_image
+            },
+            "classes": ["Medicine"]
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as client_http:
+            response = await client_http.post(url, json=payload)
+            if response.status_code == 200:
+                result = response.json()
+                count, avg_conf, boxes, annotated_img_b64, preds = parse_roboflow_workflow_count(result)
+                return {
+                    "success": True,
+                    "detectedCount": count,
+                    "confidence": avg_conf,
+                    "boxes": boxes,
+                    "annotatedImage": f"data:image/jpeg;base64,{annotated_img_b64}" if annotated_img_b64 else "",
+                    "predictions": preds
+                }
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Dịch vụ Roboflow Vision phản hồi lỗi {response.status_code}: {response.text}"
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Lỗi kết nối máy chủ Roboflow Vision: {str(e)}"
+        )
 
 @router.post("/api/ai/inspections/{inspectionRecordId}/verify")
 async def verify_receipt_item_count(

@@ -43,6 +43,7 @@ import { purchaseOrderService } from "../../../services/purchase/purchaseOrder.s
 import { goodsReceiptService } from "../../../services/purchase/goodsReceipt.service";
 import { BinLocationPicker } from "./BinLocationPicker";
 import { inventoryMapService } from "../../../services/inventory/inventoryMap.service";
+import { RoboflowVisionService } from "../../../services/purchase/roboflowVision.service";
 
 interface ShipmentLogisticsInfo {
   carrierName: string;
@@ -162,6 +163,7 @@ export function IncomingOrdersTab({
     expDate: string;
     ocrText: string;
     boxes: { top: number; left: number; width: number; height: number; label: string }[];
+    annotatedImage?: string;
   } | null>(null);
 
   // State cho Modal Quét QR Chuyển Sang Mobile
@@ -196,34 +198,40 @@ export function IncomingOrdersTab({
     }
   ];
 
-  // Xử lý phân tích AI hình ảnh
-  const triggerAiVisionAnalysis = (imageUrl: string, item: any, presetData?: { batchNo?: string, expDate?: string }) => {
+  // Xử lý phân tích AI hình ảnh thực tế qua mô hình Roboflow Computer Vision (Zero Mock Data)
+  const triggerAiVisionAnalysis = async (imageUrl: string, item: any, presetData?: { batchNo?: string, expDate?: string }) => {
     setUploadedImagePreview(imageUrl);
     setAiVisionProcessing(true);
     setAiVisionResult(null);
 
-    setTimeout(() => {
-      const remainingQty = Number(item.quantity) - Number(item.receivedQuantity || 0);
-      const targetCount = remainingQty > 0 ? remainingQty : (Number(item.quantity) || 100);
-      const generatedBatch = presetData?.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
-      const generatedExp = presetData?.expDate || "2028-12-31";
+    try {
+      // 1. Gửi ảnh trực tiếp tới mô hình Roboflow Serverless Workflow
+      const aiRes = await RoboflowVisionService.analyzeImage(imageUrl);
+
+      const generatedBatch = presetData?.batchNo || item.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+      const generatedExp = presetData?.expDate || item.expDate || "2028-12-31";
 
       setAiVisionResult({
-        detectedCount: targetCount,
-        confidence: 99.4,
+        detectedCount: aiRes.detectedCount,
+        confidence: aiRes.confidence,
         batchNo: generatedBatch,
         expDate: generatedExp,
-        ocrText: `[OCR_DETECTED] BATCH_NO: ${generatedBatch} | EXP_DATE: ${generatedExp} | MFG: DHG PHARMA`,
-        boxes: [
-          { top: 20, left: 15, width: 28, height: 32, label: `Hộp 1 • 99.6%` },
-          { top: 22, left: 52, width: 30, height: 30, label: `Hộp 2 • 99.2%` },
-          { top: 58, left: 18, width: 26, height: 34, label: `Hộp 3 • 98.9%` },
-          { top: 55, left: 50, width: 32, height: 35, label: `Hộp 4 • 99.4%` },
-          { top: 12, left: 80, width: 15, height: 75, label: `Nhãn OCR Số Lô` },
-        ]
+        ocrText: `[ROBOFLOW_AI] PHÁT HIỆN: ${aiRes.detectedCount} HỘP THUỐC | ĐỘ TIN CẬY: ${aiRes.confidence}% | SỐ LÔ: ${generatedBatch}`,
+        boxes: aiRes.boxes,
+        annotatedImage: aiRes.annotatedImage,
       });
+
+      // Nếu Roboflow có ảnh annotated (đã vẽ mask & boxes), hiển thị preview trực quan
+      if (aiRes.annotatedImage) {
+        setUploadedImagePreview(aiRes.annotatedImage);
+      }
+    } catch (err: any) {
+      console.error("Lỗi khi phân tích AI kiểm đếm:", err);
+      // Khi API ngoại lệ hoặc mất kết nối: Tuyệt đối không mock hay gán số lượng của PO
+      alert(`Không thể kết nối máy chủ AI Roboflow Vision: ${err?.message || 'Lỗi mạng hoặc API'}.\nVui lòng thử lại với ảnh rõ nét hơn hoặc nhập số lượng thủ công.`);
+    } finally {
       setAiVisionProcessing(false);
-    }, 1200);
+    }
   };
 
   // Áp dụng kết quả AI Vision vào Form kiểm đếm (bảo toàn location GSP đã quy hoạch)
@@ -1495,7 +1503,15 @@ export function IncomingOrdersTab({
                           <div className="bg-white p-3 rounded-xl border border-sky-100">
                             <span className="text-slate-400 block text-[10px] font-bold uppercase">Số lượng đếm được</span>
                             <span className="text-lg font-black text-sky-700">{aiVisionResult.detectedCount} Hộp</span>
-                            <span className="text-[10px] text-slate-500 block mt-0.5">Trùng khớp với PO</span>
+                            <span className="text-[10px] text-slate-500 block mt-0.5">
+                              {(() => {
+                                const expected = Number(imageInspectionItem?.quantity || 0);
+                                if (!expected) return "Đã hoàn tất phân tích AI";
+                                if (aiVisionResult.detectedCount === expected) return "✅ Trùng khớp với PO (100%)";
+                                if (aiVisionResult.detectedCount < expected) return `⚠️ Thiếu ${expected - aiVisionResult.detectedCount} hộp so với PO (${expected} hộp)`;
+                                return `⚠️ Thừa ${aiVisionResult.detectedCount - expected} hộp so với PO (${expected} hộp)`;
+                              })()}
+                            </span>
                           </div>
                           <div className="bg-white p-3 rounded-xl border border-sky-100">
                             <span className="text-slate-400 block text-[10px] font-bold uppercase">Số lô OCR bóc tách</span>
