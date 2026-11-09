@@ -242,12 +242,10 @@ export class AttendanceService {
     }
 
     const matchedAssignment = matchedCandidate?.assign || null;
-    let shiftStartTimeStr = '';
     if (matchedCandidate) {
       attendanceDateStr = matchedCandidate.dateStr;
       assignedShiftId = matchedAssignment.shiftId;
       assignedShiftName = matchedAssignment.shiftName;
-      shiftStartTimeStr = matchedAssignment.shiftStart;
       const startMin = parseTimeToMinutes(matchedAssignment.shiftStart);
       const effectiveCurrentMin = matchedCandidate.isYesterdayOvernight
         ? currentMinutes + 1440
@@ -268,7 +266,6 @@ export class AttendanceService {
       const shift = await this.workShiftModel.findById(dto.shiftId).lean().exec();
       if (shift) {
         assignedShiftName = shift.name;
-        shiftStartTimeStr = shift.startTime;
         const startMin = parseTimeToMinutes(shift.startTime);
         const overnight = isOvernightShift(shift.startTime, shift.endTime);
         const effectiveCurrentMin =
@@ -445,17 +442,63 @@ export class AttendanceService {
 
     const todayStr = getVietnamTodayString();
     const yesterdayStr = getVietnamYesterdayString();
-    const attendance = await this.attendanceModel
+
+    // 1. Tìm bản ghi ca trực đang mở của ngày hôm nay
+    let attendance = await this.attendanceModel
       .findOne({
         employeeId: new Types.ObjectId(dto.employeeId),
-        date: { $in: [todayStr, yesterdayStr] },
+        date: todayStr,
         status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
         checkOutTime: null,
       })
       .sort({ createdAt: -1 })
       .exec();
 
+    // 2. Nếu hôm nay không có ca mở, kiểm tra ca vắt qua đêm từ hôm qua (chỉ xét ca mở trong vòng 14 tiếng gần nhất)
     if (!attendance) {
+      const recentOpenCutoff = new Date(Date.now() - 14 * 3600 * 1000);
+      attendance = await this.attendanceModel
+        .findOne({
+          employeeId: new Types.ObjectId(dto.employeeId),
+          date: yesterdayStr,
+          status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
+          checkOutTime: null,
+          checkInTime: { $gte: recentOpenCutoff },
+        })
+        .sort({ createdAt: -1 })
+        .exec();
+    }
+
+    // 3. Nếu vẫn không có ca mở: kiểm tra xem ca hôm nay đã được nộp biên bản bàn giao ca (đã set COMPLETED trên Web) và cần ghi nhận GPS tan ca
+    if (!attendance) {
+      const submittedHandoverAtt = await this.attendanceModel
+        .findOne({
+          employeeId: new Types.ObjectId(dto.employeeId),
+          date: { $in: [todayStr, yesterdayStr] },
+          isHandoverSubmitted: true,
+          status: AttendanceStatus.COMPLETED,
+        })
+        .sort({ createdAt: -1 })
+        .exec();
+
+      if (submittedHandoverAtt) {
+        // Cập nhật tọa độ GPS Check-out nếu chưa có
+        if (submittedHandoverAtt.checkOutLatitude == null) {
+          submittedHandoverAtt.checkOutLatitude = lat;
+          submittedHandoverAtt.checkOutLongitude = lng;
+          if (dto.note) {
+            submittedHandoverAtt.note = (submittedHandoverAtt.note ? submittedHandoverAtt.note + ' | ' : '') + dto.note;
+          }
+          await submittedHandoverAtt.save();
+        }
+        return {
+          success: true,
+          message: 'Check-out hoàn thành ca trực thành công (đã xác thực GPS)',
+          distanceMeters: Math.round(distanceMeters),
+          attendance: submittedHandoverAtt.toObject ? submittedHandoverAtt.toObject() : submittedHandoverAtt,
+        };
+      }
+
       throw new RpcException('Không tìm thấy ca trực đang mở để check-out');
     }
 
@@ -666,6 +709,26 @@ export class AttendanceService {
         status,
       };
     }
+
+    // Chốt chặn giờ kết thúc ca: Nếu ca trực đã hết giờ quá 60 phút mà chưa check-out, khóa bán hàng POS yêu cầu bàn giao
+    if (status.currentShift?.shiftEnd) {
+      const endMin = parseTimeToMinutes(status.currentShift.shiftEnd);
+      const isOvernight = isOvernightShift(status.currentShift.shiftStart, status.currentShift.shiftEnd);
+      const now = new Date();
+      const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+      const curMin = vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
+      const effEnd = isOvernight ? endMin + 1440 : endMin;
+      const effCur = isOvernight && curMin < parseTimeToMinutes(status.currentShift.shiftStart) ? curMin + 1440 : curMin;
+
+      if (effCur > effEnd + 60) {
+        return {
+          allowed: false,
+          reason: `Ca trực ${status.currentShift.shiftName || ''} (${status.currentShift.shiftStart || ''} - ${status.currentShift.shiftEnd || ''}) đã kết thúc. Theo quy chuẩn quản lý GPP, vui lòng hoàn thành biên bản bàn giao ca và chốt két tiền mặt trước khi chuyển giao quầy!`,
+          status,
+        };
+      }
+    }
+
     return {
       allowed: true,
       status,

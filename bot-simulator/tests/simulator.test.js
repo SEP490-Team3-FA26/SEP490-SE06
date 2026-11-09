@@ -360,7 +360,7 @@ describe('4. BotEngine End-to-End Simulation Flow with Biased Randomness', () =>
           lat: 10.7769,
           lng: 106.7009,
           radius: 200,
-          shiftSchedule: { morningStart: '06:00', morningEnd: '14:00' }
+          shiftSchedule: { morningStart: '00:00', morningEnd: '23:59', afternoonStart: '00:00', afternoonEnd: '23:59' }
         }
       ],
       intervals: { browsingBaseMs: 3000, orderBaseMs: 5000, posBaseMs: 4000, warehouseBaseMs: 6000 }
@@ -446,7 +446,7 @@ describe('4. BotEngine End-to-End Simulation Flow with Biased Randomness', () =>
         branchId: 'BR-001',
         branchLat: 10.7769,
         branchLng: 106.7009,
-        shiftSchedule: { morningStart: '06:00', morningEnd: '14:00' },
+        shiftSchedule: { morningStart: '00:00', morningEnd: '23:59' },
         isCheckedIn: false
       }
     };
@@ -617,7 +617,7 @@ describe('4. BotEngine End-to-End Simulation Flow with Biased Randomness', () =>
         lat: 16.0544,
         lng: 108.2022,
         radius: 200,
-        shiftSchedule: { morningStart: '07:00', morningEnd: '15:00', afternoonStart: '14:00', afternoonEnd: '22:00' },
+        shiftSchedule: { morningStart: '00:00', morningEnd: '23:59', afternoonStart: '00:00', afternoonEnd: '23:59' },
       },
     ];
     const engine = new BotEngine(client, cfg);

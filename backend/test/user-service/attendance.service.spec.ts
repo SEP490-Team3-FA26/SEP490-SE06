@@ -297,6 +297,59 @@ describe('AttendanceService (Unit & Security Tests)', () => {
       expect(check.allowed).toBe(false);
       expect(check.reason).toContain('Dược sĩ đã hoàn thành ca trực hôm nay (đã Check-out)');
     });
+
+    it('should return allowed: false when pharmacist shift ended more than 60 minutes ago', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', fullName: 'Dược sĩ B', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+
+      mockBranchModel.findOne.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ branchCode: 'BR-001', latitude: 10.7769, longitude: 106.7009 }) }),
+      });
+
+      // Vẫn CHECKED_IN nhưng ca đã kết thúc quá 60 phút
+      mockAttendanceModel.find.mockReturnValue({
+        sort: () => ({
+          lean: () => ({
+            exec: jest.fn().mockResolvedValue([
+              {
+                _id: 'att-1',
+                status: AttendanceStatus.CHECKED_IN,
+                checkInTime: new Date(Date.now() - 10 * 3600000),
+                shiftName: 'Ca Sáng',
+                shiftId: 'shift-morning',
+                date: new Date().toISOString().slice(0, 10),
+              },
+            ]),
+          }),
+        }),
+      });
+
+      mockWorkScheduleModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([
+            {
+              branchId: 'BR-001',
+              status: 'published',
+              assignments: [
+                {
+                  employeeId: '507f1f77bcf86cd799439011',
+                  shiftId: 'shift-morning',
+                  shiftName: 'Ca Sáng',
+                  shiftStart: '06:00',
+                  shiftEnd: '07:00', // Ca kết thúc rất sớm trong ngày
+                  date: new Date().toISOString(),
+                },
+              ],
+            },
+          ]),
+        }),
+      });
+
+      const check = await service.verifyPharmacistActiveShift('507f1f77bcf86cd799439011', 'BR-001');
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('đã kết thúc');
+    });
   });
 
   describe('T-CHECKOUT: Geofencing Check-out Guard', () => {
@@ -428,6 +481,53 @@ describe('AttendanceService (Unit & Security Tests)', () => {
       expect(res.success).toBe(true);
       expect(mockExistingAttendance.status).toBe(AttendanceStatus.COMPLETED);
       expect(mockExistingAttendance.save).toHaveBeenCalled();
+    });
+
+    it('should update GPS coordinates without error if shift was already completed via Handover', async () => {
+      mockUserModel.findById.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', fullName: 'Dược sĩ A', role: 'pharmacist', branchId: 'BR-001' }) }),
+      });
+
+      mockBranchModel.findOne.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ branchCode: 'BR-001', latitude: 10.7769, longitude: 106.7009, checkInRadiusMeters: 200 }) }),
+      });
+
+      const mockCompletedAttendance = {
+        _id: 'att-handover-done',
+        status: AttendanceStatus.COMPLETED,
+        isHandoverSubmitted: true,
+        checkInTime: new Date(Date.now() - 4 * 3600000),
+        checkOutTime: new Date(),
+        checkOutLatitude: null,
+        checkOutLongitude: null,
+        save: jest.fn().mockResolvedValue(true),
+        toObject: () => ({ _id: 'att-handover-done', status: AttendanceStatus.COMPLETED }),
+      };
+
+      // 1: open shift today -> null
+      // 2: open shift yesterday -> null
+      // 3: completed handover attendance -> returns mockCompletedAttendance
+      mockAttendanceModel.findOne
+        .mockReturnValueOnce({
+          sort: () => ({ exec: jest.fn().mockResolvedValue(null) }),
+        })
+        .mockReturnValueOnce({
+          sort: () => ({ exec: jest.fn().mockResolvedValue(null) }),
+        })
+        .mockReturnValueOnce({
+          sort: () => ({ exec: jest.fn().mockResolvedValue(mockCompletedAttendance) }),
+        });
+
+      const res = await service.checkOut({
+        employeeId: '507f1f77bcf86cd799439011',
+        latitude: 10.7770,
+        longitude: 106.7010,
+        note: 'Check-out sau khi nộp bàn giao',
+      });
+
+      expect(res.success).toBe(true);
+      expect(mockCompletedAttendance.checkOutLatitude).toBe(10.7770);
+      expect(mockCompletedAttendance.save).toHaveBeenCalled();
     });
   });
 
@@ -751,40 +851,49 @@ describe('AttendanceService (Unit & Security Tests)', () => {
     });
 
     it('T-EARLY-01: Chặn check-in khi trước giờ bắt đầu ca > 30 phút', async () => {
-      // Giả sử hiện tại ca bắt đầu vào 23:50 (chắc chắn cách xa giờ hiện tại)
-      mockWorkScheduleModel.find.mockReturnValue({
-        lean: () => ({
-          exec: jest.fn().mockResolvedValue([
-            {
-              branchId: 'BR-002',
-              status: 'published',
-              assignments: [
-                {
-                  employeeId: mockUser._id,
-                  shiftId: 'shift-late-night',
-                  shiftName: 'Ca Khuya',
-                  shiftStart: '23:50',
-                  shiftEnd: '06:00',
-                  date: new Date().toISOString(),
-                },
-              ],
-            },
-          ]),
-        }),
-      });
+      // Giả lập đồng hồ hệ thống lúc 10:00 AM VN (03:00 UTC) để kiểm tra ca chiều 14:00 - 22:00
+      jest.useFakeTimers({ now: new Date('2026-11-08T03:00:00.000Z') });
 
-      mockAttendanceModel.find.mockImplementation(() => ({
-        exec: jest.fn().mockResolvedValue([]),
-      }));
+      try {
+        mockWorkScheduleModel.find.mockReturnValue({
+          lean: () => ({
+            exec: jest.fn().mockResolvedValue([
+              {
+                branchId: 'BR-002',
+                status: 'published',
+                assignments: [
+                  {
+                    employeeId: mockUser._id,
+                    shiftId: 'shift-afternoon-test',
+                    shiftName: 'Ca Chiều',
+                    shiftStart: '14:00',
+                    shiftEnd: '22:00',
+                    date: '2026-11-08T00:00:00.000Z',
+                  },
+                ],
+              },
+            ]),
+          }),
+        });
 
-      await expect(
-        service.checkIn({
-          employeeId: mockUser._id,
-          latitude: 10.7769,
-          longitude: 106.7009,
-          shiftId: 'shift-late-night',
-        }),
-      ).rejects.toThrow('Bạn chỉ có thể điểm danh trước giờ bắt đầu ca tối đa 30 phút');
+        mockAttendanceModel.find.mockImplementation(() => ({
+          exec: jest.fn().mockResolvedValue([]),
+        }));
+        mockAttendanceModel.findOne.mockReturnValue({
+          exec: jest.fn().mockResolvedValue(null),
+        });
+
+        await expect(
+          service.checkIn({
+            employeeId: mockUser._id,
+            latitude: 10.7769,
+            longitude: 106.7009,
+            shiftId: 'shift-afternoon-test',
+          }),
+        ).rejects.toThrow('Bạn chỉ có thể điểm danh trước giờ bắt đầu ca tối đa 30 phút');
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('T-DOUBLE-01: Chặn check-in ca tiếp theo nếu ca trước cùng ngày chưa check-out', async () => {

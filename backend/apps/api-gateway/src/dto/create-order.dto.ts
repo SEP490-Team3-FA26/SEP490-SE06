@@ -157,6 +157,10 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   approvedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  idempotencyKey?: string;
 }
 
 export class CreatePayOSLinkDto {
@@ -255,4 +259,8 @@ export class CreatePayOSLinkDto {
   @IsString()
   @IsOptional()
   approvedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  idempotencyKey?: string;
 }

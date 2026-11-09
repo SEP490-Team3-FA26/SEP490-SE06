@@ -154,4 +154,8 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   approvedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  idempotencyKey?: string;
 }

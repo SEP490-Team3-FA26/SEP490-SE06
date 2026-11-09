@@ -14,6 +14,11 @@ function getVietnamTodayString(dateObj: Date = new Date()): string {
   return vnTime.toISOString().slice(0, 10);
 }
 
+function getVietnamYesterdayString(dateObj: Date = new Date()): string {
+  const vnYesterday = new Date(dateObj.getTime() + 7 * 60 * 60 * 1000 - 24 * 3600 * 1000);
+  return vnYesterday.toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class ShiftHandoverService {
   private readonly logger = new Logger(ShiftHandoverService.name);
@@ -35,21 +40,36 @@ export class ShiftHandoverService {
       throw new RpcException('Mã nhân viên không hợp lệ');
     }
     const todayStr = getVietnamTodayString();
+    const yesterdayStr = getVietnamYesterdayString();
     const user = await this.userModel.findById(payload.employeeId).lean().exec();
     if (!user) throw new RpcException('Không tìm thấy thông tin nhân viên');
 
     const branchId = payload.branchId || user.branchId || 'BR-001';
 
-    // 1. Tìm bản ghi điểm danh hiện tại của nhân viên
-    const attendance = await this.attendanceModel
+    // 1. Tìm bản ghi điểm danh hiện tại của nhân viên (ưu tiên hôm nay, sau đó ca đêm mở từ hôm qua)
+    let attendance = await this.attendanceModel
       .findOne({
         employeeId: new Types.ObjectId(payload.employeeId),
         date: todayStr,
+        ...(payload.shiftId ? { shiftId: payload.shiftId } : {}),
         status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE, AttendanceStatus.COMPLETED] },
       })
       .sort({ createdAt: -1 })
       .lean()
       .exec();
+
+    if (!attendance) {
+      attendance = await this.attendanceModel
+        .findOne({
+          employeeId: new Types.ObjectId(payload.employeeId),
+          date: yesterdayStr,
+          ...(payload.shiftId ? { shiftId: payload.shiftId } : {}),
+          status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE, AttendanceStatus.COMPLETED] },
+        })
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+    }
 
     // 2. Tìm ca làm việc tương ứng
     let shift = null;
@@ -151,22 +171,36 @@ export class ShiftHandoverService {
       throw new RpcException('Mã nhân viên không hợp lệ');
     }
     const todayStr = getVietnamTodayString();
+    const yesterdayStr = getVietnamYesterdayString();
     const user = await this.userModel.findById(dto.employeeId).lean().exec();
     if (!user) throw new RpcException('Không tìm thấy thông tin Dược sĩ bàn giao');
 
     const branchId = dto.branchId || user.branchId || 'BR-001';
 
-    // 1. Kiểm tra Attendance
-    const attendance = await this.attendanceModel
+    // 1. Kiểm tra Attendance (ưu tiên hôm nay, hoặc ca đêm hôm qua)
+    let attendance = await this.attendanceModel
       .findOne({
         employeeId: new Types.ObjectId(dto.employeeId),
         date: todayStr,
+        ...(dto.shiftId ? { shiftId: dto.shiftId } : {}),
       })
       .sort({ createdAt: -1 })
       .exec();
 
     if (!attendance) {
-      throw new RpcException('Không tìm thấy dữ liệu điểm danh ca trực hôm nay để bàn giao');
+      attendance = await this.attendanceModel
+        .findOne({
+          employeeId: new Types.ObjectId(dto.employeeId),
+          date: yesterdayStr,
+          ...(dto.shiftId ? { shiftId: dto.shiftId } : {}),
+          status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
+        })
+        .sort({ createdAt: -1 })
+        .exec();
+    }
+
+    if (!attendance) {
+      throw new RpcException('Không tìm thấy dữ liệu điểm danh ca trực để bàn giao');
     }
 
     // 2. Tính toán tiền mặt lý thuyết phía server (INV-SHO-02)
@@ -205,10 +239,11 @@ export class ShiftHandoverService {
 
     // 4. Tạo hoặc cập nhật bản ghi ShiftHandover
     const effectiveShiftId = dto.shiftId || attendance?.shiftId || 'DEFAULT';
+    const effectiveHandoverDate = attendance?.date || todayStr;
     let handover = await this.handoverModel
       .findOne({
         outgoingPharmacistId: new Types.ObjectId(dto.employeeId),
-        handoverDate: todayStr,
+        handoverDate: effectiveHandoverDate,
         shiftId: effectiveShiftId,
       })
       .exec();
@@ -227,7 +262,7 @@ export class ShiftHandoverService {
         branchId,
         shiftId: effectiveShiftId,
         shiftName: dto.shiftName || 'Ca làm việc',
-        handoverDate: todayStr,
+        handoverDate: effectiveHandoverDate,
         outgoingPharmacistId: new Types.ObjectId(dto.employeeId),
         outgoingPharmacistName: user.fullName,
         incomingPharmacistId,

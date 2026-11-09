@@ -1019,13 +1019,45 @@ class BotEngine {
     if (!pharm) return null;
     const branchCode = pharm.branchId || 'BR-001';
     const sched = this.state.branchSchedules[branchCode];
-    if (!sched || sched.status !== 'published' || !Array.isArray(sched.assignments)) {
-      return null;
-    }
-
     const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
     const nowMin = currentMinutes !== null ? currentMinutes : vnNow.getUTCHours() * 60 + vnNow.getUTCMinutes();
     const yesterdayStr = addDaysStr(todayStr, -1);
+
+    if (!sched || sched.status !== 'published' || !Array.isArray(sched.assignments)) {
+      if (pharm.assignedShift) return pharm.assignedShift;
+      if (pharm.shiftSchedule) {
+        const start = pharm.shiftSchedule.morningStart || '07:00';
+        const end = pharm.shiftSchedule.morningEnd || '15:00';
+        const timing = evaluateShiftWindow(start, end, nowMin, todayStr, todayStr, yesterdayStr);
+        return {
+          shiftId: 'MOCK_DEFAULT',
+          shiftName: 'Ca Sáng',
+          shiftStart: start,
+          shiftEnd: end,
+          _assignmentDateStr: todayStr,
+          _shiftKey: `${todayStr}_MOCK_DEFAULT`,
+          _timing: timing,
+          _isCompleted: false,
+        };
+      }
+      if (pharm.isCheckedIn) {
+        const start = '00:00';
+        const end = '23:59';
+        const timing = evaluateShiftWindow(start, end, nowMin, todayStr, todayStr, yesterdayStr);
+        return {
+          shiftId: 'MOCK_DEFAULT',
+          shiftName: 'Ca Tiêu Chuẩn',
+          shiftStart: start,
+          shiftEnd: end,
+          _assignmentDateStr: todayStr,
+          _shiftKey: `${todayStr}_MOCK_DEFAULT`,
+          _timing: timing,
+          _isCompleted: false,
+        };
+      }
+      return null;
+    }
+
     const empId = String(pharm.user?.id || pharm.user?._id || pharm.employeeId || pharmKey);
     const completedSet = pharm.completedShiftKeys instanceof Set ? pharm.completedShiftKeys : new Set();
 
@@ -1136,6 +1168,13 @@ class BotEngine {
 
     if (scheduledPharms.length === 0) return;
 
+    // Tự động kiểm tra và check-out cho bất kỳ dược sĩ nào đang checked-in mà ca đã kết thúc
+    for (const p of scheduledPharms) {
+      if (p.isCheckedIn && p.assignedShift && p.assignedShift._timing?.isShiftEnded) {
+        await this.triggerHandoverAndCheckout(p);
+      }
+    }
+
     const availablePharms = scheduledPharms.filter(p => !p.isCompleted);
     if (availablePharms.length === 0) {
       return;
@@ -1145,8 +1184,10 @@ class BotEngine {
     let pharm;
     if (uncheckedPharms.length > 0) {
       const inWindowUnchecked = uncheckedPharms.filter(p => p.inActiveShiftWindow);
-      // Tránh điểm danh ca trong tương lai xa (chặn sớm > 30 phút theo chuẩn Backend)
-      const eligibleUnchecked = uncheckedPharms.filter(p => !p.assignedShift?._timing?.isFutureShift);
+      // Tránh điểm danh ca trong tương lai xa (chặn sớm > 30 phút theo chuẩn Backend) hoặc ca đã kết thúc
+      const eligibleUnchecked = uncheckedPharms.filter(
+        p => !p.assignedShift?._timing?.isFutureShift && !p.assignedShift?._timing?.isShiftEnded
+      );
 
       if (inWindowUnchecked.length > 0) {
         pharm = randomPick(inWindowUnchecked);
@@ -1156,10 +1197,13 @@ class BotEngine {
     }
 
     if (!pharm) {
-      const checkedInPharms = availablePharms.filter(p => p.isCheckedIn);
-      if (checkedInPharms.length > 0) {
-        const inWindowChecked = checkedInPharms.filter(p => p.inActiveShiftWindow);
-        const pool = inWindowChecked.length > 0 ? inWindowChecked : checkedInPharms;
+      // Chỉ chọn những dược sĩ đang check-in VÀ ca trực chưa kết thúc để bán hàng POS!
+      const activeCheckedInPharms = availablePharms.filter(
+        p => p.isCheckedIn && !p.assignedShift?._timing?.isShiftEnded
+      );
+      if (activeCheckedInPharms.length > 0) {
+        const inWindowChecked = activeCheckedInPharms.filter(p => p.inActiveShiftWindow);
+        const pool = inWindowChecked.length > 0 ? inWindowChecked : activeCheckedInPharms;
         const activeBranchCodes = [...new Set(pool.map(p => p.branchId))];
         const chosenBranchCode = pickWeighted(
           activeBranchCodes,
@@ -1184,13 +1228,18 @@ class BotEngine {
       addDaysStr(todayStr, -1)
     );
 
-    // Nếu ca trực đã kết thúc sau khi dược sĩ đã vào làm trong khung giờ thực của ca -> tự động bàn giao & check-out đóng ca
-    if (pharm.isCheckedIn && pharm.checkedInDuringActiveWindow && shiftTiming.isShiftEnded) {
+    // Nếu ca trực đã kết thúc -> tự động bàn giao & check-out đóng ca (không phân biệt check-in sớm hay muộn)
+    if (pharm.isCheckedIn && shiftTiming.isShiftEnded) {
       await this.triggerHandoverAndCheckout(pharm);
       return;
     }
 
     if (!pharm.isCheckedIn) {
+      // Tuyệt đối không gọi API check-in nếu ca trực chưa tới giờ (> 30 phút) hoặc ca đã kết thúc
+      if (shiftTiming.isFutureShift || shiftTiming.isShiftEnded) {
+        return;
+      }
+
       try {
         const gps = jitterGps(pharm.branchLat, pharm.branchLng);
 
@@ -1981,7 +2030,7 @@ class BotEngine {
         latitude: gps.latitude,
         longitude: gps.longitude,
         note: 'Hoàn thành bàn giao két tiền và check-out đúng quy định',
-      }, pharm.token);
+      }, pharm.token).catch(() => {});
 
       const doneKey = pharm.activeShiftKey || pharm.assignedShift?._shiftKey || `${getVietnamTodayStr()}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
       if (pharm.completedShiftKeys instanceof Set) {
@@ -2024,6 +2073,22 @@ class BotEngine {
       }
     } catch (err) {
       this.emitActivity('PHARMACIST', 'ATTENDANCE', pharm.user?.fullName || 'Dược sĩ', pharm.branchId, `Bàn giao ca: ${err.message}`, null, 'WARN');
+      // Nếu có lỗi do ca trực đã được đóng/bàn giao trước đó hoặc ca đã kết thúc, giải phóng trạng thái kẹt
+      const errMsg = (err.message || '').toLowerCase();
+      if (
+        errMsg.includes('đã hoàn thành') ||
+        errMsg.includes('đã check-out') ||
+        errMsg.includes('không tìm thấy') ||
+        errMsg.includes('bàn giao ca') ||
+        pharm.assignedShift?._timing?.isShiftEnded
+      ) {
+        pharm.isCheckedIn = false;
+        pharm.activeShiftKey = null;
+        const doneKey = pharm.assignedShift?._shiftKey || `${getVietnamTodayStr()}_${pharm.assignedShift?.shiftId || 'DEFAULT'}`;
+        if (pharm.completedShiftKeys instanceof Set) {
+          pharm.completedShiftKeys.add(doneKey);
+        }
+      }
     }
   }
 }
