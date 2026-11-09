@@ -261,15 +261,18 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           if (match) cleanCode = match[1];
         }
 
-        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN
-        const pos = await ApiService.getPurchaseOrders().catch(() => []);
-        let matchedPo = Array.isArray(pos)
-          ? pos.find((p: any) => p._id === cleanCode || p.poCode === cleanCode || p.id === cleanCode || (p._id && cleanCode.includes(p._id.slice(-6))))
-          : null;
-
-        // Nếu chưa thấy trong danh sách, thử gọi API tìm trực tiếp theo ID
-        if (!matchedPo && cleanCode.length >= 8) {
+        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN (Ưu tiên tra cứu trực tiếp theo ID để tránh block JS Thread)
+        let matchedPo = null;
+        if (cleanCode.length >= 8) {
           matchedPo = await ApiService.getPurchaseOrderById(cleanCode).catch(() => null);
+        }
+
+        // Nếu chưa thấy, mới fallback tìm trong danh sách PO
+        if (!matchedPo) {
+          const pos = await ApiService.getPurchaseOrders().catch(() => []);
+          matchedPo = Array.isArray(pos)
+            ? pos.find((p: any) => p._id === cleanCode || p.poCode === cleanCode || p.id === cleanCode || (p._id && cleanCode.includes(p._id.slice(-6))))
+            : null;
         }
 
         if (matchedPo) {
@@ -1782,6 +1785,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScanned={handleBarcodeScanned}
+        mode={scannerPurpose === 'SCAN_PO' || scannerPurpose === 'RECEIVE_TRANSFER' ? 'QR' : scannerPurpose === 'LOCATE_MAP' ? 'BARCODE' : 'ALL'}
         title={
           scannerPurpose === 'SCAN_PO'
             ? 'Quét QR Đơn Hàng PO / Kiện Hàng'

@@ -183,3 +183,4 @@ console.log('\n--- 3. [Abnormal Values] Dữ liệu dị thường & Ngoại l�
 console.log('\n======================================================================');
 console.log('🎉 TẤT CẢ CÁC BÀI TEST CAMERA BARCODE SCANNER ĐÃ ĐẠT 100%!');
 console.log('======================================================================');
+

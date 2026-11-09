@@ -36,6 +36,7 @@ import {
   CheckCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { QRCodeSVG } from "qrcode.react";
 import { StatusBadge, GRN_STATUS, PO_STATUS } from "./WarehouseConstants";
 import { purchaseOrderService } from "../../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../../services/purchase/goodsReceipt.service";
@@ -1560,35 +1561,14 @@ export function IncomingOrdersTab({
                 </p>
 
                 {/* QR Code Presentation */}
-                <div className="w-48 h-48 mx-auto p-3 bg-white border-2 border-indigo-200 rounded-2xl shadow-inner flex flex-col items-center justify-center relative group">
-                  <svg className="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="100" height="100" fill="white" />
-                    {/* Top-Left Finder */}
-                    <rect x="10" y="10" width="25" height="25" fill="#1e1b4b" rx="4" />
-                    <rect x="15" y="15" width="15" height="15" fill="white" rx="2" />
-                    <rect x="18" y="18" width="9" height="9" fill="#4338ca" rx="1" />
-                    {/* Top-Right Finder */}
-                    <rect x="65" y="10" width="25" height="25" fill="#1e1b4b" rx="4" />
-                    <rect x="70" y="15" width="15" height="15" fill="white" rx="2" />
-                    <rect x="73" y="18" width="9" height="9" fill="#4338ca" rx="1" />
-                    {/* Bottom-Left Finder */}
-                    <rect x="10" y="65" width="25" height="25" fill="#1e1b4b" rx="4" />
-                    <rect x="15" y="70" width="15" height="15" fill="white" rx="2" />
-                    <rect x="18" y="73" width="9" height="9" fill="#4338ca" rx="1" />
-                    {/* Data patterns */}
-                    <rect x="42" y="15" width="6" height="6" fill="#1e1b4b" />
-                    <rect x="52" y="20" width="6" height="6" fill="#4338ca" />
-                    <rect x="42" y="30" width="6" height="6" fill="#1e1b4b" />
-                    <rect x="15" y="45" width="6" height="6" fill="#4338ca" />
-                    <rect x="25" y="50" width="6" height="6" fill="#1e1b4b" />
-                    <rect x="40" y="45" width="20" height="20" fill="#4f46e5" rx="3" />
-                    <rect x="65" y="45" width="6" height="6" fill="#1e1b4b" />
-                    <rect x="75" y="55" width="6" height="6" fill="#4338ca" />
-                    <rect x="45" y="75" width="6" height="6" fill="#1e1b4b" />
-                    <rect x="60" y="80" width="6" height="6" fill="#4338ca" />
-                    <rect x="80" y="75" width="6" height="6" fill="#1e1b4b" />
-                  </svg>
-                  <span className="absolute bottom-2 bg-indigo-900 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                <div className="w-52 h-52 mx-auto p-3 bg-white border-2 border-indigo-200 rounded-2xl shadow-md flex flex-col items-center justify-center relative group">
+                  <QRCodeSVG
+                    value={`${window.location.origin}/warehouse/goods-receipt/mobile-inspection?poId=${qrModalPo._id}`}
+                    size={176}
+                    level="M"
+                    includeMargin={false}
+                  />
+                  <span className="absolute bottom-1 bg-indigo-900 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow">
                     PO-{qrModalPo._id.slice(-6).toUpperCase()}
                   </span>
                 </div>
