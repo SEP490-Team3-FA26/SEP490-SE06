@@ -11,6 +11,7 @@ COPY frontend/package.json frontend/package-lock.json* ./
 # Xóa tham chiếu workspace cục bộ nếu còn sót lại và cài đặt dependencies
 RUN npm pkg delete dependencies.wdp301-workspace 2>/dev/null || true
 RUN npm install --legacy-peer-deps
+RUN npm install @rollup/rollup-linux-x64-musl --no-save --legacy-peer-deps || true
 
 COPY frontend/ ./
 RUN npm run build
