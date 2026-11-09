@@ -160,12 +160,6 @@ export class AttendanceService {
       })
       .exec();
 
-    const openAttendance = existingDayAttendances.find(
-      (a) =>
-        [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(a.status as any) &&
-        !a.checkOutTime,
-    );
-
     const completedShiftKeys = new Set(
       existingDayAttendances
         .filter((a) => a.status === AttendanceStatus.COMPLETED || !!a.checkOutTime)
@@ -200,6 +194,21 @@ export class AttendanceService {
         }
       }
     }
+
+    // Ca đang mở (đã check-in nhưng chưa check-out). Chỉ tính ca hôm nay hoặc ca đêm vắt từ hôm qua sang còn trong khung giờ
+    const openAttendance = existingDayAttendances.find((a) => {
+      const isOpen =
+        [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE].includes(a.status as any) &&
+        !a.checkOutTime;
+      if (!isOpen) return false;
+      if (a.date === todayStr) return true;
+      if (a.date === yesterdayStr) {
+        return candidateAssignments.some(
+          (c) => c.isYesterdayOvernight && String(c.assign.shiftId) === String(a.shiftId),
+        );
+      }
+      return false;
+    });
 
     let matchedCandidate: { assign: any; dateStr: string; isYesterdayOvernight: boolean } | null = null;
     if (candidateAssignments.length > 0) {
