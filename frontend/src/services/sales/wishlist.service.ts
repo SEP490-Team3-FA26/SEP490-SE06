@@ -43,7 +43,8 @@ export const wishlistService = {
     if (!token) {
       try {
         const guestStr = localStorage.getItem('guest_wishlist');
-        const items: WishlistItem[] = guestStr ? JSON.parse(guestStr) : [];
+        const parsed = guestStr ? JSON.parse(guestStr) : [];
+        const items: WishlistItem[] = Array.isArray(parsed) ? parsed : [];
         return { items, totalCount: items.length };
       } catch (e) {
         console.error('Lỗi khi đọc guest_wishlist từ localStorage:', e);
@@ -72,7 +73,8 @@ export const wishlistService = {
       // Lưu vào localStorage cho khách chưa đăng nhập
       try {
         const guestStr = localStorage.getItem('guest_wishlist');
-        const items: WishlistItem[] = guestStr ? JSON.parse(guestStr) : [];
+        const parsed = guestStr ? JSON.parse(guestStr) : [];
+        const items: WishlistItem[] = Array.isArray(parsed) ? parsed : [];
         const exists = items.some((item) => (item.id || item._id) === medId);
 
         if (!exists) {
@@ -115,7 +117,8 @@ export const wishlistService = {
     if (!token) {
       try {
         const guestStr = localStorage.getItem('guest_wishlist');
-        let items: WishlistItem[] = guestStr ? JSON.parse(guestStr) : [];
+        const parsed = guestStr ? JSON.parse(guestStr) : [];
+        let items: WishlistItem[] = Array.isArray(parsed) ? parsed : [];
         items = items.filter((item) => (item.id || item._id) !== medicineId);
         localStorage.setItem('guest_wishlist', JSON.stringify(items));
         window.dispatchEvent(new Event('wishlistUpdated'));

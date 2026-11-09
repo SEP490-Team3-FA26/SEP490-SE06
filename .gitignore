@@ -43,6 +43,7 @@ taste-skill/
 .idea/
 .vscode/
 !.vscode/settings.json
+.zed/
 
 docker-compose.yml
 next
@@ -109,6 +110,7 @@ gitops/monitoring/dozzle/users.yml
 # Dependency Lock Files (Chống xung đột lockfile nhảy hàng ngàn dòng liên tục)
 package-lock.json
 **/package-lock.json
+!bot-simulator/package-lock.json
 yarn.lock
 **/yarn.lock
 pnpm-lock.yaml
@@ -117,3 +119,9 @@ pnpm-lock.yaml
 # Binary office files
 *.xlsx
 *.docx
+
+# Bot Simulator Local SQLite Data
+bot-simulator/data/
+*.db
+*.db-wal
+*.db-shm

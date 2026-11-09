@@ -94,6 +94,9 @@ export class SalesOrder extends Document {
   soldBy: string;
 
   @Prop({ type: String, index: true })
+  pharmacistId?: string;
+
+  @Prop({ type: String, index: true })
   branchId?: string;
 
   @Prop({ type: Number, index: true })

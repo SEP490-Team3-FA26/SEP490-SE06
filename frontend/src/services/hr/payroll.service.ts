@@ -10,11 +10,14 @@ export interface PayrollItem {
   actualShifts: number;
   missingShifts: number;
   lateMinutes: number;
+  lateCount?: number;
   otShifts: number;
   shiftRate?: number;
   standardSalary: number;
   otSalary: number;
+  baseCertificateAllowance?: number;
   certificateAllowance: number;
+  basePicAllowance?: number;
   picAllowance: number;
   mealAllowanceRate?: number;
   mealAllowance: number;

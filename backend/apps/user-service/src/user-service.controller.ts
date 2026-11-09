@@ -513,6 +513,18 @@ export class UserServiceController {
     return this.attendanceService.getBranchAttendanceHistory(data.branchId, data);
   }
 
+  @MessagePattern('hr.attendance.manager_close')
+  handleManagerCloseShift(@Payload() data: {
+    attendanceId: string;
+    branchId: string;
+    requesterRole?: string;
+    managerName?: string;
+    checkOutTime?: string;
+    note?: string;
+  }) {
+    return this.attendanceService.managerCloseShift(data);
+  }
+
   // --- HR: SHIFT HANDOVER (BÀN GIAO CA & CHỐT KÉT) ---
   @MessagePattern('hr.shift_handover.live_stats')
   handleGetShiftLiveStats(@Payload() data: { employeeId: string; branchId?: string; shiftId?: string }) {

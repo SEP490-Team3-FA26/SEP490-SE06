@@ -527,6 +527,7 @@ export class SalesService implements OnModuleInit {
       patientName: data.patientName || (prescription ? prescription.patientName : undefined),
       patientPhone: data.patientPhone || (prescription ? prescription.patientPhone : undefined),
       soldBy: cashierName,
+      pharmacistId: data.pharmacistId || undefined,
       orderCode: data.orderCode,
       branchId: data.branchId || null,
       redeemedPoints: data.redeemedPoints || 0,

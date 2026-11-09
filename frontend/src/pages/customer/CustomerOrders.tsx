@@ -483,7 +483,8 @@ export function CustomerOrders() {
       // 3. Phân giải danh sách mã đơn đã đánh giá từ localStorage
       let reviewedCodes: string[] = [];
       try {
-        reviewedCodes = JSON.parse(localStorage.getItem('reviewed_order_codes') || '[]');
+        const parsed = JSON.parse(localStorage.getItem('reviewed_order_codes') || '[]');
+        reviewedCodes = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
         reviewedCodes = [];
       }

@@ -50,7 +50,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('notifications');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
       } catch (e) {
         console.error('Failed to parse saved notifications:', e);
         return [];
@@ -237,8 +238,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
 
     setNotifications((prev) => {
+      const safePrev = Array.isArray(prev) ? prev : [];
       // Prevent duplicates (check last 10 notifications)
-      const isDuplicate = prev.slice(0, 10).some(n => 
+      const isDuplicate = safePrev.slice(0, 10).some(n => 
         n.type === newNotification.type && 
         n.message === newNotification.message &&
         Math.abs(new Date(n.timestamp).getTime() - new Date(newNotification.timestamp).getTime()) < 5000 // Within 5 seconds
@@ -246,11 +248,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       
       if (isDuplicate) {
         console.log('⚠️  Duplicate notification detected, skipping');
-        return prev;
+        return safePrev;
       }
       
       // Keep only MAX_NOTIFICATIONS most recent
-      const updated = [newNotification, ...prev].slice(0, MAX_NOTIFICATIONS);
+      const updated = [newNotification, ...safePrev].slice(0, MAX_NOTIFICATIONS);
       return updated;
     });
 
@@ -267,7 +269,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markAsRead = useCallback(async (id: string) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      (Array.isArray(prev) ? prev : []).map((n) => (n.id === id ? { ...n, read: true } : n))
     );
     try {
       await Promise.allSettled([
@@ -280,7 +282,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const markAllAsRead = useCallback(async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => (Array.isArray(prev) ? prev : []).map((n) => ({ ...n, read: true })));
     try {
       await Promise.allSettled([
         notificationService.markAllAsRead(),
@@ -292,7 +294,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearNotification = useCallback(async (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => (Array.isArray(prev) ? prev : []).filter((n) => n.id !== id));
     try {
       if (id && !id.startsWith('notif-')) {
         await notificationService.deleteNotification(id);
@@ -392,7 +394,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     setNotifications(prev => 
-      prev.filter(n => new Date(n.timestamp).getTime() > thirtyDaysAgo)
+      (Array.isArray(prev) ? prev : []).filter(n => new Date(n.timestamp).getTime() > thirtyDaysAgo)
     );
   }, []);
 
@@ -431,12 +433,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshNotifications]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
+  const unreadCount = safeNotifications.filter((n) => !n.read).length;
 
   return (
     <NotificationContext.Provider
       value={{
-        notifications,
+        notifications: safeNotifications,
         unreadCount,
         isSocketConnected,
         connectionMode,

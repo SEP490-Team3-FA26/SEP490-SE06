@@ -37,6 +37,9 @@ export class PayrollItem {
   lateMinutes: number;
 
   @Prop({ default: 0 })
+  lateCount?: number;
+
+  @Prop({ default: 0 })
   otShifts: number;
 
   @Prop({ default: 0 })
@@ -46,7 +49,13 @@ export class PayrollItem {
   otSalary: number;
 
   @Prop({ default: 0 })
+  baseCertificateAllowance?: number;
+
+  @Prop({ default: 0 })
   certificateAllowance: number;
+
+  @Prop({ default: 0 })
+  basePicAllowance?: number;
 
   @Prop({ default: 0 })
   picAllowance: number;

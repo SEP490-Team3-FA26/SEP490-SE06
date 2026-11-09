@@ -34,3 +34,5 @@ build_if_changed wdp301-frontend:latest . ./backend/docker/frontend.Dockerfile \
   frontend package.json backend/docker/frontend.Dockerfile backend/docker/nginx.frontend.conf .dockerignore
 build_if_changed wdp301-ai:latest ./backend/apps/ai-service ./backend/apps/ai-service/Dockerfile \
   backend/apps/ai-service
+build_if_changed wdp301-bot-simulator:latest ./bot-simulator ./bot-simulator/Dockerfile \
+  bot-simulator

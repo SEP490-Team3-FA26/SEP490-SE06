@@ -259,5 +259,88 @@ describe('PayrollService (Unit & Security Tests)', () => {
       expect(item.grossSalary).toBe(7500000 + 1500000 + 3000000 + 910000 + 500000);
       expect(item.netSalary).toBe(item.grossSalary);
     });
+
+    it('should calculate Pro-rata CCHN & PIC allowance = 0 when actualShifts is 0 and deduplicate same-day shifts', async () => {
+      mockPayrollModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      const empZero = {
+        _id: '507f1f77bcf86cd799439021',
+        fullName: 'Dược sĩ 0 Ca',
+        role: 'pharmacist',
+        baseSalary: 7500000,
+        isBranchPIC: true,
+      };
+      const empDupDay = {
+        _id: '507f1f77bcf86cd799439022',
+        fullName: 'Dược sĩ Trùng Ca Ngày',
+        role: 'pharmacist',
+        baseSalary: 7800000, // 300.000 đ/ca
+        isBranchPIC: false,
+      };
+
+      mockUserModel.find.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue([empZero, empDupDay]) }),
+      });
+
+      // empZero: 0 ca; empDupDay: 2 bản ghi cùng ngày 2026-11-07 (1 bản ghi DEFAULT, 1 bản ghi ca cụ thể) -> chỉ tính 1 ca thực tế
+      mockAttendanceModel.find
+        .mockReturnValueOnce({
+          lean: () => ({ exec: jest.fn().mockResolvedValue([]) }),
+        })
+        .mockReturnValueOnce({
+          lean: () => ({
+            exec: jest.fn().mockResolvedValue([
+              { _id: 'a1', date: '2026-11-07', shiftId: 'DEFAULT', status: 'CHECKED_IN', lateMinutes: 0 },
+              { _id: 'a2', date: '2026-11-07', shiftId: 'shift-123', status: 'LATE', lateMinutes: 15 },
+            ]),
+          }),
+        });
+
+      mockCertificateModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([
+            { title: 'CCHN Dược', monthlyAllowance: 2600000, status: CertificateStatus.DA_DUYET },
+          ]),
+        }),
+      });
+
+      mockSalesOrderModel.find.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue([]) }),
+      });
+
+      mockPayrollModel.findOneAndUpdate.mockReturnValue({
+        lean: () => ({ exec: jest.fn().mockResolvedValue({ success: true }) }),
+      });
+
+      await service.calculateMonthlyPayroll({
+        branchId: 'BR-004',
+        month: 11,
+        year: 2026,
+        mealAllowanceRate: 50000,
+        requesterBranchId: 'BR-004',
+        requesterRole: 'branch',
+      });
+
+      const saved = mockPayrollModel.findOneAndUpdate.mock.calls[0][1].$set;
+      const itemZero = saved.items[0];
+      const itemDup = saved.items[1];
+
+      // Nhân sự 0 ca: phụ cấp CCHN và PTCM thực nhận phải bằng 0 (nhưng lưu định mức gốc để hiển thị)
+      expect(itemZero.actualShifts).toBe(0);
+      expect(itemZero.baseCertificateAllowance).toBe(2600000);
+      expect(itemZero.certificateAllowance).toBe(0);
+      expect(itemZero.basePicAllowance).toBe(3000000);
+      expect(itemZero.picAllowance).toBe(0);
+      expect(itemZero.netSalary).toBe(0);
+
+      // Nhân sự bị trùng 2 bản ghi trong cùng 1 ngày 2026-11-07: chỉ được tính 1 ca thực tế (ưu tiên bản ghi shift-123)
+      expect(itemDup.actualShifts).toBe(1);
+      expect(itemDup.lateCount).toBe(1);
+      // CCHN định mức 2.600.000 / 26 ca * 1 ca = 100.000 đ
+      expect(itemDup.certificateAllowance).toBe(100000);
+      expect(itemDup.penalties).toBe(50000);
+    });
   });
 });
