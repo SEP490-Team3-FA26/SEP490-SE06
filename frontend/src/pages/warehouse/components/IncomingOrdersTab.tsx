@@ -33,7 +33,8 @@ import {
   Sparkles,
   Image as ImageIcon,
   Copy,
-  CheckCheck
+  CheckCheck,
+  RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { QRCodeSVG } from "qrcode.react";
