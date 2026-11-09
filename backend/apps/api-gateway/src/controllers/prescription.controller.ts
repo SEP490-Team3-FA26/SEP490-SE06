@@ -306,33 +306,28 @@ export class PrescriptionController implements OnModuleInit {
   }
 
   /**
-   * Khử thông tin định danh cá nhân (PII Scrubbing) trước khi chuyển dữ liệu sang AI Service (DeepSeek)
-   * Nâng cấp bộ lọc khử SĐT (kể cả có khoảng trắng/dấu chấm: 090 123 4567, 09 88 12 34 56), CCCD, Email và xưng danh họ tên
+   * Che thông tin cá nhân (Họ tên, Số điện thoại, Email) trong văn bản trước khi gửi sang AI Service
    */
-  private sanitizePii(text?: string | null, targetName?: string): string {
+  private maskPersonalInfo(text?: string | null, targetName?: string): string {
     if (!text || typeof text !== "string") return "";
-    let clean = text
-      // 1. Khử số điện thoại Việt Nam (kể cả viết liền hay có dấu cách/dấu chấm/dấu gạch ngang: 090 123 4567, 09 88 12 34 56, 09.88.12.34.56, +84 901 234 567)
-      .replace(/(?:(?:\+84|0)[\s.-]*[35789](?:[\s.-]*\d){8}\b)/g, "[ĐÃ ẨN SĐT]")
-      // 2. Khử số CCCD / CMND (12 hoặc 9 số liên tiếp hoặc có dấu cách/dấu chấm/dấu gạch ngang)
-      .replace(/(?:\b\d(?:[\s.-]*\d){11}\b|\b\d(?:[\s.-]*\d){8}\b)/g, "[ĐÃ ẨN CCCD]")
-      // 3. Khử địa chỉ Email
-      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[ĐÃ ẨN EMAIL]")
-      // 4. Khử cấu trúc xưng danh họ tên tiếng Việt (Tôi là Nguyễn Văn A, Tên tôi là..., Bệnh nhân:...)
-      .replace(
-        /(?:tôi là|tên tôi là|tên là|tôi tên|bệnh nhân(?:\s*họ\s*tên)?(?:\s*:)?|khách hàng(?:\s*:)?|họ(?:\s*và)?\s*tên(?:\s*:)?)\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){1,4})/gi,
-        (match) => {
-          const prefix = match.split(/\s+/)[0];
-          return `${prefix} [ĐÃ ẨN TÊN]`;
-        },
-      );
+    let clean = text;
 
+    // 1. Che họ tên từ hồ sơ tài khoản đang đăng nhập (nếu có)
     if (targetName && typeof targetName === "string" && targetName.trim().length >= 2) {
       const escaped = targetName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       clean = clean.replace(new RegExp(escaped, "gi"), "[ĐÃ ẨN TÊN]");
     }
 
-    return clean;
+    return clean
+      // 2. Che số điện thoại Việt Nam (viết liền hoặc có khoảng trắng, dấu chấm, gạch ngang: 090 123 4567, 09 88 12 34 56, +84 901 234 567)
+      .replace(/(?:(?:\+84|0)[\s.-]*[35789](?:[\s.-]*\d){8}\b)/g, "[ĐÃ ẨN SĐT]")
+      // 3. Che địa chỉ Email
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[ĐÃ ẨN EMAIL]")
+      // 4. Che họ tên khi khách tự giới thiệu trong tin nhắn (ví dụ: "Tôi là Nguyễn Văn A", "Bệnh nhân: Trần Thị B")
+      .replace(
+        /((?:[Tt]ên\s+tôi\s+là|[Tt]ôi\s+tên\s+là|[Tt]ôi\s+là|[Tt]ên\s+là|[Hh]ọ\s+và\s+tên|[Hh]ọ\s+tên|[Bb]ệnh\s+nhân|[Kk]hách\s+hàng)\s*:?)\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){1,4})/g,
+        "$1 [ĐÃ ẨN TÊN]",
+      );
   }
 
   /**
@@ -547,9 +542,10 @@ export class PrescriptionController implements OnModuleInit {
     }
     const resolvedBranchId =
       branchId || req?.user?.branchId || req?.user?.branch_id;
+    const userFullName = req?.user?.fullName || req?.user?.name;
 
-    // Khử PII trong mô tả triệu chứng trước khi chuyển tiếp sang AI Service
-    const cleanSymptoms = this.sanitizePii(symptoms);
+    // Che thông tin cá nhân (họ tên, SĐT, email) trong mô tả triệu chứng trước khi chuyển sang AI Service
+    const cleanSymptoms = this.maskPersonalInfo(symptoms, userFullName);
     const payload: any = { symptoms: cleanSymptoms };
     if (resolvedBranchId) {
       payload.branch_id = resolvedBranchId;
@@ -636,8 +632,8 @@ export class PrescriptionController implements OnModuleInit {
         },
         {
           order: 7,
-          title: "Bảo vệ & Minh bạch xử lý dữ liệu y tế qua AI",
-          summary: "Hệ thống tự động rà quét và che giấu thông tin định danh (SĐT kể cả có dấu cách/dấu chấm, CCCD, Email, xưng danh họ tên) trong tin nhắn và ghi chú văn bản trước khi gửi tới mô hình AI. Hình ảnh đơn thuốc được chuyển nguyên vẹn để thị giác AI phân tích bao bì; người dùng tuyệt đối không chụp kèm giấy tờ tùy thân. Dữ liệu lâm sàng (tiền sử dị ứng, bệnh nền) mặc định TẮT đính kèm và chỉ được gửi khi khách hàng chủ động bật tùy chọn đính kèm, nhằm mục đích duy nhất là phát hiện tương tác thuốc và chống sốc phản vệ an toàn.",
+          title: "Bảo vệ dữ liệu cá nhân & Hồ sơ sức khỏe",
+          summary: "Hệ thống tự động che họ tên, số điện thoại và email trong tin nhắn văn bản trước khi chuyển tới dịch vụ AI; hình ảnh tải lên được chuyển để nhận diện thuốc nên khách hàng không chụp kèm thông tin cá nhân. Hồ sơ dị ứng và bệnh nền mặc định tắt đính kèm, chỉ gửi khi khách hàng chủ động bật.",
         },
         {
           order: 8,
@@ -763,13 +759,14 @@ export class PrescriptionController implements OnModuleInit {
     }
 
     try {
-      // Data minimization & Cam kết ẩn danh 100%: Khử PII (họ tên, email, sđt, cccd) trong nội dung tự do
-      const cleanMessage = this.sanitizePii(body.message ? body.message.trim() : "");
-      const cleanNotes = body.medical_notes ? this.sanitizePii(body.medical_notes) : null;
+      const userFullName = req?.user?.fullName || req?.user?.name;
+      // Che thông tin cá nhân (họ tên, email, số điện thoại) trong nội dung văn bản tự do
+      const cleanMessage = this.maskPersonalInfo(body.message ? body.message.trim() : "", userFullName);
+      const cleanNotes = body.medical_notes ? this.maskPersonalInfo(body.medical_notes, userFullName) : null;
       const cleanHistory = Array.isArray(body.history)
         ? body.history.slice(-30).map((h) => ({
             role: h.role,
-            content: this.sanitizePii(h.content),
+            content: this.maskPersonalInfo(h.content, userFullName),
           }))
         : [];
 

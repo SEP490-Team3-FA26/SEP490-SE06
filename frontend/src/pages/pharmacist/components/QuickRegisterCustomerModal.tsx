@@ -207,16 +207,46 @@ export const QuickRegisterCustomerModal: React.FC<QuickRegisterCustomerModalProp
         chronicConditions: clinicalSaveFailedData.chronicConditions,
       });
 
-      // Tra cứu lại hồ sơ hoàn chỉnh sau khi cập nhật thành công
-      const full = await customerService.lookupCustomer(clinicalSaveFailedData.phone);
-      if (full) {
-        if (clinicalSaveFailedData.userId && !full.loyalty.userId) {
-          full.loyalty.userId = clinicalSaveFailedData.userId;
-        }
-        setClinicalSaveFailedData(null);
-        onSuccessLinked?.(full);
-        onClose();
-      }
+      // Tra cứu lại hồ sơ hoàn chỉnh sau khi cập nhật thành công (hoặc dùng dữ liệu thực từ kết quả tạo khách mới)
+      const lookedUp = await customerService.lookupCustomer(clinicalSaveFailedData.phone);
+      const resolvedProfile = lookedUp
+        ? {
+            ...lookedUp,
+            loyalty: {
+              ...lookedUp.loyalty,
+              userId: lookedUp.loyalty.userId || clinicalSaveFailedData.userId,
+            },
+            clinical: {
+              ...lookedUp.clinical,
+              allergies: lookedUp.clinical?.allergies?.length
+                ? lookedUp.clinical.allergies
+                : clinicalSaveFailedData.allergies,
+              chronicConditions: lookedUp.clinical?.chronicConditions?.length
+                ? lookedUp.clinical.chronicConditions
+                : clinicalSaveFailedData.chronicConditions,
+            },
+          }
+        : {
+            loyalty: {
+              userId: clinicalSaveFailedData.userId,
+              fullName: clinicalSaveFailedData.fullName,
+              phone: clinicalSaveFailedData.phone,
+              points: 0,
+              accumulatedPoints: 0,
+              tier: 'Bronze' as const,
+              multiplier: 1.0,
+              conversionRate: 1,
+            },
+            clinical: {
+              allergies: clinicalSaveFailedData.allergies,
+              chronicConditions: clinicalSaveFailedData.chronicConditions,
+              refillReminder: null,
+            },
+          };
+
+      setClinicalSaveFailedData(null);
+      onSuccessLinked?.(resolvedProfile);
+      onClose();
     } catch (err: any) {
       setError(`Thử lưu lại hồ sơ dị ứng thất bại: ${err?.message || 'Lỗi mạng'}. Vui lòng bấm thử lại!`);
     } finally {

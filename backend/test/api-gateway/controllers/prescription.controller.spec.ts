@@ -385,7 +385,7 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
     });
 
-    it('[Lỗi 2 - P1] Nên làm sạch thông tin định danh (PII Scrubbing: SĐT, CCCD, Email) trước khi chuyển sang AI Service', async () => {
+    it('[Lỗi 2 - P1] Nên làm sạch thông tin cá nhân (SĐT, Email) trước khi chuyển sang AI Service', async () => {
       // Giả lập đã xác nhận điều khoản trên server
       PrescriptionController.setConsentForTesting('user:usr-pii-test');
 
@@ -408,7 +408,7 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
 
       await controller.chatConsult(
         {
-          message: 'Tôi là bệnh nhân, SĐT 0988123456, CCCD 001201012345, email benhnhan@gmail.com cần tư vấn.',
+          message: 'Tôi đang bị sốt, SĐT 0988123456, email benhnhan@gmail.com cần tư vấn.',
           medical_notes: 'Ghi chú: liên hệ người nhà qua số 0909999888 hoặc mail giadinh@wdp301.com',
           terms_confirmed: true,
         },
@@ -417,10 +417,8 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
 
       expect(capturedPayload).toBeDefined();
       expect(capturedPayload.message).not.toContain('0988123456');
-      expect(capturedPayload.message).not.toContain('001201012345');
       expect(capturedPayload.message).not.toContain('benhnhan@gmail.com');
       expect(capturedPayload.message).toContain('[ĐÃ ẨN SĐT]');
-      expect(capturedPayload.message).toContain('[ĐÃ ẨN CCCD]');
       expect(capturedPayload.message).toContain('[ĐÃ ẨN EMAIL]');
 
       expect(capturedPayload.medical_notes).not.toContain('0909999888');
@@ -429,7 +427,7 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN EMAIL]');
     });
 
-    it('[Lỗi 4 - P1] Nâng cấp bộ lọc PII: Khử sạch SĐT có dấu cách/dấu chấm, CCCD có dấu cách và xưng danh họ tên', async () => {
+    it('[Lỗi 4 - P1] Nên che sạch SĐT có khoảng trắng/dấu chấm và họ tên người dùng trước khi gửi sang AI', async () => {
       PrescriptionController.setConsentForTesting('user:usr-pii-advanced');
 
       let capturedPayload: any = null;
@@ -445,11 +443,11 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
         } as any);
       });
 
-      const mockReq = { user: { sub: 'usr-pii-advanced' } };
+      const mockReq = { user: { sub: 'usr-pii-advanced', fullName: 'Lê Hoàng Nam' } };
 
       await controller.chatConsult(
         {
-          message: 'Tôi là Nguyễn Văn An, số điện thoại của tôi là 090 123 4567 hoặc 09.88.12.34.56, CCCD 079 099 123 456 cần tư vấn thuốc hạ sốt.',
+          message: 'Tôi là Nguyễn Văn An, số điện thoại của tôi là 090 123 4567 hoặc 09.88.12.34.56 cần tư vấn thuốc hạ sốt cho Lê Hoàng Nam.',
           medical_notes: 'Bệnh nhân: Trần Thị Mai, SĐT người thân 09 88 12 34 56',
           terms_confirmed: true,
         },
@@ -460,18 +458,16 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       // Kiểm tra SĐT có khoảng trắng và dấu chấm đã bị lọc
       expect(capturedPayload.message).not.toContain('090 123 4567');
       expect(capturedPayload.message).not.toContain('09.88.12.34.56');
-      // Kiểm tra CCCD có khoảng trắng đã bị lọc
-      expect(capturedPayload.message).not.toContain('079 099 123 456');
-      // Kiểm tra họ tên xưng danh đã bị lọc
+      // Kiểm tra họ tên tự giới thiệu và họ tên trong tài khoản đã bị lọc
       expect(capturedPayload.message).not.toContain('Nguyễn Văn An');
+      expect(capturedPayload.message).not.toContain('Lê Hoàng Nam');
+      expect(capturedPayload.message).toContain('Tôi là [ĐÃ ẨN TÊN]');
       expect(capturedPayload.message).toContain('[ĐÃ ẨN SĐT]');
-      expect(capturedPayload.message).toContain('[ĐÃ ẨN CCCD]');
-      expect(capturedPayload.message).toContain('[ĐÃ ẨN TÊN]');
 
       // Kiểm tra medical_notes
       expect(capturedPayload.medical_notes).not.toContain('Trần Thị Mai');
       expect(capturedPayload.medical_notes).not.toContain('09 88 12 34 56');
-      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN TÊN]');
+      expect(capturedPayload.medical_notes).toContain('Bệnh nhân: [ĐÃ ẨN TÊN]');
       expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN SĐT]');
     });
 

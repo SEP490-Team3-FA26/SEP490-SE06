@@ -325,13 +325,13 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
               <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
                 7
               </span>
-              <span>Minh bạch xử lý dữ liệu AI & Bảo vệ thông tin y tế</span>
+              <span>Giữ kín thông tin cá nhân của bạn</span>
             </h4>
             <p className="pl-5.5 text-slate-600 text-[11px] leading-relaxed">
-              Hệ thống tự động phát hiện và che giấu thông tin định danh cá nhân (SĐT kể cả có khoảng trắng/dấu chấm, số CCCD, Email, xưng danh họ tên) trong nội dung tin nhắn và ghi chú văn bản trước khi gửi tới mô hình AI. Hình ảnh chụp được chuyển nguyên vẹn để mô hình thị giác phân tích bao bì/đơn thuốc; bạn <strong>tuyệt đối không chụp hình chứa giấy tờ tùy thân</strong>.
+              Hệ thống tự động che họ tên, số điện thoại và email trong tin nhắn văn bản trước khi chuyển cho AI tư vấn. Vì ảnh chụp được dùng để nhận diện thuốc/đơn thuốc, bạn <strong>không chụp kèm thông tin cá nhân riêng tư</strong>.
             </p>
             <p className="pl-5.5 text-slate-600 text-[11px] leading-relaxed">
-              Hồ sơ y tế (tiền sử dị ứng thuốc và bệnh nền) <strong>mặc định được TẮT đính kèm</strong>. Dữ liệu này chỉ được gửi khi bạn <strong>chủ động bật tùy chọn đính kèm hồ sơ y tế</strong> trên khung chat, nhằm mục đích duy nhất là giúp AI và Dược sĩ kiểm tra tương tác thuốc, phòng tránh sốc phản vệ an toàn. Bạn có toàn quyền tắt đính kèm bất kỳ lúc nào.
+              Thông tin dị ứng và bệnh nền <strong>mặc định được tắt đính kèm</strong>, chỉ gửi khi bạn <strong>chủ động bật trên khung chat</strong> để kiểm tra tương tác thuốc an toàn.
             </p>
           </div>
 

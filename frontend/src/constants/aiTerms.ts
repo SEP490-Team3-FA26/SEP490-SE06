@@ -103,7 +103,8 @@ export const SIMPLE_AI_TERMS_RULES: SimpleTermRule[] = [
     highlightText: "Thông tin sức khỏe được giữ kín tuyệt đối.",
     description: "Thông tin bạn trao đổi chỉ dùng để tư vấn chọn thuốc an toàn và phục vụ chăm sóc sức khỏe.",
     bulletPoints: [
-      "Hệ thống tự động che tên, số điện thoại khi xử lý qua máy tính.",
+      "Hệ thống tự động che tên, số điện thoại và email trong tin nhắn văn bản; ảnh chụp chỉ dùng để nhận diện thuốc nên bạn **không chụp kèm thông tin cá nhân riêng tư**.",
+      "Thông tin dị ứng và bệnh nền **mặc định tắt đính kèm**, chỉ gửi khi bạn chủ động bật trên khung chat.",
       "Nhà thuốc cam kết **không bán hay chia sẻ thông tin của bạn** cho bất kỳ ai.",
     ],
   },
