@@ -27,6 +27,8 @@ import {
   Check
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import jsQR from "jsqr";
+import { BrowserMultiFormatReader } from "@zxing/library";
 import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
 import { supplierService } from "../../services/purchase/supplier.service";
@@ -86,6 +88,34 @@ export function GoodsReceiptInspectionPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastScanTimeRef = useRef<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const zxingReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+
+  // Khởi tạo ZXing MultiFormat Reader một lần duy nhất
+  useEffect(() => {
+    if (!zxingReaderRef.current) {
+      zxingReaderRef.current = new BrowserMultiFormatReader();
+    }
+  }, []);
+
+  // Phát âm thanh Beep phản hồi khi nhận diện mã thành công qua Web Audio API
+  const playBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (_) {}
+  };
 
   // Giữ ref cho items và isPaused để tránh stale closure trong vòng lặp animation frame
   const itemsRef = useRef(items);
@@ -200,11 +230,27 @@ export function GoodsReceiptInspectionPage() {
   const totalScanned = items.reduce((sum, item) => sum + item.scannedQty, 0);
   const progressPercent = totalOrdered > 0 ? Math.min(100, ((totalScanned / totalOrdered) * 100)).toFixed(1) : "0";
 
-  // Xử lý quét barcode: Khớp chính xác mặt hàng trong đơn PO; Từ chối mã không hợp lệ
+  // Xử lý quét barcode: Khớp chính xác mặt hàng trong đơn PO; Hỗ trợ bóc tách URL/JSON; Từ chối mã không hợp lệ
   const processBarcode = (rawCode: string) => {
     if (!rawCode || !rawCode.trim() || isPausedRef.current) return;
 
-    const code = rawCode.trim();
+    let code = rawCode.trim();
+
+    // 1. Tự động bóc tách ID/mã nếu quét phải mã QR là URL Web
+    if (code.includes("poId=") || code.includes("barcode=") || code.includes("sku=") || code.includes("code=")) {
+      const match = code.match(/[?&](poId|barcode|sku|code)=([^&#]+)/i);
+      if (match && match[2]) {
+        code = decodeURIComponent(match[2]);
+      }
+    }
+    // 2. Tự động bóc tách nếu quét phải mã QR dạng JSON kiện hàng
+    else if (code.startsWith("{") && code.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(code);
+        code = parsed.barcode || parsed.sku || parsed.medicineId || parsed.code || parsed.poId || code;
+      } catch (_) {}
+    }
+
     const currentItems = itemsRef.current;
 
     // Tìm kiếm sản phẩm tương ứng với barcode, SKU, mã thuốc hoặc tên trong PO
@@ -227,6 +273,9 @@ export function GoodsReceiptInspectionPage() {
         return;
       }
 
+      // Phát âm thanh Beep xác nhận nhận diện thành công
+      playBeep();
+
       const updated = [...currentItems];
       updated[foundIdx] = {
         ...targetItem,
@@ -244,7 +293,7 @@ export function GoodsReceiptInspectionPage() {
       showToast(`+1 ${targetItem.medicineName} (${targetItem.scannedQty + 1}/${maxReceivable} ${targetItem.unit})`, "success");
     } else {
       // 🚫 TỪ CHỐI MÃ VẠCH LẠ: Tuyệt đối không tự ý cộng vào mặt hàng khác
-      showToast(`Mã vạch "${code}" không thuộc bất kỳ sản phẩm nào trong đơn hàng PO này!`, "error");
+      showToast(`Mã quét "${code}" không thuộc bất kỳ sản phẩm nào trong đơn hàng PO này!`, "error");
     }
   };
 
@@ -311,7 +360,7 @@ export function GoodsReceiptInspectionPage() {
     };
   }, []);
 
-  // Vòng lặp nhận diện Barcode từ Camera Stream qua BarcodeDetector API
+  // Vòng lặp nhận diện Barcode & QR Code: Kết hợp BarcodeDetector Native + jsQR + ZXing Fallback (100% trình duyệt)
   useEffect(() => {
     if (!isCameraActive || typeof window === "undefined") return;
 
@@ -336,22 +385,73 @@ export function GoodsReceiptInspectionPage() {
       if (
         video &&
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-        detector &&
         !isPausedRef.current
       ) {
         const now = Date.now();
-        // Giới hạn tần suất quét: cách nhau tối thiểu 1.5s để tránh quét dồn dập 1 mặt hàng
-        if (now - lastScanTimeRef.current >= 1500) {
-          try {
-            const barcodes = await detector.detect(video);
-            if (barcodes && barcodes.length > 0 && active) {
-              const rawValue = barcodes[0].rawValue;
-              if (rawValue && rawValue.trim()) {
-                lastScanTimeRef.current = now;
-                processBarcode(rawValue.trim());
+        // Giới hạn tần suất quét: cách nhau tối thiểu 1.2s để tránh quét dồn dập 1 mặt hàng
+        if (now - lastScanTimeRef.current >= 1200) {
+          let scannedCode = "";
+
+          // Cách 1: Thử dùng Native BarcodeDetector nếu trình duyệt hỗ trợ
+          if (detector) {
+            try {
+              const barcodes = await detector.detect(video);
+              if (barcodes && barcodes.length > 0 && active) {
+                const rawValue = barcodes[0].rawValue;
+                if (rawValue && rawValue.trim()) {
+                  scannedCode = rawValue.trim();
+                }
               }
-            }
-          } catch (_) {}
+            } catch (_) {}
+          }
+
+          // Cách 2: Fallback qua Canvas HTML5 bằng jsQR (siêu nhạy cho QR) & ZXing (mã vạch EAN-13)
+          if (!scannedCode) {
+            try {
+              let canvas = canvasRef.current;
+              if (!canvas) {
+                canvas = document.createElement("canvas");
+                canvasRef.current = canvas;
+              }
+              const width = video.videoWidth || 640;
+              const height = video.videoHeight || 480;
+
+              if (width > 0 && height > 0) {
+                if (canvas.width !== width || canvas.height !== height) {
+                  canvas.width = width;
+                  canvas.height = height;
+                }
+                const ctx = canvas.getContext("2d", { willReadFrequently: true });
+                if (ctx) {
+                  ctx.drawImage(video, 0, 0, width, height);
+                  const imageData = ctx.getImageData(0, 0, width, height);
+
+                  // 2.1 Giải mã QR Code qua jsQR (nhận diện cực nhanh kể cả khi đưa camera máy tính)
+                  const qrCode = jsQR(imageData.data, width, height, {
+                    inversionAttempts: "dontInvert",
+                  });
+                  if (qrCode && qrCode.data && qrCode.data.trim()) {
+                    scannedCode = qrCode.data.trim();
+                  }
+
+                  // 2.2 Nếu không phải QR Code, thử giải mã mã vạch 1D qua ZXing
+                  if (!scannedCode && zxingReaderRef.current) {
+                    try {
+                      const zxingResult = zxingReaderRef.current.decodeFromCanvas(canvas);
+                      if (zxingResult && zxingResult.getText()) {
+                        scannedCode = zxingResult.getText().trim();
+                      }
+                    } catch (_) {}
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+
+          if (scannedCode && active) {
+            lastScanTimeRef.current = now;
+            processBarcode(scannedCode);
+          }
         }
       }
 
