@@ -3,7 +3,6 @@
 import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { ApiService } from './api.service';
-import { FireEmergencyNotifeeService } from './fireEmergencyNotifee.service';
 
 export type SocketNotificationHandler = (notification: any) => void;
 
@@ -102,28 +101,7 @@ class SocketServiceClass {
     this.socket.on('grn_completed_notification', (data) => this.handleIncomingNotification('GRN_COMPLETED', data));
     this.socket.on('order:paid', (data) => this.handleIncomingNotification('ORDER_PAID', data));
     this.socket.on('notification', (data) => this.handleIncomingNotification('GENERAL', data));
-
-    // Cảnh báo cảm biến IoT và Báo cháy kho tổng
-    this.socket.on('sensor:telemetry', (data) => this.handleIncomingNotification('SENSOR_TELEMETRY', data));
-    this.socket.on('sensor:alert', (data) => {
-      this.handleIncomingNotification('SENSOR_ALERT', data);
-      FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-        title: data?.title || 'CẢNH BÁO QUÁ NHIỆT KHO GSP',
-        body: data?.body || `Nhiệt độ cảm biến: ${data?.temp || 'N/A'}°C`,
-        deviceId: data?.deviceId || 'ESP32',
-        temp: String(data?.temp || ''),
-      });
-    });
-    this.socket.on('fire:emergency', (data) => {
-      this.handleIncomingNotification('FIRE_EMERGENCY', data);
-      FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-        title: data?.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-        body: data?.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
-        deviceId: data?.deviceId || 'ESP32',
-        temp: String(data?.temp || '65.0'),
-        isTest: data?.isTest ?? false,
-      });
-    });
+    this.socket.on('sensor:alert', (data) => this.handleIncomingNotification('SENSOR_ALERT', data));
   }
 
   private handleIncomingNotification(type: string, data: any): void {

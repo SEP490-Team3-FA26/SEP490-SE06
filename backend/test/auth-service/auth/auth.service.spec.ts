@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
+import { UnauthorizedException, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AuthService } from '../../../apps/auth-service/src/auth/auth.service';
 import { User, UserRole } from '../../../apps/auth-service/src/auth/user.schema';
 import { VerificationToken, TokenType } from '../../../apps/auth-service/src/auth/verification-token.schema';
@@ -106,7 +106,10 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('should register a new user successfully and send verification OTP', async () => {
+    // -------------------------------------------------------------
+    // [Normal Values]: Luồng nghiệp vụ chuẩn, thành công
+    // -------------------------------------------------------------
+    it('[Normal Values] nên đăng ký tài khoản thành công và lưu bằng chứng chấp thuận quy định bảo mật từ máy chủ', async () => {
       userModel.findOne.mockResolvedValue(null);
       jest.spyOn(bcrypt, 'hash').mockImplementation(() => Promise.resolve('hashedPassword'));
 
@@ -114,15 +117,96 @@ describe('AuthService', () => {
         fullName: 'Test User',
         email: 'test@example.com',
         password: 'password123',
+        agreePrivacy: true,
       });
 
       expect(userModel.findOne).toHaveBeenCalledWith({ email: 'test@example.com' });
       expect(result.message).toContain('Đăng ký tài khoản thành công!');
       expect(result.access_token).toBeDefined();
       expect(result.user.email).toBe('test@example.com');
+      expect(userModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fullName: 'Test User',
+          email: 'test@example.com',
+          privacyAgreed: true,
+          privacyPolicyVersion: 'v1.0',
+          privacyAgreedAt: expect.any(Date),
+        }),
+      );
     });
 
-    it('should throw ConflictException if email already exists', async () => {
+    // -------------------------------------------------------------
+    // [Boundary Values]: Giá trị biên, chuỗi "true", chuỗi "false"
+    // -------------------------------------------------------------
+    it('[Boundary Values] nên chấp nhận cờ agreePrivacy dạng chuỗi "true"', async () => {
+      userModel.findOne.mockResolvedValue(null);
+      jest.spyOn(bcrypt, 'hash').mockImplementation(() => Promise.resolve('hashedPassword'));
+
+      const result = await service.register({
+        fullName: 'Khách Hàng Biên',
+        email: 'boundary@example.com',
+        password: 'password123',
+        agreePrivacy: 'true' as any,
+      });
+
+      expect(result.access_token).toBeDefined();
+      expect(userModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          privacyAgreed: true,
+          privacyPolicyVersion: 'v1.0',
+        }),
+      );
+    });
+
+    it('[Boundary Values] nên từ chối cờ agreePrivacy dạng chuỗi "false"', async () => {
+      userModel.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.register({
+          fullName: 'Khách Hàng Từ Chối',
+          email: 'false-string@example.com',
+          password: 'password123',
+          agreePrivacy: 'false' as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------
+    // [Abnormal Values]: Dữ liệu dị thường, rỗng, không chấp thuận (Fail-closed)
+    // -------------------------------------------------------------
+    it('[Abnormal Values] ném BadRequestException khi thiếu trường agreePrivacy (Fail-closed)', async () => {
+      userModel.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.register({
+          fullName: 'Khách Không Đồng Ý',
+          email: 'no-agree@example.com',
+          password: 'password123',
+          // Thiếu agreePrivacy
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('[Abnormal Values] ném BadRequestException khi agreePrivacy là false, tuyệt đối không cấp token', async () => {
+      userModel.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.register({
+          fullName: 'Khách Tích Bỏ Đồng Ý',
+          email: 'disagree@example.com',
+          password: 'password123',
+          agreePrivacy: false,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('[Abnormal Values] should throw ConflictException if email already exists', async () => {
       userModel.findOne.mockResolvedValue(mockUser);
 
       await expect(
@@ -130,6 +214,7 @@ describe('AuthService', () => {
           fullName: 'Test User',
           email: 'test@example.com',
           password: 'password123',
+          agreePrivacy: true,
         }),
       ).rejects.toThrow(ConflictException);
     });

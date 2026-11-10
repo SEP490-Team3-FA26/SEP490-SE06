@@ -81,6 +81,7 @@ docker compose -f docker-compose.prod.yml up -d --remove-orphans
 echo "🔄 Đồng bộ Firebase credentials và làm mới Nginx Reverse Proxy..."
 if [ -f "$APP_DIR/backend/service-account-key.json" ]; then
   docker cp "$APP_DIR/backend/service-account-key.json" wdp301-gateway:/app/service-account-key.json || true
+  docker compose -f docker-compose.prod.yml restart api-gateway || true
 fi
 docker compose -f docker-compose.prod.yml restart frontend || true
 

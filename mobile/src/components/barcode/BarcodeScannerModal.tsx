@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   ScrollView,
   StatusBar,
+  Vibration,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,8 +42,14 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const [torch, setTorch] = useState<boolean>(false);
   const [manualCode, setManualCode] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
   const isProcessingRef = useRef<boolean>(false);
   const [scanMode, setScanMode] = useState<'BARCODE' | 'QR' | 'ALL'>(mode);
+
+  // Đồng bộ scanMode khi mode prop từ bên ngoài thay đổi
+  useEffect(() => {
+    setScanMode(mode);
+  }, [mode]);
 
   // Animated Laser Line
   const laserAnim = useRef(new Animated.Value(0)).current;
@@ -52,6 +59,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     if (visible) {
       isProcessingRef.current = false;
       setIsProcessing(false);
+      setIsCameraActive(true);
       setManualCode('');
       animLoop = Animated.loop(
         Animated.sequence([
@@ -70,6 +78,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       animLoop.start();
     } else {
       isProcessingRef.current = false;
+      setIsCameraActive(false);
     }
 
     return () => {
@@ -83,9 +92,15 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     const rawData = result.data ? String(result.data).trim() : '';
     if (!rawData) return;
 
-    // Synchronously lock immediately so no subsequent camera frames trigger
+    // Khóa ngay lập tức và ngắt Camera để tránh tình trạng flood events gây đơ ứng dụng
     isProcessingRef.current = true;
     setIsProcessing(true);
+    setIsCameraActive(false);
+
+    // Rung nhẹ phản hồi haptic xúc giác cho người dùng
+    try {
+      Vibration.vibrate(60);
+    } catch {}
 
     let extractedCode = rawData;
 
@@ -207,16 +222,19 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 <Text style={styles.grantBtnText}>CẤP QUYỀN CAMERA</Text>
               </TouchableOpacity>
             </View>
-          ) : (
+          ) : isCameraActive ? (
             <CameraView
               style={StyleSheet.absoluteFill}
               facing="back"
+              autofocus="on"
               enableTorch={torch}
               barcodeScannerSettings={{
                 barcodeTypes,
               }}
               onBarcodeScanned={isProcessing ? undefined : handleBarcodeScanned}
             />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000' }]} />
           )}
 
           {/* Scanner Optical Viewfinder Frame */}

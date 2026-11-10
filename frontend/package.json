@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "node tests/unit/react_filter_test.cjs",
-    "test:unit": "node tests/unit/react_filter_test.cjs",
+    "test": "node tests/unit/react_filter_test.cjs && node tests/unit/ai_terms_test.cjs && node tests/unit/register_privacy_test.cjs && node tests/unit/pharmacist_quick_register_allergy_test.cjs",
+    "test:unit": "node tests/unit/react_filter_test.cjs && node tests/unit/ai_terms_test.cjs && node tests/unit/register_privacy_test.cjs && node tests/unit/pharmacist_quick_register_allergy_test.cjs",
     "test:e2e": "playwright test",
     "rules:check": "node ../scripts/playbook-checker.js"
   },
@@ -21,7 +21,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "@types/leaflet": "^1.9.21",
     "@vitejs/plugin-react": "^5.0.4",
-    "@zxing/library": "^0.23.0",
+    "@zxing/library": "^0.21.3",
     "axios": "^1.18.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
@@ -55,5 +55,15 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "^0.25.0",
+    "@esbuild/linux-arm64": "^0.25.0",
+    "@rollup/rollup-linux-x64-musl": "^4.62.2",
+    "@rollup/rollup-linux-x64-gnu": "^4.62.2",
+    "lightningcss-linux-x64-musl": "^1.33.0",
+    "lightningcss-linux-arm64-musl": "^1.33.0",
+    "@tailwindcss/oxide-linux-x64-musl": "^4.3.1",
+    "@tailwindcss/oxide-linux-arm64-musl": "^4.3.1"
   }
 }

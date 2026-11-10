@@ -50,6 +50,20 @@ export class PushNotificationService implements OnModuleInit {
         return;
       }
 
+      // Ho tro doc tu bien moi truong FIREBASE_SERVICE_ACCOUNT_JSON hoac FIREBASE_SERVICE_ACCOUNT_BASE64
+      const envJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      const envBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+      if (envJson || envBase64) {
+        const rawJson = envJson || Buffer.from(envBase64!, 'base64').toString('utf8');
+        const serviceAccount = JSON.parse(rawJson);
+        this.firebaseApp = initializeApp({
+          credential: cert(serviceAccount),
+        });
+        this.messaging = getMessaging(this.firebaseApp);
+        this.logger.log(`Firebase Admin khoi tao thanh cong tu ENV voi du an: ${serviceAccount.project_id}`);
+        return;
+      }
+
       // Tim kiem file service-account-key.json o cac thu muc tiem nang
       const candidatePaths = [
         path.resolve(process.cwd(), 'service-account-key.json'),
@@ -157,18 +171,24 @@ export class PushNotificationService implements OnModuleInit {
     let sent = 0;
     let failed = 0;
 
+    // Lazy re-init neu file service-account-key.json duoc docker cp vao container sau khi onModuleInit da chay
+    if (fcmTokens.length > 0 && !this.messaging) {
+      this.initFirebase();
+    }
+
     // 1. Gui qua Firebase Admin cho Android FCM
     if (fcmTokens.length > 0 && this.messaging) {
       try {
-        const channelId = payload.channelId || 'fire_emergency_ring_v8';
-        const sound = payload.sound || 'content://settings/system/ringtone';
-
         const isFireEmergency = payload.data?.type === 'FIRE_EMERGENCY';
+        const channelId =
+          payload.channelId || (isFireEmergency ? 'fire_emergency_ring_v8' : 'iot_temperature_critical');
+        const sound =
+          payload.sound || (isFireEmergency ? 'content://settings/system/ringtone' : 'default');
 
         // Với sự kiện FIRE_EMERGENCY: tuyệt đối KHÔNG đưa key 'title' và 'body' vào data payload,
         // để tránh native code của expo-notifications tự động render thêm 1 thông báo trùng lặp.
         // Toàn bộ tiêu đề và nội dung được đưa vào 'alertTitle' và 'alertBody' cho Notifee hiển thị độc quyền.
-        const fcmData = isFireEmergency
+        const rawData: Record<string, any> = isFireEmergency
           ? {
               ...(payload.data || {}),
               alertTitle: payload.title,
@@ -184,10 +204,18 @@ export class PushNotificationService implements OnModuleInit {
               sound,
             };
 
+        const fcmData: Record<string, string> = {};
+        for (const [k, v] of Object.entries(rawData)) {
+          if (v !== undefined && v !== null) {
+            fcmData[k] = String(v);
+          }
+        }
+
         const multicastMessage: any = {
           tokens: fcmTokens,
           android: {
             priority: 'high',
+            ...(isFireEmergency ? { ttl: 60000 } : {}),
           },
           data: fcmData,
         };

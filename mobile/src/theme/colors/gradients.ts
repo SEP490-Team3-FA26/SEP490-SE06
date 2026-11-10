@@ -31,3 +31,5 @@ export const gradients = {
   successAction: ['#0284C7', '#0EA5E9'] as const,
 };
 
+export default gradients;
+

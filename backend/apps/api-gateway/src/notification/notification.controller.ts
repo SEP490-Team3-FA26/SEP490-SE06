@@ -192,7 +192,7 @@ export class NotificationController {
       };
     }
 
-    // Chỉ bắn Push Notification thử nghiệm, không lưu DB theo yêu cầu
+    // Chỉ bắn Push Notification qua FCM tới toàn bộ thiết bị Thủ kho (đánh thức cả máy đang khóa / tắt app / mở app)
     const result = await this.pushService.sendToRole('warehouse', {
       title,
       body: messageBody,

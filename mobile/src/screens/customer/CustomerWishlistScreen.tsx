@@ -18,7 +18,7 @@ import { HeaderBar } from '../../components/ui/HeaderBar';
 import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { showToast } from '../../components/ui/toastHelper';
 import { WishlistAPI, MobileWishlistItem } from '../../services/wishlistApiService';
-import { ColorTokens, TypographyTokens, RadiusTokens } from '../../theme/tokens';
+import { TypographyTokens } from '../../theme/tokens';
 import { AnimatedPressable } from '../../components/clinical';
 import { FlatModal } from '../../components/flat/FlatModal';
 

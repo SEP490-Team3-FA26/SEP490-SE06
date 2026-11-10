@@ -62,3 +62,5 @@ export const roles = {
     badgeText: palette.sky[700],
   },
 };
+
+export default roles;

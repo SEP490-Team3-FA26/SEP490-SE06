@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, Mic, Square, Sparkles, AlertTriangle, CheckCircle, ShoppingCart, Volume2, Info, ArrowRight, HeartPulse, Brain, RotateCcw, X, Send } from "lucide-react";
+import { Loader2, Mic, Square, Sparkles, AlertTriangle, CheckCircle, ShoppingCart, Volume2, Info, ArrowRight, HeartPulse, Brain, RotateCcw, X, Send, ShieldCheck } from "lucide-react";
 import { prescriptionService } from "../../services/sales/prescription.service";
 import { cartService } from "../../services/sales/cart.service";
 import { notifyAuthLoginRequired } from "../../utils/authEvents";
+import { AIConsultantTermsModal } from "../../components/chat/AIConsultantTermsModal";
+import {
+  STORAGE_KEY_AI_TERMS_ACCEPTED,
+  STORAGE_KEY_AI_TERMS_TIMESTAMP,
+  AI_TERMS_VERSION,
+} from "../../constants/aiTerms";
 
 export function AIConsultant() {
   const [recording, setRecording] = useState(false);
@@ -22,6 +28,16 @@ export function AIConsultant() {
 
   // Custom premium non-blocking alert modal state
   const [alertModal, setAlertModal] = useState<{ message: string; title?: string; onConfirm?: () => void } | null>(null);
+
+  // Modal Thông báo Bắt buộc đọc Nội quy Dược sĩ AI khi mở chức năng
+  const [showTermsModal, setShowTermsModal] = useState<boolean>(true);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(STORAGE_KEY_AI_TERMS_ACCEPTED) === "true";
+    } catch {
+      return false;
+    }
+  });
 
   const showAlert = (message: string, title = "Thông báo", onConfirm?: () => void) => {
     setAlertModal({ message, title, onConfirm });
@@ -61,6 +77,12 @@ export function AIConsultant() {
 
   const startRecording = async () => {
     if (requestingMicrophone || loading || recording) return;
+
+    if (!hasAcceptedTerms) {
+      setShowTermsModal(true);
+      setError("Bạn bắt buộc phải đọc và xác nhận đồng ý với Nội quy AI trước khi sử dụng.");
+      return;
+    }
 
     setError("");
     setResult(null);
@@ -145,6 +167,12 @@ export function AIConsultant() {
     if (inputMode === "voice" && !audioBlob) return;
     if (inputMode === "text" && !symptomsText.trim()) return;
 
+    if (!hasAcceptedTerms) {
+      setShowTermsModal(true);
+      setError("Bạn bắt buộc phải đọc và xác nhận đồng ý với Nội quy AI trước khi sử dụng.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setResult(null);
@@ -219,6 +247,26 @@ export function AIConsultant() {
 
   return (
     <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
+      {/* Notice Banner - Thông báo Nội quy Dược sĩ AI */}
+      <div className="rounded-2xl bg-gradient-to-r from-blue-50/95 via-sky-50/95 to-indigo-50/95 border border-blue-200/90 p-3 sm:px-5 flex items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+            <ShieldCheck size={18} />
+          </div>
+          <div className="text-xs text-slate-800">
+            <span className="font-bold text-blue-950">Lưu ý an toàn: </span>
+            <span className="text-slate-600 hidden sm:inline">Chỉ hỗ trợ tư vấn thuốc thông thường · Dược sĩ kiểm tra đơn · Khi nguy kịch gọi cấp cứu 115.</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowTermsModal(true)}
+          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-2xs shrink-0 cursor-pointer"
+        >
+          {hasAcceptedTerms ? "Xem lại nội quy" : "Đọc nội quy bắt buộc"}
+        </button>
+      </div>
+
       {/* Premium Hero Banner (Đồng bộ format như CustomerShop.tsx) */}
       <div className="relative rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 shadow-xl border border-white/5">
         <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-sky-500/10 rounded-full blur-[100px] pointer-events-none"></div>
@@ -653,6 +701,23 @@ export function AIConsultant() {
           </div>
         </div>
       )}
+
+      {/* Modal Bắt Buộc Đọc Nội Quy Khi Mở AI Consultant */}
+      <AIConsultantTermsModal
+        isOpen={showTermsModal}
+        onConfirm={async (auditData) => {
+          // Bắt buộc gọi API xác nhận lên server thành công mới mở giao diện tư vấn
+          await prescriptionService.acceptAITerms(auditData);
+          setHasAcceptedTerms(true);
+          setShowTermsModal(false);
+        }}
+        onDecline={() => {
+          setShowTermsModal(false);
+          if (!hasAcceptedTerms) {
+            setError("Bạn cần đồng ý với Nội quy AI để kích hoạt chức năng tư vấn thuốc.");
+          }
+        }}
+      />
     </div>
   );
 }

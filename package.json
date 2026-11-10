@@ -13,6 +13,8 @@
     "infra:k8s-logs": "bash scripts/k8s-logs.sh",
     "ci:local": "bash scripts/local-ci.sh",
     "ci:local:quick": "bash scripts/local-ci.sh --quick",
+    "ci:local:all": "bash scripts/local-ci.sh --all",
+    "test:rules": "npm run --prefix backend test:rules",
     "rules": "node scripts/playbook-checker.js --summary",
     "rules:check": "node scripts/playbook-checker.js",
     "rules:audit": "node scripts/playbook-checker.js --audit",

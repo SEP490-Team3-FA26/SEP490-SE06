@@ -2,32 +2,26 @@
 # ==============================================================================
 # Git Hook: pre-push
 # Tự động kích hoạt Local CI Quality Gate trước khi mã nguồn được đẩy lên GitHub
+# Yêu cầu: Chạy TOÀN BỘ Test Cases (backend/test & frontend/tests), KHÔNG BUILD
 # ==============================================================================
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 
 echo ""
-echo "🔍 [Git Pre-Push Hook] Đang kiểm tra mã nguồn tại máy cá nhân trước khi push..."
+echo "🔍 [Git Pre-Push Hook] Đang kiểm tra TOÀN BỘ Test Cases (Backend & Frontend) trước khi push..."
 echo ""
 
-# Mặc định chạy chế độ --quick (~5-7s) để push siêu tốc và tránh idle timeout kết nối SSH với GitHub
-# Nếu muốn chạy full 4 bước (bao gồm 373 test cases và Frontend build): gõ FULL_CI=1 git push
-HOOK_ARGS="--quick"
-if [ "${FULL_CI:-0}" = "1" ]; then
-  HOOK_ARGS=""
-fi
-
-# Chạy script kiểm tra chất lượng Local CI
-if ! bash "$ROOT_DIR/scripts/local-ci.sh" $HOOK_ARGS; then
+# Chạy script kiểm tra chất lượng Local CI (Toàn bộ testcase backend & frontend)
+if ! bash "$ROOT_DIR/scripts/local-ci.sh"; then
   echo ""
   echo "❌ [Git Pre-Push Hook] LỆNH PUSH ĐÃ BỊ CHẶN!"
-  echo "👉 Phát hiện lỗi biên dịch hoặc vi phạm kiểm thử. Vui lòng sửa hết lỗi ở trên rồi thực hiện push lại."
+  echo "👉 Phát hiện bài test bị thất bại hoặc vi phạm quy tắc kiểm thử. Vui lòng sửa hết lỗi rồi thực hiện push lại."
   echo "💡 Mẹo: Nếu cần push gấp để lưu nháp và bỏ qua kiểm tra, hãy thêm cờ: git push --no-verify"
   echo ""
   exit 1
 fi
 
 echo ""
-echo "✅ [Git Pre-Push Hook] Kiểm tra đạt chuẩn 100%! Tiến hành đẩy mã nguồn lên remote..."
+echo "✅ [Git Pre-Push Hook] Toàn bộ Test Cases đều đạt chuẩn 100%! Tiến hành đẩy mã nguồn lên remote..."
 echo ""
 exit 0

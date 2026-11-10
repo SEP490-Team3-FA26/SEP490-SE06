@@ -39,3 +39,5 @@ export const semantic = {
   },
 };
 
+export default semantic;
+
