@@ -19,8 +19,8 @@
     "rules:check": "node scripts/playbook-checker.js",
     "rules:audit": "node scripts/playbook-checker.js --audit",
     "lint:syntax": "node scripts/check-syntax-and-safety.js",
-    "setup:hooks": "npx husky && git config core.hooksPath .husky && chmod +x .husky/pre-commit .husky/pre-push",
-    "prepare": "husky",
+    "setup:hooks": "git config core.hooksPath .github/.githooks && chmod +x .github/.githooks/pre-push",
+    "prepare": "git config core.hooksPath .github/.githooks 2>/dev/null || true",
     "prod:up": "docker compose -f docker-compose.prod.yml up -d",
     "prod:down": "docker compose -f docker-compose.prod.yml down",
     "prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
@@ -32,8 +32,7 @@
   },
   "devDependencies": {
     "@types/pg": "^8.20.0",
-    "concurrently": "^9.2.1",
-    "husky": "^9.1.7"
+    "concurrently": "^9.2.1"
   },
   "playbook": {
     "version": "2.0.0",
