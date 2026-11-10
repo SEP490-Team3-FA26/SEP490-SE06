@@ -24,6 +24,27 @@
         "EXPO_PUBLIC_AI_URL": "https://abcpharmacy.store"
       }
     },
+    "preview-local": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://10.12.49.93:4000",
+        "EXPO_PUBLIC_AI_URL": "http://10.12.49.93:8000"
+      }
+    },
+    "preview-usb": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:4000",
+        "EXPO_PUBLIC_AI_URL": "http://localhost:8000",
+        "EXPO_PUBLIC_ALLOW_LOCALHOST_USB": "true"
+      }
+    },
     "preview-ios": {
       "distribution": "internal",
       "ios": {

@@ -104,24 +104,33 @@ class SocketServiceClass {
     this.socket.on('notification', (data) => this.handleIncomingNotification('GENERAL', data));
 
     // Cảnh báo cảm biến IoT và Báo cháy kho tổng
-    this.socket.on('sensor:telemetry', (data) => this.handleIncomingNotification('SENSOR_TELEMETRY', data));
     this.socket.on('sensor:alert', (data) => {
-      this.handleIncomingNotification('SENSOR_ALERT', data);
-      FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-        title: data?.title || 'CẢNH BÁO QUÁ NHIỆT KHO GSP',
-        body: data?.body || `Nhiệt độ cảm biến: ${data?.temp || 'N/A'}°C`,
-        deviceId: data?.deviceId || 'ESP32',
-        temp: String(data?.temp || ''),
+      const tempNum = Number(data?.temp ?? data?.metrics?.temperature ?? 0);
+      this.handleIncomingNotification('SENSOR_ALERT', {
+        ...data,
+        message: data?.body || data?.message || `Nhiệt độ cảm biến: ${tempNum || 'N/A'}°C`,
       });
+      if (data?.type === 'FIRE_EMERGENCY' || tempNum >= 60) {
+        FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
+          title: data?.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
+          body: data?.body || `Nhiệt độ cảm biến: ${tempNum || '65.0'}°C`,
+          deviceId: data?.deviceId || 'ESP32',
+          temp: String(tempNum || '65.0'),
+          isTest: Boolean(data?.isTest),
+        });
+      }
     });
     this.socket.on('fire:emergency', (data) => {
-      this.handleIncomingNotification('FIRE_EMERGENCY', data);
+      this.handleIncomingNotification('FIRE_EMERGENCY', {
+        ...data,
+        message: data?.body || data?.message || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
+      });
       FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
         title: data?.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
         body: data?.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
         deviceId: data?.deviceId || 'ESP32',
         temp: String(data?.temp || '65.0'),
-        isTest: data?.isTest ?? false,
+        isTest: Boolean(data?.isTest),
       });
     });
   }

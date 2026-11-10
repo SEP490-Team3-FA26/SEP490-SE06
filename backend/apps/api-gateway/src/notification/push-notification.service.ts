@@ -50,6 +50,20 @@ export class PushNotificationService implements OnModuleInit {
         return;
       }
 
+      // Ho tro doc tu bien moi truong FIREBASE_SERVICE_ACCOUNT_JSON hoac FIREBASE_SERVICE_ACCOUNT_BASE64
+      const envJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      const envBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+      if (envJson || envBase64) {
+        const rawJson = envJson || Buffer.from(envBase64!, 'base64').toString('utf8');
+        const serviceAccount = JSON.parse(rawJson);
+        this.firebaseApp = initializeApp({
+          credential: cert(serviceAccount),
+        });
+        this.messaging = getMessaging(this.firebaseApp);
+        this.logger.log(`Firebase Admin khoi tao thanh cong tu ENV voi du an: ${serviceAccount.project_id}`);
+        return;
+      }
+
       // Tim kiem file service-account-key.json o cac thu muc tiem nang
       const candidatePaths = [
         path.resolve(process.cwd(), 'service-account-key.json'),
@@ -156,6 +170,11 @@ export class PushNotificationService implements OnModuleInit {
 
     let sent = 0;
     let failed = 0;
+
+    // Lazy re-init neu file service-account-key.json duoc docker cp vao container sau khi onModuleInit da chay
+    if (fcmTokens.length > 0 && !this.messaging) {
+      this.initFirebase();
+    }
 
     // 1. Gui qua Firebase Admin cho Android FCM
     if (fcmTokens.length > 0 && this.messaging) {

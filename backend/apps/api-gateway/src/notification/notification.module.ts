@@ -7,9 +7,11 @@ import { DeviceToken, DeviceTokenSchema } from './schemas/device-token.schema';
 import { IotAlert, IotAlertSchema } from './schemas/iot-alert.schema';
 import { SensorStation, SensorStationSchema } from './schemas/sensor-station.schema';
 import { PushNotificationService } from './push-notification.service';
+import { WebsocketModule } from '../websocket/websocket.module';
 
 @Module({
   imports: [
+    WebsocketModule,
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
       { name: DeviceToken.name, schema: DeviceTokenSchema },

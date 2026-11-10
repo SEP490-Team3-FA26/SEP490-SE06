@@ -29,6 +29,8 @@
     },
     "android": {
       "package": "com.abcpharmacy.mobile",
+      "googleServicesFile": "./google-services.json",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#01BAA8",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -41,10 +43,26 @@
         "READ_CALENDAR",
         "WRITE_CALENDAR",
         "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "POST_NOTIFICATIONS",
+        "USE_FULL_SCREEN_INTENT",
+        "WAKE_LOCK",
+        "DISABLE_KEYGUARD",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "SYSTEM_ALERT_WINDOW",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -70,13 +88,34 @@
         {
           "locationWhenInUsePermission": "Cho phép ứng dụng lấy vị trí GPS để xác nhận điểm danh ca làm việc tại nhà thuốc."
         }
-      ]
+      ],
+      [
+        "react-native-notify-kit",
+        {
+          "android": {
+            "foregroundService": {
+              "types": [
+                "mediaPlayback"
+              ]
+            }
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#DC2626",
+          "defaultChannel": "fire_emergency_ring_v8"
+        }
+      ],
+      "./plugins/withFireEmergencyAndroid"
     ],
     "extra": {
       "eas": {
-        "projectId": "1491cb0c-c010-49fb-9954-9dacdcc93d17"
+        "projectId": "f7db0cf2-e41b-4383-bec8-3a75eb6c12ec"
       }
     },
-    "owner": "phuche2004p"
+    "owner": "phuche2004"
   }
 }
