@@ -13,8 +13,12 @@
     "infra:k8s-logs": "bash scripts/k8s-logs.sh",
     "ci:local": "bash scripts/local-ci.sh",
     "ci:local:quick": "bash scripts/local-ci.sh --quick",
-    "setup:hooks": "git config core.hooksPath .github/.githooks && chmod +x .github/.githooks/pre-push",
-    "prepare": "git config core.hooksPath .github/.githooks 2>/dev/null || true",
+    "rules": "node scripts/playbook-checker.js --summary",
+    "rules:check": "node scripts/playbook-checker.js",
+    "rules:audit": "node scripts/playbook-checker.js --audit",
+    "lint:syntax": "node scripts/check-syntax-and-safety.js",
+    "setup:hooks": "npx husky && git config core.hooksPath .husky && chmod +x .husky/pre-commit .husky/pre-push",
+    "prepare": "husky",
     "prod:up": "docker compose -f docker-compose.prod.yml up -d",
     "prod:down": "docker compose -f docker-compose.prod.yml down",
     "prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
@@ -26,6 +30,21 @@
   },
   "devDependencies": {
     "@types/pg": "^8.20.0",
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7"
+  },
+  "playbook": {
+    "version": "2.0.0",
+    "name": "Fullstack Playbook v2.0 - PharmaChain WDP301/SEP490",
+    "documentation": ".agents/rules/trienkhaitaskmoi.md",
+    "rules": [
+      "[Rule 1] Kafka Event-Driven: Tác vụ Ghi trả về HTTP 202 ACCEPTED. Cấm gọi HTTP nội bộ giữa các microservice.",
+      "[Rule 2] Zero Mock Data: Tuyệt đối không dùng mock data trong mã nguồn Production.",
+      "[Rule 3] API Gateway: Mọi request đi qua /api/<group>/... theo Bounded Context.",
+      "[Rule 4] Code Comments: 100% chú thích mã nguồn bằng Tiếng Việt.",
+      "[Rule 5] Test Guidelines: Phân loại đủ 3 nhóm [Normal Values], [Boundary Values], [Abnormal Values].",
+      "[Rule 6] Test-Coupled Mandate: Bắt buộc kẹp file test (*.spec.ts) khi viết Service/Controller mới.",
+      "[Rule 7] In-app Notifications: Cấm dùng Google/OS/Browser notification; bắt buộc dùng In-app qua Socket.IO."
+    ]
   }
 }

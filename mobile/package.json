@@ -5,6 +5,8 @@
   "main": "index.ts",
   "scripts": {
     "test": "jest",
+    "rules:check": "node ../scripts/playbook-checker.js",
+    "typecheck": "tsc --noEmit --ignoreDeprecations 6.0",
     "start": "expo start --port 8085",
     "go": "expo start --go --port 8085",
     "go:clean": "expo start --go -c --port 8085",

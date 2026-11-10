@@ -602,3 +602,37 @@ export const ProductList: React.FC = () => {
 > [!CAUTION]
 > **4. Cấm sử dụng thông báo của Google & OS/Trình duyệt:**
 > Tuyệt đối không dùng Notification API của trình duyệt/hệ điều hành (`Notification.requestPermission()`, `new Notification()`, Web Push) hay các dịch vụ thông báo từ Google. Mọi thông báo hiển thị tới người dùng phải là thông báo nội bộ ứng dụng (In-app Notifications, Toast, Dropdown thông báo) thông qua kết nối Socket.IO thời gian thực.
+
+> [!CAUTION]
+> **5. Quy tắc Chống Lỗi Runtime `toUpperCase` / `toLowerCase` Trên Biến `undefined` (Null-Safe String Rule):**
+> Tuyệt đối **không** gọi trực tiếp `{prop.toUpperCase()}` hoặc `{item.field.toLowerCase()}` trong JSX hoặc hàm xử lý khi dữ liệu đến từ API/Route Params (ví dụ: Backend `/api/medicines/warehouse-map` trả về `zone.zone` & `rack.rack`, trong khi hằng số mặc định dùng `zone.zoneId` & `rack.rackId`).
+> **Bắt buộc chuẩn hóa an toàn trước khi render:**
+> ```typescript
+> const safeZone = String(zone?.zoneId || zone?.zone || 'B').trim().toUpperCase() || 'B';
+> const safeRack = String(rack?.rackId || rack?.rack || 'B1').trim().toUpperCase() || 'B1';
+> ```
+
+---
+
+## 6. Cổng Kiểm Soát Lỗi Cú Pháp & Runtime Tự Động Với Husky (`Husky Syntax & Safety Gate`)
+
+Dự án tích hợp sẵn **Husky (`husky`)** kết hợp cùng trình quét **`scripts/check-syntax-and-safety.js`** để tự động phát hiện và chặn mọi lỗi cú pháp (Syntax Error), lỗi sai tên biến/kiểu dữ liệu TypeScript (`tsc --noEmit`), và lỗi gọi `.toUpperCase()` / `.toLowerCase()` thiếu bảo vệ ngay trước khi commit hoặc push.
+
+### 6.1. Các Lệnh Kiểm Tra Nhanh Dành Cho Dev & AI Agent
+
+| Lệnh thực thi | Phạm vi kiểm tra | Khi nào sử dụng |
+| :--- | :--- | :--- |
+| `npm run lint:syntax` | Chạy `scripts/check-syntax-and-safety.js` (Kiểm tra `tsc --noEmit` Mobile + Quét lỗi `.toUpperCase()`/`undefined` + Cú pháp `<script>` HTML) | Chạy ngay sau khi sửa code để tìm lỗi syntax tức thì (chỉ mất ~2 giây). |
+| `npm run setup:hooks` | Kích hoạt Husky Git Hooks (`.husky/pre-commit` & `.husky/pre-push`) | Chạy 1 lần sau khi clone dự án hoặc cài đặt gói mới. |
+| `npm run ci:local:quick` | Kiểm tra nhanh Backend Build + Test Rules + Syntax Gate | Tự động chạy khi `git push` hoặc kiểm tra nhanh toàn cục. |
+
+### 6.2. Cơ Chế Chặn Lỗi Tự Động Của `.husky/pre-commit`
+
+Mỗi khi thực hiện `git commit` (hoặc chạy `npm run lint:syntax`), Husky sẽ tự động thực thi 3 cổng kiểm định:
+
+1. **Cổng 1 — TypeScript Syntax & Typecheck (`npx tsc --noEmit`):**
+   - Phát hiện ngay lập tức các lỗi cú pháp, thiếu dấu ngoặc, truyền sai tên prop (ví dụ `onRequestShiftSwap` thay vì `onRequestSwap`), hoặc biến chưa khai báo (`Cannot find name 'userProfile'`).
+2. **Cổng 2 — Runtime Null-Safety Scanner (`.toUpperCase()` / `.toLowerCase()`):**
+   - Quét toàn bộ các file `.ts` / `.tsx` đang thay đổi để phát hiện các biểu thức `{ident.toUpperCase()}` hoặc `{ident.toLowerCase()}` không được bọc bảo vệ `String(ident || '')`, ngăn chặn triệt để lỗi màn hình đỏ `Render Error: Cannot read property 'toUpperCase' of undefined` trên thiết bị thật.
+3. **Cổng 3 — HTML Inline Script Syntax Validator:**
+   - Tự động biên dịch thử toàn bộ khối `<script>` trong các file `.html` (`docs/mobile_v2/index.html`) bằng nhân V8 (`new Function`) để đảm bảo không có lỗi cú pháp JavaScript làm trắng trang.

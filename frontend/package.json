@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "test": "node tests/unit/react_filter_test.cjs",
     "test:unit": "node tests/unit/react_filter_test.cjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "rules:check": "node ../scripts/playbook-checker.js"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -20,11 +21,13 @@
     "@tailwindcss/vite": "^4.1.14",
     "@types/leaflet": "^1.9.21",
     "@vitejs/plugin-react": "^5.0.4",
+    "@zxing/library": "^0.23.0",
     "axios": "^1.18.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "gsap": "^3.15.0",
+    "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Husky Git Hook: pre-commit
+# Tự động quét kiểm tra lỗi Cú Pháp (Syntax) & Quy Tắc Dự Án (Playbook Rules)
+# ==============================================================================
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+
+# 1. Kiểm tra lỗi cú pháp (Syntax)
+if ! node "$ROOT_DIR/scripts/check-syntax-and-safety.js"; then
+  echo ""
+  echo "❌ [Husky Pre-Commit] COMMIT BỊ CHẶN DO LỖI CÚ PHÁP!"
+  exit 1
+fi
+
+# 2. Kiểm tra tuân thủ các quy tắc dự án (Playbook Rules)
+if ! node "$ROOT_DIR/scripts/playbook-checker.js"; then
+  echo ""
+  echo "❌ [Husky Pre-Commit] COMMIT BỊ CHẶN DO VI PHẠM QUY TẮC PLAYBOOK V2.0!"
+  exit 1
+fi
+
+exit 0
