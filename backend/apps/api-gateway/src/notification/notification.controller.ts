@@ -1,9 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Delete, Query, Param, Req, UseGuards, Logger, ForbiddenException, Optional } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Query, Param, Req, UseGuards, Logger, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import { PushNotificationService } from './push-notification.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { AppWebsocketGateway } from '../websocket/websocket.gateway';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
@@ -15,7 +14,6 @@ export class NotificationController {
   constructor(
     private readonly notificationService: NotificationService,
     private readonly pushService: PushNotificationService,
-    @Optional() private readonly wsGateway?: AppWebsocketGateway,
   ) {}
 
   @Get('me')
@@ -194,32 +192,7 @@ export class NotificationController {
       };
     }
 
-    // Phát tín hiệu realtime qua Socket.IO tới phòng warehouse để các máy đang mở app đổ chuông tức thì (<50ms)
-    if (this.wsGateway?.server) {
-      if (type === 'FIRE_EMERGENCY') {
-        this.wsGateway.server.to('warehouse').emit('fire:emergency', {
-          type: 'FIRE_EMERGENCY',
-          title,
-          body: messageBody,
-          deviceId,
-          temp: '65.0',
-          isTest: true,
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        this.wsGateway.server.to('warehouse').emit('sensor:alert', {
-          type: 'IOT_TEMPERATURE_ALERT',
-          title,
-          body: messageBody,
-          deviceId,
-          temp: '42.0',
-          isTest: true,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-
-    // Bắn Push Notification qua FCM tới toàn bộ thiết bị Thủ kho (đánh thức cả máy đang khóa / tắt app)
+    // Chỉ bắn Push Notification qua FCM tới toàn bộ thiết bị Thủ kho (đánh thức cả máy đang khóa / tắt app / mở app)
     const result = await this.pushService.sendToRole('warehouse', {
       title,
       body: messageBody,

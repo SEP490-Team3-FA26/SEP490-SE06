@@ -244,18 +244,6 @@ export class SensorController implements OnModuleInit {
           `[IOT FIRE EMERGENCY] Nhiet do kho ${temp}C vuot nguong hoa hoan (>= 60C) -> Ban chuong bao dong khan cap`,
         );
 
-        if (this.wsGateway?.server) {
-          this.wsGateway.server.to('warehouse').emit('fire:emergency', {
-            type: 'FIRE_EMERGENCY',
-            title: 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-            body: `NGUY CẤP: Nhiệt độ kho ${temp}°C đã vượt ngưỡng hỏa hoạn (>= 60°C)! Sơ tán và kiểm tra ngay lập tức!`,
-            deviceId,
-            temp: String(temp),
-            isTest: false,
-            timestamp: new Date().toISOString(),
-          });
-        }
-
         this.pushService
           .sendToRole('warehouse', {
             title: 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
@@ -305,19 +293,6 @@ export class SensorController implements OnModuleInit {
         this.logger.warn(
           `[IOT PUSH TRIGGERED] Nhiet do kho ${temp}C vuot nguong ${threshold}C lien tuc ${count}s -> Ban push alert`,
         );
-
-        if (this.wsGateway?.server) {
-          this.wsGateway.server.to('warehouse').emit('sensor:alert', {
-            type: 'IOT_TEMPERATURE_ALERT',
-            title: 'CẢNH BÁO QUÁ NHIỆT KHO TỔNG',
-            body: `Nhiệt độ hiện tại ${temp}°C đã vượt ngưỡng ${threshold}°C! Vui lòng kiểm tra kho ngay lập tức.`,
-            deviceId,
-            temp: String(temp),
-            threshold: String(threshold),
-            isTest: false,
-            timestamp: new Date().toISOString(),
-          });
-        }
 
         this.pushService
           .sendToRole('warehouse', {

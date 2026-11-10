@@ -3,7 +3,6 @@
 import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { ApiService } from './api.service';
-import { FireEmergencyNotifeeService } from './fireEmergencyNotifee.service';
 
 export type SocketNotificationHandler = (notification: any) => void;
 
@@ -102,37 +101,6 @@ class SocketServiceClass {
     this.socket.on('grn_completed_notification', (data) => this.handleIncomingNotification('GRN_COMPLETED', data));
     this.socket.on('order:paid', (data) => this.handleIncomingNotification('ORDER_PAID', data));
     this.socket.on('notification', (data) => this.handleIncomingNotification('GENERAL', data));
-
-    // Cảnh báo cảm biến IoT và Báo cháy kho tổng
-    this.socket.on('sensor:alert', (data) => {
-      const tempNum = Number(data?.temp ?? data?.metrics?.temperature ?? 0);
-      this.handleIncomingNotification('SENSOR_ALERT', {
-        ...data,
-        message: data?.body || data?.message || `Nhiệt độ cảm biến: ${tempNum || 'N/A'}°C`,
-      });
-      if (data?.type === 'FIRE_EMERGENCY' || tempNum >= 60) {
-        FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-          title: data?.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-          body: data?.body || `Nhiệt độ cảm biến: ${tempNum || '65.0'}°C`,
-          deviceId: data?.deviceId || 'ESP32',
-          temp: String(tempNum || '65.0'),
-          isTest: Boolean(data?.isTest),
-        });
-      }
-    });
-    this.socket.on('fire:emergency', (data) => {
-      this.handleIncomingNotification('FIRE_EMERGENCY', {
-        ...data,
-        message: data?.body || data?.message || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
-      });
-      FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-        title: data?.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-        body: data?.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
-        deviceId: data?.deviceId || 'ESP32',
-        temp: String(data?.temp || '65.0'),
-        isTest: Boolean(data?.isTest),
-      });
-    });
   }
 
   private handleIncomingNotification(type: string, data: any): void {
