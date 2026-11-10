@@ -1,4 +1,4 @@
-import { Controller, Post, Patch, Get, Param, Body, Inject, OnModuleInit, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Controller, Post, Patch, Get, Param, Body, Inject, OnModuleInit, ServiceUnavailableException, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
@@ -210,6 +210,41 @@ export class GoodsReceiptController implements OnModuleInit {
     } catch (e) {
       return { success: false, message: 'Failed to fetch inspection record.' };
     }
+  }
+
+  @Post('vision/count-boxes')
+  @UseGuards(RolesGuard)
+  @Roles('warehouse', 'admin')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  async countBoxes(@UploadedFile() file?: Express.Multer.File) {
+    if (!file?.size || !['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      throw new BadRequestException('Vui lòng tải ảnh JPEG, PNG hoặc WEBP hợp lệ.');
+    }
+
+    const internalToken = process.env.INTERNAL_SERVICE_TOKEN || process.env.JWT_SECRET;
+    if (!internalToken) {
+      throw new ServiceUnavailableException('Chưa cấu hình xác thực cho AI Service.');
+    }
+
+    const formData = new FormData();
+    formData.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname);
+    const aiUrl = process.env.AI_SERVICE_URL || 'http://ai-service:8000';
+    const response = await fetch(aiUrl + '/api/ai/vision/count-boxes', {
+      method: 'POST',
+      headers: { 'X-Internal-Token': internalToken },
+      body: formData,
+      signal: AbortSignal.timeout(30000),
+    }).catch(() => {
+      throw new ServiceUnavailableException('Không kết nối được AI Service.');
+    });
+
+    if (response.status === 503) {
+      throw new ServiceUnavailableException('Dịch vụ AI kiểm đếm hiện không khả dụng.');
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('AI Service không thể phân tích ảnh.');
+    }
+    return response.json();
   }
 
   // Chuyển tiếp hình ảnh chụp kiện hàng sang AI Service để nhận diện và đếm số lượng

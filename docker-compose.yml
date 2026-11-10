@@ -76,7 +76,7 @@
         - wdp301-network
 
     frontend:
-      image: node:20-alpine
+      image: node:22-alpine
       working_dir: /app
       volumes:
         - type: bind
@@ -93,7 +93,7 @@
         - CHOKIDAR_USEPOLLING=true
         - WATCHPACK_POLLING=true
         - VITE_USE_POLLING=true
-      command: sh -c "npm install --no-audit --no-fund --quiet && npm run dev"
+      command: sh -c "npm install --no-audit --no-fund --quiet && (npm install @esbuild/linux-x64 @rollup/rollup-linux-x64-musl lightningcss-linux-x64-musl @tailwindcss/oxide-linux-x64-musl --no-save --legacy-peer-deps || true) && npm run dev"
       depends_on:
         - backend
       networks:

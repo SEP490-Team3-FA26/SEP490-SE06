@@ -252,6 +252,46 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     } else if (scannerPurpose === 'RECEIVE_TRANSFER' || scannerPurpose === 'SCAN_PO') {
       try {
         let cleanCode = code.trim();
+
+        // 0. Bóc tách và đồng bộ trực tiếp nếu mã quét là gói dữ liệu JSON từ Web (Cross-Platform Instant Sync)
+        if (cleanCode.startsWith('{') && cleanCode.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(cleanCode);
+            if (parsed.type === 'PO_SYNC' || (parsed.poId && parsed.items)) {
+              const poReceipt = {
+                id: `GRN-${parsed.poCode || (parsed.poId ? String(parsed.poId).slice(-6).toUpperCase() : 'PO')}`,
+                poCode: parsed.poCode || parsed.poId || 'PO-SYNC',
+                poId: parsed.poId,
+                supplier: parsed.supplier || parsed.supplierName || 'Nhà cung cấp',
+                status: 'INSPECTING',
+                items: (parsed.items || []).map((it: any, idx: number) => ({
+                  medicineId: it.medicineId || it.id || `item_${idx}`,
+                  name: it.name || it.medicineName || `Thuốc #${idx + 1}`,
+                  expected: Number(it.expected || it.quantity) || 100,
+                  actual: 0,
+                  unit: it.unit || 'Hộp',
+                  status: 'PENDING',
+                  batchNo: it.batchNo || '',
+                  expDate: it.expDate || '',
+                  barcode: it.barcode || '',
+                  sku: it.sku || '',
+                })),
+              };
+              setReceipts((prev) => {
+                const exists = prev.some((r) => r.id === poReceipt.id || r.poCode === poReceipt.poCode);
+                return exists ? prev : [poReceipt, ...prev];
+              });
+              setActiveTab('RECEIPTS');
+              handleStartInspection(poReceipt);
+              showToast.success('Đồng bộ đơn PO thành công', `Mở phiên kiểm đếm kiện hàng: ${poReceipt.poCode}`);
+              return;
+            }
+            if (parsed.poId) {
+              cleanCode = String(parsed.poId).trim();
+            }
+          } catch (_) {}
+        }
+
         // Bóc tách ID nếu mã quét là đường link (URL) Web
         if (cleanCode.includes('poId=')) {
           const match = cleanCode.match(/poId=([a-zA-Z0-9_-]+)/);
@@ -261,15 +301,18 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           if (match) cleanCode = match[1];
         }
 
-        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN
-        const pos = await ApiService.getPurchaseOrders().catch(() => []);
-        let matchedPo = Array.isArray(pos)
-          ? pos.find((p: any) => p._id === cleanCode || p.poCode === cleanCode || p.id === cleanCode || (p._id && cleanCode.includes(p._id.slice(-6))))
-          : null;
-
-        // Nếu chưa thấy trong danh sách, thử gọi API tìm trực tiếp theo ID
-        if (!matchedPo && cleanCode.length >= 8) {
+        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN (Ưu tiên tra cứu trực tiếp theo ID để tránh block JS Thread)
+        let matchedPo = null;
+        if (cleanCode.length >= 8) {
           matchedPo = await ApiService.getPurchaseOrderById(cleanCode).catch(() => null);
+        }
+
+        // Nếu chưa thấy, mới fallback tìm trong danh sách PO
+        if (!matchedPo) {
+          const pos = await ApiService.getPurchaseOrders().catch(() => []);
+          matchedPo = Array.isArray(pos)
+            ? pos.find((p: any) => p._id === cleanCode || p.poCode === cleanCode || p.id === cleanCode || (p._id && cleanCode.includes(p._id.slice(-6))))
+            : null;
         }
 
         if (matchedPo) {
@@ -342,7 +385,10 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           return;
         }
 
-        showToast.error('Mã phiếu không tồn tại', `Không tìm thấy đơn PO hoặc phiếu chuyển kho: ${cleanCode}`);
+        showToast.error(
+          'Mã phiếu không tồn tại',
+          `Không tìm thấy đơn PO #${cleanCode.length > 6 ? cleanCode.slice(-6).toUpperCase() : cleanCode} (${cleanCode}) trên máy chủ.`
+        );
       } catch (err: any) {
         showToast.error('Lỗi xử lý mã quét', err?.message || 'Không thể xử lý mã');
       }
@@ -1782,6 +1828,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScanned={handleBarcodeScanned}
+        mode={scannerPurpose === 'SCAN_PO' || scannerPurpose === 'RECEIVE_TRANSFER' ? 'QR' : scannerPurpose === 'LOCATE_MAP' ? 'BARCODE' : 'ALL'}
         title={
           scannerPurpose === 'SCAN_PO'
             ? 'Quét QR Đơn Hàng PO / Kiện Hàng'

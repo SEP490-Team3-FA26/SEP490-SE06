@@ -73,6 +73,7 @@ export class HrController implements OnModuleInit {
       'hr.attendance.branch_today',
       'hr.attendance.history',
       'hr.attendance.branch_history',
+      'hr.attendance.manager_close',
       'hr.shift_handover.live_stats',
       'hr.shift_handover.submit',
       'hr.shift_handover.accept',
@@ -610,6 +611,24 @@ export class HrController implements OnModuleInit {
       status,
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 20,
+    });
+  }
+
+  @Patch('attendance/:id/close-shift')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Quản lý chi nhánh chốt đóng ca bổ sung cho phiên ca quên check-out' })
+  async managerCloseShift(
+    @Request() req,
+    @Param('id') attendanceId: string,
+    @Body() body: { checkOutTime?: string; note?: string },
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.manager_close', {
+      attendanceId,
+      branchId: req.user.branchId,
+      requesterRole: req.user.role,
+      managerName: req.user.fullName,
+      checkOutTime: body?.checkOutTime,
+      note: body?.note,
     });
   }
 

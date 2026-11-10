@@ -45,6 +45,12 @@ export default defineConfig(() => {
           target: process.env.VITE_BACKEND_URL || (process.env.DOCKER ? 'http://backend:4000' : 'http://localhost:4000'),
           changeOrigin: true,
         },
+        '/simulator': {
+          target: process.env.VITE_SIMULATOR_URL || (process.env.DOCKER ? 'http://bot-simulator:4050' : 'http://localhost:4050'),
+          changeOrigin: true,
+          ws: true,
+          rewrite: (p) => p.replace(/^\/simulator/, '') || '/',
+        },
       },
     },
   };

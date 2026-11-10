@@ -2033,12 +2033,26 @@ export class ApiService {
     ];
   }
 
-  // Lấy chi tiết đơn hàng PO theo ID trực tiếp từ API Gateway
+  // Lấy chi tiết PO từ API Gateway của môi trường đang cấu hình.
   public static async getPurchaseOrderById(id: string): Promise<any> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/purchase-orders/${id}`, {
-        headers: this.authHeaders,
-      });
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const cleanId = encodeURIComponent(String(id).trim());
+
+      const res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers });
       if (res.ok) {
         const decoded = await res.json();
         return decoded?.data || decoded;

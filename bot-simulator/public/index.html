@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ABC Pharmacy — Trung Tâm Điều Hành Mô Phỏng 2D</title>
+  <script>
+    if (window.location.pathname === '/simulator') {
+      window.history.replaceState(null, '', '/simulator/' + window.location.search + window.location.hash);
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="socket.io/socket.io.js"></script>
+  <style>
+    body {
+      background-color: #080c14;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .glass {
+      background: rgba(17, 24, 39, 0.82);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .pulse-dot {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.35;
+        transform: scale(1.25);
+      }
+    }
+
+    .seat-card {
+      position: relative;
+      transition: all 0.18s ease;
+    }
+
+    .seat-card:hover {
+      border-color: rgba(56, 189, 248, 0.55);
+      background: rgba(30, 41, 59, 0.9);
+    }
+
+    .seat-selected {
+      outline: 2px solid #38bdf8;
+      background: rgba(14, 116, 144, 0.18) !important;
+    }
+
+    .seat-active-ok {
+      border-color: rgba(16, 185, 129, 0.9) !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.22);
+    }
+
+    .seat-active-warn {
+      border-color: rgba(244, 63, 94, 0.9) !important;
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.25);
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.4);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(71, 85, 105, 1);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen p-3 md:p-4 text-slate-100">
+  <div class="max-w-[1720px] mx-auto space-y-3">
+
+    <!-- 1. THANH ĐIỀU KHIỂN TRUNG TÂM (GỌN 1 DÒNG) -->
+    <header class="glass rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div id="statusDot" class="w-3 h-3 rounded-full bg-slate-500"></div>
+        <h1 class="text-sm md:text-base font-black tracking-tight text-white">
+          ABC PHARMACY
+          <span class="text-sky-400 font-semibold text-xs ml-1.5">Mô Phỏng Vận Hành Chuỗi</span>
+        </h1>
+        <span id="gatewayStatusBadge" class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
+          Gateway: ...
+        </span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Kịch bản -->
+        <div class="flex items-center bg-slate-900 rounded-lg px-2.5 py-1 border border-slate-700 text-xs">
+          <span class="text-slate-400 mr-1.5">Kịch bản:</span>
+          <select id="scenarioSelect" onchange="changeScenario(this.value)"
+            class="bg-transparent text-white font-semibold focus:outline-none cursor-pointer">
+            <option value="NORMAL" class="bg-slate-900">Thường nhật (1x)</option>
+            <option value="RUSH_HOUR" class="bg-slate-900">Giờ cao điểm (2.5x)</option>
+            <option value="SUPPLY_CHAIN" class="bg-slate-900">Chuỗi cung ứng kho</option>
+            <option value="NIGHT_SHIFT" class="bg-slate-900">Ca đêm & Bàn giao</option>
+          </select>
+        </div>
+
+        <!-- Tốc độ -->
+        <div class="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-700">
+          <button onclick="setSpeed(1)" id="sp-1"
+            class="px-2 py-1 rounded-md text-xs font-bold bg-sky-600 text-white transition">1x</button>
+          <button onclick="setSpeed(5)" id="sp-5"
+            class="px-2 py-1 rounded-md text-xs font-semibold text-slate-300 hover:text-white transition">5x</button>
+          <button onclick="setSpeed(15)" id="sp-15"
+            class="px-2 py-1 rounded-md text-xs font-semibold text-slate-300 hover:text-white transition">15x</button>
+          <button onclick="setSpeed(60)" id="sp-60"
+            class="px-2 py-1 rounded-md text-xs font-semibold text-slate-300 hover:text-white transition">60x</button>
+        </div>
+
+        <!-- Menu Tác vụ nhanh (Gom 6 nút lớn vào 1 menu gọn) -->
+        <div class="relative">
+          <button onclick="toggleQuickActionsMenu(event)"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+            <span>Tác vụ nhanh</span>
+            <span class="text-[10px] text-slate-400">▼</span>
+          </button>
+          <div id="quickActionsMenu"
+            class="hidden absolute right-0 mt-1.5 w-60 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-50 space-y-1 text-xs">
+            <button onclick="triggerNow('checkin-all'); hideQuickActionsMenu()"
+              class="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left flex items-center justify-between">
+              <span class="font-semibold text-sky-300">Dược sĩ vào ca & bán POS</span>
+              <span class="text-[10px] text-slate-500">Check-in</span>
+            </button>
+            <button onclick="triggerNow('handover-all'); hideQuickActionsMenu()"
+              class="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left flex items-center justify-between">
+              <span class="font-semibold text-indigo-300">Bàn giao két & Tan ca</span>
+              <span class="text-[10px] text-slate-500">Check-out</span>
+            </button>
+            <button onclick="triggerNow('burst-orders'); hideQuickActionsMenu()"
+              class="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left flex items-center justify-between">
+              <span class="font-semibold text-emerald-300">Tạo 5 đơn Online COD</span>
+              <span class="text-[10px] text-slate-500">+Đánh giá</span>
+            </button>
+            <button onclick="triggerNow('warehouse-cycle'); hideQuickActionsMenu()"
+              class="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left flex items-center justify-between">
+              <span class="font-semibold text-teal-300">Chạy chuỗi nhập kho</span>
+              <span class="text-[10px] text-slate-500">PR→PO→GRN</span>
+            </button>
+            <button onclick="triggerNow('schedule-week'); hideQuickActionsMenu()"
+              class="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left flex items-center justify-between">
+              <span class="font-semibold text-purple-300">Quản lý xếp lịch tuần</span>
+              <span class="text-[10px] text-slate-500">Lịch ca</span>
+            </button>
+            <button onclick="triggerNow('payroll-month'); hideQuickActionsMenu()"
+              class="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left flex items-center justify-between">
+              <span class="font-semibold text-amber-300">Tính & duyệt bảng lương</span>
+              <span class="text-[10px] text-slate-500">Cuối tháng</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Nút Bật / Tạm dừng -->
+        <button id="toggleBtn" onclick="toggleSim()"
+          class="px-4 py-1.5 rounded-lg font-extrabold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition shadow">
+          BẬT MÔ PHỎNG
+        </button>
+
+        <!-- Tiện ích -->
+        <button onclick="resetStats()" title="Đặt lại bộ đếm KPI"
+          class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-900 border border-slate-800 transition">
+          Reset
+        </button>
+        <button onclick="exportLogs()" title="Tải xuống file JSON log"
+          class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-900 border border-slate-800 transition">
+          Xuất Log
+        </button>
+      </div>
+    </header>
+
+    <!-- 2. DẢI CHỈ SỐ KPI TỔNG QUAN (GỌN 1 DÒNG, KHÔNG BỊ RỚT CHỮ) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div class="glass-card rounded-xl px-3.5 py-2">
+        <div class="text-[11px] text-slate-400">Khách đang xem</div>
+        <div id="statViewers" class="text-lg font-black text-sky-400 mt-0.5">0</div>
+      </div>
+
+      <div class="glass-card rounded-xl px-3.5 py-2">
+        <div class="text-[11px] text-slate-400">Lượt tìm thuốc</div>
+        <div id="statSearches" class="text-lg font-black text-cyan-400 mt-0.5">0</div>
+      </div>
+
+      <div class="glass-card rounded-xl px-3.5 py-2">
+        <div class="text-[11px] text-slate-400">Tổng đơn (POS + COD)</div>
+        <div id="statOrders" class="text-lg font-black text-emerald-400 mt-0.5">0</div>
+      </div>
+
+      <div class="glass-card rounded-xl px-3.5 py-2">
+        <div class="text-[11px] text-slate-400">Doanh thu lũy kế</div>
+        <div id="statRevenue" class="text-lg font-black text-amber-400 truncate mt-0.5">0đ</div>
+      </div>
+
+      <div class="glass-card rounded-xl px-3.5 py-2">
+        <div class="text-[11px] text-slate-400">Đánh giá & Phản hồi SLA</div>
+        <div id="statReviews" class="text-lg font-black text-purple-400 mt-0.5">0</div>
+      </div>
+
+      <div class="glass-card rounded-xl px-3.5 py-2">
+        <div class="text-[11px] text-slate-400">Chuỗi kho (PR / PO / GRN)</div>
+        <div id="statSupplyChain" class="text-lg font-black text-indigo-400 font-mono whitespace-nowrap mt-0.5">0 / 0 / 0</div>
+      </div>
+    </div>
+
+    <!-- 3. KHÔNG GIAN ĐIỀU HÀNH CHÍNH: SƠ ĐỒ CHI NHÁNH (TRÁI 8 CỘT) + NHẬT KÝ HỢP NHẤT (PHẢI 4 CỘT) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+
+      <!-- CỘT TRÁI (8 COLS): SƠ ĐỒ KÊNH ONLINE, 5 CHI NHÁNH & KHO TỔNG -->
+      <div class="lg:col-span-8 glass rounded-xl p-3.5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div class="flex items-center gap-2">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-white">
+              Sơ Đồ Kênh Khách Online, 5 Chi Nhánh POS & Kho Tổng
+            </h2>
+            <span id="pharmCountBadge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono">
+              0 nhân sự
+            </span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 text-[11px]">
+            <span class="flex items-center gap-1 text-cyan-300">
+              <span class="w-2 h-2 rounded-full bg-cyan-400"></span> Khách Online
+            </span>
+            <span class="flex items-center gap-1 text-emerald-300">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Đang trực POS
+            </span>
+            <span class="flex items-center gap-1 text-amber-300">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span> Chờ ca
+            </span>
+            <span class="flex items-center gap-1 text-slate-400">
+              <span class="w-2 h-2 rounded-full bg-slate-600"></span> Nghỉ ca
+            </span>
+          </div>
+        </div>
+
+        <!-- LƯỚI KHOANG CHI NHÁNH -->
+        <div id="compartmentsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="text-slate-500 text-xs p-6 text-center col-span-2">
+            Đang tải sơ đồ chi nhánh...
+          </div>
+        </div>
+      </div>
+
+      <!-- CỘT PHẢI (4 COLS): NHẬT KÝ & HỒ SƠ TRA CỨU HỢP NHẤT (1 NƠI DUY NHẤT) -->
+      <div class="lg:col-span-4 glass rounded-xl p-3.5 flex flex-col h-[760px]">
+        <!-- THẺ ĐỐI TƯỢNG ĐANG XEM -->
+        <div id="inspectorProfileCard" class="rounded-xl bg-slate-900/90 border border-slate-800 p-3 mb-2.5 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span id="inspBadge" class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  TOÀN HỆ THỐNG
+                </span>
+                <span id="inspName" class="text-xs font-black text-white truncate">Tất cả Chi nhánh & Kho Tổng</span>
+              </div>
+              <div id="inspMeta" class="text-[11px] text-slate-400 truncate mt-0.5">
+                Bấm vào một chi nhánh hoặc nhân viên bên trái để lọc riêng
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button id="btnResetSelection" onclick="selectAllBranchesHistory()"
+                class="hidden px-2 py-1 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-[11px] font-semibold">
+                Bỏ lọc
+              </button>
+              <button onclick="refreshInspectorHistory()"
+                class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700">
+                Làm mới
+              </button>
+            </div>
+          </div>
+
+          <!-- 4 CHỈ SỐ TÓM TẮT TRÊN 1 HÀNG -->
+          <div class="grid grid-cols-4 gap-1.5 pt-1 text-center">
+            <div class="p-1.5 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Sự kiện</div>
+              <div id="inspTotalEvents" class="text-xs font-black text-white mt-0.5">0</div>
+            </div>
+            <div class="p-1.5 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Đơn / Thu</div>
+              <div id="inspOrdersRev" class="text-[11px] font-bold text-emerald-400 mt-0.5 truncate">0 • 0đ</div>
+            </div>
+            <div class="p-1.5 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Đúng / Trễ</div>
+              <div id="inspAttendance" class="text-[11px] font-bold text-sky-300 mt-0.5">0 / 0</div>
+            </div>
+            <div class="p-1.5 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">Cảnh báo</div>
+              <div id="inspWarns" class="text-xs font-black text-rose-400 mt-0.5">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- THANH LỌC VAI TRÒ & TÌM KIẾM TRONG NHẬT KÝ -->
+        <div class="space-y-2 mb-2.5">
+          <div class="flex items-center gap-1.5">
+            <input type="text" id="inspectorSearchInput" placeholder="Tìm tên nhân sự, thuốc, mã đơn, chi nhánh..."
+              oninput="handleSearch(this.value)"
+              class="flex-1 px-2.5 py-1.5 text-xs rounded-lg bg-slate-900 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500" />
+            <button onclick="clearLogs()" title="Xóa danh sách hiển thị tạm thời"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 text-[11px]">
+              Xóa
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1 text-[11px] flex-wrap">
+            <button onclick="setFilter('ALL')" id="flt-ALL"
+              class="px-2 py-0.5 rounded-md bg-slate-700 text-white font-bold">Tất cả</button>
+            <button onclick="setFilter('PHARMACIST')" id="flt-PHARMACIST"
+              class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Dược sĩ</button>
+            <button onclick="setFilter('MANAGER')" id="flt-MANAGER"
+              class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Quản lý</button>
+            <button onclick="setFilter('WAREHOUSE')" id="flt-WAREHOUSE"
+              class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Kho tổng</button>
+            <button onclick="setFilter('CUSTOMER')" id="flt-CUSTOMER"
+              class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Khách hàng</button>
+            <button onclick="setFilter('SYSTEM')" id="flt-SYSTEM"
+              class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">Hệ thống</button>
+          </div>
+        </div>
+
+        <!-- DANH SÁCH SỰ KIỆN HỢP NHẤT -->
+        <div id="inspectorTimeline" class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+          <div class="text-slate-500 text-xs p-6 text-center">Đang tải nhật ký hoạt động...</div>
+        </div>
+
+        <!-- SPARKLINE TẦN SUẤT NHỎ GỌN Ở ĐÁY PANEL -->
+        <div class="pt-2.5 mt-2 border-t border-slate-800/80 flex items-center justify-between gap-3">
+          <div class="shrink-0">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase">Nhịp sự kiện (3s)</div>
+            <div id="tpsBadge" class="text-xs font-mono font-bold text-emerald-400">0 SK / 3s</div>
+          </div>
+          <div class="h-10 flex-1">
+            <canvas id="throughputChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

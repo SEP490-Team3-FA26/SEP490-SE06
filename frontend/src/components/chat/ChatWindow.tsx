@@ -418,7 +418,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       if (!token) {
         // Guest cart in localStorage
         const guestCartStr = localStorage.getItem("guest_cart");
-        const cart = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const parsed = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const cart = Array.isArray(parsed) ? parsed : [];
         const existing = cart.find(
           (it: { id?: string; _id?: string; quantity: number }) =>
             it.id === drug.medicine_id || it._id === drug.medicine_id

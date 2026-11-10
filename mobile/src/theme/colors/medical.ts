@@ -63,3 +63,5 @@ export const medical = {
   },
 };
 
+export default medical;
+

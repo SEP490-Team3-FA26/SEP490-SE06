@@ -13,7 +13,8 @@ BUILD_SCRIPT = Path(__file__).resolve().parents[1] / "build-prod-images.sh"
 BACKEND = "wdp301-backend:latest"
 FRONTEND = "wdp301-frontend:latest"
 AI = "wdp301-ai:latest"
-ALL_IMAGES = [BACKEND, FRONTEND, AI]
+SIMULATOR = "wdp301-bot-simulator:latest"
+ALL_IMAGES = [BACKEND, FRONTEND, AI, SIMULATOR]
 
 
 class ImageSelectionTests(unittest.TestCase):
@@ -63,7 +64,8 @@ else:
         for file in ["backend/app.ts", "frontend/app.tsx", "package.json",
                      "backend/apps/ai-service/requirements.txt",
                      "backend/docker/frontend.Dockerfile",
-                     "backend/docker/nginx.frontend.conf", ".dockerignore"]:
+                     "backend/docker/nginx.frontend.conf", ".dockerignore",
+                     "bot-simulator/server.js"]:
             self.change(file)
         self.commit()
 
@@ -116,6 +118,7 @@ else:
             ("package.json", [FRONTEND]),
             ("backend/docker/nginx.frontend.conf", [BACKEND, FRONTEND]),
             (".dockerignore", [FRONTEND]),
+            ("bot-simulator/server.js", [SIMULATOR]),
         ]:
             with self.subTest(path=path):
                 self.seed_images()

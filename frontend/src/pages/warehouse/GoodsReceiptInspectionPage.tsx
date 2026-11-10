@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Camera,
+  CameraOff,
   CheckCircle2,
   AlertTriangle,
   Loader2,
@@ -26,6 +27,9 @@ import {
   Check
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import jsQR from "jsqr";
+import { BinaryBitmap, HybridBinarizer, MultiFormatReader, RGBLuminanceSource } from "@zxing/library";
+import { medicineService } from "../../services/inventory/medicine.service";
 import { purchaseOrderService } from "../../services/purchase/purchaseOrder.service";
 import { goodsReceiptService } from "../../services/purchase/goodsReceipt.service";
 import { supplierService } from "../../services/purchase/supplier.service";
@@ -78,6 +82,53 @@ export function GoodsReceiptInspectionPage() {
   const [inputBarcode, setInputBarcode] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // State quản lý luồng Webcam / Camera quét mã vạch trực tiếp
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const [isCameraLoading, setIsCameraLoading] = useState<boolean>(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const lastAttemptTimeRef = useRef<number>(0);
+  const lastSuccessScanRef = useRef<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Trạng thái bộ nhận diện máy quét (Scanner Engine HUD) & Heartbeat
+  const [scannerEngineStatus, setScannerEngineStatus] = useState<string>("Đang nạp...");
+  const [scanFrameCount, setScanFrameCount] = useState<number>(0);
+  const [lastDetectedRaw, setLastDetectedRaw] = useState<string>("");
+  const [syncQrTab, setSyncQrTab] = useState<"FULL_DATA" | "RAW_ID">("FULL_DATA");
+  const frameCounterRef = useRef<number>(0);
+
+  // Phát âm thanh Beep phản hồi khi nhận diện mã thành công qua Web Audio API
+  const playBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (_) {}
+  };
+
+  // Giữ ref cho items và isPaused để tránh stale closure trong vòng lặp animation frame
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
   // Toast Notification State
   const [toasts, setToasts] = useState<
     { id: string; message: string; type: "success" | "error" | "warning" | "info" }[]
@@ -128,23 +179,27 @@ export function GoodsReceiptInspectionPage() {
           }
 
           // Chuyển đổi danh mục thuốc trong PO sang InspectionItem với số lượng khởi tạo = 0 thực tế
-          const mappedItems: InspectionItem[] = (currentPo.items || []).map((it: any, idx: number) => {
+          const mappedItems: InspectionItem[] = await Promise.all((currentPo.items || []).map(async (it: any, idx: number) => {
+            // PO cũ không lưu mã vạch. Lấy mã đối chiếu từ danh mục thuốc theo đúng ID.
+            const medicine = !it.barcode && it.medicineId
+              ? await medicineService.getMedicineById(it.medicineId).catch(() => undefined)
+              : undefined;
             const totalOrdered = Number(it.quantity || it.orderedQuantity || 0);
             const received = Number(it.receivedQuantity || 0);
             const remaining = Math.max(0, totalOrdered - received);
             // Khởi tạo số lượng đã quét bằng 0 thực tế (hoặc kết quả kiểm đếm lưu sẵn)
             const initialScanned = Number(it.actualQuantity || 0);
             
-            // Giữ nguyên chuỗi ngày ISO, không format thành chuỗi hiển thị sai lệch khi gửi lên backend
-            let isoExp = "";
+            // Chuẩn hóa ngày để hiển thị trong trường nhập hạn dùng.
+            let expiryDate = "";
             if (it.expiryDate || it.expDate) {
               const d = new Date(it.expiryDate || it.expDate);
-              isoExp = !isNaN(d.getTime()) ? d.toISOString() : "";
+              expiryDate = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "";
             }
 
             return {
               medicineId: it.medicineId || `med-${idx}`,
-              sku: it.sku || `SKU-${idx + 100}`,
+              sku: it.sku || medicine?.sku || "",
               medicineName: it.medicineName || `Dược phẩm #${idx + 1}`,
               orderedQty: totalOrdered,
               previouslyReceivedQty: received,
@@ -153,10 +208,10 @@ export function GoodsReceiptInspectionPage() {
               unit: it.unit || "Hộp",
               unitPrice: Number(it.unitPrice || 0),
               batchNo: it.batchNo ? String(it.batchNo).trim() : "",
-              expDate: isoExp,
-              barcode: it.barcode ? String(it.barcode).trim() : "",
+              expDate: expiryDate,
+              barcode: String(it.barcode || medicine?.barcode || "").trim(),
             };
-          });
+          }));
 
           setItems(mappedItems);
           if (mappedItems.length === 0) {
@@ -180,17 +235,32 @@ export function GoodsReceiptInspectionPage() {
   const totalScanned = items.reduce((sum, item) => sum + item.scannedQty, 0);
   const progressPercent = totalOrdered > 0 ? Math.min(100, ((totalScanned / totalOrdered) * 100)).toFixed(1) : "0";
 
-  // Xử lý quét barcode: Khớp chính xác mặt hàng trong đơn PO; Từ chối mã không hợp lệ
-  const handleBarcodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputBarcode.trim() || isPaused) return;
+  // Xử lý quét barcode: Khớp chính xác mặt hàng trong đơn PO; Hỗ trợ bóc tách URL/JSON; Từ chối mã không hợp lệ
+  const processBarcode = (rawCode: string) => {
+    if (!rawCode || !rawCode.trim() || isPausedRef.current) return;
 
-    const code = inputBarcode.trim();
-    setInputBarcode("");
+    let code = rawCode.trim();
+
+    // 1. Tự động bóc tách ID/mã nếu quét phải mã QR là URL Web
+    if (code.includes("poId=") || code.includes("barcode=") || code.includes("sku=") || code.includes("code=")) {
+      const match = code.match(/[?&](poId|barcode|sku|code)=([^&#]+)/i);
+      if (match && match[2]) {
+        code = decodeURIComponent(match[2]);
+      }
+    }
+    // 2. Tự động bóc tách nếu quét phải mã QR dạng JSON kiện hàng
+    else if (code.startsWith("{") && code.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(code);
+        code = parsed.barcode || parsed.sku || parsed.medicineId || parsed.code || parsed.poId || code;
+      } catch (_) {}
+    }
+
+    const currentItems = itemsRef.current;
 
     // Tìm kiếm sản phẩm tương ứng với barcode, SKU, mã thuốc hoặc tên trong PO
     const q = code.toLowerCase();
-    const foundIdx = items.findIndex(
+    const foundIdx = currentItems.findIndex(
       (it) =>
         (it.barcode && it.barcode.toLowerCase() === q) ||
         (it.sku && it.sku.toLowerCase() === q) ||
@@ -200,7 +270,7 @@ export function GoodsReceiptInspectionPage() {
     );
 
     if (foundIdx !== -1) {
-      const targetItem = items[foundIdx];
+      const targetItem = currentItems[foundIdx];
       const maxReceivable = targetItem.remainingQty > 0 ? targetItem.remainingQty : targetItem.orderedQty;
 
       if (targetItem.scannedQty >= maxReceivable) {
@@ -208,7 +278,10 @@ export function GoodsReceiptInspectionPage() {
         return;
       }
 
-      const updated = [...items];
+      // Phát âm thanh Beep xác nhận nhận diện thành công
+      playBeep();
+
+      const updated = [...currentItems];
       updated[foundIdx] = {
         ...targetItem,
         scannedQty: targetItem.scannedQty + 1,
@@ -225,9 +298,238 @@ export function GoodsReceiptInspectionPage() {
       showToast(`+1 ${targetItem.medicineName} (${targetItem.scannedQty + 1}/${maxReceivable} ${targetItem.unit})`, "success");
     } else {
       // 🚫 TỪ CHỐI MÃ VẠCH LẠ: Tuyệt đối không tự ý cộng vào mặt hàng khác
-      showToast(`Mã vạch "${code}" không thuộc bất kỳ sản phẩm nào trong đơn hàng PO này!`, "error");
+      showToast(`Mã quét "${code}" không thuộc bất kỳ sản phẩm nào trong đơn hàng PO này!`, "error");
     }
   };
+
+  const handleBarcodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputBarcode.trim() || isPaused) return;
+    const code = inputBarcode.trim();
+    setInputBarcode("");
+    processBarcode(code);
+  };
+
+  // Khởi động Camera / Webcam máy tính
+  const startCamera = async () => {
+    setIsCameraLoading(true);
+    setCameraError(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError("Trình duyệt không hỗ trợ truy cập Webcam/Camera trực tiếp.");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+      setIsCameraActive(true);
+      showToast("Đã kích hoạt Camera quét mã vạch thành công!", "success");
+    } catch (err: any) {
+      console.warn("Lỗi mở camera:", err);
+      setCameraError(
+        err.name === "NotAllowedError" || err.name === "PermissionDeniedError"
+          ? "Bạn đã chặn quyền truy cập Camera trên trình duyệt. Vui lòng cho phép quyền Camera trên thanh địa chỉ URL."
+          : "Không thể kết nối đến Camera/Webcam. Vui lòng kiểm tra thiết bị camera của bạn."
+      );
+      setIsCameraActive(false);
+    } finally {
+      setIsCameraLoading(false);
+    }
+  };
+
+  // Dừng Camera / Webcam
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  // Tự động tắt camera khi component unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  // Gói dữ liệu đồng bộ đầy đủ dành cho Mobile (Cross-network instant sync)
+  const fullSyncPayload = useMemo(() => {
+    return JSON.stringify({
+      type: "PO_SYNC",
+      poId: poData?._id || poId || "",
+      poCode: poData?.poCode || (poData?._id || poId || "").slice(-6).toUpperCase(),
+      supplier: supplierName || "Nhà Cung Cấp",
+      items: items.map((it) => ({
+        medicineId: it.medicineId,
+        name: it.medicineName,
+        expected: it.remainingQty > 0 ? it.remainingQty : it.orderedQty,
+        unit: it.unit || "Hộp",
+        barcode: it.barcode || "",
+        sku: it.sku || "",
+      })),
+    });
+  }, [poData, poId, supplierName, items]);
+
+  // Vòng lặp nhận diện Barcode & QR Code: Kết hợp BarcodeDetector Native + jsQR + ZXing Fallback (100% trình duyệt)
+  useEffect(() => {
+    if (!isCameraActive || typeof window === "undefined") return;
+
+    let active = true;
+    let animId: number;
+    let detector: any = null;
+    const zxingReader = new MultiFormatReader();
+
+    if ("BarcodeDetector" in window) {
+      try {
+        detector = new (window as any).BarcodeDetector({
+          formats: ["qr_code", "ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e"],
+        });
+      } catch (err) {
+        console.warn("Không khởi tạo được BarcodeDetector:", err);
+      }
+    }
+
+    // Hiển thị và ghi log các engines nhận diện sẵn sàng
+    const activeEngines: string[] = [];
+    if (detector) activeEngines.push("BarcodeDetector Native");
+    activeEngines.push("jsQR 2D");
+    activeEngines.push("ZXing MultiFormat");
+    const engineText = activeEngines.join(" + ");
+    setScannerEngineStatus(engineText);
+    console.log("📷 [Webcam Scanner] Đã kích hoạt vòng lặp nhận diện với bộ Engines:", engineText);
+
+    const scanFrame = async () => {
+      if (!active) return;
+
+      const video = videoRef.current;
+      if (
+        video &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        !isPausedRef.current
+      ) {
+        // Tăng đếm frame và cập nhật HUD
+        frameCounterRef.current++;
+        if (frameCounterRef.current % 15 === 0) {
+          setScanFrameCount(frameCounterRef.current);
+        }
+        if (frameCounterRef.current % 180 === 0) {
+          console.log(`📷 [Webcam Scanner] Heartbeat: Đã xử lý ${frameCounterRef.current} frames... Sẵn sàng quét mã.`);
+        }
+
+        const now = Date.now();
+
+        // 1. Cooldown giữa 2 lần quét thành công liên tiếp (1.2s) để tránh quét dồn dập
+        if (now - lastSuccessScanRef.current < 1200) {
+          animId = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        // 2. Throttling tần suất giải mã trên Main UI Thread: tối đa 1 lần mỗi 250ms (chống 100% CPU khi không có mã vạch)
+        if (now - lastAttemptTimeRef.current < 250) {
+          animId = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        // Cập nhật mốc thời gian thử giải mã NGAY LẬP TỨC (dù có tìm thấy mã hay không)
+        lastAttemptTimeRef.current = now;
+
+        let scannedCode = "";
+        let detectedEngine = "";
+
+        // Cách 1: Thử dùng Native BarcodeDetector nếu trình duyệt hỗ trợ
+        if (detector) {
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes && barcodes.length > 0 && active) {
+              const rawValue = barcodes[0].rawValue;
+              if (rawValue && rawValue.trim()) {
+                scannedCode = rawValue.trim();
+                detectedEngine = "BarcodeDetector Native";
+              }
+            }
+          } catch (_) {}
+        }
+
+        // Cách 2: Fallback qua Canvas HTML5 bằng jsQR (siêu nhạy cho QR) & ZXing (mã vạch EAN-13)
+        if (!scannedCode) {
+          try {
+            let canvas = canvasRef.current;
+            if (!canvas) {
+              canvas = document.createElement("canvas");
+              canvasRef.current = canvas;
+            }
+            // Tối ưu kích thước Canvas: scale về tối đa 640px chiều rộng để giảm tải CPU 4x mà vẫn giữ độ nét
+            const rawWidth = video.videoWidth || 640;
+            const rawHeight = video.videoHeight || 480;
+            const targetWidth = Math.min(640, rawWidth);
+            const targetHeight = Math.round(targetWidth * (rawHeight / rawWidth || 0.75));
+
+            if (targetWidth > 0 && targetHeight > 0) {
+              if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+              }
+              const ctx = canvas.getContext("2d", { willReadFrequently: true });
+              if (ctx) {
+                ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+                const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+
+                // 2.1 Giải mã QR Code qua jsQR (nhận diện cực nhanh kể cả khi đưa camera máy tính)
+                const qrCode = jsQR(imageData.data, targetWidth, targetHeight, {
+                  inversionAttempts: "dontInvert",
+                });
+                if (qrCode && qrCode.data && qrCode.data.trim()) {
+                  scannedCode = qrCode.data.trim();
+                  detectedEngine = "jsQR 2D";
+                }
+
+                // 2.2 Nếu không phải QR Code, thử giải mã mã vạch 1D qua ZXing
+                if (!scannedCode) {
+                  try {
+                    const { data, width, height } = imageData;
+                    const pixels = new Int32Array(data.buffer, data.byteOffset, data.length / 4);
+                    const source = new RGBLuminanceSource(pixels, width, height);
+                    const bitmap = new BinaryBitmap(new HybridBinarizer(source));
+                    scannedCode = zxingReader.decodeWithState(bitmap).getText().trim();
+                    detectedEngine = "ZXing MultiFormat";
+                  } catch (_) {}
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (scannedCode && active) {
+          console.log(`🎯 [Webcam Scanner] Đã đọc được mã: "${scannedCode}" bằng Engine: ${detectedEngine}`);
+          setLastDetectedRaw(scannedCode);
+          lastSuccessScanRef.current = now;
+          processBarcode(scannedCode);
+        }
+      }
+
+      animId = requestAnimationFrame(scanFrame);
+    };
+
+    animId = requestAnimationFrame(scanFrame);
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(animId);
+    };
+  }, [isCameraActive]);
 
   // Tiện ích hỗ trợ nghiệm thu nhanh toàn bộ đơn hàng (rất hữu ích khi demo)
   const handleScanAllFull = () => {
@@ -236,8 +538,6 @@ export function GoodsReceiptInspectionPage() {
       return {
         ...it,
         scannedQty: maxReceivable,
-        batchNo: it.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}-01`,
-        expDate: it.expDate || new Date("2028-12-31").toISOString(),
       };
     });
     setItems(updated);
@@ -278,9 +578,20 @@ export function GoodsReceiptInspectionPage() {
 
   // Hoàn tất kiểm nhận: Tạo GRN, lập biên bản kiểm đếm, verify, nộp và duyệt liên thông CSDL Dược
   const handleCompleteAndCreateGrn = async () => {
-    const totalCurrentScanned = items.reduce((sum, it) => sum + it.scannedQty, 0);
-    if (totalCurrentScanned <= 0) {
+    const receivedItems = items.filter((it) => it.scannedQty > 0);
+    if (receivedItems.length === 0) {
       showToast("Vui lòng quét ít nhất một mặt hàng trước khi hoàn tất kiểm nhận!", "warning");
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const invalidItem = receivedItems.find((it) => {
+      const expiryDate = new Date(it.expDate + "T00:00:00");
+      return !it.batchNo.trim() || Number.isNaN(expiryDate.getTime()) || expiryDate <= today;
+    });
+    if (invalidItem) {
+      showToast("Nhập số lô và hạn dùng thực tế (sau ngày hôm nay) cho " + invalidItem.medicineName + ".", "warning");
       return;
     }
 
@@ -292,20 +603,13 @@ export function GoodsReceiptInspectionPage() {
       }
 
       // 1. Chuẩn hóa payload GRN theo chuẩn GoodsReceiptPayload (có receivedBy)
-      const grnItems = items
-        .filter((it) => it.scannedQty > 0)
-        .map((it) => {
+      const grnItems = receivedItems.map((it) => {
           // Tính toán số lượng cần nhập (Hỗ trợ partial delivery: quantity - receivedQuantity)
           const targetQty = it.remainingQty > 0 ? it.remainingQty : it.orderedQty;
-          // Giữ định dạng ngày ISO chuẩn để backend new Date() không bị lỗi Invalid Date hay đảo ngày/tháng
-          const validExpDate = it.expDate && !isNaN(new Date(it.expDate).getTime())
-            ? new Date(it.expDate).toISOString()
-            : new Date(Date.now() + 730 * 86400000).toISOString();
-
           return {
             medicineId: it.medicineId,
-            batchNo: it.batchNo || `LOT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-            expDate: validExpDate,
+            batchNo: it.batchNo.trim(),
+            expDate: new Date(it.expDate).toISOString(),
             quantity: targetQty,
             actualQty: it.scannedQty,
             unitPrice: it.unitPrice || 0,
@@ -446,41 +750,121 @@ export function GoodsReceiptInspectionPage() {
         <div className="lg:col-span-5 bg-slate-950 text-white rounded-3xl p-5 border border-slate-800 shadow-2xl flex flex-col justify-between space-y-4">
           {/* Header trong hộp scanner */}
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-2 bg-sky-950/80 text-sky-400 border border-sky-800/80 px-3 py-1 rounded-full text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-              Camera Barcode Scanner Live
+            <span className={`inline-flex items-center gap-2 border px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              isCameraActive
+                ? "bg-emerald-950/80 text-emerald-400 border-emerald-800/80"
+                : "bg-sky-950/80 text-sky-400 border-sky-800/80"
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${isCameraActive ? "bg-emerald-400 animate-ping" : "bg-sky-400 animate-pulse"}`} />
+              {isCameraActive ? "Camera Barcode Live (Đang Chạy)" : "Camera Barcode Scanner"}
             </span>
-            <span className="text-[11px] font-mono text-slate-400 font-semibold tracking-wider">
-              FPS: 30 | 1080p
-            </span>
+
+            {/* Nút Bật / Tắt Camera trực tiếp trên Laptop */}
+            <button
+              type="button"
+              onClick={isCameraActive ? stopCamera : startCamera}
+              disabled={isCameraLoading}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                isCameraActive
+                  ? "bg-rose-900/80 hover:bg-rose-800 text-rose-200 border border-rose-700/80"
+                  : "bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-600/30"
+              }`}
+              title={isCameraActive ? "Bấm để tắt camera" : "Bấm để bật webcam laptop quét mã vạch"}
+            >
+              {isCameraLoading ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  <span>Đang mở...</span>
+                </>
+              ) : isCameraActive ? (
+                <>
+                  <CameraOff size={13} />
+                  <span>Tắt Camera</span>
+                </>
+              ) : (
+                <>
+                  <Camera size={13} />
+                  <span>Bật Camera</span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* Vùng quét Camera Viewport */}
           <div className="relative w-full aspect-4/3 bg-slate-900/90 rounded-2xl border border-slate-800/90 flex flex-col items-center justify-center overflow-hidden p-6 text-center">
+            {/* Live Video Stream từ Webcam / Camera Laptop */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                isCameraActive ? "opacity-100 z-0" : "opacity-0 pointer-events-none -z-10"
+              }`}
+            />
+
+            {/* Lớp phủ mờ bảo vệ text khi camera đang chạy */}
+            {isCameraActive && (
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none z-10" />
+            )}
+
             {/* Lưới tọa độ ngắm laser */}
-            <div className="absolute inset-4 border border-dashed border-cyan-500/30 rounded-xl pointer-events-none" />
+            <div className="absolute inset-4 border border-dashed border-cyan-500/40 rounded-xl pointer-events-none z-10" />
 
             {/* 4 góc khung ngắm nhắm Barcode */}
-            <div className="absolute top-8 left-8 w-6 h-6 border-t-2 border-l-2 border-cyan-400" />
-            <div className="absolute top-8 right-8 w-6 h-6 border-t-2 border-r-2 border-cyan-400" />
-            <div className="absolute bottom-8 left-8 w-6 h-6 border-b-2 border-l-2 border-cyan-400" />
-            <div className="absolute bottom-8 right-8 w-6 h-6 border-b-2 border-r-2 border-cyan-400" />
+            <div className="absolute top-8 left-8 w-6 h-6 border-t-2 border-l-2 border-cyan-400 z-10" />
+            <div className="absolute top-8 right-8 w-6 h-6 border-t-2 border-r-2 border-cyan-400 z-10" />
+            <div className="absolute bottom-8 left-8 w-6 h-6 border-b-2 border-l-2 border-cyan-400 z-10" />
+            <div className="absolute bottom-8 right-8 w-6 h-6 border-b-2 border-r-2 border-cyan-400 z-10" />
 
             {/* Tia laser quét chạy lên xuống */}
             {!isPaused && (
-              <div className="absolute inset-x-6 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] animate-pulse duration-1000 top-1/2 -translate-y-1/2" />
+              <div className="absolute inset-x-6 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] animate-pulse duration-1000 top-1/2 -translate-y-1/2 z-10" />
             )}
 
-            <Barcode size={48} className="text-cyan-500/40 mb-3" />
-            <p className="text-xs font-semibold text-slate-300">
-              {isPaused ? "Máy quét đang tạm dừng" : "Đặt mã vạch kiện hàng vào khung quét"}
-            </p>
-            <p className="text-[10px] text-slate-500 mt-1">
-              Hỗ trợ chuẩn GS1-128, QR Code Dược Quốc Gia, EAN-13
-            </p>
+            {/* Nội dung khi CHƯA BẬT camera */}
+            {!isCameraActive ? (
+              <div className="relative z-10 flex flex-col items-center">
+                <Barcode size={48} className="text-cyan-500/40 mb-3" />
+                <p className="text-xs font-semibold text-slate-300">
+                  {isPaused ? "Máy quét đang tạm dừng" : "Đặt mã vạch kiện hàng vào khung quét"}
+                </p>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Hỗ trợ chuẩn GS1-128, QR Code Dược Quốc Gia, EAN-13
+                </p>
 
-            {/* Input giả lập hoặc tiếp nhận tín hiệu từ máy quét phần cứng */}
-            <form onSubmit={handleBarcodeSubmit} className="mt-4 w-full max-w-xs relative">
+                {cameraError ? (
+                  <div className="mt-3 px-3 py-1.5 bg-rose-950/90 border border-rose-800 text-rose-300 text-[11px] rounded-lg max-w-xs font-medium">
+                    {cameraError}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    disabled={isCameraLoading}
+                    className="mt-3 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-600/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Camera size={14} />
+                    <span>Bật Camera Quét Trực Tiếp</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* Huy hiệu khi ĐANG BẬT camera */
+              <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
+                <span className="bg-slate-950/80 backdrop-blur-xs text-cyan-300 text-[11px] px-2.5 py-1 rounded-lg border border-slate-700/80 font-mono flex items-center gap-1.5 shadow-sm">
+                  <Scan size={12} className="text-cyan-400 animate-spin" />
+                  Đang nhận diện Barcode...
+                </span>
+                <span className="bg-emerald-950/90 text-emerald-400 text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-800 font-bold flex items-center gap-1 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  LIVE 1080P
+                </span>
+              </div>
+            )}
+
+            {/* Input tiếp nhận tín hiệu từ máy quét phần cứng hoặc nhập thủ công */}
+            <form onSubmit={handleBarcodeSubmit} className="mt-4 w-full max-w-xs relative z-20">
               <input
                 ref={inputRef}
                 type="text"
@@ -488,9 +872,29 @@ export function GoodsReceiptInspectionPage() {
                 value={inputBarcode}
                 onChange={(e) => setInputBarcode(e.target.value)}
                 disabled={isPaused}
-                className="w-full bg-slate-800/80 border border-slate-700 text-cyan-300 text-xs px-3 py-1.5 rounded-lg outline-none focus:border-cyan-400 text-center font-mono placeholder:text-slate-500"
+                className="w-full bg-slate-800/90 border border-slate-700 text-cyan-300 text-xs px-3 py-1.5 rounded-lg outline-none focus:border-cyan-400 text-center font-mono placeholder:text-slate-500 shadow-md backdrop-blur-xs"
               />
             </form>
+
+            {/* Thanh hiển thị trạng thái bộ quét thời gian thực (Scanner Engine Live HUD) */}
+            {isCameraActive && (
+              <div className="absolute bottom-2.5 inset-x-3 z-20 flex items-center justify-between bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/80 text-[10px] font-mono text-slate-300 shadow-md pointer-events-none">
+                <div className="flex items-center gap-2 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="text-cyan-300 font-bold truncate">Engine: {scannerEngineStatus}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-slate-400">FPS frames: {scanFrameCount}</span>
+                  {lastDetectedRaw ? (
+                    <span className="text-emerald-400 font-bold bg-emerald-950/90 px-1.5 py-0.5 rounded border border-emerald-700/60 max-w-[120px] truncate">
+                      Mã: {lastDetectedRaw}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 italic">Đang quét...</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Khung thông tin mặt hàng vừa quét thành công */}
@@ -709,11 +1113,32 @@ export function GoodsReceiptInspectionPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-3.5 font-mono text-[11px] text-slate-600">
-                        <span className="font-bold text-slate-800">{item.batchNo || "---"}</span>{" "}
-                        <span className="text-slate-400">
-                          ({item.expDate ? new Date(item.expDate).toLocaleDateString("vi-VN") : "Chưa có HSD"})
-                        </span>
+                      <td className="py-3.5 px-3.5 font-mono text-[11px] text-slate-600 space-y-1">
+                        <input
+                          type="text"
+                          aria-label={"Số lô " + item.medicineName}
+                          placeholder="Nhập số lô"
+                          value={item.batchNo}
+                          onChange={(e) => {
+                            const batchNo = e.target.value;
+                            setItems((current) => current.map((it) =>
+                              it.medicineId === item.medicineId ? { ...it, batchNo } : it
+                            ));
+                          }}
+                          className="block w-full rounded border border-slate-200 px-2 py-1"
+                        />
+                        <input
+                          type="date"
+                          aria-label={"Hạn dùng " + item.medicineName}
+                          value={item.expDate}
+                          onChange={(e) => {
+                            const expDate = e.target.value;
+                            setItems((current) => current.map((it) =>
+                              it.medicineId === item.medicineId ? { ...it, expDate } : it
+                            ));
+                          }}
+                          className="block w-full rounded border border-slate-200 px-2 py-1"
+                        />
                       </td>
                       <td className="py-3.5 px-3.5 text-right">
                         {isDone ? (
@@ -773,12 +1198,38 @@ export function GoodsReceiptInspectionPage() {
                 Mở ứng dụng <strong>ABC Pharmacy Mobile</strong> (Tab <strong>Phiếu Nhập Kho</strong> hoặc nút <strong>Quét Đơn PO</strong>) để quét mã QR bên dưới:
               </p>
 
+              {/* Nút chuyển đổi định dạng mã QR */}
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setSyncQrTab("FULL_DATA")}
+                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    syncQrTab === "FULL_DATA"
+                      ? "bg-white text-indigo-900 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  ⚡ Đồng Bộ Ngay (Khuyên dùng)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSyncQrTab("RAW_ID")}
+                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    syncQrTab === "RAW_ID"
+                      ? "bg-white text-indigo-900 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  🏷️ Mã ID Đơn Hàng
+                </button>
+              </div>
+
               <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border-2 border-dashed border-indigo-200 rounded-2xl">
                 <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-100">
                   <QRCodeSVG
-                    value={poData?._id || poId || "PO"}
+                    value={syncQrTab === "FULL_DATA" ? fullSyncPayload : (poData?._id || poId || "PO")}
                     size={200}
-                    level="H"
+                    level={syncQrTab === "FULL_DATA" ? "L" : "H"}
                     includeMargin={true}
                   />
                 </div>
@@ -786,7 +1237,7 @@ export function GoodsReceiptInspectionPage() {
                   MÃ ĐƠN: #{poData?.poCode || (poData?._id || poId || '').slice(-6).toUpperCase()}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1 font-mono">
-                  ID: {poData?._id || poId}
+                  {syncQrTab === "FULL_DATA" ? "Chế độ: Gói dữ liệu đồng bộ tức thì" : `ID: ${poData?._id || poId}`}
                 </span>
               </div>
 
