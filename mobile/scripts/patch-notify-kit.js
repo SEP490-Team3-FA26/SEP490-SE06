@@ -358,7 +358,7 @@ patchFile(
     }
 
     // 3.6. Bổ sung các hàm tĩnh notifyWithCallStyleFallback, startNativeEmergencyVibration, stopNativeEmergencyVibration, triggerNativeFireEmergencyCall
-    if (!next.includes('notifyWithCallStyleFallback')) {
+    if (!next.includes('public static void notifyWithCallStyleFallback')) {
       const fallbackHelper = `
   public static void notifyWithCallStyleFallback(
       Context context, String tag, int id, Notification notification) {
@@ -801,4 +801,23 @@ patchFile(
     return content;
   },
   'requestDismissKeyguard'
+);
+
+// 10. Patch react-native-reanimated Common/NativeView/CMakeLists.txt để chống lỗi Ninja Filename longer than 260 characters trên Windows
+patchFile(
+  '../node_modules/react-native-reanimated/Common/NativeView/CMakeLists.txt',
+  'react-native-reanimated/Common/NativeView/CMakeLists.txt (CMAKE_OBJECT_PATH_MAX 210)',
+  (content) => {
+    if (content.includes('CMAKE_OBJECT_PATH_MAX 150')) {
+      return content.replace('CMAKE_OBJECT_PATH_MAX 150', 'CMAKE_OBJECT_PATH_MAX 210');
+    }
+    if (!content.includes('CMAKE_OBJECT_PATH_MAX')) {
+      return content.replace(
+        'set(CMAKE_VERBOSE_MAKEFILE on)',
+        'set(CMAKE_VERBOSE_MAKEFILE on)\nset(CMAKE_OBJECT_PATH_MAX 210)'
+      );
+    }
+    return content;
+  },
+  'CMAKE_OBJECT_PATH_MAX 210'
 );
