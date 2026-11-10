@@ -44,7 +44,7 @@ function createMockReminder(overrides: Partial<MedicineReminder> = {}): Medicine
   };
 }
 
-describe('MedicineReminderService (Dịch Vụ Nhắc Uống Thuốc In-App Chuẩn Rule 6)', () => {
+describe('MedicineReminderService (Dịch Vụ Nhắc Uống Thuốc)', () => {
   // =========================================================================
   // 1. [Normal Values] Luồng nghiệp vụ chuẩn
   // =========================================================================

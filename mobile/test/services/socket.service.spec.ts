@@ -38,15 +38,8 @@ jest.mock('../../src/services/api.service', () => ({
   },
 }));
 
-jest.mock('../../src/services/fireEmergencyNotifee.service', () => ({
-  FireEmergencyNotifeeService: {
-    triggerFireEmergencyAlarm: jest.fn(),
-  },
-}));
-
 import { SocketService } from '../../src/services/socket.service';
 import { io } from 'socket.io-client';
-import { FireEmergencyNotifeeService } from '../../src/services/fireEmergencyNotifee.service';
 
 describe('SocketService (Dịch Vụ Kết Nối Thời Gian Thực Mobile)', () => {
   beforeEach(() => {
@@ -111,31 +104,32 @@ describe('SocketService (Dịch Vụ Kết Nối Thời Gian Thực Mobile)', ()
       expect(callCount).toBe(1); // Không tăng thêm
     });
 
-    it('Kích hoạt chuông báo động hỏa hoạn khi nhận sự kiện fire:emergency', () => {
+    it('Phân phối chính xác sự kiện new_po_notification và order:paid qua listener', () => {
+      const received: any[] = [];
+      const unsubscribe = SocketService.subscribe((n) => received.push(n));
       SocketService.initSocket('test_token');
 
-      // Tìm callback gắn cho 'fire:emergency'
-      const fireCallback = mockSocketInstance.on.mock.calls.find(
-        (call: any[]) => call[0] === 'fire:emergency'
+      const poCallback = mockSocketInstance.on.mock.calls.find(
+        (call: any[]) => call[0] === 'new_po_notification'
       )?.[1];
 
-      expect(fireCallback).toBeDefined();
+      expect(poCallback).toBeDefined();
 
-      if (fireCallback) {
-        fireCallback({
-          title: 'CHÁY TẠI KHO A',
-          body: 'Nhiệt độ đo được 75 độ C',
-          deviceId: 'ESP32_01',
-          temp: '75.0',
+      if (poCallback) {
+        poCallback({
+          title: 'ĐƠN MUA HÀNG MỚI',
+          message: 'Đã tạo PO-001',
         });
 
-        expect(FireEmergencyNotifeeService.triggerFireEmergencyAlarm).toHaveBeenCalledWith(
+        expect(received.length).toBe(1);
+        expect(received[0]).toEqual(
           expect.objectContaining({
-            title: 'CHÁY TẠI KHO A',
-            deviceId: 'ESP32_01',
+            type: 'NEW_PO',
+            title: 'ĐƠN MUA HÀNG MỚI',
           })
         );
       }
+      unsubscribe();
     });
   });
 

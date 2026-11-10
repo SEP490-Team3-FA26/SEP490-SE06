@@ -29,7 +29,7 @@ Tài liệu này là **Cẩm Nang Quy Chuẩn Tối Cao (Master Blueprint & Acti
    │• FlashList    │                │• Offline Sync │                │• Typography Lg│                │• Boundary Tsts│
    │• Stable Props │                │• SecureStore  │                │• Long Châu UI │                │• Abnormal Tsts│
    │• 60fps GPU Anim│               │• ErrorBoundary│                │• Health Passport│              │• VN Comments  │
-   │• Scroll Shared│                │• In-App Notif │                │• No OS Push   │                │• 0 Error TS   │
+   │• Scroll Shared│                │• Push & Notif │                │• CallStyle UI │                │• 0 Error TS   │
    └───────────────┘                └───────────────┘                └───────────────┘                └───────────────┘
 ```
 
@@ -169,14 +169,14 @@ mobile/src/
 - **Khối "Tài khoản":** Danh sách mục phẳng nền trắng có chevron `›` (*Mã QR của tôi*, *Thông tin cá nhân*, *Quản lý sổ địa chỉ*, *Quản lý phương thức thanh toán*, *Lịch sử tư vấn*, *Tủ thuốc*, *Yêu thích*).
 - **Khối "Về Nhà thuốc ABC PHARMACY":** Giới thiệu nhà thuốc, Giấy phép kinh doanh GPP, Quy chế hoạt động, Đăng xuất tài khoản.
 
-### 4.4. Quy Định Bất Biến Về Thông Báo (Không Dùng Google / OS Push)
+### 4.4. Quy Định Về Thông Báo & Cảnh Báo Khẩn Cấp
 
-- **CẤM:** Không dùng Google FCM, không dùng `Notification.requestPermission()`, không dùng OS push notifications.
-- **BẮT BUỘC:** Toàn bộ thông báo là **In-App Notifications**:
+- **Cảnh báo khẩn cấp (Hỏa hoạn / IoT GSP):** Sử dụng Google FCM Data-Only kết hợp Notifee `CallStyle.forIncomingCall` và `FullScreenIntent` để đổ chuông và bung toàn màn hình ngay cả khi khóa máy hoặc tắt app.
+- **Thông báo nghiệp vụ & Lịch nhắc thuốc:**
   - `CustomToast`: Kích thước lớn 92% chiều rộng màn hình, icon tròn 28px, chữ to rõ ràng.
   - `FlatModal`: Cảnh báo xác nhận tương tác in-app.
   - `Socket.IO`: Lắng nghe realtime các phòng (`user-{userId}`, `branch-{branchId}`).
-  - Lịch nhắc thuốc: Tạo tự động từ đơn thuốc, lưu `AsyncStorage`, báo chuông audio nội bộ sliding window 7 ngày offline 100%.
+  - Lịch nhắc thuốc: Tạo tự động từ đơn thuốc, lưu `AsyncStorage`, báo chuông nội bộ sliding window 7 ngày.
 
 ### 4.5. Chính Sách Tuyệt Đối Không Dùng Màu Xanh Lá Cây (Zero Green Color Policy - CRITICAL)
 
