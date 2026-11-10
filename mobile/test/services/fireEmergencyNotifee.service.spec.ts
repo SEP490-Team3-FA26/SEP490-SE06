@@ -243,6 +243,26 @@ describe('FireEmergencyNotifeeService (Cảnh Báo Hỏa Hoạn Full-Screen APK 
       );
       unsub();
     });
+
+    it('Không ghi đè trạng thái ANSWERED về lại RINGING khi checkPendingEmergencyOnLaunch chạy lặp', async () => {
+      await FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
+        title: 'CHÁY KHO',
+        temp: '68.0',
+      });
+      await FireEmergencyNotifeeService.answerAlarm();
+      expect(FireEmergencyNotifeeService.getCallState()).toBe('ANSWERED');
+
+      mockGetInitialNotification.mockResolvedValue({
+        notification: {
+          id: FIRE_NOTIFICATION_ID,
+          title: 'CHÁY KHO',
+          data: { type: 'FIRE_EMERGENCY', temp: '68.0' },
+        },
+      });
+
+      await FireEmergencyNotifeeService.checkPendingEmergencyOnLaunch();
+      expect(FireEmergencyNotifeeService.getCallState()).toBe('ANSWERED');
+    });
   });
 
   // =========================================================================

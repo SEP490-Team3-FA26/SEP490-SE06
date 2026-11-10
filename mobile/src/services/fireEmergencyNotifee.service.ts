@@ -228,10 +228,36 @@ class FireEmergencyNotifeeManager {
     }
   }
 
+  // Kiểm tra và mở trang cấp quyền Full-Screen Intent trên Android 14+ nếu hệ điều hành chưa cấp mặc định
+  public async ensureFullScreenIntentPermission(): Promise<void> {
+    const notifee = getNotifee();
+    if (!notifee) return;
+    try {
+      if (typeof notifee.getNotificationSettings === 'function') {
+        const settings = await notifee.getNotificationSettings();
+        if (settings?.android?.fullScreenIntent === 0) {
+          const { Linking } = require('react-native');
+          if (Linking && typeof Linking.sendIntent === 'function') {
+            await Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT', [
+              { key: 'android.provider.extra.APP_PACKAGE', value: 'com.abcpharmacy.mobile' },
+            ]).catch(() => {});
+          }
+        }
+      }
+    } catch {
+      // Bỏ qua trên thiết bị Android < 14 hoặc môi trường test
+    }
+  }
+
   // Kiểm tra khi app mới khởi động (từ trạng thái Killed qua Full-Screen Intent hoặc bấm thông báo)
   public async checkPendingEmergencyOnLaunch(): Promise<void> {
     const notifee = getNotifee();
     if (!notifee) return;
+
+    // Nếu người dùng đã nghe máy (ANSWERED), không ghi đè lại trạng thái RINGING từ timer trễ
+    if (this.isAlarmActive && this.currentCallState === 'ANSWERED') {
+      return;
+    }
 
     try {
       // 1. Kiểm tra notification khởi chạy app (Initial Notification)

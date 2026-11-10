@@ -40,6 +40,7 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "CAMERA",
+        "RECORD_AUDIO",
         "READ_CALENDAR",
         "WRITE_CALENDAR",
         "VIBRATE",
@@ -54,15 +55,7 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT",
-        "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -95,7 +88,8 @@
           "android": {
             "foregroundService": {
               "types": [
-                "mediaPlayback"
+                "mediaPlayback",
+                "shortService"
               ]
             }
           }
@@ -106,7 +100,7 @@
         {
           "icon": "./assets/icon.png",
           "color": "#DC2626",
-          "defaultChannel": "fire_emergency_ring_v8"
+          "defaultChannel": "iot_temperature_critical"
         }
       ],
       "./plugins/withFireEmergencyAndroid"

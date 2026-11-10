@@ -1,9 +1,14 @@
-const { withAndroidManifest, withProjectBuildGradle, withGradleProperties } = require('@expo/config-plugins');
+const {
+  withAndroidManifest,
+  withProjectBuildGradle,
+  withGradleProperties,
+  withMainActivity,
+} = require('@expo/config-plugins');
 
 /**
- * Expo Config Plugin cấu hình Android Manifest và Gradle cho tính năng Báo động Khẩn cấp:
- * - Bật sáng màn hình và hiển thị đè lên màn hình khóa (showWhenLocked, turnScreenOn)
- * - Đảm bảo quyền USE_FULL_SCREEN_INTENT và Foreground Service Media Playback cho Notifee
+ * Expo Config Plugin cấu hình Android Manifest, MainActivity và Gradle cho tính năng Báo động Khẩn cấp:
+ * - Bật sáng màn hình và hiển thị đè lên màn hình khóa (showWhenLocked, turnScreenOn, FLAG_KEEP_SCREEN_ON, requestDismissKeyguard)
+ * - Đảm bảo quyền USE_FULL_SCREEN_INTENT và Foreground Service Media Playback + ShortService (Android 14/15) cho Notifee
  * - Rút ngắn CMake staging directory trên Windows để tránh lỗi Ninja MAX_PATH 260 ký tự
  * - Cấu hình chỉ build chip ARM64 (arm64-v8a) cho máy thật để giảm dung lượng file APK và tăng tốc độ build
  */
@@ -21,6 +26,45 @@ const withFireEmergencyAndroid = (config) => {
         key: 'reactNativeArchitectures',
         value: 'arm64-v8a',
       });
+    }
+    return config;
+  });
+
+  // Tiêm cờ bật sáng màn hình và vượt màn hình khóa trực tiếp vào MainActivity.onCreate
+  config = withMainActivity(config, (config) => {
+    const isKotlin = config.modResults.language === 'kt';
+    const contents = config.modResults.contents;
+
+    if (isKotlin && !contents.includes('FLAG_SHOW_WHEN_LOCKED')) {
+      const ktSnippet = `    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+      setShowWhenLocked(true)
+      setTurnScreenOn(true)
+    }
+    window.addFlags(
+      android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+      android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+      android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+      android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+    )`;
+      config.modResults.contents = contents.replace(
+        /super\.onCreate\([^\)]*\)/,
+        (match) => `${match}\n${ktSnippet}`
+      );
+    } else if (!isKotlin && !contents.includes('FLAG_SHOW_WHEN_LOCKED')) {
+      const javaSnippet = `    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+      setShowWhenLocked(true);
+      setTurnScreenOn(true);
+    }
+    getWindow().addFlags(
+      android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+      android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+      android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+      android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+    );`;
+      config.modResults.contents = contents.replace(
+        /super\.onCreate\([^\)]*\);/,
+        (match) => `${match}\n${javaSnippet}`
+      );
     }
     return config;
   });
@@ -88,7 +132,7 @@ subprojects { subproject ->
         }
       }
 
-      // Đảm bảo Notifee ForegroundService khai báo đúng foregroundServiceType="mediaPlayback"
+      // Đảm bảo Notifee ForegroundService khai báo cả mediaPlayback và shortService (vượt rào cản Android 14/15 khi nhận FCM từ nền)
       if (!application.service) {
         application.service = [];
       }
@@ -96,14 +140,14 @@ subprojects { subproject ->
         (s) => s.$ && s.$['android:name'] === 'app.notifee.core.ForegroundService'
       );
       if (existingService) {
-        existingService.$['android:foregroundServiceType'] = 'mediaPlayback';
+        existingService.$['android:foregroundServiceType'] = 'mediaPlayback|shortService';
         existingService.$['android:exported'] = 'false';
       } else {
         application.service.push({
           $: {
             'android:name': 'app.notifee.core.ForegroundService',
             'android:exported': 'false',
-            'android:foregroundServiceType': 'mediaPlayback',
+            'android:foregroundServiceType': 'mediaPlayback|shortService',
           },
         });
       }

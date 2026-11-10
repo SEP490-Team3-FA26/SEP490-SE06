@@ -154,10 +154,12 @@ const App: React.FC = () => {
     });
 
     // 2. Tự động kiểm tra lại báo cháy / nhắc thuốc khi app chuyển lên foreground (AppState.active)
+    let resumeCheckTimer: ReturnType<typeof setTimeout> | null = null;
     const appStateSub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         FireEmergencyNotifeeService.checkPendingEmergencyOnLaunch().catch(() => {});
-        setTimeout(() => {
+        if (resumeCheckTimer) clearTimeout(resumeCheckTimer);
+        resumeCheckTimer = setTimeout(() => {
           FireEmergencyNotifeeService.checkPendingEmergencyOnLaunch().catch(() => {});
         }, 450);
         MedicineReminderService.rescheduleAllActiveReminders();
@@ -166,6 +168,7 @@ const App: React.FC = () => {
 
     return () => {
       clearTimeout(initialCheckTimer);
+      if (resumeCheckTimer) clearTimeout(resumeCheckTimer);
       receivedListener.remove();
       responseListener.remove();
       appStateSub.remove();

@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
 import { ApiService } from '../services/api.service';
 import { authApiService } from '../services/authApiService';
 import { SocketService } from '../services/socket.service';
+import { FireEmergencyNotifeeService } from '../services/fireEmergencyNotifee.service';
 import { BiometricService, SavedBiometricUser } from '../services/biometric.service';
 import { WishlistAPI } from '../services/wishlistApiService';
 import { UserRole, UserProfile } from '../types/pharmacy.types';
@@ -34,6 +35,9 @@ const syncPushTokenToServer = async () => {
     if (finalStatus !== 'granted') {
       return;
     }
+
+    // Đảm bảo quyền USE_FULL_SCREEN_INTENT trên Android 14+ được bật để bung cuộc gọi báo cháy trên màn hình khóa
+    void FireEmergencyNotifeeService.ensureFullScreenIntentPermission();
 
     let token = '';
     try {

@@ -97,6 +97,21 @@ patchFile(
       next = next.replace(oldFullScreenBlock, newFullScreenBlock);
     }
 
+    // 3.2b. Nếu thiết bị đã cấp quyền SYSTEM_ALERT_WINDOW (Display over other apps), chủ động bung FullScreen ngay cả khi màn hình đang sáng
+    const oldSetFullScreenLine = `                        builder.setFullScreenIntent(fullScreenPendingIntent, true);`;
+    const newSetFullScreenLine = `                        builder.setFullScreenIntent(fullScreenPendingIntent, true);
+                        if ("call".equals(androidModel.getCategory())
+                            && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                            && android.provider.Settings.canDrawOverlays(getApplicationContext())) {
+                          try {
+                            fullScreenPendingIntent.send();
+                          } catch (Exception ignored) {
+                          }
+                        }`;
+    if (next.includes(oldSetFullScreenLine) && !next.includes('canDrawOverlays(getApplicationContext())')) {
+      next = next.replace(oldSetFullScreenLine, newSetFullScreenLine);
+    }
+
     // 3.3. Nâng cấp actionsContinuation để hiển thị NotificationCompat.CallStyle.forIncomingCall
     const oldActionsBlock = `                  for (NotificationAndroidActionModel actionBundle : actionBundles) {
                     PendingIntent pendingIntent = null;
@@ -518,7 +533,9 @@ patchFile(
       androidBundle.putParcelableArrayList("actions", actions);
       notificationBundle.putBundle("android", androidBundle);
 
-      displayNotification(NotificationModel.fromBundle(notificationBundle), null);
+      app.notifee.core.utility.PowerManagerUtils.lightUpScreenIfNeeded(appContext);
+      displayNotification(NotificationModel.fromBundle(notificationBundle), null)
+          .get(5, TimeUnit.SECONDS);
     } catch (Exception e) {
       Logger.e(TAG, "Failed to triggerNativeFireEmergencyCall", e);
     }
@@ -526,23 +543,28 @@ patchFile(
 }
 `;
       next = next.replace(/\}\s*$/, helperMethods);
+    } else if (next.includes('displayNotification(NotificationModel.fromBundle(notificationBundle), null);')) {
+      next = next.replace(
+        'displayNotification(NotificationModel.fromBundle(notificationBundle), null);',
+        `app.notifee.core.utility.PowerManagerUtils.lightUpScreenIfNeeded(appContext);\n      displayNotification(NotificationModel.fromBundle(notificationBundle), null)\n          .get(5, TimeUnit.SECONDS);`
+      );
     }
 
     return next;
   }
 );
 
-// 4. Patch ForegroundService.java để fallback notify() và bảo vệ CallStyle trên Android 14/15
+// 4. Patch ForegroundService.java để fallback shortService (2048) + notify() và bảo vệ CallStyle trên Android 14/15
 patchFile(
   '../node_modules/react-native-notify-kit/android/src/main/java/app/notifee/core/ForegroundService.java',
-  'ForegroundService.java (Fallback notify on deniedInitialPromotion & CallStyle guard)',
+  'ForegroundService.java (Fallback shortService 2048 & notify on deniedInitialPromotion & CallStyle guard)',
   (content) => {
     let next = content;
 
     const oldStartFgTry = `                  try {
                     startForeground(hashCode, notification, foregroundServiceType);
                   } catch (RuntimeException e) {`;
-    const newStartFgTry = `                  try {
+    const prevStartFgTry = `                  try {
                     try {
                       startForeground(hashCode, notification, foregroundServiceType);
                     } catch (IllegalArgumentException callStyleErr) {
@@ -553,7 +575,29 @@ patchFile(
                       startForeground(hashCode, notification, foregroundServiceType);
                     }
                   } catch (RuntimeException e) {`;
-    if (next.includes(oldStartFgTry) && !next.includes('callStyleErr')) {
+    const newStartFgTry = `                  try {
+                    try {
+                      try {
+                        startForeground(hashCode, notification, foregroundServiceType);
+                      } catch (RuntimeException fgsTypeErr) {
+                        if (Build.VERSION.SDK_INT >= 34 && foregroundServiceType != 2048) {
+                          foregroundServiceType = 2048; // ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE
+                          startForeground(hashCode, notification, foregroundServiceType);
+                        } else {
+                          throw fgsTypeErr;
+                        }
+                      }
+                    } catch (IllegalArgumentException callStyleErr) {
+                      if (notification.extras != null) {
+                        notification.extras.remove("android.template");
+                        notification.extras.remove("android.callType");
+                      }
+                      startForeground(hashCode, notification, foregroundServiceType);
+                    }
+                  } catch (RuntimeException e) {`;
+    if (next.includes(prevStartFgTry)) {
+      next = next.replace(prevStartFgTry, newStartFgTry);
+    } else if (next.includes(oldStartFgTry) && !next.includes('callStyleErr')) {
       next = next.replace(oldStartFgTry, newStartFgTry);
     }
 
@@ -638,10 +682,9 @@ patchFile(
 // 7. Patch FirebaseMessagingDelegate.kt của expo-notifications để kích hoạt trực tiếp CallStyle từ tầng Native khi nhận FCM
 patchFile(
   '../node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/service/delegates/FirebaseMessagingDelegate.kt',
-  'FirebaseMessagingDelegate.kt (Native FCM Fire Emergency Call trigger)',
+  'FirebaseMessagingDelegate.kt (Native FCM Fire Emergency Call trigger + early return)',
   (content) => {
-    const target = `  override fun onMessageReceived(remoteMessage: RemoteMessage) {`;
-    const replacement = `  override fun onMessageReceived(remoteMessage: RemoteMessage) {
+    const prevPatched = `  override fun onMessageReceived(remoteMessage: RemoteMessage) {
     if (remoteMessage.data["type"] == "FIRE_EMERGENCY" && !ExpoHandlingDelegate(context).isAppInForeground()) {
       try {
         val clazz = Class.forName("app.notifee.core.NotificationManager")
@@ -651,7 +694,66 @@ patchFile(
         android.util.Log.e("FireEmergencyFCM", "Failed to trigger native fire emergency call", e)
       }
     }`;
+    const target = `  override fun onMessageReceived(remoteMessage: RemoteMessage) {`;
+    const replacement = `  override fun onMessageReceived(remoteMessage: RemoteMessage) {
+    if (remoteMessage.data["type"] == "FIRE_EMERGENCY" && !ExpoHandlingDelegate(context).isAppInForeground()) {
+      try {
+        val clazz = Class.forName("app.notifee.core.NotificationManager")
+        val method = clazz.getMethod("triggerNativeFireEmergencyCall", Context::class.java, java.util.Map::class.java)
+        method.invoke(null, context.applicationContext, remoteMessage.data)
+        return
+      } catch (e: Throwable) {
+        android.util.Log.e("FireEmergencyFCM", "Failed to trigger native fire emergency call", e)
+      }
+    }`;
+    if (content.includes(prevPatched)) {
+      return content.replace(prevPatched, replacement);
+    }
     if (content.includes(target) && !content.includes('triggerNativeFireEmergencyCall')) {
+      return content.replace(target, replacement);
+    }
+    return content;
+  }
+);
+
+// 8. Patch PowerManagerUtils.java để giữ WakeLock sáng màn hình 15s (đủ thời gian cho React Native cold-boot từ trạng thái Killed)
+patchFile(
+  '../node_modules/react-native-notify-kit/android/src/main/java/app/notifee/core/utility/PowerManagerUtils.java',
+  'PowerManagerUtils.java (15s WakeLock for cold-boot FullScreen)',
+  (content) => {
+    return content
+      .replace(/wl\.acquire\(3000L\);/g, 'wl.acquire(15000L);')
+      .replace(/wl_cpu\.acquire\(3000L\);/g, 'wl_cpu.acquire(15000L);');
+  }
+);
+
+// 9. Patch FullScreenNotificationActivity.java để đảm bảo bật sáng và vượt màn hình khóa trên Android 8.1 -> 15
+patchFile(
+  '../node_modules/react-native-notify-kit/android/src/main/java/app/notifee/core/FullScreenNotificationActivity.java',
+  'FullScreenNotificationActivity.java (setShowWhenLocked + setTurnScreenOn + requestDismissKeyguard)',
+  (content) => {
+    const target = `    getWindow()
+        .addFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);`;
+    const replacement = `    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+      setShowWhenLocked(true);
+      setTurnScreenOn(true);
+    }
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+      android.app.KeyguardManager km =
+          (android.app.KeyguardManager) getSystemService(android.content.Context.KEYGUARD_SERVICE);
+      if (km != null) {
+        km.requestDismissKeyguard(this, null);
+      }
+    }
+    getWindow()
+        .addFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);`;
+    if (content.includes(target) && !content.includes('requestDismissKeyguard')) {
       return content.replace(target, replacement);
     }
     return content;

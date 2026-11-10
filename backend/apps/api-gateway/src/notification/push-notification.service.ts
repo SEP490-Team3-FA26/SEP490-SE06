@@ -179,15 +179,16 @@ export class PushNotificationService implements OnModuleInit {
     // 1. Gui qua Firebase Admin cho Android FCM
     if (fcmTokens.length > 0 && this.messaging) {
       try {
-        const channelId = payload.channelId || 'fire_emergency_ring_v8';
-        const sound = payload.sound || 'content://settings/system/ringtone';
-
         const isFireEmergency = payload.data?.type === 'FIRE_EMERGENCY';
+        const channelId =
+          payload.channelId || (isFireEmergency ? 'fire_emergency_ring_v8' : 'iot_temperature_critical');
+        const sound =
+          payload.sound || (isFireEmergency ? 'content://settings/system/ringtone' : 'default');
 
         // Với sự kiện FIRE_EMERGENCY: tuyệt đối KHÔNG đưa key 'title' và 'body' vào data payload,
         // để tránh native code của expo-notifications tự động render thêm 1 thông báo trùng lặp.
         // Toàn bộ tiêu đề và nội dung được đưa vào 'alertTitle' và 'alertBody' cho Notifee hiển thị độc quyền.
-        const fcmData = isFireEmergency
+        const rawData: Record<string, any> = isFireEmergency
           ? {
               ...(payload.data || {}),
               alertTitle: payload.title,
@@ -203,10 +204,18 @@ export class PushNotificationService implements OnModuleInit {
               sound,
             };
 
+        const fcmData: Record<string, string> = {};
+        for (const [k, v] of Object.entries(rawData)) {
+          if (v !== undefined && v !== null) {
+            fcmData[k] = String(v);
+          }
+        }
+
         const multicastMessage: any = {
           tokens: fcmTokens,
           android: {
             priority: 'high',
+            ...(isFireEmergency ? { ttl: 60000 } : {}),
           },
           data: fcmData,
         };
