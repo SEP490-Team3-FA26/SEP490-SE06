@@ -1,5 +1,4 @@
-// medicineReminder.service.ts - Dịch vụ quản lý lịch nhắc uống thuốc In-App chuẩn Rule 6
-// Tuân thủ Quy tắc Bất biến: Không sử dụng thông báo ngoài hệ điều hành / Google FCM
+// medicineReminder.service.ts - Dịch vụ quản lý lịch nhắc uống thuốc
 // Sử dụng In-App Toast, Modal nội bộ và lưu trữ cục bộ qua ReminderStorageService
 import { MedicineReminder, MealTiming } from '../types/reminder.types';
 import { ReminderStorageService } from './reminderStorage.service';
@@ -7,7 +6,7 @@ import { showToast } from '../components/ui/toastHelper';
 
 export const MedicineReminderService = {
   /**
-   * Khởi tạo dịch vụ nhắc thuốc In-App (No-op không xin quyền OS)
+   * Khởi tạo dịch vụ nhắc thuốc
    */
   async init(): Promise<boolean> {
     return true;
