@@ -38,8 +38,8 @@ export const FireEmergencyModal: React.FC = () => {
     const unsubscribe = FireEmergencyNotifeeService.subscribe((alertPayload) => {
       if (alertPayload) {
         setData({
-          deviceId: String(alertPayload.deviceId || 'ESP32S3_404CCA44C814'),
-          temp: String(alertPayload.temp || '65.0'),
+          deviceId: String(alertPayload.deviceId || 'KHO-TONG-GSP'),
+          temp: String(alertPayload.temp || 'N/A'),
           title: alertPayload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
           isTest: alertPayload.isTest ?? false,
         });

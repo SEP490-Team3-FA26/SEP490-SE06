@@ -12,7 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 
-function patchFile(relativePath, patchName, transformFn) {
+function patchFile(relativePath, patchName, transformFn, verifyMarker) {
   const fullPath = path.resolve(__dirname, relativePath);
   if (!fs.existsSync(fullPath)) {
     console.log(`[patch-notify-kit] Bo qua ${patchName} (file chua ton tai): ${relativePath}`);
@@ -23,8 +23,10 @@ function patchFile(relativePath, patchName, transformFn) {
   if (updated !== original) {
     fs.writeFileSync(fullPath, updated, 'utf8');
     console.log(`[patch-notify-kit] DA PATCH THANH CONG: ${patchName}`);
-  } else {
+  } else if (!verifyMarker || original.includes(verifyMarker)) {
     console.log(`[patch-notify-kit] Da duoc patch tu truoc: ${patchName}`);
+  } else {
+    console.warn(`[patch-notify-kit] CANH BAO PATCH MISS (khong tim thay pattern): ${patchName}`);
   }
 }
 
@@ -37,7 +39,8 @@ patchFile(
       /implementation\s+['"]androidx\.core:core:1\.6\.0['"]/g,
       "implementation 'androidx.core:core:1.17.0'"
     );
-  }
+  },
+  "androidx.core:core:1.17.0"
 );
 
 // 2. Patch ChannelManager.java sang USAGE_NOTIFICATION_RINGTONE
@@ -49,7 +52,8 @@ patchFile(
       /AudioAttributes\.USAGE_NOTIFICATION\b/g,
       'AudioAttributes.USAGE_NOTIFICATION_RINGTONE'
     );
-  }
+  },
+  'AudioAttributes.USAGE_NOTIFICATION_RINGTONE'
 );
 
 // 3. Patch NotificationManager.java:
@@ -451,8 +455,8 @@ patchFile(
         body = data.get("body");
       }
       String deviceId =
-          data.get("deviceId") != null ? data.get("deviceId") : "ESP32S3_404CCA44C814";
-      String temp = data.get("temp") != null ? data.get("temp") : "65.0";
+          data.get("deviceId") != null ? data.get("deviceId") : "KHO-TONG-GSP";
+      String temp = data.get("temp") != null ? data.get("temp") : "N/A";
       String isTest = data.get("isTest") != null ? data.get("isTest") : "false";
       if (body == null || body.isEmpty()) {
         body = "Nhiệt độ " + temp + "°C • Trạm " + deviceId;
@@ -550,8 +554,15 @@ patchFile(
       );
     }
 
+    if (next.includes('"ESP32S3_404CCA44C814"')) {
+      next = next
+        .replace('"ESP32S3_404CCA44C814"', '"KHO-TONG-GSP"')
+        .replace('data.get("temp") != null ? data.get("temp") : "65.0"', 'data.get("temp") != null ? data.get("temp") : "N/A"');
+    }
+
     return next;
-  }
+  },
+  'triggerNativeFireEmergencyCall'
 );
 
 // 4. Patch ForegroundService.java để fallback shortService (2048) + notify() và bảo vệ CallStyle trên Android 14/15
@@ -630,7 +641,8 @@ patchFile(
       next = next.replace(target, replacement);
     }
     return next;
-  }
+  },
+  'notifyWithCallStyleFallback'
 );
 
 // 5. Patch ReceiverService.java để tắt còi + hủy rung + dừng ForegroundService ngay ở tầng Native khi bấm nút DECLINE / ANSWER
@@ -638,10 +650,7 @@ patchFile(
   '../node_modules/react-native-notify-kit/android/src/main/java/app/notifee/core/ReceiverService.java',
   'ReceiverService.java (Immediate native stop on stop_alarm / answer_alarm)',
   (content) => {
-    const target = `    EventBus.post(new NotificationEvent(TYPE_ACTION_PRESS, notificationModel, extras));`;
-    const replacement = `    EventBus.post(new NotificationEvent(TYPE_ACTION_PRESS, notificationModel, extras));
-
-    if ("stop_alarm".equals(pressActionBundle.getId())
+    const prevPatched = `    if ("stop_alarm".equals(pressActionBundle.getId())
         || "decline_alarm".equals(pressActionBundle.getId())
         || "answer_alarm".equals(pressActionBundle.getId())) {
       NotificationManager.stopNativeEmergencyVibration(getApplicationContext());
@@ -649,11 +658,28 @@ patchFile(
       NotificationManagerCompat.from(getApplicationContext())
           .cancel(notificationAndroidModel.getTag(), notificationModel.getId().hashCode());
     }`;
+    const target = `    EventBus.post(new NotificationEvent(TYPE_ACTION_PRESS, notificationModel, extras));`;
+    const safeBlock = `    if ("stop_alarm".equals(pressActionBundle.getId())
+        || "decline_alarm".equals(pressActionBundle.getId())
+        || "answer_alarm".equals(pressActionBundle.getId())) {
+      NotificationManager.stopNativeEmergencyVibration(getApplicationContext());
+      ForegroundService.stop();
+      String notifId = notificationModel != null ? notificationModel.toBundle().getString("id") : null;
+      if (notifId != null) {
+        NotificationManagerCompat.from(getApplicationContext())
+            .cancel(notificationAndroidModel.getTag(), notifId.hashCode());
+      }
+    }`;
+    const replacement = `${target}\n\n${safeBlock}`;
+    if (content.includes(prevPatched)) {
+      return content.replace(prevPatched, safeBlock);
+    }
     if (content.includes(target) && !content.includes('NotificationManager.stopNativeEmergencyVibration')) {
       return content.replace(target, replacement);
     }
     return content;
-  }
+  },
+  'stopNativeEmergencyVibration'
 );
 
 // 6. Patch NotificationReceiverHandler.java (Android 12+ Activity PendingIntent cho nút ANSWER)
@@ -661,22 +687,36 @@ patchFile(
   '../node_modules/react-native-notify-kit/android/src/main/java/app/notifee/core/NotificationReceiverHandler.java',
   'NotificationReceiverHandler.java (Immediate native stop on answer_alarm)',
   (content) => {
-    const target = `    if (notificationModel.getAndroid().getAutoCancel()) {`;
-    const replacement = `    if ("stop_alarm".equals(pressActionBundle.getId())
+    const prevPatched = `    if ("stop_alarm".equals(pressActionBundle.getId())
         || "decline_alarm".equals(pressActionBundle.getId())
         || "answer_alarm".equals(pressActionBundle.getId())) {
       NotificationManager.stopNativeEmergencyVibration(context);
       ForegroundService.stop();
       NotificationManagerCompat.from(context)
           .cancel(notificationModel.getAndroid().getTag(), notificationModel.getId().hashCode());
+    }`;
+    const target = `    if (notificationModel.getAndroid().getAutoCancel()) {`;
+    const safeBlock = `    if ("stop_alarm".equals(pressActionBundle.getId())
+        || "decline_alarm".equals(pressActionBundle.getId())
+        || "answer_alarm".equals(pressActionBundle.getId())) {
+      NotificationManager.stopNativeEmergencyVibration(context);
+      ForegroundService.stop();
+      String notifId = notificationModel != null ? notificationModel.toBundle().getString("id") : null;
+      if (notifId != null) {
+        NotificationManagerCompat.from(context)
+            .cancel(notificationModel.getAndroid().getTag(), notifId.hashCode());
+      }
+    }`;
+    const replacement = `${safeBlock}\n\n${target}`;
+    if (content.includes(prevPatched)) {
+      return content.replace(prevPatched, safeBlock);
     }
-
-    if (notificationModel.getAndroid().getAutoCancel()) {`;
     if (content.includes(target) && !content.includes('NotificationManager.stopNativeEmergencyVibration')) {
       return content.replace(target, replacement);
     }
     return content;
-  }
+  },
+  'stopNativeEmergencyVibration'
 );
 
 // 7. Patch FirebaseMessagingDelegate.kt của expo-notifications để kích hoạt trực tiếp CallStyle từ tầng Native khi nhận FCM
@@ -713,7 +753,8 @@ patchFile(
       return content.replace(target, replacement);
     }
     return content;
-  }
+  },
+  'triggerNativeFireEmergencyCall'
 );
 
 // 8. Patch PowerManagerUtils.java để giữ WakeLock sáng màn hình 15s (đủ thời gian cho React Native cold-boot từ trạng thái Killed)
@@ -724,7 +765,8 @@ patchFile(
     return content
       .replace(/wl\.acquire\(3000L\);/g, 'wl.acquire(15000L);')
       .replace(/wl_cpu\.acquire\(3000L\);/g, 'wl_cpu.acquire(15000L);');
-  }
+  },
+  'wl.acquire(15000L);'
 );
 
 // 9. Patch FullScreenNotificationActivity.java để đảm bảo bật sáng và vượt màn hình khóa trên Android 8.1 -> 15
@@ -757,5 +799,6 @@ patchFile(
       return content.replace(target, replacement);
     }
     return content;
-  }
+  },
+  'requestDismissKeyguard'
 );

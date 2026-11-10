@@ -59,15 +59,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       setNotifications((prev) => [newNotif, ...prev].slice(0, 50));
 
-      if (notification.type !== 'FIRE_EMERGENCY') {
-        Toast.show({
-          type: notification.type === 'SENSOR_ALERT' ? 'error' : 'info',
-          text1: notification.title || 'Thông báo mới',
-          text2: notification.message || notification.content || '',
-          position: 'top',
-          visibilityTime: 4000,
-        });
-      }
+      Toast.show({
+        type: notification.type === 'SENSOR_ALERT' ? 'error' : 'info',
+        text1: notification.title || 'Thông báo mới',
+        text2: notification.message || notification.content || '',
+        position: 'top',
+        visibilityTime: 4000,
+      });
     });
 
     return () => {

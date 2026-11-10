@@ -66,8 +66,8 @@ TaskManager.defineTask(BACKGROUND_FIRE_TASK, async ({ data, error }) => {
     await FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
       title: String(payload.alertTitle || payload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG'),
       body: String(payload.alertBody || payload.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!'),
-      deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
-      temp: String(payload.temp || '65.0'),
+      deviceId: payload.deviceId ? String(payload.deviceId) : undefined,
+      temp: payload.temp ? String(payload.temp) : undefined,
       isTest: payload.isTest === 'true' || payload.isTest === true,
     });
   }
@@ -125,8 +125,8 @@ const App: React.FC = () => {
         FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
           title: String(payload.alertTitle || notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG'),
           body: String(payload.alertBody || notification.request.content.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!'),
-          deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
-          temp: String(payload.temp || '65.0'),
+          deviceId: payload.deviceId ? String(payload.deviceId) : undefined,
+          temp: payload.temp ? String(payload.temp) : undefined,
           isTest: payload.isTest === 'true' || payload.isTest === true,
         });
       }
@@ -139,8 +139,8 @@ const App: React.FC = () => {
         FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
           title: String(payload.alertTitle || response.notification.request.content.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG'),
           body: String(payload.alertBody || response.notification.request.content.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!'),
-          deviceId: String(payload.deviceId || 'ESP32S3_404CCA44C814'),
-          temp: String(payload.temp || '65.0'),
+          deviceId: payload.deviceId ? String(payload.deviceId) : undefined,
+          temp: payload.temp ? String(payload.temp) : undefined,
           isTest: payload.isTest === 'true' || payload.isTest === true,
         });
       }

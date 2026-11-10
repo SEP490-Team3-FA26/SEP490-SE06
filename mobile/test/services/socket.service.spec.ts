@@ -38,15 +38,8 @@ jest.mock('../../src/services/api.service', () => ({
   },
 }));
 
-jest.mock('../../src/services/fireEmergencyNotifee.service', () => ({
-  FireEmergencyNotifeeService: {
-    triggerFireEmergencyAlarm: jest.fn(),
-  },
-}));
-
 import { SocketService } from '../../src/services/socket.service';
 import { io } from 'socket.io-client';
-import { FireEmergencyNotifeeService } from '../../src/services/fireEmergencyNotifee.service';
 
 describe('SocketService (Dịch Vụ Kết Nối Thời Gian Thực Mobile)', () => {
   beforeEach(() => {

@@ -101,6 +101,7 @@ class SocketServiceClass {
     this.socket.on('grn_completed_notification', (data) => this.handleIncomingNotification('GRN_COMPLETED', data));
     this.socket.on('order:paid', (data) => this.handleIncomingNotification('ORDER_PAID', data));
     this.socket.on('notification', (data) => this.handleIncomingNotification('GENERAL', data));
+    this.socket.on('sensor:alert', (data) => this.handleIncomingNotification('SENSOR_ALERT', data));
   }
 
   private handleIncomingNotification(type: string, data: any): void {

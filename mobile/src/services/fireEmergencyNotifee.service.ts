@@ -113,8 +113,8 @@ class FireEmergencyNotifeeManager {
     const normalizedPayload: FireAlertPayload = {
       title: payload.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
       body: payload.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
-      deviceId: payload.deviceId || 'ESP32S3_404CCA44C814',
-      temp: payload.temp || '65.0',
+      deviceId: payload.deviceId || 'KHO-TONG-GSP',
+      temp: payload.temp || 'N/A',
       isTest: Boolean(payload.isTest),
     };
 
@@ -303,8 +303,8 @@ class FireEmergencyNotifeeManager {
     const payload: FireAlertPayload = {
       title: String(data?.title || notification?.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG'),
       body: String(data?.body || notification?.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!'),
-      deviceId: String(data?.deviceId || 'ESP32S3_404CCA44C814'),
-      temp: String(data?.temp || '65.0'),
+      deviceId: String(data?.deviceId || 'KHO-TONG-GSP'),
+      temp: String(data?.temp || 'N/A'),
       isTest: data?.isTest === 'true' || data?.isTest === true,
     };
 
