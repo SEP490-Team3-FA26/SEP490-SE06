@@ -357,7 +357,14 @@ patchFile(
       next = next.replace(oldCancelLine, newCancelLine);
     }
 
-    // 3.6. Bổ sung các hàm tĩnh notifyWithCallStyleFallback, startNativeEmergencyVibration, stopNativeEmergencyVibration, triggerNativeFireEmergencyCall
+    // 3.6. Bổ sung các hàm tĩnh notifyWithCallStyleFallback, cancelPreviousFireAlerts, startNativeEmergencyVibration, stopNativeEmergencyVibration, triggerNativeFireEmergencyCall
+    if (!next.includes('sLastFireNotifId')) {
+      next = next.replace(
+        'public class NotificationManager {',
+        'public class NotificationManager {\n  private static String sLastFireNotifId = null;\n'
+      );
+    }
+
     if (!next.includes('public static void notifyWithCallStyleFallback')) {
       const fallbackHelper = `
   public static void notifyWithCallStyleFallback(
@@ -382,6 +389,29 @@ patchFile(
       }
     }
 
+    if (!next.includes('public static void cancelPreviousFireAlerts')) {
+      const cancelHelper = `
+  public static void cancelPreviousFireAlerts(Context context) {
+    try {
+      if (context == null) return;
+      NotificationManagerCompat nm = NotificationManagerCompat.from(context);
+      nm.cancel(null, "fire_emergency_active_alert".hashCode());
+      if (sLastFireNotifId != null) {
+        nm.cancel(null, sLastFireNotifId.hashCode());
+        sLastFireNotifId = null;
+      }
+    } catch (Exception ignored) {
+    }
+  }
+`;
+      if (next.includes('public static void startNativeEmergencyVibration')) {
+        next = next.replace(
+          '  public static void startNativeEmergencyVibration',
+          cancelHelper + '\n  public static void startNativeEmergencyVibration'
+        );
+      }
+    }
+
     if (!next.includes('triggerNativeFireEmergencyCall')) {
       const helperMethods = `
   public static void notifyWithCallStyleFallback(
@@ -395,6 +425,19 @@ patchFile(
         notification.extras.remove("android.callType");
       }
       NotificationManagerCompat.from(context).notify(tag, id, notification);
+    }
+  }
+
+  public static void cancelPreviousFireAlerts(Context context) {
+    try {
+      if (context == null) return;
+      NotificationManagerCompat nm = NotificationManagerCompat.from(context);
+      nm.cancel(null, "fire_emergency_active_alert".hashCode());
+      if (sLastFireNotifId != null) {
+        nm.cancel(null, sLastFireNotifId.hashCode());
+        sLastFireNotifId = null;
+      }
+    } catch (Exception ignored) {
     }
   }
 
@@ -462,6 +505,12 @@ patchFile(
         body = "Nhiệt độ " + temp + "°C • Trạm " + deviceId;
       }
 
+      String alertId = data.get("alertId");
+      if (alertId == null || alertId.isEmpty()) {
+        alertId = String.valueOf(System.currentTimeMillis());
+      }
+      String notifId = "fire_emergency_" + alertId;
+
       Bundle channelBundle = new Bundle();
       channelBundle.putString("id", channelId);
       channelBundle.putString("name", "Báo Động Hỏa Hoạn Khẩn Cấp (Đổ Chuông)");
@@ -478,10 +527,18 @@ patchFile(
       } catch (Exception ignored) {
       }
 
+      // Hủy triệt để notification cũ để Android OS luôn nhận diện đây là cuộc gọi mới và phát chuông đầy đủ
+      try {
+        cancelPreviousFireAlerts(appContext);
+        ForegroundService.stop();
+      } catch (Exception ignored) {
+      }
+      sLastFireNotifId = notifId;
+
       startNativeEmergencyVibration(appContext);
 
       Bundle notificationBundle = new Bundle();
-      notificationBundle.putString("id", "fire_emergency_active_alert");
+      notificationBundle.putString("id", notifId);
       notificationBundle.putString("title", title);
       notificationBundle.putString("subtitle", "Kho Tổng GSP • ABC Pharmacy");
       notificationBundle.putString("body", "Nhiệt độ " + temp + "°C • Trạm " + deviceId);
@@ -493,6 +550,7 @@ patchFile(
       dataBundle.putString("deviceId", deviceId);
       dataBundle.putString("temp", temp);
       dataBundle.putString("isTest", isTest);
+      dataBundle.putString("alertId", alertId);
       notificationBundle.putBundle("data", dataBundle);
 
       Bundle androidBundle = new Bundle();
@@ -501,12 +559,13 @@ patchFile(
       androidBundle.putString("category", "call");
       androidBundle.putInt("importance", 4);
       androidBundle.putInt("visibility", 1);
+      androidBundle.putBoolean("onlyAlertOnce", false);
       androidBundle.putBoolean("loopSound", true);
       androidBundle.putString("sound", "content://settings/system/ringtone");
       androidBundle.putBoolean("ongoing", true);
       androidBundle.putBoolean("autoCancel", false);
       androidBundle.putString("color", "#DC2626");
-      androidBundle.putBoolean("asForegroundService", true);
+      androidBundle.putBoolean("asForegroundService", false);
 
       Bundle fullScreenAction = new Bundle();
       fullScreenAction.putString("id", "default");
@@ -547,7 +606,48 @@ patchFile(
 }
 `;
       next = next.replace(/\}\s*$/, helperMethods);
-    } else if (next.includes('displayNotification(NotificationModel.fromBundle(notificationBundle), null);')) {
+    } else {
+      // Nếu file đã có triggerNativeFireEmergencyCall, cập nhật lại logic dynamic ID và asForegroundService: false
+      const oldCallStart = `      Bundle notificationBundle = new Bundle();
+      notificationBundle.putString("id", "fire_emergency_active_alert");`;
+
+      const newCallStart = `      String alertId = data.get("alertId");
+      if (alertId == null || alertId.isEmpty()) {
+        alertId = String.valueOf(System.currentTimeMillis());
+      }
+      String notifId = "fire_emergency_" + alertId;
+
+      cancelPreviousFireAlerts(appContext);
+      try {
+        ForegroundService.stop();
+      } catch (Exception ignored) {
+      }
+      sLastFireNotifId = notifId;
+
+      Bundle notificationBundle = new Bundle();
+      notificationBundle.putString("id", notifId);`;
+
+      if (next.includes(oldCallStart)) {
+        next = next.replace(oldCallStart, newCallStart);
+      }
+
+      const oldAndroidBundle = `      androidBundle.putBoolean("ongoing", true);
+      androidBundle.putBoolean("autoCancel", false);
+      androidBundle.putString("color", "#DC2626");
+      androidBundle.putBoolean("asForegroundService", true);`;
+
+      const newAndroidBundle = `      androidBundle.putBoolean("ongoing", true);
+      androidBundle.putBoolean("autoCancel", false);
+      androidBundle.putBoolean("onlyAlertOnce", false);
+      androidBundle.putString("color", "#DC2626");
+      androidBundle.putBoolean("asForegroundService", false);`;
+
+      if (next.includes(oldAndroidBundle)) {
+        next = next.replace(oldAndroidBundle, newAndroidBundle);
+      }
+    }
+
+    if (next.includes('displayNotification(NotificationModel.fromBundle(notificationBundle), null);')) {
       next = next.replace(
         'displayNotification(NotificationModel.fromBundle(notificationBundle), null);',
         `app.notifee.core.utility.PowerManagerUtils.lightUpScreenIfNeeded(appContext);\n      displayNotification(NotificationModel.fromBundle(notificationBundle), null)\n          .get(5, TimeUnit.SECONDS);`
@@ -655,8 +755,11 @@ patchFile(
         || "answer_alarm".equals(pressActionBundle.getId())) {
       NotificationManager.stopNativeEmergencyVibration(getApplicationContext());
       ForegroundService.stop();
-      NotificationManagerCompat.from(getApplicationContext())
-          .cancel(notificationAndroidModel.getTag(), notificationModel.getId().hashCode());
+      String notifId = notificationModel != null ? notificationModel.toBundle().getString("id") : null;
+      if (notifId != null) {
+        NotificationManagerCompat.from(getApplicationContext())
+            .cancel(notificationAndroidModel.getTag(), notifId.hashCode());
+      }
     }`;
     const target = `    EventBus.post(new NotificationEvent(TYPE_ACTION_PRESS, notificationModel, extras));`;
     const safeBlock = `    if ("stop_alarm".equals(pressActionBundle.getId())
@@ -664,11 +767,14 @@ patchFile(
         || "answer_alarm".equals(pressActionBundle.getId())) {
       NotificationManager.stopNativeEmergencyVibration(getApplicationContext());
       ForegroundService.stop();
+      NotificationManager.cancelPreviousFireAlerts(getApplicationContext());
       String notifId = notificationModel != null ? notificationModel.toBundle().getString("id") : null;
       if (notifId != null) {
         NotificationManagerCompat.from(getApplicationContext())
             .cancel(notificationAndroidModel.getTag(), notifId.hashCode());
       }
+      NotificationManagerCompat.from(getApplicationContext())
+          .cancel(null, "fire_emergency_active_alert".hashCode());
     }`;
     const replacement = `${target}\n\n${safeBlock}`;
     if (content.includes(prevPatched)) {
@@ -692,8 +798,11 @@ patchFile(
         || "answer_alarm".equals(pressActionBundle.getId())) {
       NotificationManager.stopNativeEmergencyVibration(context);
       ForegroundService.stop();
-      NotificationManagerCompat.from(context)
-          .cancel(notificationModel.getAndroid().getTag(), notificationModel.getId().hashCode());
+      String notifId = notificationModel != null ? notificationModel.toBundle().getString("id") : null;
+      if (notifId != null) {
+        NotificationManagerCompat.from(context)
+            .cancel(notificationModel.getAndroid().getTag(), notifId.hashCode());
+      }
     }`;
     const target = `    if (notificationModel.getAndroid().getAutoCancel()) {`;
     const safeBlock = `    if ("stop_alarm".equals(pressActionBundle.getId())
@@ -701,11 +810,14 @@ patchFile(
         || "answer_alarm".equals(pressActionBundle.getId())) {
       NotificationManager.stopNativeEmergencyVibration(context);
       ForegroundService.stop();
+      NotificationManager.cancelPreviousFireAlerts(context);
       String notifId = notificationModel != null ? notificationModel.toBundle().getString("id") : null;
       if (notifId != null) {
         NotificationManagerCompat.from(context)
             .cancel(notificationModel.getAndroid().getTag(), notifId.hashCode());
       }
+      NotificationManagerCompat.from(context)
+          .cancel(null, "fire_emergency_active_alert".hashCode());
     }`;
     const replacement = `${safeBlock}\n\n${target}`;
     if (content.includes(prevPatched)) {
@@ -730,13 +842,14 @@ patchFile(
         val clazz = Class.forName("app.notifee.core.NotificationManager")
         val method = clazz.getMethod("triggerNativeFireEmergencyCall", Context::class.java, java.util.Map::class.java)
         method.invoke(null, context.applicationContext, remoteMessage.data)
+        return
       } catch (e: Throwable) {
         android.util.Log.e("FireEmergencyFCM", "Failed to trigger native fire emergency call", e)
       }
     }`;
     const target = `  override fun onMessageReceived(remoteMessage: RemoteMessage) {`;
     const replacement = `  override fun onMessageReceived(remoteMessage: RemoteMessage) {
-    if (remoteMessage.data["type"] == "FIRE_EMERGENCY" && !ExpoHandlingDelegate(context).isAppInForeground()) {
+    if (remoteMessage.data["type"] == "FIRE_EMERGENCY") {
       try {
         val clazz = Class.forName("app.notifee.core.NotificationManager")
         val method = clazz.getMethod("triggerNativeFireEmergencyCall", Context::class.java, java.util.Map::class.java)

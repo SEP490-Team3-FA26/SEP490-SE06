@@ -69,6 +69,7 @@ TaskManager.defineTask(BACKGROUND_FIRE_TASK, async ({ data, error }) => {
       deviceId: payload.deviceId ? String(payload.deviceId) : undefined,
       temp: payload.temp ? String(payload.temp) : undefined,
       isTest: payload.isTest === 'true' || payload.isTest === true,
+      alertId: payload.alertId ? String(payload.alertId) : undefined,
     });
   }
 });
@@ -128,6 +129,7 @@ const App: React.FC = () => {
           deviceId: payload.deviceId ? String(payload.deviceId) : undefined,
           temp: payload.temp ? String(payload.temp) : undefined,
           isTest: payload.isTest === 'true' || payload.isTest === true,
+          alertId: payload.alertId ? String(payload.alertId) : undefined,
         });
       }
     });
@@ -142,6 +144,7 @@ const App: React.FC = () => {
           deviceId: payload.deviceId ? String(payload.deviceId) : undefined,
           temp: payload.temp ? String(payload.temp) : undefined,
           isTest: payload.isTest === 'true' || payload.isTest === true,
+          alertId: payload.alertId ? String(payload.alertId) : undefined,
         });
       }
     });

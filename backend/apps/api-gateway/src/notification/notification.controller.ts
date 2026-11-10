@@ -177,6 +177,8 @@ export class NotificationController {
         deviceId,
         temp: '65.0',
         isTest: 'true',
+        alertId: `test_${Date.now()}`,
+        timestamp: String(Date.now()),
       };
     } else {
       title = 'CẢNH BÁO QUÁ NHIỆT KHO TỔNG (TEST)';

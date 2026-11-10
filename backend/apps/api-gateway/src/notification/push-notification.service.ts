@@ -188,9 +188,13 @@ export class PushNotificationService implements OnModuleInit {
         // Với sự kiện FIRE_EMERGENCY: tuyệt đối KHÔNG đưa key 'title' và 'body' vào data payload,
         // để tránh native code của expo-notifications tự động render thêm 1 thông báo trùng lặp.
         // Toàn bộ tiêu đề và nội dung được đưa vào 'alertTitle' và 'alertBody' cho Notifee hiển thị độc quyền.
+        // Đính kèm alertId duy nhất cho từng lần gửi để Android OS không gom/triệt tiêu âm thanh cảnh báo lặp lại.
+        const uniqueAlertId = payload.data?.alertId || `fire_${Date.now()}`;
         const rawData: Record<string, any> = isFireEmergency
           ? {
               ...(payload.data || {}),
+              alertId: uniqueAlertId,
+              timestamp: String(Date.now()),
               alertTitle: payload.title,
               alertBody: payload.body,
               channelId,
