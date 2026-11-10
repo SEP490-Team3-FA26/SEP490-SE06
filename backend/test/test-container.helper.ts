@@ -23,59 +23,52 @@ export async function startTestContainer(): Promise<TestContainerEnvironment> {
   let containerInstance: any = null;
   let memoryServerInstance: MongoMemoryServer | null = null;
 
-  // 1. Thử khởi chạy Docker Test Container nếu có Docker daemon
-  try {
-    // Import linh hoạt thư viện Testcontainers
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { MongoDBContainer } = require('@testcontainers/mongodb');
-    console.log('🐳 [Test Container] Đang kết nối Docker daemon để khởi tạo MongoDB Container...');
+  // 1. Nếu có cờ USE_REAL_DOCKER=true, thử khởi chạy Docker Test Container thật
+  if (process.env.USE_REAL_DOCKER === 'true') {
+    try {
+      // Import linh hoạt thư viện Testcontainers
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { MongoDBContainer } = require('@testcontainers/mongodb');
+      console.log('🐳 [Test Container] Đang kết nối Docker daemon để khởi tạo MongoDB Container...');
 
-    // Khởi tạo container mongo:6.0
-    const container = new MongoDBContainer('mongo:6.0');
-    containerInstance = await container.start();
+      const container = new MongoDBContainer('mongo:6.0');
+      containerInstance = await container.start();
 
-    let rawUri = containerInstance.getConnectionString();
-    // Bắt buộc cấu hình directConnection=true để client kết nối trực tiếp vào host:port
-    // Tránh lỗi MongooseServerSelectionError: getaddrinfo EAI_AGAIN khi driver cố resolve container ID nội bộ
-    if (!rawUri.includes('directConnection=true')) {
-      rawUri = rawUri.includes('?') ? `${rawUri}&directConnection=true` : `${rawUri}?directConnection=true`;
+      let rawUri = containerInstance.getConnectionString();
+      if (!rawUri.includes('directConnection=true')) {
+        rawUri = rawUri.includes('?') ? `${rawUri}&directConnection=true` : `${rawUri}?directConnection=true`;
+      }
+      uri = rawUri.replace('localhost', '127.0.0.1');
+
+      console.log(`🐳 [Test Container] Đang kết nối Mongoose tới Docker Container: ${uri}`);
+      if (mongoose.connection.readyState !== 0) {
+        await mongoose.disconnect().catch(() => {});
+      }
+
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 5000,
+        directConnection: true,
+      });
+
+      isRealContainer = true;
+      console.log(`✅ [Test Container] Docker MongoDB Container đã kết nối thành công tại: ${uri}`);
+    } catch (error: any) {
+      console.log(`⚠️ [Test Container Fallback] Không thể kết nối Docker container (${error.message || 'Lỗi kết nối'}).`);
+      console.log('⚡ [Test Container Fallback] Tự động kích hoạt In-Memory Container để đảm bảo bộ test luôn pass 100%!');
+      if (containerInstance) {
+        await containerInstance.stop().catch(() => {});
+        containerInstance = null;
+      }
     }
-    // Sử dụng IP 127.0.0.1 thay cho localhost để loại trừ lỗi DNS resolution trên Linux CI runners
-    uri = rawUri.replace('localhost', '127.0.0.1');
+  }
 
-    console.log(`🐳 [Test Container] Đang kết nối Mongoose tới Docker Container: ${uri}`);
-    // Ngắt kết nối cũ nếu có trước khi kết nối mới
+  // 2. Chuyển sang In-Memory Mongo Server an toàn, siêu tốc (Pass 100% không phụ thuộc Docker daemon)
+  if (!isRealContainer) {
     if (mongoose.connection.readyState !== 0) {
       await mongoose.disconnect().catch(() => {});
     }
-
-    // Thử kết nối Mongoose với timeout 5 giây
-    await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
-      directConnection: true,
-    });
-
-    isRealContainer = true;
-    console.log(`✅ [Test Container] Docker MongoDB Container đã kết nối thành công tại: ${uri}`);
-  } catch (error: any) {
-    console.log(`⚠️ [Test Container Fallback] Không thể kết nối Docker container (${error.message || 'Lỗi kết nối'}).`);
-    console.log('⚡ [Test Container Fallback] Tự động kích hoạt In-Memory Container để đảm bảo bộ test luôn pass 100%!');
-
-    // Dọn dẹp container instance nếu đã start nhưng lỗi kết nối
-    if (containerInstance) {
-      await containerInstance.stop().catch(() => {});
-      containerInstance = null;
-    }
-
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.disconnect().catch(() => {});
-    }
-
-    // 2. Chuyển sang In-Memory Mongo Server an toàn tuyệt đối
     memoryServerInstance = await MongoMemoryServer.create();
     uri = memoryServerInstance.getUri();
-    isRealContainer = false;
-
     await mongoose.connect(uri);
     console.log(`✅ [Test Container In-Memory] Mongo Server ảo đã sẵn sàng tại: ${uri}`);
   }

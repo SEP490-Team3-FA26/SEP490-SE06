@@ -41,7 +41,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 @Injectable()
 export class EmailMarketingService {
   private readonly logger = new Logger(EmailMarketingService.name);
-  private readonly resend: Resend;
+  private readonly resend: Resend | null = null;
 
   constructor(
     @InjectModel(EmailCampaign.name)
@@ -53,8 +53,8 @@ export class EmailMarketingService {
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
   ) {
-    // Khởi tạo Resend client với API Key từ biến môi trường
-    this.resend = new Resend(process.env.RESEND_API_KEY);
+    // Khởi tạo Resend client an toàn khi có API Key từ biến môi trường
+    this.resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   }
 
   // ===================================================================
@@ -324,6 +324,25 @@ export class EmailMarketingService {
 
     this.logger.log(`🚀 Bắt đầu gửi chiến dịch: "${campaign.title}" (${campaignId})`);
 
+    // Kiểm tra cấu hình Resend API Key:
+    // Tuyệt đối không tự động kích hoạt Sandbox ngầm nếu thiếu RESEND_API_KEY.
+    // Chỉ cho phép chạy chế độ Sandbox khi được cấu hình tường minh trong môi trường test: RESEND_SANDBOX_MODE === 'true'
+    const isExplicitSandbox = process.env.RESEND_SANDBOX_MODE === 'true';
+    if (!this.resend && !isExplicitSandbox) {
+      const configErrMsg = 'Chưa cấu hình RESEND_API_KEY trên máy chủ. Không thể phát tán chiến dịch email thực tế đến khách hàng.';
+      this.logger.error(`❌ [Email Marketing] ${configErrMsg}`);
+      campaign.status = EmailCampaignStatus.PARTIAL_FAILED;
+      await campaign.save();
+
+      // Đánh dấu các log chưa gửi thành FAILED kèm thông báo lỗi cấu hình để người vận hành kiểm tra và cho phép gửi lại (Retry)
+      await this.deliveryLogModel.updateMany(
+        { campaignId: campaign._id, status: { $in: [DeliveryStatus.PENDING, DeliveryStatus.FAILED] } },
+        { $set: { status: DeliveryStatus.FAILED, lastError: configErrMsg } },
+      );
+
+      throw new Error(configErrMsg);
+    }
+
     // Bước 1: Chuẩn bị danh sách người nhận (upsert — safe for retry)
     await this.prepareCampaignRecipients(campaign);
 
@@ -394,12 +413,12 @@ export class EmailMarketingService {
       });
 
       try {
-        // Kiểm tra chế độ Sandbox (dev/demo không có Domain Resend)
-        const isSandbox = process.env.RESEND_SANDBOX_MODE === 'true';
+        // Chỉ kích hoạt chế độ Sandbox khi được cấu hình tường minh bằng biến môi trường trong test/demo
+        const isSandbox = isExplicitSandbox;
 
         if (isSandbox) {
-          // Chế độ Sandbox: Mô phỏng thành công để demo mượt mà
-          this.logger.debug(`[Sandbox] Mô phỏng gửi ${batch.length} email thành công`);
+          // Chế độ Sandbox: Mô phỏng gửi email trong môi trường test được cấu hình rõ ràng
+          this.logger.debug(`[Sandbox] Mô phỏng gửi ${batch.length} email trong môi trường test`);
           const mockOps = batch.map((log) => ({
             updateOne: {
               filter: { _id: log._id },
@@ -416,6 +435,9 @@ export class EmailMarketingService {
           }));
           await this.deliveryLogModel.bulkWrite(mockOps);
         } else {
+          if (!this.resend) {
+            throw new Error('Chưa cấu hình RESEND_API_KEY. Không thể gửi email.');
+          }
           // Production: Gọi Resend Batch API thực sự
           const { data, error } = await this.resend.batch.send(emailPayloads as any);
 
@@ -521,10 +543,14 @@ export class EmailMarketingService {
       unsubscribeUrl,
     });
 
-    const isSandbox = process.env.RESEND_SANDBOX_MODE === 'true';
-    if (isSandbox) {
+    const isExplicitSandbox = process.env.RESEND_SANDBOX_MODE === 'true';
+    if (isExplicitSandbox) {
       this.logger.log(`🧪 [Sandbox] Mô phỏng gửi test email thành công tới ${testEmail}`);
       return { success: true, messageId: `sandbox-test-${Date.now()}` };
+    }
+
+    if (!this.resend) {
+      throw new Error('Chưa cấu hình RESEND_API_KEY trên máy chủ. Vui lòng cấu hình khóa API trong biến môi trường để gửi test email.');
     }
 
     try {

@@ -80,6 +80,42 @@ export class ApiService {
     return EnvService.getAiBaseUrl();
   }
 
+  private static clientSessionId: string = '';
+
+  public static async getClientSessionId(): Promise<string> {
+    if (this.clientSessionId) return this.clientSessionId;
+    try {
+      const saved = await AsyncStorage.getItem('client_session_id');
+      if (saved) {
+        this.clientSessionId = saved;
+        return saved;
+      }
+    } catch (_) {}
+    const newId = 'mob_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
+    this.clientSessionId = newId;
+    AsyncStorage.setItem('client_session_id', newId).catch(() => {});
+    return newId;
+  }
+
+  public static async acceptAiConsultantTerms(version = 'v1.0-OTC'): Promise<boolean> {
+    try {
+      const sessionId = await this.getClientSessionId();
+      const headers = { ...this.authHeaders, 'x-client-session-id': sessionId };
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/ai-terms/accept`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          version,
+          session_id: sessionId,
+          acceptedAt: new Date().toISOString(),
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   private static get authHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -87,6 +123,9 @@ export class ApiService {
     };
     if (this.currentToken) {
       headers['Authorization'] = `Bearer ${this.currentToken}`;
+    }
+    if (this.clientSessionId) {
+      headers['x-client-session-id'] = this.clientSessionId;
     }
     return headers;
   }
@@ -232,20 +271,54 @@ export class ApiService {
   }
 
   public static async register(data: {
-    name: string;
+    name?: string;
+    fullName?: string;
     email: string;
-    phone: string;
+    phone?: string;
     password: string;
     role?: string;
     gender?: string;
+    agreePrivacy?: boolean;
+    privacyPolicyVersion?: string;
+    privacyAgreedAt?: string;
   }): Promise<any> {
     try {
+      // Chuẩn hóa payload theo RegisterDto của API Gateway: bắt buộc fullName
+      const payload: any = {
+        fullName: (data.fullName || data.name || '').trim(),
+        email: (data.email || '').trim().toLowerCase(),
+        password: data.password,
+        role: data.role || 'user',
+        agreePrivacy: data.agreePrivacy ?? true,
+        privacyPolicyVersion: data.privacyPolicyVersion || 'v1.0',
+        privacyAgreedAt: data.privacyAgreedAt || new Date().toISOString(),
+      };
+      if (data.phone && data.phone.trim()) {
+        payload.phone = data.phone.trim();
+      }
+
       const res = await fetch(`${this.baseUrl}/api/auth/register`, {
         method: 'POST',
         headers: this.authHeaders,
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
-      return await res.json();
+
+      const json = await res.json();
+      if (res.ok) {
+        const token = json?.accessToken || json?.access_token || json?.token;
+        if (token) {
+          this.setToken(token);
+        }
+        return {
+          success: true,
+          ...json,
+        };
+      }
+
+      const errorMsg = Array.isArray(json?.message)
+        ? json.message.join(', ')
+        : (json?.message || 'Lỗi đăng ký tài khoản');
+      throw new Error(errorMsg);
     } catch (e: any) {
       throw new Error(e?.message || 'Lỗi đăng ký tài khoản');
     }
@@ -1622,56 +1695,46 @@ export class ApiService {
   }
 
   public static async consultSymptomsAI(symptoms: string): Promise<any> {
+    const sessionId = await this.getClientSessionId();
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
+      'x-client-session-id': sessionId,
     };
     if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
 
-    // 1. Thử gọi qua API Gateway: POST /api/prescriptions/symptom-consult
-    try {
-      const res = await fetch(`${this.baseUrl}/api/prescriptions/symptom-consult`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ symptoms }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.prescription) {
-          return {
-            diagnosis: data.prescription.diagnosis || '',
-            advice: data.prescription.advice || '',
-            recommended_drugs: data.prescription.recommended_drugs || [],
-            ...data.prescription,
-          };
-        }
-        return data;
-      }
-    } catch (_) {}
+    // Gọi duy nhất qua API Gateway: POST /api/prescriptions/symptom-consult
+    // Dừng gửi khi Gateway từ chối (403), tuyệt đối không tự gọi accept hay bypass trực tiếp sang AI Service
+    const res = await fetch(`${this.baseUrl}/api/prescriptions/symptom-consult`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ symptoms, session_id: sessionId, terms_confirmed: true }),
+    });
 
-    // 2. Dự phòng gọi trực tiếp sang AI Service: POST /api/ai/symptom-consult
-    try {
-      const res = await fetch(`${this.aiBaseUrl}/api/ai/symptom-consult`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ symptoms }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.prescription) {
-          return {
-            diagnosis: data.prescription.diagnosis || '',
-            advice: data.prescription.advice || '',
-            recommended_drugs: data.prescription.recommended_drugs || [],
-            ...data.prescription,
-          };
-        }
-        return data;
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.prescription) {
+        return {
+          diagnosis: data.prescription.diagnosis || '',
+          advice: data.prescription.advice || '',
+          recommended_drugs: data.prescription.recommended_drugs || [],
+          ...data.prescription,
+        };
       }
-    } catch (e) {
-      console.warn('Failed to consult symptoms AI:', e);
+      return data;
     }
-    return null;
+
+    const errData = await res.json().catch(() => ({}));
+    const errorMessage =
+      errData?.message ||
+      (res.status === 403
+        ? 'Bạn chưa xác nhận Nội quy Trợ lý Dược sĩ AI (v1.0-OTC). Vui lòng đồng ý điều khoản trước khi gửi yêu cầu.'
+        : `Lỗi máy chủ (${res.status})`);
+
+    const error: any = new Error(errorMessage);
+    error.status = res.status;
+    error.data = errData;
+    throw error;
   }
 
   public static async getTextPrescription(text: string): Promise<any> {

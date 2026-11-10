@@ -4,5 +4,6 @@ export { ChatMessage } from "./ChatMessage";
 export { ChatInput } from "./ChatInput";
 export { DrugCard } from "./DrugCard";
 export { QuickReplies } from "./QuickReplies";
+export { AIConsultantTermsModal } from "./AIConsultantTermsModal";
 export type { ChatDrugItem } from "./DrugCard";
 export type { MessageItem } from "./ChatMessage";

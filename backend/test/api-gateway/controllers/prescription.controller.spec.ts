@@ -6,18 +6,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrescriptionController } from '../../../apps/api-gateway/src/controllers/prescription.controller';
 import { ClientKafka } from '@nestjs/microservices';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () => {
   let controller: PrescriptionController;
   const mockInventoryClient: Partial<ClientKafka> = {};
+  const mockCacheManager = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+  };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PrescriptionController],
       providers: [
         {
           provide: 'INVENTORY_SERVICE',
           useValue: mockInventoryClient,
+        },
+        {
+          provide: CACHE_MANAGER,
+          useValue: mockCacheManager,
         },
       ],
     }).compile();
@@ -126,12 +137,58 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
       expect(result.severity).toBe('CRITICAL');
       expect(result.conflicts[0].reason).toContain('MANG THAI');
     });
+
+    it('Nên trả về đầy đủ 8 điều khoản nội quy Trợ lý Dược sĩ AI và phiên bản v1.0-OTC', () => {
+      const result = controller.getAiConsultantTerms();
+
+      expect(result.success).toBe(true);
+      expect(result.version).toBe('v1.0-OTC');
+      expect(result.articles.length).toBe(8);
+      expect(result.legalBases.length).toBeGreaterThan(0);
+      expect(result.articles[0].title).toContain('Mục tiêu & Phạm vi');
+    });
+
+    it('Nên ghi nhận chấp thuận nội quy thành công với người dùng đã xác thực', async () => {
+      const mockReq = {
+        user: { id: 'usr-12345' },
+        ip: '192.168.1.50',
+        headers: { 'user-agent': 'Chrome/120.0' },
+      };
+
+      const result = await controller.acceptAiConsultantTerms(
+        { version: 'v1.0-OTC', acceptedAt: '2026-11-04T12:00:00.000Z' },
+        mockReq,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.audit.userId).toBe('usr-12345');
+      expect(result.audit.version).toBe('v1.0-OTC');
+      expect(result.audit.status).toBe('CONFIRMED');
+      expect(result.audit.ip).toBe('192.168.1.50');
+    });
   });
 
   // =========================================================================
   // 2. [Boundary Values] - Ranh giới dữ liệu, giỏ rỗng, chuỗi chuẩn hóa tiếng Việt
   // =========================================================================
   describe('[Boundary Values] Ranh giới & Dữ liệu biên', () => {
+    it('Nên áp dụng phiên bản mặc định v1.0-OTC khi client gửi version rỗng hoặc khoảng trắng', async () => {
+      const mockReq = { user: null, ip: '127.0.0.1' };
+      const result = await controller.acceptAiConsultantTerms({ version: '' }, mockReq);
+
+      expect(result.success).toBe(true);
+      expect(result.audit.version).toBe('v1.0-OTC');
+      expect(result.audit.userId).toBe('anonymous-guest');
+    });
+
+    it('Nên tự động sinh acceptedAt hợp lệ nếu client không truyền thời điểm xác nhận', async () => {
+      const mockReq = { user: null };
+      const result = await controller.acceptAiConsultantTerms({}, mockReq);
+
+      expect(result.success).toBe(true);
+      expect(typeof result.audit.acceptedAt).toBe('string');
+      expect(new Date(result.audit.acceptedAt).getTime()).not.toBeNaN();
+    });
     it('Nên xử lý an toàn khi giỏ hàng rỗng (cartItems = [])', async () => {
       const result = await controller.checkCartAllergyAndContraindications({
         customerProfile: {
@@ -218,6 +275,332 @@ describe('PrescriptionController - UC-107 Clinical Allergy & Safety Suite', () =
 
       expect(result.hasConflict).toBe(false);
       expect(result.severity).toBe('SAFE');
+    });
+
+    it('Nên xử lý an toàn khi req khuyết thiếu user và headers cho acceptAiConsultantTerms', async () => {
+      const result = await controller.acceptAiConsultantTerms({}, null as any);
+
+      expect(result.success).toBe(true);
+      expect(result.audit.userId).toBe('anonymous-guest');
+      expect(result.audit.ip).toBe('127.0.0.1');
+      expect(result.audit.userAgent).toBe('unknown');
+    });
+
+    it('Nên ghi nhận đúng userId từ JWT sub khi người dùng đã đăng nhập (không bị gán nhầm anonymous-guest)', async () => {
+      const mockReq = {
+        user: { sub: 'usr-sub-12345', email: 'benhnhan@gmail.com' },
+        ip: '192.168.1.100',
+        headers: { 'user-agent': 'Chrome/Test' },
+      };
+      const result = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq as any);
+
+      expect(result.success).toBe(true);
+      expect(result.audit.userId).toBe('usr-sub-12345');
+      expect(result.audit.ip).toBe('192.168.1.100');
+    });
+
+    beforeEach(() => {
+      PrescriptionController.clearConsentStoreForTesting();
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi client tự bịa terms_confirmed: true mà chưa từng xác nhận trên máy chủ (Server Consent Check)', async () => {
+      // Client tự gửi terms_confirmed: true nhưng máy chủ chưa có bản ghi
+      await expect(
+        controller.chatConsult(
+          {
+            message: 'Tư vấn giúp tôi thuốc hạ sốt',
+            terms_confirmed: true,
+          },
+          { headers: { 'x-client-session-id': 'unconfirmed-session-123' }, ip: '10.0.0.1' },
+        ),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi tài khoản đã đăng nhập gọi symptom-consult nhưng chưa xác nhận điều khoản trên server', async () => {
+      const mockReq = {
+        user: { sub: 'unconfirmed-user-456' },
+        ip: '10.0.0.2',
+      };
+      await expect(
+        controller.textConsult('Tôi bị đau bụng dưới', undefined, true, undefined, mockReq),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi khách vãng lai gửi giọng nói tới recommend mà chưa xác nhận điều khoản trên server', async () => {
+      const mockFile: any = {
+        buffer: Buffer.from('fake-audio-bytes'),
+        mimetype: 'audio/webm',
+        originalname: 'voice.webm',
+      };
+      const mockReq = {
+        headers: { 'x-client-session-id': 'unconfirmed-voice-guest' },
+        ip: '10.0.0.3',
+      };
+      await expect(
+        controller.recommendPrescription(mockFile, undefined, undefined, mockReq),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi người dùng bỏ trống terms_confirmed hoặc gửi undefined (Fail-closed)', async () => {
+      await expect(
+        controller.chatConsult({
+          message: 'Tư vấn giúp tôi thuốc hạ sốt',
+        } as any, { ip: '10.0.0.4' }),
+      ).rejects.toThrow('chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi gửi terms_confirmed là chuỗi "false" (Fail-closed)', async () => {
+      // Kể cả đã có consent, nếu request chủ động gửi false thì vẫn bị chặn
+      PrescriptionController.setConsentForTesting('session:sess-false-test');
+      await expect(
+        controller.chatConsult({
+          message: 'Tư vấn giúp tôi thuốc hạ sốt',
+          terms_confirmed: 'false' as any,
+          session_id: 'sess-false-test',
+        }, { headers: { 'x-client-session-id': 'sess-false-test' } }),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN khi người dùng cố tình gửi terms_confirmed là false boolean (Fail-closed)', async () => {
+      PrescriptionController.setConsentForTesting('session:sess-false-bool');
+      await expect(
+        controller.chatConsult({
+          message: 'Tư vấn giúp tôi thuốc hạ sốt',
+          terms_confirmed: false,
+          session_id: 'sess-false-bool',
+        }, { headers: { 'x-client-session-id': 'sess-false-bool' } }),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+    });
+
+    it('Nên ném lỗi FORBIDDEN trên endpoint symptom-consult nếu gửi terms_confirmed là false hoặc "false"', async () => {
+      PrescriptionController.setConsentForTesting('session:sess-symptom-false');
+      const mockReq = { headers: { 'x-client-session-id': 'sess-symptom-false' } };
+
+      await expect(
+        controller.textConsult('Đau đầu sốt nhẹ', undefined, false, 'sess-symptom-false', mockReq),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+
+      await expect(
+        controller.textConsult('Đau đầu sốt nhẹ', undefined, 'false', 'sess-symptom-false', mockReq),
+      ).rejects.toThrow('Người dùng bắt buộc phải đọc và đồng ý với nội quy tư vấn Dược sĩ AI');
+    });
+
+    it('[Lỗi 2 - P1] Nên làm sạch thông tin cá nhân (SĐT, Email) trước khi chuyển sang AI Service', async () => {
+      // Giả lập đã xác nhận điều khoản trên server
+      PrescriptionController.setConsentForTesting('user:usr-pii-test');
+
+      let capturedPayload: any = null;
+      global.fetch = jest.fn().mockImplementation((url, opts) => {
+        if (opts?.body) {
+          try {
+            capturedPayload = JSON.parse(opts.body);
+          } catch (_) {}
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, reply: 'Dược sĩ đã tiếp nhận thông tin' }),
+        } as any);
+      });
+
+      const mockReq = {
+        user: { sub: 'usr-pii-test' },
+      };
+
+      await controller.chatConsult(
+        {
+          message: 'Tôi đang bị sốt, SĐT 0988123456, email benhnhan@gmail.com cần tư vấn.',
+          medical_notes: 'Ghi chú: liên hệ người nhà qua số 0909999888 hoặc mail giadinh@wdp301.com',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(capturedPayload).toBeDefined();
+      expect(capturedPayload.message).not.toContain('0988123456');
+      expect(capturedPayload.message).not.toContain('benhnhan@gmail.com');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN SĐT]');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN EMAIL]');
+
+      expect(capturedPayload.medical_notes).not.toContain('0909999888');
+      expect(capturedPayload.medical_notes).not.toContain('giadinh@wdp301.com');
+      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN SĐT]');
+      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN EMAIL]');
+    });
+
+    it('[Lỗi 4 - P1] Nên che sạch SĐT có khoảng trắng/dấu chấm và họ tên người dùng trước khi gửi sang AI', async () => {
+      PrescriptionController.setConsentForTesting('user:usr-pii-advanced');
+
+      let capturedPayload: any = null;
+      global.fetch = jest.fn().mockImplementation((url, opts) => {
+        if (opts?.body) {
+          try {
+            capturedPayload = JSON.parse(opts.body);
+          } catch (_) {}
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, reply: 'Dược sĩ đã tiếp nhận' }),
+        } as any);
+      });
+
+      const mockReq = { user: { sub: 'usr-pii-advanced', fullName: 'Lê Hoàng Nam' } };
+
+      await controller.chatConsult(
+        {
+          message: 'Tôi là Nguyễn Văn An, số điện thoại của tôi là 090 123 4567 hoặc 09.88.12.34.56 cần tư vấn thuốc hạ sốt cho Lê Hoàng Nam.',
+          medical_notes: 'Bệnh nhân: Trần Thị Mai, SĐT người thân 09 88 12 34 56',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(capturedPayload).toBeDefined();
+      // Kiểm tra SĐT có khoảng trắng và dấu chấm đã bị lọc
+      expect(capturedPayload.message).not.toContain('090 123 4567');
+      expect(capturedPayload.message).not.toContain('09.88.12.34.56');
+      // Kiểm tra họ tên tự giới thiệu và họ tên trong tài khoản đã bị lọc
+      expect(capturedPayload.message).not.toContain('Nguyễn Văn An');
+      expect(capturedPayload.message).not.toContain('Lê Hoàng Nam');
+      expect(capturedPayload.message).toContain('Tôi là [ĐÃ ẨN TÊN]');
+      expect(capturedPayload.message).toContain('[ĐÃ ẨN SĐT]');
+
+      // Kiểm tra medical_notes
+      expect(capturedPayload.medical_notes).not.toContain('Trần Thị Mai');
+      expect(capturedPayload.medical_notes).not.toContain('09 88 12 34 56');
+      expect(capturedPayload.medical_notes).toContain('Bệnh nhân: [ĐÃ ẨN TÊN]');
+      expect(capturedPayload.medical_notes).toContain('[ĐÃ ẨN SĐT]');
+    });
+
+    it('[Lỗi 1 - P1] Nên từ chối 400 Bad Request ngay tại acceptAiConsultantTerms nếu client gửi sai phiên bản nội quy', async () => {
+      const mockReq = {
+        user: { sub: 'usr-invalid-version' },
+        headers: { 'x-client-session-id': 'sess-invalid-version' },
+        ip: '192.168.1.1',
+      };
+
+      await expect(
+        controller.acceptAiConsultantTerms({ version: 'Bản an toàn 2026' }, mockReq),
+      ).rejects.toThrow('Phiên bản nội quy không hợp lệ: "Bản an toàn 2026"');
+    });
+
+    it('[Lỗi 2 - P1] Không cho phép tài khoản B dùng chung quyền trên cùng IP sau khi tài khoản A đã đồng ý', async () => {
+      const SHARED_IP = '192.168.1.99';
+
+      // 1. Tài khoản A chấp thuận nội quy thành công
+      const reqA = {
+        user: { sub: 'user-A-confirmed' },
+        headers: { 'x-client-session-id': 'session-A' },
+        ip: SHARED_IP,
+      };
+      const resA = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, reqA);
+      expect(resA.success).toBe(true);
+
+      // 2. Tài khoản B chưa từng xác nhận, dù gửi request từ cùng địa chỉ IP (SHARED_IP)
+      const reqB = {
+        user: { sub: 'user-B-unconfirmed' },
+        headers: { 'x-client-session-id': 'session-B' },
+        ip: SHARED_IP,
+      };
+
+      // Tài khoản B phải bị từ chối 403 Forbidden (không được ké quyền của A trên cùng IP)
+      await expect(
+        controller.chatConsult(
+          {
+            message: 'Tôi muốn tư vấn thuốc dạ dày',
+            terms_confirmed: true,
+          },
+          reqB,
+        ),
+      ).rejects.toThrow('Tài khoản người dùng chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('[Lỗi 2 - P1] Không cho phép phiên khách B dùng chung quyền trên cùng IP sau khi phiên khách A đã đồng ý', async () => {
+      const SHARED_IP = '192.168.1.100';
+
+      // 1. Khách A chấp thuận nội quy qua session-guest-A
+      const reqGuestA = {
+        headers: { 'x-client-session-id': 'session-guest-A' },
+        ip: SHARED_IP,
+      };
+      const resA = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, reqGuestA);
+      expect(resA.success).toBe(true);
+
+      // 2. Khách B với session-guest-B gửi request từ cùng IP
+      const reqGuestB = {
+        headers: { 'x-client-session-id': 'session-guest-B' },
+        ip: SHARED_IP,
+      };
+
+      // Khách B phải bị từ chối 403 Forbidden
+      await expect(
+        controller.chatConsult(
+          {
+            message: 'Tôi bị đau rát họng',
+            terms_confirmed: true,
+          },
+          reqGuestB,
+        ),
+      ).rejects.toThrow('Phiên làm việc này chưa hoàn tất xác nhận Nội quy Trợ lý Dược sĩ AI');
+    });
+
+    it('[Lỗi 2 - P1] Nên khôi phục quyền từ Redis CacheManager khi máy chủ khởi động lại (RAM store bị xóa)', async () => {
+      PrescriptionController.clearConsentStoreForTesting();
+
+      // Giả lập Redis cache manager đang lưu bản ghi của user-redis-restored
+      mockCacheManager.get.mockResolvedValueOnce({
+        accepted: true,
+        version: 'v1.0-OTC',
+        acceptedAt: new Date().toISOString(),
+      });
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ success: true, reply: 'Xin chào, Dược sĩ có thể giúp gì?' }),
+      });
+
+      const mockReq = {
+        user: { sub: 'user-redis-restored' },
+      };
+
+      const res = await controller.chatConsult(
+        {
+          message: 'Tư vấn thuốc bổ',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(res.success).toBe(true);
+      expect(mockCacheManager.get).toHaveBeenCalledWith('ai_terms:user:user-redis-restored');
+    });
+
+    it('[Lỗi 1 - P1] Luồng chuẩn: Người dùng gọi acceptAiConsultantTerms thành công, sau đó chatConsult được thông qua', async () => {
+      const mockReq = {
+        user: { sub: 'usr-flow-success' },
+        headers: { 'x-client-session-id': 'sess-flow-success' },
+        ip: '192.168.1.50',
+      };
+
+      // 1. Ghi nhận xác nhận điều khoản trên server
+      const acceptRes = await controller.acceptAiConsultantTerms({ version: 'v1.0-OTC' }, mockReq);
+      expect(acceptRes.success).toBe(true);
+
+      // 2. Gọi chatConsult thành công
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ success: true, reply: 'Xin chào, Dược sĩ có thể giúp gì cho bạn?' }),
+      });
+
+      const chatRes = await controller.chatConsult(
+        {
+          message: 'Tư vấn thuốc cảm cúm thông thường',
+          terms_confirmed: true,
+        },
+        mockReq,
+      );
+
+      expect(chatRes.success).toBe(true);
+      expect(chatRes.reply).toContain('Xin chào');
     });
   });
 });

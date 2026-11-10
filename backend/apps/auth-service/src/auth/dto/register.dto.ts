@@ -27,4 +27,18 @@ export class RegisterDto {
   @IsString()
   @IsOptional()
   phone?: string;
+
+  @ApiProperty({ example: true, required: false, description: 'Đồng ý với Quy định bảo mật thông tin' })
+  @IsOptional()
+  agreePrivacy?: boolean | string;
+
+  @ApiProperty({ example: 'v1.0', required: false, description: 'Phiên bản chính sách bảo mật' })
+  @IsOptional()
+  @IsString()
+  privacyPolicyVersion?: string;
+
+  @ApiProperty({ example: '2026-11-08T12:00:00.000Z', required: false, description: 'Thời điểm chấp thuận chính sách' })
+  @IsOptional()
+  @IsString()
+  privacyAgreedAt?: string;
 }

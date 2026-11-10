@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  BadRequestException,
   InternalServerErrorException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
@@ -57,9 +58,29 @@ export class AuthService implements OnApplicationBootstrap {
   // ============================================================
   async register(dto: RegisterDto): Promise<any> {
     const email = (dto.email || '').toLowerCase().trim();
+    const phone = (dto.phone || '').trim();
+
+    // 1. Kiểm tra trùng lặp email
     const existing = await this.userModel.findOne({ email });
     if (existing) {
       throw new ConflictException(`Email "${dto.email}" đã được đăng ký!`);
+    }
+
+    // 2. Kiểm tra trùng lặp số điện thoại nếu có
+    if (phone) {
+      const existingPhone = await this.userModel.findOne({ phone });
+      if (existingPhone) {
+        throw new ConflictException(`Số điện thoại "${phone}" đã được đăng ký trên hệ thống! Vui lòng đăng nhập hoặc dùng số điện thoại khác.`);
+      }
+    }
+
+    // Nguyên tắc Fail-closed: Bắt buộc người dùng phải tích chọn đồng ý Quy định bảo mật thông tin
+    // Chặn triệt để khi bỏ trống (undefined/null), hoặc false, hoặc chuỗi "false"
+    const isPrivacyAgreed = dto.agreePrivacy === true || dto.agreePrivacy === 'true';
+    if (!isPrivacyAgreed) {
+      throw new BadRequestException(
+        'Bắt buộc người dùng phải đọc và đồng ý với Quy định bảo mật thông tin để đăng ký tài khoản (Fail-closed).',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -71,12 +92,31 @@ export class AuthService implements OnApplicationBootstrap {
       passwordHash,
       role,
       isEmailVerified: true,
-      phone: dto.phone,
+      phone: phone || undefined,
       isActive: true,
       isApproved: 'approved',
+      // Lưu bằng chứng kiểm toán (Audit Trail) chấp thuận Quy định bảo mật thông tin theo giờ và phiên bản máy chủ
+      privacyAgreed: true,
+      privacyPolicyVersion: 'v1.0',
+      privacyAgreedAt: new Date(),
     });
 
-    const savedUser = await newUser.save();
+    let savedUser: any;
+    try {
+      savedUser = await newUser.save();
+    } catch (saveErr: any) {
+      // Bắt lỗi trùng lặp MongoDB E11000 và chuyển thành thông báo nghiệp vụ thân thiện
+      if (saveErr.code === 11000 || saveErr.message?.includes('E11000')) {
+        if (saveErr.keyPattern?.phone || saveErr.message?.includes('phone_1')) {
+          throw new ConflictException(`Số điện thoại "${phone}" đã được đăng ký trên hệ thống! Vui lòng đăng nhập hoặc dùng số điện thoại khác.`);
+        }
+        if (saveErr.keyPattern?.email || saveErr.message?.includes('email_1')) {
+          throw new ConflictException(`Email "${dto.email}" đã được đăng ký!`);
+        }
+        throw new ConflictException('Thông tin tài khoản (email hoặc số điện thoại) đã tồn tại trên hệ thống!');
+      }
+      throw saveErr;
+    }
 
     const payload = {
       sub: savedUser._id.toString(),
