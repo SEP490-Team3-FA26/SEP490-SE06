@@ -1,6 +1,7 @@
 const {
   withAndroidManifest,
   withProjectBuildGradle,
+  withAppBuildGradle,
   withGradleProperties,
   withMainActivity,
 } = require('@expo/config-plugins');
@@ -81,6 +82,30 @@ subprojects { subproject ->
       if (!config.modResults.contents.includes('C:/cxx/')) {
         config.modResults.contents += `\n${snippet}\n`;
       }
+    }
+    return config;
+  });
+
+  config = withAppBuildGradle(config, (config) => {
+    if (
+      config.modResults.language === 'groovy' &&
+      !config.modResults.contents.includes('C:/cxx/app')
+    ) {
+      config.modResults.contents = config.modResults.contents.replace(
+        /androidResources\s*\{[\s\S]*?\}/,
+        (match) =>
+          `${match}\n    if (System.getProperty("os.name").toLowerCase().contains("windows")) {\n        externalNativeBuild {\n            cmake {\n                buildStagingDirectory file("C:/cxx/app")\n            }\n        }\n    }`
+      );
+    }
+    if (
+      config.modResults.language === 'groovy' &&
+      !config.modResults.contents.includes('CMAKE_OBJECT_PATH_MAX')
+    ) {
+      config.modResults.contents = config.modResults.contents.replace(
+        /buildConfigField\s+"String",\s+"REACT_NATIVE_RELEASE_LEVEL"[\s\S]*?\n/,
+        (match) =>
+          `${match}\n        if (System.getProperty("os.name").toLowerCase().contains("windows")) {\n            externalNativeBuild {\n                cmake {\n                    arguments "-DCMAKE_OBJECT_PATH_MAX=240"\n                }\n            }\n        }\n`
+      );
     }
     return config;
   });

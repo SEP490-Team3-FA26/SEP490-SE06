@@ -47,6 +47,7 @@ export interface FireAlertPayload {
   deviceId?: string;
   temp?: string;
   isTest?: boolean;
+  alertId?: string;
 }
 
 // Safe Lazy Loader cho Notifee (Tránh crash trong Jest hoặc môi trường không có NativeModule)
@@ -73,6 +74,7 @@ class FireEmergencyNotifeeManager {
   private lastTriggerAtMs: number = 0;
   private alertListeners: Set<(payload: FireAlertPayload | null) => void> = new Set();
   private currentPayload: FireAlertPayload | null = null;
+  private currentNotificationId: string = FIRE_NOTIFICATION_ID;
   private handlersRegistered: boolean = false;
 
   constructor() {
@@ -116,6 +118,7 @@ class FireEmergencyNotifeeManager {
       deviceId: payload.deviceId || 'KHO-TONG-GSP',
       temp: payload.temp || 'N/A',
       isTest: Boolean(payload.isTest),
+      alertId: payload.alertId,
     };
 
     const now = Date.now();
@@ -153,6 +156,7 @@ class FireEmergencyNotifeeManager {
       deviceId: String(normalizedPayload.deviceId || ''),
       temp: String(normalizedPayload.temp || ''),
       isTest: String(Boolean(normalizedPayload.isTest)),
+      alertId: String(normalizedPayload.alertId || ''),
     };
 
     const baseAndroidConfig = {
@@ -161,6 +165,7 @@ class FireEmergencyNotifeeManager {
       category: AndroidCategory.CALL,
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
+      onlyAlertOnce: false, // Luôn phát chuông và rung cho mọi lượt báo động kể cả khi nhận liên tiếp
       loopSound: true, // Bật FLAG_INSISTENT để réo chuông liên tục không dứt như cuộc gọi đến
       sound: 'content://settings/system/ringtone',
       ongoing: true,
@@ -195,10 +200,21 @@ class FireEmergencyNotifeeManager {
     try {
       await this.initChannels();
 
+      const targetNotifId = payload.alertId ? `fire_emergency_${payload.alertId}` : FIRE_NOTIFICATION_ID;
+
+      // Hủy triệt để notification cũ để Android OS luôn nhận diện đây là cuộc gọi đến hoàn toàn mới
+      if (this.currentNotificationId && this.currentNotificationId !== targetNotifId) {
+        await notifee.cancelNotification(this.currentNotificationId).catch(() => {});
+        await notifee.cancelDisplayedNotification(this.currentNotificationId).catch(() => {});
+      }
+      await notifee.cancelNotification(FIRE_NOTIFICATION_ID).catch(() => {});
+      await notifee.cancelDisplayedNotification(FIRE_NOTIFICATION_ID).catch(() => {});
+      this.currentNotificationId = targetNotifId;
+
       // Hiển thị dạng Foreground Service + CallStyle.forIncomingCall
       try {
         await notifee.displayNotification({
-          id: FIRE_NOTIFICATION_ID,
+          id: targetNotifId,
           title,
           subtitle: 'Kho Tổng GSP • ABC Pharmacy',
           body,
@@ -212,7 +228,7 @@ class FireEmergencyNotifeeManager {
         // Fallback nếu Android 14+ hạn chế khởi chạy Foreground Service từ background
         console.warn('ForegroundService fallback to high-priority full-screen notification:', fgsErr);
         await notifee.displayNotification({
-          id: FIRE_NOTIFICATION_ID,
+          id: targetNotifId,
           title,
           subtitle: 'Kho Tổng GSP • ABC Pharmacy',
           body,
@@ -265,7 +281,12 @@ class FireEmergencyNotifeeManager {
         const initial = await notifee.getInitialNotification();
         const data = initial?.notification?.data;
         const pressId = initial?.pressAction?.id;
-        if (data?.type === 'FIRE_EMERGENCY' || initial?.notification?.id === FIRE_NOTIFICATION_ID) {
+        const notifId = initial?.notification?.id;
+        const isFire =
+          data?.type === 'FIRE_EMERGENCY' ||
+          notifId === FIRE_NOTIFICATION_ID ||
+          (typeof notifId === 'string' && notifId.startsWith('fire_emergency_'));
+        if (isFire) {
           if (pressId === 'stop_alarm' || pressId === 'decline_alarm') {
             await this.stopAlarm();
             return;
@@ -284,7 +305,9 @@ class FireEmergencyNotifeeManager {
         const displayed = await notifee.getDisplayedNotifications();
         const activeFire = displayed?.find(
           (item: any) =>
-            item?.id === FIRE_NOTIFICATION_ID || item?.notification?.data?.type === 'FIRE_EMERGENCY'
+            item?.id === FIRE_NOTIFICATION_ID ||
+            (typeof item?.id === 'string' && item?.id.startsWith('fire_emergency_')) ||
+            item?.notification?.data?.type === 'FIRE_EMERGENCY'
         );
         if (activeFire) {
           this.restoreAlarmStateFromData(activeFire?.notification?.data, activeFire?.notification, 'RINGING');
@@ -306,6 +329,7 @@ class FireEmergencyNotifeeManager {
       deviceId: String(data?.deviceId || 'KHO-TONG-GSP'),
       temp: String(data?.temp || 'N/A'),
       isTest: data?.isTest === 'true' || data?.isTest === true,
+      alertId: data?.alertId ? String(data.alertId) : undefined,
     };
 
     this.isAlarmActive = true;
@@ -330,6 +354,10 @@ class FireEmergencyNotifeeManager {
 
     try {
       await notifee.stopForegroundService().catch(() => {});
+      if (this.currentNotificationId) {
+        await notifee.cancelNotification(this.currentNotificationId).catch(() => {});
+        await notifee.cancelDisplayedNotification(this.currentNotificationId).catch(() => {});
+      }
       await notifee.cancelNotification(FIRE_NOTIFICATION_ID).catch(() => {});
       await notifee.cancelDisplayedNotification(FIRE_NOTIFICATION_ID).catch(() => {});
     } catch (err) {
@@ -354,6 +382,10 @@ class FireEmergencyNotifeeManager {
 
     try {
       await notifee.stopForegroundService().catch(() => {});
+      if (this.currentNotificationId) {
+        await notifee.cancelNotification(this.currentNotificationId).catch(() => {});
+        await notifee.cancelDisplayedNotification(this.currentNotificationId).catch(() => {});
+      }
       await notifee.cancelNotification(FIRE_NOTIFICATION_ID).catch(() => {});
       await notifee.cancelDisplayedNotification(FIRE_NOTIFICATION_ID).catch(() => {});
     } catch (err) {
@@ -409,8 +441,10 @@ class FireEmergencyNotifeeManager {
       // Xử lý tương tác khi app đang chạy foreground
       notifee.onForegroundEvent(({ type, detail }: any) => {
         const pressId = detail?.pressAction?.id;
+        const notifId = detail?.notification?.id;
         const isFireNotif =
-          detail?.notification?.id === FIRE_NOTIFICATION_ID ||
+          notifId === FIRE_NOTIFICATION_ID ||
+          (typeof notifId === 'string' && notifId.startsWith('fire_emergency_')) ||
           detail?.notification?.data?.type === 'FIRE_EMERGENCY';
 
         if (
@@ -433,8 +467,10 @@ class FireEmergencyNotifeeManager {
       // Xử lý tương tác trực tiếp từ thanh thông báo khi app chạy ngầm / đang tắt
       notifee.onBackgroundEvent(async ({ type, detail }: any) => {
         const pressId = detail?.pressAction?.id;
+        const notifId = detail?.notification?.id;
         const isFireNotif =
-          detail?.notification?.id === FIRE_NOTIFICATION_ID ||
+          notifId === FIRE_NOTIFICATION_ID ||
+          (typeof notifId === 'string' && notifId.startsWith('fire_emergency_')) ||
           detail?.notification?.data?.type === 'FIRE_EMERGENCY';
 
         if (

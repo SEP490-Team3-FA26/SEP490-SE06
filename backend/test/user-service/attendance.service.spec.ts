@@ -12,6 +12,11 @@ import { User } from '../../apps/auth-service/src/auth/user.schema';
 describe('AttendanceService (Unit & Security Tests)', () => {
   let service: AttendanceService;
 
+  const getVietnamTodayString = (dateObj: Date = new Date()): string => {
+    const vnTime = new Date(dateObj.getTime() + 7 * 60 * 60 * 1000);
+    return vnTime.toISOString().slice(0, 10);
+  };
+
   const mockAttendanceModel: any = {
     findOne: jest.fn(),
     findById: jest.fn(),
@@ -53,6 +58,10 @@ describe('AttendanceService (Unit & Security Tests)', () => {
         lean: () => ({ exec: jest.fn().mockResolvedValue([]) }),
       }),
     }));
+
+    mockWorkShiftModel.findById.mockReturnValue({
+      lean: () => ({ exec: jest.fn().mockResolvedValue(null) }),
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -247,7 +256,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
                 status: AttendanceStatus.CHECKED_IN,
                 checkInTime: new Date(),
                 shiftName: 'Ca sáng',
-                date: new Date().toISOString().slice(0, 10),
+                date: getVietnamTodayString(),
               },
             ]),
           }),
@@ -282,7 +291,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
                 checkInTime: new Date(Date.now() - 8 * 3600000),
                 checkOutTime: new Date(),
                 shiftName: 'Ca sáng',
-                date: new Date().toISOString().slice(0, 10),
+                date: getVietnamTodayString(),
               },
             ]),
           }),
@@ -299,56 +308,62 @@ describe('AttendanceService (Unit & Security Tests)', () => {
     });
 
     it('should return allowed: false when pharmacist shift ended more than 60 minutes ago', async () => {
-      mockUserModel.findById.mockReturnValue({
-        lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', fullName: 'Dược sĩ B', role: 'pharmacist', branchId: 'BR-001' }) }),
-      });
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-10T12:00:00Z')); // 19:00 VN
+      try {
+        mockUserModel.findById.mockReturnValue({
+          lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', fullName: 'Dược sĩ B', role: 'pharmacist', branchId: 'BR-001' }) }),
+        });
 
-      mockBranchModel.findOne.mockReturnValue({
-        lean: () => ({ exec: jest.fn().mockResolvedValue({ branchCode: 'BR-001', latitude: 10.7769, longitude: 106.7009 }) }),
-      });
+        mockBranchModel.findOne.mockReturnValue({
+          lean: () => ({ exec: jest.fn().mockResolvedValue({ branchCode: 'BR-001', latitude: 10.7769, longitude: 106.7009 }) }),
+        });
 
-      // Vẫn CHECKED_IN nhưng ca đã kết thúc quá 60 phút
-      mockAttendanceModel.find.mockReturnValue({
-        sort: () => ({
+        // Vẫn CHECKED_IN nhưng ca đã kết thúc quá 60 phút
+        mockAttendanceModel.find.mockReturnValue({
+          sort: () => ({
+            lean: () => ({
+              exec: jest.fn().mockResolvedValue([
+                {
+                  _id: 'att-1',
+                  status: AttendanceStatus.CHECKED_IN,
+                  checkInTime: new Date(Date.now() - 10 * 3600000),
+                  shiftName: 'Ca Sáng',
+                  shiftId: 'shift-morning',
+                  date: getVietnamTodayString(),
+                },
+              ]),
+            }),
+          }),
+        });
+
+        mockWorkScheduleModel.find.mockReturnValue({
           lean: () => ({
             exec: jest.fn().mockResolvedValue([
               {
-                _id: 'att-1',
-                status: AttendanceStatus.CHECKED_IN,
-                checkInTime: new Date(Date.now() - 10 * 3600000),
-                shiftName: 'Ca Sáng',
-                shiftId: 'shift-morning',
-                date: new Date().toISOString().slice(0, 10),
+                branchId: 'BR-001',
+                status: 'published',
+                assignments: [
+                  {
+                    employeeId: '507f1f77bcf86cd799439011',
+                    shiftId: 'shift-morning',
+                    shiftName: 'Ca Sáng',
+                    shiftStart: '06:00',
+                    shiftEnd: '07:00', // Ca kết thúc rất sớm trong ngày (07:00 VN < 19:00 VN)
+                    date: getVietnamTodayString(),
+                  },
+                ],
               },
             ]),
           }),
-        }),
-      });
+        });
 
-      mockWorkScheduleModel.find.mockReturnValue({
-        lean: () => ({
-          exec: jest.fn().mockResolvedValue([
-            {
-              branchId: 'BR-001',
-              status: 'published',
-              assignments: [
-                {
-                  employeeId: '507f1f77bcf86cd799439011',
-                  shiftId: 'shift-morning',
-                  shiftName: 'Ca Sáng',
-                  shiftStart: '06:00',
-                  shiftEnd: '07:00', // Ca kết thúc rất sớm trong ngày
-                  date: new Date().toISOString(),
-                },
-              ],
-            },
-          ]),
-        }),
-      });
-
-      const check = await service.verifyPharmacistActiveShift('507f1f77bcf86cd799439011', 'BR-001');
-      expect(check.allowed).toBe(false);
-      expect(check.reason).toContain('đã kết thúc');
+        const check = await service.verifyPharmacistActiveShift('507f1f77bcf86cd799439011', 'BR-001');
+        expect(check.allowed).toBe(false);
+        expect(check.reason).toContain('đã kết thúc');
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -902,7 +917,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
         employeeId: mockUser._id,
         shiftId: 'shift-morning',
         shiftName: 'Ca Sáng',
-        date: new Date().toISOString().slice(0, 10),
+        date: getVietnamTodayString(),
         status: AttendanceStatus.CHECKED_IN,
         checkInTime: new Date(Date.now() - 4 * 3600000),
         checkOutTime: null,
@@ -926,7 +941,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
                   shiftName: 'Ca Chiều',
                   shiftStart: '00:00', // Đặt 00:00 để luôn qua ngưỡng startMin - 30p
                   shiftEnd: '23:59',
-                  date: new Date().toISOString(),
+                  date: getVietnamTodayString(),
                 },
               ],
             },
@@ -950,7 +965,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
         employeeId: mockUser._id,
         shiftId: 'shift-morning',
         shiftName: 'Ca Sáng',
-        date: new Date().toISOString().slice(0, 10),
+        date: getVietnamTodayString(),
         status: AttendanceStatus.COMPLETED,
         checkInTime: new Date(Date.now() - 8 * 3600000),
         checkOutTime: new Date(Date.now() - 1000),
@@ -974,7 +989,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
                   shiftName: 'Ca Chiều',
                   shiftStart: '00:00',
                   shiftEnd: '23:59',
-                  date: new Date().toISOString(),
+                  date: getVietnamTodayString(),
                 },
               ],
             },
@@ -1012,7 +1027,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
         employeeId: mockUser._id,
         shiftId: 'shift-morning',
         shiftName: 'Ca Sáng',
-        date: new Date().toISOString().slice(0, 10),
+        date: getVietnamTodayString(),
         status: AttendanceStatus.COMPLETED,
         checkInTime: new Date(Date.now() - 8 * 3600000),
         checkOutTime: new Date(Date.now() - 1000),
@@ -1039,7 +1054,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
                   shiftName: 'Ca Sáng',
                   shiftStart: '06:00',
                   shiftEnd: '14:00',
-                  date: new Date().toISOString(),
+                  date: getVietnamTodayString(),
                 },
                 {
                   employeeId: mockUser._id,
@@ -1047,7 +1062,7 @@ describe('AttendanceService (Unit & Security Tests)', () => {
                   shiftName: 'Ca Chiều',
                   shiftStart: '14:00',
                   shiftEnd: '22:00',
-                  date: new Date().toISOString(),
+                  date: getVietnamTodayString(),
                 },
               ],
             },
