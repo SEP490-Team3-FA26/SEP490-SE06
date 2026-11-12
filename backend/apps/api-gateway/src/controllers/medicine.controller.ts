@@ -67,6 +67,7 @@ export class MedicineController implements OnModuleInit {
       "inventory.medicine.get_alternatives",
       "inventory.medicine.warehouse_map",
       "inventory.medicine.warehouse_search",
+      "inventory.medicine.infinite_scroll",
     ]);
   }
 
@@ -257,6 +258,54 @@ export class MedicineController implements OnModuleInit {
     if (this.cacheManager && result) {
       try {
         await this.cacheManager.set(cacheKey, result, 300000); // Cache 5 phút
+      } catch (e) {}
+    }
+
+    return result;
+  }
+
+  @Get("infinite-scroll")
+  @ApiOperation({
+    summary: "Lấy danh sách thuốc cuộn vô tận cho Mobile (Infinite Scroll / Keyset Pagination 2000+ sản phẩm)",
+  })
+  @ApiQuery({ name: "cursor", required: false, type: String, description: "ID con trỏ cho trang kế tiếp" })
+  @ApiQuery({ name: "page", required: false, type: Number, description: "Số trang" })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Số lượng mỗi lần cuộn (mặc định 20, tối đa 100)" })
+  @ApiQuery({ name: "search", required: false, type: String, description: "Từ khóa tìm kiếm" })
+  @ApiQuery({ name: "category", required: false, type: String, description: "Danh mục thuốc" })
+  @ApiQuery({ name: "branchId", required: false, type: String, description: "ID chi nhánh hoặc CENTRAL_WH" })
+  @ApiQuery({ name: "since", required: false, type: String, description: "Mốc thời gian delta sync (tùy chọn)" })
+  async getMedicinesInfiniteScroll(
+    @Query("cursor") cursor?: string,
+    @Query("page") page = 1,
+    @Query("limit") limit = 20,
+    @Query("search") search?: string,
+    @Query("category") category?: string,
+    @Query("branchId") branchId?: string,
+    @Query("since") since?: string,
+  ) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const safePage = Math.max(Number(page) || 1, 1);
+    const cacheKey = `medicines:infinite-scroll:${branchId || "all"}:${cursor || "none"}:${safePage}:${safeLimit}:${search || ""}:${category || ""}`;
+
+    // Cache-aside Redis cho trang đầu tiên nếu không tìm kiếm
+    const isFirstPageDefault = safePage === 1 && !cursor && !search && !since;
+    if (isFirstPageDefault && this.cacheManager) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) return cached;
+      } catch (e) {}
+    }
+
+    const result = await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.infinite_scroll",
+      { cursor, page: safePage, limit: safeLimit, search, category, branchId, since },
+    );
+
+    if (isFirstPageDefault && this.cacheManager && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 120000); // Cache 2 phút cho trang đầu
       } catch (e) {}
     }
 

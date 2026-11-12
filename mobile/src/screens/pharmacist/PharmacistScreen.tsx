@@ -30,6 +30,7 @@ import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 import { StaffLeaveModal } from '../../components/attendance/StaffLeaveModal';
 import { StaffScheduleModal } from '../../components/schedule/StaffScheduleModal';
 import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
+import { catalogStorageService } from '../../services/catalogStorage.service';
 import { ClinicalSidebarDrawer, DrawerMenuItem } from '../../components/clinical/ClinicalSidebarDrawer';
 import { DigitalHealthPassportModal } from '../../components/clinical/DigitalHealthPassportModal';
 
@@ -146,6 +147,9 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
+      // Nạp danh mục thuốc đầy đủ 2000+ sản phẩm vào bộ nhớ máy để tra cứu tức thì
+      catalogStorageService.init(user?.branchId).catch(() => {});
+
       const [medList, sampleList, currentShift] = await Promise.all([
         ApiService.getMedicines({ search: searchMed }),
         ApiService.getSamplePrescriptions(),
@@ -160,7 +164,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     } finally {
       setRefreshing(false);
     }
-  }, [searchMed]);
+  }, [searchMed, user?.branchId]);
 
   useEffect(() => {
     loadData();
@@ -351,13 +355,17 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         }
         showToast.success('Quét Barcode Thành Công', `Đã thêm ${med.name}${batchInfo} vào giỏ POS!`);
       } else {
-        const localMatched = medicines.find(
-          (m) =>
-            m.barcode === code ||
-            m.sku === code ||
-            m.name.toLowerCase().includes(code.toLowerCase()) ||
-            m.units?.some((u) => u.barcode === code)
-        );
+        // Tra cứu trong toàn bộ 2000+ sản phẩm cục bộ (O(1) Map Lookup)
+        const localMatched =
+          catalogStorageService.findMedicineByBarcode(code) ||
+          catalogStorageService.findMedicineBySku(code) ||
+          medicines.find(
+            (m) =>
+              m.barcode === code ||
+              m.sku === code ||
+              m.name.toLowerCase().includes(code.toLowerCase()) ||
+              m.units?.some((u) => u.barcode === code)
+          );
         if (localMatched) {
           addToCart(localMatched);
           showToast.success('Quét Barcode Thành Công', `Đã tìm thấy và thêm ${localMatched.name} vào giỏ hàng!`);
@@ -501,12 +509,21 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     if (!ocrResult?.medicines?.length) return;
     let addedCount = 0;
     ocrResult.medicines.forEach((m: any) => {
-      let matched = medicines.find((med) => m.medicineId && med.id === m.medicineId);
+      // 1. Tìm trong toàn bộ 2000+ sản phẩm cục bộ bằng ID hoặc tên
+      let matched = m.medicineId ? catalogStorageService.findMedicineById(m.medicineId) : undefined;
+      if (!matched && m.name) {
+        const hits = catalogStorageService.searchMedicines(m.name, 1);
+        if (hits.length > 0) matched = hits[0];
+      }
+      // 2. Dự phòng tìm trong danh sách medicines hiện tại
       if (!matched) {
+        matched = medicines.find((med) => m.medicineId && med.id === m.medicineId);
+      }
+      if (!matched && m.name) {
         matched = medicines.find(
           (med) =>
             med.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
-            (m.name && med.name.toLowerCase().includes(m.name.toLowerCase()))
+            med.name.toLowerCase().includes(m.name.toLowerCase())
         );
       }
       if (matched) {
@@ -942,10 +959,15 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                   Danh Sách Thuốc Kê Đơn:
                 </Text>
                 {ocrResult.medicines?.map((m: any, idx: number) => {
-                  const matchedMed = medicines.find((medItem) =>
-                    medItem.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
-                    (m.name && medItem.name.toLowerCase().includes(m.name.toLowerCase()))
-                  );
+                  const matchedMed =
+                    (m.medicineId ? catalogStorageService.findMedicineById(m.medicineId) : undefined) ||
+                    (m.name ? catalogStorageService.searchMedicines(m.name, 1)[0] : undefined) ||
+                    medicines.find(
+                      (medItem) =>
+                        (m.medicineId && medItem.id === m.medicineId) ||
+                        medItem.name.toLowerCase().includes(m.name.toLowerCase().slice(0, 5)) ||
+                        (m.name && medItem.name.toLowerCase().includes(m.name.toLowerCase()))
+                    );
                   return (
                     <View key={idx} style={styles.ocrMedItem}>
                       <Image

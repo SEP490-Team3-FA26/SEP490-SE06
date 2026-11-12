@@ -21,7 +21,6 @@ class EnvServiceClass {
         const host = hostUri.split(':')[0];
         if (host && host !== 'localhost' && host !== '127.0.0.1') {
           this.detectedHostIp = host;
-          console.log(`📡 [EnvService] Detected host from Expo hostUri: ${host}`);
           return;
         }
       }
@@ -35,7 +34,6 @@ class EnvServiceClass {
         const host = address?.split(':')[0];
         if (host && host !== 'localhost' && host !== '127.0.0.1') {
           this.detectedHostIp = host;
-          console.log(`📡 [EnvService] Detected host from Metro scriptURL: ${host}`);
           return;
         }
       }
@@ -73,6 +71,11 @@ class EnvServiceClass {
     return this.detectedHostIp;
   }
 
+  // Bí danh tương thích ngược an toàn để tránh lỗi undefined is not a function
+  public getApiUrl(): string {
+    return this.getApiBaseUrl();
+  }
+
   public getApiBaseUrl(): string {
     const envUrl = (process.env.EXPO_PUBLIC_API_URL || process.env.API_URL)?.trim();
     const allowUsbLocalhost = process.env.EXPO_PUBLIC_ALLOW_LOCALHOST_USB === 'true';
@@ -105,7 +108,6 @@ class EnvServiceClass {
     // 6. Chế độ Điện thoại thật qua Expo Go Wi-Fi Local (Auto-detect IP máy tính từ Metro)
     const detectedHost = this.getHostIp();
     if (detectedHost) {
-      console.log(`📡 [EnvService] Tự động kết nối Backend Local qua LAN: http://${detectedHost}:4000`);
       return `http://${detectedHost}:4000`;
     }
 

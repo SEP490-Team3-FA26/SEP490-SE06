@@ -73,6 +73,7 @@ import {
   RadiusTokens,
   MotionTokens,
 } from '../../theme/tokens';
+import { MedicineSmartImage, MedicineGridCard } from '../../components/medicine';
 
 // Sub-component FlashSaleCountdown độc lập, tự quản lý timer đếm giây, không kích hoạt re-render toàn màn hình
 const FlashSaleCountdown: React.FC = React.memo(() => {
@@ -708,22 +709,30 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
   // Ref điều khiển cuộn trang chủ mượt mà
   const mainScrollRef = useRef<any>(null);
 
-  // Lọc danh sách thuốc gợi ý phù hợp theo từng chủ đề blog y khoa từ dịch vụ
+  // Lọc danh sách thuốc gợi ý phù hợp theo từng chủ đề blog y khoa từ dịch vụ (Chỉ chọn lọc thuốc OTC/TPCN không kê đơn)
   const seasonalMedicines = useMemo(() => {
-    return filterRecommendedMedicines(medicines, seasonalCategory);
+    const otcList = (medicines || []).filter((m) => !m.isRx);
+    return filterRecommendedMedicines(otcList, seasonalCategory);
   }, [medicines, seasonalCategory]);
 
-  // Top 3 sản phẩm bán chạy nhất kèm chỉ số bán hàng nổi bật
+  // Top 3 sản phẩm bán chạy nhất kèm chỉ số bán hàng nổi bật (Chỉ chọn lọc sản phẩm không kê đơn OTC / TPCN)
   const topBestSellers = useMemo(() => {
-    return getTopBestSellers(medicines, 3);
+    const otcList = (medicines || []).filter((m) => !m.isRx);
+    return getTopBestSellers(otcList, 3);
   }, [medicines]);
 
-  // Xử lý khi người dùng ấn nút "Xem tất cả" tại khối Sản Phẩm Bán Chạy
+  // Danh sách sản phẩm Flash Sale độc quyền (Chỉ chọn lọc sản phẩm không kê đơn OTC / TPCN)
+  const flashSaleMedicines = useMemo(() => {
+    const otcList = (medicines || []).filter((m) => !m.isRx);
+    return otcList.slice(0, 8);
+  }, [medicines]);
+
+  // Xử lý khi người dùng ấn nút "Xem tất cả" tại khối Sản Phẩm Bán Chạy -> Chuyển hướng sang ProductCatalogScreen
   const handleViewAllBestSellers = useCallback(() => {
-    setSelectedCategory('ALL');
-    mainScrollRef.current?.scrollTo({ y: 1550, animated: true });
-    showToast.info('Xem tất cả', 'Đang chuyển đến danh sách sản phẩm chính hãng');
-  }, []);
+    navigation.navigate('ProductCatalogScreen', {
+      initialCategory: 'ALL',
+    });
+  }, [navigation]);
 
   const handleSaveSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
@@ -765,6 +774,14 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
 
   // Cart operations with stock limit checking
   const addToCart = (med: Medicine) => {
+    if (!med) return;
+    if (med.isRx) {
+      showToast.info(
+        'Thuốc kê đơn (Rx)',
+        'Theo Thông tư 07/2017/TT-BYT, thuốc kê đơn cần có đơn thuốc của bác sĩ và phải được Dược sĩ tư vấn xác nhận trước khi mua.'
+      );
+      return;
+    }
     setCart((prev) => {
       const idx = prev.findIndex((i) => i.medicine.id === med.id);
       const currentQty = idx >= 0 ? prev[idx].quantity : 0;
@@ -991,9 +1008,11 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
       if (selectedCategory !== 'ALL' && m.category !== selectedCategory && !m.category.includes(selectedCategory)) {
         return false;
       }
-      // Rx prescription filter
-      if (selectedRxFilter === 'RX' && !m.isRx) return false;
-      if (selectedRxFilter === 'OTC' && m.isRx) return false;
+      // Quy chuẩn Dược phẩm GPP & Thông tư 07/2017/TT-BYT:
+      // Tuyệt đối không render thuốc kê đơn (Rx) trên giao diện mua sắm đại chúng của khách hàng
+      if (m.isRx) {
+        return false;
+      }
 
       // Price range filter
       const price = m.price || 0;
@@ -1521,7 +1540,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.flashProductsScroll}
                 >
-                  {(medicines.length > 0 ? medicines.slice(0, 8) : []).map((med, idx) => {
+                  {flashSaleMedicines.map((med, idx) => {
                     const originalPrice = Math.round((med.price || 50000) * 1.35);
                     const soldCount = 15 + (idx * 3);
                     const percentSold = Math.min(95, 60 + ((idx * 7) % 35));
@@ -1552,10 +1571,11 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
 
                         {/* Hộp Ảnh Thuốc Có Nền Sáng */}
                         <View style={styles.flashThumbBox}>
-                          <Image
-                            source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
+                          <MedicineSmartImage
+                            uri={med.image}
+                            category={med.category}
+                            name={med.name}
                             style={styles.flashThumb}
-                            resizeMode="contain"
                           />
                         </View>
 
@@ -1671,12 +1691,11 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                       {/* Thân Thẻ To Đùng: Ảnh lớn bên trái (110x110), Chi tiết bên phải */}
                       <View style={styles.bestSellerBodyRow}>
                         <View style={styles.bestSellerBigImageBox}>
-                          <Image
-                            source={{
-                              uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-                            }}
+                          <MedicineSmartImage
+                            uri={med.image}
+                            category={med.category}
+                            name={med.name}
                             style={styles.bestSellerBigImage}
-                            resizeMode="contain"
                           />
                           <View style={styles.bestSellerDiscountBadge}>
                             <Text style={styles.bestSellerDiscountText}>-{med.discountPercent}%</Text>
@@ -1920,10 +1939,11 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                         pressedScale={0.96}
                       >
                         <View style={styles.recommendedMedThumbBox}>
-                          <Image
-                            source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&auto=format&fit=crop&q=80' }}
+                          <MedicineSmartImage
+                            uri={med.image}
+                            category={med.category}
+                            name={med.name}
                             style={styles.recommendedMedThumb}
-                            resizeMode="contain"
                           />
                         </View>
                         <Text style={styles.recommendedMedName} numberOfLines={2}>
@@ -2002,97 +2022,51 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
             </View>
 
             {/* 9. Danh Sách Sản Phẩm Thuốc Chính Hãng */}
-            <View style={styles.productListHeader}>
-              <Text style={styles.sectionTitle}>
-                Sản Phẩm Thuốc & Dược Phẩm ({filteredMedicines.length})
+            <View style={styles.productListHeaderRow}>
+              <Text style={styles.productListHeaderTitle} numberOfLines={1}>
+                Dược Phẩm Chính Hãng ({filteredMedicines.length})
               </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ProductCatalogScreen', { initialCategory: 'ALL' })}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.productListHeaderViewAll}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.productListHeaderViewAllText}>Xem tất cả</Text>
+                <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+              </TouchableOpacity>
             </View>
 
             {refreshing && medicines.length === 0 ? (
               <ClinicalMedicineSkeletonGrid count={4} />
             ) : (
               <>
-                {filteredMedicines.slice(0, visibleMedicineCount).map((med, idx) => (
-                  <View
-                    key={med.id || (med as any)._id || (med as any).sku || `med-${idx}`}
-                    style={styles.productCardWrapper}
-                  >
-                    <View style={styles.productCard}>
-                      <AnimatedPressable
-                        onPress={() => openMedicineDetail(med)}
-                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-                        pressedScale={0.98}
-                      >
-                        <Image
-                          source={{ uri: med.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80' }}
-                          style={styles.productThumb}
-                          resizeMode="cover"
-                        />
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <Text style={styles.productName} numberOfLines={2}>{med.name}</Text>
-                            {med.isRx ? (
-                              <View style={styles.rxBadge}>
-                                <Text style={styles.rxBadgeText}>Rx</Text>
-                              </View>
-                            ) : (
-                              <View style={styles.otcBadge}>
-                                <Text style={styles.otcBadgeText}>OTC</Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text style={styles.productActive} numberOfLines={1}>
-                            {med.active || med.active_ingredient || 'Đang cập nhật hoạt chất'}
-                          </Text>
-                          <Text style={[styles.productPrice, TypographyTokens.tabularNums]}>
-                            {med.price.toLocaleString('vi-VN')} ₫ / {med.unit}
-                          </Text>
-                        </View>
-                      </AnimatedPressable>
+                <View style={styles.productGrid2Col}>
+                  {filteredMedicines.slice(0, visibleMedicineCount).map((med, idx) => (
+                    <MedicineGridCard
+                      key={med.id || (med as any)._id || (med as any).sku || `med-${idx}`}
+                      medicine={med}
+                      isWishlisted={isWishlisted(med.id || (med as any)._id)}
+                      onPressDetail={openMedicineDetail}
+                      onToggleWishlist={toggleWishlist}
+                      onAddToCart={(item) => {
+                        addToCart(item);
+                        showToast.success('Thành công', `Đã thêm ${item.name} vào giỏ hàng!`);
+                      }}
+                    />
+                  ))}
+                </View>
 
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <AnimatedPressable
-                          onPress={() => toggleWishlist(med)}
-                          style={[
-                            styles.wishlistCardBtn,
-                            isWishlisted(med.id || (med as any)._id) && styles.wishlistCardBtnActive,
-                          ]}
-                          pressedScale={0.88}
-                        >
-                          <Ionicons
-                            name={isWishlisted(med.id || (med as any)._id) ? 'heart' : 'heart-outline'}
-                            size={18}
-                            color={isWishlisted(med.id || (med as any)._id) ? '#EF4444' : '#94A3B8'}
-                          />
-                        </AnimatedPressable>
-
-                        <AnimatedPressable
-                          onPress={() => {
-                            addToCart(med);
-                            showToast.success('Thành công', `Đã thêm ${med.name} vào giỏ hàng!`);
-                          }}
-                          style={styles.addToCartBtn}
-                          pressedScale={0.90}
-                        >
-                          <Ionicons name="add" size={20} color="#FFFFFF" />
-                        </AnimatedPressable>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-
-                {filteredMedicines.length > visibleMedicineCount && (
-                  <TouchableOpacity
-                    onPress={() => setVisibleMedicineCount((prev) => prev + 24)}
-                    style={styles.loadMoreMedicinesBtn}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.loadMoreMedicinesText}>
-                      Xem thêm ({filteredMedicines.length - visibleMedicineCount} sản phẩm khác)
-                    </Text>
-                    <Ionicons name="chevron-down" size={16} color="#0284C7" />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('ProductCatalogScreen', { initialCategory: 'ALL' })}
+                  style={styles.loadMoreMedicinesBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.loadMoreMedicinesText}>
+                    Mở toàn bộ danh mục thuốc (2.000+ sản phẩm)
+                  </Text>
+                  <Ionicons name="arrow-forward" size={16} color="#0284C7" />
+                </TouchableOpacity>
               </>
             )}
 
@@ -2300,14 +2274,11 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                         pressedScale={0.96}
                         style={{ flex: 1 }}
                       >
-                        <Image
-                          source={{
-                            uri:
-                              item.image ||
-                              'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-                          }}
+                        <MedicineSmartImage
+                          uri={item.image}
+                          category={item.category}
+                          name={item.name}
                           style={styles.recentProductThumb}
-                          resizeMode="cover"
                         />
                         <Text style={styles.recentProductName} numberOfLines={2}>
                           {item.name}
@@ -5206,6 +5177,33 @@ const styles = StyleSheet.create({
   productListHeader: {
     marginBottom: 8,
   },
+  productListHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  productListHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    flex: 1,
+    marginRight: 8,
+  },
+  productListHeaderViewAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    paddingVertical: 2,
+    paddingLeft: 6,
+  },
+  productListHeaderViewAllText: {
+    fontSize: 13,
+    color: '#0284C7',
+    fontWeight: '700',
+    marginRight: 2,
+  },
   otcBadge: {
     backgroundColor: '#E0F2FE',
     paddingHorizontal: 6,
@@ -5697,6 +5695,14 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
+  },
+  // --- LƯỚI SẢN PHẨM 2 CỘT CHUẨN Y TẾ & FPT LONG CHÂU ---
+  productGrid2Col: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    marginTop: 4,
   },
   cartThumb: {
     width: 52,

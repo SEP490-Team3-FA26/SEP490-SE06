@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
-const MONGODB_URI = 'mongodb+srv://phuocthde180577_db_user:Phuoc12345@cluster0.ruhl6tb.mongodb.net/WDP201?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ Lỗi bảo mật: Thiếu biến môi trường MONGODB_URI. Dừng script!");
+  process.exit(1);
+}
 
 async function checkCustomers() {
   try {

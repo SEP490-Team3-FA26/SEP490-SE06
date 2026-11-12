@@ -53,6 +53,14 @@ export class BiometricService {
    */
   public static async checkHardwareSupport(): Promise<BiometricSupportInfo> {
     try {
+      if (!rnBiometrics || typeof rnBiometrics.isSensorAvailable !== 'function') {
+        return {
+          hasHardware: false,
+          isEnrolled: false,
+          hasFingerprint: false,
+          hasFacialRecognition: false,
+        };
+      }
       const { available, biometryType } = await rnBiometrics.isSensorAvailable();
       return {
         hasHardware: available,
@@ -61,8 +69,8 @@ export class BiometricService {
         hasFingerprint: available,
         hasFacialRecognition: available && biometryType === 'FaceID',
       };
-    } catch (err) {
-      console.warn('[BiometricService] Lỗi khi kiểm tra cảm biến sinh trắc học:', err);
+    } catch {
+      // Khi chạy trên Expo Go / Simulator không có native module, trả về không hỗ trợ an toàn và không spam log
       return {
         hasHardware: false,
         isEnrolled: false,

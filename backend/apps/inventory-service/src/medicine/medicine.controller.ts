@@ -425,6 +425,19 @@ export class MedicineController {
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy lịch sử tìm kiếm');
     }
   }
+
+  // =========================================================================
+  // INFINITE SCROLL CHO MOBILE & VIRTUALIZED LIST (2000+ SẢN PHẨM)
+  // =========================================================================
+  @MessagePattern('inventory.medicine.infinite_scroll')
+  async getMedicinesInfiniteScroll(@Payload() query: any) {
+    try {
+      return await this.medicineService.getMedicinesInfiniteScroll(query);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi tải danh sách thuốc cuộn vô tận');
+    }
+  }
 }
 
 
