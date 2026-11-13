@@ -207,8 +207,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   carouselTitle: {
-    fontSize: 15.5,
-    fontWeight: '800',
+    fontSize: 13.5,
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 2,
     textShadowColor: 'rgba(0, 0, 0, 0.45)',
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   carouselSubtitle: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '500',
     color: '#E0F2FE',
     textShadowColor: 'rgba(0, 0, 0, 0.45)',
