@@ -298,6 +298,26 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       return { error: true, message: 'Thuốc không tồn tại hoặc đã ngừng kinh doanh', statusCode: 404 };
     }
 
+    // Tuân thủ quy định Bộ Y Tế & GPP: Tuyệt đối cấm đặt mua trực tuyến thuốc kê đơn (Rx)
+    const isRx = Boolean(
+      medicine.prescription_status === 1 ||
+      medicine.prescriptionStatus === 1 ||
+      medicine.is_prescription === true ||
+      medicine.isPrescription === true ||
+      medicine.drug_classification === 'PRESCRIPTION' ||
+      medicine.drug_classification === 'PRESCRIPTION_ANTIBIOTIC' ||
+      medicine.drugClassification === 'PRESCRIPTION' ||
+      medicine.drugClassification === 'PRESCRIPTION_ANTIBIOTIC'
+    );
+
+    if (isRx) {
+      return {
+        error: true,
+        message: 'Thuốc kê đơn (Rx) không được phép đặt mua trực tuyến theo quy định của Bộ Y Tế. Quý khách vui lòng mua trực tiếp tại quầy thuốc.',
+        statusCode: 400,
+      };
+    }
+
     const currentStock = medicine.stock !== undefined ? medicine.stock : 999;
     if (currentStock <= 0) {
       return { error: true, message: 'Thuốc hiện tại đã hết hàng. Vui lòng chọn sản phẩm khác.', statusCode: 400 };

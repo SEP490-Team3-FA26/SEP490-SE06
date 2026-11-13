@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
   Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap, Wifi,
-  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck
+  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck, UserPlus, AlertCircle
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
@@ -17,7 +17,8 @@ import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
 import { WifiScannerModal } from "./WifiScannerModal";
 import CustomerClinicalModal from "./CustomerClinicalModal";
-import { customerService, AllergyCheckResult } from "../../../services/sales/customer.service";
+import QuickRegisterCustomerModal from "./QuickRegisterCustomerModal";
+import { customerService, AllergyCheckResult, QuickRegisterCustomerDto } from "../../../services/sales/customer.service";
 import {
   buildRetailDosageInstruction,
   buildUnitOptions,
@@ -155,6 +156,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [usePoints, setUsePoints] = useState(false);
   const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  // Trạng thái hiển thị modal tạo tài khoản khách hàng mới & khảo sát dị ứng
+  const [isRegisterCustomerModalOpen, setIsRegisterCustomerModalOpen] = useState(false);
+  const [searchCustomerNotFound, setSearchCustomerNotFound] = useState(false);
 
   // UC-107: Quản lý hồ sơ bệnh án & Cảnh báo tương kỵ dị ứng
   const [isClinicalModalOpen, setIsClinicalModalOpen] = useState(false);
@@ -200,6 +204,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setLoyaltyInfo(null);
     setUsePoints(false);
     setRedeemedPoints(0);
+    setSearchCustomerNotFound(false);
     try {
       const [loyaltyRes] = await Promise.all([
         api.get(`/api/users/loyalty/lookup?phone=${customerPhone}`),
@@ -207,16 +212,19 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       ]);
       if (loyaltyRes.data && !loyaltyRes.data.error) {
         setLoyaltyInfo(loyaltyRes.data);
+        setSearchCustomerNotFound(false);
         if (loyaltyRes.data.email) {
           setPatientEmail(loyaltyRes.data.email);
         }
         showToast("Đã tìm thấy khách hàng thành viên!", "success");
       } else {
-        showToast("Không tìm thấy thông tin thành viên.", "warning");
+        setSearchCustomerNotFound(true);
+        showToast("Không tìm thấy thông tin khách hàng. Bấm 'Tạo tài khoản' để đăng ký & khảo sát dị ứng!", "warning");
       }
     } catch (err) {
       console.error(err);
-      showToast("Không tìm thấy thông tin thành viên.", "warning");
+      setSearchCustomerNotFound(true);
+      showToast("Không tìm thấy thông tin khách hàng. Bấm 'Tạo tài khoản' để đăng ký & khảo sát dị ứng!", "warning");
     } finally {
       setIsSearchingCustomer(false);
     }
@@ -228,8 +236,54 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     setUsePoints(false);
     setRedeemedPoints(0);
     setPatientEmail("");
+    setSearchCustomerNotFound(false);
     clearCustomerSegment();
     setAllergyCheckResult(null);
+  };
+
+  /**
+   * Xử lý đăng ký tài khoản khách hàng mới và khảo sát an toàn dị ứng từ quầy POS
+   */
+  const handleQuickRegisterCustomer = async (dto: QuickRegisterCustomerDto) => {
+    try {
+      const newProfile = await customerService.quickRegister(dto);
+      if (newProfile && newProfile.loyalty) {
+        const fullLoyalty = {
+          ...newProfile.loyalty,
+          allergies: newProfile.clinical?.allergies || dto.allergies || [],
+          chronicConditions: newProfile.clinical?.chronicConditions || dto.chronicConditions || [],
+        };
+        setLoyaltyInfo(fullLoyalty);
+        setCustomerPhone(newProfile.loyalty.phone);
+        if (newProfile.loyalty.email) {
+          setPatientEmail(newProfile.loyalty.email);
+        }
+        setSearchCustomerNotFound(false);
+        setIsRegisterCustomerModalOpen(false);
+
+        if (newProfile.clinicalWarning) {
+          showToast(`⚠️ ${newProfile.clinicalWarning}`, "warning");
+        } else if (fullLoyalty.allergies && fullLoyalty.allergies.length > 0) {
+          showToast(`Đã tạo tài khoản cho ${newProfile.loyalty.fullName}! ⚠️ Tiền sử dị ứng: ${fullLoyalty.allergies.join(", ")}`, "warning");
+        } else {
+          showToast(`Đã tạo tài khoản thành công cho khách hàng ${newProfile.loyalty.fullName}!`, "success");
+        }
+        return { success: true };
+      }
+      return { success: false, error: "Không thể lấy thông tin tài khoản sau khi tạo." };
+    } catch (err: any) {
+      console.error("Lỗi khi tạo tài khoản khách hàng tại POS:", err);
+      return {
+        success: false,
+        isClinicalSaveError: Boolean(err.isClinicalSaveError),
+        userId: err.userId,
+        phone: err.phone || dto.phone,
+        fullName: err.fullName || dto.fullName,
+        allergies: err.allergies || dto.allergies || [],
+        chronicConditions: err.chronicConditions || dto.chronicConditions || [],
+        error: err.response?.data?.message || err.message || "Tạo tài khoản khách hàng thất bại.",
+      };
+    }
   };
 
   // UC-107: Tự động kiểm tra chéo tiền sử dị ứng, hoạt chất & bệnh nền lâm sàng với giỏ hàng
@@ -2583,13 +2637,24 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">KHÁCH HÀNG THÂN THIẾT</h3>
             {loyaltyInfo ? (
-              <span className="text-[10px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded uppercase">
-                {loyaltyInfo.tier} VIP
+              <span className="text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded uppercase">
+                {loyaltyInfo.tier || 'Thành viên'} VIP
               </span>
             ) : (
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
-                Khách Lẻ
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                  Khách Lẻ
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsRegisterCustomerModalOpen(true)}
+                  className="px-2 py-0.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                  title="Tạo tài khoản & khảo sát tiền sử dị ứng cho khách hàng"
+                >
+                  <UserPlus size={12} />
+                  <span>+ Thêm khách</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -2600,18 +2665,50 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   type="text"
                   placeholder="SĐT khách hàng..."
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    if (searchCustomerNotFound) setSearchCustomerNotFound(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSearchCustomer();
+                    }
+                  }}
                   className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-emerald-600 focus:bg-white"
                 />
                 <button
                   type="button"
                   onClick={handleSearchCustomer}
                   disabled={isSearchingCustomer}
-                  className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                  className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1"
                 >
-                  Tìm kiếm
+                  {isSearchingCustomer && <Loader2 size={13} className="animate-spin" />}
+                  <span>Tìm kiếm</span>
                 </button>
               </div>
+
+              {/* Thông báo khi không tìm thấy khách hàng & Nút tạo tài khoản ngay */}
+              {searchCustomerNotFound && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-left flex flex-col gap-2 animate-fadeIn">
+                  <div className="flex items-center gap-1.5 text-amber-800 text-xs font-bold">
+                    <AlertCircle size={15} className="shrink-0 text-amber-600" />
+                    <span>Không tìm thấy thông tin khách hàng</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Khách hàng chưa có tài khoản? Đăng ký ngay tại quầy để tích điểm và khảo sát an toàn tiền sử dị ứng thuốc.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsRegisterCustomerModalOpen(true)}
+                    className="w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                  >
+                    <UserPlus size={14} />
+                    <span>Tạo tài khoản & Khảo sát dị ứng</span>
+                  </button>
+                </div>
+              )}
+
               <input
                 type="email"
                 placeholder="Email nhận HDĐT (tùy chọn)..."
@@ -3669,6 +3766,31 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           }}
         />
       )}
+
+      {/* =======================================
+       * 👤 MODAL ĐĂNG KÝ KHÁCH HÀNG & KHẢO SÁT DỊ ỨNG THUỐC (GPP)
+       * ======================================= */}
+      <QuickRegisterCustomerModal
+        isOpen={isRegisterCustomerModalOpen}
+        initialPhone={customerPhone}
+        onClose={() => setIsRegisterCustomerModalOpen(false)}
+        onSubmit={handleQuickRegisterCustomer}
+        onSuccessLinked={(fullProfile) => {
+          const fullLoyalty = {
+            ...fullProfile.loyalty,
+            allergies: fullProfile.clinical?.allergies || [],
+            chronicConditions: fullProfile.clinical?.chronicConditions || [],
+          };
+          setLoyaltyInfo(fullLoyalty);
+          setCustomerPhone(fullProfile.loyalty.phone);
+          if (fullProfile.loyalty.email) {
+            setPatientEmail(fullProfile.loyalty.email);
+          }
+          setSearchCustomerNotFound(false);
+          setIsRegisterCustomerModalOpen(false);
+          showToast(`Đã lưu & liên kết thành công hồ sơ dị ứng cho ${fullProfile.loyalty.fullName}!`, "success");
+        }}
+      />
     </div>
   );
 }

@@ -160,4 +160,140 @@ describe('UserService - getExportJobStatus', () => {
       });
     });
   });
+
+  describe('UserService - addToCart (Tuân thủ Quy định Bộ Y Tế & Chặn Thuốc Kê Đơn Rx)', () => {
+    describe('[Normal Values] Luồng nghiệp vụ chuẩn', () => {
+      it('Nên thêm thành công thuốc không kê đơn (OTC) vào giỏ hàng', async () => {
+        (service as any).medicineModel.findById = jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({
+              _id: 'med-otc-1',
+              name: 'Paracetamol 500mg',
+              price: 15000,
+              stock: 50,
+              is_prescription: false,
+              prescription_status: 0,
+            }),
+          }),
+        });
+
+        const mockCartInstance = {
+          userId: 'user-123',
+          items: [],
+          save: jest.fn().mockResolvedValue(true),
+        };
+        (service as any).cartModel.findOne = jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(mockCartInstance),
+        });
+
+        const res: any = await service.addToCart('user-123', 'med-otc-1', 2);
+        expect(res).toBeDefined();
+        expect(mockCartInstance.save).toHaveBeenCalled();
+        expect(mockCartInstance.items.length).toBe(1);
+      });
+    });
+
+    describe('[Boundary Values] Giá trị biên & Giới hạn tồn kho', () => {
+      it('Nên trả về lỗi 400 khi thuốc đã hết hàng (stock = 0)', async () => {
+        (service as any).medicineModel.findById = jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({
+              _id: 'med-out-stock',
+              name: 'Vitamin C 500mg',
+              price: 25000,
+              stock: 0,
+              is_prescription: false,
+            }),
+          }),
+        });
+
+        const res: any = await service.addToCart('user-123', 'med-out-stock', 1);
+        expect(res.error).toBe(true);
+        expect(res.statusCode).toBe(400);
+        expect(res.message).toContain('hết hàng');
+      });
+
+      it('Nên trả về lỗi 400 khi số lượng yêu cầu vượt quá tồn kho khả dụng', async () => {
+        (service as any).medicineModel.findById = jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({
+              _id: 'med-low-stock',
+              name: 'Khẩu trang Y tế',
+              price: 35000,
+              stock: 5,
+              is_prescription: false,
+            }),
+          }),
+        });
+
+        const mockCartInstance = {
+          userId: 'user-123',
+          items: [],
+          save: jest.fn().mockResolvedValue(true),
+        };
+        (service as any).cartModel.findOne = jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(mockCartInstance),
+        });
+
+        const res: any = await service.addToCart('user-123', 'med-low-stock', 10);
+        expect(res.error).toBe(true);
+        expect(res.statusCode).toBe(400);
+        expect(res.message).toContain('Chỉ còn 5 sản phẩm');
+      });
+    });
+
+    describe('[Abnormal Values] Dữ liệu dị thường & Chặn thuốc kê đơn (Rx)', () => {
+      it('Nên chặn 100% không cho thêm vào giỏ hàng khi thuốc là thuốc kê đơn (is_prescription: true)', async () => {
+        (service as any).medicineModel.findById = jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({
+              _id: 'med-rx-1',
+              name: 'Opedulox 80 (Febuxostat)',
+              price: 9690000,
+              stock: 20,
+              is_prescription: true,
+              prescription_status: 1,
+            }),
+          }),
+        });
+
+        const res: any = await service.addToCart('user-123', 'med-rx-1', 1);
+        expect(res.error).toBe(true);
+        expect(res.statusCode).toBe(400);
+        expect(res.message).toContain('Thuốc kê đơn (Rx) không được phép đặt mua trực tuyến');
+      });
+
+      it('Nên chặn khi thuốc có drug_classification là PRESCRIPTION hoặc PRESCRIPTION_ANTIBIOTIC', async () => {
+        (service as any).medicineModel.findById = jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({
+              _id: 'med-rx-antibiotic',
+              name: 'Augmentin 1g (Amoxicillin/Clavulanate)',
+              price: 180000,
+              stock: 100,
+              drug_classification: 'PRESCRIPTION_ANTIBIOTIC',
+            }),
+          }),
+        });
+
+        const res: any = await service.addToCart('user-123', 'med-rx-antibiotic', 1);
+        expect(res.error).toBe(true);
+        expect(res.statusCode).toBe(400);
+        expect(res.message).toContain('Thuốc kê đơn (Rx) không được phép đặt mua trực tuyến');
+      });
+
+      it('Nên trả về lỗi 404 khi thuốc không tồn tại trong hệ thống', async () => {
+        (service as any).medicineModel.findById = jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(null),
+          }),
+        });
+
+        const res: any = await service.addToCart('user-123', 'med-not-found', 1);
+        expect(res.error).toBe(true);
+        expect(res.statusCode).toBe(404);
+        expect(res.message).toContain('Thuốc không tồn tại');
+      });
+    });
+  });
 });

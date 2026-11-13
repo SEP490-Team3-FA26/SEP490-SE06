@@ -29,7 +29,6 @@ class EnvServiceClass {
         const host = hostUri.split(':')[0];
         if (host && host !== 'localhost' && host !== '127.0.0.1') {
           this.detectedHostIp = host;
-          console.log(`📡 [EnvService] Detected host from Expo hostUri: ${host}`);
           return;
         }
       }
@@ -43,7 +42,6 @@ class EnvServiceClass {
         const host = address?.split(':')[0];
         if (host && host !== 'localhost' && host !== '127.0.0.1') {
           this.detectedHostIp = host;
-          console.log(`📡 [EnvService] Detected host from Metro scriptURL: ${host}`);
           return;
         }
       }
@@ -81,21 +79,27 @@ class EnvServiceClass {
     return this.detectedHostIp;
   }
 
+  // Bí danh tương thích ngược an toàn để tránh lỗi undefined is not a function
+  public getApiUrl(): string {
+    return this.getApiBaseUrl();
+  }
+
   public getApiBaseUrl(): string {
     const envUrl = (process.env.EXPO_PUBLIC_API_URL || process.env.API_URL)?.trim();
+    const allowUsbLocalhost = process.env.EXPO_PUBLIC_ALLOW_LOCALHOST_USB === 'true';
 
     // 1. Tự động chuyển đổi nếu env cũ trỏ vào HTTP thô của VPS hoặc Railway (tránh Android Cleartext block và loại bỏ Railway)
     if (envUrl && (envUrl.includes('103.75.187.86:4000') || envUrl.includes('railway.app') || envUrl.includes('railway'))) {
       return 'https://abcpharmacy.store';
     }
 
-    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost hoặc Railway
-    if (!__DEV__ && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1') || envUrl?.includes('railway'))) {
+    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost hoặc Railway (trừ khi bật cờ USB adb reverse)
+    if (!__DEV__ && !allowUsbLocalhost && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1') || envUrl?.includes('railway'))) {
       return 'https://abcpharmacy.store';
     }
 
-    // 3. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa cụ thể
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    // 3. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa cụ thể (hoặc localhost khi bật cờ USB)
+    if (envUrl && (allowUsbLocalhost || (!envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')))) {
       return envUrl;
     }
 
@@ -112,7 +116,6 @@ class EnvServiceClass {
     // 6. Chế độ Điện thoại thật qua Expo Go Wi-Fi Local (Auto-detect IP máy tính từ Metro)
     const detectedHost = this.getHostIp();
     if (detectedHost) {
-      console.log(`📡 [EnvService] Tự động kết nối Backend Local qua LAN: http://${detectedHost}:4000`);
       return `http://${detectedHost}:4000`;
     }
 
@@ -122,19 +125,20 @@ class EnvServiceClass {
 
   public getAiBaseUrl(): string {
     const envUrl = (process.env.EXPO_PUBLIC_AI_URL || process.env.AI_URL)?.trim();
+    const allowUsbLocalhost = process.env.EXPO_PUBLIC_ALLOW_LOCALHOST_USB === 'true';
 
     // 1. Loại bỏ URL Railway hoặc IP VPS HTTP cũ, chuyển hướng sang VPS chuẩn HTTPS
     if (envUrl && (envUrl.includes('103.75.187.86') || envUrl.includes('railway.app') || envUrl.includes('railway'))) {
       return 'https://abcpharmacy.store';
     }
 
-    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost hoặc Railway
-    if (!__DEV__ && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1') || envUrl?.includes('railway'))) {
+    // 2. Chốt chặn an toàn Production: Bản Release (!__DEV__) không bao giờ được trỏ vào localhost hoặc Railway (trừ khi bật cờ USB adb reverse)
+    if (!__DEV__ && !allowUsbLocalhost && (envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1') || envUrl?.includes('railway'))) {
       return 'https://abcpharmacy.store';
     }
 
-    // 3. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa cụ thể (không phải localhost hay railway)
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    // 3. Ưu tiên số 1: Tên miền HTTPS hoặc URL từ xa cụ thể (hoặc localhost khi bật cờ USB)
+    if (envUrl && (allowUsbLocalhost || (!envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')))) {
       return envUrl;
     }
 

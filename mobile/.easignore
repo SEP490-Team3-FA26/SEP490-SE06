@@ -15,6 +15,10 @@ build/**
 .gradle
 .gradle/**
 **/.gradle/**
+android
+android/**
+/android
+/android/**
 android/.gradle
 android/.gradle/**
 **/android/.gradle/**

@@ -125,3 +125,4 @@ bot-simulator/data/
 *.db
 *.db-wal
 *.db-shm
+docker-compose.mongo.yml

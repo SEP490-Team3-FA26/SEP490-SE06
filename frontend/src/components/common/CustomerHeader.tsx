@@ -596,6 +596,12 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
   // Cart & Wishlist State
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
+  const [headerToast, setHeaderToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+
+  const showHeaderToast = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setHeaderToast({ message, type });
+    setTimeout(() => setHeaderToast(null), 3500);
+  };
 
   // Search Auto-complete State
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
@@ -789,7 +795,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
       setPrescriptionSubmitted(false);
       setIsPrescriptionModalOpen(false);
       setPrescriptionForm({ fullName: "", phoneNumber: "", address: "", note: "", file: null });
-      alert("Đã gửi toa thuốc thành công! Dược sĩ chuyên môn ABC Pharmacy sẽ gọi điện tư vấn và báo giá trong 15 phút.");
+      showHeaderToast("Đã gửi toa thuốc thành công! Dược sĩ chuyên môn ABC Pharmacy sẽ gọi điện tư vấn và báo giá trong 15 phút.", "success");
     }, 1200);
   };
 
@@ -802,7 +808,7 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ");
+      showHeaderToast(err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ", "warning");
     }
   };
 
@@ -882,6 +888,23 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
       {/* 2. MAIN BLUE HEADER BAR (LONG CHAU STANDARD) */}
       {/* ========================================================================= */}
       <header className="sticky top-0 z-40 bg-[#0057cd] text-white shadow-md">
+        {/* Toast thông báo nội bộ */}
+        {headerToast && (
+          <div
+            className={`fixed top-20 right-6 z-[200] text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2 animate-in slide-in-from-top-3 ${
+              headerToast.type === 'error' || headerToast.type === 'warning'
+                ? 'bg-rose-950 text-white border-rose-800'
+                : 'bg-slate-900 text-white border-slate-700'
+            }`}
+          >
+            {headerToast.type === 'error' || headerToast.type === 'warning' ? (
+              <AlertCircle size={16} className="text-amber-400 shrink-0" />
+            ) : (
+              <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+            )}
+            <span>{headerToast.message}</span>
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 pt-3.5 pb-2.5 flex items-center justify-between gap-4">
 
           {/* Brand Logo (White highlight) */}

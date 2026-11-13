@@ -1,18 +1,55 @@
+# Loại trừ thư mục Git và cache tạm (thủ phạm làm phình to 250MB+)
+.git
+.git/**
+.temp
+.temp/**
+specs
+specs/**
+bot-simulator
+bot-simulator/**
+
+# Loại trừ các project khác trong monorepo
 backend/
+backend/**
 frontend/
+frontend/**
 docs/
+docs/**
 phuc/
+phuc/**
+mobile/phuc/
+mobile/phuc/**
 gitops/
+gitops/**
 infra/
+infra/**
 .agents/
+.agents/**
 .reports/
+.reports/**
 .playwright-mcp/
+.playwright-mcp/**
+
+# Loại trừ dependencies và build artifacts của mobile
 mobile/node_modules/
+mobile/node_modules/**
 mobile/.expo/
+mobile/.expo/**
 mobile/dist/
+mobile/dist/**
 mobile/build/
+mobile/build/**
 mobile/.dart_tool/
+mobile/.dart_tool/**
 mobile/linux/
+mobile/linux/**
 mobile/macos/
+mobile/macos/**
 mobile/windows/
-mobile/android/.gradle/
+mobile/windows/**
+mobile/android/
+mobile/android/**
+
+# Giữ lại các file credentials quan trọng của mobile
+!mobile/google-services.json
+!mobile/credentials.json

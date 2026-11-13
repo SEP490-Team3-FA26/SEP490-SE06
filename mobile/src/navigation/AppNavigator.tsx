@@ -27,6 +27,7 @@ import { CustomerWishlistScreen } from '../screens/customer/CustomerWishlistScre
 import { MedicineReminderScreen } from '../screens/customer/MedicineReminderScreen';
 import { ProductReviewScreen } from '../screens/customer/ProductReviewScreen';
 import { MedicineDetailScreen } from '../screens/customer/MedicineDetailScreen';
+import { ProductCatalogScreen } from '../screens/customer/ProductCatalogScreen';
 import { PointsHistoryScreen } from '../screens/customer/PointsHistoryScreen';
 import { OrderConfirmation } from '../screens/OrderConfirmation';
 
@@ -85,7 +86,8 @@ export default function AppNavigator() {
 
   const [showSplash, setShowSplash] = React.useState(!reviewScreen);
 
-  if (showSplash) {
+  // Giữ màn hình Splash / Loading cho đến khi kiểm tra phiên đăng nhập Auth hoàn tất
+  if (showSplash || (!reviewScreen && auth.isLoading)) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
@@ -133,6 +135,7 @@ export default function AppNavigator() {
           <Stack.Screen name="SplashScreen" component={SplashScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
           <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
+          <Stack.Screen name="ProductCatalogScreen" component={ProductCatalogScreen} />
           <Stack.Screen name="PointsHistoryScreen" component={PointsHistoryScreen} />
           <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
         </Stack.Group>
@@ -147,6 +150,7 @@ export default function AppNavigator() {
           <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
           <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
           <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
+          <Stack.Screen name="ProductCatalogScreen" component={ProductCatalogScreen} />
           <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
         </Stack.Group>
@@ -178,14 +182,15 @@ export default function AppNavigator() {
               <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
               <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
               <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
-              <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
+              <Stack.Screen name="ProductCatalogScreen" component={ProductCatalogScreen} />
               <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
               <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
               <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
             </>
           )}
 
-          {/* Shared Sub-screens for Authenticated Users */}
+          {/* Màn hình dùng chung cho tất cả vai trò đã đăng nhập (Dược sĩ, Quản lý, Khách hàng) */}
+          <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
           <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />

@@ -38,6 +38,7 @@ export interface MedicineListItemDto {
   expiry: string;
   unit: string;
   image?: string;
+  images?: string[];
   active_ingredient: string;
   supplierId: string;
   priceTiers: any[];
@@ -268,6 +269,11 @@ export class MedicineMapper {
       expiry: earliestExpiryStr,
       unit: med.unit || dbMed?.unit || 'Hộp',
       image: med.image || dbMed?.image,
+      images: Array.isArray(med.images) && med.images.length > 0
+        ? med.images
+        : (Array.isArray(dbMed?.images) && dbMed.images.length > 0
+          ? dbMed.images
+          : (med.image || dbMed?.image ? [med.image || dbMed?.image] : [])),
       active_ingredient: med.active_ingredient || dbMed?.active_ingredient || '',
       supplierId: med.supplierId || dbMed?.supplierId || '',
       priceTiers: med.priceTiers || dbMed?.priceTiers || [],

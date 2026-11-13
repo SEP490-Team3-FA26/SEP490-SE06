@@ -50,6 +50,7 @@ describe('EnvService - Cấu hình Môi trường & Chặn URL Railway/Cũ', () 
     delete process.env.API_URL;
     delete process.env.EXPO_PUBLIC_AI_URL;
     delete process.env.AI_URL;
+    delete process.env.EXPO_PUBLIC_ALLOW_LOCALHOST_USB;
     (globalThis as any).__DEV__ = true;
     mockPlatform.OS = 'android';
     mockPlatform.constants = {};
@@ -183,6 +184,16 @@ describe('EnvService - Cấu hình Môi trường & Chặn URL Railway/Cũ', () 
 
       const aiUrl = EnvService.getAiBaseUrl();
       expect(aiUrl).toBe('https://abcpharmacy.store');
+    });
+
+    it('3.6. Cho phép localhost trong Release build khi bật cờ EXPO_PUBLIC_ALLOW_LOCALHOST_USB=true (test qua adb reverse)', () => {
+      (globalThis as any).__DEV__ = false;
+      process.env.EXPO_PUBLIC_API_URL = 'http://localhost:4000';
+      process.env.EXPO_PUBLIC_AI_URL = 'http://localhost:8000';
+      process.env.EXPO_PUBLIC_ALLOW_LOCALHOST_USB = 'true';
+
+      expect(EnvService.getApiBaseUrl()).toBe('http://localhost:4000');
+      expect(EnvService.getAiBaseUrl()).toBe('http://localhost:8000');
     });
   });
 });

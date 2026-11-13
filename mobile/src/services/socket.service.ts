@@ -3,7 +3,6 @@
 import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { ApiService } from './api.service';
-import { FireEmergencyNotifeeService } from './fireEmergencyNotifee.service';
 
 export type SocketNotificationHandler = (notification: any) => void;
 
@@ -27,11 +26,8 @@ class SocketServiceClass {
     this.appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'active') {
         if (this.currentToken && (!this.socket || !this.isConnected)) {
-          console.log('📱 App quay lại Foreground: Tái kết nối Socket.IO...');
           this.initSocket(this.currentToken);
         }
-      } else if (nextState === 'background') {
-        console.log('📱 App vào Background: Giữ socket ở trạng thái chờ tiết kiệm pin');
       }
     });
   }
@@ -51,7 +47,6 @@ class SocketServiceClass {
     }
 
     const baseUrl = ApiService.baseUrl;
-    console.log(`🔌 Initializing Socket.IO connection to ${baseUrl} ...`);
 
     try {
       this.socket = io(baseUrl, {
@@ -78,17 +73,14 @@ class SocketServiceClass {
     this.socket.on('connect', () => {
       this.isConnected = true;
       this.hasLoggedSocketError = false;
-      console.log('✅ Socket connected successfully to gateway');
     });
 
-    this.socket.on('disconnect', (reason) => {
+    this.socket.on('disconnect', () => {
       this.isConnected = false;
-      console.log(`❌ Socket disconnected from gateway (${reason})`);
     });
 
-    this.socket.on('connect_error', (_err) => {
+    this.socket.on('connect_error', () => {
       if (!this.hasLoggedSocketError) {
-        console.log('ℹ️ Socket gateway offline/unreachable from mobile client. Realtime fallback enabled.');
         this.hasLoggedSocketError = true;
       }
     });
@@ -102,32 +94,10 @@ class SocketServiceClass {
     this.socket.on('grn_completed_notification', (data) => this.handleIncomingNotification('GRN_COMPLETED', data));
     this.socket.on('order:paid', (data) => this.handleIncomingNotification('ORDER_PAID', data));
     this.socket.on('notification', (data) => this.handleIncomingNotification('GENERAL', data));
-
-    // Cảnh báo cảm biến IoT và Báo cháy kho tổng
-    this.socket.on('sensor:telemetry', (data) => this.handleIncomingNotification('SENSOR_TELEMETRY', data));
-    this.socket.on('sensor:alert', (data) => {
-      this.handleIncomingNotification('SENSOR_ALERT', data);
-      FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-        title: data?.title || 'CẢNH BÁO QUÁ NHIỆT KHO GSP',
-        body: data?.body || `Nhiệt độ cảm biến: ${data?.temp || 'N/A'}°C`,
-        deviceId: data?.deviceId || 'ESP32',
-        temp: String(data?.temp || ''),
-      });
-    });
-    this.socket.on('fire:emergency', (data) => {
-      this.handleIncomingNotification('FIRE_EMERGENCY', data);
-      FireEmergencyNotifeeService.triggerFireEmergencyAlarm({
-        title: data?.title || 'BÁO ĐỘNG HỎA HOẠN KHO TỔNG',
-        body: data?.body || 'KÍCH HOẠT CHUÔNG BÁO ĐỘNG HỎA HOẠN KHẨN CẤP!',
-        deviceId: data?.deviceId || 'ESP32',
-        temp: String(data?.temp || '65.0'),
-        isTest: data?.isTest ?? false,
-      });
-    });
+    this.socket.on('sensor:alert', (data) => this.handleIncomingNotification('SENSOR_ALERT', data));
   }
 
   private handleIncomingNotification(type: string, data: any): void {
-    console.log(`🔔 Received event [${type}] from Socket:`, data);
     let notification: any = {};
     if (typeof data === 'object' && data !== null) {
       notification = { ...data, type, timestamp: data.timestamp || data.createdAt || new Date().toISOString() };
@@ -153,7 +123,6 @@ class SocketServiceClass {
 
   public disconnect(): void {
     if (this.socket) {
-      console.log('🔌 Disconnecting socket and cleaning all listeners...');
       this.socket.disconnect();
       this.socket.removeAllListeners();
       this.socket = null;

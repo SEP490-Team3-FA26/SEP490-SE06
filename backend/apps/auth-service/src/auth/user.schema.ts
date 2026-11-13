@@ -189,6 +189,23 @@ export class User extends Document {
     isEmailValid: boolean;
     unsubscribedAt?: Date;
   };
+
+  // ===================================================================
+  // ĐIỀU KHOẢN & QUY ĐỊNH BẢO MẬT — Bằng chứng kiểm toán (Audit Consent)
+  // Mặc định false và null để tài khoản cũ thiếu trường giữ nguyên trạng thái chưa xác nhận
+  // ===================================================================
+
+  /** Cờ xác nhận người dùng đã đọc và đồng ý với Quy định bảo mật thông tin khi đăng ký (mặc định false) */
+  @Prop({ default: false })
+  privacyAgreed?: boolean;
+
+  /** Phiên bản quy định bảo mật mà người dùng đã chấp thuận (VD: 'v1.0') */
+  @Prop({ default: null })
+  privacyPolicyVersion?: string;
+
+  /** Thời điểm chính xác người dùng xác nhận chấp thuận quy định bảo mật từ máy chủ */
+  @Prop({ default: null })
+  privacyAgreedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

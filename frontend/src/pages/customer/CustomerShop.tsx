@@ -139,6 +139,13 @@ export function CustomerShop() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [limit] = useState(16); // 4x4 layout
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Hiển thị toast thông báo nội bộ
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const categories = [
     "Thuốc kháng sinh",
@@ -308,7 +315,7 @@ export function CustomerShop() {
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
       setTimeout(() => setAddedItems((prev) => ({ ...prev, [medId]: false })), 1500);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ");
+      showToast(err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ");
     }
   };
 
@@ -407,7 +414,14 @@ export function CustomerShop() {
   }, [medicines, sortBy]);
 
   return (
-    <div className="flex flex-col gap-5 flex-1">
+    <div className="flex flex-col gap-5 flex-1 relative">
+      {/* Toast thông báo nội bộ */}
+      {toastMessage && (
+        <div className="fixed top-20 right-6 z-[120] bg-rose-950 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border border-rose-800 flex items-center gap-2 animate-in slide-in-from-top-3">
+          <AlertCircle size={16} className="text-amber-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 1. BREADCRUMB NAVIGATION (LONG CHÂU STANDARD) */}

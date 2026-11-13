@@ -33,6 +33,7 @@ import { RfqPortalController } from "./controllers/rfq-portal.controller";
 import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
 import { RecommendationController } from "./controllers/recommendation.controller";
 import { EmailNewsletterController } from "./controllers/email-newsletter.controller";
+import { ImageProxyController } from "./controllers/image-proxy.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
 import { FeedbackController } from "./controllers/feedback.controller";
@@ -216,6 +217,7 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     RecommendationController,
     EmailNewsletterController,
     SensorController,
+    ImageProxyController,
   ],
   providers: [
     JwtAuthGuard,

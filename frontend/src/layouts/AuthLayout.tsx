@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Logo } from "../components/ui/Logo";
 
 export function AuthLayout() {
   const [mousePos, setMousePos] = useState({ x: -1000, y: -1000 });
+  const location = useLocation();
+  const isRegisterPage = location.pathname.includes("/register");
 
   const handleMouseMove = (e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
@@ -40,12 +42,12 @@ export function AuthLayout() {
       <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/10 rounded-full blur-[80px] pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-purple-400/10 rounded-full blur-[80px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md flex flex-col items-center relative z-10">
+      <div className={`w-full ${isRegisterPage ? "max-w-xl sm:max-w-2xl" : "max-w-md"} flex flex-col items-center relative z-10 transition-all duration-300`}>
         <div className="mb-6 bg-white/80 p-5 rounded-3xl shadow-sm border border-white backdrop-blur-md">
           <Logo layout="vertical" size="xl" textClassName="text-2xl sm:text-3xl" />
         </div>
 
-        <div className="w-full bg-white/90 backdrop-blur-xl shadow-2xl shadow-blue-900/5 rounded-[2rem] border border-white/80 p-6 sm:p-10 relative">
+        <div className={`w-full bg-white/95 backdrop-blur-xl shadow-2xl shadow-blue-900/5 rounded-[2rem] border border-white/80 ${isRegisterPage ? "p-6 sm:p-10" : "p-6 sm:p-10"} relative`}>
           <Outlet />
         </div>
       </div>

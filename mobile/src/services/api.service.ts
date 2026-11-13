@@ -80,6 +80,42 @@ export class ApiService {
     return EnvService.getAiBaseUrl();
   }
 
+  private static clientSessionId: string = '';
+
+  public static async getClientSessionId(): Promise<string> {
+    if (this.clientSessionId) return this.clientSessionId;
+    try {
+      const saved = await AsyncStorage.getItem('client_session_id');
+      if (saved) {
+        this.clientSessionId = saved;
+        return saved;
+      }
+    } catch (_) {}
+    const newId = 'mob_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
+    this.clientSessionId = newId;
+    AsyncStorage.setItem('client_session_id', newId).catch(() => {});
+    return newId;
+  }
+
+  public static async acceptAiConsultantTerms(version = 'v1.0-OTC'): Promise<boolean> {
+    try {
+      const sessionId = await this.getClientSessionId();
+      const headers = { ...this.authHeaders, 'x-client-session-id': sessionId };
+      const res = await fetch(`${this.baseUrl}/api/prescriptions/ai-terms/accept`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          version,
+          session_id: sessionId,
+          acceptedAt: new Date().toISOString(),
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   private static get authHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -88,6 +124,9 @@ export class ApiService {
     if (this.currentToken) {
       headers['Authorization'] = `Bearer ${this.currentToken}`;
     }
+    if (this.clientSessionId) {
+      headers['x-client-session-id'] = this.clientSessionId;
+    }
     return headers;
   }
 
@@ -95,10 +134,29 @@ export class ApiService {
 
   public static mapMedicine(m: any): Medicine {
     const activeIng = m.active_ingredient || m.active || 'N/A';
-    const classification = m.drug_classification || '';
+    const classification = String(m.drug_classification || m.classification || m.drugClassification || '').toUpperCase();
+    const isNonPrescription =
+      classification.includes('NON_PRESCRIPTION') ||
+      classification.includes('COMMON_SUPPLEMENT') ||
+      classification.includes('OTC');
+    const isPrescriptionClass =
+      classification.includes('PRESCRIPTION') && !isNonPrescription;
+    const isPrescriptionStatus =
+      m.prescription_status === 1 ||
+      m.prescription_status === '1' ||
+      m.prescription_status === true ||
+      m.prescriptionStatus === 1 ||
+      m.prescriptionStatus === '1' ||
+      m.prescriptionStatus === true;
+    const isPrescriptionCategory =
+      String(m.category || '').toLowerCase().includes('kê đơn') &&
+      !String(m.category || '').toLowerCase().includes('không kê đơn');
+
     const isRx =
-      String(classification).toUpperCase().includes('PRESCRIPTION') ||
-      m.isRx === true;
+      m.isRx === true ||
+      isPrescriptionClass ||
+      isPrescriptionStatus ||
+      isPrescriptionCategory;
 
     let batchesList: any[] = [];
     if (Array.isArray(m.batches)) {
@@ -200,7 +258,6 @@ export class ApiService {
       } catch (firstErr) {
         const altUrl = EnvService.getAlternateApiUrl();
         if (altUrl && altUrl !== this.baseUrl) {
-          console.log(`📡 [ApiService] Connection failed to ${this.baseUrl}, retrying with ${altUrl}...`);
           res = await fetch(`${altUrl}/api/auth/login`, {
             method: 'POST',
             headers: this.authHeaders,
@@ -232,20 +289,54 @@ export class ApiService {
   }
 
   public static async register(data: {
-    name: string;
+    name?: string;
+    fullName?: string;
     email: string;
-    phone: string;
+    phone?: string;
     password: string;
     role?: string;
     gender?: string;
+    agreePrivacy?: boolean;
+    privacyPolicyVersion?: string;
+    privacyAgreedAt?: string;
   }): Promise<any> {
     try {
+      // Chuẩn hóa payload theo RegisterDto của API Gateway: bắt buộc fullName
+      const payload: any = {
+        fullName: (data.fullName || data.name || '').trim(),
+        email: (data.email || '').trim().toLowerCase(),
+        password: data.password,
+        role: data.role || 'user',
+        agreePrivacy: data.agreePrivacy ?? true,
+        privacyPolicyVersion: data.privacyPolicyVersion || 'v1.0',
+        privacyAgreedAt: data.privacyAgreedAt || new Date().toISOString(),
+      };
+      if (data.phone && data.phone.trim()) {
+        payload.phone = data.phone.trim();
+      }
+
       const res = await fetch(`${this.baseUrl}/api/auth/register`, {
         method: 'POST',
         headers: this.authHeaders,
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
-      return await res.json();
+
+      const json = await res.json();
+      if (res.ok) {
+        const token = json?.accessToken || json?.access_token || json?.token;
+        if (token) {
+          this.setToken(token);
+        }
+        return {
+          success: true,
+          ...json,
+        };
+      }
+
+      const errorMsg = Array.isArray(json?.message)
+        ? json.message.join(', ')
+        : (json?.message || 'Lỗi đăng ký tài khoản');
+      throw new Error(errorMsg);
     } catch (e: any) {
       throw new Error(e?.message || 'Lỗi đăng ký tài khoản');
     }
@@ -568,7 +659,6 @@ export class ApiService {
         const json = await res.json();
         const dataList = json.data || json.medicines || (Array.isArray(json) ? json : null);
         if (Array.isArray(dataList) && dataList.length > 0) {
-          console.log(`✅ [getMedicines] Đã nhận ${dataList.length} thuốc từ Database/Server!`);
           return dataList.map((m: any) => ApiService.mapMedicine(m));
         }
       } else {
@@ -581,6 +671,189 @@ export class ApiService {
     return [];
   }
 
+  /**
+   * Truy vấn danh mục thuốc phân trang 50 sản phẩm / lần cho Mobile (Database Pagination & Infinite Scroll)
+   * Sử dụng endpoint chuẩn /api/medicines với page, limit (50 sản phẩm) tải mượt mà từ MongoDB
+   * Hỗ trợ tìm kiếm, lọc theo danh mục, tính toán hasMore và total chính xác từ Database
+   */
+  public static async getMedicinesInfiniteScroll(params?: {
+    cursor?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    branchId?: string;
+    since?: string;
+    otcOnly?: boolean;
+  }): Promise<{
+    data: Medicine[];
+    items: Medicine[];
+    nextCursor: string | null;
+    hasMore: boolean;
+    page: number;
+    limit: number;
+    total: number;
+  }> {
+    const page = Math.max(Number(params?.page) || 1, 1);
+    const limit = Math.max(Number(params?.limit) || 50, 1);
+    const search = params?.search ? params.search.trim() : '';
+    const category = params?.category ? params.category.trim() : '';
+    const branchId = params?.branchId || '';
+
+    const searchParams = new URLSearchParams();
+    searchParams.append('page', String(page));
+    searchParams.append('limit', String(limit));
+    if (params?.cursor) searchParams.append('cursor', params.cursor);
+    if (params?.since) searchParams.append('since', params.since);
+    if (search) searchParams.append('search', search);
+    if (category) searchParams.append('category', category);
+    if (branchId) searchParams.append('branchId', branchId);
+    if (params?.otcOnly !== undefined) searchParams.append('otcOnly', String(params.otcOnly));
+
+    const url = `${this.baseUrl}/api/medicines/infinite-scroll?${searchParams.toString()}`;
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000); // 12 giây timeout bảo đảm kết nối MongoDB
+      const res = await fetch(url, {
+        headers: this.authHeaders,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (res.ok) {
+        const json = await res.json();
+        const rawItems = json.data || json.items || json.medicines || (Array.isArray(json) ? json : []);
+        const mappedItems = Array.isArray(rawItems) ? rawItems.map((m: any) => ApiService.mapMedicine(m)) : [];
+        const total = typeof json.total === 'number' ? json.total : (json.pagination?.total || mappedItems.length);
+        const hasMore = typeof json.hasMore === 'boolean'
+          ? json.hasMore
+          : (typeof json.totalPages === 'number' ? page < json.totalPages : (page < Math.ceil(total / limit) && mappedItems.length > 0));
+        const nextCursor = json.nextCursor !== undefined
+          ? json.nextCursor
+          : (hasMore && mappedItems.length > 0 ? (mappedItems[mappedItems.length - 1].id || (mappedItems[mappedItems.length - 1] as any)._id) : null);
+
+        return {
+          data: mappedItems,
+          items: mappedItems,
+          nextCursor,
+          hasMore,
+          page,
+          limit,
+          total,
+        };
+      }
+    } catch (e: any) {
+      // Bắt lỗi nhẹ nhàng, không spam log lên console
+    }
+
+    return {
+      data: [],
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      page,
+      limit,
+      total: 0,
+    };
+  }
+
+  /**
+   * Đồng bộ danh mục thuốc siêu nhẹ cho Mobile POS / Barcode Scanner (Hỗ trợ 2000+ sản phẩm)
+   * Sử dụng cơ chế Delta Sync (since timestamp) hoặc Full Sync
+   * Vòng lặp nạp toàn bộ danh mục thông qua Keyset/Page Pagination
+   */
+  public static async syncMedicineCatalog(
+    since?: string,
+    branchId?: string,
+    limit = 100
+  ): Promise<{
+    items: Medicine[];
+    total: number;
+    serverTime: string;
+    isFullSync: boolean;
+  }> {
+    const allItems: Medicine[] = [];
+    let cursor: string | undefined = undefined;
+    let page = 1;
+    let hasMore = true;
+    let total = 0;
+    const safeBatchLimit = Math.min(Math.max(limit, 1), 100);
+
+    // Vòng lặp tải toàn bộ sản phẩm qua phân trang Keyset / Page cho tới khi nạp đủ 2000+ sản phẩm
+    while (hasMore) {
+      const res = await ApiService.getMedicinesInfiniteScroll({
+        since,
+        branchId,
+        cursor,
+        page,
+        limit: safeBatchLimit,
+      });
+
+      if (!res.data || res.data.length === 0) {
+        break;
+      }
+
+      allItems.push(...res.data);
+      total = res.total || allItems.length;
+
+      if (!res.hasMore || (res.nextCursor && res.nextCursor === cursor)) {
+        break;
+      }
+
+      cursor = res.nextCursor || undefined;
+      page += 1;
+
+      // Bảo vệ an toàn chống lặp vô tận (giới hạn tối đa 50 trang = 5.000 sản phẩm)
+      if (page > 50) {
+        break;
+      }
+    }
+
+    return {
+      items: allItems,
+      total: total || allItems.length,
+      serverTime: new Date().toISOString(),
+      isFullSync: !since,
+    };
+  }
+
+  /**
+   * Lấy thống kê kho hàng chính xác từ Database (tổng loại thuốc, tổng tồn kho, sắp hết hạn)
+   */
+  public static async getInventoryStats(branchId?: string): Promise<{
+    totalMedicines: number;
+    totalStock: number;
+    lowStockCount: number;
+    expiringCount: number;
+    totalCategories: number;
+  }> {
+    const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
+    const url = `${this.baseUrl}/api/medicines/stats${query}`;
+    try {
+      const res = await fetch(url, { headers: this.authHeaders });
+      if (res.ok) {
+        const json = await res.json();
+        return {
+          totalMedicines: Number(json.totalMedicines) || 0,
+          totalStock: Number(json.totalStock) || 0,
+          lowStockCount: Number(json.lowStockCount) || 0,
+          expiringCount: Number(json.expiringCount) || 0,
+          totalCategories: Number(json.totalCategories) || 0,
+        };
+      }
+    } catch (e: any) {
+      console.warn(`⚠️ [getInventoryStats] Lỗi lấy thống kê kho: ${e?.message || e}`);
+    }
+
+    return {
+      totalMedicines: 0,
+      totalStock: 0,
+      lowStockCount: 0,
+      expiringCount: 0,
+      totalCategories: 0,
+    };
+  }
 
   public static async getMedicineById(id: string): Promise<Medicine | null> {
     try {
@@ -619,7 +892,6 @@ export class ApiService {
         } catch (firstErr) {
           const altUrl = EnvService.getAlternateApiUrl();
           if (altUrl && altUrl !== this.baseUrl) {
-            console.log(`📡 [getByBarcode] Retry với alternate URL: ${altUrl}...`);
             res = await fetch(`${altUrl}/api/medicines/barcode/${encodeURIComponent(code)}${branchQuery}`, {
               headers: this.authHeaders,
             });
@@ -631,7 +903,6 @@ export class ApiService {
         if (res.ok) {
           const data = await res.json();
           if (data && data.found) {
-            console.log(`🎯 [getByBarcode] Quét mã "${code}" thành công -> Thuốc: ${data.medicine?.name} | Quy cách: ${data.matchedUnit?.unitName || 'Đơn vị cơ sở'}`);
             return {
               success: true,
               found: true,
@@ -1709,56 +1980,46 @@ export class ApiService {
   }
 
   public static async consultSymptomsAI(symptoms: string): Promise<any> {
+    const sessionId = await this.getClientSessionId();
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
+      'x-client-session-id': sessionId,
     };
     if (this.currentToken) headers['Authorization'] = `Bearer ${this.currentToken}`;
 
-    // 1. Thử gọi qua API Gateway: POST /api/prescriptions/symptom-consult
-    try {
-      const res = await fetch(`${this.baseUrl}/api/prescriptions/symptom-consult`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ symptoms }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.prescription) {
-          return {
-            diagnosis: data.prescription.diagnosis || '',
-            advice: data.prescription.advice || '',
-            recommended_drugs: data.prescription.recommended_drugs || [],
-            ...data.prescription,
-          };
-        }
-        return data;
-      }
-    } catch (_) {}
+    // Gọi duy nhất qua API Gateway: POST /api/prescriptions/symptom-consult
+    // Dừng gửi khi Gateway từ chối (403), tuyệt đối không tự gọi accept hay bypass trực tiếp sang AI Service
+    const res = await fetch(`${this.baseUrl}/api/prescriptions/symptom-consult`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ symptoms, session_id: sessionId, terms_confirmed: true }),
+    });
 
-    // 2. Dự phòng gọi trực tiếp sang AI Service: POST /api/ai/symptom-consult
-    try {
-      const res = await fetch(`${this.aiBaseUrl}/api/ai/symptom-consult`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ symptoms }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.prescription) {
-          return {
-            diagnosis: data.prescription.diagnosis || '',
-            advice: data.prescription.advice || '',
-            recommended_drugs: data.prescription.recommended_drugs || [],
-            ...data.prescription,
-          };
-        }
-        return data;
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.prescription) {
+        return {
+          diagnosis: data.prescription.diagnosis || '',
+          advice: data.prescription.advice || '',
+          recommended_drugs: data.prescription.recommended_drugs || [],
+          ...data.prescription,
+        };
       }
-    } catch (e) {
-      console.warn('Failed to consult symptoms AI:', e);
+      return data;
     }
-    return null;
+
+    const errData = await res.json().catch(() => ({}));
+    const errorMessage =
+      errData?.message ||
+      (res.status === 403
+        ? 'Bạn chưa xác nhận Nội quy Trợ lý Dược sĩ AI (v1.0-OTC). Vui lòng đồng ý điều khoản trước khi gửi yêu cầu.'
+        : `Lỗi máy chủ (${res.status})`);
+
+    const error: any = new Error(errorMessage);
+    error.status = res.status;
+    error.data = errData;
+    throw error;
   }
 
   public static async getTextPrescription(text: string): Promise<any> {

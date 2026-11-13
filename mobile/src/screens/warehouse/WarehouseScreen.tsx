@@ -79,6 +79,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   // --- Inventory State ---
   const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [inventoryStats, setInventoryStats] = useState<{ totalMedicines: number; totalStock: number }>({ totalMedicines: 0, totalStock: 0 });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedMedId, setExpandedMedId] = useState<string | null>(null);
 
@@ -204,14 +205,22 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, mapRes, lowStock, transferList, grnList, checksList] = await Promise.all([
+      const [medList, mapRes, lowStock, transferList, grnList, checksList, statsRes] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getWarehouseMap(),
         ApiService.getLowStockReport(),
         ApiService.getStockTransfers(),
         ApiService.getGoodsReceipts(),
         ApiService.getInventoryChecks(),
+        ApiService.getInventoryStats('CENTRAL_WH'),
       ]);
+
+      if (statsRes && statsRes.totalMedicines > 0) {
+        setInventoryStats({
+          totalMedicines: statsRes.totalMedicines,
+          totalStock: statsRes.totalStock,
+        });
+      }
 
       if (medList) {
         setMedicines(medList);
@@ -1240,13 +1249,15 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <View style={styles.kpiRow}>
               <GradientCard gradientVariant="ocean" style={styles.kpiCard}>
                 <Ionicons name="medical" size={20} color="#FFFFFF" />
-                <Text style={styles.kpiValue}>{medicines.length}</Text>
+                <Text style={styles.kpiValue}>
+                  {inventoryStats.totalMedicines > 0 ? inventoryStats.totalMedicines : medicines.length}
+                </Text>
                 <Text style={styles.kpiLabel}>Tổng loại thuốc</Text>
               </GradientCard>
               <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="layers" size={20} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
-                  {medicines.reduce((sum, m) => sum + m.stock, 0).toLocaleString('vi-VN')}
+                  {(inventoryStats.totalStock > 0 ? inventoryStats.totalStock : medicines.reduce((sum, m) => sum + m.stock, 0)).toLocaleString('vi-VN')}
                 </Text>
                 <Text style={styles.kpiLabel}>Tổng đơn vị tồn kho</Text>
               </GradientCard>
