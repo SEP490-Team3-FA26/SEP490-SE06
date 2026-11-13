@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { ClientKafka, RpcException } from "@nestjs/microservices";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model, ClientSession, isValidObjectId } from "mongoose";
+import { Model, ClientSession, isValidObjectId, Types } from "mongoose";
 import { PurchaseRequisition } from "./schemas/purchase-requisition.schema";
 import { PurchaseOrder } from "./schemas/purchase-order.schema";
 import { GoodsReceiptNote } from "./schemas/goods-receipt-note.schema";
