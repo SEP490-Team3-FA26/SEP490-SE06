@@ -38,10 +38,14 @@ class TapReporter {
     }
 
     // Chế độ Compact mặc định: In 1 dòng sạch đẹp cho mỗi Test Suite
-    if (failedTests.length === 0) {
+    const hasError = testResult.testExecError || failedTests.length > 0 || (testResult.numFailingTests && testResult.numFailingTests > 0);
+    if (!hasError) {
       console.log(`  ✔ [${suiteName}] (${totalTests} tests - ${duration.toFixed(0)}ms)`);
     } else {
-      console.log(`  ❌ [${suiteName}] FAILED (${failedTests.length}/${totalTests} tests fail):`);
+      console.log(`  ❌ [${suiteName}] FAILED (${failedTests.length || testResult.numFailingTests || 1}/${totalTests || 1} tests fail):`);
+      if (testResult.testExecError) {
+        console.log(`     - ❌ Lỗi thực thi Suite: ${testResult.testExecError.message?.split('\n')[0] || testResult.testExecError}`);
+      }
       failedTests.forEach(tc => {
         console.log(`     - ❌ ${tc.title}: ${tc.failureMessages?.[0]?.split('\n')[0] || ''}`);
       });
@@ -60,7 +64,12 @@ class TapReporter {
       return;
     }
 
-    console.log(`\n📊 [Backend Summary] ${results.numPassedTestSuites}/${results.numTotalTestSuites} Suites PASS | ${results.numPassedTests}/${results.numTotalTests} Tests PASS (100% OK)\n`);
+    const allPassed = results.numFailedTests === 0 && results.numFailedTestSuites === 0;
+    if (allPassed) {
+      console.log(`\n📊 [Backend Summary] ${results.numPassedTestSuites}/${results.numTotalTestSuites} Suites PASS | ${results.numPassedTests}/${results.numTotalTests} Tests PASS (100% OK)\n`);
+    } else {
+      console.log(`\n📊 [Backend Summary] ${results.numPassedTestSuites}/${results.numTotalTestSuites} Suites PASS | ${results.numPassedTests}/${results.numTotalTests} Tests PASS (❌ ${results.numFailedTests} Tests / ${results.numFailedTestSuites} Suites FAILED)\n`);
+    }
   }
 }
 
