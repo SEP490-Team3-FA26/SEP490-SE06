@@ -168,20 +168,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
     userEmail === 'director@vinapharmacy.com'
   );
 
-  // Tự động điều hướng nhân sự / Ban Giám Đốc về đúng màn hình nghiệp vụ, tuyệt đối không để Giám Đốc ở trang mua sắm bán lẻ
-  useEffect(() => {
-    if (isDirector) {
-      navigation.replace('DirectorScreen');
-    } else if (userRole === 'pharmacist' || userRolesList.includes('pharmacist')) {
-      navigation.replace('PharmacistScreen');
-    } else if (userRole === 'warehouse' || userRolesList.includes('warehouse')) {
-      navigation.replace('WarehouseScreen');
-    } else if (userRole === 'branch' || userRolesList.includes('branch')) {
-      navigation.replace('BranchScreen');
-    } else if (userRole === 'admin' || userRolesList.includes('admin')) {
-      navigation.replace('AdminScreen');
-    }
-  }, [isDirector, userRole, userRolesList, navigation]);
+  // Điều hướng phân quyền tự động được xử lý an toàn tại AppNavigator thông qua auth state key
 
   // Thông tin Loyalty / Điểm thưởng thành viên
   const [loyaltyInfo, setLoyaltyInfo] = useState<{

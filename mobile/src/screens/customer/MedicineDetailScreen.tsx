@@ -25,6 +25,7 @@ import { AnimatedPressable } from '../../components/clinical';
 import { showToast } from '../../components/ui/toastHelper';
 import { TypographyTokens } from '../../theme/tokens';
 import { MedicineSmartImage } from '../../components/medicine/MedicineSmartImage';
+import { useAuth } from '../../context/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GUEST_CART_KEY = '@abc_guest_cart';
@@ -59,6 +60,12 @@ export const MedicineDetailScreen: React.FC<{
 }> = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const { medicine: initialMed, medicineId } = route?.params || {};
+  const { user } = useAuth();
+  const rawRole = String(user?.role || '').toLowerCase().trim();
+  const userRolesList = Array.isArray((user as any)?.roles)
+    ? (user as any).roles.map((r: any) => String(r).toLowerCase().trim())
+    : [];
+  const isPharmacist = rawRole === 'pharmacist' || userRolesList.includes('pharmacist');
 
   const [medicine, setMedicine] = useState<Medicine | null>(initialMed || (medicineId ? null : DEFAULT_DEMO_MEDICINE));
   const [loading, setLoading] = useState<boolean>(Boolean(medicineId && !initialMed));
@@ -208,8 +215,8 @@ export const MedicineDetailScreen: React.FC<{
   const handleAddToCart = async (goToCart = false) => {
     if (!medicine) return;
     // Quy chuẩn Dược phẩm GPP & Thông tư 07/2017/TT-BYT:
-    // Tuyệt đối không cho phép khách hàng tự ý thêm thuốc kê đơn (Rx) vào giỏ hàng
-    if (medicine.isRx) {
+    // Tuyệt đối không cho phép khách hàng tự ý thêm thuốc kê đơn (Rx) vào giỏ hàng (ngoại trừ Dược sĩ kê đơn)
+    if (medicine.isRx && !isPharmacist) {
       showToast.info(
         'Thuốc kê đơn (Rx)',
         'Theo Thông tư 07/2017/TT-BYT, thuốc kê đơn cần có đơn thuốc của bác sĩ và phải được Dược sĩ tư vấn xác nhận trước khi mua.'
@@ -237,7 +244,11 @@ export const MedicineDetailScreen: React.FC<{
       setCartCount(total);
 
       if (goToCart) {
-        navigation.navigate('CustomerScreen', { initialTab: 'CART' });
+        if (isPharmacist) {
+          navigation.navigate('PharmacistScreen');
+        } else {
+          navigation.navigate('CustomerScreen', { initialTab: 'CART' });
+        }
       } else {
         showToast.success('Thành công', `Đã thêm ${quantity} ${selectedUnit} "${medicine.name}" vào giỏ hàng!`);
       }
@@ -313,7 +324,13 @@ export const MedicineDetailScreen: React.FC<{
           </AnimatedTouchable>
 
           <AnimatedTouchable
-            onPress={() => navigation.navigate('CustomerScreen', { initialTab: 'CART' })}
+            onPress={() => {
+              if (isPharmacist) {
+                navigation.navigate('PharmacistScreen');
+              } else {
+                navigation.navigate('CustomerScreen', { initialTab: 'CART' });
+              }
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.headerActionBtn}
           >
@@ -640,11 +657,17 @@ export const MedicineDetailScreen: React.FC<{
       {/* ─── Bottom Action Bar Cố Định (Fixed Footer CTA) ──────────────────── */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom || 12 }]}>
         <AnimatedTouchable
-          onPress={() => navigation.navigate('CustomerScreen', { initialTab: 'AI_CHAT' })}
+          onPress={() => {
+            if (isPharmacist) {
+              navigation.navigate('PharmacistScreen');
+            } else {
+              navigation.navigate('CustomerScreen', { initialTab: 'AI_CHAT' });
+            }
+          }}
           style={styles.bottomAiBtn}
         >
-          <Ionicons name="chatbubble-ellipses" size={20} color="#0284C7" />
-          <Text style={styles.bottomAiBtnText}>Tư vấn AI</Text>
+          <Ionicons name={isPharmacist ? 'storefront-outline' : 'chatbubble-ellipses'} size={20} color="#0284C7" />
+          <Text style={styles.bottomAiBtnText}>{isPharmacist ? 'Quầy POS' : 'Tư vấn AI'}</Text>
         </AnimatedTouchable>
 
         <AnimatedTouchable
@@ -652,14 +675,14 @@ export const MedicineDetailScreen: React.FC<{
           style={styles.bottomAddToCartBtn}
         >
           <Ionicons name="cart" size={17} color="#0284C7" style={{ marginRight: 4 }} />
-          <Text style={styles.bottomAddToCartText}>Thêm giỏ</Text>
+          <Text style={styles.bottomAddToCartText}>{isPharmacist ? 'Thêm đơn' : 'Thêm giỏ'}</Text>
         </AnimatedTouchable>
 
         <AnimatedTouchable
           onPress={() => handleAddToCart(true)}
           style={styles.bottomBuyNowBtn}
         >
-          <Text style={styles.bottomBuyNowText}>Mua ngay</Text>
+          <Text style={styles.bottomBuyNowText}>{isPharmacist ? 'Vào POS' : 'Mua ngay'}</Text>
         </AnimatedTouchable>
       </View>
     </View>
