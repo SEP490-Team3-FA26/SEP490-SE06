@@ -195,6 +195,24 @@ describe('MedicineService - getMedicinesInfiniteScroll (Bài toán cuộn 2000+ 
       const med2 = result.data.find((m) => m.id === '507f1f77bcf86cd799439012');
       expect(med2?.stock).toBe(35);
     });
+
+    it('N-04: countDocuments đếm chính xác theo bộ lọc tìm kiếm và otcOnly thay vì đếm toàn bộ bảng dữ liệu', async () => {
+      mockMedicineModel.countDocuments.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(1),
+      });
+
+      const response = await service.getMedicinesInfiniteScroll({ search: 'Panadol', otcOnly: true });
+      expect(response).toBeDefined();
+      expect(mockMedicineModel.countDocuments).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $or: expect.any(Array),
+          $and: expect.any(Array),
+        })
+      );
+      // Khẳng định con trỏ _id không nằm trong countFilter để đếm đúng tổng số
+      const countFilterArg = mockMedicineModel.countDocuments.mock.calls[0][0];
+      expect(countFilterArg._id).toBeUndefined();
+    });
   });
 
   // =========================================================================
@@ -255,6 +273,15 @@ describe('MedicineService - getMedicinesInfiniteScroll (Bài toán cuộn 2000+ 
       });
 
       await expect(service.getMedicinesInfiniteScroll()).rejects.toThrow(RpcException);
+    });
+
+    it('A-03: Phải xử lý an toàn và không làm sập service khi tham số search chứa các ký tự điều khiển regex đặc biệt ([, (, *, +, ?, ((a+)+)+$)', async () => {
+      const maliciousInputs = ['[', '(', '*', '+', '(?=.*)', '((a+)+)+$'];
+      for (const input of maliciousInputs) {
+        await expect(
+          service.getMedicinesInfiniteScroll({ search: input })
+        ).resolves.toBeDefined();
+      }
     });
   });
 });

@@ -45,14 +45,13 @@ export const MedicineSmartImage: React.FC<MedicineSmartImageProps> = React.memo(
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const loadStartRef = useRef<number>(Date.now());
 
-  // Đồng bộ lại URI khi props thay đổi và ghi nhật ký chẩn đoán hiệu suất
+  // Đồng bộ lại URI khi props thay đổi
   useEffect(() => {
     const optimized = MedicineImageService.getOptimizedThumbnailUri(uri, category, 320, ApiService.baseUrl);
     setCurrentUri(optimized);
     setHasError(false);
     setIsLoaded(false);
     loadStartRef.current = Date.now();
-    console.log(`🖼️ [Image Render] Đang nạp: "${name || 'Dược phẩm'}" | URI: ${optimized.substring(0, 75)}...`);
   }, [uri, category, name]);
 
   // Xử lý khi ảnh gốc hoặc proxy tải thất bại -> Tự động fallback sang URL gốc rồi đến ảnh chuyên khoa

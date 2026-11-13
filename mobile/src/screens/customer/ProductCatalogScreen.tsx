@@ -36,14 +36,14 @@ import { CatalogFilterService } from '../../services/catalogFilter.service';
 const GUEST_CART_KEY = '@abc_guest_cart';
 const PAGE_LIMIT = 50; // Phân trang 50 sản phẩm / lần tải chuẩn Database MongoDB theo yêu cầu
 
-// Danh sách danh mục thuốc phổ biến của chuỗi nhà thuốc ABC Pharmacy
+// Danh sách danh mục thuốc phổ biến của chuỗi nhà thuốc ABC Pharmacy (100% chuẩn OTC không kê đơn theo GPP)
 const CATALOG_CATEGORIES = [
   { id: 'ALL', name: 'Tất cả', keyword: '' },
   { id: 'PATCH', name: 'Cao dán - Miếng dán', keyword: 'dán', categoryValue: 'Miếng dán giảm đau' },
   { id: 'PAIN_RELIEF', name: 'Giảm đau - Hạ sốt', keyword: 'giảm đau', categoryValue: 'Giảm đau, hạ sốt' },
-  { id: 'ANTIBIOTIC', name: 'Kháng sinh', keyword: 'kháng sinh', categoryValue: 'Thuốc kháng sinh' },
   { id: 'DIGESTIVE', name: 'Tiêu hóa', keyword: 'tiêu hóa', categoryValue: 'Thuốc tiêu hóa' },
   { id: 'RESPIRATORY', name: 'Hô hấp', keyword: 'hô hấp', categoryValue: 'Thuốc hô hấp' },
+  { id: 'DERMA', name: 'Da liễu - Bôi ngoài', keyword: 'da', categoryValue: 'Thuốc da liễu' },
   { id: 'VITAMIN', name: 'Vitamin & Khoáng chất', keyword: 'vitamin', categoryValue: 'Vitamin & Khoáng chất' },
   { id: 'SUPPLEMENT', name: 'Thực phẩm chức năng', keyword: 'thực phẩm', categoryValue: 'Thực phẩm chức năng' },
   { id: 'MEDICAL_DEVICE', name: 'Thiết bị y tế', keyword: 'thiết bị', categoryValue: 'Vật tư y tế' },
@@ -143,6 +143,7 @@ export const ProductCatalogScreen: React.FC<{
         limit: PAGE_LIMIT,
         search: searchQuery.trim() ? searchQuery.trim() : (isAll ? '' : (catObj?.keyword || '')),
         category: searchQuery.trim() ? '' : categoryParam,
+        otcOnly: true, // GPP: Khách hàng chỉ tải các sản phẩm OTC không kê đơn
       });
 
       // Cơ chế tự động fallback nếu tìm theo categoryValue rỗng -> tìm lại theo từ khóa keyword
@@ -151,6 +152,7 @@ export const ProductCatalogScreen: React.FC<{
           page: targetPage,
           limit: PAGE_LIMIT,
           search: catObj.keyword,
+          otcOnly: true,
         });
       }
 

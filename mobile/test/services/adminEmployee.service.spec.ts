@@ -88,9 +88,12 @@ describe('AdminEmployeeService - Tầng Dịch Vụ Quản Trị Nhân Sự & RB
   // 3. [Abnormal Values] - Xử lý dữ liệu dị thường & Bảo mật
   // =========================================================================
   describe('3. [Abnormal Values] - Dữ liệu bất thường & Ngăn chặn leo quyền', () => {
-    it('A-01: Vai trò khách hàng, người dùng thường hoặc chuỗi rỗng không được cấp quyền Admin', () => {
+    it('A-01: Phải từ chối quyền admin đối với các email chứa tiền tố admin@ nhưng không phải tài khoản quản trị hệ thống', () => {
+      expect(AdminEmployeeService.isAdminUser(undefined, [], 'admin@gmail.com')).toBe(false);
+      expect(AdminEmployeeService.isAdminUser(undefined, [], 'admin@attacker.com')).toBe(false);
+      expect(AdminEmployeeService.isAdminUser(undefined, [], 'admin@khachhang.vn')).toBe(false);
+      expect(AdminEmployeeService.isAdminUser('user', ['user'], 'admin@test.com')).toBe(false);
       expect(AdminEmployeeService.isAdminUser('customer')).toBe(false);
-      expect(AdminEmployeeService.isAdminUser('user')).toBe(false);
       expect(AdminEmployeeService.isAdminUser('')).toBe(false);
       expect(AdminEmployeeService.isAdminUser(undefined)).toBe(false);
     });

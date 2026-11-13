@@ -3185,6 +3185,7 @@ export class MedicineService implements OnModuleInit {
     category?: string;
     branchId?: string;
     since?: string;
+    otcOnly?: boolean | string;
   }) {
     try {
       const page = Math.max(Number(query?.page) || 1, 1);
@@ -3194,6 +3195,7 @@ export class MedicineService implements OnModuleInit {
       const category = query?.category?.trim();
       const branchId = query?.branchId?.trim();
       const since = query?.since;
+      const otcOnly = Boolean(query?.otcOnly === true || query?.otcOnly === 'true');
 
       const filter: any = {};
 
@@ -3215,13 +3217,26 @@ export class MedicineService implements OnModuleInit {
         filter.category = category;
       }
 
-      // 4. Lọc tìm kiếm từ khóa
+      // 4. Lọc chỉ lấy thuốc không kê đơn OTC cho khách hàng (Tuân thủ GPP & Thông tư 07/2017/TT-BYT)
+      if (otcOnly) {
+        filter.$and = filter.$and || [];
+        filter.$and.push({
+          $or: [
+            { prescription_status: 0 },
+            { is_medicine: false },
+            { drug_classification: { $nin: ['PRESCRIPTION_DRUG', 'RX', 'SPECIAL_CONTROL'] } },
+          ],
+        });
+      }
+
+      // 5. Lọc tìm kiếm từ khóa an toàn (Escape Regex chống ReDoS & NoSQL Injection)
       if (search) {
+        const safeSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         filter.$or = [
-          { name: { $regex: search, $options: 'i' } },
-          { active_ingredient: { $regex: search, $options: 'i' } },
-          { sku: { $regex: search, $options: 'i' } },
-          { barcode: { $regex: search, $options: 'i' } },
+          { name: { $regex: safeSearch, $options: 'i' } },
+          { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+          { sku: { $regex: safeSearch, $options: 'i' } },
+          { barcode: { $regex: safeSearch, $options: 'i' } },
         ];
       }
 
@@ -3236,9 +3251,13 @@ export class MedicineService implements OnModuleInit {
         queryBuilder = queryBuilder.skip((page - 1) * limit);
       }
 
+      // Tạo bộ lọc đếm chính xác (bỏ điều kiện con trỏ _id để đếm toàn bộ số lượng khớp truy vấn)
+      const countFilter = { ...filter };
+      delete countFilter._id;
+
       const [medicines, total] = await Promise.all([
         queryBuilder.lean().exec(),
-        this.medicineModel.countDocuments(category && category !== 'ALL' ? { category } : {}).exec(),
+        this.medicineModel.countDocuments(countFilter).exec(),
       ]);
 
       // Tính toán tồn kho thực tế theo chi nhánh

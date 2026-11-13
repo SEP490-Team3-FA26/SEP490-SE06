@@ -275,6 +275,7 @@ export class MedicineController implements OnModuleInit {
   @ApiQuery({ name: "category", required: false, type: String, description: "Danh mục thuốc" })
   @ApiQuery({ name: "branchId", required: false, type: String, description: "ID chi nhánh hoặc CENTRAL_WH" })
   @ApiQuery({ name: "since", required: false, type: String, description: "Mốc thời gian delta sync (tùy chọn)" })
+  @ApiQuery({ name: "otcOnly", required: false, type: Boolean, description: "Chỉ lấy thuốc không kê đơn OTC cho khách hàng (GPP standard)" })
   async getMedicinesInfiniteScroll(
     @Query("cursor") cursor?: string,
     @Query("page") page = 1,
@@ -283,10 +284,11 @@ export class MedicineController implements OnModuleInit {
     @Query("category") category?: string,
     @Query("branchId") branchId?: string,
     @Query("since") since?: string,
+    @Query("otcOnly") otcOnly?: string,
   ) {
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const safePage = Math.max(Number(page) || 1, 1);
-    const cacheKey = `medicines:infinite-scroll:${branchId || "all"}:${cursor || "none"}:${safePage}:${safeLimit}:${search || ""}:${category || ""}`;
+    const cacheKey = `medicines:infinite-scroll:${branchId || "all"}:${cursor || "none"}:${safePage}:${safeLimit}:${search || ""}:${category || ""}:${otcOnly || "all"}`;
 
     // Cache-aside Redis cho trang đầu tiên nếu không tìm kiếm
     const isFirstPageDefault = safePage === 1 && !cursor && !search && !since;
@@ -300,7 +302,7 @@ export class MedicineController implements OnModuleInit {
     const result = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.infinite_scroll",
-      { cursor, page: safePage, limit: safeLimit, search, category, branchId, since },
+      { cursor, page: safePage, limit: safeLimit, search, category, branchId, since, otcOnly },
     );
 
     if (isFirstPageDefault && this.cacheManager && result) {

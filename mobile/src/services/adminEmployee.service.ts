@@ -34,7 +34,7 @@ export class AdminEmployeeService {
 
     if (email && typeof email === 'string') {
       const cleanEmail = email.toLowerCase().trim();
-      if (cleanEmail === 'admin@vinapharmacy.com' || cleanEmail.startsWith('admin@')) {
+      if (cleanEmail === 'admin@vinapharmacy.com') {
         return true;
       }
     }

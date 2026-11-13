@@ -684,6 +684,7 @@ export class ApiService {
     category?: string;
     branchId?: string;
     since?: string;
+    otcOnly?: boolean;
   }): Promise<{
     data: Medicine[];
     items: Medicine[];
@@ -707,6 +708,7 @@ export class ApiService {
     if (search) searchParams.append('search', search);
     if (category) searchParams.append('category', category);
     if (branchId) searchParams.append('branchId', branchId);
+    if (params?.otcOnly !== undefined) searchParams.append('otcOnly', String(params.otcOnly));
 
     const url = `${this.baseUrl}/api/medicines/infinite-scroll?${searchParams.toString()}`;
 
