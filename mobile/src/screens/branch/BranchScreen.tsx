@@ -1,5 +1,5 @@
 // BranchScreen.tsx - Branch Manager Dashboard for Local Revenue, Staff Shifts & Stock Requisitions
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -312,6 +312,11 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     return true;
   });
 
+  // Tính số lượng đơn nhận hàng chờ xử lý
+  const pendingTransfersCount = useMemo(() => {
+    return transfers.filter((t) => t.status !== 'COMPLETED' && t.status !== 'RECEIVED').length;
+  }, [transfers]);
+
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
@@ -332,49 +337,69 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         }}
       />
 
-      {/* Tabs */}
-      <View style={styles.tabBar}>
-        <AnimatedTouchable
-          onPress={() => setActiveTab('REVENUE')}
-          style={[styles.tabItem, activeTab === 'REVENUE' && styles.activeTabItem]}
+      {/* Tabs - Thanh điều hướng cuộn ngang chống tràn chữ/chồng lấn */}
+      <View style={styles.tabBarWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabBarScroll}
         >
-          <Ionicons
-            name="trending-up"
-            size={16}
-            color={activeTab === 'REVENUE' ? '#0284C7' : '#94A3B8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'REVENUE' && styles.activeTabText]}>
-            Doanh Thu
-          </Text>
-        </AnimatedTouchable>
+          <AnimatedTouchable
+            onPress={() => setActiveTab('REVENUE')}
+            style={[styles.tabItem, activeTab === 'REVENUE' && styles.activeTabItem]}
+          >
+            <Ionicons
+              name="trending-up"
+              size={15}
+              color={activeTab === 'REVENUE' ? '#0284C7' : '#64748B'}
+            />
+            <Text style={[styles.tabText, activeTab === 'REVENUE' && styles.activeTabText]}>
+              Doanh Thu
+            </Text>
+          </AnimatedTouchable>
 
-        <AnimatedTouchable
-          onPress={() => setActiveTab('ALERTS')}
-          style={[styles.tabItem, activeTab === 'ALERTS' && styles.activeTabItem]}
-        >
-          <Ionicons
-            name="warning"
-            size={16}
-            color={activeTab === 'ALERTS' ? '#0284C7' : '#94A3B8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'ALERTS' && styles.activeTabText]}>
-            Cảnh Báo ({lowStockItems.length})
-          </Text>
-        </AnimatedTouchable>
+          <AnimatedTouchable
+            onPress={() => setActiveTab('ALERTS')}
+            style={[styles.tabItem, activeTab === 'ALERTS' && styles.activeTabItem]}
+          >
+            <Ionicons
+              name="warning"
+              size={15}
+              color={activeTab === 'ALERTS' ? '#0284C7' : '#F59E0B'}
+            />
+            <Text style={[styles.tabText, activeTab === 'ALERTS' && styles.activeTabText]}>
+              Cảnh Báo
+            </Text>
+            {lowStockItems.length > 0 && (
+              <View style={[styles.tabBadge, activeTab === 'ALERTS' && styles.activeTabBadge]}>
+                <Text style={[styles.tabBadgeText, activeTab === 'ALERTS' && styles.activeTabBadgeText]}>
+                  {lowStockItems.length > 99 ? '99+' : lowStockItems.length}
+                </Text>
+              </View>
+            )}
+          </AnimatedTouchable>
 
-        <AnimatedTouchable
-          onPress={() => setActiveTab('RECEIVE_STOCK')}
-          style={[styles.tabItem, activeTab === 'RECEIVE_STOCK' && styles.activeTabItem]}
-        >
-          <Ionicons
-            name="qr-code"
-            size={16}
-            color={activeTab === 'RECEIVE_STOCK' ? '#0284C7' : '#94A3B8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'RECEIVE_STOCK' && styles.activeTabText]}>
-            Nhận Hàng QR ({transfers.filter((t) => t.status !== 'COMPLETED' && t.status !== 'RECEIVED').length})
-          </Text>
-        </AnimatedTouchable>
+          <AnimatedTouchable
+            onPress={() => setActiveTab('RECEIVE_STOCK')}
+            style={[styles.tabItem, activeTab === 'RECEIVE_STOCK' && styles.activeTabItem]}
+          >
+            <Ionicons
+              name="qr-code"
+              size={15}
+              color={activeTab === 'RECEIVE_STOCK' ? '#0284C7' : '#64748B'}
+            />
+            <Text style={[styles.tabText, activeTab === 'RECEIVE_STOCK' && styles.activeTabText]}>
+              Nhận Hàng QR
+            </Text>
+            {pendingTransfersCount > 0 && (
+              <View style={[styles.tabBadge, activeTab === 'RECEIVE_STOCK' && styles.activeTabBadge]}>
+                <Text style={[styles.tabBadgeText, activeTab === 'RECEIVE_STOCK' && styles.activeTabBadgeText]}>
+                  {pendingTransfersCount > 99 ? '99+' : pendingTransfersCount}
+                </Text>
+              </View>
+            )}
+          </AnimatedTouchable>
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -1112,34 +1137,61 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  tabBar: {
-    flexDirection: 'row',
+  tabBarWrapper: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
-  tabItem: {
-    flex: 1,
+  tabBarScroll: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
+  },
+  tabItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 6,
   },
   activeTabItem: {
     backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
-    marginLeft: 4,
+    color: '#64748B',
   },
   activeTabText: {
     color: '#0284C7',
     fontWeight: '800',
+  },
+  tabBadge: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeTabBadge: {
+    backgroundColor: '#0284C7',
+  },
+  tabBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  activeTabBadgeText: {
+    color: '#FFFFFF',
   },
   scrollContent: {
     padding: 16,

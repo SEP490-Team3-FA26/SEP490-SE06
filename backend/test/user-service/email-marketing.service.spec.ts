@@ -165,4 +165,9 @@ describe('EmailMarketingService - Audit P1 Configuration & Sandbox Guard Suite',
       );
     });
   });
+
+  afterAll(() => {
+    // Khôi phục biến môi trường ban đầu
+    process.env = originalEnv;
+  });
 });

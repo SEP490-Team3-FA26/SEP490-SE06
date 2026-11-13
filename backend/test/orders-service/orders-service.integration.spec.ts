@@ -10,13 +10,16 @@ describe('Order Management Integration Test with Test Container (Report 5: F02 &
   let orderModel: Model<Order>;
   let voucherModel: Model<Voucher>;
 
+  // Đặt thời gian chờ tối đa 30s để đảm bảo không bị quá tải timeout trên CI/CD
+  jest.setTimeout(30000);
+
   // Khởi động Test Container trước khi chạy toàn bộ test suite
   beforeAll(async () => {
     testEnv = await startTestContainer();
 
-    // Khởi tạo Models liên kết với Test Container connection
-    orderModel = mongoose.model<Order>(Order.name, OrderSchema);
-    voucherModel = mongoose.model<Voucher>(Voucher.name, VoucherSchema);
+    // Khởi tạo Models an toàn liên kết với Test Container connection (chống OverwriteModelError)
+    orderModel = (mongoose.models[Order.name] as Model<Order>) || mongoose.model<Order>(Order.name, OrderSchema);
+    voucherModel = (mongoose.models[Voucher.name] as Model<Voucher>) || mongoose.model<Voucher>(Voucher.name, VoucherSchema);
   }, 60000);
 
   // Dọn dẹp sạch dữ liệu giữa các test cases
@@ -28,6 +31,12 @@ describe('Order Management Integration Test with Test Container (Report 5: F02 &
 
   // Đóng và giải phóng Test Container sau khi hoàn thành
   afterAll(async () => {
+    try {
+      delete mongoose.models[Order.name];
+      delete mongoose.models[Voucher.name];
+    } catch (e) {
+      // Bỏ qua lỗi xóa model
+    }
     if (testEnv) {
       await testEnv.stop();
     }

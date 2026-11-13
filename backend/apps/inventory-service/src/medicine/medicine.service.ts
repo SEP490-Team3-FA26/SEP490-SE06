@@ -3172,5 +3172,175 @@ export class MedicineService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi chuyển ô / dồn kho');
     }
   }
+
+  /**
+   * Truy vấn danh mục thuốc cuộn vô tận cho Mobile (Infinite Scroll / Keyset Pagination)
+   * Xử lý bài toán 2000+ sản phẩm mượt mà, phân trang nhẹ nhàng (~20KB/page), không nghẽn RAM
+   */
+  async getMedicinesInfiniteScroll(query?: {
+    cursor?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    branchId?: string;
+    since?: string;
+    otcOnly?: boolean | string;
+  }) {
+    try {
+      const page = Math.max(Number(query?.page) || 1, 1);
+      const limit = Math.min(Math.max(Number(query?.limit) || 20, 1), 100);
+      const cursor = query?.cursor;
+      const search = query?.search?.trim();
+      const category = query?.category?.trim();
+      const branchId = query?.branchId?.trim();
+      const since = query?.since;
+      const otcOnly = Boolean(query?.otcOnly === true || query?.otcOnly === 'true');
+
+      const filter: any = {};
+
+      // 1. Phân trang theo con trỏ Cursor (Keyset Pagination O(1))
+      if (cursor && Types.ObjectId.isValid(cursor)) {
+        filter._id = { $lt: new Types.ObjectId(cursor) };
+      }
+
+      // 2. Lọc theo mốc thời gian cập nhật (hỗ trợ Delta Sync)
+      if (since) {
+        const sinceDate = new Date(since);
+        if (!isNaN(sinceDate.getTime())) {
+          filter.updatedAt = { $gt: sinceDate };
+        }
+      }
+
+      // 3. Lọc theo danh mục
+      if (category && category !== 'ALL') {
+        filter.category = category;
+      }
+
+      // 4. Lọc chỉ lấy thuốc không kê đơn OTC cho khách hàng (Tuân thủ GPP & Thông tư 07/2017/TT-BYT)
+      if (otcOnly) {
+        filter.$and = filter.$and || [];
+        filter.$and.push({
+          $or: [
+            { prescription_status: 0 },
+            { is_medicine: false },
+            { drug_classification: { $nin: ['PRESCRIPTION_DRUG', 'RX', 'SPECIAL_CONTROL'] } },
+          ],
+        });
+      }
+
+      // 5. Lọc tìm kiếm từ khóa an toàn (Escape Regex chống ReDoS & NoSQL Injection)
+      if (search) {
+        const safeSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.$or = [
+          { name: { $regex: safeSearch, $options: 'i' } },
+          { active_ingredient: { $regex: safeSearch, $options: 'i' } },
+          { sku: { $regex: safeSearch, $options: 'i' } },
+          { barcode: { $regex: safeSearch, $options: 'i' } },
+        ];
+      }
+
+      // Truy vấn MongoDB với Strict Projection loại bỏ trường nặng nề (giữ lại image & images cho hiển thị UI)
+      let queryBuilder = this.medicineModel
+        .find(filter)
+        .select('_id name barcode sku price stock category image images units drug_classification prescription_status is_medicine updatedAt')
+        .sort({ _id: -1 })
+        .limit(limit);
+
+      if (!cursor && page > 1) {
+        queryBuilder = queryBuilder.skip((page - 1) * limit);
+      }
+
+      // Tạo bộ lọc đếm chính xác (bỏ điều kiện con trỏ _id để đếm toàn bộ số lượng khớp truy vấn)
+      const countFilter = { ...filter };
+      delete countFilter._id;
+
+      const [medicines, total] = await Promise.all([
+        queryBuilder.lean().exec(),
+        this.medicineModel.countDocuments(countFilter).exec(),
+      ]);
+
+      // Tính toán tồn kho thực tế theo chi nhánh
+      let branchStockMap = new Map<string, number>();
+      if (branchId && branchId !== 'all' && medicines.length > 0) {
+        const medIds = medicines.map(m => m._id.toString());
+        const batchFilter: any = {
+          medicineId: { $in: medIds },
+          status: 'ACTIVE',
+        };
+        if (branchId === 'CENTRAL_WH') {
+          batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
+        } else {
+          batchFilter.branchId = branchId;
+        }
+
+        const batches = await this.batchModel
+          .find(batchFilter)
+          .select('medicineId stock')
+          .lean()
+          .exec();
+
+        for (const b of batches) {
+          const current = branchStockMap.get(b.medicineId) || 0;
+          branchStockMap.set(b.medicineId, current + (b.stock || 0));
+        }
+      }
+
+      const items = medicines.map((med: any) => {
+        const id = med._id.toString();
+        const effectiveStock = branchId && branchId !== 'all'
+          ? (branchStockMap.get(id) ?? med.stock ?? 0)
+          : (med.stock ?? 0);
+
+        // Chuẩn hóa quy cách bao bì gọn nhẹ (Hộp / Vỉ / Viên) kèm mã vạch con
+        const compactUnits = (med.units || []).map((u: any) => ({
+          unitName: u.unitName,
+          exchangeValue: u.exchangeValue || 1,
+          price: u.price || 0,
+          isBaseUnit: Boolean(u.isBaseUnit),
+          barcode: u.barcode || '',
+        }));
+
+        const rawImages = Array.isArray(med.images) && med.images.length > 0
+          ? med.images
+          : (med.image ? [med.image] : []);
+
+        return {
+          id,
+          _id: id,
+          name: med.name,
+          barcode: med.barcode || '',
+          sku: med.sku || '',
+          price: med.price || 0,
+          stock: effectiveStock,
+          category: med.category || '',
+          image: med.image || (rawImages[0] || ''),
+          images: rawImages,
+          drugClassification: med.drug_classification || 'COMMON_SUPPLEMENT',
+          prescriptionStatus: med.prescription_status ?? 0,
+          isMedicine: med.is_medicine ?? true,
+          units: compactUnits,
+          updatedAt: med.updatedAt ? new Date(med.updatedAt).toISOString() : new Date().toISOString(),
+        };
+      });
+
+      const nextCursor = items.length === limit ? items[items.length - 1].id : null;
+      const hasMore = items.length === limit;
+
+      return {
+        data: items,
+        items, // Giữ tương thích ngược
+        nextCursor,
+        hasMore,
+        page,
+        limit,
+        total,
+        serverTime: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      this.logger.error(`[getMedicinesInfiniteScroll] Lỗi truy vấn cuộn vô tận: ${error.message}`, error.stack);
+      throw new RpcException(error.message || 'Lỗi hệ thống khi tải danh sách thuốc cuộn vô tận');
+    }
+  }
 }
 

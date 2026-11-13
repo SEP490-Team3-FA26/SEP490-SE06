@@ -90,17 +90,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         loggedRolesList.some((r: string) => ['director', 'headbranch', 'head_branch'].includes(r)) ||
         loggedEmail === 'director@vinapharmacy.com';
 
-      if (isDirectorUser) {
-        navigation.replace('DirectorScreen');
-      } else if (loggedRole === 'pharmacist' || loggedRolesList.includes('pharmacist')) {
-        navigation.replace('PharmacistScreen');
-      } else if (loggedRole === 'warehouse' || loggedRolesList.includes('warehouse')) {
-        navigation.replace('WarehouseScreen');
-      } else if (loggedRole === 'branch' || loggedRolesList.includes('branch')) {
-        navigation.replace('BranchScreen');
-      } else if (loggedRole === 'admin' || loggedRolesList.includes('admin')) {
-        navigation.replace('AdminScreen');
-      }
+      // Khi đăng nhập thành công, AuthContext cập nhật user/role và AppNavigator
+      // sẽ tự động điều hướng sang màn hình actor tương ứng (không cần gọi replace thủ công)
 
       // Kiểm tra xem tài khoản này đã kích hoạt sinh trắc học trên máy chưa
       const currentIdentifier = emailOrPhone.toLowerCase().trim();

@@ -27,12 +27,12 @@ export const ProductDetailPage: React.FC = () => {
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
   const [relatedMedicines, setRelatedMedicines] = useState<any[]>([]);
   const [loadingRelated, setLoadingRelated] = useState<boolean>(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // Hiển thị toast thông báo
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  // Hiển thị toast thông báo nội bộ (Tuyệt đối không dùng alert của trình duyệt)
+  const showToast = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
   // Nạp thông tin sản phẩm từ API
@@ -97,12 +97,12 @@ export const ProductDetailPage: React.FC = () => {
     try {
       await cartService.addProduct(med, quantity);
       setAddedItems((prev) => ({ ...prev, [medId]: true }));
-      showToast(`Đã thêm ${quantity} ${unit || med.unit || 'sản phẩm'} vào giỏ hàng!`);
+      showToast(`Đã thêm ${quantity} ${unit || med.unit || 'sản phẩm'} vào giỏ hàng!`, 'success');
       setTimeout(() => {
         setAddedItems((prev) => ({ ...prev, [medId]: false }));
       }, 2000);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Lỗi khi thêm vào giỏ hàng');
+      showToast(err.response?.data?.message || err.message || 'Lỗi khi thêm vào giỏ hàng', 'warning');
     }
   };
 
@@ -155,11 +155,21 @@ export const ProductDetailPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-200">
-      {/* Toast thông báo thành công */}
-      {toastMessage && (
-        <div className="fixed top-20 right-6 z-[120] bg-slate-900 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2 animate-in slide-in-from-top-3">
-          <ShoppingBag size={16} className="text-emerald-400" />
-          <span>{toastMessage}</span>
+      {/* Toast thông báo nội bộ */}
+      {toast && (
+        <div
+          className={`fixed top-20 right-6 z-[120] text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2 animate-in slide-in-from-top-3 ${
+            toast.type === 'error' || toast.type === 'warning'
+              ? 'bg-rose-950 text-white border-rose-800'
+              : 'bg-slate-900 text-white border-slate-700'
+          }`}
+        >
+          {toast.type === 'error' || toast.type === 'warning' ? (
+            <AlertCircle size={16} className="text-amber-400 shrink-0" />
+          ) : (
+            <ShoppingBag size={16} className="text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 

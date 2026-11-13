@@ -69,7 +69,9 @@ export async function startTestContainer(): Promise<TestContainerEnvironment> {
     }
     memoryServerInstance = await MongoMemoryServer.create();
     uri = memoryServerInstance.getUri();
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+    });
     console.log(`✅ [Test Container In-Memory] Mongo Server ảo đã sẵn sàng tại: ${uri}`);
   }
 
@@ -78,11 +80,15 @@ export async function startTestContainer(): Promise<TestContainerEnvironment> {
     isRealContainer,
     // Hàm dọn dẹp sạch toàn bộ dữ liệu giữa các bài test
     clean: async () => {
-      if (mongoose.connection.readyState !== 0) {
-        const collections = mongoose.connection.collections;
-        for (const key of Object.keys(collections)) {
-          await collections[key].deleteMany({});
+      try {
+        if (mongoose.connection.readyState === 1) {
+          const collections = mongoose.connection.collections;
+          for (const key of Object.keys(collections)) {
+            await collections[key].deleteMany({}).catch(() => {});
+          }
         }
+      } catch (e) {
+        // Bỏ qua lỗi dọn dẹp
       }
     },
     // Hàm tắt container sau khi hoàn tất test suite

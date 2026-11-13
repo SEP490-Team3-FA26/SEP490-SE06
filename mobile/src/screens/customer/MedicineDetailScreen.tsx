@@ -24,6 +24,8 @@ import { AnimatedTouchable } from '../../components/ui/AnimatedTouchable';
 import { AnimatedPressable } from '../../components/clinical';
 import { showToast } from '../../components/ui/toastHelper';
 import { TypographyTokens } from '../../theme/tokens';
+import { MedicineSmartImage } from '../../components/medicine/MedicineSmartImage';
+import { useAuth } from '../../context/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GUEST_CART_KEY = '@abc_guest_cart';
@@ -58,6 +60,12 @@ export const MedicineDetailScreen: React.FC<{
 }> = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const { medicine: initialMed, medicineId } = route?.params || {};
+  const { user } = useAuth();
+  const rawRole = String(user?.role || '').toLowerCase().trim();
+  const userRolesList = Array.isArray((user as any)?.roles)
+    ? (user as any).roles.map((r: any) => String(r).toLowerCase().trim())
+    : [];
+  const isPharmacist = rawRole === 'pharmacist' || userRolesList.includes('pharmacist');
 
   const [medicine, setMedicine] = useState<Medicine | null>(initialMed || (medicineId ? null : DEFAULT_DEMO_MEDICINE));
   const [loading, setLoading] = useState<boolean>(Boolean(medicineId && !initialMed));
@@ -68,20 +76,54 @@ export const MedicineDetailScreen: React.FC<{
   const [cartCount, setCartCount] = useState<number>(0);
   const [relatedMedicines, setRelatedMedicines] = useState<Medicine[]>([]);
 
-  // Tải chi tiết thuốc nếu chỉ nhận được medicineId hoặc làm tươi thông tin
+  // Quản lý Carousel hình ảnh sản phẩm vuốt qua vuốt lại
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+
+  const productImages = useMemo(() => {
+    if (!medicine) return [];
+    const list: string[] = [];
+    if (Array.isArray(medicine.images) && medicine.images.length > 0) {
+      medicine.images.forEach((img: any) => {
+        if (img && typeof img === 'string' && img.trim().length > 0 && !list.includes(img.trim())) {
+          list.push(img.trim());
+        }
+      });
+    }
+    if (medicine.image && typeof medicine.image === 'string' && medicine.image.trim().length > 0 && !list.includes(medicine.image.trim())) {
+      list.unshift(medicine.image.trim());
+    }
+    return list.length > 0 ? list : ['https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=800&auto=format&fit=crop&q=80'];
+  }, [medicine]);
+
+  // Tải chi tiết thuốc từ API theo ID để nhận đầy đủ toàn bộ mảng images và thông tin dược học từ MongoDB
   const fetchMedicineDetail = useCallback(async () => {
     const id = medicineId || initialMed?.id;
     if (!id) return;
     try {
       setLoading(true);
-      const res = await ApiService.getMedicines({ search: initialMed?.name });
-      if (res && Array.isArray(res) && res.length > 0) {
-        const found = res.find((m: any) => m.id === id || m._id === id) || res[0];
-        setMedicine(found);
-        setSelectedUnit(found.unit || 'Hộp');
-        // Tìm các thuốc cùng chuyên mục để gợi ý
-        const related = res.filter((m: any) => m.id !== id && m.category === found.category).slice(0, 6);
-        setRelatedMedicines(related.length > 0 ? related : res.slice(1, 7));
+      // Ưu tiên gọi API chi tiết theo ID trực tiếp (/api/medicines/:id)
+      const fullMed = await ApiService.getMedicineById(id);
+      if (fullMed) {
+        setMedicine(fullMed);
+        setSelectedUnit(fullMed.unit || 'Hộp');
+      } else {
+        // Dự phòng tìm kiếm theo tên nếu không tìm thấy qua ID
+        const res = await ApiService.getMedicines({ search: initialMed?.name });
+        if (res && Array.isArray(res) && res.length > 0) {
+          const found = res.find((m: any) => m.id === id || m._id === id) || res[0];
+          setMedicine(found);
+          setSelectedUnit(found.unit || 'Hộp');
+        }
+      }
+
+      // Tải danh sách thuốc tương tự cùng chuyên mục để gợi ý
+      const cat = fullMed?.category || initialMed?.category;
+      if (cat) {
+        const relatedRes = await ApiService.getMedicines({ category: cat, limit: 7 });
+        if (Array.isArray(relatedRes) && relatedRes.length > 0) {
+          const related = relatedRes.filter((m: any) => (m.id || m._id) !== id).slice(0, 6);
+          setRelatedMedicines(related);
+        }
       }
     } catch (err) {
       console.warn('Lỗi tải chi tiết thuốc:', err);
@@ -172,6 +214,15 @@ export const MedicineDetailScreen: React.FC<{
   // Thêm thuốc vào giỏ hàng cục bộ và lưu trữ AsyncStorage
   const handleAddToCart = async (goToCart = false) => {
     if (!medicine) return;
+    // Quy chuẩn Dược phẩm GPP & Thông tư 07/2017/TT-BYT:
+    // Tuyệt đối không cho phép khách hàng tự ý thêm thuốc kê đơn (Rx) vào giỏ hàng (ngoại trừ Dược sĩ kê đơn)
+    if (medicine.isRx && !isPharmacist) {
+      showToast.info(
+        'Thuốc kê đơn (Rx)',
+        'Theo Thông tư 07/2017/TT-BYT, thuốc kê đơn cần có đơn thuốc của bác sĩ và phải được Dược sĩ tư vấn xác nhận trước khi mua.'
+      );
+      return;
+    }
     try {
       const cached = await AsyncStorage.getItem(GUEST_CART_KEY);
       let cart: CartItem[] = cached ? JSON.parse(cached) : [];
@@ -193,7 +244,11 @@ export const MedicineDetailScreen: React.FC<{
       setCartCount(total);
 
       if (goToCart) {
-        navigation.navigate('CustomerScreen', { initialTab: 'CART' });
+        if (isPharmacist) {
+          navigation.navigate('PharmacistScreen');
+        } else {
+          navigation.navigate('CustomerScreen', { initialTab: 'CART' });
+        }
       } else {
         showToast.success('Thành công', `Đã thêm ${quantity} ${selectedUnit} "${medicine.name}" vào giỏ hàng!`);
       }
@@ -269,7 +324,13 @@ export const MedicineDetailScreen: React.FC<{
           </AnimatedTouchable>
 
           <AnimatedTouchable
-            onPress={() => navigation.navigate('CustomerScreen', { initialTab: 'CART' })}
+            onPress={() => {
+              if (isPharmacist) {
+                navigation.navigate('PharmacistScreen');
+              } else {
+                navigation.navigate('CustomerScreen', { initialTab: 'CART' });
+              }
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.headerActionBtn}
           >
@@ -287,15 +348,55 @@ export const MedicineDetailScreen: React.FC<{
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
       >
-        {/* ─── Ảnh Sản Phẩm To Đột Phá (Hero Image Section) ────────────────── */}
+        {/* ─── Carousel Ảnh Sản Phẩm Vuốt Qua Vuốt Lại (Product Image Carousel) ─── */}
         <View style={styles.heroImageSection}>
-          <Image
-            source={{
-              uri: medicine.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=800&auto=format&fit=crop&q=80',
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(e) => {
+              const slideWidth = SCREEN_WIDTH - 28;
+              const index = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
+              setActiveImageIndex(index);
             }}
-            style={styles.heroImage}
-            resizeMode="contain"
-          />
+            contentContainerStyle={styles.carouselScrollContent}
+          >
+            {productImages.map((imgUri, idx) => (
+              <View key={`med-carousel-${idx}`} style={styles.carouselSlide}>
+                <MedicineSmartImage
+                  uri={imgUri}
+                  category={medicine.category}
+                  name={medicine.name}
+                  style={styles.heroImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Chỉ số ảnh góc phải (ví dụ: 1/2, 2/2) chuẩn E-Commerce */}
+          {productImages.length > 1 && (
+            <View style={styles.imageCounterBadge}>
+              <Text style={styles.imageCounterText}>
+                {activeImageIndex + 1}/{productImages.length}
+              </Text>
+            </View>
+          )}
+
+          {/* Dải chấm phân trang chuyển động (Pagination Dots) */}
+          {productImages.length > 1 && (
+            <View style={styles.paginationDotsContainer}>
+              {productImages.map((_, idx) => (
+                <View
+                  key={`dot-${idx}`}
+                  style={[
+                    styles.paginationDot,
+                    activeImageIndex === idx && styles.paginationDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          )}
 
           {/* Badges y khoa trên ảnh */}
           <View style={styles.imageBadgesContainer}>
@@ -556,11 +657,17 @@ export const MedicineDetailScreen: React.FC<{
       {/* ─── Bottom Action Bar Cố Định (Fixed Footer CTA) ──────────────────── */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom || 12 }]}>
         <AnimatedTouchable
-          onPress={() => navigation.navigate('CustomerScreen', { initialTab: 'AI_CHAT' })}
+          onPress={() => {
+            if (isPharmacist) {
+              navigation.navigate('PharmacistScreen');
+            } else {
+              navigation.navigate('CustomerScreen', { initialTab: 'AI_CHAT' });
+            }
+          }}
           style={styles.bottomAiBtn}
         >
-          <Ionicons name="chatbubble-ellipses" size={20} color="#0284C7" />
-          <Text style={styles.bottomAiBtnText}>Tư vấn AI</Text>
+          <Ionicons name={isPharmacist ? 'storefront-outline' : 'chatbubble-ellipses'} size={20} color="#0284C7" />
+          <Text style={styles.bottomAiBtnText}>{isPharmacist ? 'Quầy POS' : 'Tư vấn AI'}</Text>
         </AnimatedTouchable>
 
         <AnimatedTouchable
@@ -568,14 +675,14 @@ export const MedicineDetailScreen: React.FC<{
           style={styles.bottomAddToCartBtn}
         >
           <Ionicons name="cart" size={17} color="#0284C7" style={{ marginRight: 4 }} />
-          <Text style={styles.bottomAddToCartText}>Thêm giỏ</Text>
+          <Text style={styles.bottomAddToCartText}>{isPharmacist ? 'Thêm đơn' : 'Thêm giỏ'}</Text>
         </AnimatedTouchable>
 
         <AnimatedTouchable
           onPress={() => handleAddToCart(true)}
           style={styles.bottomBuyNowBtn}
         >
-          <Text style={styles.bottomBuyNowText}>Mua ngay</Text>
+          <Text style={styles.bottomBuyNowText}>{isPharmacist ? 'Vào POS' : 'Mua ngay'}</Text>
         </AnimatedTouchable>
       </View>
     </View>
@@ -699,14 +806,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  // Hero Image
+  // Hero Image Carousel Vuốt Qua Vuốt Lại
   heroImageSection: {
     width: '100%',
-    height: SCREEN_WIDTH * 0.72,
+    height: SCREEN_WIDTH * 0.78,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
     shadowColor: '#000',
@@ -715,9 +820,56 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
   },
+  carouselScrollContent: {
+    alignItems: 'center',
+  },
+  carouselSlide: {
+    width: SCREEN_WIDTH - 28, // Chiều rộng bằng khung chứa (trừ padding scrollContent 14 * 2)
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   heroImage: {
-    width: '85%',
-    height: '85%',
+    width: '90%',
+    height: '90%',
+  },
+  imageCounterBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    zIndex: 5,
+  },
+  imageCounterText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  paginationDotsContainer: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 5,
+  },
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#CBD5E1',
+  },
+  paginationDotActive: {
+    width: 18,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#0284C7',
   },
   imageBadgesContainer: {
     position: 'absolute',

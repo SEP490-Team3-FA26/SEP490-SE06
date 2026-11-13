@@ -363,6 +363,13 @@ export function CustomerOrders() {
 
   // Feedback Modal State (Đánh giá ngay tại chỗ không cần redirect)
   const [feedbackOrder, setFeedbackOrder] = useState<any | null>(null);
+  const [orderToast, setOrderToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+
+  // Hiển thị toast thông báo nội bộ (Tuyệt đối không dùng alert của trình duyệt)
+  const showOrderToast = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setOrderToast({ message, type });
+    setTimeout(() => setOrderToast(null), 3500);
+  };
   const [feedbackRating, setFeedbackRating] = useState<number>(5);
   const [feedbackTags, setFeedbackTags] = useState<string[]>(['Dược sĩ tận tâm', 'Thuốc chuẩn chính hãng']);
   const [feedbackComment, setFeedbackComment] = useState<string>('');
@@ -445,8 +452,9 @@ export function CustomerOrders() {
       // Đánh dấu đã đánh giá trong UI
       setOrders(prev => prev.map(o => (String(o._id) === orderKey || String(o.orderCode) === orderKey) ? { ...o, isReviewed: true } : o));
       window.dispatchEvent(new Event('loyaltyUpdated'));
+      showOrderToast('Cảm ơn bạn đã gửi đánh giá trải nghiệm mua thuốc!', 'success');
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Lỗi khi gửi đánh giá');
+      showOrderToast(err.response?.data?.message || err.message || 'Lỗi khi gửi đánh giá', 'warning');
     } finally {
       setIsSubmittingFeedback(false);
     }
@@ -715,7 +723,24 @@ export function CustomerOrders() {
   };
 
   return (
-    <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
+    <div className="flex flex-col gap-6 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 animate-fade-in relative">
+      {/* Toast thông báo nội bộ */}
+      {orderToast && (
+        <div
+          className={`fixed top-20 right-6 z-[120] text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2 animate-in slide-in-from-top-3 ${
+            orderToast.type === 'error' || orderToast.type === 'warning'
+              ? 'bg-rose-950 text-white border-rose-800'
+              : 'bg-slate-900 text-white border-slate-700'
+          }`}
+        >
+          {orderToast.type === 'error' || orderToast.type === 'warning' ? (
+            <AlertCircle size={16} className="text-amber-400 shrink-0" />
+          ) : (
+            <CheckSquare size={16} className="text-emerald-400 shrink-0" />
+          )}
+          <span>{orderToast.message}</span>
+        </div>
+      )}
       {/* ============================================================ */}
       {/* 1. PREMIUM HERO BANNER (Đồng bộ format chuẩn CustomerShop.tsx) */}
       {/* ============================================================ */}

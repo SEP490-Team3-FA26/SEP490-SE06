@@ -26,11 +26,8 @@ class SocketServiceClass {
     this.appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'active') {
         if (this.currentToken && (!this.socket || !this.isConnected)) {
-          console.log('📱 App quay lại Foreground: Tái kết nối Socket.IO...');
           this.initSocket(this.currentToken);
         }
-      } else if (nextState === 'background') {
-        console.log('📱 App vào Background: Giữ socket ở trạng thái chờ tiết kiệm pin');
       }
     });
   }
@@ -50,7 +47,6 @@ class SocketServiceClass {
     }
 
     const baseUrl = ApiService.baseUrl;
-    console.log(`🔌 Initializing Socket.IO connection to ${baseUrl} ...`);
 
     try {
       this.socket = io(baseUrl, {
@@ -77,17 +73,14 @@ class SocketServiceClass {
     this.socket.on('connect', () => {
       this.isConnected = true;
       this.hasLoggedSocketError = false;
-      console.log('✅ Socket connected successfully to gateway');
     });
 
-    this.socket.on('disconnect', (reason) => {
+    this.socket.on('disconnect', () => {
       this.isConnected = false;
-      console.log(`❌ Socket disconnected from gateway (${reason})`);
     });
 
-    this.socket.on('connect_error', (_err) => {
+    this.socket.on('connect_error', () => {
       if (!this.hasLoggedSocketError) {
-        console.log('ℹ️ Socket gateway offline/unreachable from mobile client. Realtime fallback enabled.');
         this.hasLoggedSocketError = true;
       }
     });
@@ -105,7 +98,6 @@ class SocketServiceClass {
   }
 
   private handleIncomingNotification(type: string, data: any): void {
-    console.log(`🔔 Received event [${type}] from Socket:`, data);
     let notification: any = {};
     if (typeof data === 'object' && data !== null) {
       notification = { ...data, type, timestamp: data.timestamp || data.createdAt || new Date().toISOString() };
@@ -131,7 +123,6 @@ class SocketServiceClass {
 
   public disconnect(): void {
     if (this.socket) {
-      console.log('🔌 Disconnecting socket and cleaning all listeners...');
       this.socket.disconnect();
       this.socket.removeAllListeners();
       this.socket = null;
