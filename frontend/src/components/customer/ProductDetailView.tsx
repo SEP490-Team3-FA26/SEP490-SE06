@@ -20,6 +20,7 @@ import {
   Package,
 } from 'lucide-react';
 import { ProductReviewsSection } from './ProductReviewsSection';
+import { isPrescriptionMedicine } from '../../utils/prescriptionUtils';
 
 interface ProductDetailViewProps {
   medicine: any;
@@ -43,7 +44,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   const med = medicine || {};
   const medId = med.id || med._id || '';
-  const isRx = med.drug_classification === 'PRESCRIPTION_ANTIBIOTIC' || med.prescription_status === 1;
+  const isRx = isPrescriptionMedicine(med);
   const isOutOfStock = med.stock !== undefined && med.stock <= 0;
 
   // Xử lý danh sách ảnh sản phẩm (Gallery thumbnails)
@@ -320,68 +321,104 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             )}
           </div>
 
-          {/* Stepper số lượng & Nút Thêm vào giỏ / Mua ngay */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-            {/* Bộ tăng giảm số lượng */}
-            <div className="flex items-center justify-between sm:justify-start gap-2 bg-slate-100 border border-slate-200 rounded-2xl p-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                disabled={isOutOfStock}
-                className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs disabled:opacity-40 cursor-pointer"
-              >
-                -
-              </button>
-              <span className="w-10 text-center font-black text-slate-900 text-sm">
-                {quantity}
-              </span>
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.min(med.stock || 999, q + 1))}
-                disabled={isOutOfStock || quantity >= (med.stock || 999)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs disabled:opacity-40 cursor-pointer"
-              >
-                +
-              </button>
+          {/* Stepper số lượng & Nút Thêm vào giỏ / Mua ngay hoặc Cảnh báo Thuốc kê đơn */}
+          {isRx ? (
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+                <ShieldAlert size={22} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs sm:text-sm font-black text-amber-900">
+                    Thuốc kê đơn (Rx) - Bán trực tiếp tại nhà thuốc
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-amber-700 leading-relaxed font-medium">
+                    Theo quy định của Bộ Y Tế, thuốc kê đơn cần có đơn thuốc hợp lệ của bác sĩ và không được phép đặt mua trực tuyến. Quý khách vui lòng mang đơn thuốc đến trực tiếp nhà thuốc ABC Pharmacy gần nhất hoặc liên hệ Dược sĩ để được tư vấn.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  type="button"
+                  disabled
+                  className="flex-1 py-3.5 px-6 rounded-2xl font-bold text-xs uppercase tracking-wider bg-slate-100 text-slate-400 border border-slate-200 flex items-center justify-center gap-2 cursor-not-allowed opacity-90"
+                  title="Thuốc kê đơn không được phép mua trực tuyến theo quy định Bộ Y Tế"
+                >
+                  <ShieldAlert size={16} className="text-amber-500" />
+                  <span>Thuốc kê đơn - Mua tại quầy</span>
+                </button>
+
+                <a
+                  href="/customer/chat"
+                  className="py-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider bg-[#0057cd] hover:bg-[#0047a5] text-white flex items-center justify-center gap-2 shadow-md shadow-blue-500/25 transition-all active:scale-98 cursor-pointer shrink-0"
+                >
+                  <PhoneCall size={16} />
+                  <span>Tư vấn Dược sĩ 24/7</span>
+                </a>
+              </div>
             </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+              {/* Bộ tăng giảm số lượng */}
+              <div className="flex items-center justify-between sm:justify-start gap-2 bg-slate-100 border border-slate-200 rounded-2xl p-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  disabled={isOutOfStock}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs disabled:opacity-40 cursor-pointer"
+                >
+                  -
+                </button>
+                <span className="w-10 text-center font-black text-slate-900 text-sm">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.min(med.stock || 999, q + 1))}
+                  disabled={isOutOfStock || quantity >= (med.stock || 999)}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs disabled:opacity-40 cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
 
-            {/* Nút Thêm vào giỏ hàng */}
-            <button
-              type="button"
-              disabled={isOutOfStock}
-              onClick={() => onAddToCart(med, quantity * currentMultiplier, selectedUnit)}
-              className={`flex-1 py-3.5 px-6 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer ${
-                isOutOfStock
-                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                  : isAdded
-                  ? 'bg-emerald-500 text-white shadow-emerald-200'
-                  : 'bg-[#0057cd] hover:bg-[#0047a5] text-white shadow-blue-500/25'
-              }`}
-            >
-              {isOutOfStock ? (
-                'Tạm hết hàng'
-              ) : isAdded ? (
-                <>
-                  <CheckCircle2 size={18} /> Đã thêm vào giỏ!
-                </>
-              ) : (
-                <>
-                  <ShoppingCart size={18} /> Thêm vào giỏ hàng
-                </>
-              )}
-            </button>
-
-            {/* Nút Mua Ngay */}
-            {onBuyNow && !isOutOfStock && (
+              {/* Nút Thêm vào giỏ hàng */}
               <button
                 type="button"
-                onClick={() => onBuyNow(med, quantity * currentMultiplier, selectedUnit)}
-                className="py-3.5 px-6 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-98 cursor-pointer"
+                disabled={isOutOfStock}
+                onClick={() => onAddToCart(med, quantity * currentMultiplier, selectedUnit)}
+                className={`flex-1 py-3.5 px-6 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer ${
+                  isOutOfStock
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                    : isAdded
+                    ? 'bg-emerald-500 text-white shadow-emerald-200'
+                    : 'bg-[#0057cd] hover:bg-[#0047a5] text-white shadow-blue-500/25'
+                }`}
               >
-                <Zap size={18} /> Mua ngay
+                {isOutOfStock ? (
+                  'Tạm hết hàng'
+                ) : isAdded ? (
+                  <>
+                    <CheckCircle2 size={18} /> Đã thêm vào giỏ!
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart size={18} /> Thêm vào giỏ hàng
+                  </>
+                )}
               </button>
-            )}
-          </div>
+
+              {/* Nút Mua Ngay */}
+              {onBuyNow && !isOutOfStock && (
+                <button
+                  type="button"
+                  onClick={() => onBuyNow(med, quantity * currentMultiplier, selectedUnit)}
+                  className="py-3.5 px-6 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-98 cursor-pointer"
+                >
+                  <Zap size={18} /> Mua ngay
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Bảng tóm tắt thông số dược học nhanh */}
           <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">

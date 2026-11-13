@@ -134,6 +134,13 @@ export function Landing() {
   const [loadingFlashSale, setLoadingFlashSale] = useState<boolean>(true);
   const [cartCount, setCartCount] = useState(0);
   const [addedItems, setAddedItems] = useState<{ [key: string]: boolean }>({});
+  const [landingToast, setLandingToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+
+  // Hiển thị toast thông báo nội bộ (Tuyệt đối không dùng alert của trình duyệt)
+  const showLandingToast = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setLandingToast({ message, type });
+    setTimeout(() => setLandingToast(null), 3500);
+  };
 
   // Multi-dimensional Search & Filter states (Long Chau & Pharmacity style)
   const [searchQuery, setSearchQuery] = useState("");
@@ -566,7 +573,7 @@ export function Landing() {
       }, 1500);
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Lỗi kết nối khi thêm vào giỏ";
-      alert(msg);
+      showLandingToast(msg, "warning");
       console.error(err);
     }
   };
@@ -578,7 +585,7 @@ export function Landing() {
   const handlePrescriptionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prescriptionForm.fullName || !prescriptionForm.phoneNumber) {
-      alert("Vui lòng nhập họ tên và số điện thoại để Dược sĩ liên hệ!");
+      showLandingToast("Vui lòng nhập họ tên và số điện thoại để Dược sĩ liên hệ!", "warning");
       return;
     }
     setPrescriptionSubmitted(true);
@@ -586,7 +593,7 @@ export function Landing() {
       setPrescriptionSubmitted(false);
       setIsPrescriptionModalOpen(false);
       setPrescriptionForm({ fullName: "", phoneNumber: "", address: "", note: "", file: null });
-      alert("Đã gửi toa thuốc thành công! Dược sĩ chuyên môn ABC Pharmacy sẽ gọi điện tư vấn và báo giá trong 15 phút.");
+      showLandingToast("Đã gửi toa thuốc thành công! Dược sĩ chuyên môn ABC Pharmacy sẽ gọi điện tư vấn và báo giá trong 15 phút.", "success");
     }, 1500);
   };
 
@@ -601,7 +608,24 @@ export function Landing() {
   };
 
   return (
-    <div className="bg-[#f4f7fb] text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-x-clip min-h-screen flex flex-col" ref={containerRef}>
+    <div className="bg-[#f4f7fb] text-slate-800 font-sans selection:bg-[#0d6efd] selection:text-white overflow-x-clip min-h-screen flex flex-col relative" ref={containerRef}>
+      {/* Toast thông báo nội bộ */}
+      {landingToast && (
+        <div
+          className={`fixed top-20 right-6 z-[200] text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2 animate-in slide-in-from-top-3 ${
+            landingToast.type === 'error' || landingToast.type === 'warning'
+              ? 'bg-rose-950 text-white border-rose-800'
+              : 'bg-slate-900 text-white border-slate-700'
+          }`}
+        >
+          {landingToast.type === 'error' || landingToast.type === 'warning' ? (
+            <AlertCircle size={16} className="text-amber-400 shrink-0" />
+          ) : (
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          )}
+          <span>{landingToast.message}</span>
+        </div>
+      )}
 
       <CustomerHeader cartIconRef={cartIconRef} />
 

@@ -195,15 +195,6 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onDecline}
-            aria-label="Đóng"
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         {/* Thanh Tiến Độ Đọc Siêu Mảnh (1.5px) */}
@@ -351,6 +342,22 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
             </p>
           </div>
 
+          {/* Điều 9: Miễn trừ trách nhiệm y tế & Xác nhận AI chỉ là công cụ hỗ trợ */}
+          <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-300 space-y-1.5 shadow-2xs">
+            <h4 className="font-black text-amber-950 text-xs flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 font-black text-[11px] flex items-center justify-center shrink-0">
+                ⚖️
+              </span>
+              <span>Xác nhận AI chỉ là công cụ hỗ trợ & Miễn trừ trách nhiệm</span>
+            </h4>
+            <p className="pl-6.5 text-amber-900 text-[11px] leading-relaxed">
+              Trợ lý Dược sĩ AI <strong>chỉ đóng vai trò là công cụ hỗ trợ tra cứu thông tin tham khảo ban đầu</strong>. AI <strong>tuyệt đối không thay thế việc khám chữa bệnh của Bác sĩ hoặc phán đoán chuyên môn của Dược sĩ</strong>.
+            </p>
+            <p className="pl-6.5 text-amber-950 font-bold text-[11px] leading-relaxed">
+              Nhà thuốc và hệ thống <strong>không chịu bất kỳ trách nhiệm pháp lý hay y tế nào</strong> đối với mọi hành vi tự ý chẩn đoán hoặc tự ý sử dụng thuốc mà không có sự chỉ định của Bác sĩ / Dược sĩ chuyên môn.
+            </p>
+          </div>
+
           {/* Điểm neo chạm đáy */}
           <div className="pt-2 pb-1 text-center text-[11px] text-slate-400 italic select-none">
             — Bạn đã đọc hết nội quy an toàn —
@@ -413,7 +420,7 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
                     : "text-slate-500 cursor-not-allowed"
                   }`}
               >
-                Tôi đã đọc kỹ và đồng ý tuân thủ toàn bộ <strong>Nội quy an toàn</strong> ở trên.
+                Tôi xác nhận hiểu rõ: <strong>AI chỉ là công cụ hỗ trợ tham khảo và không chịu trách nhiệm</strong>; đồng ý tuân thủ toàn bộ Nội quy an toàn y tế ở trên.
               </label>
 
               {/* Tag trạng thái có hiệu ứng chuyển đổi */}
@@ -446,28 +453,20 @@ export const AIConsultantTermsModal: React.FC<AIConsultantTermsModalProps> = ({
             </div>
           )}
 
-          {/* Nút Thao Tác (Gọn gàng) */}
-          <div className="flex items-center justify-between gap-3 pt-0.5">
-            <button
-              type="button"
-              onClick={onDecline}
-              disabled={isSubmitting}
-              className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-medium transition-colors cursor-pointer"
-            >
-              Từ chối & Đóng
-            </button>
-
+          {/* Nút Thao Tác Bắt Buộc: Duy nhất nút Xác Nhận (Tuyệt đối không có nút tắt hay từ chối) */}
+          <div className="pt-1">
             <button
               type="button"
               onClick={handleAccept}
               disabled={!hasScrolledToBottom || !isAgreementChecked || isSubmitting}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${hasScrolledToBottom && isAgreementChecked && !isSubmitting
-                  ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer active:scale-95"
-                  : "bg-slate-100 text-slate-400 border border-slate-200/60 cursor-not-allowed"
-                }`}
+              className={`w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
+                hasScrolledToBottom && isAgreementChecked && !isSubmitting
+                  ? "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25 cursor-pointer active:scale-98"
+                  : "bg-slate-100 text-slate-400 border border-slate-200/80 cursor-not-allowed"
+              }`}
             >
-              <Check size={14} />
-              <span>Xác nhận & Bắt đầu nhắn tin</span>
+              <Check size={16} />
+              <span>{isSubmitting ? "Đang ghi nhận xác nhận..." : "Tôi xác nhận AI chỉ là công cụ hỗ trợ & Bắt đầu nhắn tin"}</span>
             </button>
           </div>
         </div>
